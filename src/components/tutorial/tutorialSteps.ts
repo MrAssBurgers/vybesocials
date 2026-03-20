@@ -6,96 +6,50 @@ export interface TutorialStep {
   title: string;
   description: string;
   position: 'top' | 'bottom' | 'left' | 'right';
-  // Navigation requirements
   requiresRoute?: string;
-  // Action to perform before showing step
   action?: 'openCreateMenu' | 'openVYBEHub' | 'closeMenus' | 'navigateToSettings' | 'navigateToThemes';
-  // Skip if element not found (optional steps)
   optional?: boolean;
-  // Highlight a bottom nav item during this step
   highlightNav?: string;
-  // Feature category for grouping
   category?: 'social' | 'content' | 'communication' | 'discovery' | 'customization';
 }
 
-// Mobile/Tablet steps - uses bottom nav
+// Mobile/Tablet — 6 simple steps
 const mobileTabletSteps: TutorialStep[] = [
   {
     id: 'welcome',
     targetSelector: '[data-tutorial="tutorial-welcome-center"]',
     title: '👋 Welcome to VYBE!',
-    description: 'Your all-in-one social universe! This quick tour covers every feature so you know exactly where everything is. Let\'s go!',
+    description: 'Your social universe — posts, DMs, communities, a token shop, and more. Let\'s show you around!',
     position: 'bottom',
     requiresRoute: '/home',
     action: 'closeMenus',
-    highlightNav: 'home-nav',
     category: 'social',
-  },
-  {
-    id: 'stories',
-    targetSelector: '[data-tutorial="stories"]',
-    title: '✨ Stories',
-    description: 'Share photos, videos, or text that disappear after 24 hours. Tap any circle to watch, tap yours to add. You can set stories to "Close Friends Only" for private sharing.',
-    position: 'bottom',
-    requiresRoute: '/home',
-    optional: true,
-    category: 'content',
   },
   {
     id: 'feed',
     targetSelector: '[data-tutorial="feed-area"]',
     title: '📱 Your Feed',
-    description: 'Two feeds in one: "For You" shows trending posts from everyone, "Following" shows only people you follow. Double-tap any post to like it, tap the bookmark icon to save for later.',
+    description: '"For You" shows trending posts. "Global" shows everything. Double-tap to like, bookmark to save.',
     position: 'bottom',
     requiresRoute: '/home',
     optional: true,
     category: 'social',
   },
   {
-    id: 'explore',
-    targetSelector: '[data-tutorial="explore-nav"]',
-    title: '🔍 Explore & Discover',
-    description: 'Search for people, posts, hashtags, and trending content. Browse categories, discover new creators, and find viral clips. Our AI learns your taste over time!',
-    position: 'top',
-    requiresRoute: '/home',
-    highlightNav: 'explore-nav',
-    category: 'discovery',
-  },
-  {
     id: 'create-button',
     targetSelector: '[data-tutorial="create-nav"]',
-    title: '➕ Create Content',
-    description: 'Your creative hub! Tap once to see creation options, double-tap for the VYBE Hub with marketplace, events, and communities.',
+    title: '➕ Create & Discover',
+    description: 'Tap to post photos/videos. Double-tap for the Hub — communities, marketplace, and events.',
     position: 'top',
     requiresRoute: '/home',
     highlightNav: 'create-nav',
     category: 'content',
-  },
-  {
-    id: 'create-menu',
-    targetSelector: '.liquid-glass.rounded-3xl',
-    title: '📸 Create Menu',
-    description: '"Create Post" to upload photos & videos with captions, filters, and tags. "Camera" for instant captures. Posts can be liked, commented on, shared, and bookmarked by others.',
-    position: 'bottom',
-    action: 'openCreateMenu',
-    highlightNav: 'create-nav',
-    category: 'content',
-  },
-  {
-    id: 'vybe-hub',
-    targetSelector: '.liquid-glass.rounded-3xl',
-    title: '🚀 VYBE Hub',
-    description: '🛍️ Marketplace: Buy & sell items with built-in payments. 📅 Events: Create & join meetups, parties, and hangouts with RSVP. 👥 Communities: Group servers with text channels, voice rooms, and roles.',
-    position: 'bottom',
-    action: 'openVYBEHub',
-    highlightNav: 'create-nav',
-    category: 'discovery',
   },
   {
     id: 'messages',
     targetSelector: '[data-tutorial="messages-nav"]',
     title: '💬 Messages',
-    description: 'Full-featured chat: 1-on-1 and group DMs, read receipts, typing indicators, voice messages, GIFs, reactions, file sharing, and video/voice calls. Red badge = unread messages!',
+    description: 'Chat 1-on-1 or in groups with read receipts, voice messages, reactions, and video calls.',
     position: 'top',
     requiresRoute: '/home',
     action: 'closeMenus',
@@ -103,20 +57,10 @@ const mobileTabletSteps: TutorialStep[] = [
     category: 'communication',
   },
   {
-    id: 'notifications',
-    targetSelector: '[data-tutorial="notifications-badge"]',
-    title: '🔔 Notifications & Referrals',
-    description: 'All your activity in one place: likes, comments, follows, and more. Tap here to also find your referral link — invite friends and earn rewards together!',
-    position: 'bottom',
-    requiresRoute: '/home',
-    optional: true,
-    category: 'social',
-  },
-  {
     id: 'profile',
     targetSelector: '[data-tutorial="profile-nav"]',
-    title: '👤 Your Profile',
-    description: 'View your posts, followers, following, and badges. Edit your display name, bio, avatar, and link. Your unique @username is your identity across VYBE. Access Settings from here too!',
+    title: '👤 Your Profile & Locker',
+    description: 'Edit your bio, avatar, and badges. Open your Locker to equip cosmetics from the Token Shop.',
     position: 'top',
     requiresRoute: '/home',
     highlightNav: 'profile-nav',
@@ -126,7 +70,7 @@ const mobileTabletSteps: TutorialStep[] = [
     id: 'complete',
     targetSelector: '[data-tutorial="tutorial-welcome-center"]',
     title: '🎉 You\'re All Set!',
-    description: 'Pro tips: Long-press posts for more options, shake your phone to find nearby friends with FriendDrop, and check your daily challenges to earn XP & badges. Replay this tour anytime from Settings → Help!',
+    description: 'Check your Daily Brief for personalized updates, earn tokens through challenges, and explore Communities. Replay this from Settings → Help!',
     position: 'bottom',
     requiresRoute: '/home',
     action: 'closeMenus',
@@ -134,33 +78,23 @@ const mobileTabletSteps: TutorialStep[] = [
   },
 ];
 
-// Desktop steps - uses sidebar
+// Desktop — 6 simple steps
 const desktopSteps: TutorialStep[] = [
   {
     id: 'welcome',
     targetSelector: '[data-tutorial="sidebar-home"]',
     title: '👋 Welcome to VYBE!',
-    description: 'Your all-in-one social universe on desktop! This tour shows you every feature so you know exactly where everything is. Click "Next" to start.',
+    description: 'Your social universe — posts, DMs, communities, a token shop, and more. Let\'s show you around!',
     position: 'right',
     requiresRoute: '/home',
     action: 'closeMenus',
     category: 'social',
   },
   {
-    id: 'stories',
-    targetSelector: '[data-tutorial="stories"]',
-    title: '✨ Stories',
-    description: 'Share 24-hour stories with photos, videos, or text. Click any circle to watch, click yours to add new content. Set stories to "Close Friends Only" for private sharing.',
-    position: 'bottom',
-    requiresRoute: '/home',
-    optional: true,
-    category: 'content',
-  },
-  {
     id: 'feed',
     targetSelector: '[data-tutorial="feed-area"]',
     title: '📱 Your Feed',
-    description: '"For You" shows trending posts from everyone, "Following" shows only people you follow. Double-click to like, hover for quick actions, bookmark to save posts for later.',
+    description: '"For You" shows trending posts. "Global" shows everything. Double-click to like, bookmark to save.',
     position: 'bottom',
     requiresRoute: '/home',
     optional: true,
@@ -170,7 +104,7 @@ const desktopSteps: TutorialStep[] = [
     id: 'explore',
     targetSelector: '[data-tutorial="sidebar-explore"]',
     title: '🔍 Explore',
-    description: 'Search for people, posts, hashtags, and trending content. Browse categories, discover creators, and find viral clips. AI recommendations improve as you use the app.',
+    description: 'Search for people, posts, and trending content. AI recommendations improve as you use the app.',
     position: 'right',
     requiresRoute: '/home',
     category: 'discovery',
@@ -179,91 +113,25 @@ const desktopSteps: TutorialStep[] = [
     id: 'messages',
     targetSelector: '[data-tutorial="sidebar-messages"]',
     title: '💬 Messages',
-    description: 'Full-featured chat: 1-on-1 and group DMs, read receipts, typing indicators, voice messages, GIFs, reactions, file sharing, and HD video/voice calls.',
+    description: 'Chat 1-on-1 or in groups with read receipts, voice messages, reactions, and video calls.',
     position: 'right',
     requiresRoute: '/home',
     category: 'communication',
   },
   {
-    id: 'community',
-    targetSelector: '[data-tutorial="sidebar-community"]',
-    title: '👥 Communities',
-    description: 'Join or create community servers with text channels, voice rooms, custom roles, and permissions. Invite friends and build your own community with moderation tools.',
-    position: 'right',
-    requiresRoute: '/home',
-    category: 'social',
-  },
-  {
-    id: 'market',
-    targetSelector: '[data-tutorial="sidebar-market"]',
-    title: '🛍️ Marketplace',
-    description: 'Buy and sell within the VYBE community. List items with photos and pricing, browse categories, chat with sellers, and complete transactions securely.',
-    position: 'right',
-    requiresRoute: '/home',
-    category: 'discovery',
-  },
-  {
-    id: 'events',
-    targetSelector: '[data-tutorial="sidebar-events"]',
-    title: '📅 Events',
-    description: 'Discover and create meetups, parties, and online events. RSVP, invite friends, and get reminders. See what\'s happening near you or globally.',
-    position: 'right',
-    requiresRoute: '/home',
-    category: 'discovery',
-  },
-  {
-    id: 'create',
-    targetSelector: '[data-tutorial="sidebar-create"]',
-    title: '➕ Create Content',
-    description: 'Upload photos, videos, and clips to share with your followers. Add captions, tags, and filters. Posts can be liked, commented on, shared, and bookmarked.',
-    position: 'right',
-    requiresRoute: '/home',
-    category: 'content',
-  },
-  {
-    id: 'notifications',
-    targetSelector: '[data-tutorial="sidebar-notifications"]',
-    title: '🔔 Notifications & Referrals',
-    description: 'All your activity in one place: likes, comments, follows, and more. Tap the notifications bell to also find your referral link — invite friends and earn rewards together!',
-    position: 'right',
-    requiresRoute: '/home',
-    optional: true,
-    category: 'social',
-  },
-  {
     id: 'profile',
     targetSelector: '[data-tutorial="sidebar-profile"]',
-    title: '👤 Your Profile',
-    description: 'View and edit your profile: display name, bio, avatar, link, and badges. See your posts, followers, and following. Your @username is your unique identity on VYBE.',
+    title: '👤 Your Profile & Locker',
+    description: 'Edit your bio, avatar, and badges. Open your Locker to equip cosmetics from the Token Shop.',
     position: 'right',
     requiresRoute: '/home',
     category: 'social',
-  },
-  {
-    id: 'settings-highlight',
-    targetSelector: '[data-tutorial="sidebar-settings"]',
-    title: '⚙️ Settings',
-    description: 'This is your Settings button. Let\'s open it and show you the Theme Editor where you can fully customize VYBE\'s look and feel!',
-    position: 'right',
-    requiresRoute: '/home',
-    action: 'navigateToSettings',
-    category: 'customization',
-  },
-  {
-    id: 'themes',
-    targetSelector: '[data-tutorial="themes-section"]',
-    title: '🎨 Theme Editor',
-    description: 'Design your own theme or browse the Theme Marketplace! Change colors, fonts, dark/light mode, and more. Make VYBE truly yours.',
-    position: 'right',
-    requiresRoute: '/settings',
-    action: 'navigateToThemes',
-    category: 'customization',
   },
   {
     id: 'complete',
     targetSelector: '[data-tutorial="sidebar-home"]',
     title: '🎉 You\'re Ready!',
-    description: 'Pro tips: Use keyboard shortcuts (? to see all), right-click for context menus, check daily challenges for XP & badges, and visit Settings → Help to replay this tour anytime.',
+    description: 'Check your Daily Brief for personalized updates, earn tokens through challenges, and explore Communities. Replay this from Settings → Help!',
     position: 'right',
     requiresRoute: '/home',
     action: 'closeMenus',
@@ -284,14 +152,10 @@ export function getStepsForLayout(layout: TutorialLayoutMode): TutorialStep[] {
 
 export function getLayoutLabel(layout: TutorialLayoutMode): string {
   switch (layout) {
-    case 'desktop':
-      return '💻 Desktop';
-    case 'tablet':
-      return '📱 Tablet';
-    case 'mobile':
-      return '📱 Mobile';
-    default:
-      return '📱 Mobile';
+    case 'desktop': return '💻 Desktop';
+    case 'tablet': return '📱 Tablet';
+    case 'mobile': return '📱 Mobile';
+    default: return '📱 Mobile';
   }
 }
 

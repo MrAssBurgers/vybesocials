@@ -5,7 +5,7 @@ import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { BugBountyOverlay } from '@/components/error/BugBountyOverlay';
-import { VYBELogo } from '@/components/ui/VYBELogo';
+// VYBELogo removed from fallback for instant navigation
 
 // CRITICAL PAGE - Load eagerly for instant first navigation
 import Home from "@/pages/Home";
@@ -82,15 +82,9 @@ const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => 
 const ProductionDebugPanel = lazy(() => import("@/components/debug/ProductionDebugPanel").then(m => ({ default: m.ProductionDebugPanel })));
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
-// Minimal fallback - just shows content area, no skeleton flicker
+// Invisible fallback - no spinner, instant feel
 const PageFallback = memo(() => (
-  <div className="min-h-screen bg-background flex items-center justify-center px-6">
-    <div className="flex flex-col items-center gap-4 text-center">
-      <VYBELogo size="md" showText={false} />
-      <div className="w-8 h-8 rounded-full border-[3px] border-primary/25 border-t-primary animate-spin" />
-      <p className="text-sm text-muted-foreground">Loading VYBE…</p>
-    </div>
-  </div>
+  <div className="min-h-screen bg-background" />
 ));
 
 /**

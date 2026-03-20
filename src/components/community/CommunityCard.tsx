@@ -119,16 +119,16 @@ export const CommunityCard = memo(function CommunityCard({
         <div className="p-3.5 flex flex-col flex-1">
           <div className="flex items-start gap-3">
             {/* Icon overlapping cover */}
-            <div className="shrink-0 -mt-8 relative">
+            <div className="shrink-0 -mt-6 relative">
               {iconUrl ? (
                 <img 
                   src={iconUrl} 
                   alt={community.name}
-                  className="w-11 h-11 rounded-xl object-cover border-2 border-background shadow-md"
+                  className="w-12 h-12 rounded-xl object-cover border-[2.5px] border-background shadow-md"
                 />
               ) : (
                 <div className={cn(
-                  "w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm border-2 border-background shadow-md",
+                  "w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm border-[2.5px] border-background shadow-md",
                   `bg-gradient-to-br ${gradient}`
                 )}>
                   {community.name.slice(0, 2).toUpperCase()}
@@ -217,11 +217,11 @@ export const PublicCommunityCard = memo(function PublicCommunityCard({
             <img 
               src={iconUrl} 
               alt={community.name}
-              className="w-10 h-10 rounded-lg object-cover border-2 border-background -mt-6 shrink-0"
+              className="w-11 h-11 rounded-xl object-cover border-[2.5px] border-background -mt-5 shrink-0"
             />
           ) : (
             <div className={cn(
-              "w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm border-2 border-background -mt-6 shrink-0",
+              "w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm border-[2.5px] border-background -mt-5 shrink-0",
               `bg-gradient-to-br ${gradient}`
             )}>
               {community.name.slice(0, 2).toUpperCase()}

@@ -376,7 +376,16 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         {/* Welcome Header with AI Catch-up */}
         <WelcomeHeader />
 
-        {/* Customize Button */}
+        {/* Weekly Rhythm Banner - widget controlled */}
+        {isVisible('weekly_rhythm') && <WeeklyRhythmBanner />}
+
+        {/* Stories Bar - widget controlled */}
+        {isVisible('stories') && <StoriesBar />}
+
+        {/* Discovery Cards — quick access to Wallet, Shop, DNA, Spaces */}
+        <DiscoveryCards />
+
+        {/* Customize Button — below discovery cards */}
         <div className="px-4 pb-2 flex justify-end">
           <Button
             variant="ghost"
@@ -388,15 +397,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             Customize
           </Button>
         </div>
-
-        {/* Weekly Rhythm Banner - widget controlled */}
-        {isVisible('weekly_rhythm') && <WeeklyRhythmBanner />}
-
-        {/* Stories Bar - widget controlled */}
-        {isVisible('stories') && <StoriesBar />}
-
-        {/* Discovery Cards — quick access to Wallet, Shop, DNA, Spaces */}
-        <DiscoveryCards />
         <div className="px-3 pb-6" data-tutorial="feed-area">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
