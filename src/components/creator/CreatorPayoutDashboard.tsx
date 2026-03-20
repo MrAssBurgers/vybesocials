@@ -53,7 +53,7 @@ export function CreatorPayoutDashboard() {
   });
 
   const pendingBalance = creatorData?.pending_payout ?? 0;
-  const totalEarned = creatorData?.total_earned ?? 0;
+  const totalEarned = creatorData?.total_earnings ?? 0;
   const isConnected = connectStatus?.connected && connectStatus?.onboarding_complete;
 
   const handlePayout = async () => {

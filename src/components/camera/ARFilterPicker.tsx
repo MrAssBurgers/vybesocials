@@ -3,7 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { AR_FILTERS, ARFilterDef } from '@/lib/arFilters';
 import { triggerHaptic } from '@/lib/haptics';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Lock, Sparkles } from 'lucide-react';
+import { usePremiumStatus } from '@/hooks/usePremiumStatus';
+import { AIFilterGenerator } from './AIFilterGenerator';
+import { useAIFilterGenerator } from '@/hooks/useAIFilterGenerator';
+import { toast } from 'sonner';
 
 type ARCategory = 'all' | 'face' | 'color' | 'particle' | 'full';
 
@@ -29,10 +33,27 @@ export const ARFilterPicker = memo(function ARFilterPicker({
 }: ARFilterPickerProps) {
   const [activeCategory, setActiveCategory] = useState<ARCategory>('all');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { isPremium } = usePremiumStatus();
+  const { generatedFilters } = useAIFilterGenerator();
 
+  // Combine preset + AI-generated filters
+  const allFilters = [...AR_FILTERS, ...generatedFilters];
   const filtered = activeCategory === 'all'
-    ? AR_FILTERS
-    : AR_FILTERS.filter(f => f.category === activeCategory);
+    ? allFilters
+    : allFilters.filter(f => f.category === activeCategory);
+
+  const handleFilterSelect = (filter: ARFilterDef) => {
+    if (filter.premium && !isPremium) {
+      toast('VYBE Pro exclusive', {
+        description: 'Upgrade to unlock premium AR filters',
+        action: { label: 'Upgrade', onClick: () => window.location.href = '/premium' },
+      });
+      triggerHaptic('error');
+      return;
+    }
+    onFilterChange(currentFilter === filter.id ? null : filter);
+    triggerHaptic('medium');
+  };
 
   return (
     <div className="w-full">
@@ -45,8 +66,18 @@ export const ARFilterPicker = memo(function ARFilterPicker({
           <Loader2 className="w-3 h-3 animate-spin text-primary/60" />
         )}
         {isTracking && !isLoading && (
-          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
         )}
+      </div>
+
+      {/* AI Generator */}
+      <div className="mb-2">
+        <AIFilterGenerator
+          onFilterGenerated={(filter) => {}}
+          generatedFilters={generatedFilters}
+          currentFilter={currentFilter}
+          onFilterChange={onFilterChange}
+        />
       </div>
 
       {/* Category tabs */}
@@ -81,9 +112,7 @@ export const ARFilterPicker = memo(function ARFilterPicker({
             onFilterChange(null);
             triggerHaptic('light');
           }}
-          className={cn(
-            "flex-shrink-0 snap-center flex flex-col items-center gap-1 transition-all duration-200",
-          )}
+          className="flex-shrink-0 snap-center flex flex-col items-center gap-1 transition-all duration-200"
         >
           <div className={cn(
             "w-14 h-14 rounded-2xl flex items-center justify-center text-xl border-2 transition-all",
@@ -105,6 +134,7 @@ export const ARFilterPicker = memo(function ARFilterPicker({
         <AnimatePresence mode="popLayout">
           {filtered.map((filter, i) => {
             const isActive = currentFilter === filter.id;
+            const isLocked = filter.premium && !isPremium;
             return (
               <motion.button
                 key={filter.id}
@@ -112,23 +142,37 @@ export const ARFilterPicker = memo(function ARFilterPicker({
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
                 transition={{ delay: i * 0.03, duration: 0.2 }}
-                onClick={() => {
-                  onFilterChange(isActive ? null : filter);
-                  triggerHaptic('medium');
-                }}
+                onClick={() => handleFilterSelect(filter)}
                 className="flex-shrink-0 snap-center flex flex-col items-center gap-1 transition-all duration-200"
               >
                 <div className={cn(
-                  "w-14 h-14 rounded-2xl flex items-center justify-center text-xl border-2 transition-all",
+                  "w-14 h-14 rounded-2xl flex items-center justify-center text-xl border-2 transition-all relative",
                   isActive
                     ? "border-primary bg-primary/20 scale-110 shadow-lg shadow-primary/30"
-                    : "border-white/20 bg-white/10 active:scale-95"
+                    : isLocked
+                      ? "border-white/10 bg-white/5 opacity-60"
+                      : "border-white/20 bg-white/10 active:scale-95"
                 )}>
                   {filter.icon}
+                  {isLocked && (
+                    <div className="absolute inset-0 rounded-2xl bg-black/40 flex items-center justify-center">
+                      <Lock className="w-3.5 h-3.5 text-white/80" />
+                    </div>
+                  )}
+                  {filter.aiGenerated && (
+                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-primary flex items-center justify-center">
+                      <Sparkles className="w-2 h-2 text-primary-foreground" />
+                    </span>
+                  )}
+                  {filter.premium && !isLocked && (
+                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-500 flex items-center justify-center">
+                      <span className="text-[8px]">⭐</span>
+                    </span>
+                  )}
                 </div>
                 <span className={cn(
                   "text-[10px] font-medium max-w-[56px] truncate",
-                  isActive ? "text-primary" : "text-white/50"
+                  isActive ? "text-primary" : isLocked ? "text-white/30" : "text-white/50"
                 )}>
                   {filter.name}
                 </span>
