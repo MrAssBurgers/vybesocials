@@ -107,14 +107,47 @@ export default function AIChat() {
     );
   }, []);
 
-  const toggleConnectedAccount = useCallback((name: string) => {
-    setConnectedAccounts(prev => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name); else next.add(name);
-      localStorage.setItem('vybe_connected_ai', JSON.stringify([...next]));
-      return next;
+  // Load connected providers from DB
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('user_ai_keys').select('provider, is_active').eq('user_id', user.id).then(({ data }) => {
+      if (data) {
+        const map: Record<string, boolean> = {};
+        data.forEach(k => { map[k.provider] = k.is_active; });
+        setConnectedProviders(map);
+      }
     });
-  }, []);
+  }, [user]);
+
+  const saveApiKey = useCallback(async (provider: string, modelId: string) => {
+    const key = keyInputs[provider]?.trim();
+    if (!key || !user) { toast.error('Enter an API key'); return; }
+    setSavingKey(provider);
+    try {
+      const { error } = await supabase.from('user_ai_keys').upsert({
+        user_id: user.id,
+        provider,
+        api_key: key,
+        is_active: true,
+      }, { onConflict: 'user_id,provider' });
+      if (error) throw error;
+      setConnectedProviders(prev => ({ ...prev, [provider]: true }));
+      setKeyInputs(prev => ({ ...prev, [provider]: '' }));
+      updateModel(modelId as AIModel);
+      toast.success(`${provider} connected! Model switched.`);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to save key');
+    } finally {
+      setSavingKey(null);
+    }
+  }, [keyInputs, user, updateModel]);
+
+  const disconnectProvider = useCallback(async (provider: string) => {
+    if (!user) return;
+    await supabase.from('user_ai_keys').delete().eq('user_id', user.id).eq('provider', provider);
+    setConnectedProviders(prev => { const n = { ...prev }; delete n[provider]; return n; });
+    toast('Disconnected ' + provider);
+  }, [user]);
 
   const currentModel = useMemo(() => AI_MODELS.find(m => m.id === model) || AI_MODELS[0], [model]);
 
