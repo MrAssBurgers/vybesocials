@@ -122,14 +122,8 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
-    // Stale-while-revalidate for app shell (JS, CSS only)
-    if (
-      url.origin === self.location.origin &&
-      (url.pathname.endsWith('.js') || url.pathname.endsWith('.css'))
-    ) {
-      event.respondWith(staleWhileRevalidate(event.request, STATIC_CACHE));
-      return;
-    }
+    // JS/CSS use content-hashed filenames from Vite — browser caching is sufficient.
+    // Do NOT intercept these with SW caching strategies as stale bundles cause black screens.
   } catch {
     // Ignore URL parsing errors
   }
