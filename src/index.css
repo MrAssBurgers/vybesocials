@@ -13,6 +13,43 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   pointer-events: none !important;
 }
 
+/* Splash screen animations — pure CSS, GPU-composited */
+.splash-draw-left,
+.splash-draw-right {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+.splash-draw-left {
+  animation: splash-draw 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
+}
+.splash-draw-right {
+  animation: splash-draw 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.25s forwards;
+}
+.splash-dot {
+  fill: hsl(var(--foreground));
+  opacity: 0;
+  animation: splash-dot-in 0.3s ease-out 0.6s forwards, splash-dot-pulse 2s ease-in-out 1s infinite;
+  transform-origin: 50px 88px;
+}
+@keyframes splash-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes splash-dot-in {
+  to { opacity: 0.9; }
+}
+@keyframes splash-dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.25); opacity: 1; }
+}
+.splash-shimmer {
+  background: linear-gradient(90deg, transparent 0%, hsl(var(--foreground) / 0.06) 50%, transparent 100%);
+  animation: splash-shimmer 1.8s linear infinite;
+}
+@keyframes splash-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(200%); }
+}
+
 /* When DMs are active on mobile/tablet, hide global background and force solid nav */
 html[data-dm-active="true"] #app-background-layer {
   display: none !important;
