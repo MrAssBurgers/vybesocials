@@ -1,23 +1,31 @@
 
 
-## Fix: Comment Dropdown Popup Movement on Hover
+## Plan: Polish ClipsViewer to Match Instagram Reels DM Experience
 
-### Root Cause
-The current `animate-[fade-in_0.15s_ease-out]` class references the global `fade-in` keyframes, which include `transform: translateY(10px)` -- this physically shifts the popup 10px downward as it fades in. When hovering triggers re-renders or re-animations, the popup visibly jumps.
-
-### Solution
-Replace the `fade-in`/`fade-out` animation (which uses translateY) with a pure opacity-only animation that keeps the popup completely still.
+### What's Already Working
+The `/clips/:postId` route, initial post fetch, infinite feed, scroll snapping, and IntersectionObserver playback are all in place. This is a polish pass to make it feel as smooth as Instagram Reels.
 
 ### Changes
 
-**File: `src/components/comments/CommentItem.tsx`**
+**1. Fix fullscreen height (ClipsViewer.tsx)**
+- Remove the `BOTTOM_NAV_HEIGHT` subtraction since `hideNav` is already true — currently leaving an 80px black gap at the bottom on mobile
+- Use `100dvh` everywhere, with `env(safe-area-inset-bottom)` padding for notched phones
 
-Update the `DropdownMenuContent` className to use inline keyframes that only animate opacity (no transform/translate):
+**2. Clean up initial post fetch**
+- Remove the dead `get_posts_with_counts` RPC call (lines 74-80) that runs before the actual query and does nothing useful
 
-- **Remove**: `animate-none data-[state=open]:animate-[fade-in_0.15s_ease-out] data-[state=closed]:animate-[fade-out_0.1s_ease-in]`
-- **Add**: `data-[state=open]:animate-[opacity-in_0.15s_ease-out] data-[state=closed]:animate-[opacity-out_0.1s_ease-in]`
+**3. Cleaner mobile UI**
+- Make the back button + "From Messages" pill use safe-area top inset so they don't clip under the status bar on notched devices
+- Add a subtle entry animation (fade in) for the first video load
+- Remove `AppLayout` wrapper entirely — this should be a true fullscreen overlay with no layout chrome, just like Instagram Reels
 
-Where `opacity-in` is defined as `{ from { opacity: 0 } to { opacity: 1 } }` and `opacity-out` as `{ from { opacity: 1 } to { opacity: 0 } }` -- pure opacity, zero movement.
+**4. Ensure SharedPostBubble navigates correctly for all media types**
+- Already navigates to `/clips/:postId` for videos — verify image posts still go to `/p/:postId`
 
-This is a single-line className change in one file. No business logic or database changes.
+**5. Smoother scroll behavior**
+- Add `-webkit-overflow-scrolling: touch` (already present, good)
+- Ensure `scrollBehavior: 'smooth'` doesn't interfere with snap on iOS — move to CSS class instead of inline style for better browser compat
+
+### Files to Edit
+- `src/pages/ClipsViewer.tsx` — height fix, remove dead code, remove AppLayout wrapper, safe-area insets, entry animation
 
