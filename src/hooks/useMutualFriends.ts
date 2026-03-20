@@ -147,7 +147,7 @@ export function useMutualFriends() {
           .limit(100);
 
         (recentLikes || []).forEach((l: any) => {
-          const postAuthor = l.posts?.user_id;
+          const postAuthor = l.posts?.author_id;
           if (postAuthor && myFriendIds.has(postAuthor)) {
             friendAffinityMap.set(postAuthor, (friendAffinityMap.get(postAuthor) || 0) + 2);
           }
