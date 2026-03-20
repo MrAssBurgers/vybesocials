@@ -175,6 +175,8 @@ export function AnimatedRoutes() {
             <Route path="/wallet" element={<ProtectedRoute><TokenWallet /></ProtectedRoute>} />
             <Route path="/marketplace" element={<ProtectedRoute><TokenMarketplace /></ProtectedRoute>} />
             <Route path="/premium-success" element={<ProtectedRoute><PremiumSuccess /></ProtectedRoute>} />
+            <Route path="/filters" element={<ProtectedRoute><Filters /></ProtectedRoute>} />
+            <Route path="/filters/:filterId" element={<ProtectedRoute><Filters /></ProtectedRoute>} />
             
             {/* Stripe Connect V2 routes */}
             <Route path="/connect/dashboard" element={<ProtectedRoute><ConnectDashboard /></ProtectedRoute>} />
