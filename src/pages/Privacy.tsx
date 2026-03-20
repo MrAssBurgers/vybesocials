@@ -11,7 +11,7 @@ export default function PrivacyPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative z-10" style={{ backgroundColor: 'hsl(var(--background))' }}>
       <div className="max-w-3xl mx-auto p-4 sm:p-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
