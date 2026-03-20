@@ -108,9 +108,17 @@ export function CameraFilterCarousel({ currentFilter, onFilterChange }: CameraFi
                       : "border-white/15"
                   )}
                 >
+                  {/* Show a color swatch that reflects the filter */}
                   <div
-                    className="w-full h-full bg-gradient-to-br from-primary/50 via-accent/30 to-secondary/50"
-                    style={{ filter: filter.css || 'none' }}
+                    className="w-full h-full"
+                    style={{
+                      background: filter.id === 'normal'
+                        ? 'linear-gradient(135deg, #667eea, #764ba2)'
+                        : filter.id === 'bw'
+                        ? 'linear-gradient(135deg, #333, #aaa)'
+                        : `linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)))`,
+                      filter: filter.css || 'none',
+                    }}
                   />
                 </div>
                 <span className={cn(
