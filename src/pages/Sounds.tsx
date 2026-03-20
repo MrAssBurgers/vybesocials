@@ -10,7 +10,8 @@ import {
   Music2,
   Zap,
   Star,
-  MoreVertical
+  MoreVertical,
+  Upload
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { useTrendingSounds, useNewSounds, useSavedSounds } from '@/hooks/useSounds';
 import { SoundCard } from '@/components/sounds/SoundCard';
 import { SoundPlayer } from '@/components/sounds/SoundPlayer';
+import { SoundUploadSheet } from '@/components/sounds/SoundUploadSheet';
 
 export default function SoundsPage() {
   const navigate = useNavigate();
