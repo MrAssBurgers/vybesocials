@@ -118,7 +118,17 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
-  }, []);
+    stopTracking();
+  }, [stopTracking]);
+
+  // Start/stop face tracking when AR mode or readiness changes
+  useEffect(() => {
+    if (filterMode === 'ar' && arReady && videoRef.current && phase === 'camera') {
+      startTracking(videoRef.current);
+    } else {
+      stopTracking();
+    }
+  }, [filterMode, arReady, phase, startTracking, stopTracking]);
 
   useEffect(() => {
     if (phase === 'camera' && mode !== 'text') {
