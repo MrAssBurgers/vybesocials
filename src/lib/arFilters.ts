@@ -49,6 +49,8 @@ export interface ARFilterDef {
   name: string;
   icon: string;
   category: 'face' | 'color' | 'particle' | 'full';
+  premium?: boolean;       // gated behind VYBE Pro
+  aiGenerated?: boolean;   // created by AI suggestion engine
   masks?: MaskDef[];
   particles?: ParticleConfig;
   colorGrade?: ColorGradeDef;
