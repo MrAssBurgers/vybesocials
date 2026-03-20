@@ -303,17 +303,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         className="min-h-screen bg-background flex items-center justify-center"
       >
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
-          {isOAuthReturn && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="text-sm text-muted-foreground"
-            >
-              Signing you in…
-            </motion.p>
-          )}
+          <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="text-sm text-muted-foreground"
+          >
+            {isOAuthReturn ? 'Signing you in…' : 'Loading VYBE…'}
+          </motion.p>
         </div>
       </motion.div>
     );
