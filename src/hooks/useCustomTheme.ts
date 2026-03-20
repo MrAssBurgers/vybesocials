@@ -224,10 +224,12 @@ export function useSaveTheme() {
       themeTokens,
       themeName,
       basePreset,
+      silent = false,
     }: {
       themeTokens: ThemeTokens;
       themeName: string;
       basePreset: string;
+      silent?: boolean;
     }) => {
       const userId = user?.id;
       if (!userId) throw new Error('Not authenticated');
@@ -252,7 +254,7 @@ export function useSaveTheme() {
       if (error) throw error;
 
       // Return the saved data so onSuccess can use it for optimistic update
-      return payload;
+      return { ...payload, silent };
     },
     onSuccess: (savedData) => {
       // Clear any equipped community theme so the saved theme takes priority on refresh
@@ -265,7 +267,9 @@ export function useSaveTheme() {
         ...savedData,
       }));
       queryClient.invalidateQueries({ queryKey: ['user-theme'] });
-      toast.success('Theme saved!');
+      if (!(savedData as any).silent) {
+        toast.success('Theme saved!');
+      }
       // Allow re-application after a delay to let the query settle
       setTimeout(() => { _isSavingTheme = false; }, 500);
     },
