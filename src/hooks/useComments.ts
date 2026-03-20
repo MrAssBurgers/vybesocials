@@ -116,31 +116,22 @@ export function useCreateComment() {
 
       if (filteredText.trim()) {
         try {
-          const { data: scanResult, error: scanError } = await supabase.functions.invoke('scan-content-safety', {
-            body: {
-              type: 'text',
-              content: filteredText,
-            },
-          });
+          const scanResult = nsfwScanText(filteredText);
 
-          if (!scanError && scanResult) {
-            safetyScore = scanResult.score ?? 0;
-            safetyCategories = scanResult.categories ?? [];
-            
-            if (scanResult.result === 'blocked') {
-              toast.error(scanResult.message || 'This comment violates community guidelines.');
-              throw new Error('Comment blocked by AI safety check');
-            }
-            
-            if (scanResult.result === 'warned') {
-              isFlagged = true;
-            }
+          safetyScore = scanResult.score ?? 0;
+          safetyCategories = scanResult.categories ?? [];
+          
+          if (scanResult.result === 'blocked') {
+            toast.error(scanResult.message || 'This comment violates community guidelines.');
+            throw new Error('Comment blocked by safety check');
+          }
+          
+          if (scanResult.result === 'warned') {
+            isFlagged = true;
           }
         } catch (err: any) {
-          // If it's our intentional block, re-throw
-          if (err.message === 'Comment blocked by AI safety check') throw err;
-          // Otherwise allow comment through (fail-open for non-blocking errors)
-          console.warn('AI safety scan failed, allowing comment:', err);
+          if (err.message === 'Comment blocked by safety check') throw err;
+          console.warn('Safety scan failed, allowing comment:', err);
         }
       }
 
