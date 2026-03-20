@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useInfinitePosts } from '@/hooks/useInfinitePosts';
+import { usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import { ShortCard } from '@/components/posts/ShortCard';
 import { MobileShortCard } from '@/components/posts/MobileShortCard';
 import { AppLayout } from '@/components/layout/AppLayout';
