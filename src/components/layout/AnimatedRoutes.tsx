@@ -72,6 +72,9 @@ const VybeDNA = lazy(() => import("@/pages/VybeDNA"));
 const TokenWallet = lazy(() => import("@/pages/TokenWallet"));
 const TokenMarketplace = lazy(() => import("@/pages/TokenMarketplace"));
 const PremiumSuccess = lazy(() => import("@/pages/PremiumSuccess"));
+const ConnectDashboard = lazy(() => import("@/pages/ConnectDashboard"));
+const ConnectStorefront = lazy(() => import("@/pages/ConnectStorefront"));
+const ConnectSuccess = lazy(() => import("@/pages/ConnectSuccess"));
 
 // Debug panels — lazy load both
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
@@ -170,6 +173,11 @@ export function AnimatedRoutes() {
             <Route path="/wallet" element={<ProtectedRoute><TokenWallet /></ProtectedRoute>} />
             <Route path="/marketplace" element={<ProtectedRoute><TokenMarketplace /></ProtectedRoute>} />
             <Route path="/premium-success" element={<ProtectedRoute><PremiumSuccess /></ProtectedRoute>} />
+            
+            {/* Stripe Connect V2 routes */}
+            <Route path="/connect/dashboard" element={<ProtectedRoute><ConnectDashboard /></ProtectedRoute>} />
+            <Route path="/connect/storefront/:accountId" element={<ConnectStorefront />} />
+            <Route path="/connect/success" element={<ConnectSuccess />} />
             
             {/* Let /~oauth pass through to the cloud auth handler */}
             <Route path="/~oauth" element={null} />
