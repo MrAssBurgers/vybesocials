@@ -218,19 +218,17 @@ export const AROverlayCanvas = memo(function AROverlayCanvas({
       if (currentFilter.lighting) {
         ctx.save();
         const lg = currentFilter.lighting;
-        const gradient = ctx.createRadialGradient(
-          face.centerX + (lg.offsetX || 0),
-          face.centerY + (lg.offsetY || 0),
-          0,
-          face.centerX,
-          face.centerY,
-          face.faceWidth * (lg.radius || 1)
-        );
-        gradient.addColorStop(0, lg.color + (lg.intensity ? Math.round(lg.intensity * 255).toString(16).padStart(2, '0') : '33'));
-        gradient.addColorStop(1, 'transparent');
-        ctx.globalCompositeOperation = lg.blendMode as GlobalCompositeOperation || 'screen';
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const lcx = face.centerX + (lg.offsetX || 0);
+        const lcy = face.centerY + (lg.offsetY || 0);
+        const lr = Math.max(0.01, face.faceWidth * (lg.radius || 1));
+        if (isFinite(lcx, lcy, lr, face.centerX, face.centerY)) {
+          const gradient = ctx.createRadialGradient(lcx, lcy, 0, face.centerX, face.centerY, lr);
+          gradient.addColorStop(0, lg.color + (lg.intensity ? Math.round(lg.intensity * 255).toString(16).padStart(2, '0') : '33'));
+          gradient.addColorStop(1, 'transparent');
+          ctx.globalCompositeOperation = lg.blendMode as GlobalCompositeOperation || 'screen';
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
         ctx.restore();
       }
     }
