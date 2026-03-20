@@ -62,7 +62,7 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   // Get last AI message from localStorage for preview
   const lastAIMessage = useMemo(() => {
     try {
-      const stored = localStorage.getItem('vybe_ai_chat_messages');
+      const stored = localStorage.getItem('vybe_ai_chat_messages_v2');
       if (stored) {
         const messages = JSON.parse(stored);
         const lastAssistant = messages.filter((m: any) => m.role === 'assistant').pop();
