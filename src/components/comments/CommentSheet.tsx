@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/lib/auth';
-import { useComments, useCreateComment } from '@/hooks/useComments';
+import { useComments, useCreateComment, useDeleteComment } from '@/hooks/useComments';
 import { GifPicker } from '@/components/chat/GifPicker';
 import { MentionInput } from './MentionInput';
 import { CommentThread } from './CommentThread';
@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navVisibility } from '@/lib/navVisibility';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface CommentSheetProps {
   postId: string;

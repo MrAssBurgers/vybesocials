@@ -560,7 +560,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
 
         {/* Share */}
         <button onClick={handleShare} className="flex flex-col items-center gap-1">
-          <Share2 className="h-7 w-7 text-white drop-shadow-lg" />
+          <SendIcon className="h-7 w-7 text-white drop-shadow-lg" />
         </button>
 
         {/* Bookmark */}

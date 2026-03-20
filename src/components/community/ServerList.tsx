@@ -71,7 +71,7 @@ export const ServerList = memo(function ServerList({ selectedServerId, onSelectS
                     "text-muted-foreground hover:text-white"
                   )}
                 >
-                  <span className="text-[10px] font-bold uppercase leading-none">Join</span>
+                  <DoorOpen className="h-6 w-6" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">

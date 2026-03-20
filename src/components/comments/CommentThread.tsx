@@ -226,7 +226,7 @@ export const CommentThread = memo(function CommentThread({
                 <Button 
                   variant="ghost" 
                   size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-6 w-6 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </Button>
