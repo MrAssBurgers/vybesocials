@@ -269,22 +269,14 @@ export function useContentSafetyScan() {
     setScanResult(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('content_type', file.type.startsWith('video/') ? 'video' : 'image');
+      const isVideo = file.type.startsWith('video/');
+      const result = isVideo ? await nsfwScanVideo(file) : await nsfwScanImage(file);
 
-      const { data, error } = await supabase.functions.invoke('scan-content-safety', {
-        body: formData,
-      });
-
-      if (error) throw error;
-
-      const isSafe = data?.is_safe ?? true;
-      setScanResult({ isSafe, reason: data?.reason });
+      const isSafe = result.result === 'allowed' || result.result === 'warned';
+      setScanResult({ isSafe, reason: result.message });
       return isSafe;
     } catch (err) {
       console.error('Content scan error:', err);
-      // On error, allow upload
       setScanResult({ isSafe: true });
       return true;
     } finally {
