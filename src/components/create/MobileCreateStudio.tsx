@@ -93,6 +93,19 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play().catch(() => {});
+        // Track dimensions for AR overlay
+        videoRef.current.onloadedmetadata = () => {
+          if (videoRef.current) {
+            setVideoDimensions({
+              width: videoRef.current.videoWidth,
+              height: videoRef.current.videoHeight,
+            });
+            // Start face tracking if AR mode is active
+            if (filterMode === 'ar' && arReady) {
+              startTracking(videoRef.current);
+            }
+          }
+        };
       }
       // Reset zoom on camera switch
       zoomRef.current = 1;
