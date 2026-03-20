@@ -140,6 +140,7 @@ export function AnimatedRoutes() {
             <Route path="/spaces" element={<ProtectedRoute><Spaces /></ProtectedRoute>} />
             <Route path="/watch" element={<ProtectedRoute><VideoBrowse /></ProtectedRoute>} />
             <Route path="/watch/:id" element={<ProtectedRoute><Watch /></ProtectedRoute>} />
+            <Route path="/clips/:postId" element={<ProtectedRoute><ClipsViewer /></ProtectedRoute>} />
             <Route path="/invite-friends" element={<ProtectedRoute><InviteFriends /></ProtectedRoute>} />
             <Route path="/add-friend/:userId" element={<ProtectedRoute><AddFriend /></ProtectedRoute>} />
             <Route path="/admin/metrics" element={<ProtectedRoute><AdminMetrics /></ProtectedRoute>} />
