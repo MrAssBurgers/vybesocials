@@ -76,6 +76,7 @@ const PremiumSuccess = lazy(() => import("@/pages/PremiumSuccess"));
 const ConnectDashboard = lazy(() => import("@/pages/ConnectDashboard"));
 const ConnectStorefront = lazy(() => import("@/pages/ConnectStorefront"));
 const ConnectSuccess = lazy(() => import("@/pages/ConnectSuccess"));
+const Filters = lazy(() => import("@/pages/Filters"));
 
 // Debug panels — lazy load both
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
