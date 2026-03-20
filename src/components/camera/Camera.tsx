@@ -202,11 +202,11 @@ export function Camera({ onClose }: CameraProps) {
 
   // Filter swipe handling
   const handleFilterSwipe = (direction: number) => {
-    const currentIndex = CAMERA_FILTERS.findIndex(f => f.id === currentFilter);
-    const newIndex = Math.max(0, Math.min(CAMERA_FILTERS.length - 1, currentIndex + direction));
+    const currentIndex = PRESET_FILTERS.findIndex(f => f.id === currentFilter);
+    const newIndex = Math.max(0, Math.min(PRESET_FILTERS.length - 1, currentIndex + direction));
     if (newIndex !== currentIndex) {
       triggerHaptic('light');
-      setCurrentFilter(CAMERA_FILTERS[newIndex].id);
+      setCurrentFilter(PRESET_FILTERS[newIndex].id);
     }
   };
 
