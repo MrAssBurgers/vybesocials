@@ -173,7 +173,7 @@ function AppWithPreloader() {
                                     <AnimatedRoutes />
                                     <RootBottomNavMount />
                                     <Suspense fallback={null}>
-                                      <PushNotificationPrompt />
+                                      {/* PushNotificationPrompt removed */}
                                       <GlobalMessageNotifications />
                                       <TabNotificationBadge />
                                       <GlobalCallOverlay />
