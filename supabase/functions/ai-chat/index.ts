@@ -31,7 +31,7 @@ serve(async (req) => {
     const rateLimited = await rateLimitOrNull(`ai-chat-v2:${auth.userId}`, 15, 60, corsHeaders);
     if (rateLimited) return rateLimited;
 
-    const { messages, aiName, aiPersonality, model: requestedModel, feedDNA } = await req.json();
+    const { messages, aiName, aiPersonality, model: requestedModel, feedDNA, location, connectedProviders } = await req.json();
     
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(JSON.stringify({ error: "Messages required" }), {
