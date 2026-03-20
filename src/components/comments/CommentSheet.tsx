@@ -45,13 +45,62 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
   const { profile } = useAuth();
   const { data: comments, isLoading } = useComments(postId);
   const createComment = useCreateComment();
+  const deleteComment = useDeleteComment();
+  const queryClient = useQueryClient();
   const dragControls = useDragControls();
 
   const [text, setText] = useState('');
   const [replyingTo, setReplyingTo] = useState<{ id: string; username: string } | null>(null);
   const [gifUrl, setGifUrl] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
-  const [sheetHeight, setSheetHeight] = useState(0.6); // 60% of screen
+  const [sheetHeight, setSheetHeight] = useState(0.6);
+
+  // Like a comment
+  const handleLikeComment = useCallback(async (commentId: string) => {
+    if (!profile) return;
+    
+    // Optimistic update
+    queryClient.setQueryData(['comments', postId], (old: any) => {
+      if (!old) return old;
+      return old.map((c: any) => {
+        if (c.id === commentId) {
+          const wasLiked = c.is_liked;
+          return {
+            ...c,
+            is_liked: !wasLiked,
+            like_count: wasLiked ? Math.max(0, (c.like_count || 0) - 1) : (c.like_count || 0) + 1,
+          };
+        }
+        return c;
+      });
+    });
+
+    try {
+      const { data: existing } = await supabase
+        .from('comment_likes')
+        .select('id')
+        .eq('comment_id', commentId)
+        .eq('user_id', profile.id)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from('comment_likes').delete().eq('id', existing.id);
+      } else {
+        await supabase.from('comment_likes').insert({
+          comment_id: commentId,
+          user_id: profile.id,
+        });
+      }
+    } catch (err) {
+      // Revert on error
+      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
+    }
+  }, [profile, postId, queryClient]);
+
+  // Delete a comment
+  const handleDeleteComment = useCallback(async (commentId: string) => {
+    deleteComment.mutate({ commentId, postId });
+  }, [deleteComment, postId]);
 
   const sheetRef = useRef<HTMLDivElement>(null);
 
