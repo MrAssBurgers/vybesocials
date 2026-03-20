@@ -3,6 +3,37 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
+function previewSupabaseClientShimPlugin() {
+  const sourceModuleUrl = "/src/integrations/supabase/client.ts";
+  const runtimeModuleUrl = "/src/integrations/supabase/runtime-client.ts";
+  const runtimeModulePath = path.resolve(__dirname, `.${runtimeModuleUrl}`);
+
+  return {
+    name: "preview-supabase-client-shim",
+    enforce: "pre" as const,
+    resolveId(source: string) {
+      if (
+        source === "@/integrations/supabase/client" ||
+        source === "@/integrations/supabase/client.ts" ||
+        source === sourceModuleUrl
+      ) {
+        return runtimeModulePath;
+      }
+
+      return null;
+    },
+    configureServer(server: any) {
+      server.middlewares.use((req: any, _res: any, next: () => void) => {
+        if (typeof req.url === "string" && req.url.startsWith(sourceModuleUrl)) {
+          req.url = req.url.replace(sourceModuleUrl, runtimeModuleUrl);
+        }
+
+        next();
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -22,7 +53,7 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
       'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(publishableKey),
     },
-    plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+    plugins: [previewSupabaseClientShimPlugin(), react(), mode === "development" && componentTagger()].filter(Boolean),
     resolve: {
       alias: [
         {

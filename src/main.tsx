@@ -5,6 +5,10 @@ import "./index.css";
 import { initializeNativePlugins, isNativePlatform, isWeb } from "./lib/capacitor";
 import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled } from "./lib/serviceWorker";
 
+function isPreviewOneSignalDomainError(message: unknown) {
+  return typeof message === 'string' && message.includes('Can only be used on: https://vybehub.app');
+}
+
 // Initialize native plugins if running on native platform
 if (isNativePlatform) {
   initializeNativePlugins().then(() => {
@@ -14,6 +18,23 @@ if (isNativePlatform) {
 
 // Register service worker for web push notifications
 if (isWeb && 'serviceWorker' in navigator) {
+  const shouldIgnorePreviewPushErrors = isPreviewServiceWorkerDisabled();
+
+  window.addEventListener('error', (event) => {
+    if (shouldIgnorePreviewPushErrors && isPreviewOneSignalDomainError(event.message)) {
+      console.warn('[VYBE] Ignored preview-only OneSignal error');
+      event.preventDefault();
+    }
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const rejectionMessage = event.reason instanceof Error ? event.reason.message : event.reason;
+    if (shouldIgnorePreviewPushErrors && isPreviewOneSignalDomainError(rejectionMessage)) {
+      console.warn('[VYBE] Ignored preview-only OneSignal rejection');
+      event.preventDefault();
+    }
+  });
+
   window.addEventListener('load', async () => {
     try {
       if (isPreviewServiceWorkerDisabled()) {
