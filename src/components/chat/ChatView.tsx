@@ -835,7 +835,7 @@ export function ChatView() {
         
         const scanResult = await Promise.race([
           scanPromise,
-          new Promise<{ result: string }>((resolve) => setTimeout(() => resolve({ result: 'allowed' }), 15000))
+          new Promise<{ result: string; message?: string }>((resolve) => setTimeout(() => resolve({ result: 'allowed' }), 15000))
         ]);
 
         if (scanResult?.result === 'blocked') {
