@@ -219,7 +219,6 @@ export const MobileShortCard = memo(function MobileShortCard({
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleTap = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
     e.stopPropagation();
     
     // CRITICAL: If we just released from a hold, ignore this click entirely
