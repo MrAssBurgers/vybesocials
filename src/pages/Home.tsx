@@ -373,14 +373,14 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         {/* Global Events Banner */}
         <GlobalEventBanner />
 
+        {/* Stories Bar - above everything else */}
+        {isVisible('stories') && <StoriesBar />}
+
         {/* Welcome Header with AI Catch-up */}
         <WelcomeHeader />
 
         {/* Weekly Rhythm Banner - widget controlled */}
         {isVisible('weekly_rhythm') && <WeeklyRhythmBanner />}
-
-        {/* Stories Bar - widget controlled */}
-        {isVisible('stories') && <StoriesBar />}
 
         {/* Discovery Cards — quick access to Wallet, Shop, DNA, Spaces */}
         <DiscoveryCards />
