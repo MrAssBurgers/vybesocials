@@ -194,8 +194,8 @@ export default function AIChat() {
   const showQuickPrompts = messages.length <= 2 && !isLoading;
 
   return (
-    <AppLayout hideRightSidebar>
-      <div className="flex flex-col h-[calc(100dvh-5rem)] md:h-screen bg-background relative overflow-hidden">
+    <>
+      <div className="fixed inset-0 z-[100] flex flex-col bg-background">
         {/* Header - Snapchat AI style */}
         <div className="px-3 py-2.5 border-b border-border/50 flex items-center gap-2.5 bg-card/80 backdrop-blur-md sticky top-0 z-10">
           <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="h-8 w-8 -ml-1">
