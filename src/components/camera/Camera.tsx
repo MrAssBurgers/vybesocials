@@ -352,7 +352,7 @@ export function Camera({ onClose }: CameraProps) {
       <div className="absolute bottom-0 left-0 right-0 pb-safe bg-gradient-to-t from-black/80 to-transparent">
         {/* Filters */}
         <div className="mb-4">
-          <CameraFilters 
+          <CameraFilterCarousel 
             currentFilter={currentFilter}
             onFilterChange={setCurrentFilter}
           />
