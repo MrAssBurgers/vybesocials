@@ -219,7 +219,6 @@ export const MobileShortCard = memo(function MobileShortCard({
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleTap = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
     e.stopPropagation();
     
     // CRITICAL: If we just released from a hold, ignore this click entirely
@@ -327,7 +326,7 @@ export const MobileShortCard = memo(function MobileShortCard({
     <div className="relative h-full w-full bg-black flex items-center justify-center overflow-hidden">
       {/* Media */}
       <div 
-        className="absolute inset-0 flex items-center justify-center"
+        className="absolute inset-0 flex items-center justify-center touch-pan-y"
         onClick={handleTap}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
