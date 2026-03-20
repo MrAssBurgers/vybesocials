@@ -1649,15 +1649,11 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
 }
 
+/* glass-breathe: REMOVED — animating backdrop-filter causes GPU stalls and freezing on mobile.
+   Use opacity or transform animations instead for breathing effects. */
 @keyframes glass-breathe {
-  0%, 100% {
-    backdrop-filter: blur(40px) saturate(200%) brightness(1.02);
-    -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.02);
-  }
-  50% {
-    backdrop-filter: blur(50px) saturate(220%) brightness(1.05);
-    -webkit-backdrop-filter: blur(50px) saturate(220%) brightness(1.05);
-  }
+  0%, 100% { opacity: 0.98; }
+  50% { opacity: 1; }
 }
 
 @keyframes color-shift {
