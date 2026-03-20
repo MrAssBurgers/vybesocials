@@ -379,14 +379,24 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         {/* Weekly Rhythm Banner - widget controlled */}
         {isVisible('weekly_rhythm') && <WeeklyRhythmBanner />}
 
-        {/* Weekly Rhythm Banner - widget controlled */}
-        {isVisible('weekly_rhythm') && <WeeklyRhythmBanner />}
-
         {/* Stories Bar - widget controlled */}
         {isVisible('stories') && <StoriesBar />}
 
         {/* Discovery Cards — quick access to Wallet, Shop, DNA, Spaces */}
         <DiscoveryCards />
+
+        {/* Customize Button — below discovery cards */}
+        <div className="px-4 pb-2 flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCustomizerOpen(true)}
+            className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            Customize
+          </Button>
+        </div>
         <div className="px-3 pb-6" data-tutorial="feed-area">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
