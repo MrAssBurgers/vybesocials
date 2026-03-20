@@ -4,6 +4,7 @@ import { Shield, Upload, Music, Film, Check, AlertTriangle, X, Loader2, RefreshC
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
+import { scanVideo as nsfwScanVideo } from '@/lib/nsfwScanner';
 import { cn } from '@/lib/utils';
 
 interface VideoUploadScannerProps {
