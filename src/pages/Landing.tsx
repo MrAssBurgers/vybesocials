@@ -112,25 +112,65 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     setShowIntro(true);
   }, [modeParam, user?.id, authProfile, authReady]);
 
-  // Safety timeout: if OAuth pending flag is set but session never establishes,
-  // clear the flag after 10s so the user can try again (prevents permanent loading screen)
+  // Safety: if OAuth pending flag is set but session never establishes,
+  // clear the flag after 5s OR when the user navigates back (page regains focus)
   useEffect(() => {
     if (!isOAuthReturn) return;
-    
-    const timer = setTimeout(() => {
-      console.log('[Landing] OAuth pending timeout — clearing flag');
-      sessionStorage.removeItem('vybe-oauth-pending');
-      setIsOAuthReturn(false);
-    }, 10000);
     
     // If user arrives (session established), clear immediately
     if (user) {
       sessionStorage.removeItem('vybe-oauth-pending');
       setIsOAuthReturn(false);
-      clearTimeout(timer);
+      return;
     }
+
+    const clearOAuth = () => {
+      console.log('[Landing] OAuth pending cleared');
+      sessionStorage.removeItem('vybe-oauth-pending');
+      setIsOAuthReturn(false);
+      setLoading(false);
+    };
+
+    // When user hits "back" from OAuth page, the page regains visibility
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Small delay to let auth state settle if tokens are coming
+        setTimeout(() => {
+          if (!sessionStorage.getItem('vybe-oauth-pending')) return;
+          // Check if we still have no user after returning
+          const hash = window.location.hash;
+          const hasTokens = hash.includes('access_token') || hash.includes('refresh_token');
+          if (!hasTokens) {
+            clearOAuth();
+          }
+        }, 1500);
+      }
+    };
+
+    // Also handle popstate (browser back button)
+    const handlePopState = () => {
+      setTimeout(() => {
+        const hash = window.location.hash;
+        const hasTokens = hash.includes('access_token') || hash.includes('refresh_token');
+        if (!hasTokens) {
+          clearOAuth();
+        }
+      }, 500);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', handleVisibilityChange);
+    window.addEventListener('popstate', handlePopState);
     
-    return () => clearTimeout(timer);
+    // Fallback timeout reduced to 5s
+    const timer = setTimeout(clearOAuth, 5000);
+    
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handleVisibilityChange);
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, [isOAuthReturn, user]);
 
   // Redirect if already logged in AND has completed onboarding
