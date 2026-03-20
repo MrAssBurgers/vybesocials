@@ -376,14 +376,30 @@ export default function AIChat() {
         </div>
 
         {/* Input bar */}
-        <div className="px-3 py-2.5 border-t border-border/40 bg-card/60 backdrop-blur-md">
-          {feedDNA && (
-            <div className="flex items-center gap-1 mb-1.5 px-1">
-              <Dna className="h-2.5 w-2.5 text-accent" />
-              <span className="text-[9px] text-accent/80">Learning your vibes</span>
-            </div>
-          )}
-          <div className="flex items-center gap-2">
+        <div className="px-3 py-2.5 border-t border-border/40 bg-card shrink-0">
+          <div className="flex items-center gap-1 mb-1.5 px-1">
+            {feedDNA && (
+              <div className="flex items-center gap-1">
+                <Dna className="h-2.5 w-2.5 text-accent" />
+                <span className="text-[9px] text-accent/80">Learning your vibes</span>
+              </div>
+            )}
+            {locationEnabled && userLocation && (
+              <div className="flex items-center gap-1 ml-auto">
+                <MapPin className="h-2.5 w-2.5 text-primary" />
+                <span className="text-[9px] text-primary/80">{userLocation.city || 'GPS active'}</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("h-9 w-9 rounded-full shrink-0", locationEnabled ? "text-primary" : "text-muted-foreground")}
+              onClick={() => locationEnabled ? setLocationEnabled(false) : enableLocation()}
+            >
+              <MapPin className="h-4 w-4" />
+            </Button>
             <Input
               ref={inputRef}
               value={input}
@@ -397,7 +413,7 @@ export default function AIChat() {
               onClick={() => sendMessage()}
               disabled={!input.trim() || isLoading}
               size="icon"
-              className="h-9 w-9 rounded-full"
+              className="h-9 w-9 rounded-full shrink-0"
             >
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
