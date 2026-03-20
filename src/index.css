@@ -417,6 +417,16 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     --sidebar-accent-foreground: 240 10% 4%;
     --sidebar-border: 240 5% 85%;
     --sidebar-ring: 330 100% 50%;
+
+    /* Neon/gradient colors — adjusted for light mode legibility */
+    --gradient-start: 330 100% 50%;
+    --gradient-mid: 280 100% 50%;
+    --gradient-end: 185 100% 40%;
+
+    --neon-pink: 330 100% 50%;
+    --neon-purple: 280 100% 50%;
+    --neon-cyan: 185 100% 40%;
+    --neon-yellow: 50 100% 45%;
     
     --light-bg-start: 0 0% 98%;
     --light-bg-mid: 330 30% 97%;
