@@ -58,6 +58,7 @@ export const ShareSheet = memo(function ShareSheet({
   const [flyingPlanes, setFlyingPlanes] = useState<string[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
+  const [showFullscreenPlane, setShowFullscreenPlane] = useState(false);
 
   // Hide bottom nav when sheet is open
   useEffect(() => {
