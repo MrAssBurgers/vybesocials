@@ -497,6 +497,6 @@ export default function AIChat() {
           </div>
         </SheetContent>
       </Sheet>
-    </AppLayout>
+    </>
   );
 }
