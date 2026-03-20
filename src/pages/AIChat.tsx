@@ -145,6 +145,8 @@ export default function AIChat() {
             aiPersonality,
             model,
             feedDNA,
+            location: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, city: userLocation.city } : null,
+            connectedProviders: [...connectedAccounts],
           }),
         }
       );
