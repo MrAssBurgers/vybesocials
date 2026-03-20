@@ -60,9 +60,20 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [runtimeEnvFallbackPlugin({ projectId, supabaseUrl, publishableKey }), react(), mode === "development" && componentTagger()].filter(Boolean),
     resolve: {
-      alias: {
-        "@": path.resolve(__dirname, "./src"),
-      },
+      alias: [
+        {
+          find: /^@\/integrations\/supabase\/client$/,
+          replacement: path.resolve(__dirname, "./src/integrations/supabase/runtime-client.ts"),
+        },
+        {
+          find: path.resolve(__dirname, "./src/integrations/supabase/client.ts"),
+          replacement: path.resolve(__dirname, "./src/integrations/supabase/runtime-client.ts"),
+        },
+        {
+          find: "@",
+          replacement: path.resolve(__dirname, "./src"),
+        },
+      ],
     },
     build: {
       // Optimize chunk splitting for faster loading
