@@ -74,3 +74,33 @@ verify_jwt = false
 
 [functions.calculate-earnings]
 verify_jwt = false
+
+[functions.connect-v2-create-account]
+verify_jwt = false
+
+[functions.connect-v2-account-link]
+verify_jwt = false
+
+[functions.connect-v2-account-status]
+verify_jwt = false
+
+[functions.connect-v2-create-product]
+verify_jwt = false
+
+[functions.connect-v2-list-products]
+verify_jwt = false
+
+[functions.connect-v2-checkout]
+verify_jwt = false
+
+[functions.connect-v2-subscription]
+verify_jwt = false
+
+[functions.connect-v2-billing-portal]
+verify_jwt = false
+
+[functions.connect-v2-webhook-thin]
+verify_jwt = false
+
+[functions.connect-v2-webhook-subscriptions]
+verify_jwt = false
