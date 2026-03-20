@@ -536,12 +536,43 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
 
       {/* Bottom Controls */}
       <div className="absolute bottom-0 left-0 right-0 pb-safe bg-gradient-to-t from-black/80 via-black/40 to-transparent z-30">
-        {/* Filter carousel */}
+        {/* Filter mode toggle */}
+        <div className="flex items-center justify-center gap-1 mb-2">
+          <button
+            onClick={() => setFilterMode('color')}
+            className={cn(
+              "text-[10px] px-3 py-1 rounded-full font-medium transition-all",
+              filterMode === 'color' ? "bg-white/20 text-white" : "text-white/40"
+            )}
+          >
+            🎨 Filters
+          </button>
+          <button
+            onClick={() => setFilterMode('ar')}
+            className={cn(
+              "text-[10px] px-3 py-1 rounded-full font-medium transition-all",
+              filterMode === 'ar' ? "bg-white/20 text-white" : "text-white/40"
+            )}
+          >
+            🎭 AR
+          </button>
+        </div>
+
+        {/* Filter carousel or AR picker */}
         <div className="mb-3">
-          <CameraFilterCarousel
-            currentFilter={currentFilter}
-            onFilterChange={setCurrentFilter}
-          />
+          {filterMode === 'color' ? (
+            <CameraFilterCarousel
+              currentFilter={currentFilter}
+              onFilterChange={setCurrentFilter}
+            />
+          ) : (
+            <ARFilterPicker
+              currentFilter={arFilter?.id || null}
+              onFilterChange={setArFilter}
+              isTracking={faces.length > 0}
+              isLoading={arLoading}
+            />
+          )}
         </div>
 
         {/* Mode selector */}
