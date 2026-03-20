@@ -39,6 +39,9 @@ export const AROverlayCanvas = memo(function AROverlayCanvas({
     };
   }, []);
 
+  // Guard helper: returns true if all values are finite numbers
+  const isFinite = (...vals: number[]) => vals.every(v => Number.isFinite(v) && !Number.isNaN(v));
+
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
@@ -140,10 +143,11 @@ export const AROverlayCanvas = memo(function AROverlayCanvas({
           ctx.globalAlpha = mask.opacity ?? 0.8;
 
           if (mask.type === 'glow') {
-            const gradient = ctx.createRadialGradient(
-              x + w / 2 + offsetX, y + h / 2 + offsetY, 0,
-              x + w / 2 + offsetX, y + h / 2 + offsetY, w * sx * 0.6
-            );
+            const cx0 = x + w / 2 + offsetX;
+            const cy0 = y + h / 2 + offsetY;
+            const r0 = Math.max(0.01, w * sx * 0.6);
+            if (!isFinite(cx0, cy0, r0)) { ctx.restore(); continue; }
+            const gradient = ctx.createRadialGradient(cx0, cy0, 0, cx0, cy0, r0);
             gradient.addColorStop(0, mask.color + 'cc');
             gradient.addColorStop(0.5, mask.color + '44');
             gradient.addColorStop(1, 'transparent');
@@ -214,19 +218,17 @@ export const AROverlayCanvas = memo(function AROverlayCanvas({
       if (currentFilter.lighting) {
         ctx.save();
         const lg = currentFilter.lighting;
-        const gradient = ctx.createRadialGradient(
-          face.centerX + (lg.offsetX || 0),
-          face.centerY + (lg.offsetY || 0),
-          0,
-          face.centerX,
-          face.centerY,
-          face.faceWidth * (lg.radius || 1)
-        );
-        gradient.addColorStop(0, lg.color + (lg.intensity ? Math.round(lg.intensity * 255).toString(16).padStart(2, '0') : '33'));
-        gradient.addColorStop(1, 'transparent');
-        ctx.globalCompositeOperation = lg.blendMode as GlobalCompositeOperation || 'screen';
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const lcx = face.centerX + (lg.offsetX || 0);
+        const lcy = face.centerY + (lg.offsetY || 0);
+        const lr = Math.max(0.01, face.faceWidth * (lg.radius || 1));
+        if (isFinite(lcx, lcy, lr, face.centerX, face.centerY)) {
+          const gradient = ctx.createRadialGradient(lcx, lcy, 0, face.centerX, face.centerY, lr);
+          gradient.addColorStop(0, lg.color + (lg.intensity ? Math.round(lg.intensity * 255).toString(16).padStart(2, '0') : '33'));
+          gradient.addColorStop(1, 'transparent');
+          ctx.globalCompositeOperation = lg.blendMode as GlobalCompositeOperation || 'screen';
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
         ctx.restore();
       }
     }
