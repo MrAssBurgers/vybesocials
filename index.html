@@ -12,6 +12,21 @@
     <!-- Google AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9952523729646293" crossorigin="anonymous"></script>
     
+    <!-- OneSignal Push Notifications -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "85bcf4b4-16fb-4101-90b3-59ca9574e57b",
+          safari_web_id: "web.onesignal.auto.3cfe9839-ceab-4809-9212-172318dbfb2e",
+          notifyButton: {
+            enable: true,
+          },
+        });
+      });
+    </script>
+    
     <!-- Preload critical font -->
     <link rel="preload" href="https://cdn.gpteng.co/mcp-widgets/v1/fonts/CameraPlainVariable.woff2" as="font" type="font/woff2" crossorigin />
     
