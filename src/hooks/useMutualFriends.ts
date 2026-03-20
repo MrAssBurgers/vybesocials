@@ -129,7 +129,7 @@ export function useMutualFriends() {
               .eq('conversation_id', convId)
               .neq('user_id', profile.id);
 
-            ((participants as any[]) || []).forEach((cp: any) => {
+            (participants || []).forEach((cp: any) => {
               if (myFriendIds.has(cp.user_id)) {
                 const weight = convCounts.get(convId) || 1;
                 friendAffinityMap.set(cp.user_id, (friendAffinityMap.get(cp.user_id) || 0) + weight);
