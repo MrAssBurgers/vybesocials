@@ -410,7 +410,19 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const summary = data.choices?.[0]?.message?.content?.trim() || "Unable to generate summary.";
+    let summary = data.choices?.[0]?.message?.content?.trim() || "";
+    
+    // Fallback if AI returns empty
+    if (!summary) {
+      const parts: string[] = [];
+      if (realNotifCount > 0) parts.push(`You have ${realNotifCount} notification${realNotifCount > 1 ? 's' : ''}`);
+      if (unreadConvos > 0) parts.push(`${unreadConvos} unread message${unreadConvos > 1 ? 's' : ''}`);
+      if (newFollowerCount > 0) parts.push(`${newFollowerCount} new follower${newFollowerCount > 1 ? 's' : ''}`);
+      if (streak > 0) parts.push(`🔥 ${streak}-day streak`);
+      summary = parts.length > 0 
+        ? `Hey ${userName}! ${parts.join(', ')}. Keep the momentum going!`
+        : `Hey ${userName}! Everything's caught up — time to create something new! 🚀`;
+    }
 
     return new Response(
       JSON.stringify({ 
@@ -436,9 +448,27 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("AI Catch-up error:", error);
+    // Return a graceful fallback brief instead of an error
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ 
+        summary: "Welcome back! Tap refresh to load your personalized brief. 🌟",
+        hasPosts: false,
+        hasMessages: false,
+        unreadCount: 0,
+        notificationCount: 0,
+        newFollowerCount: 0,
+        recentPostCount: 0,
+        pendingFriendRequests: 0,
+        streak: 0,
+        userLevel: 1,
+        userXp: 0,
+        activeChallenges: [],
+        liveUpdates: [],
+        hasLiveData: false,
+        unreadMessagePreviews: [],
+        notificationDetails: [],
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
