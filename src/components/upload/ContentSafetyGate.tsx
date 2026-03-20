@@ -1,10 +1,10 @@
 import { useState, useCallback, memo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
- import { Shield, Loader2, Check, AlertTriangle, X, Crown } from 'lucide-react';
+import { Shield, Loader2, Check, AlertTriangle, X, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
- import { shouldBypassSafety } from '@/lib/ownerBypass';
+import { shouldBypassSafety } from '@/lib/ownerBypass';
+import { scanImage as nsfwScanImage, scanVideo as nsfwScanVideo } from '@/lib/nsfwScanner';
 
 interface ContentSafetyGateProps {
   file: File | null;
@@ -54,31 +54,21 @@ export const ContentSafetyGate = memo(function ContentSafetyGate({
     setStatus('scanning');
 
     try {
-      // Create form data with the file
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('content_type', file.type.startsWith('video/') ? 'video' : 'image');
+      const isVideo = file.type.startsWith('video/');
+      const scanResult = isVideo ? await nsfwScanVideo(file) : await nsfwScanImage(file);
 
-      // Call content safety edge function
-      const { data, error } = await supabase.functions.invoke('scan-content-safety', {
-        body: formData,
-      });
-
-      if (error) throw error;
-
-      if (data?.is_safe) {
+      if (scanResult.result === 'allowed' || scanResult.result === 'warned') {
         setStatus('safe');
         setTimeout(() => {
           onScanComplete(true);
         }, 800);
       } else {
         setStatus('unsafe');
-        setFlagReason(data?.reason || 'This content may violate our community guidelines.');
+        setFlagReason(scanResult.message || 'This content may violate our community guidelines.');
         onScanComplete(false);
       }
     } catch (err: any) {
       console.error('Content scan error:', err);
-      // On error, allow upload but log for review
       setStatus('safe');
       toast.info('Content check skipped');
       setTimeout(() => {
@@ -279,22 +269,14 @@ export function useContentSafetyScan() {
     setScanResult(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('content_type', file.type.startsWith('video/') ? 'video' : 'image');
+      const isVideo = file.type.startsWith('video/');
+      const result = isVideo ? await nsfwScanVideo(file) : await nsfwScanImage(file);
 
-      const { data, error } = await supabase.functions.invoke('scan-content-safety', {
-        body: formData,
-      });
-
-      if (error) throw error;
-
-      const isSafe = data?.is_safe ?? true;
-      setScanResult({ isSafe, reason: data?.reason });
+      const isSafe = result.result === 'allowed' || result.result === 'warned';
+      setScanResult({ isSafe, reason: result.message });
       return isSafe;
     } catch (err) {
       console.error('Content scan error:', err);
-      // On error, allow upload
       setScanResult({ isSafe: true });
       return true;
     } finally {

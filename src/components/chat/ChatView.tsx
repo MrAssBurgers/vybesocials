@@ -22,6 +22,7 @@ import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { scanVideo as nsfwScanVideo, scanImage as nsfwScanImage } from '@/lib/nsfwScanner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -824,38 +825,17 @@ export function ChatView() {
         phase = 'safety-scan';
         const scanPromise = (async () => {
           try {
-            const base64 = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => {
-                const result = reader.result as string;
-                resolve(result.split(',')[1]);
-              };
-              reader.onerror = reject;
-              reader.readAsDataURL(uploadFile);
-            });
-
-            const { data: scanResult, error: scanError } = await supabase.functions.invoke('scan-video-safety', {
-              body: {
-                videoBase64: base64,
-                mimeType: uploadFile.type,
-              },
-            });
-
-            if (scanError) {
-              console.warn('[VYBE] Video safety scan error:', scanError);
-              return { result: 'allowed' };
-            }
-            
+            const scanResult = await nsfwScanVideo(uploadFile);
             return scanResult;
           } catch (err) {
             console.warn('[VYBE] Video scan timeout/error:', err);
-            return { result: 'allowed' };
+            return { result: 'allowed' as const };
           }
         })();
         
         const scanResult = await Promise.race([
           scanPromise,
-          new Promise<{ result: string }>((resolve) => setTimeout(() => resolve({ result: 'allowed' }), 15000))
+          new Promise<{ result: string; message?: string }>((resolve) => setTimeout(() => resolve({ result: 'allowed' }), 15000))
         ]);
 
         if (scanResult?.result === 'blocked') {
@@ -905,33 +885,27 @@ export function ChatView() {
           return;
         }
         
-        // PHASE 2: Safety scan (non-blocking)
+        // PHASE 2: Safety scan (client-side NSFWJS)
         phase = 'safety-scan';
+        const byteChars = atob(base64Data);
+        const byteNums = new Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+        const imageBlob = new Blob([new Uint8Array(byteNums)], { type: 'image/jpeg' });
+        const imageFile = new File([imageBlob], 'vybe.jpg', { type: 'image/jpeg' });
+        
         const scanPromise = (async () => {
           try {
-            const { data: scanResult, error: scanError } = await supabase.functions.invoke('scan-content-safety', {
-              body: {
-                type: 'image',
-                content: base64Data,
-                fileName: 'vybe.jpg',
-              },
-            });
-
-            if (scanError) {
-              console.warn('[VYBE] Image safety scan error:', scanError);
-              return { result: 'allowed' };
-            }
-            
+            const scanResult = await nsfwScanImage(imageFile);
             return scanResult;
           } catch (err) {
             console.warn('[VYBE] Image scan timeout/error:', err);
-            return { result: 'allowed' };
+            return { result: 'allowed' as const, message: '' };
           }
         })();
         
         const scanResult = await Promise.race([
           scanPromise,
-          new Promise<{ result: string }>((resolve) => setTimeout(() => resolve({ result: 'allowed' }), 10000))
+          new Promise<{ result: string; message?: string }>((resolve) => setTimeout(() => resolve({ result: 'allowed' }), 10000))
         ]);
 
         if (scanResult?.result === 'blocked') {
