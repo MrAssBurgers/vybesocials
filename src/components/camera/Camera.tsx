@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, RotateCcw, Zap, ZapOff, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { CameraFilters, CAMERA_FILTERS, getFilterCSS } from './CameraFilters';
+import { CameraFilterCarousel, PRESET_FILTERS, getFilterCSS } from './CameraFilterCarousel';
 import { CameraEditor } from './CameraEditor';
 import { CameraShareSheet } from './CameraShareSheet';
 import { CameraSafetyGate } from './CameraSafetyGate';
@@ -202,11 +202,11 @@ export function Camera({ onClose }: CameraProps) {
 
   // Filter swipe handling
   const handleFilterSwipe = (direction: number) => {
-    const currentIndex = CAMERA_FILTERS.findIndex(f => f.id === currentFilter);
-    const newIndex = Math.max(0, Math.min(CAMERA_FILTERS.length - 1, currentIndex + direction));
+    const currentIndex = PRESET_FILTERS.findIndex(f => f.id === currentFilter);
+    const newIndex = Math.max(0, Math.min(PRESET_FILTERS.length - 1, currentIndex + direction));
     if (newIndex !== currentIndex) {
       triggerHaptic('light');
-      setCurrentFilter(CAMERA_FILTERS[newIndex].id);
+      setCurrentFilter(PRESET_FILTERS[newIndex].id);
     }
   };
 
@@ -352,7 +352,7 @@ export function Camera({ onClose }: CameraProps) {
       <div className="absolute bottom-0 left-0 right-0 pb-safe bg-gradient-to-t from-black/80 to-transparent">
         {/* Filters */}
         <div className="mb-4">
-          <CameraFilters 
+          <CameraFilterCarousel 
             currentFilter={currentFilter}
             onFilterChange={setCurrentFilter}
           />

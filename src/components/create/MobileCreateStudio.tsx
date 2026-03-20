@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Zap, ZapOff, SwitchCamera, Image as ImageIcon, Music2 } from 'lucide-react';
+import { Image as ImageIcon, Music2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VybeRecordButton } from '@/components/camera/VybeRecordButton';
 import { CreateModeSelector, type CreateMode } from './CreateModeSelector';
@@ -8,6 +8,9 @@ import { MobilePostComposer } from './MobilePostComposer';
 import { SoundPicker } from '@/components/sounds/SoundPicker';
 import { SoundControls } from '@/components/sounds/SoundControls';
 import { MusicGallery } from '@/components/music/MusicGallery';
+import { CameraFilterCarousel, getFilterCSS } from '@/components/camera/CameraFilterCarousel';
+import { CameraTopControls } from '@/components/camera/CameraTopControls';
+import { CameraZoomIndicator } from '@/components/camera/CameraZoom';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
@@ -32,9 +35,14 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [showFlash, setShowFlash] = useState(false);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
   const [selectedSound, setSelectedSound] = useState<Sound | null>(initialSound || null);
-  const [selectedTrack, setSelectedTrack] = useState<any>(null); // For licensed music tracks
+  const [selectedTrack, setSelectedTrack] = useState<any>(null);
   const [showMusicGallery, setShowMusicGallery] = useState(false);
   const [soundStartTime, setSoundStartTime] = useState(0);
+  const [currentFilter, setCurrentFilter] = useState('normal');
+  const [timer, setTimer] = useState(0);
+  const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [showZoomIndicator, setShowZoomIndicator] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -49,7 +57,11 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const isRecordingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Hide nav
+  // Pinch zoom refs
+  const lastPinchDistRef = useRef<number | null>(null);
+  const zoomRef = useRef(1);
+  const zoomIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     navVisibility.setInCommunityChat(true);
     return () => { navVisibility.forceShow(); };
@@ -70,6 +82,9 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         videoRef.current.srcObject = stream;
         videoRef.current.play().catch(() => {});
       }
+      // Reset zoom on camera switch
+      zoomRef.current = 1;
+      setZoomLevel(1);
     } catch (err) {
       console.error('[MobileCreateStudio] Camera error:', err);
     }
@@ -87,49 +102,118 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
     return () => stopCamera();
   }, [phase, startCamera, stopCamera, mode]);
 
-  // Take photo
-  const takePhoto = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current) return;
-    triggerHaptic('medium');
-
-    if (flash) {
-      setShowFlash(true);
-      setTimeout(() => setShowFlash(false), 150);
+  // Pinch-to-zoom handler
+  const handlePinchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length < 2) {
+      lastPinchDistRef.current = null;
+      return;
     }
 
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx, dy);
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    if (lastPinchDistRef.current !== null) {
+      const scale = dist / lastPinchDistRef.current;
+      const newZoom = Math.min(5, Math.max(1, zoomRef.current * scale));
+      zoomRef.current = newZoom;
+      setZoomLevel(newZoom);
+      setShowZoomIndicator(true);
 
-    if (facingMode === 'user') {
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
-    }
-    ctx.drawImage(video, 0, 0);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const file = new File([blob], `vybe-photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      const url = URL.createObjectURL(blob);
-
-      if (mode === 'multi') {
-        if (capturedFiles.length >= 10) return;
-        setCapturedFiles(prev => [...prev, file]);
-        setCapturedPreviews(prev => [...prev, url]);
-      } else {
-        setCapturedFiles([file]);
-        setCapturedPreviews([url]);
-        setPhase('compose');
+      // Apply native zoom if supported
+      const track = streamRef.current?.getVideoTracks()[0];
+      if (track) {
+        const caps = track.getCapabilities?.() as any;
+        if (caps?.zoom) {
+          const nativeZoom = caps.zoom.min + (newZoom - 1) / 4 * (caps.zoom.max - caps.zoom.min);
+          try {
+            (track as any).applyConstraints({ advanced: [{ zoom: Math.min(nativeZoom, caps.zoom.max) }] });
+          } catch { /* fallback */ }
+        }
       }
-    }, 'image/jpeg', 0.92);
-  }, [flash, facingMode, mode, capturedFiles.length]);
 
-  // Start recording
+      // CSS fallback zoom
+      if (videoRef.current) {
+        const flipTransform = facingMode === 'user' ? ' scaleX(-1)' : '';
+        videoRef.current.style.transform = `scale(${newZoom})${flipTransform}`;
+      }
+
+      // Hide indicator after delay
+      if (zoomIndicatorTimeoutRef.current) clearTimeout(zoomIndicatorTimeoutRef.current);
+      zoomIndicatorTimeoutRef.current = setTimeout(() => setShowZoomIndicator(false), 1500);
+    }
+
+    lastPinchDistRef.current = dist;
+  }, [facingMode]);
+
+  const handlePinchEnd = useCallback(() => {
+    lastPinchDistRef.current = null;
+  }, []);
+
+  // Take photo (with timer support)
+  const takePhoto = useCallback(() => {
+    const doCapture = () => {
+      if (!videoRef.current || !canvasRef.current) return;
+      triggerHaptic('medium');
+
+      if (flash) {
+        setShowFlash(true);
+        setTimeout(() => setShowFlash(false), 150);
+      }
+
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      if (facingMode === 'user') {
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+      }
+      // Apply filter to canvas
+      ctx.filter = getFilterCSS(currentFilter) || 'none';
+      ctx.drawImage(video, 0, 0);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const file = new File([blob], `vybe-photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const url = URL.createObjectURL(blob);
+
+        if (mode === 'multi') {
+          if (capturedFiles.length >= 10) return;
+          setCapturedFiles(prev => [...prev, file]);
+          setCapturedPreviews(prev => [...prev, url]);
+        } else {
+          setCapturedFiles([file]);
+          setCapturedPreviews([url]);
+          setPhase('compose');
+        }
+      }, 'image/jpeg', 0.92);
+    };
+
+    if (timer > 0) {
+      setTimerCountdown(timer);
+      let count = timer;
+      const interval = setInterval(() => {
+        count--;
+        if (count <= 0) {
+          clearInterval(interval);
+          setTimerCountdown(null);
+          doCapture();
+        } else {
+          setTimerCountdown(count);
+        }
+      }, 1000);
+    } else {
+      doCapture();
+    }
+  }, [flash, facingMode, mode, capturedFiles.length, timer, currentFilter]);
+
+  // Recording
   const startRecording = useCallback(() => {
     if (!streamRef.current) return;
     triggerHaptic('heavy');
@@ -205,13 +289,11 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
     if (selected.length === 0) return;
 
     if (mode === 'multi') {
-      // In multi mode, ADD to existing items
       const remaining = 10 - capturedFiles.length;
       const items = selected.slice(0, remaining);
       const urls = items.map(f => URL.createObjectURL(f));
       setCapturedFiles(prev => [...prev, ...items]);
       setCapturedPreviews(prev => [...prev, ...urls]);
-      // Stay in camera mode so user can add more
     } else {
       const items = selected.slice(0, 1);
       const urls = items.map(f => URL.createObjectURL(f));
@@ -219,11 +301,9 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       setCapturedPreviews(urls);
       setPhase('compose');
     }
-    // Reset input so the same file(s) can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [mode, capturedFiles.length]);
 
-  // Remove a captured item in multi mode
   const removeMultiItem = useCallback((index: number) => {
     setCapturedPreviews(prev => {
       URL.revokeObjectURL(prev[index]);
@@ -232,7 +312,6 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
     setCapturedFiles(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  // Mode change
   const handleModeChange = (newMode: CreateMode) => {
     setMode(newMode);
     if (newMode === 'text') {
@@ -245,7 +324,6 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
     }
   };
 
-  // Multi mode: go to compose
   const handleMultiDone = () => {
     if (capturedFiles.length > 0) setPhase('compose');
   };
@@ -279,18 +357,26 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       <canvas ref={canvasRef} className="hidden" />
       <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple={mode === 'multi'} onChange={handleGalleryPick} className="hidden" />
 
-      {/* Camera View */}
-      <div className="flex-1 relative overflow-hidden">
+      {/* Camera viewfinder with pinch-to-zoom */}
+      <div
+        className="flex-1 relative overflow-hidden"
+        onTouchMove={handlePinchMove}
+        onTouchEnd={handlePinchEnd}
+      >
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
           className={cn(
-            "w-full h-full object-cover",
+            "w-full h-full object-cover transition-transform duration-75",
             facingMode === 'user' && "scale-x-[-1]"
           )}
+          style={{ filter: getFilterCSS(currentFilter) || undefined }}
         />
+
+        {/* Zoom indicator */}
+        <CameraZoomIndicator zoom={zoomLevel} visible={showZoomIndicator} />
 
         {/* Flash overlay */}
         <AnimatePresence>
@@ -300,6 +386,24 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
               transition={{ duration: 0.15 }}
               className="absolute inset-0 z-50 bg-white pointer-events-none"
             />
+          )}
+        </AnimatePresence>
+
+        {/* Timer countdown overlay */}
+        <AnimatePresence>
+          {timerCountdown !== null && (
+            <motion.div
+              key={timerCountdown}
+              initial={{ scale: 2, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none"
+            >
+              <span className="text-white text-8xl font-display font-bold drop-shadow-2xl">
+                {timerCountdown}
+              </span>
+            </motion.div>
           )}
         </AnimatePresence>
 
@@ -339,7 +443,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           )}
         </AnimatePresence>
 
-        {/* Multi mode thumbnail strip */}
+        {/* Multi mode thumbnails */}
         {mode === 'multi' && capturedPreviews.length > 0 && (
           <div className="absolute top-16 left-0 right-0 z-20 px-4">
             <div className="flex gap-2 overflow-x-auto scrollbar-hide py-2">
@@ -364,24 +468,33 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       </div>
 
       {/* Top Controls */}
-      <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent z-30">
-        <Button variant="ghost" size="icon" onClick={onClose} className="text-white bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full">
-          <X className="h-6 w-6" strokeWidth={2.5} />
-        </Button>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => setFlash(!flash)} className="text-white bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full">
-            {flash ? <Zap className="h-5 w-5 text-yellow-400" /> : <ZapOff className="h-5 w-5" />}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => { triggerHaptic('light'); setFacingMode(f => f === 'user' ? 'environment' : 'user'); }} className="text-white bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full">
-            <SwitchCamera className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
+      <CameraTopControls
+        onClose={onClose}
+        flash={flash}
+        onFlashToggle={() => setFlash(!flash)}
+        onFlipCamera={() => {
+          setFacingMode(f => f === 'user' ? 'environment' : 'user');
+          // Reset zoom on flip
+          zoomRef.current = 1;
+          setZoomLevel(1);
+          if (videoRef.current) videoRef.current.style.transform = '';
+        }}
+        timer={timer}
+        onTimerChange={setTimer}
+      />
 
       {/* Bottom Controls */}
       <div className="absolute bottom-0 left-0 right-0 pb-safe bg-gradient-to-t from-black/80 via-black/40 to-transparent z-30">
+        {/* Filter carousel */}
+        <div className="mb-3">
+          <CameraFilterCarousel
+            currentFilter={currentFilter}
+            onFilterChange={setCurrentFilter}
+          />
+        </div>
+
         {/* Mode selector */}
-        <div className="mb-4">
+        <div className="mb-3">
           <CreateModeSelector currentMode={mode} onModeChange={handleModeChange} />
         </div>
 
@@ -436,25 +549,25 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
 
         {/* Hint */}
         <AnimatePresence>
-          {!isRecording && (
+          {!isRecording && timerCountdown === null && (
             <motion.p
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="text-center text-white/50 text-xs pb-4"
             >
-              {mode === 'multi' ? 'Tap to capture · Add up to 10' : 'Tap for photo · Hold for video'}
-              {selectedSound && ' · Sound will sync with video'}
+              {mode === 'multi' ? 'Tap to capture · Add up to 10' : 'Tap for photo · Hold for video · Pinch to zoom'}
+              {selectedSound && ' · Sound syncs with video'}
             </motion.p>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Sound Options */}
+      {/* Music Gallery */}
       <AnimatePresence>
         {showMusicGallery && (
           <MusicGallery
             onSelectTrack={(track) => {
               setSelectedTrack(track);
-              setSelectedSound(null); // Clear normal sound
+              setSelectedSound(null);
               setShowMusicGallery(false);
             }}
             onClose={() => setShowMusicGallery(false)}
@@ -466,7 +579,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         onClose={() => setShowSoundPicker(false)}
         onSelectSound={(sound) => {
           setSelectedSound(sound);
-          setSelectedTrack(null); // Clear licensed track
+          setSelectedTrack(null);
         }}
         selectedSoundId={selectedSound?.sound_id}
       />
