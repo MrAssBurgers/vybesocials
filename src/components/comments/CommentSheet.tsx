@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/lib/auth';
-import { useComments, useCreateComment } from '@/hooks/useComments';
+import { useComments, useCreateComment, useDeleteComment } from '@/hooks/useComments';
 import { GifPicker } from '@/components/chat/GifPicker';
 import { MentionInput } from './MentionInput';
 import { CommentThread } from './CommentThread';
@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navVisibility } from '@/lib/navVisibility';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface CommentSheetProps {
   postId: string;
@@ -44,13 +45,61 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
   const { profile } = useAuth();
   const { data: comments, isLoading } = useComments(postId);
   const createComment = useCreateComment();
+  const deleteComment = useDeleteComment();
+  const queryClient = useQueryClient();
   const dragControls = useDragControls();
 
   const [text, setText] = useState('');
   const [replyingTo, setReplyingTo] = useState<{ id: string; username: string } | null>(null);
   const [gifUrl, setGifUrl] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
-  const [sheetHeight, setSheetHeight] = useState(0.6); // 60% of screen
+  const [sheetHeight, setSheetHeight] = useState(0.6);
+
+  // Like a comment
+  const handleLikeComment = useCallback(async (commentId: string) => {
+    if (!profile) return;
+    
+    // Optimistic update
+    queryClient.setQueryData(['comments', postId], (old: any) => {
+      if (!old) return old;
+      return old.map((c: any) => {
+        if (c.id === commentId) {
+          const wasLiked = c.is_liked;
+          return {
+            ...c,
+            is_liked: !wasLiked,
+            like_count: wasLiked ? Math.max(0, (c.like_count || 0) - 1) : (c.like_count || 0) + 1,
+          };
+        }
+        return c;
+      });
+    });
+
+    try {
+      const { data: existing } = await (supabase as any)
+        .from('comment_likes')
+        .select('id')
+        .eq('comment_id', commentId)
+        .eq('user_id', profile.id)
+        .maybeSingle();
+
+      if (existing) {
+        await (supabase as any).from('comment_likes').delete().eq('id', existing.id);
+      } else {
+        await (supabase as any).from('comment_likes').insert({
+          comment_id: commentId,
+          user_id: profile.id,
+        });
+      }
+    } catch (err) {
+      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
+    }
+  }, [profile, postId, queryClient]);
+
+  // Delete a comment
+  const handleDeleteComment = useCallback(async (commentId: string) => {
+    deleteComment.mutate({ commentId, postId });
+  }, [deleteComment, postId]);
 
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -159,18 +208,18 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
             )}
             style={{ height: `${sheetHeight * 100}vh` }}
           >
-            {/* Drag handle */}
+            {/* Drag handle + Header - entire top area is draggable to close */}
             <div 
-              className="flex justify-center py-3 cursor-grab active:cursor-grabbing"
+              className="cursor-grab active:cursor-grabbing touch-none"
               onPointerDown={(e) => dragControls.start(e)}
             >
-              <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
-            </div>
-
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 pb-3 border-b border-border">
-              <h3 className="font-semibold text-lg">Comments</h3>
-              <span className="text-muted-foreground text-sm">{commentCount}</span>
+              <div className="flex justify-center py-3">
+                <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+              </div>
+              <div className="flex items-center justify-between px-4 pb-3 border-b border-border">
+                <h3 className="font-semibold text-lg">Comments</h3>
+                <span className="text-muted-foreground text-sm">{commentCount}</span>
+              </div>
             </div>
 
             {/* Comments list - scrollable */}
@@ -192,6 +241,8 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
                     comment={comment}
                     postId={postId}
                     onReply={handleReply}
+                    onLike={handleLikeComment}
+                    onDelete={handleDeleteComment}
                   />
                 ))
               ) : (

@@ -58,6 +58,7 @@ export const ShareSheet = memo(function ShareSheet({
   const [flyingPlanes, setFlyingPlanes] = useState<string[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
+  const [showFullscreenPlane, setShowFullscreenPlane] = useState(false);
 
   // Hide bottom nav when sheet is open
   useEffect(() => {
@@ -130,6 +131,7 @@ export const ShareSheet = memo(function ShareSheet({
 
     triggerHaptic('medium');
     setIsSending(true);
+    setShowFullscreenPlane(true);
 
     const friendIds = Array.from(selectedFriends);
     
@@ -402,6 +404,37 @@ export const ShareSheet = memo(function ShareSheet({
               )}
             </AnimatePresence>
           </motion.div>
+
+          {/* Fullscreen paper airplane send animation */}
+          <AnimatePresence>
+            {showFullscreenPlane && (
+              <motion.div
+                className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <motion.div
+                  initial={{ scale: 0.3, opacity: 0, rotate: -20, x: 0, y: 0 }}
+                  animate={{
+                    scale: [0.3, 1.2, 1, 0.8],
+                    opacity: [0, 1, 1, 0],
+                    rotate: [-20, -10, -15, -45],
+                    x: [0, 0, 0, 300],
+                    y: [0, 0, 0, -400],
+                  }}
+                  transition={{ 
+                    duration: 1.2, 
+                    times: [0, 0.3, 0.6, 1],
+                    ease: 'easeInOut' 
+                  }}
+                  onAnimationComplete={() => setShowFullscreenPlane(false)}
+                >
+                  <Send className="h-16 w-16 text-primary drop-shadow-2xl" fill="currentColor" />
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </>
       )}
     </AnimatePresence>

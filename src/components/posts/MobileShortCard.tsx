@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, Volume2, VolumeX, MoreVertical, Eye } from 'lucide-react';
+import { Heart, MessageCircle, Send, Bookmark, Volume2, VolumeX, MoreVertical, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -507,7 +507,7 @@ export const MobileShortCard = memo(function MobileShortCard({
           onClick={handleShare} 
           className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
         >
-          <Share2 className="h-7 w-7 sm:h-8 sm:w-8 text-white drop-shadow-lg" />
+          <Send className="h-7 w-7 sm:h-8 sm:w-8 text-white drop-shadow-lg" />
         </button>
 
         {/* Mute toggle */}

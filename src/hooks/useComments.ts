@@ -15,6 +15,8 @@ interface Comment {
   is_flagged?: boolean;
   safety_score?: number;
   safety_categories?: string[];
+  like_count?: number;
+  is_liked?: boolean;
   user: {
     id: string;
     username: string;
@@ -23,6 +25,8 @@ interface Comment {
 }
 
 export function useComments(postId: string) {
+  const { profile } = useAuth();
+  
   return useQuery({
     queryKey: ['comments', postId],
     queryFn: async (): Promise<Comment[]> => {
@@ -47,6 +51,28 @@ export function useComments(postId: string) {
 
       if (error) throw error;
 
+      // Fetch like counts and user's likes in parallel
+      const commentIds = (data || []).map(c => c.id);
+      let likeCounts: Record<string, number> = {};
+      let userLikes: Set<string> = new Set();
+
+      if (commentIds.length > 0) {
+        const [countsRes, userLikesRes] = await Promise.all([
+          (supabase as any).from('comment_likes').select('comment_id').in('comment_id', commentIds),
+          profile
+            ? (supabase as any).from('comment_likes').select('comment_id').eq('user_id', profile.id).in('comment_id', commentIds)
+            : Promise.resolve({ data: [] }),
+        ]);
+
+        // Count likes per comment
+        for (const row of (countsRes.data || [])) {
+          likeCounts[row.comment_id] = (likeCounts[row.comment_id] || 0) + 1;
+        }
+        for (const row of (userLikesRes.data || [])) {
+          userLikes.add(row.comment_id);
+        }
+      }
+
       return (data || []).map(comment => ({
         ...comment,
         text: filterBlockedContent(comment.text),
@@ -54,6 +80,8 @@ export function useComments(postId: string) {
         is_flagged: comment.is_flagged ?? false,
         safety_score: comment.safety_score ?? 0,
         safety_categories: comment.safety_categories ?? [],
+        like_count: likeCounts[comment.id] || 0,
+        is_liked: userLikes.has(comment.id),
         user: comment.user as unknown as { id: string; username: string; avatar_url: string | null },
       }));
     },

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useInfinitePosts } from '@/hooks/useInfinitePosts';
+import { usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import { ShortCard } from '@/components/posts/ShortCard';
 import { MobileShortCard } from '@/components/posts/MobileShortCard';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -23,9 +23,19 @@ export default function ClipsPage() {
     fetchNextPage, 
     hasNextPage, 
     isFetchingNextPage 
-  } = useInfinitePosts('short');
+  } = usePersonalizedFeed('short');
   
-  const shorts = useMemo(() => data?.pages.flatMap(page => page.posts) || [], [data]);
+  // Shuffle clips to keep feed fresh like TikTok/YouTube Shorts
+  const shorts = useMemo(() => {
+    const allPosts = data?.pages.flatMap(page => page.posts) || [];
+    // Fisher-Yates shuffle for each session
+    const shuffled = [...allPosts];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }, [data]);
   
   const [currentIndex, setCurrentIndex] = useState(0);
   const [globalMuted, setGlobalMuted] = useState(() => {
