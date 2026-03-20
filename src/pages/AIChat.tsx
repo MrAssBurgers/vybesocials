@@ -81,6 +81,37 @@ export default function AIChat() {
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  // GPS location tracking
+  const enableLocation = useCallback(() => {
+    if (!navigator.geolocation) { toast.error('GPS not supported on this device'); return; }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${loc.lat}&lon=${loc.lng}&format=json`);
+          const data = await res.json();
+          const city = data.address?.city || data.address?.town || data.address?.village || 'Unknown';
+          setUserLocation({ ...loc, city });
+        } catch {
+          setUserLocation(loc);
+        }
+        setLocationEnabled(true);
+        toast.success('📍 Location enabled for AI');
+      },
+      () => toast.error('Location permission denied'),
+      { enableHighAccuracy: true }
+    );
+  }, []);
+
+  const toggleConnectedAccount = useCallback((name: string) => {
+    setConnectedAccounts(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      localStorage.setItem('vybe_connected_ai', JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
   const currentModel = useMemo(() => AI_MODELS.find(m => m.id === model) || AI_MODELS[0], [model]);
 
   const handleSaveSettings = useCallback(() => {
