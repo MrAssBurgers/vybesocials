@@ -216,6 +216,9 @@ export default function SoundsPage() {
             onUse={handleUseSound}
           />
         )}
+
+        {/* Upload Sheet */}
+        <SoundUploadSheet open={showUpload} onClose={() => setShowUpload(false)} />
       </div>
     </AppLayout>
   );
