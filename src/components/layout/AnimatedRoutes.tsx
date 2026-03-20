@@ -5,7 +5,7 @@ import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { BugBountyOverlay } from '@/components/error/BugBountyOverlay';
-import { VYBELogo } from '@/components/ui/VYBELogo';
+// VYBELogo removed from fallback for instant navigation
 
 // CRITICAL PAGE - Load eagerly for instant first navigation
 import Home from "@/pages/Home";
