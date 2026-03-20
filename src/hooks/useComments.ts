@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { filterBlockedContent, containsBlockedContent } from '@/lib/contentModeration';
+import { scanText as nsfwScanText } from '@/lib/nsfwScanner';
 import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
 import { useBumpReactionStreak } from './useReactionStreaks';
