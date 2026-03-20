@@ -71,10 +71,16 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Paths that must NEVER be intercepted by the service worker (OAuth redirects, etc.)
+const SW_BYPASS_PATHS = ['/~oauth'];
+
 // Fetch handler - routing strategy
 self.addEventListener('fetch', (event) => {
   try {
     const url = new URL(event.request.url);
+
+    // CRITICAL: Never intercept OAuth redirect paths — must always hit the network
+    if (SW_BYPASS_PATHS.some((p) => url.pathname.startsWith(p))) return;
 
     // Force-refresh updated PWA icons
     if (FORCE_REFRESH_PATHS.has(url.pathname)) {
@@ -90,9 +96,19 @@ self.addEventListener('fetch', (event) => {
     // Skip chrome-extension, devtools, etc.
     if (!url.protocol.startsWith('http')) return;
 
-    // CRITICAL: Never intercept navigation requests on Safari/iPad
-    // Safari can show "can't open page" if SW returns a stale/bad response
-    if (event.request.mode === 'navigate') return;
+    // Navigation requests: network-first with offline.html fallback
+    // This gives users a proper offline page instead of a browser error
+    if (event.request.mode === 'navigate') {
+      event.respondWith(
+        fetch(event.request).catch(() => {
+          return caches.match('/offline.html') || new Response('Offline', {
+            status: 503,
+            headers: { 'Content-Type': 'text/html' },
+          });
+        })
+      );
+      return;
+    }
 
     // Network-first for API calls
     if (NETWORK_FIRST_PATTERNS.some((p) => url.pathname.includes(p) || url.href.includes(p))) {
@@ -106,7 +122,7 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
-    // Stale-while-revalidate for app shell (JS, CSS only - not HTML/navigation)
+    // Stale-while-revalidate for app shell (JS, CSS only)
     if (
       url.origin === self.location.origin &&
       (url.pathname.endsWith('.js') || url.pathname.endsWith('.css'))
