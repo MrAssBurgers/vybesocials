@@ -141,13 +141,13 @@ export function useMutualFriends() {
         // Recent likes on friends' posts
         const { data: recentLikes } = await supabase
           .from('likes')
-          .select('post_id, posts!inner(user_id)')
+          .select('post_id, posts!inner(author_id)')
           .eq('user_id', profile.id)
           .gte('created_at', thirtyDaysAgo)
           .limit(100);
 
         (recentLikes || []).forEach((l: any) => {
-          const postAuthor = l.posts?.user_id;
+          const postAuthor = l.posts?.author_id;
           if (postAuthor && myFriendIds.has(postAuthor)) {
             friendAffinityMap.set(postAuthor, (friendAffinityMap.get(postAuthor) || 0) + 2);
           }
