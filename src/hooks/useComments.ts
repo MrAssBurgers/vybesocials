@@ -15,6 +15,8 @@ interface Comment {
   is_flagged?: boolean;
   safety_score?: number;
   safety_categories?: string[];
+  like_count?: number;
+  is_liked?: boolean;
   user: {
     id: string;
     username: string;
