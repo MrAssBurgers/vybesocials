@@ -4018,6 +4018,216 @@ export type Database = {
           },
         ]
       }
+      filter_saves: {
+        Row: {
+          created_at: string
+          filter_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          filter_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          filter_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "filter_saves_filter_id_fkey"
+            columns: ["filter_id"]
+            isOneToOne: false
+            referencedRelation: "filters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filter_saves_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "filter_saves_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filter_saves_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filter_saves_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
+      filter_usage: {
+        Row: {
+          created_at: string
+          filter_id: string
+          id: string
+          post_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          filter_id: string
+          id?: string
+          post_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          filter_id?: string
+          id?: string
+          post_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "filter_usage_filter_id_fkey"
+            columns: ["filter_id"]
+            isOneToOne: false
+            referencedRelation: "filters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filter_usage_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filter_usage_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "filter_usage_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filter_usage_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filter_usage_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
+      filters: {
+        Row: {
+          category: string
+          created_at: string
+          creator_id: string
+          css_filter: string
+          description: string | null
+          effect_config: Json | null
+          id: string
+          is_approved: boolean
+          is_published: boolean
+          name: string
+          overlay_url: string | null
+          rejection_reason: string | null
+          save_count: number
+          trending_score: number
+          updated_at: string
+          usage_count: number
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          creator_id: string
+          css_filter?: string
+          description?: string | null
+          effect_config?: Json | null
+          id?: string
+          is_approved?: boolean
+          is_published?: boolean
+          name: string
+          overlay_url?: string | null
+          rejection_reason?: string | null
+          save_count?: number
+          trending_score?: number
+          updated_at?: string
+          usage_count?: number
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          creator_id?: string
+          css_filter?: string
+          description?: string | null
+          effect_config?: Json | null
+          id?: string
+          is_approved?: boolean
+          is_published?: boolean
+          name?: string
+          overlay_url?: string | null
+          rejection_reason?: string | null
+          save_count?: number
+          trending_score?: number
+          updated_at?: string
+          usage_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "filters_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "filters_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filters_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filters_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       follows: {
         Row: {
           created_at: string
@@ -6130,6 +6340,7 @@ export type Database = {
           author_id: string
           caption: string | null
           created_at: string
+          filter_id: string | null
           has_profanity: boolean | null
           id: string
           is_pinned: boolean | null
@@ -6148,6 +6359,7 @@ export type Database = {
           author_id: string
           caption?: string | null
           created_at?: string
+          filter_id?: string | null
           has_profanity?: boolean | null
           id?: string
           is_pinned?: boolean | null
@@ -6166,6 +6378,7 @@ export type Database = {
           author_id?: string
           caption?: string | null
           created_at?: string
+          filter_id?: string | null
           has_profanity?: boolean | null
           id?: string
           is_pinned?: boolean | null
@@ -6208,6 +6421,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "xp_leaderboard"
             referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "posts_filter_id_fkey"
+            columns: ["filter_id"]
+            isOneToOne: false
+            referencedRelation: "filters"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "posts_sound_id_fkey"
