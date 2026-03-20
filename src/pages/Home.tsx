@@ -376,18 +376,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         {/* Welcome Header with AI Catch-up */}
         <WelcomeHeader />
 
-        {/* Customize Button */}
-        <div className="px-4 pb-2 flex justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCustomizerOpen(true)}
-            className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-            Customize
-          </Button>
-        </div>
+        {/* Weekly Rhythm Banner - widget controlled */}
+        {isVisible('weekly_rhythm') && <WeeklyRhythmBanner />}
 
         {/* Weekly Rhythm Banner - widget controlled */}
         {isVisible('weekly_rhythm') && <WeeklyRhythmBanner />}
