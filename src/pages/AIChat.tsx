@@ -254,6 +254,9 @@ export default function AIChat() {
               <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
                 <Settings className="h-4 w-4 mr-2" /> Customize AI
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsConnectOpen(true)}>
+                <Zap className="h-4 w-4 mr-2" /> Connect AI Account
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={clearChat}>Clear Chat</DropdownMenuItem>
             </DropdownMenuContent>
