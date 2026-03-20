@@ -503,44 +503,91 @@ export default function AIChat() {
 
       {/* Connect AI Account Sheet */}
       <Sheet open={isConnectOpen} onOpenChange={setIsConnectOpen}>
-        <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
+        <SheetContent side="bottom" className="h-[70vh] rounded-t-3xl">
           <SheetHeader className="text-left">
             <SheetTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-primary" />
-              Connect AI Account
+              Connect AI Services
             </SheetTitle>
           </SheetHeader>
           
-          <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(60vh-8rem)]">
-            <p className="text-sm text-muted-foreground">Link your existing AI accounts for enhanced capabilities.</p>
+          <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(70vh-8rem)] overscroll-contain touch-pan-y">
+            <p className="text-sm text-muted-foreground">Connect services to enhance your AI experience. Your AI will use these to provide richer responses.</p>
             
-            {[
-              { name: 'ChatGPT', icon: '🤖', desc: 'Connect your OpenAI ChatGPT account', color: 'from-green-500/20 to-emerald-500/20' },
-              { name: 'Google Gemini', icon: '✨', desc: 'Connect your Google Gemini account', color: 'from-blue-500/20 to-cyan-500/20' },
-              { name: 'Claude', icon: '🧠', desc: 'Connect your Anthropic Claude account', color: 'from-orange-500/20 to-amber-500/20' },
-              { name: 'Perplexity', icon: '🔍', desc: 'Connect your Perplexity account', color: 'from-purple-500/20 to-violet-500/20' },
-            ].map((ai) => (
-              <button
-                key={ai.name}
-                onClick={() => { toast.info(`${ai.name} connection coming soon!`); }}
-                className={cn(
-                  "w-full flex items-center gap-3 p-3.5 rounded-xl border border-border/50",
-                  "bg-gradient-to-r", ai.color,
-                  "hover:border-primary/40 transition-all active:scale-[0.98]"
-                )}
-              >
-                <span className="text-2xl">{ai.icon}</span>
-                <div className="flex-1 text-left">
-                  <div className="text-sm font-semibold">{ai.name}</div>
-                  <div className="text-[11px] text-muted-foreground">{ai.desc}</div>
+            {/* GPS Location */}
+            <button
+              onClick={() => { locationEnabled ? setLocationEnabled(false) : enableLocation(); }}
+              className={cn(
+                "w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all active:scale-[0.98]",
+                locationEnabled ? "border-primary/50 bg-primary/10" : "border-border/50 bg-gradient-to-r from-primary/10 to-accent/10"
+              )}
+            >
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                <MapPin className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="text-sm font-semibold">GPS Location</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {locationEnabled && userLocation?.city ? `📍 ${userLocation.city}` : 'Help AI with location-aware answers'}
                 </div>
-                <div className="text-xs font-medium text-primary px-2.5 py-1 rounded-full bg-primary/10">Connect</div>
-              </button>
-            ))}
+              </div>
+              <div className={cn(
+                "text-xs font-medium px-2.5 py-1 rounded-full",
+                locationEnabled ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+              )}>
+                {locationEnabled ? 'On' : 'Enable'}
+              </div>
+            </button>
+            
+            {/* AI Services */}
+            <div className="pt-2">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">AI Providers</span>
+            </div>
+            {[
+              { name: 'ChatGPT', icon: '🤖', desc: 'OpenAI GPT models for deep reasoning', color: 'from-green-500/10 to-emerald-500/10', modelId: 'gpt-5' },
+              { name: 'Google Gemini', icon: '✨', desc: 'Multimodal AI with vision & search', color: 'from-blue-500/10 to-cyan-500/10', modelId: 'gemini-flash' },
+              { name: 'Claude', icon: '🧠', desc: 'Thoughtful analysis & writing', color: 'from-orange-500/10 to-amber-500/10', modelId: 'gpt-5-mini' },
+              { name: 'Perplexity', icon: '🔍', desc: 'Real-time web search + AI answers', color: 'from-purple-500/10 to-violet-500/10', modelId: 'gemini-pro' },
+            ].map((ai) => {
+              const isConnected = connectedAccounts.has(ai.name);
+              return (
+                <button
+                  key={ai.name}
+                  onClick={() => {
+                    toggleConnectedAccount(ai.name);
+                    if (!isConnected) {
+                      updateModel(ai.modelId as any);
+                      toast.success(`${ai.name} connected! Switched to ${ai.name} model.`);
+                    } else {
+                      toast(`${ai.name} disconnected`);
+                    }
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all active:scale-[0.98]",
+                    isConnected ? "border-primary/50 bg-primary/5" : "border-border/50 bg-gradient-to-r " + ai.color,
+                  )}
+                >
+                  <span className="text-2xl">{ai.icon}</span>
+                  <div className="flex-1 text-left">
+                    <div className="text-sm font-semibold flex items-center gap-1.5">
+                      {ai.name}
+                      {isConnected && <Check className="h-3 w-3 text-primary" />}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">{ai.desc}</div>
+                  </div>
+                  <div className={cn(
+                    "text-xs font-medium px-2.5 py-1 rounded-full transition-all",
+                    isConnected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+                  )}>
+                    {isConnected ? 'Connected' : 'Connect'}
+                  </div>
+                </button>
+              );
+            })}
 
-            <div className="pt-3 border-t border-border/40">
+            <div className="pt-3 border-t border-border/40 space-y-2">
               <p className="text-[11px] text-muted-foreground text-center">
-                Your credentials are encrypted and stored securely. You can disconnect anytime.
+                All services are powered by VYBE's AI infrastructure. Connecting a provider switches your active model.
               </p>
             </div>
           </div>
