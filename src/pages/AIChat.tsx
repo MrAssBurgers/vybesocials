@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Send, Loader2, MoreVertical, Sparkles, Settings, RotateCcw, Check,
-  Dna, ChevronDown, Zap, Brain, BotMessageSquare, MapPin, Navigation
+  Dna, ChevronDown, Zap, Brain, BotMessageSquare, MapPin, Navigation, Eye, EyeOff, Trash2, KeyRound
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
