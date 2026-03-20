@@ -47,7 +47,7 @@ const QUICK_PROMPTS = [
   '📝 Help me write a caption',
   '🎯 How to grow my audience?',
   '🧬 What does my DNA say?',
-  '📍 What's near me right now?',
+  '📍 What\'s near me right now?',
   '💻 Help me code something',
 ];
 
