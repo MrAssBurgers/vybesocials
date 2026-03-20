@@ -128,8 +128,8 @@ export const SharedPostBubble = memo(function SharedPostBubble({
     if (onNavigate) {
       onNavigate(postId);
     } else {
-      if (isVideo && postData?.type === 'short') {
-        navigate(`/shorts?startId=${postId}`);
+      if (isVideo) {
+        navigate(`/clips/${postId}`, { state: { from: 'messages' } });
       } else {
         navigate(`/p/${postId}`);
       }

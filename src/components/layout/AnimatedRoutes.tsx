@@ -37,6 +37,7 @@ const Community = lazy(() => import("@/pages/Community"));
 const Spaces = lazy(() => import("@/pages/Spaces"));
 const Watch = lazy(() => import("@/pages/Watch"));
 const VideoBrowse = lazy(() => import("@/pages/VideoBrowse"));
+const ClipsViewer = lazy(() => import("@/pages/ClipsViewer"));
 const Privacy = lazy(() => import("@/pages/Privacy"));
 const Terms = lazy(() => import("@/pages/Terms"));
 const CookiePolicy = lazy(() => import("@/pages/CookiePolicy"));
