@@ -37,7 +37,7 @@ export interface ScanResult {
   message: string;
   categories: string[];
   score: number;
-  predictions?: nsfwjs.predictionType[];
+  predictions?: nsfwjs.PredictionType[];
 }
 
 // Thresholds for classification
