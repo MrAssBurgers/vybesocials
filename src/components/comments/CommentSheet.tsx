@@ -241,6 +241,8 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
                     comment={comment}
                     postId={postId}
                     onReply={handleReply}
+                    onLike={handleLikeComment}
+                    onDelete={handleDeleteComment}
                   />
                 ))
               ) : (
