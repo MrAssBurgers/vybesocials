@@ -39,6 +39,25 @@ function runtimeEnvFallbackPlugin(values: {
   };
 }
 
+function previewSupabaseClientShimPlugin() {
+  return {
+    name: 'preview-supabase-client-shim',
+    configureServer(server: { middlewares: { use: (handler: (req: { url?: string }, res: { setHeader: (name: string, value: string) => void; end: (body: string) => void }, next: () => void) => void) => void } }) {
+      server.middlewares.use((req, res, next) => {
+        const requestPath = req.url?.split('?')[0];
+
+        if (requestPath !== '/src/integrations/supabase/client.ts') {
+          next();
+          return;
+        }
+
+        res.setHeader('Content-Type', 'application/javascript');
+        res.end('export * from "/src/integrations/supabase/runtime-client.ts";');
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -58,7 +77,7 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
       'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(publishableKey),
     },
-    plugins: [runtimeEnvFallbackPlugin({ projectId, supabaseUrl, publishableKey }), react(), mode === "development" && componentTagger()].filter(Boolean),
+    plugins: [previewSupabaseClientShimPlugin(), runtimeEnvFallbackPlugin({ projectId, supabaseUrl, publishableKey }), react(), mode === "development" && componentTagger()].filter(Boolean),
     resolve: {
       alias: [
         {
