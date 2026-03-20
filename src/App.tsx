@@ -53,9 +53,20 @@ const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"
 
 // Initialize stored fonts, custom animations, and validate env on app load
 import { runEnvSanityCheck } from '@/lib/envCheck';
-initializeStoredFonts();
-initializeCustomAnimations();
-runEnvSanityCheck();
+
+function runSafeBootStep(label: string, callback: () => void) {
+  try {
+    callback();
+  } catch (error) {
+    console.error(`[VYBE] ${label} failed during boot:`, error);
+  }
+}
+
+runSafeBootStep('font initialization', initializeStoredFonts);
+runSafeBootStep('custom animation initialization', initializeCustomAnimations);
+runSafeBootStep('environment sanity check', () => {
+  runEnvSanityCheck();
+});
 
 // Expose query client for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = null;

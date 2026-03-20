@@ -13,18 +13,46 @@
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9952523729646293" crossorigin="anonymous"></script>
     
     <!-- OneSignal Push Notifications -->
-    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
-      window.OneSignalDeferred = window.OneSignalDeferred || [];
-      OneSignalDeferred.push(async function(OneSignal) {
-        await OneSignal.init({
-          appId: "85bcf4b4-16fb-4101-90b3-59ca9574e57b",
-          safari_web_id: "web.onesignal.auto.3cfe9839-ceab-4809-9212-172318dbfb2e",
-          notifyButton: {
-            enable: true,
-          },
+      (function () {
+        const hostname = window.location.hostname;
+        const params = new URLSearchParams(window.location.search);
+        const isPreviewHost =
+          hostname.includes('preview') ||
+          hostname.endsWith('.lovableproject.com') ||
+          hostname.endsWith('.lovable.app') ||
+          params.has('__lovable_token');
+        const isAllowedHost = hostname === 'vybehub.app' || hostname === 'www.vybehub.app';
+
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+
+        if (isPreviewHost || !isAllowedHost) {
+          console.info('[VYBE] OneSignal disabled on this host');
+          return;
+        }
+
+        window.OneSignalDeferred.push(async function (OneSignal) {
+          try {
+            await OneSignal.init({
+              appId: "85bcf4b4-16fb-4101-90b3-59ca9574e57b",
+              safari_web_id: "web.onesignal.auto.3cfe9839-ceab-4809-9212-172318dbfb2e",
+              notifyButton: {
+                enable: true,
+              },
+            });
+          } catch (error) {
+            console.warn('[VYBE] OneSignal init failed gracefully:', error);
+          }
         });
-      });
+
+        const script = document.createElement('script');
+        script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+        script.defer = true;
+        script.onerror = function () {
+          console.warn('[VYBE] OneSignal SDK failed to load');
+        };
+        document.head.appendChild(script);
+      })();
     </script>
     
     <!-- Preload critical font -->
