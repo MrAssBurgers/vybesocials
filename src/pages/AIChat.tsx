@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Send, Loader2, MoreVertical, Sparkles, Settings, RotateCcw, Check,
-  Dna, ChevronDown, Zap, Brain, BotMessageSquare
+  Dna, ChevronDown, Zap, Brain, BotMessageSquare, MapPin, Navigation
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -47,8 +47,8 @@ const QUICK_PROMPTS = [
   '📝 Help me write a caption',
   '🎯 How to grow my audience?',
   '🧬 What does my DNA say?',
+  '📍 What\'s near me right now?',
   '💻 Help me code something',
-  '📊 Explain something complex',
 ];
 
 export default function AIChat() {
@@ -68,6 +68,11 @@ export default function AIChat() {
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [isConnectOpen, setIsConnectOpen] = useState(false);
+  const [connectedAccounts, setConnectedAccounts] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('vybe_connected_ai') || '[]')); } catch { return new Set(); }
+  });
+  const [locationEnabled, setLocationEnabled] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -75,6 +80,37 @@ export default function AIChat() {
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages]);
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  // GPS location tracking
+  const enableLocation = useCallback(() => {
+    if (!navigator.geolocation) { toast.error('GPS not supported on this device'); return; }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${loc.lat}&lon=${loc.lng}&format=json`);
+          const data = await res.json();
+          const city = data.address?.city || data.address?.town || data.address?.village || 'Unknown';
+          setUserLocation({ ...loc, city });
+        } catch {
+          setUserLocation(loc);
+        }
+        setLocationEnabled(true);
+        toast.success('📍 Location enabled for AI');
+      },
+      () => toast.error('Location permission denied'),
+      { enableHighAccuracy: true }
+    );
+  }, []);
+
+  const toggleConnectedAccount = useCallback((name: string) => {
+    setConnectedAccounts(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      localStorage.setItem('vybe_connected_ai', JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
 
   const currentModel = useMemo(() => AI_MODELS.find(m => m.id === model) || AI_MODELS[0], [model]);
 
@@ -109,6 +145,8 @@ export default function AIChat() {
             aiPersonality,
             model,
             feedDNA,
+            location: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, city: userLocation.city } : null,
+            connectedProviders: [...connectedAccounts],
           }),
         }
       );
@@ -194,8 +232,8 @@ export default function AIChat() {
   const showQuickPrompts = messages.length <= 2 && !isLoading;
 
   return (
-    <AppLayout hideRightSidebar>
-      <div className="flex flex-col h-[calc(100dvh-5rem)] md:h-screen bg-background relative overflow-hidden">
+    <>
+      <div className="fixed inset-0 z-[100] flex flex-col bg-background">
         {/* Header - Snapchat AI style */}
         <div className="px-3 py-2.5 border-b border-border/50 flex items-center gap-2.5 bg-card/80 backdrop-blur-md sticky top-0 z-10">
           <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="h-8 w-8 -ml-1">
@@ -338,14 +376,30 @@ export default function AIChat() {
         </div>
 
         {/* Input bar */}
-        <div className="px-3 py-2.5 border-t border-border/40 bg-card/60 backdrop-blur-md">
-          {feedDNA && (
-            <div className="flex items-center gap-1 mb-1.5 px-1">
-              <Dna className="h-2.5 w-2.5 text-accent" />
-              <span className="text-[9px] text-accent/80">Learning your vibes</span>
-            </div>
-          )}
-          <div className="flex items-center gap-2">
+        <div className="px-3 py-2.5 border-t border-border/40 bg-card shrink-0">
+          <div className="flex items-center gap-1 mb-1.5 px-1">
+            {feedDNA && (
+              <div className="flex items-center gap-1">
+                <Dna className="h-2.5 w-2.5 text-accent" />
+                <span className="text-[9px] text-accent/80">Learning your vibes</span>
+              </div>
+            )}
+            {locationEnabled && userLocation && (
+              <div className="flex items-center gap-1 ml-auto">
+                <MapPin className="h-2.5 w-2.5 text-primary" />
+                <span className="text-[9px] text-primary/80">{userLocation.city || 'GPS active'}</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("h-9 w-9 rounded-full shrink-0", locationEnabled ? "text-primary" : "text-muted-foreground")}
+              onClick={() => locationEnabled ? setLocationEnabled(false) : enableLocation()}
+            >
+              <MapPin className="h-4 w-4" />
+            </Button>
             <Input
               ref={inputRef}
               value={input}
@@ -359,7 +413,7 @@ export default function AIChat() {
               onClick={() => sendMessage()}
               disabled={!input.trim() || isLoading}
               size="icon"
-              className="h-9 w-9 rounded-full"
+              className="h-9 w-9 rounded-full shrink-0"
             >
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
@@ -449,49 +503,96 @@ export default function AIChat() {
 
       {/* Connect AI Account Sheet */}
       <Sheet open={isConnectOpen} onOpenChange={setIsConnectOpen}>
-        <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
+        <SheetContent side="bottom" className="h-[70vh] rounded-t-3xl">
           <SheetHeader className="text-left">
             <SheetTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-primary" />
-              Connect AI Account
+              Connect AI Services
             </SheetTitle>
           </SheetHeader>
           
-          <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(60vh-8rem)]">
-            <p className="text-sm text-muted-foreground">Link your existing AI accounts for enhanced capabilities.</p>
+          <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(70vh-8rem)] overscroll-contain touch-pan-y">
+            <p className="text-sm text-muted-foreground">Connect services to enhance your AI experience. Your AI will use these to provide richer responses.</p>
             
-            {[
-              { name: 'ChatGPT', icon: '🤖', desc: 'Connect your OpenAI ChatGPT account', color: 'from-green-500/20 to-emerald-500/20' },
-              { name: 'Google Gemini', icon: '✨', desc: 'Connect your Google Gemini account', color: 'from-blue-500/20 to-cyan-500/20' },
-              { name: 'Claude', icon: '🧠', desc: 'Connect your Anthropic Claude account', color: 'from-orange-500/20 to-amber-500/20' },
-              { name: 'Perplexity', icon: '🔍', desc: 'Connect your Perplexity account', color: 'from-purple-500/20 to-violet-500/20' },
-            ].map((ai) => (
-              <button
-                key={ai.name}
-                onClick={() => { toast.info(`${ai.name} connection coming soon!`); }}
-                className={cn(
-                  "w-full flex items-center gap-3 p-3.5 rounded-xl border border-border/50",
-                  "bg-gradient-to-r", ai.color,
-                  "hover:border-primary/40 transition-all active:scale-[0.98]"
-                )}
-              >
-                <span className="text-2xl">{ai.icon}</span>
-                <div className="flex-1 text-left">
-                  <div className="text-sm font-semibold">{ai.name}</div>
-                  <div className="text-[11px] text-muted-foreground">{ai.desc}</div>
+            {/* GPS Location */}
+            <button
+              onClick={() => { locationEnabled ? setLocationEnabled(false) : enableLocation(); }}
+              className={cn(
+                "w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all active:scale-[0.98]",
+                locationEnabled ? "border-primary/50 bg-primary/10" : "border-border/50 bg-gradient-to-r from-primary/10 to-accent/10"
+              )}
+            >
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                <MapPin className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="text-sm font-semibold">GPS Location</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {locationEnabled && userLocation?.city ? `📍 ${userLocation.city}` : 'Help AI with location-aware answers'}
                 </div>
-                <div className="text-xs font-medium text-primary px-2.5 py-1 rounded-full bg-primary/10">Connect</div>
-              </button>
-            ))}
+              </div>
+              <div className={cn(
+                "text-xs font-medium px-2.5 py-1 rounded-full",
+                locationEnabled ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+              )}>
+                {locationEnabled ? 'On' : 'Enable'}
+              </div>
+            </button>
+            
+            {/* AI Services */}
+            <div className="pt-2">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">AI Providers</span>
+            </div>
+            {[
+              { name: 'ChatGPT', icon: '🤖', desc: 'OpenAI GPT models for deep reasoning', color: 'from-green-500/10 to-emerald-500/10', modelId: 'gpt-5' },
+              { name: 'Google Gemini', icon: '✨', desc: 'Multimodal AI with vision & search', color: 'from-blue-500/10 to-cyan-500/10', modelId: 'gemini-flash' },
+              { name: 'Claude', icon: '🧠', desc: 'Thoughtful analysis & writing', color: 'from-orange-500/10 to-amber-500/10', modelId: 'gpt-5-mini' },
+              { name: 'Perplexity', icon: '🔍', desc: 'Real-time web search + AI answers', color: 'from-purple-500/10 to-violet-500/10', modelId: 'gemini-pro' },
+            ].map((ai) => {
+              const isConnected = connectedAccounts.has(ai.name);
+              return (
+                <button
+                  key={ai.name}
+                  onClick={() => {
+                    toggleConnectedAccount(ai.name);
+                    if (!isConnected) {
+                      updateModel(ai.modelId as any);
+                      toast.success(`${ai.name} connected! Switched to ${ai.name} model.`);
+                    } else {
+                      toast(`${ai.name} disconnected`);
+                    }
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all active:scale-[0.98]",
+                    isConnected ? "border-primary/50 bg-primary/5" : "border-border/50 bg-gradient-to-r " + ai.color,
+                  )}
+                >
+                  <span className="text-2xl">{ai.icon}</span>
+                  <div className="flex-1 text-left">
+                    <div className="text-sm font-semibold flex items-center gap-1.5">
+                      {ai.name}
+                      {isConnected && <Check className="h-3 w-3 text-primary" />}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">{ai.desc}</div>
+                  </div>
+                  <div className={cn(
+                    "text-xs font-medium px-2.5 py-1 rounded-full transition-all",
+                    isConnected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+                  )}>
+                    {isConnected ? 'Connected' : 'Connect'}
+                  </div>
+                </button>
+              );
+            })}
 
-            <div className="pt-3 border-t border-border/40">
+            <div className="pt-3 border-t border-border/40 space-y-2">
               <p className="text-[11px] text-muted-foreground text-center">
-                Your credentials are encrypted and stored securely. You can disconnect anytime.
+                All services are powered by VYBE's AI infrastructure. Connecting a provider switches your active model.
               </p>
             </div>
           </div>
         </SheetContent>
       </Sheet>
-    </AppLayout>
+    </>
   );
 }
