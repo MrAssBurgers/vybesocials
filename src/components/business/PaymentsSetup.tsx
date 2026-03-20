@@ -21,6 +21,7 @@ interface StripeStatus {
   payouts_enabled?: boolean;
   details_submitted?: boolean;
   account_id?: string;
+  needs_reconnect?: boolean;
 }
 
 interface PaymentsSetupProps {
@@ -29,10 +30,10 @@ interface PaymentsSetupProps {
   stripeOnboardingComplete: boolean;
 }
 
-export function PaymentsSetup({ 
-  businessId, 
-  stripeAccountId, 
-  stripeOnboardingComplete 
+export function PaymentsSetup({
+  businessId,
+  stripeAccountId,
+  stripeOnboardingComplete,
 }: PaymentsSetupProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -61,26 +62,30 @@ export function PaymentsSetup({
         if (!silent) toast.error('Unable to check payment status. Please try again.');
         return;
       }
-      if (data?.error) {
+      if (data?.error && !data?.needs_reconnect) {
         console.error('Stripe check returned error:', data.error);
-        if (!silent) toast.error(data.error.includes('STRIPE_SECRET_KEY') 
-          ? 'Payment system is being configured. Please try again shortly.' 
+        if (!silent) toast.error(data.error.includes('STRIPE_SECRET_KEY')
+          ? 'Payment system is being configured. Please try again shortly.'
           : 'Unable to verify payment status.');
         return;
       }
-      
+
       const prev = status;
       setStatus(data);
-      
-      // If status changed, invalidate business query so the whole portal updates instantly
-      if (data.onboarding_complete !== prev.onboarding_complete ||
+
+      if (data?.needs_reconnect && !silent) {
+        toast.info(data.error || 'Your Stripe connection expired. Please reconnect Stripe.');
+      }
+
+      if (data.connected !== prev.connected ||
+          data.account_id !== prev.account_id ||
+          data.onboarding_complete !== prev.onboarding_complete ||
           data.charges_enabled !== prev.charges_enabled ||
           data.payouts_enabled !== prev.payouts_enabled ||
           data.details_submitted !== prev.details_submitted) {
         queryClient.invalidateQueries({ queryKey: ['my-business'] });
       }
-      
-      // Stop polling once fully onboarded
+
       if (data.onboarding_complete) {
         stopPolling();
       }
@@ -92,10 +97,8 @@ export function PaymentsSetup({
     }
   }, [status, queryClient, stopPolling]);
 
-  // Start polling after returning from Stripe
   const startPolling = useCallback(() => {
     stopPolling();
-    // Poll every 3 seconds for up to 60 seconds
     let elapsed = 0;
     pollIntervalRef.current = setInterval(() => {
       elapsed += 3000;
@@ -107,10 +110,8 @@ export function PaymentsSetup({
     }, 3000);
   }, [checkStripeStatus, stopPolling]);
 
-  // Cleanup on unmount
   useEffect(() => stopPolling, [stopPolling]);
 
-  // Check for Stripe return params
   useEffect(() => {
     const stripeSuccess = searchParams.get('stripe_success');
     const stripeRefresh = searchParams.get('stripe_refresh');
@@ -118,7 +119,7 @@ export function PaymentsSetup({
     if (stripeSuccess === 'true') {
       toast.success('Stripe setup completed! Verifying your account...');
       checkStripeStatus();
-      startPolling(); // Auto-poll to pick up status changes quickly
+      startPolling();
       searchParams.delete('stripe_success');
       setSearchParams(searchParams);
     }
@@ -130,7 +131,6 @@ export function PaymentsSetup({
     }
   }, [searchParams]);
 
-  // Check status on mount if we have an account
   useEffect(() => {
     if (stripeAccountId) {
       checkStripeStatus();
@@ -149,16 +149,13 @@ export function PaymentsSetup({
 
       console.log('[PaymentsSetup] create-stripe-connect response:', { data, error });
 
-      // supabase.functions.invoke may put the error body in `data` on non-2xx
       const payload = data as any;
 
-      // If we got a redirect URL, navigate immediately
       if (payload?.url) {
         window.location.href = payload.url;
         return;
       }
 
-      // Handle structured soft errors (200 with ok:false)
       if (payload?.ok === false) {
         if (payload?.code === 'connect_not_enabled') {
           toast.error(
@@ -176,14 +173,12 @@ export function PaymentsSetup({
         return;
       }
 
-      // Handle invoke-level errors
       if (error) {
         console.error('[PaymentsSetup] invoke error:', error);
         toast.error('Failed to connect to payment service. Please try again.');
         return;
       }
 
-      // Handle edge function returning an error field
       if (payload?.error) {
         console.error('[PaymentsSetup] function error:', payload.error);
         toast.error(payload.error.includes('STRIPE_SECRET_KEY')
@@ -201,7 +196,6 @@ export function PaymentsSetup({
     }
   };
 
-
   const handleOpenDashboard = async () => {
     if (!stripeReady) {
       console.warn('[Stripe] Cannot open dashboard: Stripe is disabled.');
@@ -211,11 +205,26 @@ export function PaymentsSetup({
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-stripe-dashboard-link');
-      if (error) throw error;
-      
-      if (data?.url) {
-        window.open(data.url, '_blank');
+      const payload = data as any;
+
+      if (payload?.url) {
+        window.open(payload.url, '_blank');
+        return;
       }
+
+      if (payload?.ok === false) {
+        toast.error(payload.error || 'Reconnect Stripe to open the dashboard.');
+        await checkStripeStatus(true);
+        return;
+      }
+
+      if (error) throw error;
+      if (payload?.error) {
+        toast.error(payload.error);
+        return;
+      }
+
+      toast.error('Unable to open Stripe dashboard.');
     } catch (err: any) {
       toast.error(err.message || 'Failed to open Stripe dashboard');
     } finally {
