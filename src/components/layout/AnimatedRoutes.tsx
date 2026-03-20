@@ -5,9 +5,13 @@ import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { BugBountyOverlay } from '@/components/error/BugBountyOverlay';
+import { VYBELogo } from '@/components/ui/VYBELogo';
 
 // CRITICAL PAGE - Load eagerly for instant first navigation
 import Home from "@/pages/Home";
+import Landing from "@/pages/Landing";
+import Onboarding from "@/pages/Onboarding";
+import AuthCallback from "@/pages/AuthCallback";
 
 // High-priority pages - lazy but prefetched early
 const Explore = lazy(() => import("@/pages/Explore"));
@@ -19,10 +23,8 @@ const Shorts = lazy(() => import("@/pages/Shorts"));
 const Profile = lazy(() => import("@/pages/Profile"));
 
 // Secondary pages - lazy load but prefetch
-const Landing = lazy(() => import("@/pages/Landing"));
 const Upload = lazy(() => import("@/pages/Upload"));
 const PostDetail = lazy(() => import("@/pages/PostDetail"));
-const Onboarding = lazy(() => import("@/pages/Onboarding"));
 const NewMessage = lazy(() => import("@/pages/NewMessage"));
 const AIChat = lazy(() => import("@/pages/AIChat"));
 const Feedback = lazy(() => import("@/pages/Feedback"));
@@ -51,7 +53,6 @@ const AdminBugReports = lazy(() => import("@/pages/AdminBugReports"));
 const BadgeLibrary = lazy(() => import("@/pages/BadgeLibrary"));
 const ChallengesHub = lazy(() => import("@/pages/ChallengesHub"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
-const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 const HowUDoinHub = lazy(() => import("@/pages/HowUDoinHub"));
 const BusinessPortal = lazy(() => import("@/pages/BusinessPortal"));
 const OrderSuccess = lazy(() => import("@/pages/OrderSuccess"));
@@ -83,7 +84,13 @@ import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
 // Minimal fallback - just shows content area, no skeleton flicker
 const PageFallback = memo(() => (
-  <div className="min-h-screen bg-background" />
+  <div className="min-h-screen bg-background flex items-center justify-center px-6">
+    <div className="flex flex-col items-center gap-4 text-center">
+      <VYBELogo size="md" showText={false} />
+      <div className="w-8 h-8 rounded-full border-[3px] border-primary/25 border-t-primary animate-spin" />
+      <p className="text-sm text-muted-foreground">Loading VYBE…</p>
+    </div>
+  </div>
 ));
 
 /**

@@ -63,7 +63,14 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
   // Auth not yet resolved — show an empty shell (splash screen covers this).
   // NEVER redirect here; doing so is the root cause of "user not signed in".
   if (!authReady || (!user && !safetyChecked && !isGuestAllowedRoute)) {
-    return <div className="min-h-screen bg-background" />;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="w-8 h-8 rounded-full border-[3px] border-primary/25 border-t-primary animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading your session…</p>
+        </div>
+      </div>
+    );
   }
 
   // Allow guest access to browse-only routes
