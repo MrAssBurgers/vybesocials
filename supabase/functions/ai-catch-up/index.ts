@@ -448,9 +448,27 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("AI Catch-up error:", error);
+    // Return a graceful fallback brief instead of an error
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ 
+        summary: "Welcome back! Tap refresh to load your personalized brief. 🌟",
+        hasPosts: false,
+        hasMessages: false,
+        unreadCount: 0,
+        notificationCount: 0,
+        newFollowerCount: 0,
+        recentPostCount: 0,
+        pendingFriendRequests: 0,
+        streak: 0,
+        userLevel: 1,
+        userXp: 0,
+        activeChallenges: [],
+        liveUpdates: [],
+        hasLiveData: false,
+        unreadMessagePreviews: [],
+        notificationDetails: [],
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
