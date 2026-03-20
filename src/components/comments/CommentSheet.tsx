@@ -76,7 +76,7 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
     });
 
     try {
-      const { data: existing } = await supabase
+      const { data: existing } = await (supabase as any)
         .from('comment_likes')
         .select('id')
         .eq('comment_id', commentId)
@@ -84,15 +84,14 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
         .maybeSingle();
 
       if (existing) {
-        await supabase.from('comment_likes').delete().eq('id', existing.id);
+        await (supabase as any).from('comment_likes').delete().eq('id', existing.id);
       } else {
-        await supabase.from('comment_likes').insert({
+        await (supabase as any).from('comment_likes').insert({
           comment_id: commentId,
           user_id: profile.id,
         });
       }
     } catch (err) {
-      // Revert on error
       queryClient.invalidateQueries({ queryKey: ['comments', postId] });
     }
   }, [profile, postId, queryClient]);
