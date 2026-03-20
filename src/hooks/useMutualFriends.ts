@@ -123,13 +123,13 @@ export function useMutualFriends() {
           // For each conversation, get the other participants
           const convIds = [...convCounts.keys()].slice(0, 50);
           for (const convId of convIds) {
-            const { data: participants } = await (supabase
-              .from('conversation_participants' as any)
+            const { data: participants } = await supabase
+              .from('conversation_members')
               .select('user_id')
               .eq('conversation_id', convId)
-              .neq('user_id', profile.id) as any);
+              .neq('user_id', profile.id);
 
-            ((participants as any[]) || []).forEach((cp: any) => {
+            (participants || []).forEach((cp: any) => {
               if (myFriendIds.has(cp.user_id)) {
                 const weight = convCounts.get(convId) || 1;
                 friendAffinityMap.set(cp.user_id, (friendAffinityMap.get(cp.user_id) || 0) + weight);
