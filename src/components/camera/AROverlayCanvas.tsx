@@ -39,6 +39,9 @@ export const AROverlayCanvas = memo(function AROverlayCanvas({
     };
   }, []);
 
+  // Guard helper: returns true if all values are finite numbers
+  const isFinite = (...vals: number[]) => vals.every(v => Number.isFinite(v) && !Number.isNaN(v));
+
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
