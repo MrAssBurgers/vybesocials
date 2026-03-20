@@ -131,6 +131,7 @@ export const ShareSheet = memo(function ShareSheet({
 
     triggerHaptic('medium');
     setIsSending(true);
+    setShowFullscreenPlane(true);
 
     const friendIds = Array.from(selectedFriends);
     
