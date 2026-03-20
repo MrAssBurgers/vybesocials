@@ -5,7 +5,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { MobileShortCard } from '@/components/posts/MobileShortCard';
 import { ShortCard } from '@/components/posts/ShortCard';
-import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useInView } from 'react-intersection-observer';
 import { ArrowLeft, Film } from 'lucide-react';
@@ -16,7 +15,6 @@ import { cn } from '@/lib/utils';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import type { Post } from '@/hooks/useInfinitePosts';
 
-const BOTTOM_NAV_HEIGHT = 80;
 const PAGE_SIZE = 15;
 
 function transformRankedPost(row: any): Post {
@@ -52,10 +50,6 @@ async function presignPosts(posts: Post[]) {
   await batchSignUrls(urls);
 }
 
-/**
- * Fullscreen vertical clips viewer — opens a specific post first,
- * then loads an infinite feed below it (Instagram Reels / TikTok style).
- */
 export default function ClipsViewer() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
@@ -71,15 +65,7 @@ export default function ClipsViewer() {
     queryKey: ['clip-viewer-initial', postId],
     queryFn: async (): Promise<Post | null> => {
       if (!postId) return null;
-      const { data, error } = await supabase.rpc('get_posts_with_counts', {
-        p_type: null,
-        p_author_id: null,
-        p_user_id: profile?.id || null,
-        p_offset: 0,
-        p_limit: 1,
-      });
 
-      // If RPC doesn't support filtering by ID, fallback to direct query
       const { data: post, error: postErr } = await supabase
         .from('posts')
         .select(`
@@ -91,7 +77,6 @@ export default function ClipsViewer() {
 
       if (postErr || !post) return null;
 
-      // Get like/bookmark/comment counts
       const [likeRes, commentRes, isLikedRes, isBookmarkedRes] = await Promise.all([
         supabase.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', postId),
         supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', postId),
@@ -156,7 +141,7 @@ export default function ClipsViewer() {
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
-    enabled: !!initialPost, // Only fetch feed AFTER initial post loads
+    enabled: !!initialPost,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -262,130 +247,116 @@ export default function ClipsViewer() {
   // ─── Loading ───
   if (loadingInitial) {
     return (
-      <AppLayout hideNav>
-        <div
-          className="flex items-center justify-center bg-black"
-          style={{ height: isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh' }}
-        >
-          <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
-        </div>
-      </AppLayout>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
+        <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+      </div>
     );
   }
 
   // ─── Error / not found ───
   if (!initialPost && !loadingInitial) {
     return (
-      <AppLayout hideNav>
-        <div
-          className="flex items-center justify-center bg-black px-4"
-          style={{ height: isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh' }}
-        >
-          <EmptyState
-            emoji="🎬"
-            title="Clip not found"
-            description="This clip may have been removed"
-            actionLabel="Browse Clips"
-            onAction={() => navigate('/clips')}
-          />
-        </div>
-      </AppLayout>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black px-4">
+        <EmptyState
+          emoji="🎬"
+          title="Clip not found"
+          description="This clip may have been removed"
+          actionLabel="Browse Clips"
+          onAction={() => navigate('/clips')}
+        />
+      </div>
     );
   }
 
-  const containerHeight = isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh';
   const CardComponent = isMobileOrTablet ? MobileShortCard : ShortCard;
 
   return (
-    <AppLayout hideNav>
+    <div className="fixed inset-0 z-50 bg-black">
       <div
         ref={containerRef}
-        className="overflow-y-scroll scrollbar-hide bg-black"
+        className="h-[100dvh] w-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide overscroll-contain"
         style={{
-          height: containerHeight,
-          scrollSnapType: 'y mandatory',
-          overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch',
-          scrollSnapStop: 'always',
-          scrollBehavior: 'smooth',
-          touchAction: 'pan-y',
         }}
       >
-        <div className="flex flex-col w-full">
-          {allClips.map((clip, index) => (
-            <div
-              key={clip.id}
-              ref={(el) => { itemRefs.current[index] = el; }}
-              className="w-full flex-shrink-0 flex justify-center"
-              style={{
-                height: containerHeight,
-                scrollSnapAlign: 'start',
-                scrollSnapStop: 'always',
-              }}
-            >
-              <div className={cn(
-                "relative h-full w-full",
-                "max-w-full sm:max-w-[480px] md:max-w-[420px] lg:max-w-[400px]"
-              )}>
-                <CardComponent
-                  post={clip}
-                  isActive={index === currentIndex}
-                  globalMuted={globalMuted}
-                  onToggleMute={handleToggleMute}
-                />
-              </div>
+        {allClips.map((clip, index) => (
+          <div
+            key={clip.id}
+            ref={(el) => { itemRefs.current[index] = el; }}
+            className="h-[100dvh] w-full snap-start snap-always flex-shrink-0 flex justify-center animate-in fade-in duration-300"
+          >
+            <div className={cn(
+              "relative h-full w-full",
+              "max-w-full sm:max-w-[480px] md:max-w-[420px] lg:max-w-[400px]"
+            )}>
+              <CardComponent
+                post={clip}
+                isActive={index === currentIndex}
+                globalMuted={globalMuted}
+                onToggleMute={handleToggleMute}
+              />
             </div>
-          ))}
-
-          {feedQuery.hasNextPage && (
-            <div
-              ref={loadMoreRef}
-              className="h-20 flex items-center justify-center bg-black snap-start"
-            >
-              {feedQuery.isFetchingNextPage && (
-                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Back button */}
-        <button
-          onClick={handleBack}
-          className="fixed top-4 left-4 z-30 w-11 h-11 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center border border-white/20 active:bg-black/70 transition-colors shadow-lg"
-        >
-          <ArrowLeft className="w-6 h-6 text-white" strokeWidth={2.5} />
-        </button>
-
-        {/* Source label */}
-        {fromSource && (
-          <div className="fixed top-5 left-16 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm">
-            <Film className="h-3.5 w-3.5 text-white/80" />
-            <span className="text-xs text-white/80 font-medium">
-              From {fromSource === 'messages' ? 'Messages' : fromSource === 'notifications' ? 'Notifications' : 'Feed'}
-            </span>
           </div>
-        )}
+        ))}
 
-        {/* Desktop progress dots */}
-        {!isMobileOrTablet && allClips.length > 1 && (
-          <div className="fixed right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 pointer-events-none">
-            {allClips.slice(Math.max(0, currentIndex - 3), currentIndex + 4).map((_, idx) => {
-              const actualIdx = Math.max(0, currentIndex - 3) + idx;
-              return (
-                <div
-                  key={actualIdx}
-                  className="w-1 rounded-full bg-white transition-all duration-200"
-                  style={{
-                    height: actualIdx === currentIndex ? 20 : 6,
-                    opacity: actualIdx === currentIndex ? 1 : 0.3,
-                  }}
-                />
-              );
-            })}
+        {feedQuery.hasNextPage && (
+          <div
+            ref={loadMoreRef}
+            className="h-20 flex items-center justify-center bg-black snap-start"
+          >
+            {feedQuery.isFetchingNextPage && (
+              <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            )}
           </div>
         )}
       </div>
-    </AppLayout>
+
+      {/* Back button — safe area aware */}
+      <button
+        onClick={handleBack}
+        className="fixed z-[60] w-11 h-11 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center border border-white/20 active:bg-black/70 transition-colors shadow-lg"
+        style={{
+          top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
+          left: '16px',
+        }}
+      >
+        <ArrowLeft className="w-6 h-6 text-white" strokeWidth={2.5} />
+      </button>
+
+      {/* Source label — safe area aware */}
+      {fromSource && (
+        <div
+          className="fixed z-[60] flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm"
+          style={{
+            top: 'calc(env(safe-area-inset-top, 0px) + 20px)',
+            left: '72px',
+          }}
+        >
+          <Film className="h-3.5 w-3.5 text-white/80" />
+          <span className="text-xs text-white/80 font-medium">
+            From {fromSource === 'messages' ? 'Messages' : fromSource === 'notifications' ? 'Notifications' : 'Feed'}
+          </span>
+        </div>
+      )}
+
+      {/* Desktop progress dots */}
+      {!isMobileOrTablet && allClips.length > 1 && (
+        <div className="fixed right-2 top-1/2 -translate-y-1/2 z-[60] flex flex-col gap-1 pointer-events-none">
+          {allClips.slice(Math.max(0, currentIndex - 3), currentIndex + 4).map((_, idx) => {
+            const actualIdx = Math.max(0, currentIndex - 3) + idx;
+            return (
+              <div
+                key={actualIdx}
+                className="w-1 rounded-full bg-white transition-all duration-200"
+                style={{
+                  height: actualIdx === currentIndex ? 20 : 6,
+                  opacity: actualIdx === currentIndex ? 1 : 0.3,
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
