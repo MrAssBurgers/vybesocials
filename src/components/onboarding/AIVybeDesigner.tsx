@@ -281,9 +281,9 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         themeTokens: generatedTheme,
         themeName: generatedTheme.themeName || 'My VYBE',
         basePreset: 'custom',
+        silent: true,
       });
       
-      toast.success('Your VYBE is saved! ✨');
       onComplete();
     } catch (error) {
       console.error('Save error:', error);
