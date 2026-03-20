@@ -32,6 +32,7 @@ export default function SoundsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('trending');
   const [selectedSound, setSelectedSound] = useState<string | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
 
   // Query hooks
   const { data: trendingSounds, isLoading: loadingTrending } = useTrendingSounds();
