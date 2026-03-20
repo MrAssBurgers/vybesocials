@@ -115,6 +115,16 @@ export default function SoundsPage() {
                   Discover trending sounds for your videos
                 </p>
               </div>
+              
+              <Button onClick={() => setShowUpload(true)} size="sm" className="shrink-0">
+                <Upload className="h-4 w-4 mr-1.5" />
+                Upload
+              </Button>
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  Discover trending sounds for your videos
+                </p>
+              </div>
             </div>
 
             {/* Search */}
