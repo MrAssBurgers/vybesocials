@@ -54,31 +54,21 @@ export const ContentSafetyGate = memo(function ContentSafetyGate({
     setStatus('scanning');
 
     try {
-      // Create form data with the file
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('content_type', file.type.startsWith('video/') ? 'video' : 'image');
+      const isVideo = file.type.startsWith('video/');
+      const scanResult = isVideo ? await nsfwScanVideo(file) : await nsfwScanImage(file);
 
-      // Call content safety edge function
-      const { data, error } = await supabase.functions.invoke('scan-content-safety', {
-        body: formData,
-      });
-
-      if (error) throw error;
-
-      if (data?.is_safe) {
+      if (scanResult.result === 'allowed' || scanResult.result === 'warned') {
         setStatus('safe');
         setTimeout(() => {
           onScanComplete(true);
         }, 800);
       } else {
         setStatus('unsafe');
-        setFlagReason(data?.reason || 'This content may violate our community guidelines.');
+        setFlagReason(scanResult.message || 'This content may violate our community guidelines.');
         onScanComplete(false);
       }
     } catch (err: any) {
       console.error('Content scan error:', err);
-      // On error, allow upload but log for review
       setStatus('safe');
       toast.info('Content check skipped');
       setTimeout(() => {
