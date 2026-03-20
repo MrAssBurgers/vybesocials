@@ -47,8 +47,8 @@ const QUICK_PROMPTS = [
   '📝 Help me write a caption',
   '🎯 How to grow my audience?',
   '🧬 What does my DNA say?',
+  '📍 What's near me right now?',
   '💻 Help me code something',
-  '📊 Explain something complex',
 ];
 
 export default function AIChat() {
