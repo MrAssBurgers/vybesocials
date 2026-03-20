@@ -1,12 +1,11 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Send, Loader2, MoreVertical, Sparkles, Settings, RotateCcw, Check,
-  Dna, ChevronDown, Zap, Brain, BotMessageSquare, MapPin, Navigation, Eye, EyeOff, Trash2, KeyRound
+  Dna, MapPin, BotMessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,12 +17,8 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 import { cn } from '@/lib/utils';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { useAIProfile, AI_MODELS, type AIModel } from '@/hooks/useAIProfile';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import ReactMarkdown from 'react-markdown';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -43,7 +38,14 @@ function saveMessages(messages: Message[]) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-100))); } catch {}
 }
 
-// Quick suggestion chips
+const AI_NAME_KEY = 'vybe_ai_name';
+const AI_PERSONALITY_KEY = 'vybe_ai_personality';
+const AI_DNA_KEY = 'vybe_ai_dna';
+
+function loadSetting(key: string, fallback: string) {
+  try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
+}
+
 const QUICK_PROMPTS = [
   '💡 Give me a content idea',
   '📝 Help me write a caption',
@@ -55,11 +57,16 @@ const QUICK_PROMPTS = [
 
 export default function AIChat() {
   const navigate = useNavigate();
-  const { name: aiName, personality: aiPersonality, model, feedDNA, updateName, updatePersonality, updateModel, updateFeedDNA, resetToDefault } = useAIProfile();
+  
+  // Simple settings — no model picker, no API key nonsense
+  const [aiName, setAiName] = useState(() => loadSetting(AI_NAME_KEY, 'Morgan'));
+  const [aiPersonality, setAiPersonality] = useState(() => loadSetting(AI_PERSONALITY_KEY, 'A friendly, helpful AI assistant who is approachable, supportive, and genuinely interested in helping.'));
+  const [feedDNA, setFeedDNA] = useState(() => loadSetting(AI_DNA_KEY, 'true') === 'true');
+  
   const [messages, setMessages] = useState<Message[]>(() => {
     const loaded = loadMessages();
     if (loaded.length === 0) {
-      return [{ role: 'assistant', content: `Hey! I'm ${aiName} — your AI on VYBE. I can help with anything from content ideas to coding questions. What's on your mind? ✨`, timestamp: new Date() }];
+      return [{ role: 'assistant', content: `Hey! I'm ${loadSetting(AI_NAME_KEY, 'Morgan')} — your AI on VYBE. I can help with anything from content ideas to coding questions. What's on your mind? ✨`, timestamp: new Date() }];
     }
     return loaded;
   });
@@ -68,13 +75,6 @@ export default function AIChat() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editName, setEditName] = useState(aiName);
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
-  const [showModelPicker, setShowModelPicker] = useState(false);
-  const [isConnectOpen, setIsConnectOpen] = useState(false);
-  const [connectedProviders, setConnectedProviders] = useState<Record<string, boolean>>({});
-  const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
-  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
-  const [savingKey, setSavingKey] = useState<string | null>(null);
-  const { user } = useAuth();
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -85,7 +85,6 @@ export default function AIChat() {
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  // GPS location tracking
   const enableLocation = useCallback(() => {
     if (!navigator.geolocation) { toast.error('GPS not supported on this device'); return; }
     navigator.geolocation.getCurrentPosition(
@@ -100,63 +99,28 @@ export default function AIChat() {
           setUserLocation(loc);
         }
         setLocationEnabled(true);
-        toast.success('📍 Location enabled for AI');
+        toast.success('📍 Location enabled');
       },
       () => toast.error('Location permission denied'),
       { enableHighAccuracy: true }
     );
   }, []);
 
-  // Load connected providers from DB
-  useEffect(() => {
-    if (!user) return;
-    supabase.from('user_ai_keys').select('provider, is_active').eq('user_id', user.id).then(({ data }) => {
-      if (data) {
-        const map: Record<string, boolean> = {};
-        data.forEach(k => { map[k.provider] = k.is_active; });
-        setConnectedProviders(map);
-      }
-    });
-  }, [user]);
-
-  const saveApiKey = useCallback(async (provider: string, modelId: string) => {
-    const key = keyInputs[provider]?.trim();
-    if (!key || !user) { toast.error('Enter an API key'); return; }
-    setSavingKey(provider);
-    try {
-      const { error } = await supabase.from('user_ai_keys').upsert({
-        user_id: user.id,
-        provider,
-        api_key: key,
-        is_active: true,
-      }, { onConflict: 'user_id,provider' });
-      if (error) throw error;
-      setConnectedProviders(prev => ({ ...prev, [provider]: true }));
-      setKeyInputs(prev => ({ ...prev, [provider]: '' }));
-      updateModel(modelId as AIModel);
-      toast.success(`${provider} connected! Model switched.`);
-    } catch (e: any) {
-      toast.error(e.message || 'Failed to save key');
-    } finally {
-      setSavingKey(null);
-    }
-  }, [keyInputs, user, updateModel]);
-
-  const disconnectProvider = useCallback(async (provider: string) => {
-    if (!user) return;
-    await supabase.from('user_ai_keys').delete().eq('user_id', user.id).eq('provider', provider);
-    setConnectedProviders(prev => { const n = { ...prev }; delete n[provider]; return n; });
-    toast('Disconnected ' + provider);
-  }, [user]);
-
-  const currentModel = useMemo(() => AI_MODELS.find(m => m.id === model) || AI_MODELS[0], [model]);
-
   const handleSaveSettings = useCallback(() => {
-    updateName(editName);
-    updatePersonality(editPersonality);
+    const name = editName.trim() || 'Morgan';
+    const personality = editPersonality.trim() || 'A friendly, helpful AI assistant.';
+    setAiName(name);
+    setAiPersonality(personality);
+    localStorage.setItem(AI_NAME_KEY, name);
+    localStorage.setItem(AI_PERSONALITY_KEY, personality);
     setIsSettingsOpen(false);
     toast.success('AI updated!');
-  }, [editName, editPersonality, updateName, updatePersonality]);
+  }, [editName, editPersonality]);
+
+  const toggleDNA = useCallback((val: boolean) => {
+    setFeedDNA(val);
+    localStorage.setItem(AI_DNA_KEY, String(val));
+  }, []);
 
   const sendMessage = useCallback(async (text?: string) => {
     const msgText = (text || input).trim();
@@ -180,10 +144,9 @@ export default function AIChat() {
             messages: messages.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: msgText }]),
             aiName,
             aiPersonality,
-            model,
+            model: 'gemini-flash',
             feedDNA,
             location: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, city: userLocation.city } : null,
-            connectedProviders: Object.keys(connectedProviders).filter(p => connectedProviders[p]),
           }),
         }
       );
@@ -231,7 +194,6 @@ export default function AIChat() {
         }
       }
       
-      // Final flush
       if (buffer.trim()) {
         for (const raw of buffer.split('\n')) {
           if (!raw || raw.startsWith(':') || raw.trim() === '') continue;
@@ -258,20 +220,19 @@ export default function AIChat() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, aiName, aiPersonality, model, feedDNA]);
+  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation]);
 
   const clearChat = useCallback(() => {
     setMessages([{ role: 'assistant', content: `Fresh start! I'm ${aiName}, ready when you are ✨`, timestamp: new Date() }]);
   }, [aiName]);
 
   const formatTime = (date: Date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
   const showQuickPrompts = messages.length <= 2 && !isLoading;
 
   return (
     <>
       <div className="fixed inset-0 z-[100] flex flex-col bg-background">
-        {/* Header - Snapchat AI style */}
+        {/* Header */}
         <div className="px-3 py-2.5 border-b border-border/50 flex items-center gap-2.5 bg-card/80 backdrop-blur-md sticky top-0 z-10">
           <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="h-8 w-8 -ml-1">
             <ArrowLeft className="h-5 w-5" />
@@ -282,7 +243,7 @@ export default function AIChat() {
               <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center shadow-md shadow-primary/20">
                 <VybeMiniIcon size={18} showSparkles={false} />
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card bg-green-500" />
             </div>
             <div className="min-w-0">
               <h2 className="font-semibold text-sm truncate flex items-center gap-1">
@@ -290,35 +251,12 @@ export default function AIChat() {
                 <Sparkles className="h-3 w-3 text-primary flex-shrink-0" />
               </h2>
               <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
-                {currentModel.icon} {currentModel.name}
+                VYBE AI
                 {feedDNA && <Dna className="h-2.5 w-2.5 text-accent" />}
+                {locationEnabled && <MapPin className="h-2.5 w-2.5 text-primary" />}
               </p>
             </div>
           </button>
-
-          {/* Model quick-switch */}
-          <DropdownMenu open={showModelPicker} onOpenChange={setShowModelPicker}>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 text-muted-foreground">
-                {currentModel.icon}
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">AI Model</div>
-              <DropdownMenuSeparator />
-              {AI_MODELS.map(m => (
-                <DropdownMenuItem key={m.id} onClick={() => { updateModel(m.id); setShowModelPicker(false); }}>
-                  <span className="mr-2">{m.icon}</span>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{m.name}</div>
-                    <div className="text-[10px] text-muted-foreground">{m.description}</div>
-                  </div>
-                  {model === m.id && <Check className="h-3.5 w-3.5 text-primary" />}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -330,16 +268,13 @@ export default function AIChat() {
               <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
                 <Settings className="h-4 w-4 mr-2" /> Customize AI
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setIsConnectOpen(true)}>
-                <Zap className="h-4 w-4 mr-2" /> Connect AI Account
-              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={clearChat}>Clear Chat</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        {/* Messages - only this area scrolls */}
+        {/* Messages */}
         <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-3">
           {messages.map((message, index) => (
             <motion.div
@@ -371,8 +306,8 @@ export default function AIChat() {
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.2 }} className="flex gap-0.5">
                         <span className="w-1.5 h-1.5 bg-current rounded-full" />
-                        <span className="w-1.5 h-1.5 bg-current rounded-full" style={{ animationDelay: '0.2s' }} />
-                        <span className="w-1.5 h-1.5 bg-current rounded-full" style={{ animationDelay: '0.4s' }} />
+                        <span className="w-1.5 h-1.5 bg-current rounded-full" />
+                        <span className="w-1.5 h-1.5 bg-current rounded-full" />
                       </motion.div>
                     </span>
                   )}
@@ -387,7 +322,6 @@ export default function AIChat() {
             </motion.div>
           ))}
 
-          {/* Quick prompt chips */}
           <AnimatePresence>
             {showQuickPrompts && (
               <motion.div
@@ -412,7 +346,7 @@ export default function AIChat() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input bar */}
+        {/* Input */}
         <div className="px-3 py-2.5 border-t border-border/40 bg-card shrink-0">
           <div className="flex items-center gap-1 mb-1.5 px-1">
             {feedDNA && (
@@ -458,9 +392,9 @@ export default function AIChat() {
         </div>
       </div>
 
-      {/* Settings Sheet */}
+      {/* Settings Sheet - simplified */}
       <Sheet open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <SheetContent side="bottom" className="h-[80vh] rounded-t-3xl">
+        <SheetContent side="bottom" className="h-[70vh] rounded-t-3xl">
           <SheetHeader className="text-left">
             <SheetTitle className="flex items-center gap-2">
               <BotMessageSquare className="h-5 w-5 text-primary" />
@@ -468,10 +402,10 @@ export default function AIChat() {
             </SheetTitle>
           </SheetHeader>
           
-          <div className="mt-4 space-y-5 overflow-y-auto max-h-[calc(80vh-8rem)]">
+          <div className="mt-4 space-y-5 overflow-y-auto max-h-[calc(70vh-8rem)]">
             {/* Name */}
             <div className="space-y-1.5">
-              <Label htmlFor="ai-name" className="text-xs font-medium">Name</Label>
+              <Label htmlFor="ai-name" className="text-xs font-medium">AI Name</Label>
               <Input id="ai-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Morgan" maxLength={20} className="h-9" />
             </div>
 
@@ -481,48 +415,30 @@ export default function AIChat() {
               <Textarea id="ai-personality" value={editPersonality} onChange={(e) => setEditPersonality(e.target.value)} placeholder="Describe how your AI should behave..." rows={3} maxLength={500} className="text-sm" />
             </div>
 
-            {/* Model Picker */}
-            <div className="space-y-2">
-              <Label className="text-xs font-medium">AI Model</Label>
-              <div className="grid grid-cols-1 gap-1.5">
-                {AI_MODELS.map(m => (
-                  <button
-                    key={m.id}
-                    onClick={() => updateModel(m.id)}
-                    className={cn(
-                      "flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left",
-                      model === m.id
-                        ? "border-primary bg-primary/5"
-                        : "border-border/40 hover:border-border"
-                    )}
-                  >
-                    <span className="text-lg">{m.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium">{m.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{m.description}</div>
-                    </div>
-                    {model === m.id && <Check className="h-4 w-4 text-primary" />}
-                    <span className={cn(
-                      "text-[9px] px-1.5 py-0.5 rounded-full",
-                      m.speed === 'fast' ? 'bg-green-500/10 text-green-500' :
-                      m.speed === 'balanced' ? 'bg-blue-500/10 text-blue-500' :
-                      'bg-purple-500/10 text-purple-500'
-                    )}>{m.speed}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* DNA Feed Toggle */}
+            {/* DNA Feed */}
             <div className="flex items-center justify-between p-3 rounded-xl border border-border/40">
               <div className="flex items-center gap-2.5">
                 <Dna className="h-5 w-5 text-accent" />
                 <div>
-                  <div className="text-sm font-medium">Feed VYBE DNA</div>
-                  <div className="text-[10px] text-muted-foreground">Let AI learn your interests to personalize content</div>
+                  <div className="text-sm font-medium">DNA Learning</div>
+                  <div className="text-[10px] text-muted-foreground">AI learns your interests from conversations</div>
                 </div>
               </div>
-              <Switch checked={feedDNA} onCheckedChange={updateFeedDNA} />
+              <Switch checked={feedDNA} onCheckedChange={toggleDNA} />
+            </div>
+
+            {/* GPS */}
+            <div className="flex items-center justify-between p-3 rounded-xl border border-border/40">
+              <div className="flex items-center gap-2.5">
+                <MapPin className="h-5 w-5 text-primary" />
+                <div>
+                  <div className="text-sm font-medium">Location</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {locationEnabled && userLocation?.city ? `📍 ${userLocation.city}` : 'Enable for location-aware answers'}
+                  </div>
+                </div>
+              </div>
+              <Switch checked={locationEnabled} onCheckedChange={(val) => val ? enableLocation() : setLocationEnabled(false)} />
             </div>
 
             {/* Actions */}
@@ -530,124 +446,17 @@ export default function AIChat() {
               <Button onClick={handleSaveSettings} className="w-full">
                 <Check className="h-4 w-4 mr-2" /> Save Changes
               </Button>
-              <Button variant="outline" onClick={() => { resetToDefault(); setEditName('Morgan'); setEditPersonality('A friendly, helpful AI assistant.'); toast.success('Reset to default'); }} className="w-full">
+              <Button variant="outline" onClick={() => {
+                setEditName('Morgan');
+                setEditPersonality('A friendly, helpful AI assistant who is approachable, supportive, and genuinely interested in helping.');
+                setAiName('Morgan');
+                setAiPersonality('A friendly, helpful AI assistant who is approachable, supportive, and genuinely interested in helping.');
+                localStorage.setItem(AI_NAME_KEY, 'Morgan');
+                localStorage.setItem(AI_PERSONALITY_KEY, 'A friendly, helpful AI assistant who is approachable, supportive, and genuinely interested in helping.');
+                toast.success('Reset to default');
+              }} className="w-full">
                 <RotateCcw className="h-4 w-4 mr-2" /> Reset Default
               </Button>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Connect AI Account Sheet */}
-      <Sheet open={isConnectOpen} onOpenChange={setIsConnectOpen}>
-        <SheetContent side="bottom" className="h-[75vh] rounded-t-3xl">
-          <SheetHeader className="text-left">
-            <SheetTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5 text-primary" />
-              Connect AI Services
-            </SheetTitle>
-          </SheetHeader>
-          
-          <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(75vh-8rem)] overscroll-contain touch-pan-y">
-            <p className="text-sm text-muted-foreground">Enter your own API keys to use your AI accounts directly. Keys are stored securely.</p>
-            
-            {/* GPS Location */}
-            <button
-              onClick={() => { locationEnabled ? setLocationEnabled(false) : enableLocation(); }}
-              className={cn(
-                "w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all active:scale-[0.98]",
-                locationEnabled ? "border-primary/50 bg-primary/10" : "border-border/50"
-              )}
-            >
-              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                <MapPin className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="text-sm font-semibold">GPS Location</div>
-                <div className="text-[11px] text-muted-foreground">
-                  {locationEnabled && userLocation?.city ? `📍 ${userLocation.city}` : 'Help AI with location-aware answers'}
-                </div>
-              </div>
-              <div className={cn(
-                "text-xs font-medium px-2.5 py-1 rounded-full",
-                locationEnabled ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
-              )}>
-                {locationEnabled ? 'On' : 'Enable'}
-              </div>
-            </button>
-            
-            {/* AI Provider API Keys */}
-            <div className="pt-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">Your API Keys</span>
-            </div>
-            {[
-              { provider: 'openai', name: 'OpenAI (ChatGPT)', icon: '🤖', desc: 'Get key from platform.openai.com/api-keys', placeholder: 'sk-...', modelId: 'gpt-5' },
-              { provider: 'google', name: 'Google Gemini', icon: '✨', desc: 'Get key from aistudio.google.com/apikey', placeholder: 'AIza...', modelId: 'gemini-flash' },
-              { provider: 'anthropic', name: 'Claude (Anthropic)', icon: '🧠', desc: 'Get key from console.anthropic.com', placeholder: 'sk-ant-...', modelId: 'gpt-5-mini' },
-              { provider: 'perplexity', name: 'Perplexity', icon: '🔍', desc: 'Get key from perplexity.ai/settings/api', placeholder: 'pplx-...', modelId: 'gemini-pro' },
-            ].map((ai) => {
-              const isConnected = !!connectedProviders[ai.provider];
-              return (
-                <div key={ai.provider} className={cn(
-                  "w-full rounded-xl border transition-all p-3.5 space-y-2.5",
-                  isConnected ? "border-primary/50 bg-primary/5" : "border-border/50"
-                )}>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{ai.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold flex items-center gap-1.5">
-                        {ai.name}
-                        {isConnected && <Check className="h-3.5 w-3.5 text-primary" />}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">{ai.desc}</div>
-                    </div>
-                    {isConnected && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => disconnectProvider(ai.provider)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                  {!isConnected && (
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Input
-                          type={showKeys[ai.provider] ? 'text' : 'password'}
-                          placeholder={ai.placeholder}
-                          value={keyInputs[ai.provider] || ''}
-                          onChange={(e) => setKeyInputs(prev => ({ ...prev, [ai.provider]: e.target.value }))}
-                          className="h-9 text-xs pr-8"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowKeys(prev => ({ ...prev, [ai.provider]: !prev[ai.provider] }))}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-                        >
-                          {showKeys[ai.provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        </button>
-                      </div>
-                      <Button
-                        size="sm"
-                        className="h-9 text-xs"
-                        disabled={!keyInputs[ai.provider]?.trim() || savingKey === ai.provider}
-                        onClick={() => saveApiKey(ai.provider, ai.modelId)}
-                      >
-                        {savingKey === ai.provider ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Connect'}
-                      </Button>
-                    </div>
-                  )}
-                  {isConnected && (
-                    <div className="text-[11px] text-primary flex items-center gap-1">
-                      <Check className="h-3 w-3" /> Key saved · Using this provider
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            <div className="pt-3 border-t border-border/40 space-y-2">
-              <p className="text-[11px] text-muted-foreground text-center">
-                Your API keys are stored securely. Without a key, VYBE's built-in AI is used automatically.
-              </p>
             </div>
           </div>
         </SheetContent>
