@@ -67,6 +67,7 @@ export default function AIChat() {
   const [editName, setEditName] = useState(aiName);
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [isConnectOpen, setIsConnectOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -194,7 +195,7 @@ export default function AIChat() {
 
   return (
     <AppLayout hideRightSidebar>
-      <div className="flex flex-col h-[calc(100dvh-5rem)] md:h-screen bg-background">
+      <div className="flex flex-col h-[calc(100dvh-5rem)] md:h-screen bg-background relative overflow-hidden">
         {/* Header - Snapchat AI style */}
         <div className="px-3 py-2.5 border-b border-border/50 flex items-center gap-2.5 bg-card/80 backdrop-blur-md sticky top-0 z-10">
           <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="h-8 w-8 -ml-1">
@@ -254,14 +255,17 @@ export default function AIChat() {
               <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
                 <Settings className="h-4 w-4 mr-2" /> Customize AI
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsConnectOpen(true)}>
+                <Zap className="h-4 w-4 mr-2" /> Connect AI Account
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={clearChat}>Clear Chat</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
+        {/* Messages - only this area scrolls */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-3">
           {messages.map((message, index) => (
             <motion.div
               key={index}
@@ -438,6 +442,52 @@ export default function AIChat() {
               <Button variant="outline" onClick={() => { resetToDefault(); setEditName('Morgan'); setEditPersonality('A friendly, helpful AI assistant.'); toast.success('Reset to default'); }} className="w-full">
                 <RotateCcw className="h-4 w-4 mr-2" /> Reset Default
               </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Connect AI Account Sheet */}
+      <Sheet open={isConnectOpen} onOpenChange={setIsConnectOpen}>
+        <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
+          <SheetHeader className="text-left">
+            <SheetTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              Connect AI Account
+            </SheetTitle>
+          </SheetHeader>
+          
+          <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(60vh-8rem)]">
+            <p className="text-sm text-muted-foreground">Link your existing AI accounts for enhanced capabilities.</p>
+            
+            {[
+              { name: 'ChatGPT', icon: '🤖', desc: 'Connect your OpenAI ChatGPT account', color: 'from-green-500/20 to-emerald-500/20' },
+              { name: 'Google Gemini', icon: '✨', desc: 'Connect your Google Gemini account', color: 'from-blue-500/20 to-cyan-500/20' },
+              { name: 'Claude', icon: '🧠', desc: 'Connect your Anthropic Claude account', color: 'from-orange-500/20 to-amber-500/20' },
+              { name: 'Perplexity', icon: '🔍', desc: 'Connect your Perplexity account', color: 'from-purple-500/20 to-violet-500/20' },
+            ].map((ai) => (
+              <button
+                key={ai.name}
+                onClick={() => { toast.info(`${ai.name} connection coming soon!`); }}
+                className={cn(
+                  "w-full flex items-center gap-3 p-3.5 rounded-xl border border-border/50",
+                  "bg-gradient-to-r", ai.color,
+                  "hover:border-primary/40 transition-all active:scale-[0.98]"
+                )}
+              >
+                <span className="text-2xl">{ai.icon}</span>
+                <div className="flex-1 text-left">
+                  <div className="text-sm font-semibold">{ai.name}</div>
+                  <div className="text-[11px] text-muted-foreground">{ai.desc}</div>
+                </div>
+                <div className="text-xs font-medium text-primary px-2.5 py-1 rounded-full bg-primary/10">Connect</div>
+              </button>
+            ))}
+
+            <div className="pt-3 border-t border-border/40">
+              <p className="text-[11px] text-muted-foreground text-center">
+                Your credentials are encrypted and stored securely. You can disconnect anytime.
+              </p>
             </div>
           </div>
         </SheetContent>
