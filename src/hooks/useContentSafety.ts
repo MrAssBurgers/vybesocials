@@ -1,9 +1,12 @@
 /**
  * Content Safety Hook
  * 
- * Uses client-side NSFWJS for image/video scanning (no API dependency).
- * Text scanning uses keyword-based detection.
- * Fully standalone - works without any external services.
+ * Hybrid moderation pipeline:
+ * 1. NSFWJS (client-side) - instant sexual content detection
+ * 2. Lovable AI (Gemini) - violence, gore, weapons, audio hate speech
+ * 3. Keyword scanner - text-based hate speech / threats
+ * 
+ * The AI second-pass only runs if NSFWJS passes (to save API calls).
  */
 
 import { useState, useCallback } from 'react';
@@ -11,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { shouldBypassSafety } from '@/lib/ownerBypass';
 import { scanImage as nsfwScanImage, scanVideo as nsfwScanVideo, scanText as nsfwScanText, type ScanResult } from '@/lib/nsfwScanner';
+import { aiScanImage, aiScanVideoFrame, extractVideoFrame, transcribeVideoAudio, aiScanAudioTranscript, type AISafetyResult } from '@/lib/aiSafetyClient';
 
 export type SafetyResult = 'scanning' | 'allowed' | 'warned' | 'blocked' | 'error';
 
@@ -22,6 +26,38 @@ interface SafetyCheckResult {
   audioTranscript?: string;
   visualAnalysis?: string;
   audioAnalysis?: string;
+}
+
+/**
+ * Merge NSFWJS result with AI second-pass result (worst wins)
+ */
+function mergeResults(nsfwResult: ScanResult, aiResult: AISafetyResult): SafetyCheckResult {
+  const allCategories = [...(nsfwResult.categories || []), ...(aiResult.categories || [])];
+  const worstScore = Math.max(nsfwResult.score, aiResult.score);
+
+  let result: SafetyResult = 'allowed';
+  let message = '';
+
+  if (nsfwResult.result === 'blocked' || aiResult.result === 'blocked') {
+    result = 'blocked';
+    message = aiResult.result === 'blocked'
+      ? aiResult.message
+      : nsfwResult.message;
+  } else if (nsfwResult.result === 'warned' || aiResult.result === 'warned') {
+    result = 'warned';
+    message = aiResult.result === 'warned'
+      ? aiResult.message
+      : nsfwResult.message;
+  }
+
+  return {
+    result,
+    message,
+    categories: allCategories,
+    score: worstScore,
+    visualAnalysis: aiResult.visual_analysis,
+    audioAnalysis: aiResult.audio_analysis,
+  };
 }
 
 export function useContentSafety() {
@@ -50,18 +86,40 @@ export function useContentSafety() {
     setScanDetails({});
 
     try {
-      const scanResult: ScanResult = await nsfwScanImage(file);
+      // Pass 1: Client-side NSFWJS (instant)
+      const nsfwResult: ScanResult = await nsfwScanImage(file);
 
-      const safetyResult: SafetyCheckResult = {
-        result: scanResult.result,
-        message: scanResult.message,
-        categories: scanResult.categories,
-        score: scanResult.score,
-      };
+      // If NSFWJS blocks it, no need for AI scan
+      if (nsfwResult.result === 'blocked') {
+        const safetyResult: SafetyCheckResult = {
+          result: nsfwResult.result,
+          message: nsfwResult.message,
+          categories: nsfwResult.categories,
+          score: nsfwResult.score,
+        };
+        setResult(safetyResult.result);
+        setMessage(safetyResult.message || '');
+        return safetyResult;
+      }
 
-      setResult(safetyResult.result);
-      setMessage(safetyResult.message || '');
-      return safetyResult;
+      // Pass 2: AI scan for violence/gore/weapons
+      setMessage('Deep scanning for harmful content...');
+      let aiResult: AISafetyResult;
+      try {
+        aiResult = await aiScanImage(file);
+      } catch (err) {
+        console.warn('AI safety scan unavailable, using NSFWJS result only:', err);
+        aiResult = { allowed: true, result: 'allowed', categories: [], score: 0, message: '' };
+      }
+
+      const merged = mergeResults(nsfwResult, aiResult);
+      setResult(merged.result);
+      setMessage(merged.message || '');
+      setScanDetails({
+        visualAnalysis: merged.visualAnalysis,
+        audioAnalysis: merged.audioAnalysis,
+      });
+      return merged;
     } catch (err: any) {
       console.error('Safety scan error:', err);
       const errorMessage = 'Safety scan failed. For your protection, this content cannot be shared. Please try again.';
@@ -72,7 +130,6 @@ export function useContentSafety() {
       setIsScanning(false);
     }
   }, []);
-
   const scanVideo = useCallback(async (file: File): Promise<SafetyCheckResult> => {
     const isOwner = await shouldBypassSafety();
     if (isOwner) {
