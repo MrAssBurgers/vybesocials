@@ -451,7 +451,7 @@ export default function AIChat() {
                   </div>
                 </div>
               </div>
-              <Switch checked={locationEnabled} onCheckedChange={(val) => val ? enableLocation() : setLocationEnabled(false)} />
+              <Switch checked={locationEnabled} onCheckedChange={(val) => val ? requestGPSPermission() : setLocationEnabled(false)} />
             </div>
 
             {/* Actions */}
