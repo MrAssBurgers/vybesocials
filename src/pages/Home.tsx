@@ -30,10 +30,10 @@ import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
-import { HomeEditModeProvider, EditableWidgetWrapper, EditableWidgetList, useEditMode } from '@/components/home/HomeEditMode';
+import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMode';
+import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
 import { VYBECommandBar } from '@/components/ai/VYBECommandBar';
 import { useGridLayout } from '@/hooks/useGridLayout';
-import { DiscoveryCards } from '@/components/home/DiscoveryCards';
 
 // Memoized PostCard for better performance
 const MemoizedPostCard = memo(PostCard);
