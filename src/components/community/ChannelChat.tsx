@@ -168,6 +168,11 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
               placeholder={`Message #${channelName}`}
               className="flex-1 h-10 sm:h-10 text-[15px] sm:text-sm"
             />
+            <EmojiPicker
+              onEmojiSelect={(emoji) => {
+                setMessageText(prev => prev + emoji);
+              }}
+            />
             <Button
               size="icon"
               onClick={handleSend}
