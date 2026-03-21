@@ -8,10 +8,11 @@ interface SplashScreenProps {
 }
 
 /**
- * High-performance splash screen.
- * - Progress bar animated via CSS transitions (no React re-renders)
- * - GPU-composited layers (transform/opacity only)
- * - Single CSS animation for shimmer (no framer-motion overhead)
+ * Ultra-clean VYBE splash screen.
+ * - Minimal: logo + thin progress line, nothing else
+ * - DOM-ref driven progress (zero re-renders)
+ * - GPU-composited animations only (transform/opacity)
+ * - Smooth cubic-bezier exit
  */
 export const SplashScreen = memo(function SplashScreen({ 
   isVisible, 
@@ -19,16 +20,12 @@ export const SplashScreen = memo(function SplashScreen({
   progress = 0 
 }: SplashScreenProps) {
   const barRef = useRef<HTMLDivElement>(null);
-  const pctRef = useRef<HTMLSpanElement>(null);
   const statusRef = useRef<HTMLSpanElement>(null);
 
-  // Drive progress bar + percentage via DOM refs — zero re-renders
+  // Drive progress bar via DOM ref — zero re-renders
   useEffect(() => {
     if (barRef.current) {
-      barRef.current.style.width = `${progress}%`;
-    }
-    if (pctRef.current) {
-      pctRef.current.textContent = `${Math.round(progress)}%`;
+      barRef.current.style.transform = `scaleX(${progress / 100})`;
     }
   }, [progress]);
 
@@ -59,68 +56,71 @@ export const SplashScreen = memo(function SplashScreen({
       {isVisible && (
         <motion.div
           initial={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          exit={{ opacity: 0, scale: 1.02 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-0 flex flex-col items-center justify-center bg-background"
           style={{ zIndex: 2147483647 }}
         >
-          {/* Soft ambient glow — GPU-composited, no blur filter */}
+          {/* Subtle ambient glow — single radial, GPU layer */}
           <div
-            className="absolute top-1/2 left-1/2 w-[500px] h-[500px] rounded-full pointer-events-none will-change-transform"
+            className="absolute pointer-events-none will-change-transform"
             style={{
+              top: '45%',
+              left: '50%',
+              width: '420px',
+              height: '420px',
               transform: 'translate(-50%, -50%)',
-              background: 'radial-gradient(circle, hsl(var(--primary) / 0.25) 0%, hsl(var(--accent) / 0.1) 50%, transparent 70%)',
-              opacity: 0.6,
+              background: 'radial-gradient(circle, hsl(var(--primary) / 0.15) 0%, transparent 65%)',
+              opacity: 0.7,
             }}
           />
 
-          {/* Logo — clean CSS draw animation */}
+          {/* Logo — clean V with draw-in animation */}
           <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
+            initial={{ scale: 0.85, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="mb-6"
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            className="mb-10"
           >
             <svg
               viewBox="0 0 100 100"
               fill="none"
-              className="w-20 h-20 sm:w-28 sm:h-28"
-              style={{ filter: 'drop-shadow(0 0 6px hsl(var(--primary) / 0.3))' }}
+              className="w-16 h-16 sm:w-20 sm:h-20"
             >
               <defs>
-                <linearGradient id="splash-left" x1="0%" y1="0%" x2="100%" y2="100%">
+                <linearGradient id="sp-l" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="hsl(var(--primary))" />
                   <stop offset="100%" stopColor="hsl(var(--neon-purple, var(--primary)))" />
                 </linearGradient>
-                <linearGradient id="splash-right" x1="100%" y1="0%" x2="0%" y2="100%">
+                <linearGradient id="sp-r" x1="100%" y1="0%" x2="0%" y2="100%">
                   <stop offset="0%" stopColor="hsl(var(--accent))" />
                   <stop offset="100%" stopColor="hsl(var(--neon-cyan, var(--accent)))" />
                 </linearGradient>
               </defs>
               <path
                 d="M18 12 L50 88"
-                stroke="url(#splash-left)"
-                strokeWidth="14"
+                stroke="url(#sp-l)"
+                strokeWidth="13"
                 strokeLinecap="round"
                 className="splash-draw-left"
               />
               <path
                 d="M82 12 L50 88"
-                stroke="url(#splash-right)"
-                strokeWidth="14"
+                stroke="url(#sp-r)"
+                strokeWidth="13"
                 strokeLinecap="round"
                 className="splash-draw-right"
               />
-              <circle cx="50" cy="88" r="4" className="splash-dot" />
+              <circle cx="50" cy="88" r="3.5" className="splash-dot" />
             </svg>
           </motion.div>
 
-          {/* Title */}
+          {/* Brand name — gradient text, fades in after logo draws */}
           <motion.h1
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="text-3xl sm:text-4xl font-display font-black tracking-tight mb-8"
+            transition={{ delay: 0.3, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            className="text-2xl sm:text-3xl font-display font-black tracking-tight mb-10"
             style={{
               background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)))',
               WebkitBackgroundClip: 'text',
@@ -131,54 +131,33 @@ export const SplashScreen = memo(function SplashScreen({
             VYBE
           </motion.h1>
 
-          {/* Progress bar — CSS transition driven, no React state */}
+          {/* Progress — ultra-thin line, scaleX transform for 60fps */}
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="w-52 sm:w-64"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5, duration: 0.4, ease: 'easeOut' }}
+            className="w-40 sm:w-48"
           >
-            <div className="relative h-1.5 bg-muted/40 rounded-full overflow-hidden">
-              {/* CSS shimmer */}
-              <div className="absolute inset-0 splash-shimmer" />
-              {/* Fill bar */}
+            <div className="relative h-[2px] bg-foreground/[0.06] rounded-full overflow-hidden">
               <div
                 ref={barRef}
-                className="absolute inset-y-0 left-0 rounded-full"
+                className="absolute inset-y-0 left-0 w-full rounded-full origin-left"
                 style={{
-                  width: '0%',
+                  transform: 'scaleX(0)',
                   background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)))',
-                  transition: 'width 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-                  willChange: 'width',
+                  transition: 'transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)',
+                  willChange: 'transform',
                 }}
               />
             </div>
 
-            <div className="flex flex-col items-center mt-3 gap-0.5">
-              <span
-                ref={statusRef}
-                className="text-sm font-medium text-foreground/70 transition-opacity duration-200"
-              >
-                {status}
-              </span>
-              <span
-                ref={pctRef}
-                className="text-xs tabular-nums text-muted-foreground"
-              >
-                0%
-              </span>
-            </div>
+            <span
+              ref={statusRef}
+              className="block text-center mt-3 text-xs text-muted-foreground/60 transition-opacity duration-300"
+            >
+              {status}
+            </span>
           </motion.div>
-
-          {/* Tagline */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.35 }}
-            transition={{ delay: 0.6, duration: 0.6 }}
-            className="absolute bottom-8 text-[10px] sm:text-xs text-muted-foreground tracking-widest uppercase"
-          >
-            Your vibe, your way
-          </motion.p>
         </motion.div>
       )}
     </AnimatePresence>
