@@ -2887,69 +2887,57 @@ img, video {
   position: relative;
   display: flex !important;
   align-items: center !important;
-  gap: 0.75rem !important;
-  padding: 0.875rem 1.125rem !important;
-  border-radius: 1.125rem !important;
-  background: hsl(var(--card) / 0.88) !important;
-  backdrop-filter: blur(28px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
-  border: 1px solid hsl(var(--primary) / 0.12) !important;
+  gap: 0.625rem !important;
+  padding: 0.625rem 0.875rem !important;
+  border-radius: 2rem !important;
+  background: hsl(var(--card) / 0.92) !important;
+  backdrop-filter: blur(32px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(200%) !important;
+  border: 1px solid hsl(var(--border) / 0.15) !important;
   box-shadow:
-    0 8px 32px hsl(var(--primary) / 0.08),
-    0 2px 8px hsl(var(--foreground) / 0.04),
-    inset 0 1px 0 hsl(var(--foreground) / 0.04) !important;
+    0 4px 20px hsl(var(--foreground) / 0.06),
+    0 1px 4px hsl(var(--foreground) / 0.03) !important;
   overflow: hidden !important;
-  min-width: 280px !important;
-  max-width: 380px !important;
-  animation: toast-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  min-width: 240px !important;
+  max-width: 360px !important;
+  animation: toast-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
   transition: transform 0.15s ease, box-shadow 0.15s ease !important;
 }
 .toast-pill:active {
   transform: scale(0.97) !important;
 }
 
-/* Themed left accent bar */
+/* Subtle left accent — thin line */
 .toast-pill::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3.5px;
-  border-radius: 0 4px 4px 0;
-  background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--primary) / 0.5));
-  animation: toast-accent-pulse 2s ease-in-out infinite;
+  top: 20%;
+  bottom: 20%;
+  width: 2.5px;
+  border-radius: 0 2px 2px 0;
+  background: hsl(var(--primary) / 0.6);
   pointer-events: none;
 }
 
-/* Auto-dismiss progress bar at the bottom */
+/* Hidden progress bar — cleaner look */
 .toast-pill::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  right: 0;
-  height: 2px;
-  background: hsl(var(--primary) / 0.3);
-  transform-origin: left;
-  animation: toast-progress 4s linear forwards;
-  pointer-events: none;
+  display: none !important;
 }
 
 /* ── Title / Description ── */
 .toast-pill-title {
-  font-weight: 700 !important;
+  font-weight: 600 !important;
   font-size: 0.8125rem !important;
   color: hsl(var(--foreground)) !important;
-  line-height: 1.35 !important;
+  line-height: 1.3 !important;
   letter-spacing: -0.01em !important;
 }
 .toast-pill-description {
-  font-size: 0.7rem !important;
-  color: hsl(var(--muted-foreground)) !important;
-  line-height: 1.4 !important;
-  margin-top: 0.125rem !important;
-  opacity: 0.85 !important;
+  font-size: 0.6875rem !important;
+  color: hsl(var(--muted-foreground) / 0.8) !important;
+  line-height: 1.35 !important;
+  margin-top: 0.0625rem !important;
 }
 
 /* ── Icon bounce-in ── */
@@ -2961,11 +2949,7 @@ img, video {
 /* ── Variant: Success ── */
 .toast-pill-success::before,
 .toast-pill[data-type="success"]::before {
-  background: linear-gradient(180deg, hsl(142 71% 45%), hsl(142 71% 45% / 0.4)) !important;
-}
-.toast-pill-success::after,
-.toast-pill[data-type="success"]::after {
-  background: hsl(142 71% 45% / 0.25) !important;
+  background: hsl(142 71% 45%) !important;
 }
 .toast-pill-success .toast-pill-title,
 .toast-pill[data-type="success"] [data-title] {
@@ -2973,21 +2957,13 @@ img, video {
 }
 .toast-pill-success,
 .toast-pill[data-type="success"] {
-  border-color: hsl(142 71% 45% / 0.15) !important;
-  box-shadow:
-    0 8px 32px hsl(142 71% 45% / 0.1),
-    0 2px 8px hsl(var(--foreground) / 0.04),
-    inset 0 1px 0 hsl(142 71% 45% / 0.06) !important;
+  border-color: hsl(142 71% 45% / 0.12) !important;
 }
 
 /* ── Variant: Error ── */
 .toast-pill-error::before,
 .toast-pill[data-type="error"]::before {
-  background: linear-gradient(180deg, hsl(var(--destructive)), hsl(var(--destructive) / 0.4)) !important;
-}
-.toast-pill-error::after,
-.toast-pill[data-type="error"]::after {
-  background: hsl(var(--destructive) / 0.25) !important;
+  background: hsl(var(--destructive)) !important;
 }
 .toast-pill-error .toast-pill-title,
 .toast-pill[data-type="error"] [data-title] {
@@ -2995,21 +2971,13 @@ img, video {
 }
 .toast-pill-error,
 .toast-pill[data-type="error"] {
-  border-color: hsl(var(--destructive) / 0.2) !important;
-  box-shadow:
-    0 8px 32px hsl(var(--destructive) / 0.12),
-    0 2px 8px hsl(var(--foreground) / 0.04),
-    inset 0 1px 0 hsl(var(--destructive) / 0.06) !important;
+  border-color: hsl(var(--destructive) / 0.15) !important;
 }
 
 /* ── Variant: Warning ── */
 .toast-pill-warning::before,
 .toast-pill[data-type="warning"]::before {
-  background: linear-gradient(180deg, hsl(38 92% 50%), hsl(38 92% 50% / 0.4)) !important;
-}
-.toast-pill-warning::after,
-.toast-pill[data-type="warning"]::after {
-  background: hsl(38 92% 50% / 0.25) !important;
+  background: hsl(38 92% 50%) !important;
 }
 .toast-pill-warning .toast-pill-title,
 .toast-pill[data-type="warning"] [data-title] {
@@ -3017,21 +2985,13 @@ img, video {
 }
 .toast-pill-warning,
 .toast-pill[data-type="warning"] {
-  border-color: hsl(38 92% 50% / 0.15) !important;
-  box-shadow:
-    0 8px 32px hsl(38 92% 50% / 0.1),
-    0 2px 8px hsl(var(--foreground) / 0.04),
-    inset 0 1px 0 hsl(38 92% 50% / 0.06) !important;
+  border-color: hsl(38 92% 50% / 0.12) !important;
 }
 
 /* ── Variant: Info ── */
 .toast-pill-info::before,
 .toast-pill[data-type="info"]::before {
-  background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--primary) / 0.4)) !important;
-}
-.toast-pill-info::after,
-.toast-pill[data-type="info"]::after {
-  background: hsl(var(--primary) / 0.25) !important;
+  background: hsl(var(--primary)) !important;
 }
 .toast-pill-info .toast-pill-title,
 .toast-pill[data-type="info"] [data-title] {
@@ -3039,11 +2999,7 @@ img, video {
 }
 .toast-pill-info,
 .toast-pill[data-type="info"] {
-  border-color: hsl(var(--primary) / 0.15) !important;
-  box-shadow:
-    0 8px 32px hsl(var(--primary) / 0.1),
-    0 2px 8px hsl(var(--foreground) / 0.04),
-    inset 0 1px 0 hsl(var(--primary) / 0.06) !important;
+  border-color: hsl(var(--primary) / 0.12) !important;
 }
 
 /* ── Action / Cancel buttons ── */

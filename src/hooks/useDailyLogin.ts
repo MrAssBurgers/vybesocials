@@ -11,6 +11,7 @@ import { useTokenReward } from '@/hooks/useVybeTokens';
  * Day 1: 15 XP, Day 2: 19 XP, Day 5: 33 XP, Day 10: 55 XP
  */
 const SESSION_KEY = 'vybe_daily_login_tracked';
+const LOCAL_KEY = 'vybe_daily_login_date';
 
 export function useDailyLoginChallenge() {
   const { profile } = useAuth();
@@ -23,8 +24,11 @@ export function useDailyLoginChallenge() {
     if (!profile?.id || triggeredRef.current) return;
     
     const today = new Date().toISOString().slice(0, 10);
-    const tracked = sessionStorage.getItem(SESSION_KEY);
-    if (tracked === today) {
+    
+    // Check BOTH sessionStorage AND localStorage for dedup
+    const sessionTracked = sessionStorage.getItem(SESSION_KEY);
+    const localTracked = localStorage.getItem(LOCAL_KEY);
+    if (sessionTracked === today || localTracked === today) {
       triggeredRef.current = true;
       return;
     }
@@ -32,6 +36,7 @@ export function useDailyLoginChallenge() {
     const triggerLogin = async () => {
       triggeredRef.current = true;
       sessionStorage.setItem(SESSION_KEY, today);
+      localStorage.setItem(LOCAL_KEY, today);
       
       try {
         const { data, error } = await supabase.rpc('track_daily_login');
