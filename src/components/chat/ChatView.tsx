@@ -128,7 +128,8 @@ export function ChatView() {
   const bumpStreak = useInteractionStreakBump();
   
   const { data: conversations } = useConversations();
-  const { data: messages, isLoading } = useMessages(conversationId);
+  const { data: rawMessages, isLoading } = useMessages(conversationId);
+  const { messages, decrypting: _decrypting } = useDecryptedMessages(rawMessages);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
   
   // Register current conversation for global realtime updates
