@@ -54,6 +54,7 @@ const navItems: NavItem[] = [
   { id: 'announcements', label: 'Announcements', icon: Megaphone },
   { id: 'badges', label: 'Badges', icon: Award },
   { id: 'meme-bans', label: 'Meme Bans', icon: ImageIcon },
+  { id: 'mod-apps', label: 'Mod Applications', icon: Shield, adminOnly: true },
   { id: 'roles', label: 'User Roles', icon: Users, adminOnly: true },
   { id: 'errors', label: 'Error Monitor', icon: Bug, adminOnly: true },
 ];
