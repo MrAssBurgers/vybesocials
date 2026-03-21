@@ -2887,21 +2887,20 @@ img, video {
   position: relative;
   display: flex !important;
   align-items: center !important;
-  gap: 0.75rem !important;
-  padding: 0.875rem 1.125rem !important;
-  border-radius: 1.125rem !important;
-  background: hsl(var(--card) / 0.88) !important;
-  backdrop-filter: blur(28px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
-  border: 1px solid hsl(var(--primary) / 0.12) !important;
+  gap: 0.625rem !important;
+  padding: 0.625rem 0.875rem !important;
+  border-radius: 2rem !important;
+  background: hsl(var(--card) / 0.92) !important;
+  backdrop-filter: blur(32px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(200%) !important;
+  border: 1px solid hsl(var(--border) / 0.15) !important;
   box-shadow:
-    0 8px 32px hsl(var(--primary) / 0.08),
-    0 2px 8px hsl(var(--foreground) / 0.04),
-    inset 0 1px 0 hsl(var(--foreground) / 0.04) !important;
+    0 4px 20px hsl(var(--foreground) / 0.06),
+    0 1px 4px hsl(var(--foreground) / 0.03) !important;
   overflow: hidden !important;
-  min-width: 280px !important;
-  max-width: 380px !important;
-  animation: toast-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  min-width: 240px !important;
+  max-width: 360px !important;
+  animation: toast-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
   transition: transform 0.15s ease, box-shadow 0.15s ease !important;
 }
 .toast-pill:active {
