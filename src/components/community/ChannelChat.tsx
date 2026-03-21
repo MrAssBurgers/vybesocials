@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { ServerSafetyGate } from './ServerSafetyGate';
+import { EmojiPicker } from '@/components/chat/EmojiPicker';
 import { useChannelMessages, useSendChannelMessage, ChannelMessage, useMyServerRole } from '@/hooks/useServers';
 import { useMyChannelPermissions } from '@/hooks/useChannelPermissions';
 import { useAuth } from '@/lib/auth';
