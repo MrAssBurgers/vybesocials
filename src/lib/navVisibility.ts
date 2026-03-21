@@ -87,6 +87,28 @@ export const navVisibility = {
     communityInputFocused = false;
     inStoryViewer = false;
     inDesigner = false;
+    inEditMode = false;
     updateVisibility();
+  },
+
+  /**
+   * Set whether we're in home edit mode (hides header)
+   */
+  setInEditMode(editing: boolean) {
+    inEditMode = editing;
+    updateVisibility();
+  },
+
+  /**
+   * Subscribe to header visibility changes
+   */
+  subscribeHeader(callback: HeaderVisibilityListener): () => void {
+    headerListeners.add(callback);
+    callback(headerVisible);
+    return () => headerListeners.delete(callback);
+  },
+
+  isHeaderVisible(): boolean {
+    return headerVisible;
   },
 };
