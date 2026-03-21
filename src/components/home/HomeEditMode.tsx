@@ -443,7 +443,11 @@ export function HomeEditModeProvider({
     if (editing) {
       setLocalWidgets(config.widgets);
       setSelectedWidget(null);
+      navVisibility.setInEditMode(true);
+    } else {
+      navVisibility.setInEditMode(false);
     }
+    return () => navVisibility.setInEditMode(false);
   }, [editing, config.widgets]);
 
   const orderedEnabledIds = localWidgets
