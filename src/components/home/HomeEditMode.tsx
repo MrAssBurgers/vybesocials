@@ -251,11 +251,11 @@ export function EditableWidgetWrapper({
         whileTap={{ scale: 0.85 }}
         onClick={e => { e.stopPropagation(); triggerHaptic('medium'); handleToggle(widgetId); }}
         className={cn(
-          'absolute -top-0.5 -left-0.5 w-2.5 h-2.5 rounded-full flex items-center justify-center shadow-sm z-40 sm:w-4 sm:h-4',
+          'absolute -top-0.5 -left-0.5 w-[7px] h-[7px] rounded-full flex items-center justify-center shadow-sm z-40 sm:w-3 sm:h-3',
           widget.enabled ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground',
         )}
       >
-        {widget.enabled ? <X className="h-1.5 w-1.5 sm:h-2 sm:w-2" strokeWidth={3} /> : <Eye className="h-1.5 w-1.5 sm:h-2 sm:w-2" strokeWidth={3} />}
+        {widget.enabled ? <X className="h-[5px] w-[5px] sm:h-1.5 sm:w-1.5" strokeWidth={3} /> : <Eye className="h-[5px] w-[5px] sm:h-1.5 sm:w-1.5" strokeWidth={3} />}
       </motion.button>
 
       {/* Size badge */}
