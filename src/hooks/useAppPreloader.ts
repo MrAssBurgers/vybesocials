@@ -10,7 +10,7 @@ interface PreloadStatus {
   isComplete: boolean;
 }
 
-// Granular preload steps with descriptive labels
+// Weighted preload steps — progress is computed from cumulative weights
 const PRELOAD_STEPS = [
   { key: 'init', label: 'Waking up...', weight: 5 },
   { key: 'auth', label: 'Checking session...', weight: 10 },
@@ -22,6 +22,8 @@ const PRELOAD_STEPS = [
   { key: 'ready', label: 'Let\'s go! ✨', weight: 5 },
 ];
 
+const TOTAL_WEIGHT = PRELOAD_STEPS.reduce((s, step) => s + step.weight, 0);
+
 export function useAppPreloader() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<PreloadStatus>({
@@ -30,6 +32,38 @@ export function useAppPreloader() {
     isComplete: false,
   });
   const hasStarted = useRef(false);
+  const currentProgress = useRef(0);
+  const animFrameRef = useRef<number>(0);
+
+  // Smoothly animate progress to a target value
+  const animateTo = useCallback((target: number, label: string, done = false) => {
+    const start = currentProgress.current;
+    const delta = target - start;
+    if (delta <= 0 && !done) {
+      setStatus({ step: label, progress: target, isComplete: done });
+      return;
+    }
+    const duration = Math.max(150, Math.min(delta * 12, 500)); // adaptive duration
+    const startTime = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - t, 3);
+      const value = Math.round(start + delta * eased);
+      currentProgress.current = value;
+      setStatus({ step: label, progress: value, isComplete: done && t >= 1 });
+      if (t < 1) {
+        animFrameRef.current = requestAnimationFrame(tick);
+      } else {
+        currentProgress.current = target;
+        setStatus({ step: label, progress: target, isComplete: done });
+      }
+    };
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    animFrameRef.current = requestAnimationFrame(tick);
+  }, []);
 
   const updateStatus = useCallback((stepKey: string, partialProgress?: number) => {
     const stepIndex = PRELOAD_STEPS.findIndex(s => s.key === stepKey);
@@ -38,13 +72,10 @@ export function useAppPreloader() {
     const step = PRELOAD_STEPS[stepIndex];
     const progressBefore = PRELOAD_STEPS.slice(0, stepIndex).reduce((acc, s) => acc + s.weight, 0);
     const stepProgress = partialProgress !== undefined ? (step.weight * partialProgress) : step.weight;
+    const target = Math.min(Math.round(((progressBefore + stepProgress) / TOTAL_WEIGHT) * 100), 100);
     
-    setStatus({
-      step: step.label,
-      progress: Math.min(Math.round(progressBefore + stepProgress), 100),
-      isComplete: stepKey === 'ready',
-    });
-  }, []);
+    animateTo(target, step.label, stepKey === 'ready');
+  }, [animateTo]);
 
   useEffect(() => {
     if (hasStarted.current) return;
@@ -58,11 +89,11 @@ export function useAppPreloader() {
       return;
     }
 
-    // Safety timeout - 3 seconds max
+    // Safety timeout - 4 seconds max (slightly longer to allow smooth animation)
     const safetyTimeout = setTimeout(() => {
       console.warn('[Preloader] Safety timeout reached, forcing complete');
-      setStatus({ step: 'Ready!', progress: 100, isComplete: true });
-    }, 3000);
+      animateTo(100, 'Ready!', true);
+    }, 4000);
 
     const preload = async () => {
       const startTime = performance.now();
@@ -70,6 +101,7 @@ export function useAppPreloader() {
       try {
         // Step 1: Initialize
         updateStatus('init');
+        await new Promise(r => setTimeout(r, 80)); // tiny delay so user sees first frame
 
         // Step 2: Check authentication with timeout
         updateStatus('auth');
@@ -106,12 +138,12 @@ export function useAppPreloader() {
             }),
           ]);
 
+          updateStatus('clips');
+
           // Cache feed
           if (feedResult.status === 'fulfilled' && feedResult.value.data) {
             const posts = feedResult.value.data as any[];
             cacheFeedData(queryClient, posts, null, 'feed_post');
-            
-            // Pre-sign URLs
             const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
             batchSignUrls(urlsToSign).catch(() => {});
           }
@@ -120,10 +152,12 @@ export function useAppPreloader() {
           if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
             const clips = clipsResult.value.data as any[];
             cacheFeedData(queryClient, clips, null, 'clip');
-            
             const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
             batchSignUrls(urlsToSign).catch(() => {});
           }
+
+          updateStatus('final');
+          await new Promise(r => setTimeout(r, 120));
 
           console.log(`[Preloader] Guest mode complete - ${(performance.now() - startTime).toFixed(0)}ms`);
           updateStatus('ready');
@@ -183,7 +217,10 @@ export function useAppPreloader() {
           batchSignUrls(urlsToSign).catch(() => {});
         }
 
-        // Mark ready IMMEDIATELY - social data loads in background
+        updateStatus('final');
+        await new Promise(r => setTimeout(r, 100));
+
+        // Mark ready
         updateStatus('ready');
 
         // Log performance
@@ -338,14 +375,18 @@ export function useAppPreloader() {
 
       } catch (error) {
         console.error('[Preloader] Error:', error);
-        setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+        animateTo(100, 'Ready!', true);
       } finally {
         clearTimeout(safetyTimeout);
       }
     };
 
     preload();
-  }, [queryClient, updateStatus]);
+    
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [queryClient, updateStatus, animateTo]);
 
   return status;
 }
