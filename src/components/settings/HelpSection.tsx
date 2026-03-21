@@ -101,6 +101,20 @@ export function HelpSection() {
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
           </button>
+
+          {/* Apply for Moderator */}
+          <Link to="/apply-moderator" className="block">
+            <div className="w-full flex items-center gap-4 p-4 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all active:scale-[0.98]">
+              <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0">
+                <Shield className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <p className="font-medium">Apply for Moderator</p>
+                <p className="text-sm text-muted-foreground">Help keep VYBE safe</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+            </div>
+          </Link>
         </div>
       </motion.div>
 
