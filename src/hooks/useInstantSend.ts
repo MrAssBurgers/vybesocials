@@ -178,12 +178,18 @@ export function useInstantSend(conversationId: string | undefined, recipientProf
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
+      // Encrypt content for 1:1 DMs if recipient has a key
+      let encryptedContent = content;
+      if (recipientProfileId) {
+        encryptedContent = await encrypt(content, recipientProfileId);
+      }
+
       const { data, error } = await supabase
         .from('messages')
         .insert({
           conversation_id: conversationId,
           sender_id: profile.id,
-          content,
+          content: encryptedContent,
           view_mode: viewMode,
           expires_at: expiresAt,
           reply_to_id: replyToId,
