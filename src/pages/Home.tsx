@@ -6,15 +6,8 @@ import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePerso
 import type { Post } from '@/hooks/useInfinitePosts';
 import { useDNAPreferences } from '@/hooks/useDNAPreferences';
 import { useNewPostsBanner } from '@/hooks/usePostsRealtime';
-import { PostCard } from '@/components/posts/PostCard';
-import { PostSkeletonList } from '@/components/posts/PostSkeleton';
 import { useShowAds } from '@/hooks/useShowAds';
-
-const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
-import { getAdInterval } from '@/components/ads/FeedAdCard';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { StoriesBar } from '@/components/stories/StoriesBar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
 import { hasActiveReferral, isInviteEntryMode } from '@/lib/referral';
 import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
@@ -22,18 +15,11 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { AutoFriendDrop } from '@/components/friends/AutoFriendDrop';
-import { WelcomeHeader } from '@/components/home/WelcomeHeader';
 import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { PageTransition } from '@/components/ui/PageTransition';
-import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
-import { HomeEditModeProvider, EditableWidgetWrapper, useEditMode } from '@/components/home/HomeEditMode';
+import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMode';
+import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
 import { VYBECommandBar } from '@/components/ai/VYBECommandBar';
 import { useGridLayout } from '@/hooks/useGridLayout';
-import { DiscoveryCards } from '@/components/home/DiscoveryCards';
-
-// Memoized PostCard for better performance
-const MemoizedPostCard = memo(PostCard);
 
 // DNA preference scoring - boost/reduce based on tag matching
 function getDNAScore(post: Post, boostSet: Set<string>, reduceSet: Set<string>): number {
@@ -49,93 +35,6 @@ function getDNAScore(post: Post, boostSet: Set<string>, reduceSet: Set<string>):
   for (const topic of reduceSet) if (caption.includes(topic)) score -= 1;
   return score;
 }
-
-// Memoized post list with improved empty states
-interface PostListProps {
-  posts: any[];
-  isLoading: boolean;
-  isFetching: boolean;
-  isFetchingNext: boolean;
-  loadMoreRef: (node: HTMLDivElement | null) => void;
-  emptyIcon: string;
-  emptyText: string;
-  onExplore?: () => void;
-  showAds?: boolean;
-}
-
-const PostList = memo(({ 
-  posts, 
-  isLoading,
-  isFetching,
-  isFetchingNext, 
-  loadMoreRef,
-  emptyIcon,
-  emptyText,
-  onExplore,
-  showAds = false,
-}: PostListProps) => {
-  // Generate stable ad positions (every 5–8 posts) — deterministic pattern
-  const adPositions = useMemo(() => {
-    if (!showAds || posts.length === 0) return new Set<number>();
-    const positions = new Set<number>();
-    let adIndex = 0;
-    let next = getAdInterval(adIndex) - 1; // 0-indexed
-    while (next < posts.length) {
-      positions.add(next);
-      adIndex++;
-      next += getAdInterval(adIndex);
-    }
-    return positions;
-  }, [showAds, posts.length]);
-
-  // Show skeletons only on initial load with NO cached data
-  if (isLoading && posts.length === 0) {
-    return <PostSkeletonList count={2} />;
-  }
-
-  if (!isLoading && posts.length === 0) {
-    return (
-      <EmptyState
-        emoji={emptyIcon}
-        title="Nothing here yet"
-        description={emptyText}
-        actionLabel={onExplore ? "Explore" : undefined}
-        onAction={onExplore}
-      />
-    );
-  }
-
-  return (
-    <>
-      {posts.map((post, index) => (
-        <div key={post.id}>
-          <MemoizedPostCard post={post} />
-          {/* Inject ad at randomized intervals (every 5–8 posts) */}
-          {adPositions.has(index) && (
-            <Suspense fallback={null}>
-              <FeedAdCard />
-            </Suspense>
-          )}
-        </div>
-      ))}
-      <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
-        {isFetchingNext && (
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        )}
-      </div>
-    </>
-  );
-}, (prevProps, nextProps) => {
-  // Custom comparison for better memoization
-  return (
-    prevProps.isLoading === nextProps.isLoading &&
-    prevProps.isFetching === nextProps.isFetching &&
-    prevProps.isFetchingNext === nextProps.isFetchingNext &&
-    prevProps.posts.length === nextProps.posts.length &&
-    prevProps.posts === nextProps.posts &&
-    prevProps.showAds === nextProps.showAds
-  );
-});
 
 interface HomePageProps {
   isInviteMode?: boolean;
@@ -370,33 +269,29 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         >
           {/* Announcements Banner */}
           <AnnouncementBanner />
-
           {/* Global Events Banner */}
           <GlobalEventBanner />
 
-          {/* Welcome Header (greeting) */}
-          <EditableWidgetWrapper widgetId="ai_brief">
-            <WelcomeHeader />
-          </EditableWidgetWrapper>
-
-          {/* Stories Bar */}
-          {isVisible('stories') && (
-            <EditableWidgetWrapper widgetId="stories">
-              <StoriesBar />
-            </EditableWidgetWrapper>
-          )}
-
-          {/* Weekly Rhythm / Daily Brief */}
-          {isVisible('weekly_rhythm') && (
-            <EditableWidgetWrapper widgetId="weekly_rhythm">
-              <WeeklyRhythmBanner />
-            </EditableWidgetWrapper>
-          )}
-
-          {/* Discovery Cards */}
-          <EditableWidgetWrapper widgetId="trending">
-            <DiscoveryCards />
-          </EditableWidgetWrapper>
+          {/* Dynamic ordered widget list */}
+          <HomeWidgetRenderer
+            customizerOpen={customizerOpen}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            showAds={showAds}
+            navigate={navigate}
+            hasNewPosts={hasNewPosts}
+            clearNewPosts={clearNewPosts}
+            handleRefresh={handleRefresh}
+            forYouPosts={forYouPosts}
+            forYouLoading={forYouLoading && followingLoading}
+            forYouFetching={forYouFetching || followingFetching}
+            isFetchingNextForYou={isFetchingNextForYou || isFetchingNextFollowing}
+            globalPosts={globalPosts}
+            globalLoading={globalLoading}
+            globalFetching={globalFetching}
+            isFetchingNextGlobal={isFetchingNextGlobal}
+            loadMoreRef={loadMoreRef}
+          />
 
           {/* Customize Button */}
           {!customizerOpen && (
@@ -413,68 +308,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             </div>
           )}
 
-          {/* Hidden widgets shown as placeholders in edit mode */}
-          {customizerOpen && (
-            <HiddenWidgetPlaceholders />
-          )}
-
-          <div className="px-3 pb-6" data-tutorial="feed-area">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
-                <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                  <Sparkles className="h-4 w-4 mr-1.5" />
-                  For You
-                </TabsTrigger>
-                <TabsTrigger value="global" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                  <Globe className="h-4 w-4 mr-1.5" />
-                  Global
-                </TabsTrigger>
-              </TabsList>
-
-              {/* X-style "New posts" banner */}
-              {hasNewPosts && (
-                <button
-                  onClick={() => {
-                    clearNewPosts();
-                    handleRefresh();
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="w-full mb-4 py-2.5 px-4 rounded-full bg-primary text-primary-foreground text-sm font-semibold shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-300"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  New posts available — tap to see
-                </button>
-              )}
-
-              <TabsContent value="foryou" className="space-y-4" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
-                <PostList
-                  posts={forYouPosts}
-                  isLoading={forYouLoading && followingLoading}
-                  isFetching={forYouFetching || followingFetching}
-                  isFetchingNext={isFetchingNextForYou || isFetchingNextFollowing}
-                  loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
-                  emptyIcon="✨"
-                  emptyText="No posts yet. Follow creators or check Global!"
-                  onExplore={() => navigate('/explore')}
-                  showAds={showAds}
-                />
-              </TabsContent>
-
-              <TabsContent value="global" className="space-y-4" forceMount style={{ display: activeTab === 'global' ? 'block' : 'none' }}>
-                <PostList
-                  posts={globalPosts}
-                  isLoading={globalLoading}
-                  isFetching={globalFetching}
-                  isFetchingNext={isFetchingNextGlobal}
-                  loadMoreRef={activeTab === 'global' ? loadMoreRef : () => {}}
-                  emptyIcon="🌍"
-                  emptyText="No posts yet. Be the first to share something!"
-                  onExplore={() => navigate('/explore')}
-                  showAds={showAds}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
+          {/* Hidden widgets in edit mode */}
+          {customizerOpen && <HiddenWidgetPlaceholders />}
         </div>
       </HomeEditModeProvider>
 

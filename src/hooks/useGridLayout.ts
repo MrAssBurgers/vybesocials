@@ -33,13 +33,15 @@ const DEFAULT_WIDGETS = (variant: LayoutVariant): GridWidgetState[] =>
 
 function parseConfig(saved: Partial<GridLayoutConfig> | undefined): GridLayoutConfig {
   const savedWidgets = saved?.widgets;
+  const DEFAULT_ENABLED = new Set(['greeting', 'xp_streak', 'ai_brief', 'stories', 'weekly_rhythm', 'discovery', 'feed']);
+
   const widgets: GridWidgetState[] = ALL_WIDGETS.map((def, i) => {
     const sw = savedWidgets?.find((w: any) => w.id === def.id);
     if (sw) return { ...def, ...sw };
     return {
       ...def,
-      enabled: i < 4,
-      colSpan: (def.id === 'ai_brief' || def.id === 'stories') ? 2 as const : 1 as const,
+      enabled: DEFAULT_ENABLED.has(def.id),
+      colSpan: (def.id === 'feed' || def.id === 'stories') ? 2 as const : 1 as const,
       rowSpan: 1 as const,
       order: i,
     };
