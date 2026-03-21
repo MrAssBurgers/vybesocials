@@ -2907,17 +2907,16 @@ img, video {
   transform: scale(0.97) !important;
 }
 
-/* Themed left accent bar */
+/* Subtle left accent — thin line */
 .toast-pill::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3.5px;
-  border-radius: 0 4px 4px 0;
-  background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--primary) / 0.5));
-  animation: toast-accent-pulse 2s ease-in-out infinite;
+  top: 20%;
+  bottom: 20%;
+  width: 2.5px;
+  border-radius: 0 2px 2px 0;
+  background: hsl(var(--primary) / 0.6);
   pointer-events: none;
 }
 
