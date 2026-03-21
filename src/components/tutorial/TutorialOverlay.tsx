@@ -166,7 +166,6 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     element?: Element | null
   ) => {
     const tooltipWidth = Math.min(320, window.innerWidth - 32);
-    const tooltipHeight = 320;
     const viewport = {
       width: window.innerWidth,
       height: window.innerHeight,
@@ -176,47 +175,46 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     const centerX = Math.max(16, (viewport.width - tooltipWidth) / 2);
 
     if (isMobileOrTablet) {
-      const bottomNavHeight = 72;
-      const safeAreaBottom = parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--sab') || '0'
-      ) || 0;
+      // Fixed center of screen on mobile
+      const tooltipHeight = 320;
+      const centerY = Math.max(80, (viewport.height - tooltipHeight) / 2);
       
-      const defaultBottom = bottomNavHeight + safeAreaBottom + 16;
-      const tooltipTop = viewport.height - defaultBottom - tooltipHeight;
+      // Check if spotlight overlaps center position
+      const spotlightOverlaps = rect.bottom > centerY && rect.top < centerY + tooltipHeight;
       
-      // Check if spotlight overlaps with default tooltip position
-      const spotlightOverlaps = rect.bottom > tooltipTop && rect.top < viewport.height - defaultBottom;
-      
-      if (spotlightOverlaps && rect.top > tooltipHeight + 80) {
-        // Move tooltip above the spotlight
+      if (spotlightOverlaps && rect.top > tooltipHeight + 40) {
+        // Place above spotlight
         setTooltipPos({
           top: Math.max(60, rect.top - tooltipHeight - 20),
           left: centerX,
         });
+      } else if (spotlightOverlaps) {
+        // Place below spotlight
+        setTooltipPos({
+          top: Math.min(viewport.height - tooltipHeight - 80, rect.bottom + 20),
+          left: centerX,
+        });
       } else {
         setTooltipPos({
-          bottom: defaultBottom,
+          top: centerY,
           left: centerX,
         });
       }
     } else {
+      const tooltipHeight = 320;
       const defaultTop = Math.max(80, (viewport.height - tooltipHeight) / 2);
       const tooltipBottom = defaultTop + tooltipHeight;
       
-      // Check if spotlight overlaps with centered tooltip
       const spotlightOverlaps = rect.bottom > defaultTop && rect.top < tooltipBottom &&
         rect.right > centerX && rect.left < centerX + tooltipWidth;
       
       if (spotlightOverlaps) {
-        // Move tooltip to the side opposite the spotlight
         if (rect.left > viewport.width / 2) {
-          // Spotlight on right, move tooltip left
           setTooltipPos({
             top: defaultTop,
             left: Math.max(16, rect.left - tooltipWidth - 30),
           });
         } else {
-          // Spotlight on left, move tooltip right
           setTooltipPos({
             top: defaultTop,
             left: Math.min(viewport.width - tooltipWidth - 16, rect.right + 30),
@@ -268,7 +266,8 @@ export const TutorialOverlay = memo(function TutorialOverlay({
       await scrollElementIntoView(target);
       
       const rect = target.getBoundingClientRect();
-      const padding = 8;
+      const padding = 6;
+      const borderRadius = Math.min(12, rect.height / 2, rect.width / 2);
       
       setSpotlight({
         top: rect.top - padding,
@@ -283,21 +282,15 @@ export const TutorialOverlay = memo(function TutorialOverlay({
       setSpotlight(null);
       setElementFound(false);
       const tooltipWidth = Math.min(320, window.innerWidth - 32);
+      const tooltipHeight = 320;
       const isMobileOrTablet = layoutMode === 'mobile' || layoutMode === 'tablet';
+      const centerX = Math.max(16, (window.innerWidth - tooltipWidth) / 2);
+      const centerY = Math.max(80, (window.innerHeight - tooltipHeight) / 2);
       
-      if (isMobileOrTablet) {
-        const bottomNavHeight = 72;
-        setTooltipPos({
-          bottom: bottomNavHeight + 16,
-          left: Math.max(16, (window.innerWidth - tooltipWidth) / 2),
-        });
-      } else {
-        const tooltipWidth2 = Math.min(320, window.innerWidth - 32);
-        setTooltipPos({
-          top: Math.max(80, (window.innerHeight - 320) / 2),
-          left: Math.max(16, (window.innerWidth - tooltipWidth2) / 2),
-        });
-      }
+      setTooltipPos({
+        top: centerY,
+        left: centerX,
+      });
     }
     
     // Broadcast highlighted nav item for BottomNav to pick up
@@ -395,8 +388,9 @@ export const TutorialOverlay = memo(function TutorialOverlay({
                     opacity: 1,
                   }}
                   initial={{ opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 200, damping: 28 }}
-                  rx="16"
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  rx="12"
+                  ry="12"
                   fill="black"
                 />
               )}
@@ -417,16 +411,16 @@ export const TutorialOverlay = memo(function TutorialOverlay({
           <motion.div
             animate={{ 
               opacity: 1, 
-              top: spotlight.top - 6,
-              left: spotlight.left - 6,
-              width: spotlight.width + 12,
-              height: spotlight.height + 12,
+              top: spotlight.top - 3,
+              left: spotlight.left - 3,
+              width: spotlight.width + 6,
+              height: spotlight.height + 6,
             }}
             initial={{ opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 28 }}
-            className="absolute rounded-2xl pointer-events-none"
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="absolute rounded-xl pointer-events-none"
             style={{
-              boxShadow: '0 0 0 4px hsl(var(--primary) / 0.7), 0 0 80px hsl(var(--primary) / 0.5), 0 0 120px hsl(var(--primary) / 0.3)',
+              boxShadow: '0 0 0 2px hsl(var(--primary) / 0.8), 0 0 30px hsl(var(--primary) / 0.4)',
             }}
           />
         )}
