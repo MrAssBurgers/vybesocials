@@ -1,21 +1,24 @@
-import { useState, useRef, memo } from 'react';
+import { useState, useRef, memo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { AR_FILTERS, ARFilterDef } from '@/lib/arFilters';
 import { triggerHaptic } from '@/lib/haptics';
-import { Loader2, Lock, Sparkles } from 'lucide-react';
+import { Loader2, Lock, Sparkles, Globe, Upload } from 'lucide-react';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { AIFilterGenerator } from './AIFilterGenerator';
 import { useAIFilterGenerator } from '@/hooks/useAIFilterGenerator';
+import { FilterGallery } from './FilterGallery';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
 
-type ARCategory = 'all' | 'face' | 'color' | 'particle' | 'full';
+type ARCategory = 'all' | 'face' | 'color' | 'particle';
 
 const AR_CATEGORIES: { id: ARCategory; label: string }[] = [
   { id: 'all', label: 'All' },
-  { id: 'face', label: '🎭 Face' },
-  { id: 'particle', label: '✨ Effects' },
-  { id: 'color', label: '🎨 Color' },
+  { id: 'face', label: '🎭' },
+  { id: 'particle', label: '✨' },
+  { id: 'color', label: '🎨' },
 ];
 
 interface ARFilterPickerProps {
@@ -32,11 +35,13 @@ export const ARFilterPicker = memo(function ARFilterPicker({
   isLoading,
 }: ARFilterPickerProps) {
   const [activeCategory, setActiveCategory] = useState<ARCategory>('all');
+  const [showGallery, setShowGallery] = useState(false);
+  const [showAICreate, setShowAICreate] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { isPremium } = usePremiumStatus();
   const { generatedFilters } = useAIFilterGenerator();
+  const { profile } = useAuth();
 
-  // Combine preset + AI-generated filters
   const allFilters = [...AR_FILTERS, ...generatedFilters];
   const filtered = activeCategory === 'all'
     ? allFilters
@@ -55,132 +60,163 @@ export const ARFilterPicker = memo(function ARFilterPicker({
     triggerHaptic('medium');
   };
 
+  const handleShareFilter = useCallback(async (filter: ARFilterDef) => {
+    if (!profile) { toast.error('Sign in to share filters'); return; }
+
+    const { masks, particles, colorGrade, lighting, cssFilter } = filter;
+    const config = { masks, particles, colorGrade, lighting, cssFilter };
+
+    const { error } = await supabase.from('community_filters').insert({
+      creator_id: profile.id,
+      name: filter.name,
+      icon: filter.icon,
+      filter_config: config,
+      category: filter.category,
+    });
+
+    if (error) {
+      toast.error('Failed to share filter');
+    } else {
+      toast.success('Filter shared to gallery! 🎉');
+      triggerHaptic('medium');
+    }
+  }, [profile]);
+
   return (
-    <div className="w-full">
-      {/* AR badge */}
-      <div className="flex items-center justify-center mb-1.5 gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-primary/80 bg-primary/10 px-2 py-0.5 rounded-full">
-          AR Filters
-        </span>
-        {isLoading && (
-          <Loader2 className="w-3 h-3 animate-spin text-primary/60" />
-        )}
-        {isTracking && !isLoading && (
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        )}
-      </div>
-
-      {/* AI Generator */}
-      <div className="mb-2">
-        <AIFilterGenerator
-          onFilterGenerated={(filter) => {}}
-          generatedFilters={generatedFilters}
-          currentFilter={currentFilter}
-          onFilterChange={onFilterChange}
-        />
-      </div>
-
-      {/* Category tabs */}
-      <div className="flex gap-1.5 justify-center mb-2 px-4">
-        {AR_CATEGORIES.map(cat => (
-          <button
-            key={cat.id}
-            onClick={() => {
-              setActiveCategory(cat.id);
-              triggerHaptic('light');
-            }}
-            className={cn(
-              "text-[10px] px-2.5 py-1 rounded-full transition-all duration-200 font-medium",
-              activeCategory === cat.id
-                ? "bg-primary text-primary-foreground"
-                : "bg-white/15 text-white/70 hover:bg-white/25"
+    <>
+      <div className="w-full">
+        {/* Compact header row */}
+        <div className="flex items-center justify-between px-4 mb-1.5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-primary/80">AR</span>
+            {isLoading && <Loader2 className="w-2.5 h-2.5 animate-spin text-primary/60" />}
+            {isTracking && !isLoading && (
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             )}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Filter scroll */}
-      <div
-        ref={scrollRef}
-        className="flex gap-2 overflow-x-auto scrollbar-hide px-4 pb-2 snap-x snap-mandatory"
-      >
-        {/* None option */}
-        <button
-          onClick={() => {
-            onFilterChange(null);
-            triggerHaptic('light');
-          }}
-          className="flex-shrink-0 snap-center flex flex-col items-center gap-1 transition-all duration-200"
-        >
-          <div className={cn(
-            "w-14 h-14 rounded-2xl flex items-center justify-center text-xl border-2 transition-all",
-            !currentFilter
-              ? "border-primary bg-primary/20 scale-110 shadow-lg shadow-primary/30"
-              : "border-white/20 bg-white/10"
-          )}>
-            🚫
           </div>
-          <span className={cn(
-            "text-[10px] font-medium",
-            !currentFilter ? "text-primary" : "text-white/50"
-          )}>
-            None
-          </span>
-        </button>
+          <div className="flex items-center gap-1">
+            {/* Category pills - compact */}
+            {AR_CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => { setActiveCategory(cat.id); triggerHaptic('light'); }}
+                className={cn(
+                  "text-[9px] px-2 py-0.5 rounded-full transition-all",
+                  activeCategory === cat.id
+                    ? "bg-primary text-primary-foreground"
+                    : "text-white/50"
+                )}
+              >
+                {cat.label}
+              </button>
+            ))}
+            {/* Gallery button */}
+            <button
+              onClick={() => { setShowGallery(true); triggerHaptic('light'); }}
+              className="text-[9px] px-2 py-0.5 rounded-full bg-white/10 text-white/70 flex items-center gap-0.5"
+            >
+              <Globe className="w-2.5 h-2.5" /> Gallery
+            </button>
+          </div>
+        </div>
 
-        {/* AR filters */}
-        <AnimatePresence mode="popLayout">
-          {filtered.map((filter, i) => {
+        {/* AI Generator - collapsible */}
+        <div className="mb-1">
+          <AIFilterGenerator
+            onFilterGenerated={() => {}}
+            generatedFilters={generatedFilters}
+            currentFilter={currentFilter}
+            onFilterChange={onFilterChange}
+          />
+        </div>
+
+        {/* Filter scroll — compact circles */}
+        <div
+          ref={scrollRef}
+          className="flex gap-1.5 overflow-x-auto scrollbar-hide px-3 pb-1.5 snap-x snap-mandatory"
+        >
+          {/* None option */}
+          <button
+            onClick={() => { onFilterChange(null); triggerHaptic('light'); }}
+            className="flex-shrink-0 snap-center flex flex-col items-center gap-0.5"
+          >
+            <div className={cn(
+              "w-11 h-11 rounded-xl flex items-center justify-center text-base border-2 transition-all",
+              !currentFilter
+                ? "border-primary bg-primary/20 scale-105"
+                : "border-white/20 bg-white/10"
+            )}>
+              🚫
+            </div>
+            <span className={cn("text-[8px]", !currentFilter ? "text-primary" : "text-white/40")}>Off</span>
+          </button>
+
+          {filtered.map((filter) => {
             const isActive = currentFilter === filter.id;
             const isLocked = filter.premium && !isPremium;
+            const isAI = filter.aiGenerated;
             return (
-              <motion.button
-                key={filter.id}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ delay: i * 0.03, duration: 0.2 }}
-                onClick={() => handleFilterSelect(filter)}
-                className="flex-shrink-0 snap-center flex flex-col items-center gap-1 transition-all duration-200"
-              >
-                <div className={cn(
-                  "w-14 h-14 rounded-2xl flex items-center justify-center text-xl border-2 transition-all relative",
-                  isActive
-                    ? "border-primary bg-primary/20 scale-110 shadow-lg shadow-primary/30"
-                    : isLocked
-                      ? "border-white/10 bg-white/5 opacity-60"
-                      : "border-white/20 bg-white/10 active:scale-95"
-                )}>
-                  {filter.icon}
-                  {isLocked && (
-                    <div className="absolute inset-0 rounded-2xl bg-black/40 flex items-center justify-center">
-                      <Lock className="w-3.5 h-3.5 text-white/80" />
-                    </div>
-                  )}
-                  {filter.aiGenerated && (
-                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-primary flex items-center justify-center">
-                      <Sparkles className="w-2 h-2 text-primary-foreground" />
+              <div key={filter.id} className="flex-shrink-0 snap-center flex flex-col items-center gap-0.5">
+                <button
+                  onClick={() => handleFilterSelect(filter)}
+                  className="relative"
+                >
+                  <div className={cn(
+                    "w-11 h-11 rounded-xl flex items-center justify-center text-base border-2 transition-all",
+                    isActive
+                      ? "border-primary bg-primary/20 scale-105 shadow-md shadow-primary/30"
+                      : isLocked
+                        ? "border-white/10 bg-white/5 opacity-50"
+                        : "border-white/20 bg-white/10 active:scale-95"
+                  )}>
+                    {filter.icon}
+                    {isLocked && (
+                      <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center">
+                        <Lock className="w-3 h-3 text-white/80" />
+                      </div>
+                    )}
+                  </div>
+                  {isAI && (
+                    <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-primary flex items-center justify-center">
+                      <Sparkles className="w-1.5 h-1.5 text-primary-foreground" />
                     </span>
                   )}
-                  {filter.premium && !isLocked && (
-                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-500 flex items-center justify-center">
-                      <span className="text-[8px]">⭐</span>
-                    </span>
-                  )}
-                </div>
+                </button>
                 <span className={cn(
-                  "text-[10px] font-medium max-w-[56px] truncate",
-                  isActive ? "text-primary" : isLocked ? "text-white/30" : "text-white/50"
+                  "text-[8px] max-w-[44px] truncate",
+                  isActive ? "text-primary" : isLocked ? "text-white/25" : "text-white/40"
                 )}>
                   {filter.name}
                 </span>
-              </motion.button>
+                {/* Share AI filter button */}
+                {isAI && isActive && (
+                  <button
+                    onClick={() => handleShareFilter(filter)}
+                    className="flex items-center gap-0.5 text-[7px] text-primary/80 mt-0.5"
+                  >
+                    <Upload className="w-2 h-2" /> Share
+                  </button>
+                )}
+              </div>
             );
           })}
-        </AnimatePresence>
+        </div>
       </div>
-    </div>
+
+      {/* Gallery overlay */}
+      <AnimatePresence>
+        {showGallery && (
+          <FilterGallery
+            isOpen={showGallery}
+            onClose={() => setShowGallery(false)}
+            onSelectFilter={(filter) => {
+              onFilterChange(filter);
+              setShowGallery(false);
+            }}
+            currentFilterId={currentFilter}
+          />
+        )}
+      </AnimatePresence>
+    </>
   );
 });
