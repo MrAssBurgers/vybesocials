@@ -165,6 +165,19 @@ function CommentActions({ isOwn, commentId, postId, commentText }: {
               "h-7 w-7 flex-shrink-0 transition-opacity duration-150",
               menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
             )}
+            onPointerDown={(e) => {
+              (e.currentTarget as any)._pointerY = e.clientY;
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              const startY = (e.currentTarget as any)._pointerY;
+              if (startY !== undefined && Math.abs(e.clientY - startY) > 8) {
+                e.preventDefault();
+                setMenuOpen(false);
+                return;
+              }
+            }}
           >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
@@ -461,7 +474,23 @@ export default function PostDetailPage() {
             {/* More menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 rounded-full"
+                  onPointerDown={(e) => {
+                    (e.currentTarget as any)._pointerY = e.clientY;
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const startY = (e.currentTarget as any)._pointerY;
+                    if (startY !== undefined && Math.abs(e.clientY - startY) > 8) {
+                      e.preventDefault();
+                      return;
+                    }
+                  }}
+                >
                   <MoreHorizontal className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>

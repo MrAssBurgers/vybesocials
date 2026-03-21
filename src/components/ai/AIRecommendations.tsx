@@ -34,13 +34,27 @@ export function AIRecommendations() {
   const [reason, setReason] = useState('');
   const [hasLoaded, setHasLoaded] = useState(false);
 
+  const getUserLocation = (): Promise<{ lat: number; lng: number } | null> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 300000 }
+      );
+    });
+  };
+
   const fetchRecommendations = async (retryCount = 0) => {
     if (!profile) return;
     
     setIsLoading(true);
     
     try {
-      const headers = await getFunctionAuthHeaders();
+      const [headers, location] = await Promise.all([
+        getFunctionAuthHeaders(),
+        getUserLocation(),
+      ]);
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-recommendations`,
         {
@@ -49,6 +63,7 @@ export function AIRecommendations() {
           body: JSON.stringify({
             interests: profile.interests || [],
             userId: profile.id,
+            location,
           }),
         }
       );

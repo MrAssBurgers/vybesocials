@@ -39,7 +39,7 @@ serve(async (req) => {
 
     const authenticatedUserId = user.id;
     
-    const { interests, userId } = await req.json();
+    const { interests, userId, location } = await req.json();
     
     // Validate that the requested userId matches the authenticated user
     // Get the profile ID for the authenticated user
@@ -90,21 +90,26 @@ serve(async (req) => {
       isLiked: likedPostIds.includes(p.id)
     })) || [];
 
-    const prompt = `You are a content recommendation AI. Based on the user's interests and liked content, recommend the best posts.
+    const locationContext = location
+      ? `\nUser's approximate location: latitude ${location.lat.toFixed(2)}, longitude ${location.lng.toFixed(2)}. Factor in location-relevant content (local events, nearby creators, area-specific topics) when making recommendations.`
+      : '';
+
+    const prompt = `You are a content recommendation AI. Based on the user's interests, liked content, and location, recommend the best posts.
 
 User interests: ${interests?.join(', ') || 'general content'}
-User has liked ${likedPostIds.length} posts
+User has liked ${likedPostIds.length} posts${locationContext}
 
 Available posts (id, tags, caption snippet, type, isLiked):
 ${JSON.stringify(postsContext.slice(0, 30), null, 2)}
 
 Return a JSON object with:
 1. "recommended_ids": array of up to 10 post IDs that best match user interests (prioritize posts not yet liked)
-2. "reason": brief explanation of the recommendation logic
+2. "reason": brief explanation of the recommendation logic (mention location-based reasoning if location was provided)
 
 Consider:
 - Match tags with user interests
 - Prioritize content types the user engages with
+- If location is available, boost content from nearby creators or location-relevant tags
 - Include some variety
 - Don't recommend already-liked posts heavily
 
