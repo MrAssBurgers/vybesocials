@@ -11,6 +11,7 @@ import { useTokenReward } from '@/hooks/useVybeTokens';
  * Day 1: 15 XP, Day 2: 19 XP, Day 5: 33 XP, Day 10: 55 XP
  */
 const SESSION_KEY = 'vybe_daily_login_tracked';
+const LOCAL_KEY = 'vybe_daily_login_date';
 
 export function useDailyLoginChallenge() {
   const { profile } = useAuth();
