@@ -4,14 +4,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
-// Request permission for native notifications
+// Check notification permission — never auto-request on web to avoid browser bell prompts
 async function requestNotificationPermission(): Promise<boolean> {
   if (!('Notification' in window)) return false;
   if (Notification.permission === 'granted') return true;
-  if (Notification.permission === 'denied') return false;
-  
-  const permission = await Notification.requestPermission();
-  return permission === 'granted';
+  // Don't auto-request — only return current state
+  return false;
 }
 
 // Show native browser notification
