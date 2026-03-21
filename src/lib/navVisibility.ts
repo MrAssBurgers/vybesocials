@@ -4,20 +4,29 @@
  */
 
 type NavVisibilityListener = (visible: boolean) => void;
+type HeaderVisibilityListener = (visible: boolean) => void;
 
 // Global state
 let navVisible = true;
+let headerVisible = true;
 const listeners = new Set<NavVisibilityListener>();
+const headerListeners = new Set<HeaderVisibilityListener>();
 let communityInputFocused = false;
 let inCommunityChat = false;
 let inStoryViewer = false;
 let inDesigner = false;
+let inEditMode = false;
 
 function updateVisibility() {
   const shouldBeVisible = !communityInputFocused && !inCommunityChat && !inStoryViewer && !inDesigner;
   if (navVisible !== shouldBeVisible) {
     navVisible = shouldBeVisible;
     listeners.forEach(fn => fn(navVisible));
+  }
+  const headerShouldBeVisible = !inEditMode;
+  if (headerVisible !== headerShouldBeVisible) {
+    headerVisible = headerShouldBeVisible;
+    headerListeners.forEach(fn => fn(headerVisible));
   }
 }
 
@@ -78,6 +87,28 @@ export const navVisibility = {
     communityInputFocused = false;
     inStoryViewer = false;
     inDesigner = false;
+    inEditMode = false;
     updateVisibility();
+  },
+
+  /**
+   * Set whether we're in home edit mode (hides header)
+   */
+  setInEditMode(editing: boolean) {
+    inEditMode = editing;
+    updateVisibility();
+  },
+
+  /**
+   * Subscribe to header visibility changes
+   */
+  subscribeHeader(callback: HeaderVisibilityListener): () => void {
+    headerListeners.add(callback);
+    callback(headerVisible);
+    return () => headerListeners.delete(callback);
+  },
+
+  isHeaderVisible(): boolean {
+    return headerVisible;
   },
 };
