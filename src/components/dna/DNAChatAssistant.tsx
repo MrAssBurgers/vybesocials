@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, Send, X, Sparkles, Loader2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import type { VybeDNA } from '@/hooks/useVybeDNA';
 import { cn } from '@/lib/utils';
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -25,7 +26,8 @@ export function DNAChatAssistant({ dna }: { dna: VybeDNA }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
@@ -34,7 +36,7 @@ export function DNAChatAssistant({ dna }: { dna: VybeDNA }) {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, streamingText]);
 
   useEffect(() => {
     if (open && inputRef.current) {
@@ -42,14 +44,17 @@ export function DNAChatAssistant({ dna }: { dna: VybeDNA }) {
     }
   }, [open]);
 
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || loading || !user) return;
+  const sendMessage = useCallback(async (text: string) => {
+    if (!text.trim() || isLoading || !user) return;
 
     const userMsg: Message = { role: 'user', content: text.trim() };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput('');
-    setLoading(true);
+    setIsLoading(true);
+    setStreamingText('');
+
+    let preferencesUpdated = false;
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -73,23 +78,89 @@ export function DNAChatAssistant({ dna }: { dna: VybeDNA }) {
         throw new Error(err.error || 'Failed to get response');
       }
 
-      const data = await res.json();
-      const assistantMsg: Message = {
-        role: 'assistant',
-        content: data.message,
-        preferencesUpdated: data.preferences_updated,
-      };
-      setMessages(prev => [...prev, assistantMsg]);
+      if (!res.body) throw new Error('No response body');
 
-      if (data.preferences_updated) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+          let line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+
+          if (line.endsWith('\r')) line = line.slice(0, -1);
+          if (line.startsWith(':') || line.trim() === '') continue;
+          if (!line.startsWith('data: ')) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+
+            // Check for our custom preferences metadata
+            if (parsed.preferences_updated) {
+              preferencesUpdated = true;
+              continue;
+            }
+
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              accumulated += content;
+              setStreamingText(accumulated);
+            }
+          } catch {
+            buffer = line + '\n' + buffer;
+            break;
+          }
+        }
+      }
+
+      // Flush remaining buffer
+      if (buffer.trim()) {
+        for (let raw of buffer.split('\n')) {
+          if (!raw) continue;
+          if (raw.endsWith('\r')) raw = raw.slice(0, -1);
+          if (raw.startsWith(':') || raw.trim() === '') continue;
+          if (!raw.startsWith('data: ')) continue;
+          const jsonStr = raw.slice(6).trim();
+          if (jsonStr === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.preferences_updated) { preferencesUpdated = true; continue; }
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) { accumulated += content; setStreamingText(accumulated); }
+          } catch { /* ignore */ }
+        }
+      }
+
+      // Finalize: add the complete assistant message
+      if (accumulated) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: accumulated,
+          preferencesUpdated,
+        }]);
+      }
+
+      if (preferencesUpdated) {
         toast.success('Your feed preferences updated! 🧬');
       }
     } catch (e: any) {
       toast.error(e.message || 'Something went wrong');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
+      setStreamingText('');
     }
-  };
+  }, [messages, isLoading, user]);
 
   const pv = dna.personality_vector as Record<string, number>;
 
@@ -127,7 +198,7 @@ export function DNAChatAssistant({ dna }: { dna: VybeDNA }) {
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
               <div className="flex-1">
-                <h2 className="font-bold text-sm">Your VYBE DNA</h2>
+                <h2 className="font-bold text-sm">VYBE AI</h2>
                 <p className="text-xs text-muted-foreground">
                   ⚡{Math.round((pv.activity || 0) * 100)}% · 💬{Math.round((pv.social || 0) * 100)}% · 🎨{Math.round((pv.creative || 0) * 100)}%
                 </p>
@@ -139,7 +210,7 @@ export function DNAChatAssistant({ dna }: { dna: VybeDNA }) {
 
             {/* Messages */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-              {messages.length === 0 && (
+              {messages.length === 0 && !isLoading && (
                 <div className="space-y-4 pt-8">
                   <div className="text-center space-y-2">
                     <motion.div
@@ -148,9 +219,9 @@ export function DNAChatAssistant({ dna }: { dna: VybeDNA }) {
                     >
                       <Sparkles className="h-12 w-12 mx-auto text-primary/60" />
                     </motion.div>
-                    <p className="text-sm font-semibold">Talk to your DNA</p>
+                    <p className="text-sm font-semibold">Your VYBE Assistant</p>
                     <p className="text-xs text-muted-foreground max-w-[250px] mx-auto">
-                      Tell me what you want to see more or less of. I'll tune your feed in real time.
+                      Ask me anything about VYBE — tune your feed, explore features, or just chat.
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-2">
@@ -179,7 +250,13 @@ export function DNAChatAssistant({ dna }: { dna: VybeDNA }) {
                       : 'bg-muted/60'
                   )}
                 >
-                  <p className="text-sm leading-relaxed">{msg.content}</p>
+                  {msg.role === 'assistant' ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="text-sm leading-relaxed">{msg.content}</p>
+                  )}
                   {msg.preferencesUpdated && (
                     <div className="flex items-center gap-1 mt-1.5">
                       <Zap className="h-3 w-3 text-primary" />
@@ -189,16 +266,24 @@ export function DNAChatAssistant({ dna }: { dna: VybeDNA }) {
                 </motion.div>
               ))}
 
-              {loading && (
+              {/* Streaming bubble */}
+              {isLoading && (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-center gap-2 text-muted-foreground"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="max-w-[85%] rounded-2xl px-4 py-2.5 bg-muted/60"
                 >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </div>
-                  <span className="text-xs">Tuning your VYBE...</span>
+                  {streamingText ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed">
+                      <ReactMarkdown>{streamingText}</ReactMarkdown>
+                      <span className="inline-block w-[2px] h-[14px] bg-foreground/70 ml-0.5 animate-pulse align-middle" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-xs">Thinking...</span>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </div>
@@ -213,15 +298,15 @@ export function DNAChatAssistant({ dna }: { dna: VybeDNA }) {
                   ref={inputRef}
                   value={input}
                   onChange={e => setInput(e.target.value)}
-                  placeholder="Tell your DNA what you want..."
+                  placeholder="Ask VYBE anything..."
                   className="flex-1 bg-muted/50 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/30 placeholder:text-muted-foreground"
-                  disabled={loading}
+                  disabled={isLoading}
                 />
                 <Button
                   type="submit"
                   size="icon"
                   className="rounded-xl shrink-0"
-                  disabled={!input.trim() || loading}
+                  disabled={!input.trim() || isLoading}
                 >
                   <Send className="h-4 w-4" />
                 </Button>
