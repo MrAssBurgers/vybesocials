@@ -89,8 +89,12 @@ export const FilterGallery = memo(function FilterGallery({
     onSelectFilter(arFilter);
     triggerHaptic('medium');
 
-    // Increment use count
-    await supabase.rpc('increment_community_filter_use', { filter_id: filter.id }).catch(() => {});
+    // Increment use count (fire and forget)
+    supabase
+      .from('community_filters')
+      .update({ use_count: (filter.use_count || 0) + 1 })
+      .eq('id', filter.id)
+      .then(() => {});
   }, [onSelectFilter]);
 
   const handleLike = useCallback(async (filterId: string) => {
