@@ -83,7 +83,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'vybe_dna':
       return (
         <QuickAccessCard
-          icon={<Dna className="h-4 w-4 text-white" />}
+          icon={<Dna className="h-3.5 w-3.5 text-white" />}
           label="VYBE DNA"
           path="/vybe-dna"
           gradient="from-violet-500/20 via-fuchsia-500/15 to-purple-600/20"
