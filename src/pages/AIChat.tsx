@@ -286,7 +286,7 @@ export default function AIChat() {
           
           <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-2.5 flex-1 min-w-0">
             <div className="relative">
-              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center shadow-md shadow-primary/20">
+              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center shadow-md shadow-primary/20 ring-2 ring-card">
                 <VybeMiniIcon size={18} showSparkles={false} />
               </div>
               <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card bg-green-500" />
