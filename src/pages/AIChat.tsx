@@ -81,6 +81,7 @@ export default function AIChat() {
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
+  const [showGPSDialog, setShowGPSDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
