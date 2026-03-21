@@ -474,6 +474,30 @@ export default function AIChat() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* GPS Privacy Dialog */}
+      <AlertDialog open={showGPSDialog} onOpenChange={setShowGPSDialog}>
+        <AlertDialogContent className="max-w-sm rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-green-500" />
+              Enable Location
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left space-y-2 text-sm">
+              <p>Your location is used <strong>only on your device</strong> to give the AI local recommendations (nearby places, events, weather, etc.).</p>
+              <p className="text-xs text-muted-foreground border-l-2 border-green-500/50 pl-2">
+                🔒 <strong>VYBE does not store, collect, or have access to your location data.</strong> It stays entirely on your phone and is sent directly to the AI per-request. We never see it.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={enableLocation} className="bg-green-600 hover:bg-green-700">
+              <MapPin className="h-4 w-4 mr-1" /> Enable GPS
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
