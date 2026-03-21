@@ -53,16 +53,16 @@ function QuickAccessCard({ icon, label, path, gradient, iconColor }: {
     <button
       onClick={() => { triggerHaptic('light'); navigate(path); }}
       className={cn(
-        "flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl transition-all h-full w-full min-h-0",
+        "flex flex-col items-center justify-center gap-1 py-2 rounded-xl transition-all h-full w-full min-h-0",
         "bg-gradient-to-br border border-white/[0.08] shadow-sm",
         "hover:scale-[1.03] active:scale-[0.97]",
         gradient,
       )}
     >
-      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shadow-inner", iconColor)}>
+      <div className={cn("w-6 h-6 rounded-md flex items-center justify-center shadow-inner", iconColor)}>
         {icon}
       </div>
-      <span className="text-[10px] font-semibold text-foreground/90 tracking-wide leading-tight">{label}</span>
+      <span className="text-[9px] font-semibold text-foreground/90 tracking-wide leading-tight">{label}</span>
     </button>
   );
 }
