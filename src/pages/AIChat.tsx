@@ -366,7 +366,7 @@ export default function AIChat() {
               transition={{ duration: 0.2 }}
               className="flex gap-2 justify-start"
             >
-              <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-accent flex-shrink-0 flex items-center justify-center mt-0.5">
+              <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-accent flex-shrink-0 flex items-center justify-center mt-0.5 ring-2 ring-card shadow-sm">
                 <VybeMiniIcon size={14} showSparkles={false} />
               </div>
               <div className="flex flex-col max-w-[82%]">

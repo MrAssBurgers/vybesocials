@@ -2991,11 +2991,7 @@ img, video {
 /* ── Variant: Info ── */
 .toast-pill-info::before,
 .toast-pill[data-type="info"]::before {
-  background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--primary) / 0.4)) !important;
-}
-.toast-pill-info::after,
-.toast-pill[data-type="info"]::after {
-  background: hsl(var(--primary) / 0.25) !important;
+  background: hsl(var(--primary)) !important;
 }
 .toast-pill-info .toast-pill-title,
 .toast-pill[data-type="info"] [data-title] {
@@ -3003,11 +2999,7 @@ img, video {
 }
 .toast-pill-info,
 .toast-pill[data-type="info"] {
-  border-color: hsl(var(--primary) / 0.15) !important;
-  box-shadow:
-    0 8px 32px hsl(var(--primary) / 0.1),
-    0 2px 8px hsl(var(--foreground) / 0.04),
-    inset 0 1px 0 hsl(var(--primary) / 0.06) !important;
+  border-color: hsl(var(--primary) / 0.12) !important;
 }
 
 /* ── Action / Cancel buttons ── */

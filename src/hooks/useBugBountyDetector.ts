@@ -57,6 +57,14 @@ const IGNORED_PATTERNS = [
   'net::ERR_',               // Chrome network errors (transient)
   'NetworkError',
   'Failed to send a request to the Edge Function', // Edge cold-start transient
+  // Presence / realtime noise — NOT real bugs
+  'presence',
+  'Presence',
+  'Failed to fetch',
+  'track_presence',
+  'untrack_presence',
+  'presenceRef',
+  'heartbeat',
 ];
 
 // HTTP status codes that indicate real bugs

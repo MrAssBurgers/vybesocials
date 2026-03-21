@@ -36,6 +36,7 @@ export function useDailyLoginChallenge() {
     const triggerLogin = async () => {
       triggeredRef.current = true;
       sessionStorage.setItem(SESSION_KEY, today);
+      localStorage.setItem(LOCAL_KEY, today);
       
       try {
         const { data, error } = await supabase.rpc('track_daily_login');
