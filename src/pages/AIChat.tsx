@@ -61,6 +61,7 @@ const QUICK_PROMPTS = [
 
 export default function AIChat() {
   const navigate = useNavigate();
+  const streamingContentRef = useRef('');
   
   // Simple settings — no model picker, no API key nonsense
   const [aiName, setAiName] = useState(() => loadSetting(AI_NAME_KEY, 'Morgan'));
@@ -76,6 +77,7 @@ export default function AIChat() {
   });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState(''); // live streaming text for the current response
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editName, setEditName] = useState(aiName);
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
@@ -86,7 +88,8 @@ export default function AIChat() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { saveMessages(messages); }, [messages]);
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages]);
+  // Auto-scroll on streaming text changes too
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages, streamingText]);
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -142,6 +145,7 @@ export default function AIChat() {
     setIsLoading(true);
 
     let assistantContent = '';
+    streamingContentRef.current = '';
 
     try {
       const headers = await getFunctionAuthHeaders();
@@ -171,7 +175,8 @@ export default function AIChat() {
       const decoder = new TextDecoder();
       if (!reader) throw new Error('No reader');
 
-      setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date() }]);
+      // Show empty assistant bubble with typing dots
+      setStreamingText('');
 
       let buffer = '';
       let streamDone = false;
@@ -194,16 +199,15 @@ export default function AIChat() {
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
               assistantContent += content;
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: 'assistant', content: assistantContent, timestamp: new Date() };
-                return updated;
-              });
+              streamingContentRef.current = assistantContent;
+              // Update streaming text directly — lightweight, only re-renders the bubble
+              setStreamingText(assistantContent);
             }
           } catch { buffer = line + '\n' + buffer; break; }
         }
       }
       
+      // Process any remaining buffer
       if (buffer.trim()) {
         for (const raw of buffer.split('\n')) {
           if (!raw || raw.startsWith(':') || raw.trim() === '') continue;
@@ -215,18 +219,22 @@ export default function AIChat() {
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
               assistantContent += content;
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: 'assistant', content: assistantContent, timestamp: new Date() };
-                return updated;
-              });
+              streamingContentRef.current = assistantContent;
+              setStreamingText(assistantContent);
             }
           } catch {}
         }
       }
+
+      // Finalize: commit the completed message to the messages array
+      setMessages(prev => [...prev, { role: 'assistant', content: assistantContent, timestamp: new Date() }]);
+      setStreamingText('');
+      streamingContentRef.current = '';
     } catch (error) {
       console.error('AI chat error:', error);
-      setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: "Oops, something went wrong. Try again!", timestamp: new Date() }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: "Oops, something went wrong. Try again!", timestamp: new Date() }]);
+      setStreamingText('');
+      streamingContentRef.current = '';
     } finally {
       setIsLoading(false);
     }
@@ -306,27 +314,11 @@ export default function AIChat() {
                     ? 'bg-primary text-primary-foreground rounded-tr-md'
                     : 'bg-muted/60 rounded-tl-md border border-border/30'
                 )}>
-                  {message.content ? (
-                    message.role === 'assistant' ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-1 [&_p:last-child]:mb-0 [&_pre]:text-xs [&_code]:text-xs">
-                        <ReactMarkdown>{message.content}</ReactMarkdown>
-                        {/* Blinking cursor while still streaming */}
-                        {isLoading && index === messages.length - 1 && (
-                          <span className="inline-block w-[2px] h-[14px] bg-foreground/70 ml-0.5 align-middle animate-pulse" />
-                        )}
-                      </div>
-                    ) : message.content
-                  ) : (
-                    isLoading && index === messages.length - 1 ? (
-                      <span className="flex items-center gap-1.5 text-muted-foreground">
-                        <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.2 }} className="flex gap-0.5">
-                          <span className="w-1.5 h-1.5 bg-current rounded-full" />
-                          <span className="w-1.5 h-1.5 bg-current rounded-full" />
-                          <span className="w-1.5 h-1.5 bg-current rounded-full" />
-                        </motion.div>
-                      </span>
-                    ) : null
-                  )}
+                  {message.role === 'assistant' ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-1 [&_p:last-child]:mb-0 [&_pre]:text-xs [&_code]:text-xs">
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                    </div>
+                  ) : message.content}
                 </div>
                 <span className={cn(
                   "text-[9px] text-muted-foreground/60 mt-0.5 px-1",
@@ -337,6 +329,38 @@ export default function AIChat() {
               </div>
             </motion.div>
           ))}
+
+          {/* Live streaming bubble — separate from committed messages */}
+          {isLoading && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex gap-2 justify-start"
+            >
+              <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-accent flex-shrink-0 flex items-center justify-center mt-0.5">
+                <VybeMiniIcon size={14} showSparkles={false} />
+              </div>
+              <div className="flex flex-col max-w-[82%]">
+                <div className="rounded-2xl px-3 py-2 text-[13px] leading-relaxed bg-muted/60 rounded-tl-md border border-border/30">
+                  {streamingText ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-1 [&_p:last-child]:mb-0 [&_pre]:text-xs [&_code]:text-xs">
+                      <ReactMarkdown>{streamingText}</ReactMarkdown>
+                      <span className="inline-block w-[2px] h-[14px] bg-foreground/70 ml-0.5 align-middle animate-pulse" />
+                    </div>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.2 }} className="flex gap-0.5">
+                        <span className="w-1.5 h-1.5 bg-current rounded-full" />
+                        <span className="w-1.5 h-1.5 bg-current rounded-full" />
+                        <span className="w-1.5 h-1.5 bg-current rounded-full" />
+                      </motion.div>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           <AnimatePresence>
             {showQuickPrompts && (
