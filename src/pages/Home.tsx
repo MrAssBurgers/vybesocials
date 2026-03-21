@@ -456,11 +456,10 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         </div>
       </div>
 
-      {/* Grid Layout Editor */}
-      <HomeGridEditor 
+      {/* Inline Edit Mode (Apple-style) */}
+      <HomeEditMode 
         open={customizerOpen} 
         onOpenChange={setCustomizerOpen}
-        onOpenCommandBar={() => setCommandBarOpen(true)}
       />
 
       {/* AI Command Bar */}
