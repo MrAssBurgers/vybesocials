@@ -61,6 +61,7 @@ import { ReplyPreview } from './ReplyPreview';
 import { 
   ArrowLeft, 
   Send, 
+  Lock,
   MoreVertical,
   Clock,
   Eye,
