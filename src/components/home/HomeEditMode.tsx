@@ -318,7 +318,7 @@ export function EditableWidgetList({ children }: { children: ReactNode }) {
 /* ── Non-edit grid wrapper ── */
 export function WidgetGrid({ children }: { children: ReactNode }) {
   return (
-    <div className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(80px, auto)' }}>
+    <div className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(56px, auto)' }}>
       {children}
     </div>
   );
