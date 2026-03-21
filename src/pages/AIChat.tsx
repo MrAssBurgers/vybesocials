@@ -314,27 +314,11 @@ export default function AIChat() {
                     ? 'bg-primary text-primary-foreground rounded-tr-md'
                     : 'bg-muted/60 rounded-tl-md border border-border/30'
                 )}>
-                  {message.content ? (
-                    message.role === 'assistant' ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-1 [&_p:last-child]:mb-0 [&_pre]:text-xs [&_code]:text-xs">
-                        <ReactMarkdown>{message.content}</ReactMarkdown>
-                        {/* Blinking cursor while still streaming */}
-                        {isLoading && index === messages.length - 1 && (
-                          <span className="inline-block w-[2px] h-[14px] bg-foreground/70 ml-0.5 align-middle animate-pulse" />
-                        )}
-                      </div>
-                    ) : message.content
-                  ) : (
-                    isLoading && index === messages.length - 1 ? (
-                      <span className="flex items-center gap-1.5 text-muted-foreground">
-                        <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.2 }} className="flex gap-0.5">
-                          <span className="w-1.5 h-1.5 bg-current rounded-full" />
-                          <span className="w-1.5 h-1.5 bg-current rounded-full" />
-                          <span className="w-1.5 h-1.5 bg-current rounded-full" />
-                        </motion.div>
-                      </span>
-                    ) : null
-                  )}
+                  {message.role === 'assistant' ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-1 [&_p:last-child]:mb-0 [&_pre]:text-xs [&_code]:text-xs">
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                    </div>
+                  ) : message.content}
                 </div>
                 <span className={cn(
                   "text-[9px] text-muted-foreground/60 mt-0.5 px-1",
@@ -345,6 +329,38 @@ export default function AIChat() {
               </div>
             </motion.div>
           ))}
+
+          {/* Live streaming bubble — separate from committed messages */}
+          {isLoading && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex gap-2 justify-start"
+            >
+              <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-accent flex-shrink-0 flex items-center justify-center mt-0.5">
+                <VybeMiniIcon size={14} showSparkles={false} />
+              </div>
+              <div className="flex flex-col max-w-[82%]">
+                <div className="rounded-2xl px-3 py-2 text-[13px] leading-relaxed bg-muted/60 rounded-tl-md border border-border/30">
+                  {streamingText ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-1 [&_p:last-child]:mb-0 [&_pre]:text-xs [&_code]:text-xs">
+                      <ReactMarkdown>{streamingText}</ReactMarkdown>
+                      <span className="inline-block w-[2px] h-[14px] bg-foreground/70 ml-0.5 align-middle animate-pulse" />
+                    </div>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.2 }} className="flex gap-0.5">
+                        <span className="w-1.5 h-1.5 bg-current rounded-full" />
+                        <span className="w-1.5 h-1.5 bg-current rounded-full" />
+                        <span className="w-1.5 h-1.5 bg-current rounded-full" />
+                      </motion.div>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           <AnimatePresence>
             {showQuickPrompts && (
