@@ -2977,11 +2977,7 @@ img, video {
 /* ── Variant: Warning ── */
 .toast-pill-warning::before,
 .toast-pill[data-type="warning"]::before {
-  background: linear-gradient(180deg, hsl(38 92% 50%), hsl(38 92% 50% / 0.4)) !important;
-}
-.toast-pill-warning::after,
-.toast-pill[data-type="warning"]::after {
-  background: hsl(38 92% 50% / 0.25) !important;
+  background: hsl(38 92% 50%) !important;
 }
 .toast-pill-warning .toast-pill-title,
 .toast-pill[data-type="warning"] [data-title] {
@@ -2989,11 +2985,7 @@ img, video {
 }
 .toast-pill-warning,
 .toast-pill[data-type="warning"] {
-  border-color: hsl(38 92% 50% / 0.15) !important;
-  box-shadow:
-    0 8px 32px hsl(38 92% 50% / 0.1),
-    0 2px 8px hsl(var(--foreground) / 0.04),
-    inset 0 1px 0 hsl(38 92% 50% / 0.06) !important;
+  border-color: hsl(38 92% 50% / 0.12) !important;
 }
 
 /* ── Variant: Info ── */
