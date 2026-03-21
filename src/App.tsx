@@ -30,6 +30,7 @@ import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { NavigationRefSetter } from "@/components/layout/NavigationRefSetter";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
+import { useInitEncryption } from "@/hooks/useEncryptionKeys";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
