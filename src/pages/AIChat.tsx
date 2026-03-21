@@ -88,7 +88,8 @@ export default function AIChat() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { saveMessages(messages); }, [messages]);
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages]);
+  // Auto-scroll on streaming text changes too
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages, streamingText]);
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
