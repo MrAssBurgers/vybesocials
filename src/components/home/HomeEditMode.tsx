@@ -1,160 +1,263 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
-import {
-  Check, X, Eye, EyeOff, Smartphone, Monitor,
-  Square, RectangleHorizontal, Columns, Maximize2,
-} from 'lucide-react';
+import { useState, useCallback, useRef, useEffect, createContext, useContext } from 'react';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
+import { X, Eye, Check, Smartphone, Monitor, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useGridLayout, type GridWidgetState, type GridLayoutConfig, type LayoutVariant } from '@/hooks/useGridLayout';
-import { useIsMobileOrTablet } from '@/hooks/use-mobile';
+import { useGridLayout, type GridWidgetState, type GridLayoutConfig } from '@/hooks/useGridLayout';
 import { toast } from 'sonner';
 
-interface Props {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
+/* ── Context so child widgets know they're in edit mode ── */
+interface EditModeContextValue {
+  isEditing: boolean;
+  localWidgets: GridWidgetState[];
+  selectedWidget: string | null;
+  setSelectedWidget: (id: string | null) => void;
+  handleToggle: (id: string) => void;
+  handleResize: (id: string, col: 1 | 2, row: 1 | 2) => void;
 }
 
-const SIZE_OPTIONS: { label: string; icon: any; col: 1 | 2; row: 1 | 2 }[] = [
-  { label: 'Small', icon: Square, col: 1, row: 1 },
-  { label: 'Wide', icon: RectangleHorizontal, col: 2, row: 1 },
-  { label: 'Tall', icon: Columns, col: 1, row: 2 },
-  { label: 'Large', icon: Maximize2, col: 2, row: 2 },
-];
+const EditModeContext = createContext<EditModeContextValue>({
+  isEditing: false,
+  localWidgets: [],
+  selectedWidget: null,
+  setSelectedWidget: () => {},
+  handleToggle: () => {},
+  handleResize: () => {},
+});
 
-// Apple-style jiggle animation
-const jiggleVariant = {
-  jiggle: (i: number) => ({
-    rotate: [-(0.5 + i * 0.15), (0.5 + i * 0.15), -(0.5 + i * 0.15)],
-    transition: {
-      rotate: {
-        repeat: Infinity,
-        duration: 0.3 + i * 0.05,
-        ease: 'easeInOut' as const,
-      },
-    },
-  }),
-  still: { rotate: 0 },
-};
+export const useEditMode = () => useContext(EditModeContext);
 
-function EditableWidget({
-  widget,
-  index,
-  isSelected,
-  onSelect,
-  onToggle,
-  onResize,
+/* ── Jiggle keyframes (CSS-based for perf) ── */
+const jiggleStyle = `
+@keyframes widget-jiggle {
+  0% { transform: rotate(-0.6deg); }
+  50% { transform: rotate(0.6deg); }
+  100% { transform: rotate(-0.6deg); }
+}
+`;
+
+/* ── Resize handle component ── */
+function ResizeHandle({
+  position,
+  onResizeStart,
 }: {
-  widget: GridWidgetState;
-  index: number;
-  isSelected: boolean;
-  onSelect: () => void;
-  onToggle: () => void;
-  onResize: (col: 1 | 2, row: 1 | 2) => void;
+  position: 'right' | 'bottom' | 'corner';
+  onResizeStart: (dir: 'right' | 'bottom' | 'corner') => void;
+}) {
+  return (
+    <div
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        onResizeStart(position);
+      }}
+      className={cn(
+        'absolute z-20 transition-opacity',
+        position === 'right' && 'top-2 -right-1.5 bottom-2 w-3 cursor-ew-resize flex items-center justify-center',
+        position === 'bottom' && '-bottom-1.5 left-2 right-2 h-3 cursor-ns-resize flex items-center justify-center',
+        position === 'corner' && '-bottom-2 -right-2 w-5 h-5 cursor-nwse-resize rounded-full',
+      )}
+    >
+      {position === 'right' && (
+        <div className="w-1 h-8 rounded-full bg-primary/60" />
+      )}
+      {position === 'bottom' && (
+        <div className="h-1 w-8 rounded-full bg-primary/60" />
+      )}
+      {position === 'corner' && (
+        <div className="w-3 h-3 rounded-full bg-primary border-2 border-background shadow-md" />
+      )}
+    </div>
+  );
+}
+
+/* ── Inline editable widget wrapper ── */
+export function EditableWidgetWrapper({
+  widgetId,
+  children,
+  className,
+}: {
+  widgetId: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const { isEditing, localWidgets, selectedWidget, setSelectedWidget, handleToggle, handleResize } = useEditMode();
+  const widget = localWidgets.find(w => w.id === widgetId);
+
+  if (!isEditing || !widget) {
+    return <>{children}</>;
+  }
+
+  const isSelected = selectedWidget === widgetId;
+
+  const cycleSize = (dir: 'right' | 'bottom' | 'corner') => {
+    const { colSpan, rowSpan } = widget;
+    if (dir === 'right') {
+      handleResize(widgetId, colSpan === 1 ? 2 : 1, rowSpan);
+    } else if (dir === 'bottom') {
+      handleResize(widgetId, colSpan, rowSpan === 1 ? 2 : 1);
+    } else {
+      // Corner: cycle through sizes
+      if (colSpan === 1 && rowSpan === 1) handleResize(widgetId, 2, 1);
+      else if (colSpan === 2 && rowSpan === 1) handleResize(widgetId, 2, 2);
+      else if (colSpan === 2 && rowSpan === 2) handleResize(widgetId, 1, 2);
+      else handleResize(widgetId, 1, 1);
+    }
+  };
+
+  return (
+    <div
+      className={cn(
+        'relative group',
+        widget.colSpan === 2 ? 'col-span-2' : 'col-span-1',
+        widget.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
+        className,
+      )}
+      style={{
+        animation: 'widget-jiggle 0.25s ease-in-out infinite',
+        animationDelay: `${Math.random() * 0.15}s`,
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        setSelectedWidget(isSelected ? null : widgetId);
+      }}
+    >
+      {/* Content with edit border */}
+      <div
+        className={cn(
+          'relative rounded-2xl transition-all overflow-hidden',
+          isSelected
+            ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/20'
+            : 'ring-1 ring-border/60',
+          !widget.enabled && 'opacity-40 grayscale',
+        )}
+      >
+        {children}
+      </div>
+
+      {/* Remove button (top-left, Apple style) */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleToggle(widgetId);
+        }}
+        className={cn(
+          'absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center shadow-lg z-30 transition-all',
+          widget.enabled
+            ? 'bg-destructive text-destructive-foreground hover:scale-110'
+            : 'bg-primary text-primary-foreground hover:scale-110'
+        )}
+      >
+        {widget.enabled ? <X className="h-3 w-3" strokeWidth={3} /> : <Eye className="h-3 w-3" strokeWidth={3} />}
+      </button>
+
+      {/* Size label badge */}
+      <div className="absolute -top-2 -right-2 z-30">
+        <span className="text-[9px] font-bold bg-card/90 backdrop-blur border border-border/60 rounded-md px-1.5 py-0.5 shadow-sm text-muted-foreground">
+          {widget.colSpan}×{widget.rowSpan}
+        </span>
+      </div>
+
+      {/* Resize handles - only show when selected */}
+      {isSelected && widget.enabled && (
+        <>
+          <ResizeHandle position="right" onResizeStart={cycleSize} />
+          <ResizeHandle position="bottom" onResizeStart={cycleSize} />
+          <ResizeHandle position="corner" onResizeStart={cycleSize} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Floating toolbar when editing ── */
+function EditToolbar({
+  saving,
+  variant,
+  onSave,
+  onCancel,
+}: {
+  saving: boolean;
+  variant: string;
+  onSave: () => void;
+  onCancel: () => void;
 }) {
   return (
     <motion.div
-      className={cn(
-        'relative select-none cursor-pointer',
-        widget.colSpan === 2 ? 'col-span-2' : 'col-span-1',
-        widget.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
-      )}
-      custom={index}
-      variants={jiggleVariant}
-      animate="jiggle"
-      whileTap={{ scale: 0.92 }}
-      onClick={onSelect}
+      initial={{ y: -60, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: -60, opacity: 0 }}
+      transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+      className="fixed top-0 left-0 right-0 z-[60] px-3 pt-[max(env(safe-area-inset-top),8px)] pb-2 bg-card/90 backdrop-blur-xl border-b border-border/50 shadow-lg"
     >
-      {/* Widget card */}
-      <div
-        className={cn(
-          'h-full rounded-2xl border-2 p-3 transition-all',
-          widget.enabled
-            ? isSelected
-              ? 'border-primary bg-primary/10 shadow-lg shadow-primary/20'
-              : 'border-border/60 bg-card/80 backdrop-blur-sm'
-            : 'border-dashed border-border/40 bg-muted/20 opacity-50',
-        )}
-        style={{ minHeight: widget.rowSpan === 2 ? '140px' : '72px' }}
-      >
-        <div className="flex items-start gap-2">
-          <span className="text-xl">{widget.icon}</span>
-          <div className="flex-1 min-w-0">
-            <p className={cn('text-sm font-semibold truncate', !widget.enabled && 'text-muted-foreground')}>
-              {widget.label}
-            </p>
-            {(widget.rowSpan > 1 || widget.colSpan > 1) && (
-              <p className="text-[10px] text-muted-foreground truncate mt-0.5">{widget.description}</p>
-            )}
+      <div className="max-w-xl mx-auto flex items-center justify-between gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onCancel}
+          className="text-sm font-medium text-muted-foreground"
+        >
+          Cancel
+        </Button>
+
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-0.5 bg-muted/60 rounded-lg px-1 py-0.5">
+            <span className={cn(
+              'text-[10px] font-medium px-1.5 py-0.5 rounded-md transition-colors flex items-center gap-1',
+              variant === 'mobile' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
+            )}>
+              <Smartphone className="h-2.5 w-2.5" />
+              Mobile
+            </span>
+            <span className={cn(
+              'text-[10px] font-medium px-1.5 py-0.5 rounded-md transition-colors flex items-center gap-1',
+              variant === 'desktop' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
+            )}>
+              <Monitor className="h-2.5 w-2.5" />
+              Desktop
+            </span>
           </div>
         </div>
+
+        <Button
+          size="sm"
+          onClick={onSave}
+          disabled={saving}
+          className="gradient-animated text-white text-sm font-semibold gap-1.5"
+        >
+          <Check className="h-3.5 w-3.5" />
+          {saving ? 'Saving...' : 'Done'}
+        </Button>
       </div>
-
-      {/* Remove / add button (top-left, Apple-style) */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onToggle(); }}
-        className={cn(
-          'absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center shadow-md z-10 transition-colors',
-          widget.enabled
-            ? 'bg-destructive text-destructive-foreground'
-            : 'bg-primary text-primary-foreground'
-        )}
-      >
-        {widget.enabled ? <X className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-      </button>
-
-      {/* Resize popover when selected */}
-      <AnimatePresence>
-        {isSelected && widget.enabled && (
-          <motion.div
-            initial={{ opacity: 0, y: 6, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.9 }}
-            className="absolute -bottom-12 left-1/2 -translate-x-1/2 z-20 flex gap-1 bg-card/95 backdrop-blur-lg border border-border/60 rounded-xl p-1 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {SIZE_OPTIONS.map(opt => {
-              const Icon = opt.icon;
-              const active = widget.colSpan === opt.col && widget.rowSpan === opt.row;
-              return (
-                <button
-                  key={opt.label}
-                  onClick={() => onResize(opt.col, opt.row)}
-                  className={cn(
-                    'flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors',
-                    active
-                      ? 'bg-primary/15 text-primary'
-                      : 'text-muted-foreground hover:bg-muted/50'
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  <span className="text-[9px] font-medium leading-none">{opt.label}</span>
-                </button>
-              );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <p className="text-center text-[10px] text-muted-foreground mt-1">
+        Tap widgets to select · grab edges to resize · {variant === 'mobile' ? '📱' : '🖥️'} {variant} layout
+      </p>
     </motion.div>
   );
 }
 
-export function HomeEditMode({ open, onOpenChange }: Props) {
+/* ── Provider that wraps the home page content ── */
+export function HomeEditModeProvider({
+  editing,
+  onEditingChange,
+  children,
+}: {
+  editing: boolean;
+  onEditingChange: (v: boolean) => void;
+  children: React.ReactNode;
+}) {
   const { config, variant, saveGridLayout } = useGridLayout();
-  const { isMobileOrTablet } = useIsMobileOrTablet();
   const [localWidgets, setLocalWidgets] = useState<GridWidgetState[]>(config.widgets);
   const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [previewVariant, setPreviewVariant] = useState<'current' | 'other'>('current');
 
-  // Sync local state when edit mode opens
+  // Sync when entering edit mode or config changes externally
   useEffect(() => {
-    if (open) {
+    if (editing) {
       setLocalWidgets(config.widgets);
       setSelectedWidget(null);
-      setPreviewVariant('current');
     }
-  }, [open, config.widgets]);
+  }, [editing]); // intentionally only on editing toggle
 
   const handleToggle = useCallback((id: string) => {
     setLocalWidgets(prev => prev.map(w =>
@@ -168,22 +271,12 @@ export function HomeEditMode({ open, onOpenChange }: Props) {
     ));
   }, []);
 
-  const handleReorder = useCallback((newOrder: string[]) => {
-    setLocalWidgets(prev => {
-      const map = new Map(prev.map(w => [w.id, w]));
-      return newOrder.map((id, i) => {
-        const w = map.get(id)!;
-        return { ...w, order: i };
-      });
-    });
-  }, []);
-
   const handleSave = async () => {
     setSaving(true);
     try {
       await saveGridLayout({ widgets: localWidgets });
       toast.success(`${variant === 'mobile' ? 'Mobile' : 'Desktop'} layout saved! 🎨`);
-      onOpenChange(false);
+      onEditingChange(false);
     } catch (err) {
       console.error('Failed to save:', err);
       toast.error('Failed to save layout');
@@ -194,108 +287,42 @@ export function HomeEditMode({ open, onOpenChange }: Props) {
 
   const handleCancel = () => {
     setLocalWidgets(config.widgets);
-    onOpenChange(false);
+    onEditingChange(false);
   };
 
-  const orderedIds = localWidgets.map(w => w.id);
-
-  if (!open) return null;
+  const ctxValue: EditModeContextValue = {
+    isEditing: editing,
+    localWidgets: editing ? localWidgets : config.widgets,
+    selectedWidget,
+    setSelectedWidget,
+    handleToggle,
+    handleResize,
+  };
 
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex flex-col"
-        >
-          {/* Frosted background */}
-          <div className="absolute inset-0 bg-background/80 backdrop-blur-xl" onClick={() => setSelectedWidget(null)} />
+    <EditModeContext.Provider value={ctxValue}>
+      {/* Inject jiggle CSS */}
+      {editing && <style>{jiggleStyle}</style>}
 
-          {/* Top bar */}
-          <motion.div
-            initial={{ y: -40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="relative z-10 flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),12px)] pb-3"
-          >
-            <Button variant="ghost" size="sm" onClick={handleCancel} className="text-sm font-medium">
-              Cancel
-            </Button>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
-                <button
-                  className={cn(
-                    'px-2 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1',
-                    variant === 'mobile' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
-                  )}
-                  disabled
-                >
-                  <Smartphone className="h-3 w-3" />
-                  Mobile
-                </button>
-                <button
-                  className={cn(
-                    'px-2 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1',
-                    variant === 'desktop' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
-                  )}
-                  disabled
-                >
-                  <Monitor className="h-3 w-3" />
-                  Desktop
-                </button>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={saving}
-              className="gradient-animated text-white text-sm font-semibold"
-            >
-              {saving ? 'Saving...' : 'Done'}
-            </Button>
-          </motion.div>
+      {/* Floating toolbar */}
+      <AnimatePresence>
+        {editing && (
+          <EditToolbar
+            saving={saving}
+            variant={variant}
+            onSave={handleSave}
+            onCancel={handleCancel}
+          />
+        )}
+      </AnimatePresence>
 
-          {/* Variant label */}
-          <div className="relative z-10 text-center pb-3">
-            <p className="text-xs text-muted-foreground">
-              Editing <span className="font-semibold text-foreground">{variant === 'mobile' ? 'Mobile' : 'Desktop'}</span> layout
-              {' '}· tap to resize · drag to reorder
-            </p>
-          </div>
+      {/* Spacer for toolbar */}
+      {editing && <div className="h-20" />}
 
-          {/* Widget grid */}
-          <div className="relative z-10 flex-1 overflow-y-auto px-4 pb-24" onClick={() => setSelectedWidget(null)}>
-            <div className="max-w-xl mx-auto">
-              <div className="grid grid-cols-2 gap-3">
-                {localWidgets.map((widget, i) => (
-                  <EditableWidget
-                    key={widget.id}
-                    widget={widget}
-                    index={i}
-                    isSelected={selectedWidget === widget.id}
-                    onSelect={() => setSelectedWidget(prev => prev === widget.id ? null : widget.id)}
-                    onToggle={() => handleToggle(widget.id)}
-                    onResize={(col, row) => handleResize(widget.id, col, row)}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom hint */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="relative z-10 pb-[max(env(safe-area-inset-bottom),16px)] px-4 text-center"
-          >
-            <p className="text-[10px] text-muted-foreground">
-              {variant === 'mobile' ? '📱' : '🖥️'} Changes only affect your {variant} layout
-            </p>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+      {/* Clear selection on background click */}
+      <div onClick={editing ? () => setSelectedWidget(null) : undefined}>
+        {children}
+      </div>
+    </EditModeContext.Provider>
   );
 }
