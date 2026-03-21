@@ -84,6 +84,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { Toybox } from './Toybox';
+import { EmojiPicker } from './EmojiPicker';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
 import { VybeViewer } from './VybeViewer';
 // Flying bubble removed - messages now pop in like iMessage
