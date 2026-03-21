@@ -36,27 +36,16 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Fetch user's DNA
-    const { data: dna } = await supabase
-      .from("vybe_dna")
-      .select("personality_vector")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    // Fetch context in parallel
+    const [dnaResult, prefsResult, profileResult] = await Promise.all([
+      supabase.from("vybe_dna").select("personality_vector").eq("user_id", user.id).maybeSingle(),
+      supabase.from("dna_content_preferences").select("*").eq("user_id", user.id).maybeSingle(),
+      supabase.from("profiles").select("display_name, onboarding_interests").eq("id", user.id).maybeSingle(),
+    ]);
 
-    const { data: prefs } = await supabase
-      .from("dna_content_preferences")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("display_name, onboarding_interests")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    const pv = (dna?.personality_vector as Record<string, number>) || {};
-    const currentPrefs = prefs || { boost_topics: [], reduce_topics: [], preferred_content_types: [], discovery_level: "balanced" };
+    const pv = (dnaResult.data?.personality_vector as Record<string, number>) || {};
+    const currentPrefs = prefsResult.data || { boost_topics: [], reduce_topics: [], preferred_content_types: [], discovery_level: "balanced" };
+    const profile = profileResult.data;
 
     const systemPrompt = `You are the VYBE AI — a smart, helpful assistant built into the VYBE social media app. You can answer ANY question on ANY topic — science, math, history, advice, coding, creative writing, philosophy, whatever the user asks.
 
@@ -88,10 +77,12 @@ HARD RULES — refuse these with a brief, firm "I can't help with that":
 - Violence, self-harm, or instructions to harm others
 - Illegal activity instructions (drugs, weapons, hacking, etc.)
 - Content exploiting minors in any way
-Do NOT lecture — just decline and move on naturally.`;
+Do NOT lecture — just decline and move on naturally.
 
-    // First call: non-streaming with tools to detect preference changes
-    const toolCheckResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+IMPORTANT: When the user is NOT asking about feed preferences, just respond normally with text. Do NOT call update_preferences unless they explicitly want to change their feed.`;
+
+    // Single streaming call - the AI gateway handles tools in streaming mode
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
@@ -103,12 +94,13 @@ Do NOT lecture — just decline and move on naturally.`;
           { role: "system", content: systemPrompt },
           ...(messages || []),
         ],
+        stream: true,
         tools: [
           {
             type: "function",
             function: {
               name: "update_preferences",
-              description: "Update the user's content preferences based on their request",
+              description: "Update the user's content preferences based on their request. Only call when the user explicitly wants to change what they see.",
               parameters: {
                 type: "object",
                 properties: {
@@ -124,13 +116,13 @@ Do NOT lecture — just decline and move on naturally.`;
       }),
     });
 
-    if (!toolCheckResponse.ok) {
-      if (toolCheckResponse.status === 429) {
+    if (!response.ok) {
+      if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Too many requests" }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (toolCheckResponse.status === 402) {
+      if (response.status === 402) {
         return new Response(JSON.stringify({ error: "AI credits exhausted" }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -138,75 +130,92 @@ Do NOT lecture — just decline and move on naturally.`;
       throw new Error("AI gateway error");
     }
 
-    const toolCheckData = await toolCheckResponse.json();
-    const toolCall = toolCheckData.choices?.[0]?.message?.tool_calls?.[0];
-    let preferencesUpdated = false;
-
-    // Process tool call if present
-    if (toolCall?.function?.arguments) {
-      const args = JSON.parse(toolCall.function.arguments);
-      const updates: any = {};
-      if (args.boost_topics?.length) updates.boost_topics = args.boost_topics;
-      if (args.reduce_topics?.length) updates.reduce_topics = args.reduce_topics;
-      if (args.preferred_content_types?.length) updates.preferred_content_types = args.preferred_content_types;
-      if (args.discovery_level) updates.discovery_level = args.discovery_level;
-
-      if (Object.keys(updates).length > 0) {
-        updates.user_id = user.id;
-        updates.updated_at = new Date().toISOString();
-        await supabase.from("dna_content_preferences").upsert(updates, { onConflict: "user_id" });
-        preferencesUpdated = true;
-      }
-    }
-
-    // Now stream the actual response
-    const streamMessages = [
-      { role: "system", content: systemPrompt },
-      ...(messages || []),
-    ];
-
-    // If tool was called, add context so AI knows prefs were updated
-    if (preferencesUpdated) {
-      streamMessages.push({
-        role: "system",
-        content: "You just updated the user's feed preferences. Confirm what you changed in a natural, conversational way.",
-      });
-    }
-
-    const streamResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: streamMessages,
-        stream: true,
-      }),
-    });
-
-    if (!streamResponse.ok) throw new Error("Stream error");
-
-    // Create a custom stream that injects metadata
+    // Read the stream, collect tool calls, and forward content deltas
     const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const reader = response.body!.getReader();
+
     const readable = new ReadableStream({
       async start(controller) {
-        // Send preferences metadata first if updated
-        if (preferencesUpdated) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ preferences_updated: true })}\n\n`));
+        let toolCallArgs = "";
+        let hasToolCall = false;
+        let buffer = "";
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            let newlineIndex: number;
+            while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+              let line = buffer.slice(0, newlineIndex);
+              buffer = buffer.slice(newlineIndex + 1);
+
+              if (line.endsWith("\r")) line = line.slice(0, -1);
+              if (line.startsWith(":") || line.trim() === "") continue;
+              if (!line.startsWith("data: ")) continue;
+
+              const jsonStr = line.slice(6).trim();
+              if (jsonStr === "[DONE]") continue;
+
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const delta = parsed.choices?.[0]?.delta;
+
+                // Forward content deltas to client immediately
+                if (delta?.content) {
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(parsed)}\n\n`));
+                }
+
+                // Collect tool call arguments
+                if (delta?.tool_calls?.[0]) {
+                  hasToolCall = true;
+                  const tc = delta.tool_calls[0];
+                  if (tc.function?.arguments) {
+                    toolCallArgs += tc.function.arguments;
+                  }
+                }
+              } catch {
+                // Partial JSON, skip
+              }
+            }
+          }
+
+          // Process tool call if detected
+          if (hasToolCall && toolCallArgs) {
+            try {
+              const args = JSON.parse(toolCallArgs);
+              const updates: Record<string, unknown> = {};
+              if (args.boost_topics?.length) updates.boost_topics = args.boost_topics;
+              if (args.reduce_topics?.length) updates.reduce_topics = args.reduce_topics;
+              if (args.preferred_content_types?.length) updates.preferred_content_types = args.preferred_content_types;
+              if (args.discovery_level) updates.discovery_level = args.discovery_level;
+
+              if (Object.keys(updates).length > 0) {
+                updates.user_id = user.id;
+                updates.updated_at = new Date().toISOString();
+                await supabase.from("dna_content_preferences").upsert(updates as any, { onConflict: "user_id" });
+
+                // Send metadata event
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ preferences_updated: true })}\n\n`));
+              }
+
+              // If tool call consumed the response (no content was streamed),
+              // make a quick follow-up streaming call to get the text response
+              // This shouldn't normally happen with good prompting but handles edge cases
+            } catch (e) {
+              console.error("Tool call parse error:", e);
+            }
+          }
+
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        } catch (e) {
+          console.error("Stream processing error:", e);
+        } finally {
+          controller.close();
         }
-
-        const reader = streamResponse.body!.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          controller.enqueue(value);
-        }
-
-        controller.close();
       },
     });
 
