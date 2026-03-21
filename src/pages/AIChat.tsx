@@ -365,19 +365,22 @@ export default function AIChat() {
                 <span className="text-[9px] text-accent/80">Learning your vibes</span>
               </div>
             )}
-            {locationEnabled && userLocation && (
-              <div className="flex items-center gap-1 ml-auto">
-                <MapPin className="h-2.5 w-2.5 text-primary" />
-                <span className="text-[9px] text-primary/80">{userLocation.city || 'GPS active'}</span>
-              </div>
-            )}
+            <button
+              onClick={() => locationEnabled ? setLocationEnabled(false) : requestGPSPermission()}
+              className="flex items-center gap-1 ml-auto"
+            >
+              <div className={cn("w-1.5 h-1.5 rounded-full", locationEnabled ? "bg-green-500" : "bg-destructive")} />
+              <span className={cn("text-[9px] font-medium", locationEnabled ? "text-green-500" : "text-destructive/80")}>
+                Location {locationEnabled ? 'on' : 'off'}
+              </span>
+            </button>
           </div>
           <div className="flex items-center gap-1.5">
             <Button
               variant="ghost"
               size="icon"
-              className={cn("h-9 w-9 rounded-full shrink-0", locationEnabled ? "text-primary" : "text-muted-foreground")}
-              onClick={() => locationEnabled ? setLocationEnabled(false) : enableLocation()}
+              className={cn("h-9 w-9 rounded-full shrink-0", locationEnabled ? "text-green-500" : "text-muted-foreground")}
+              onClick={() => locationEnabled ? setLocationEnabled(false) : requestGPSPermission()}
             >
               <MapPin className="h-4 w-4" />
             </Button>
