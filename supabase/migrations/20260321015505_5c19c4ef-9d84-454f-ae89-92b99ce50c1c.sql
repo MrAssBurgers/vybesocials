@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN music_personality text;

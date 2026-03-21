@@ -6467,6 +6467,7 @@ export type Database = {
           last_name: string | null
           link_url: string | null
           location: string | null
+          music_personality: string | null
           onboarding_completed: boolean | null
           phone_number: string | null
           phone_verified: boolean | null
@@ -6509,6 +6510,7 @@ export type Database = {
           last_name?: string | null
           link_url?: string | null
           location?: string | null
+          music_personality?: string | null
           onboarding_completed?: boolean | null
           phone_number?: string | null
           phone_verified?: boolean | null
@@ -6551,6 +6553,7 @@ export type Database = {
           last_name?: string | null
           link_url?: string | null
           location?: string | null
+          music_personality?: string | null
           onboarding_completed?: boolean | null
           phone_number?: string | null
           phone_verified?: boolean | null
