@@ -69,11 +69,10 @@ export const useEditMode = () => useContext(EditModeContext);
 /* ── Jiggle CSS ── */
 const jiggleCSS = `
 @keyframes widget-jiggle {
-  0%   { transform: rotate(-0.15deg); }
-  50%  { transform: rotate(0.15deg); }
-  100% { transform: rotate(-0.15deg); }
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(0deg); }
 }
-.widget-jiggle { animation: widget-jiggle 0.4s ease-in-out infinite; }
+.widget-jiggle { animation: none; }
 .widget-placeholder {
   opacity: 0.3;
   border: 2px dashed hsl(var(--primary) / 0.5);
