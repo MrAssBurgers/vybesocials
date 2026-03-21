@@ -27,6 +27,9 @@ interface Post {
   created_at: string;
   is_pinned: boolean;
   view_count: number;
+  is_ai_generated?: boolean;
+  ai_confidence?: number;
+  ai_override?: boolean | null;
   author: {
     id: string;
     username: string;
@@ -57,6 +60,9 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
           created_at,
           is_pinned,
           view_count,
+          is_ai_generated,
+          ai_confidence,
+          ai_override,
           author:profiles!author_id (
             id,
             username,
@@ -413,6 +419,17 @@ export function useCreatePost() {
           }
         }).catch(console.error);
       }
+
+      // Run AI content detection in background (non-blocking)
+      import('@/lib/aiDetection').then(({ detectAIContent }) => {
+        detectAIContent(post.id, data.mediaFile || data.mediaFiles?.[0], filteredCaption)
+          .then(result => {
+            if (result.is_ai) {
+              console.log('[AI Detection] Post flagged as AI-generated:', post.id, result);
+            }
+          })
+          .catch(console.error);
+      });
 
       return post;
     },

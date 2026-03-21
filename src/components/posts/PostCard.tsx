@@ -36,7 +36,7 @@ import { PostCarousel } from './PostCarousel';
 import { CommentSheet } from '@/components/comments/CommentSheet';
 import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 import { triggerHaptic } from '@/lib/haptics';
-
+import { AIBadge } from './AIBadge';
 // Video player component - maintains the video's native aspect ratio (no cropping)
 // NEVER shows broken placeholder - graceful degradation
 function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
@@ -289,6 +289,9 @@ interface PostCardProps {
     is_liked: boolean;
     is_bookmarked: boolean;
     is_pinned?: boolean;
+    is_ai_generated?: boolean;
+    ai_confidence?: number;
+    ai_override?: boolean | null;
   };
 }
 
@@ -659,6 +662,17 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {/* AI Generated Badge */}
+            {(post.is_ai_generated || post.ai_override !== undefined) && (
+              <AIBadge
+                postId={post.id}
+                authorId={post.author.id}
+                isAiGenerated={!!post.is_ai_generated}
+                aiConfidence={post.ai_confidence || 0}
+                aiOverride={post.ai_override ?? null}
+              />
+            )}
           </div>
         );
       })()}
