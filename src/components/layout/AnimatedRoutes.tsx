@@ -12,6 +12,7 @@ import Home from "@/pages/Home";
 import Landing from "@/pages/Landing";
 import Onboarding from "@/pages/Onboarding";
 import AuthCallback from "@/pages/AuthCallback";
+import VybeDNA from "@/pages/VybeDNA";
 
 // High-priority pages - lazy but prefetched early
 const Explore = lazy(() => import("@/pages/Explore"));
