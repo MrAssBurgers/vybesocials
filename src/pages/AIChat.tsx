@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Send, Loader2, MoreVertical, Sparkles, Settings, RotateCcw, Check,
-  Dna, MapPin, BotMessageSquare
+  Dna, MapPin, BotMessageSquare, Shield
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,10 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 import { cn } from '@/lib/utils';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
@@ -77,6 +81,7 @@ export default function AIChat() {
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
+  const [showGPSDialog, setShowGPSDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -85,7 +90,12 @@ export default function AIChat() {
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  const requestGPSPermission = useCallback(() => {
+    setShowGPSDialog(true);
+  }, []);
+
   const enableLocation = useCallback(() => {
+    setShowGPSDialog(false);
     if (!navigator.geolocation) { toast.error('GPS not supported on this device'); return; }
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
@@ -355,19 +365,22 @@ export default function AIChat() {
                 <span className="text-[9px] text-accent/80">Learning your vibes</span>
               </div>
             )}
-            {locationEnabled && userLocation && (
-              <div className="flex items-center gap-1 ml-auto">
-                <MapPin className="h-2.5 w-2.5 text-primary" />
-                <span className="text-[9px] text-primary/80">{userLocation.city || 'GPS active'}</span>
-              </div>
-            )}
+            <button
+              onClick={() => locationEnabled ? setLocationEnabled(false) : requestGPSPermission()}
+              className="flex items-center gap-1 ml-auto"
+            >
+              <div className={cn("w-1.5 h-1.5 rounded-full", locationEnabled ? "bg-green-500" : "bg-destructive")} />
+              <span className={cn("text-[9px] font-medium", locationEnabled ? "text-green-500" : "text-destructive/80")}>
+                Location {locationEnabled ? 'on' : 'off'}
+              </span>
+            </button>
           </div>
           <div className="flex items-center gap-1.5">
             <Button
               variant="ghost"
               size="icon"
-              className={cn("h-9 w-9 rounded-full shrink-0", locationEnabled ? "text-primary" : "text-muted-foreground")}
-              onClick={() => locationEnabled ? setLocationEnabled(false) : enableLocation()}
+              className={cn("h-9 w-9 rounded-full shrink-0", locationEnabled ? "text-green-500" : "text-muted-foreground")}
+              onClick={() => locationEnabled ? setLocationEnabled(false) : requestGPSPermission()}
             >
               <MapPin className="h-4 w-4" />
             </Button>
@@ -438,7 +451,7 @@ export default function AIChat() {
                   </div>
                 </div>
               </div>
-              <Switch checked={locationEnabled} onCheckedChange={(val) => val ? enableLocation() : setLocationEnabled(false)} />
+              <Switch checked={locationEnabled} onCheckedChange={(val) => val ? requestGPSPermission() : setLocationEnabled(false)} />
             </div>
 
             {/* Actions */}
@@ -461,6 +474,30 @@ export default function AIChat() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* GPS Privacy Dialog */}
+      <AlertDialog open={showGPSDialog} onOpenChange={setShowGPSDialog}>
+        <AlertDialogContent className="max-w-sm rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-green-500" />
+              Enable Location
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left space-y-2 text-sm">
+              <p>Your location is used <strong>only on your device</strong> to give the AI local recommendations (nearby places, events, weather, etc.).</p>
+              <p className="text-xs text-muted-foreground border-l-2 border-green-500/50 pl-2">
+                🔒 <strong>VYBE does not store, collect, or have access to your location data.</strong> It stays entirely on your phone and is sent directly to the AI per-request. We never see it.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={enableLocation} className="bg-green-600 hover:bg-green-700">
+              <MapPin className="h-4 w-4 mr-1" /> Enable GPS
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
