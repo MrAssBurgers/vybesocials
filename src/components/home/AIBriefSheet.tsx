@@ -323,6 +323,23 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
 
       if (!isBackground) { setLoadingProgress(35); setLoadingStage('data'); }
 
+      // Try to get GPS location (non-blocking)
+      let latitude: number | null = null;
+      let longitude: number | null = null;
+      const locationEnabled = localStorage.getItem('vybe_ai_location') === 'true';
+      
+      if (locationEnabled && navigator.geolocation) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, maximumAge: 300000 });
+          });
+          latitude = pos.coords.latitude;
+          longitude = pos.coords.longitude;
+        } catch {
+          // Location unavailable, continue without it
+        }
+      }
+
       let progressInterval: ReturnType<typeof setInterval> | null = null;
       if (!isBackground) {
         let current = 35;
@@ -334,12 +351,18 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
         }, 400);
       }
 
+      const bodyPayload: Record<string, any> = {};
+      if (latitude && longitude) {
+        bodyPayload.latitude = latitude;
+        bodyPayload.longitude = longitude;
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-catch-up`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-          body: JSON.stringify({}),
+          body: JSON.stringify(bodyPayload),
           signal: abortControllerRef.current.signal,
         }
       );
