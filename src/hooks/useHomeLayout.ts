@@ -13,10 +13,13 @@ export interface WidgetState extends WidgetDef {
 }
 
 export const ALL_WIDGETS: WidgetDef[] = [
-  { id: 'ai_brief',       label: 'Daily Brief',    icon: '⚡', description: 'Your personalized AI catch-up' },
+  { id: 'greeting',       label: 'Greeting',       icon: '👋', description: 'Good morning / evening message' },
   { id: 'xp_streak',      label: 'XP & Streak',    icon: '🔥', description: 'Level progress and daily streak' },
+  { id: 'ai_brief',       label: 'Daily Brief',    icon: '⚡', description: 'Your personalized AI catch-up' },
   { id: 'stories',        label: 'Stories',         icon: '📸', description: 'Stories from people you follow' },
   { id: 'weekly_rhythm',  label: 'Weekly Vibes',   icon: '📊', description: 'Top XP earners and activity' },
+  { id: 'discovery',      label: 'Quick Access',   icon: '🧭', description: 'Wallet, Shop, DNA, Communities' },
+  { id: 'feed',           label: 'Feed',           icon: '📰', description: 'Posts from your community' },
   { id: 'trending',       label: 'Trending Tags',  icon: '🏷️', description: "What's blowing up on VYBE" },
   { id: 'online_friends', label: 'Online Now',     icon: '👥', description: 'Friends currently online (mobile)' },
 ];
