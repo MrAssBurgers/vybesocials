@@ -272,17 +272,17 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
           {/* Global Events Banner */}
           <GlobalEventBanner />
 
-          {/* Customize Button - always visible at top */}
+          {/* Customize Button - prominent floating pill */}
           {!customizerOpen && (
-            <div className="px-4 pt-1 pb-1 flex justify-end">
+            <div className="px-4 pt-2 pb-2 flex justify-center">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() => setCustomizerOpen(true)}
-                className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+                className="rounded-full px-4 gap-2 border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/50 shadow-sm"
               >
                 <LayoutGrid className="h-3.5 w-3.5" />
-                Customize
+                Customize Home
               </Button>
             </div>
           )}

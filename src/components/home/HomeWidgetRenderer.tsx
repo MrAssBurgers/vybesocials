@@ -113,7 +113,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'communities':
       return (
         <QuickAccessCard
-          icon={<Radio className="h-4 w-4 text-white" />}
+          icon={<Radio className="h-3.5 w-3.5 text-white" />}
           label="Communities"
           path="/community"
           gradient="from-blue-500/20 via-cyan-500/15 to-sky-500/20"
