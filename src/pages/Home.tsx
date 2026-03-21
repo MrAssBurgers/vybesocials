@@ -272,6 +272,21 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
           {/* Global Events Banner */}
           <GlobalEventBanner />
 
+          {/* Customize Button - always visible at top */}
+          {!customizerOpen && (
+            <div className="px-4 pt-1 pb-1 flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCustomizerOpen(true)}
+                className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                Customize
+              </Button>
+            </div>
+          )}
+
           {/* Dynamic ordered widget list */}
           <HomeWidgetRenderer
             customizerOpen={customizerOpen}
@@ -292,21 +307,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             isFetchingNextGlobal={isFetchingNextGlobal}
             loadMoreRef={loadMoreRef}
           />
-
-          {/* Customize Button */}
-          {!customizerOpen && (
-            <div className="px-4 pb-2 flex justify-end">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setCustomizerOpen(true)}
-                className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-                Customize
-              </Button>
-            </div>
-          )}
 
           {/* Hidden widgets in edit mode */}
           {customizerOpen && <HiddenWidgetPlaceholders />}
