@@ -19,6 +19,7 @@ import { Loader2 } from 'lucide-react';
 import { lazy, Suspense, useMemo } from 'react';
 import { useShowAds } from '@/hooks/useShowAds';
 import { getAdInterval } from '@/components/ads/FeedAdCard';
+import { motion } from 'framer-motion';
 
 const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
 const MemoizedPostCard = memo(PostCard);
@@ -43,22 +44,25 @@ interface Props {
   loadMoreRef: (node: HTMLDivElement | null) => void;
 }
 
-/* ── Quick Access Card ── */
-function QuickAccessCard({ icon, label, path, gradient }: {
-  icon: ReactNode; label: string; path: string; gradient: string;
+/* ── Quick Access Card - Samsung-style with nice gradients ── */
+function QuickAccessCard({ icon, label, path, gradient, iconColor }: {
+  icon: ReactNode; label: string; path: string; gradient: string; iconColor: string;
 }) {
   const navigate = useNavigate();
   return (
     <button
       onClick={() => { triggerHaptic('light'); navigate(path); }}
       className={cn(
-        "flex flex-col items-center justify-center gap-2 py-4 rounded-xl transition-all h-full",
-        "bg-gradient-to-br border border-white/10 hover:scale-[1.04] active:scale-95",
-        gradient
+        "flex flex-col items-center justify-center gap-2.5 py-5 rounded-2xl transition-all h-full w-full",
+        "bg-gradient-to-br border border-white/[0.08] shadow-sm",
+        "hover:scale-[1.03] active:scale-[0.97]",
+        gradient,
       )}
     >
-      <span className="text-foreground">{icon}</span>
-      <span className="text-[11px] font-medium text-foreground/80">{label}</span>
+      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-inner", iconColor)}>
+        {icon}
+      </div>
+      <span className="text-[11px] font-semibold text-foreground/90 tracking-wide">{label}</span>
     </button>
   );
 }
@@ -77,13 +81,45 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'weekly_rhythm':
       return <WeeklyRhythmBanner />;
     case 'vybe_dna':
-      return <QuickAccessCard icon={<Dna className="h-5 w-5" />} label="VYBE DNA" path="/vybe-dna" gradient="from-violet-500/20 to-fuchsia-500/20" />;
+      return (
+        <QuickAccessCard
+          icon={<Dna className="h-5 w-5 text-white" />}
+          label="VYBE DNA"
+          path="/vybe-dna"
+          gradient="from-violet-500/20 via-fuchsia-500/15 to-purple-600/20"
+          iconColor="bg-gradient-to-br from-violet-500 to-fuchsia-500"
+        />
+      );
     case 'wallet':
-      return <QuickAccessCard icon={<Wallet className="h-5 w-5" />} label="Wallet" path="/wallet" gradient="from-amber-500/20 to-orange-500/20" />;
+      return (
+        <QuickAccessCard
+          icon={<Wallet className="h-5 w-5 text-white" />}
+          label="Wallet"
+          path="/wallet"
+          gradient="from-amber-500/20 via-orange-500/15 to-yellow-500/20"
+          iconColor="bg-gradient-to-br from-amber-500 to-orange-500"
+        />
+      );
     case 'shop':
-      return <QuickAccessCard icon={<ShoppingBag className="h-5 w-5" />} label="Shop" path="/marketplace" gradient="from-emerald-500/20 to-teal-500/20" />;
+      return (
+        <QuickAccessCard
+          icon={<ShoppingBag className="h-5 w-5 text-white" />}
+          label="Shop"
+          path="/marketplace"
+          gradient="from-emerald-500/20 via-teal-500/15 to-green-500/20"
+          iconColor="bg-gradient-to-br from-emerald-500 to-teal-500"
+        />
+      );
     case 'communities':
-      return <QuickAccessCard icon={<Radio className="h-5 w-5" />} label="Communities" path="/community" gradient="from-blue-500/20 to-cyan-500/20" />;
+      return (
+        <QuickAccessCard
+          icon={<Radio className="h-5 w-5 text-white" />}
+          label="Communities"
+          path="/community"
+          gradient="from-blue-500/20 via-cyan-500/15 to-sky-500/20"
+          iconColor="bg-gradient-to-br from-blue-500 to-cyan-500"
+        />
+      );
     case 'feed':
       return <FeedSection {...props} />;
     default:
@@ -198,7 +234,7 @@ function InlinePostList({
   );
 }
 
-/* ── Main renderer: 2D grid with drag-swap ── */
+/* ── Main renderer: 2D grid with Samsung-style drag ── */
 export function HomeWidgetRenderer(props: Props) {
   const { isEditing, localWidgets, orderedEnabledIds } = useEditMode();
   const { config } = useGridLayout();
@@ -222,21 +258,23 @@ export function HomeWidgetRenderer(props: Props) {
     );
   }
 
-  // Non-editing: render as 2-col grid with saved sizes
+  // Non-editing: render with smooth layout animations
   return (
     <WidgetGrid>
       {enabledIds.map(id => {
         const w = widgets.find(wi => wi.id === id);
         return (
-          <div
+          <motion.div
             key={id}
+            layout
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className={cn(
               w?.colSpan === 2 ? 'col-span-2' : 'col-span-1',
               w?.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
             )}
           >
             <WidgetContent id={id} props={props} />
-          </div>
+          </motion.div>
         );
       })}
     </WidgetGrid>
