@@ -291,6 +291,8 @@ serve(async (req) => {
       sourceFavicons?: string[];
     }
     
+    let liveUpdates: LiveUpdate[] = [];
+    
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
     console.log(`[Brief] Interests: ${allInterests.join(', ')} | Perplexity key: ${PERPLEXITY_API_KEY ? 'set' : 'MISSING'}`);
     
