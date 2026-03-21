@@ -145,18 +145,85 @@ export function useContentSafety() {
     setScanDetails({});
 
     try {
-      const scanResult: ScanResult = await nsfwScanVideo(file);
+      // Pass 1: Client-side NSFWJS frame sampling
+      const nsfwResult: ScanResult = await nsfwScanVideo(file);
 
-      const safetyResult: SafetyCheckResult = {
-        result: scanResult.result,
-        message: scanResult.message,
-        categories: scanResult.categories,
-        score: scanResult.score,
-      };
+      if (nsfwResult.result === 'blocked') {
+        const safetyResult: SafetyCheckResult = {
+          result: nsfwResult.result,
+          message: 'This video contains content that violates community guidelines.',
+          categories: nsfwResult.categories,
+          score: nsfwResult.score,
+        };
+        setResult(safetyResult.result);
+        setMessage(safetyResult.message || '');
+        return safetyResult;
+      }
 
-      setResult(safetyResult.result);
-      setMessage(safetyResult.message || '');
-      return safetyResult;
+      // Pass 2: AI scan - extract a key frame + attempt audio transcription
+      setMessage('Deep scanning video content...');
+      
+      let aiResult: AISafetyResult = { allowed: true, result: 'allowed', categories: [], score: 0, message: '' };
+      let audioTranscript = '';
+
+      try {
+        // Extract a frame for visual AI analysis
+        const frameBlob = await extractVideoFrame(file);
+
+        // Attempt audio transcription (Web Speech API, browser-native)
+        try {
+          audioTranscript = await transcribeVideoAudio(file);
+        } catch {
+          console.warn('Audio transcription unavailable');
+        }
+
+        // Send frame + transcript to AI
+        aiResult = await aiScanVideoFrame(frameBlob, audioTranscript || undefined);
+      } catch (err) {
+        console.warn('AI video scan unavailable, using NSFWJS result only:', err);
+      }
+
+      // If we got a transcript but AI scan was unavailable, check transcript with text scanner
+      if (audioTranscript && aiResult.score === 0) {
+        try {
+          const textAiResult = await aiScanAudioTranscript(audioTranscript);
+          if (textAiResult.score > aiResult.score) {
+            aiResult = textAiResult;
+          }
+        } catch {
+          // Fall back to local text scan
+          const localTextResult = nsfwScanText(audioTranscript);
+          if (localTextResult.score > aiResult.score) {
+            aiResult = {
+              allowed: localTextResult.result === 'allowed',
+              result: localTextResult.result,
+              categories: localTextResult.categories,
+              score: localTextResult.score,
+              message: localTextResult.message,
+            };
+          }
+        }
+      }
+
+      const merged = mergeResults(nsfwResult, aiResult);
+      
+      // Adjust message for video context
+      if (merged.result === 'blocked') {
+        merged.message = 'This video contains content that violates community guidelines.';
+      } else if (merged.result === 'warned') {
+        merged.message = 'This video may contain sensitive content. Viewer discretion advised.';
+      } else {
+        merged.message = 'Video passed safety checks.';
+      }
+
+      setResult(merged.result);
+      setMessage(merged.message || '');
+      setScanDetails({
+        audioTranscript: audioTranscript || undefined,
+        visualAnalysis: merged.visualAnalysis,
+        audioAnalysis: merged.audioAnalysis,
+      });
+      return merged;
     } catch (err: any) {
       console.error('Video safety scan error:', err);
       const errorMessage = 'Video safety scan failed. For your protection, this content cannot be shared. Please try again.';
@@ -167,7 +234,6 @@ export function useContentSafety() {
       setIsScanning(false);
     }
   }, []);
-
   const scanText = useCallback(async (text: string): Promise<SafetyCheckResult> => {
     const isOwner = await shouldBypassSafety();
     if (isOwner) {
