@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { useGridLayout, type GridWidgetState } from '@/hooks/useGridLayout';
 import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
+import { navVisibility } from '@/lib/navVisibility';
 
 /* ── Types ── */
 interface DragState {
