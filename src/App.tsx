@@ -134,6 +134,7 @@ function AppWithPreloader() {
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
   usePostsRealtime();
+  useInitEncryption();
 
   useEffect(() => {
     if (preloadStatus.isComplete && showSplash) {
