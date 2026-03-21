@@ -1271,13 +1271,18 @@ export function ChatView() {
               {otherMembers.length + 1} members · Tap for info
             </button>
           ) : (
-            <LivePresenceBar
-              isOnline={otherMemberOnline}
-              isTyping={typingUsers.length > 0}
-              isInChat={presentUsers.length > 0}
-              username={otherMember?.username}
-              lastReadAt={lastReadAt}
-            />
+            <div className="flex items-center gap-1">
+              <Lock className="h-3 w-3 text-emerald-500" />
+              <span className="text-[10px] text-emerald-500 font-medium">encrypted</span>
+              <span className="text-muted-foreground mx-0.5">·</span>
+              <LivePresenceBar
+                isOnline={otherMemberOnline}
+                isTyping={typingUsers.length > 0}
+                isInChat={presentUsers.length > 0}
+                username={otherMember?.username}
+                lastReadAt={lastReadAt}
+              />
+            </div>
           )}
         </div>
         
