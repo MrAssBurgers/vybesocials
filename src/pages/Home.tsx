@@ -373,33 +373,29 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         >
           {/* Announcements Banner */}
           <AnnouncementBanner />
-
           {/* Global Events Banner */}
           <GlobalEventBanner />
 
-          {/* Welcome Header (greeting) */}
-          <EditableWidgetWrapper widgetId="ai_brief">
-            <WelcomeHeader />
-          </EditableWidgetWrapper>
-
-          {/* Stories Bar */}
-          {isVisible('stories') && (
-            <EditableWidgetWrapper widgetId="stories">
-              <StoriesBar />
-            </EditableWidgetWrapper>
-          )}
-
-          {/* Weekly Rhythm / Daily Brief */}
-          {isVisible('weekly_rhythm') && (
-            <EditableWidgetWrapper widgetId="weekly_rhythm">
-              <WeeklyRhythmBanner />
-            </EditableWidgetWrapper>
-          )}
-
-          {/* Discovery Cards */}
-          <EditableWidgetWrapper widgetId="trending">
-            <DiscoveryCards />
-          </EditableWidgetWrapper>
+          {/* Dynamic ordered widget list */}
+          <HomeWidgetRenderer
+            customizerOpen={customizerOpen}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            showAds={showAds}
+            navigate={navigate}
+            hasNewPosts={hasNewPosts}
+            clearNewPosts={clearNewPosts}
+            handleRefresh={handleRefresh}
+            forYouPosts={forYouPosts}
+            forYouLoading={forYouLoading && followingLoading}
+            forYouFetching={forYouFetching || followingFetching}
+            isFetchingNextForYou={isFetchingNextForYou || isFetchingNextFollowing}
+            globalPosts={globalPosts}
+            globalLoading={globalLoading}
+            globalFetching={globalFetching}
+            isFetchingNextGlobal={isFetchingNextGlobal}
+            loadMoreRef={loadMoreRef}
+          />
 
           {/* Customize Button */}
           {!customizerOpen && (
@@ -416,12 +412,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             </div>
           )}
 
-          {/* Hidden widgets shown as placeholders in edit mode */}
-          {customizerOpen && (
-            <HiddenWidgetPlaceholders />
-          )}
-
-          <div className="px-3 pb-6" data-tutorial="feed-area">
+          {/* Hidden widgets in edit mode */}
+          {customizerOpen && <HiddenWidgetPlaceholders />}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
                 <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
