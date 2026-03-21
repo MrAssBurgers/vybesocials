@@ -1,11 +1,12 @@
 import { useCallback, useMemo } from 'react';
 import { useUserPreferences, useUpdatePreferences } from './useUserPreferences';
 import { ALL_WIDGETS, type WidgetDef } from './useHomeLayout';
+import { useIsMobileOrTablet } from './use-mobile';
 
 export interface GridWidgetState extends WidgetDef {
   enabled: boolean;
-  colSpan: 1 | 2; // 1 = half width, 2 = full width
-  rowSpan: 1 | 2; // 1 = normal, 2 = tall
+  colSpan: 1 | 2;
+  rowSpan: 1 | 2;
   order: number;
 }
 
@@ -19,54 +20,77 @@ export interface GridLayoutConfig {
   motion_intensity: 'none' | 'subtle' | 'normal' | 'extra';
 }
 
-const DEFAULT_GRID: GridWidgetState[] = ALL_WIDGETS.map((w, i) => ({
-  ...w,
-  enabled: i < 4,
-  colSpan: w.id === 'ai_brief' || w.id === 'stories' ? 2 : 1,
-  rowSpan: 1,
-  order: i,
-}));
+export type LayoutVariant = 'mobile' | 'desktop';
+
+const DEFAULT_WIDGETS = (variant: LayoutVariant): GridWidgetState[] =>
+  ALL_WIDGETS.map((w, i) => ({
+    ...w,
+    enabled: i < 4,
+    colSpan: (w.id === 'ai_brief' || w.id === 'stories') ? 2 as const : 1 as const,
+    rowSpan: 1 as const,
+    order: i,
+  }));
+
+function parseConfig(saved: Partial<GridLayoutConfig> | undefined): GridLayoutConfig {
+  const savedWidgets = saved?.widgets;
+  const widgets: GridWidgetState[] = ALL_WIDGETS.map((def, i) => {
+    const sw = savedWidgets?.find((w: any) => w.id === def.id);
+    if (sw) return { ...def, ...sw };
+    return {
+      ...def,
+      enabled: i < 4,
+      colSpan: (def.id === 'ai_brief' || def.id === 'stories') ? 2 as const : 1 as const,
+      rowSpan: 1 as const,
+      order: i,
+    };
+  }).sort((a, b) => a.order - b.order);
+
+  return {
+    widgets,
+    background_url: saved?.background_url ?? null,
+    background_opacity: saved?.background_opacity ?? 80,
+    font_heading: saved?.font_heading ?? 'system-ui',
+    font_body: saved?.font_body ?? 'system-ui',
+    corner_style: saved?.corner_style ?? 'rounded',
+    motion_intensity: saved?.motion_intensity ?? 'normal',
+  };
+}
 
 export function useGridLayout() {
   const { data: prefs } = useUserPreferences();
   const update = useUpdatePreferences();
+  const { isMobileOrTablet } = useIsMobileOrTablet();
+
+  const variant: LayoutVariant = isMobileOrTablet ? 'mobile' : 'desktop';
 
   const config = useMemo((): GridLayoutConfig => {
-    const saved = (prefs?.extra as any)?.grid_layout as Partial<GridLayoutConfig> | undefined;
-    
-    const savedWidgets = saved?.widgets;
-    const widgets: GridWidgetState[] = ALL_WIDGETS.map((def, i) => {
-      const sw = savedWidgets?.find((w: any) => w.id === def.id);
-      if (sw) return { ...def, ...sw };
-      return { ...def, enabled: i < 4, colSpan: def.id === 'ai_brief' || def.id === 'stories' ? 2 as const : 1 as const, rowSpan: 1 as const, order: i };
-    }).sort((a, b) => a.order - b.order);
-
-    return {
-      widgets,
-      background_url: saved?.background_url ?? null,
-      background_opacity: saved?.background_opacity ?? 80,
-      font_heading: saved?.font_heading ?? 'system-ui',
-      font_body: saved?.font_body ?? 'system-ui',
-      corner_style: saved?.corner_style ?? 'rounded',
-      motion_intensity: saved?.motion_intensity ?? 'normal',
-    };
-  }, [prefs?.extra]);
+    const gridRoot = (prefs?.extra as any)?.grid_layout;
+    // Try variant-specific first, fall back to legacy root
+    const saved = gridRoot?.[variant] ?? gridRoot;
+    return parseConfig(saved as Partial<GridLayoutConfig> | undefined);
+  }, [prefs?.extra, variant]);
 
   const saveGridLayout = useCallback(async (newConfig: Partial<GridLayoutConfig>) => {
     const currentExtra = (prefs?.extra as any) ?? {};
-    const current = currentExtra.grid_layout ?? {};
+    const currentGrid = currentExtra.grid_layout ?? {};
+    const currentVariant = currentGrid[variant] ?? currentGrid;
+    const merged = { ...currentVariant, ...newConfig };
+
     await update.mutateAsync({
       extra: {
         ...currentExtra,
-        grid_layout: { ...current, ...newConfig },
-        // Also sync to legacy home_layout for backwards compat
+        grid_layout: {
+          ...currentGrid,
+          [variant]: merged,
+        },
+        // Sync legacy home_layout for backwards compat
         home_layout: {
           order: (newConfig.widgets ?? config.widgets).filter(w => w.enabled).map(w => w.id),
           hidden: (newConfig.widgets ?? config.widgets).filter(w => !w.enabled).map(w => w.id),
         },
       },
     });
-  }, [prefs?.extra, update, config.widgets]);
+  }, [prefs?.extra, update, config.widgets, variant]);
 
   const toggleWidget = useCallback(async (id: string) => {
     const updated = config.widgets.map(w =>
@@ -92,6 +116,7 @@ export function useGridLayout() {
 
   return {
     config,
+    variant,
     saveGridLayout,
     toggleWidget,
     resizeWidget,
