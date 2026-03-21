@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
+import { useDecryptedMessages } from '@/hooks/useDecryptedMessages';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -60,6 +61,7 @@ import { ReplyPreview } from './ReplyPreview';
 import { 
   ArrowLeft, 
   Send, 
+  Lock,
   MoreVertical,
   Clock,
   Eye,
@@ -127,7 +129,8 @@ export function ChatView() {
   const bumpStreak = useInteractionStreakBump();
   
   const { data: conversations } = useConversations();
-  const { data: messages, isLoading } = useMessages(conversationId);
+  const { data: rawMessages, isLoading } = useMessages(conversationId);
+  const { messages, decrypting: _decrypting } = useDecryptedMessages(rawMessages);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
   
   // Register current conversation for global realtime updates
@@ -523,7 +526,8 @@ export function ChatView() {
     setTyping(false);
 
     // Use instant send for immediate optimistic UI
-    sendText(text, viewMode, replyingTo?.id);
+    // Pass recipientProfileId for E2EE encryption in 1:1 DMs
+    sendText(text, viewMode, replyingTo?.id, !isGroupChat ? otherMember?.id : undefined);
     setReplyingTo(null);
     
     // Bump reaction streak with recipient (for DMs only)
@@ -1267,13 +1271,18 @@ export function ChatView() {
               {otherMembers.length + 1} members · Tap for info
             </button>
           ) : (
-            <LivePresenceBar
-              isOnline={otherMemberOnline}
-              isTyping={typingUsers.length > 0}
-              isInChat={presentUsers.length > 0}
-              username={otherMember?.username}
-              lastReadAt={lastReadAt}
-            />
+            <div className="flex items-center gap-1">
+              <Lock className="h-3 w-3 text-emerald-500" />
+              <span className="text-[10px] text-emerald-500 font-medium">encrypted</span>
+              <span className="text-muted-foreground mx-0.5">·</span>
+              <LivePresenceBar
+                isOnline={otherMemberOnline}
+                isTyping={typingUsers.length > 0}
+                isInChat={presentUsers.length > 0}
+                username={otherMember?.username}
+                lastReadAt={lastReadAt}
+              />
+            </div>
           )}
         </div>
         

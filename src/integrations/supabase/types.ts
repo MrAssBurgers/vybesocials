@@ -3636,6 +3636,62 @@ export type Database = {
         }
         Relationships: []
       }
+      encryption_keys: {
+        Row: {
+          created_at: string
+          id: string
+          key_algorithm: string
+          public_key: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key_algorithm?: string
+          public_key: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key_algorithm?: string
+          public_key?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "encryption_keys_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "encryption_keys_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "encryption_keys_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "encryption_keys_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       error_logs: {
         Row: {
           created_at: string

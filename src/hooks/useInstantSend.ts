@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { Message, ViewMode } from './useMessages';
+import { useMessageEncryption } from './useMessageEncryption';
 
 export interface PendingMessage {
   tempId: string;
@@ -26,6 +27,7 @@ export interface PendingMessage {
 export function useInstantSend(conversationId: string | undefined) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const { encrypt } = useMessageEncryption();
   const pendingMessagesRef = useRef<Map<string, PendingMessage>>(new Map());
   const [videoUploadProgress, setVideoUploadProgress] = useState<Record<string, number>>({});
 
@@ -152,7 +154,8 @@ export function useInstantSend(conversationId: string | undefined) {
   const sendText = useCallback(async (
     content: string, 
     viewMode: ViewMode = 'permanent',
-    replyToId?: string
+    replyToId?: string,
+    recipientProfileId?: string
   ) => {
     if (!conversationId || !profile?.id || !content.trim()) return;
 
@@ -176,12 +179,18 @@ export function useInstantSend(conversationId: string | undefined) {
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
+      // Encrypt content for 1:1 DMs if recipient has a key
+      let encryptedContent = content;
+      if (recipientProfileId) {
+        encryptedContent = await encrypt(content, recipientProfileId);
+      }
+
       const { data, error } = await supabase
         .from('messages')
         .insert({
           conversation_id: conversationId,
           sender_id: profile.id,
-          content,
+          content: encryptedContent,
           view_mode: viewMode,
           expires_at: expiresAt,
           reply_to_id: replyToId,
@@ -210,7 +219,7 @@ export function useInstantSend(conversationId: string | undefined) {
       markFailed(tempId, error.message || 'Failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed]);
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, encrypt]);
 
   // Send media message
   const sendMedia = useCallback(async (
