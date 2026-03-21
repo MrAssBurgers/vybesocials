@@ -1,32 +1,32 @@
 import { useEffect, useRef } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { getOrCreateLocalKeyPair, exportPublicKey } from '@/lib/e2ee';
+import { getOrCreateLocalKeyPair } from '@/lib/e2ee';
 
 /**
  * Initialises E2EE keys for the current user:
  * 1. Ensures a local ECDH key pair exists in IndexedDB
- * 2. Publishes the public key to the encryption_keys table
+ * 2. Publishes the public key to the encryption_keys table (keyed by profile.id)
  */
 export function useInitEncryption() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const initialised = useRef(false);
 
   useEffect(() => {
-    if (!user?.id || initialised.current) return;
+    if (!profile?.id || initialised.current) return;
     initialised.current = true;
 
     (async () => {
       try {
         const { publicKey } = await getOrCreateLocalKeyPair();
 
-        // Upsert public key to DB
+        // Upsert public key to DB using profile.id
         await supabase
           .from('encryption_keys' as any)
           .upsert(
             {
-              user_id: user.id,
+              user_id: profile.id,
               public_key: publicKey,
               key_algorithm: 'ECDH-P256',
               updated_at: new Date().toISOString(),
@@ -37,45 +37,45 @@ export function useInitEncryption() {
         console.error('[E2EE] Key init failed:', err);
       }
     })();
-  }, [user?.id]);
+  }, [profile?.id]);
 }
 
 /**
- * Fetches a user's public encryption key from the DB
+ * Fetches a user's public encryption key from the DB by profile ID
  */
-export function usePublicKey(userId: string | undefined) {
+export function usePublicKey(profileId: string | undefined) {
   return useQuery({
-    queryKey: ['encryption-key', userId],
+    queryKey: ['encryption-key', profileId],
     queryFn: async () => {
-      if (!userId) return null;
+      if (!profileId) return null;
 
       const { data, error } = await supabase
         .from('encryption_keys' as any)
         .select('public_key')
-        .eq('user_id', userId)
+        .eq('user_id', profileId)
         .maybeSingle();
 
       if (error) throw error;
       return (data as any)?.public_key as JsonWebKey | null;
     },
-    enabled: !!userId,
-    staleTime: 5 * 60_000, // cache 5 min
+    enabled: !!profileId,
+    staleTime: 5 * 60_000,
   });
 }
 
 /**
- * Fetches public keys for multiple users in a single query
+ * Fetches public keys for multiple users (by profile ID) in a single query
  */
-export function usePublicKeys(userIds: string[]) {
+export function usePublicKeys(profileIds: string[]) {
   return useQuery({
-    queryKey: ['encryption-keys', userIds.sort().join(',')],
+    queryKey: ['encryption-keys', profileIds.sort().join(',')],
     queryFn: async () => {
-      if (!userIds.length) return {};
+      if (!profileIds.length) return {};
 
       const { data, error } = await supabase
         .from('encryption_keys' as any)
         .select('user_id, public_key')
-        .in('user_id', userIds);
+        .in('user_id', profileIds);
 
       if (error) throw error;
 
@@ -85,7 +85,7 @@ export function usePublicKeys(userIds: string[]) {
       });
       return map;
     },
-    enabled: userIds.length > 0,
+    enabled: profileIds.length > 0,
     staleTime: 5 * 60_000,
   });
 }
