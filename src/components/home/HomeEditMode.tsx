@@ -219,8 +219,6 @@ export function EditableWidgetWrapper({
       transition={layoutSpring}
       data-widget-id={widgetId}
       onPointerDown={onPointerDown}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
       className={cn(
         'relative touch-none select-none cursor-grab active:cursor-grabbing',
         widget.colSpan === 2 ? 'col-span-2' : 'col-span-1',
