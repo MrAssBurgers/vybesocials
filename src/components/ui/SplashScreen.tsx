@@ -108,9 +108,9 @@ export const SplashScreen = memo(function SplashScreen({
               style={{ width: 120, height: 120 }}
             />
             <svg
-              viewBox="0 0 100 100"
+              viewBox="-5 -5 110 110"
               fill="none"
-              style={{ width: 88, height: 88 }}
+              style={{ width: 96, height: 96 }}
             >
               <defs>
                 <linearGradient id="sp-l" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -121,7 +121,7 @@ export const SplashScreen = memo(function SplashScreen({
                   <stop offset="0%" stopColor="hsl(var(--accent))" />
                   <stop offset="100%" stopColor="hsl(var(--neon-cyan, var(--accent)))" />
                 </linearGradient>
-                <filter id="sp-glow">
+                <filter id="sp-glow" x="-30%" y="-30%" width="160%" height="160%">
                   <feGaussianBlur stdDeviation="2" result="blur" />
                   <feMerge>
                     <feMergeNode in="blur" />
@@ -129,9 +129,9 @@ export const SplashScreen = memo(function SplashScreen({
                   </feMerge>
                 </filter>
               </defs>
-              <path d="M18 12 L50 88" stroke="url(#sp-l)" strokeWidth="12" strokeLinecap="round" className="splash-draw-left" filter="url(#sp-glow)" />
-              <path d="M82 12 L50 88" stroke="url(#sp-r)" strokeWidth="12" strokeLinecap="round" className="splash-draw-right" filter="url(#sp-glow)" />
-              <circle cx="50" cy="88" r="3.5" className="splash-dot" />
+              <path d="M18 15 L50 85" stroke="url(#sp-l)" strokeWidth="11" strokeLinecap="round" className="splash-draw-left" filter="url(#sp-glow)" />
+              <path d="M82 15 L50 85" stroke="url(#sp-r)" strokeWidth="11" strokeLinecap="round" className="splash-draw-right" filter="url(#sp-glow)" />
+              <circle cx="50" cy="85" r="3.5" className="splash-dot" />
             </svg>
           </motion.div>
 
