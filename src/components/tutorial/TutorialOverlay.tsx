@@ -166,7 +166,6 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     element?: Element | null
   ) => {
     const tooltipWidth = Math.min(320, window.innerWidth - 32);
-    const tooltipHeight = 320;
     const viewport = {
       width: window.innerWidth,
       height: window.innerHeight,
@@ -176,47 +175,46 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     const centerX = Math.max(16, (viewport.width - tooltipWidth) / 2);
 
     if (isMobileOrTablet) {
-      const bottomNavHeight = 72;
-      const safeAreaBottom = parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--sab') || '0'
-      ) || 0;
+      // Fixed center of screen on mobile
+      const tooltipHeight = 320;
+      const centerY = Math.max(80, (viewport.height - tooltipHeight) / 2);
       
-      const defaultBottom = bottomNavHeight + safeAreaBottom + 16;
-      const tooltipTop = viewport.height - defaultBottom - tooltipHeight;
+      // Check if spotlight overlaps center position
+      const spotlightOverlaps = rect.bottom > centerY && rect.top < centerY + tooltipHeight;
       
-      // Check if spotlight overlaps with default tooltip position
-      const spotlightOverlaps = rect.bottom > tooltipTop && rect.top < viewport.height - defaultBottom;
-      
-      if (spotlightOverlaps && rect.top > tooltipHeight + 80) {
-        // Move tooltip above the spotlight
+      if (spotlightOverlaps && rect.top > tooltipHeight + 40) {
+        // Place above spotlight
         setTooltipPos({
           top: Math.max(60, rect.top - tooltipHeight - 20),
           left: centerX,
         });
+      } else if (spotlightOverlaps) {
+        // Place below spotlight
+        setTooltipPos({
+          top: Math.min(viewport.height - tooltipHeight - 80, rect.bottom + 20),
+          left: centerX,
+        });
       } else {
         setTooltipPos({
-          bottom: defaultBottom,
+          top: centerY,
           left: centerX,
         });
       }
     } else {
+      const tooltipHeight = 320;
       const defaultTop = Math.max(80, (viewport.height - tooltipHeight) / 2);
       const tooltipBottom = defaultTop + tooltipHeight;
       
-      // Check if spotlight overlaps with centered tooltip
       const spotlightOverlaps = rect.bottom > defaultTop && rect.top < tooltipBottom &&
         rect.right > centerX && rect.left < centerX + tooltipWidth;
       
       if (spotlightOverlaps) {
-        // Move tooltip to the side opposite the spotlight
         if (rect.left > viewport.width / 2) {
-          // Spotlight on right, move tooltip left
           setTooltipPos({
             top: defaultTop,
             left: Math.max(16, rect.left - tooltipWidth - 30),
           });
         } else {
-          // Spotlight on left, move tooltip right
           setTooltipPos({
             top: defaultTop,
             left: Math.min(viewport.width - tooltipWidth - 16, rect.right + 30),
