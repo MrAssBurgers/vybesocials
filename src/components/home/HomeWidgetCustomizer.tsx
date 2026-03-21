@@ -87,9 +87,19 @@ export function HomeWidgetCustomizer({ open, onOpenChange, onOpenCommandBar }: P
     setLocalOrder(newOrder);
   };
 
-  const handleSave = () => {
-    reorderWidgets(localOrder);
-    toast.success('Your VYBE layout saved! 🔥');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await reorderWidgets(localOrder);
+      toast.success('Your VYBE layout saved! 🔥');
+    } catch (err) {
+      console.error('Failed to save layout:', err);
+      toast.error('Failed to save layout. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleShareWithCommunity = () => {
