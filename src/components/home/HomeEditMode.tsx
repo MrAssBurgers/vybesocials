@@ -665,7 +665,13 @@ export function HomeEditModeProvider({
           {editing && <EditToolbar saving={saving} variant={variant} onSave={handleSave} onCancel={handleCancel} />}
         </AnimatePresence>
         {editing && <div className="h-20" />}
-        <div onClick={editing ? (e) => { e.preventDefault(); setSelectedWidget(null); } : undefined}>
+        <div onPointerDown={editing ? (e) => {
+          // Only deselect if tapping the background, not a widget
+          const target = e.target as HTMLElement;
+          if (!target.closest('[data-widget-id]') && !target.closest('[data-widget-control]') && !target.closest('[data-resize-handle]')) {
+            setSelectedWidget(null);
+          }
+        } : undefined}>
           {children}
         </div>
         <DragGhost dragState={dragState} dragCloneRef={dragCloneRef} />
