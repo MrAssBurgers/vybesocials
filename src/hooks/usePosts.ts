@@ -414,6 +414,17 @@ export function useCreatePost() {
         }).catch(console.error);
       }
 
+      // Run AI content detection in background (non-blocking)
+      import('@/lib/aiDetection').then(({ detectAIContent }) => {
+        detectAIContent(post.id, data.mediaFile || data.mediaFiles?.[0], filteredCaption)
+          .then(result => {
+            if (result.is_ai) {
+              console.log('[AI Detection] Post flagged as AI-generated:', post.id, result);
+            }
+          })
+          .catch(console.error);
+      });
+
       return post;
     },
     onSuccess: () => {
