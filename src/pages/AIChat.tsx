@@ -424,7 +424,7 @@ export default function AIChat() {
               </div>
             )}
             <button
-              onClick={() => locationEnabled ? setLocationEnabled(false) : requestGPSPermission()}
+              onClick={() => { if (locationEnabled) { setLocationEnabled(false); localStorage.setItem('vybe_ai_location', 'false'); setUserLocation(null); } else { requestGPSPermission(); } }}
               className="flex items-center gap-1 ml-auto"
             >
               <div className={cn("w-1.5 h-1.5 rounded-full", locationEnabled ? "bg-green-500" : "bg-destructive")} />
