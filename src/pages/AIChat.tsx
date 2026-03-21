@@ -438,7 +438,7 @@ export default function AIChat() {
               variant="ghost"
               size="icon"
               className={cn("h-9 w-9 rounded-full shrink-0", locationEnabled ? "text-green-500" : "text-muted-foreground")}
-              onClick={() => locationEnabled ? setLocationEnabled(false) : requestGPSPermission()}
+              onClick={() => { if (locationEnabled) { setLocationEnabled(false); localStorage.setItem('vybe_ai_location', 'false'); setUserLocation(null); } else { requestGPSPermission(); } }}
             >
               <MapPin className="h-4 w-4" />
             </Button>
