@@ -44,7 +44,7 @@ interface Props {
   loadMoreRef: (node: HTMLDivElement | null) => void;
 }
 
-/* ── Quick Access Card - Samsung-style with nice gradients ── */
+/* ── Quick Access Card - compact, auto-scaling ── */
 function QuickAccessCard({ icon, label, path, gradient, iconColor }: {
   icon: ReactNode; label: string; path: string; gradient: string; iconColor: string;
 }) {
@@ -53,16 +53,16 @@ function QuickAccessCard({ icon, label, path, gradient, iconColor }: {
     <button
       onClick={() => { triggerHaptic('light'); navigate(path); }}
       className={cn(
-        "flex flex-col items-center justify-center gap-2.5 py-5 rounded-2xl transition-all h-full w-full",
+        "flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl transition-all h-full w-full min-h-0",
         "bg-gradient-to-br border border-white/[0.08] shadow-sm",
         "hover:scale-[1.03] active:scale-[0.97]",
         gradient,
       )}
     >
-      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-inner", iconColor)}>
+      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shadow-inner", iconColor)}>
         {icon}
       </div>
-      <span className="text-[11px] font-semibold text-foreground/90 tracking-wide">{label}</span>
+      <span className="text-[10px] font-semibold text-foreground/90 tracking-wide leading-tight">{label}</span>
     </button>
   );
 }
@@ -83,7 +83,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'vybe_dna':
       return (
         <QuickAccessCard
-          icon={<Dna className="h-5 w-5 text-white" />}
+          icon={<Dna className="h-4 w-4 text-white" />}
           label="VYBE DNA"
           path="/vybe-dna"
           gradient="from-violet-500/20 via-fuchsia-500/15 to-purple-600/20"
@@ -93,7 +93,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'wallet':
       return (
         <QuickAccessCard
-          icon={<Wallet className="h-5 w-5 text-white" />}
+          icon={<Wallet className="h-4 w-4 text-white" />}
           label="Wallet"
           path="/wallet"
           gradient="from-amber-500/20 via-orange-500/15 to-yellow-500/20"
@@ -103,7 +103,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'shop':
       return (
         <QuickAccessCard
-          icon={<ShoppingBag className="h-5 w-5 text-white" />}
+          icon={<ShoppingBag className="h-4 w-4 text-white" />}
           label="Shop"
           path="/marketplace"
           gradient="from-emerald-500/20 via-teal-500/15 to-green-500/20"
@@ -113,7 +113,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'communities':
       return (
         <QuickAccessCard
-          icon={<Radio className="h-5 w-5 text-white" />}
+          icon={<Radio className="h-4 w-4 text-white" />}
           label="Communities"
           path="/community"
           gradient="from-blue-500/20 via-cyan-500/15 to-sky-500/20"

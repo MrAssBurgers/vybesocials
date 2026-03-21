@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, createContext, useContext, type ReactNode } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { X, Eye, Check, Smartphone, Monitor, GripVertical } from 'lucide-react';
+import { X, Eye, Check, Smartphone, Monitor, GripVertical, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useGridLayout, type GridWidgetState } from '@/hooks/useGridLayout';
@@ -47,18 +47,104 @@ export const useEditMode = () => useContext(EditModeContext);
 /* ── Jiggle CSS ── */
 const jiggleCSS = `
 @keyframes widget-jiggle {
-  0%   { transform: rotate(-0.5deg) scale(1); }
-  25%  { transform: rotate(0.5deg) scale(1); }
-  50%  { transform: rotate(-0.5deg) scale(1); }
-  75%  { transform: rotate(0.5deg) scale(1); }
-  100% { transform: rotate(-0.5deg) scale(1); }
+  0%   { transform: rotate(-0.4deg); }
+  25%  { transform: rotate(0.4deg); }
+  50%  { transform: rotate(-0.4deg); }
+  75%  { transform: rotate(0.4deg); }
+  100% { transform: rotate(-0.4deg); }
 }
-.widget-jiggle { animation: widget-jiggle 0.35s ease-in-out infinite; }
-.widget-jiggle-dragging { animation: none !important; }
+.widget-jiggle { animation: widget-jiggle 0.3s ease-in-out infinite; }
+.widget-jiggle-dragging { animation: none !important; opacity: 0.3; }
 `;
 
-/* ── Smooth spring config ── */
-const layoutSpring = { type: 'spring' as const, damping: 28, stiffness: 350, mass: 0.8 };
+const layoutSpring = { type: 'spring' as const, damping: 30, stiffness: 400, mass: 0.6 };
+
+/* ── Drag-to-resize handle ── */
+function ResizeHandle({
+  widgetId,
+  direction,
+  widget,
+  onResize,
+}: {
+  widgetId: string;
+  direction: 'right' | 'bottom' | 'corner';
+  widget: GridWidgetState;
+  onResize: (id: string, col: 1 | 2, row: 1 | 2) => void;
+}) {
+  const startRef = useRef({ x: 0, y: 0, col: widget.colSpan, row: widget.rowSpan });
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    startRef.current = { x: e.clientX, y: e.clientY, col: widget.colSpan, row: widget.rowSpan };
+    triggerHaptic('light');
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startRef.current.x;
+      const dy = ev.clientY - startRef.current.y;
+      const threshold = 40;
+
+      let newCol = startRef.current.col as 1 | 2;
+      let newRow = startRef.current.row as 1 | 2;
+
+      if (direction === 'right' || direction === 'corner') {
+        newCol = dx > threshold ? 2 : dx < -threshold ? 1 : startRef.current.col as 1 | 2;
+      }
+      if (direction === 'bottom' || direction === 'corner') {
+        newRow = dy > threshold ? 2 : dy < -threshold ? 1 : startRef.current.row as 1 | 2;
+      }
+
+      if (newCol !== widget.colSpan || newRow !== widget.rowSpan) {
+        onResize(widgetId, newCol, newRow);
+        triggerHaptic('light');
+      }
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
+  const base = "absolute z-30 touch-none";
+
+  if (direction === 'right') {
+    return (
+      <div
+        onPointerDown={onPointerDown}
+        className={cn(base, "top-1/2 -right-2.5 -translate-y-1/2 w-5 h-10 rounded-full bg-primary/90 shadow-lg shadow-primary/25 flex items-center justify-center cursor-ew-resize backdrop-blur-sm")}
+      >
+        <div className="w-[2px] h-4 rounded-full bg-primary-foreground/80" />
+      </div>
+    );
+  }
+
+  if (direction === 'bottom') {
+    return (
+      <div
+        onPointerDown={onPointerDown}
+        className={cn(base, "-bottom-2.5 left-1/2 -translate-x-1/2 h-5 w-10 rounded-full bg-primary/90 shadow-lg shadow-primary/25 flex items-center justify-center cursor-ns-resize backdrop-blur-sm")}
+      >
+        <div className="h-[2px] w-4 rounded-full bg-primary-foreground/80" />
+      </div>
+    );
+  }
+
+  // Corner
+  return (
+    <div
+      onPointerDown={onPointerDown}
+      className={cn(base, "-bottom-2.5 -right-2.5 w-6 h-6 rounded-full bg-primary/90 shadow-lg shadow-primary/25 flex items-center justify-center cursor-nwse-resize border-2 border-background backdrop-blur-sm")}
+    >
+      <Maximize2 className="h-2.5 w-2.5 text-primary-foreground/80 rotate-90" />
+    </div>
+  );
+}
 
 /* ── Editable wrapper for each widget ── */
 export function EditableWidgetWrapper({
@@ -75,7 +161,6 @@ export function EditableWidgetWrapper({
     handleToggle, handleResize, dragState, startDrag,
   } = useEditMode();
   const widget = localWidgets.find(w => w.id === widgetId);
-  const wrapperRef = useRef<HTMLDivElement>(null);
 
   if (!isEditing || !widget) return <>{children}</>;
 
@@ -83,26 +168,8 @@ export function EditableWidgetWrapper({
   const isBeingDragged = dragState.dragId === widgetId;
   const isHoverTarget = dragState.hoverTargetId === widgetId;
 
-  const cycleCol = () => {
-    triggerHaptic('light');
-    handleResize(widgetId, widget.colSpan === 1 ? 2 : 1, widget.rowSpan);
-  };
-  const cycleRow = () => {
-    triggerHaptic('light');
-    handleResize(widgetId, widget.colSpan, widget.rowSpan === 1 ? 2 : 1);
-  };
-  const cycleCorner = () => {
-    triggerHaptic('light');
-    const { colSpan: c, rowSpan: r } = widget;
-    if (c === 1 && r === 1) handleResize(widgetId, 2, 1);
-    else if (c === 2 && r === 1) handleResize(widgetId, 2, 2);
-    else if (c === 2 && r === 2) handleResize(widgetId, 1, 2);
-    else handleResize(widgetId, 1, 1);
-  };
-
   return (
     <motion.div
-      ref={wrapperRef}
       layout
       layoutId={`widget-${widgetId}`}
       transition={layoutSpring}
@@ -111,96 +178,90 @@ export function EditableWidgetWrapper({
         'relative touch-none select-none',
         widget.colSpan === 2 ? 'col-span-2' : 'col-span-1',
         widget.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
-        isBeingDragged ? 'opacity-30 scale-95 widget-jiggle-dragging' : 'widget-jiggle',
-        isHoverTarget && !isBeingDragged && 'scale-[1.03]',
+        isBeingDragged && 'widget-jiggle-dragging',
+        !isBeingDragged && 'widget-jiggle',
         className,
       )}
-      style={{ animationDelay: `${(widget.order % 5) * 0.06}s`, zIndex: isSelected ? 20 : 1 }}
+      style={{
+        animationDelay: `${(widget.order % 5) * 0.05}s`,
+        zIndex: isSelected ? 20 : isBeingDragged ? 0 : 1,
+      }}
       onClick={(e) => { e.stopPropagation(); setSelectedWidget(isSelected ? null : widgetId); }}
     >
-      {/* Content */}
+      {/* Content card */}
       <motion.div
         layout
         transition={layoutSpring}
         className={cn(
-          'relative rounded-2xl overflow-hidden h-full transition-shadow duration-300',
+          'relative rounded-2xl overflow-hidden h-full transition-all duration-200',
           isSelected
-            ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/25'
-            : 'ring-1 ring-border/40',
-          isHoverTarget && !isBeingDragged && 'ring-2 ring-primary/50 shadow-md shadow-primary/15',
+            ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/20'
+            : 'ring-1 ring-border/30',
+          isHoverTarget && !isBeingDragged && 'ring-2 ring-primary/60 scale-[1.04] shadow-md shadow-primary/15',
           !widget.enabled && 'opacity-30 grayscale pointer-events-none',
         )}
       >
         {children}
       </motion.div>
 
-      {/* Drag handle - long press / drag from this grip */}
+      {/* Drag handle */}
       <motion.div
         onPointerDown={(e) => { e.stopPropagation(); startDrag(widgetId, e); }}
-        className="absolute top-1 left-1/2 -translate-x-1/2 z-30 p-1.5 rounded-full bg-card/80 backdrop-blur border border-border/50 shadow-sm cursor-grab active:cursor-grabbing"
-        whileTap={{ scale: 0.9 }}
+        className="absolute top-1 left-1/2 -translate-x-1/2 z-30 p-1 rounded-full bg-card/80 backdrop-blur border border-border/40 shadow-sm cursor-grab active:cursor-grabbing"
+        whileTap={{ scale: 0.85 }}
       >
         <GripVertical className="h-3 w-3 text-muted-foreground" />
       </motion.div>
 
-      {/* Remove / re-add badge */}
+      {/* Toggle button */}
       <motion.button
         whileTap={{ scale: 0.85 }}
         onClick={e => { e.stopPropagation(); triggerHaptic('medium'); handleToggle(widgetId); }}
         className={cn(
-          'absolute -top-2 -left-2 w-7 h-7 rounded-full flex items-center justify-center shadow-lg z-30',
+          'absolute -top-1.5 -left-1.5 w-6 h-6 rounded-full flex items-center justify-center shadow-lg z-30',
           widget.enabled
             ? 'bg-destructive text-destructive-foreground'
             : 'bg-primary text-primary-foreground',
         )}
       >
-        {widget.enabled ? <X className="h-3.5 w-3.5" strokeWidth={3} /> : <Eye className="h-3.5 w-3.5" strokeWidth={3} />}
+        {widget.enabled ? <X className="h-3 w-3" strokeWidth={3} /> : <Eye className="h-3 w-3" strokeWidth={3} />}
       </motion.button>
 
       {/* Size badge */}
-      <div className="absolute -top-2 -right-2 z-30">
-        <span className="text-[9px] font-bold bg-card/90 backdrop-blur border border-border/50 rounded-lg px-2 py-0.5 shadow-sm text-muted-foreground">
+      <div className="absolute -top-1.5 -right-1.5 z-30">
+        <span className="text-[8px] font-bold bg-card/90 backdrop-blur border border-border/40 rounded-md px-1.5 py-0.5 shadow-sm text-muted-foreground">
           {widget.colSpan}×{widget.rowSpan}
         </span>
       </div>
 
-      {/* Resize handles when selected */}
+      {/* Drag-to-resize handles - always visible when selected */}
       <AnimatePresence>
         {isSelected && widget.enabled && (
           <>
-            {/* Right handle */}
-            <motion.button
+            <motion.div
               initial={{ opacity: 0, scale: 0 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0 }}
-              transition={{ duration: 0.15 }}
-              onPointerDown={e => { e.stopPropagation(); e.preventDefault(); cycleCol(); }}
-              className="absolute top-1/2 -right-3 -translate-y-1/2 z-30 w-6 h-12 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center cursor-ew-resize"
+              transition={{ duration: 0.12 }}
             >
-              <div className="w-0.5 h-5 rounded-full bg-primary-foreground/80" />
-            </motion.button>
-            {/* Bottom handle */}
-            <motion.button
+              <ResizeHandle widgetId={widgetId} direction="right" widget={widget} onResize={handleResize} />
+            </motion.div>
+            <motion.div
               initial={{ opacity: 0, scale: 0 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0 }}
-              transition={{ duration: 0.15, delay: 0.03 }}
-              onPointerDown={e => { e.stopPropagation(); e.preventDefault(); cycleRow(); }}
-              className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-30 h-6 w-12 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center cursor-ns-resize"
+              transition={{ duration: 0.12, delay: 0.02 }}
             >
-              <div className="h-0.5 w-5 rounded-full bg-primary-foreground/80" />
-            </motion.button>
-            {/* Corner handle */}
-            <motion.button
+              <ResizeHandle widgetId={widgetId} direction="bottom" widget={widget} onResize={handleResize} />
+            </motion.div>
+            <motion.div
               initial={{ opacity: 0, scale: 0 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0 }}
-              transition={{ duration: 0.15, delay: 0.06 }}
-              onPointerDown={e => { e.stopPropagation(); e.preventDefault(); cycleCorner(); }}
-              className="absolute -bottom-3 -right-3 z-30 w-7 h-7 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center cursor-nwse-resize border-2 border-background"
+              transition={{ duration: 0.12, delay: 0.04 }}
             >
-              <div className="w-2.5 h-2.5 rounded-sm bg-primary-foreground/80 rotate-45" />
-            </motion.button>
+              <ResizeHandle widgetId={widgetId} direction="corner" widget={widget} onResize={handleResize} />
+            </motion.div>
           </>
         )}
       </AnimatePresence>
@@ -214,7 +275,7 @@ export function EditableWidgetList({ children }: { children: ReactNode }) {
   if (!isEditing) return <>{children}</>;
   return (
     <LayoutGroup>
-      <div className="grid grid-cols-2 gap-3 px-3">
+      <div className="grid grid-cols-2 gap-3 px-3 auto-rows-auto">
         {children}
       </div>
     </LayoutGroup>
@@ -224,7 +285,7 @@ export function EditableWidgetList({ children }: { children: ReactNode }) {
 /* ── Non-edit grid wrapper ── */
 export function WidgetGrid({ children }: { children: ReactNode }) {
   return (
-    <div className="grid grid-cols-2 gap-2 px-3">
+    <div className="grid grid-cols-2 gap-2 px-3 auto-rows-auto">
       {children}
     </div>
   );
@@ -238,17 +299,17 @@ function DragGhost({ widgets, dragState }: { widgets: GridWidgetState[]; dragSta
   return (
     <motion.div
       initial={{ scale: 1, opacity: 0.9 }}
-      animate={{ scale: 1.05, opacity: 0.85 }}
+      animate={{ scale: 1.08, opacity: 0.85 }}
       className="fixed z-[100] pointer-events-none"
       style={{
-        left: dragState.ghostX - 60,
-        top: dragState.ghostY - 40,
-        width: w.colSpan === 2 ? 200 : 100,
+        left: dragState.ghostX - 50,
+        top: dragState.ghostY - 30,
+        width: w.colSpan === 2 ? 180 : 90,
       }}
     >
-      <div className="bg-card/90 backdrop-blur-xl rounded-2xl border-2 border-primary shadow-2xl shadow-primary/30 p-3 flex items-center justify-center gap-2">
-        <span className="text-lg">{w.icon}</span>
-        <span className="text-xs font-bold text-foreground truncate">{w.label}</span>
+      <div className="bg-card/90 backdrop-blur-xl rounded-2xl border-2 border-primary shadow-2xl shadow-primary/30 p-2.5 flex items-center justify-center gap-1.5">
+        <span className="text-base">{w.icon}</span>
+        <span className="text-[10px] font-bold text-foreground truncate">{w.label}</span>
       </div>
     </motion.div>
   );
@@ -298,7 +359,7 @@ function EditToolbar({
         </Button>
       </div>
       <p className="text-center text-[10px] text-muted-foreground mt-1">
-        Hold grip to drag · tap to select · grab edges to resize
+        Drag grip to move · Tap to select · Drag edges to resize
       </p>
     </motion.div>
   );
@@ -322,7 +383,6 @@ export function HomeEditModeProvider({
     isDragging: false, dragId: null, ghostX: 0, ghostY: 0, hoverTargetId: null,
   });
 
-  // Refs for drag tracking
   const widgetRectsRef = useRef<Map<string, DOMRect>>(new Map());
 
   useEffect(() => {
@@ -369,7 +429,6 @@ export function HomeEditModeProvider({
     e.preventDefault();
     triggerHaptic('medium');
 
-    // Snapshot all widget rects
     const rects = new Map<string, DOMRect>();
     document.querySelectorAll('[data-widget-id]').forEach(el => {
       const wid = el.getAttribute('data-widget-id');
@@ -378,21 +437,20 @@ export function HomeEditModeProvider({
     widgetRectsRef.current = rects;
 
     setDragState({
-      isDragging: true,
-      dragId: id,
-      ghostX: e.clientX,
-      ghostY: e.clientY,
+      isDragging: true, dragId: id,
+      ghostX: e.clientX, ghostY: e.clientY,
       hoverTargetId: null,
     });
     setSelectedWidget(null);
+
+    let lastSwap = 0;
 
     const onMove = (ev: PointerEvent) => {
       const gx = ev.clientX;
       const gy = ev.clientY;
 
-      // Find which widget the pointer is over
       let hoverId: string | null = null;
-      for (const [wid, rect] of rects.entries()) {
+      for (const [wid, rect] of widgetRectsRef.current.entries()) {
         if (wid === id) continue;
         if (gx >= rect.left && gx <= rect.right && gy >= rect.top && gy <= rect.bottom) {
           hoverId = wid;
@@ -400,52 +458,34 @@ export function HomeEditModeProvider({
         }
       }
 
-      setDragState(prev => ({
-        ...prev,
-        ghostX: gx,
-        ghostY: gy,
-        hoverTargetId: hoverId,
-      }));
-    };
+      setDragState(prev => ({ ...prev, ghostX: gx, ghostY: gy, hoverTargetId: hoverId }));
 
-    let lastSwap = 0;
-    const onMoveWithSwap = (ev: PointerEvent) => {
-      onMove(ev);
-
-      const gx = ev.clientX;
-      const gy = ev.clientY;
+      // Auto-swap
       const now = Date.now();
-
-      // Auto-swap when hovering for 150ms
-      for (const [wid, rect] of widgetRectsRef.current.entries()) {
-        if (wid === id) continue;
-        if (gx >= rect.left && gx <= rect.right && gy >= rect.top && gy <= rect.bottom) {
-          if (now - lastSwap > 200) {
-            lastSwap = now;
-            handleReorder(id, wid);
-            // Re-snapshot rects after swap with a slight delay
-            requestAnimationFrame(() => {
-              const newRects = new Map<string, DOMRect>();
-              document.querySelectorAll('[data-widget-id]').forEach(el => {
-                const w = el.getAttribute('data-widget-id');
-                if (w) newRects.set(w, el.getBoundingClientRect());
-              });
-              widgetRectsRef.current = newRects;
+      if (hoverId && now - lastSwap > 180) {
+        lastSwap = now;
+        handleReorder(id, hoverId);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const newRects = new Map<string, DOMRect>();
+            document.querySelectorAll('[data-widget-id]').forEach(el => {
+              const w = el.getAttribute('data-widget-id');
+              if (w) newRects.set(w, el.getBoundingClientRect());
             });
-          }
-          break;
-        }
+            widgetRectsRef.current = newRects;
+          });
+        });
       }
     };
 
     const onUp = () => {
       setDragState({ isDragging: false, dragId: null, ghostX: 0, ghostY: 0, hoverTargetId: null });
-      window.removeEventListener('pointermove', onMoveWithSwap);
+      window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
 
-    window.addEventListener('pointermove', onMoveWithSwap);
+    window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
   }, [handleReorder]);
@@ -492,7 +532,6 @@ export function HomeEditModeProvider({
       <div onClick={editing ? () => setSelectedWidget(null) : undefined}>
         {children}
       </div>
-      {/* Floating drag ghost */}
       <DragGhost widgets={localWidgets} dragState={dragState} />
     </EditModeContext.Provider>
   );
