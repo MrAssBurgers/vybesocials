@@ -282,21 +282,15 @@ export const TutorialOverlay = memo(function TutorialOverlay({
       setSpotlight(null);
       setElementFound(false);
       const tooltipWidth = Math.min(320, window.innerWidth - 32);
+      const tooltipHeight = 320;
       const isMobileOrTablet = layoutMode === 'mobile' || layoutMode === 'tablet';
+      const centerX = Math.max(16, (window.innerWidth - tooltipWidth) / 2);
+      const centerY = Math.max(80, (window.innerHeight - tooltipHeight) / 2);
       
-      if (isMobileOrTablet) {
-        const bottomNavHeight = 72;
-        setTooltipPos({
-          bottom: bottomNavHeight + 16,
-          left: Math.max(16, (window.innerWidth - tooltipWidth) / 2),
-        });
-      } else {
-        const tooltipWidth2 = Math.min(320, window.innerWidth - 32);
-        setTooltipPos({
-          top: Math.max(80, (window.innerHeight - 320) / 2),
-          left: Math.max(16, (window.innerWidth - tooltipWidth2) / 2),
-        });
-      }
+      setTooltipPos({
+        top: centerY,
+        left: centerX,
+      });
     }
     
     // Broadcast highlighted nav item for BottomNav to pick up
