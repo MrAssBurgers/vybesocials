@@ -61,6 +61,7 @@ const QUICK_PROMPTS = [
 
 export default function AIChat() {
   const navigate = useNavigate();
+  const streamingContentRef = useRef('');
   
   // Simple settings — no model picker, no API key nonsense
   const [aiName, setAiName] = useState(() => loadSetting(AI_NAME_KEY, 'Morgan'));
