@@ -64,15 +64,15 @@ export const ARFilterPicker = memo(function ARFilterPicker({
     if (!profile) { toast.error('Sign in to share filters'); return; }
 
     const { masks, particles, colorGrade, lighting, cssFilter } = filter;
-    const config = { masks, particles, colorGrade, lighting, cssFilter };
+    const config = { masks, particles, colorGrade, lighting, cssFilter } as unknown as Record<string, unknown>;
 
-    const { error } = await supabase.from('community_filters').insert({
+    const { error } = await supabase.from('community_filters').insert([{
       creator_id: profile.id,
       name: filter.name,
       icon: filter.icon,
       filter_config: config,
       category: filter.category,
-    });
+    }]);
 
     if (error) {
       toast.error('Failed to share filter');
