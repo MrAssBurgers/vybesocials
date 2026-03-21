@@ -205,7 +205,14 @@ export function AIChatAssistant() {
                       : 'bg-muted rounded-tl-sm'
                   }`}
                 >
-                  {message.content || (
+                  {message.content ? (
+                    <>
+                      {message.content}
+                      {isLoading && index === messages.length - 1 && message.role === 'assistant' && (
+                        <span className="inline-block w-[2px] h-[13px] bg-foreground/70 ml-0.5 align-middle animate-pulse" />
+                      )}
+                    </>
+                  ) : (
                     <span className="flex items-center gap-1">
                       <Loader2 className="h-3 w-3 animate-spin" />
                       Thinking...

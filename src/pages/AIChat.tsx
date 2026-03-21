@@ -310,16 +310,22 @@ export default function AIChat() {
                     message.role === 'assistant' ? (
                       <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-1 [&_p:last-child]:mb-0 [&_pre]:text-xs [&_code]:text-xs">
                         <ReactMarkdown>{message.content}</ReactMarkdown>
+                        {/* Blinking cursor while still streaming */}
+                        {isLoading && index === messages.length - 1 && (
+                          <span className="inline-block w-[2px] h-[14px] bg-foreground/70 ml-0.5 align-middle animate-pulse" />
+                        )}
                       </div>
                     ) : message.content
                   ) : (
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
-                      <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.2 }} className="flex gap-0.5">
-                        <span className="w-1.5 h-1.5 bg-current rounded-full" />
-                        <span className="w-1.5 h-1.5 bg-current rounded-full" />
-                        <span className="w-1.5 h-1.5 bg-current rounded-full" />
-                      </motion.div>
-                    </span>
+                    isLoading && index === messages.length - 1 ? (
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.2 }} className="flex gap-0.5">
+                          <span className="w-1.5 h-1.5 bg-current rounded-full" />
+                          <span className="w-1.5 h-1.5 bg-current rounded-full" />
+                          <span className="w-1.5 h-1.5 bg-current rounded-full" />
+                        </motion.div>
+                      </span>
+                    ) : null
                   )}
                 </div>
                 <span className={cn(
