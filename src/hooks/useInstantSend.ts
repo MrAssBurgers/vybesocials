@@ -24,7 +24,7 @@ export interface PendingMessage {
  * Snapchat-style instant message sending
  * Messages appear immediately, then sync with server
  */
-export function useInstantSend(conversationId: string | undefined, recipientProfileId?: string) {
+export function useInstantSend(conversationId: string | undefined) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const { encrypt } = useMessageEncryption();
