@@ -51,7 +51,6 @@ interface PerplexityResult {
   images: string[];
 }
 
-// Extract a favicon/logo URL from a domain
 function getFaviconUrl(url: string): string {
   try {
     const domain = new URL(url).hostname;
@@ -61,11 +60,9 @@ function getFaviconUrl(url: string): string {
   }
 }
 
-async function fetchPerplexityData(interest: string, apiKey: string): Promise<PerplexityResult | null> {
-  const query = interestSearchQueries[interest.toLowerCase()] || `latest ${interest} news and updates today`;
-  
+async function fetchPerplexityData(query: string, label: string, apiKey: string): Promise<{ label: string; result: PerplexityResult } | null> {
   try {
-    console.log(`[Perplexity] Fetching: ${interest}`);
+    console.log(`[Perplexity] Fetching: ${label}`);
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -87,7 +84,7 @@ async function fetchPerplexityData(interest: string, apiKey: string): Promise<Pe
 
     if (!response.ok) {
       const errBody = await response.text().catch(() => 'unknown');
-      console.error(`[Perplexity] API error ${response.status} for "${interest}":`, errBody);
+      console.error(`[Perplexity] API error ${response.status} for "${label}":`, errBody);
       return null;
     }
 
@@ -96,11 +93,11 @@ async function fetchPerplexityData(interest: string, apiKey: string): Promise<Pe
     const citations = data.citations || [];
     const images = data.images || [];
     
-    console.log(`[Perplexity] Got ${interest}: ${content.length} chars, ${citations.length} citations, ${images.length} images`);
+    console.log(`[Perplexity] Got ${label}: ${content.length} chars, ${citations.length} citations, ${images.length} images`);
     
-    return { content, citations, images };
+    return { label, result: { content, citations, images } };
   } catch (error) {
-    console.error(`[Perplexity] Fetch error for "${interest}":`, error);
+    console.error(`[Perplexity] Fetch error for "${label}":`, error);
     return null;
   }
 }
@@ -123,7 +120,6 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get user from token
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
@@ -133,6 +129,17 @@ serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Parse body for optional GPS coordinates
+    let latitude: number | null = null;
+    let longitude: number | null = null;
+    try {
+      const body = await req.json();
+      if (body.latitude && body.longitude) {
+        latitude = body.latitude;
+        longitude = body.longitude;
+      }
+    } catch {}
 
     // Get user's profile with interests
     const { data: userProfile } = await supabase
@@ -155,7 +162,7 @@ serve(async (req) => {
     const customTopics = briefPrefs?.custom_topics || [];
     const excludedTopics = briefPrefs?.excluded_topics || [];
     
-    // Default interests if user has none set — ensures brief always has news
+    // Default interests if user has none set
     const defaultInterests = ['breaking news', 'technology', 'pop culture'];
     const baseInterests = onboardingInterests.length > 0 || customTopics.length > 0
       ? [...onboardingInterests, ...customTopics]
@@ -164,10 +171,14 @@ serve(async (req) => {
     const allInterests = [...new Set(baseInterests)]
       .filter(i => !excludedTopics.includes(i));
 
+    console.log(`[Brief] Onboarding interests: ${onboardingInterests.join(', ')}`);
+    console.log(`[Brief] Custom topics: ${customTopics.join(', ')}`);
+    console.log(`[Brief] Final interests: ${allInterests.join(', ')}`);
+    console.log(`[Brief] GPS: ${latitude ? `${latitude},${longitude}` : 'not provided'}`);
+
     // ── REAL-TIME DATA: Fetch actual counts from DB (all in parallel) ──
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    // Fire all queries in parallel
     const [
       notifResult,
       followsResult,
@@ -199,7 +210,6 @@ serve(async (req) => {
     const userLevel = levelResult.data?.current_level || 1;
     const userXp = levelResult.data?.total_xp || 0;
 
-    // Process active challenges
     const activeChallenges = (challengeResult.data || []).map((c: any) => ({
       title: c.title,
       type: c.type,
@@ -208,7 +218,6 @@ serve(async (req) => {
       xp: c.reward_xp || 0,
     }));
 
-    // Process follows for posts
     const followingIds = followsResult.data?.map((f: any) => f.following_id) || [];
     let postsContent = "";
     let recentPostCount = 0;
@@ -231,7 +240,6 @@ serve(async (req) => {
       }
     }
 
-    // Process unread conversations with message previews
     let unreadConvos = 0;
     const unreadMessagePreviews: Array<{ conversationId: string; senderName: string; preview: string; isGroup: boolean; groupName?: string; time: string }> = [];
     
@@ -274,7 +282,6 @@ serve(async (req) => {
       }
     }
 
-    // Process notification details
     const notificationDetails: Array<{ type: string; message: string; time: string }> = [];
     if (unreadNotifsResult.data) {
       for (const notif of unreadNotifsResult.data) {
@@ -282,13 +289,14 @@ serve(async (req) => {
       }
     }
 
-    // ── Fetch Perplexity live updates with images ──
+    // ── Fetch Perplexity live updates ──
     interface LiveUpdate {
       interest: string;
       content: string;
       sources: string[];
       imageUrl?: string;
       sourceFavicons?: string[];
+      category?: string;
     }
     
     let liveUpdates: LiveUpdate[] = [];
@@ -296,40 +304,61 @@ serve(async (req) => {
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
     console.log(`[Brief] Interests: ${allInterests.join(', ')} | Perplexity key: ${PERPLEXITY_API_KEY ? 'set' : 'MISSING'}`);
     
-    if (PERPLEXITY_API_KEY && allInterests.length > 0) {
+    if (PERPLEXITY_API_KEY) {
+      // Build all search promises
+      const fetchPromises: Promise<{ label: string; result: PerplexityResult; category?: string } | null>[] = [];
+
+      // 1. User interest-based searches (up to 5)
       const selectedInterests = allInterests.slice(0, 5);
-      const fetchPromises = selectedInterests.map(async (interest: string): Promise<LiveUpdate | null> => {
-        const result = await fetchPerplexityData(interest, PERPLEXITY_API_KEY);
-        if (result && result.content) {
-          // Get image: first from Perplexity images, then try og-image proxy from first citation
+      for (const interest of selectedInterests) {
+        const query = interestSearchQueries[interest.toLowerCase()] || `latest ${interest} news and updates today`;
+        fetchPromises.push(
+          fetchPerplexityData(query, interest, PERPLEXITY_API_KEY)
+            .then(r => r ? { ...r, category: 'interests' } : null)
+        );
+      }
+
+      // 2. GPS-based local news (if location provided)
+      if (latitude && longitude) {
+        fetchPromises.push(
+          fetchPerplexityData(
+            `Important local news, events, and weather happening near coordinates ${latitude.toFixed(2)}, ${longitude.toFixed(2)} today. Include any severe weather warnings, major local events, or important community updates.`,
+            '📍 Near You',
+            PERPLEXITY_API_KEY
+          ).then(r => r ? { ...r, category: 'local' } : null)
+        );
+      }
+
+      // 3. Always include a "What's happening" general catch-all if few interests
+      if (selectedInterests.length < 3) {
+        fetchPromises.push(
+          fetchPerplexityData(
+            'Most important news stories happening right now in the world today',
+            '🌍 World',
+            PERPLEXITY_API_KEY
+          ).then(r => r ? { ...r, category: 'world' } : null)
+        );
+      }
+
+      const results = await Promise.all(fetchPromises);
+      
+      liveUpdates = results
+        .filter((r): r is { label: string; result: PerplexityResult; category?: string } => r !== null && !!r.result.content)
+        .map(r => {
           let imageUrl: string | undefined;
-          
-          // Use Perplexity's returned images if available
-          if (result.images && result.images.length > 0) {
-            imageUrl = result.images[0];
+          if (r.result.images && r.result.images.length > 0) {
+            imageUrl = r.result.images[0];
           }
-          
-          // If no Perplexity images, try extracting an og:image from the first citation
-          if (!imageUrl && result.citations && result.citations.length > 0) {
-            // Use a favicon as fallback thumbnail
-            imageUrl = undefined; // Will use favicon display instead
-          }
-
-          // Generate favicons for all citation sources
-          const sourceFavicons = (result.citations || []).slice(0, 4).map((url: string) => getFaviconUrl(url)).filter(Boolean);
-
-          return { 
-            interest, 
-            content: result.content, 
-            sources: result.citations || [],
+          const sourceFavicons = (r.result.citations || []).slice(0, 4).map((url: string) => getFaviconUrl(url)).filter(Boolean);
+          return {
+            interest: r.label,
+            content: r.result.content,
+            sources: r.result.citations || [],
             imageUrl,
             sourceFavicons,
+            category: r.category || 'interests',
           };
-        }
-        return null;
-      });
-      const results = await Promise.all(fetchPromises);
-      liveUpdates = results.filter((r): r is LiveUpdate => r !== null);
+        });
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -340,7 +369,6 @@ serve(async (req) => {
     const hasLiveData = liveUpdates.length > 0;
     const userName = userProfile?.display_name || userProfile?.username || 'there';
 
-    // Build the system prompt
     const systemPrompt = `You are VYBE's friendly AI assistant creating a personalized daily brief. Keep it warm, concise, and actionable. Use emojis sparingly. Never exceed 3 sentences. Address the user by name if available.`;
 
     let userPrompt = `Create a brief daily catch-up for ${userName}.\n`;
@@ -353,6 +381,9 @@ serve(async (req) => {
     }
     if (hasLiveData) {
       userPrompt += `Trending topics: ${liveUpdates.map((u: any) => `${u.interest}: ${u.content.slice(0, 100)}`).join('; ')}.\n`;
+    }
+    if (latitude && longitude) {
+      userPrompt += `User has shared their location (${latitude.toFixed(1)}, ${longitude.toFixed(1)}). Mention any local highlights if relevant.\n`;
     }
     userPrompt += `Give a quick, personalized summary highlighting what matters most.`;
 
@@ -386,7 +417,6 @@ serve(async (req) => {
     const data = await response.json();
     let summary = data.choices?.[0]?.message?.content?.trim() || "";
     
-    // Fallback if AI returns empty
     if (!summary) {
       const parts: string[] = [];
       if (realNotifCount > 0) parts.push(`You have ${realNotifCount} notification${realNotifCount > 1 ? 's' : ''}`);

@@ -23,6 +23,7 @@ interface BriefUpdate {
   sources?: string[];
   imageUrl?: string;
   sourceFavicons?: string[];
+  category?: string;
 }
 
 interface ActiveChallenge {
@@ -135,6 +136,8 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
   const [expanded, setExpanded] = useState(false);
   const hasImage = !!update.imageUrl;
   const preview = update.content.length > 120 ? update.content.slice(0, 120) + '...' : update.content;
+  const isLocal = update.category === 'local';
+  const isWorld = update.category === 'world';
 
   return (
     <motion.div
@@ -146,10 +149,10 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
         onClick={() => { setExpanded(!expanded); haptics.tap(); }}
         className="w-full text-left group"
       >
-        <div className="rounded-2xl bg-card/70 border border-border/15 overflow-hidden hover:border-border/30 transition-all duration-200 active:scale-[0.995]">
+        <div className="rounded-2xl bg-card/60 border border-border/10 overflow-hidden hover:border-border/25 transition-all duration-200 active:scale-[0.995]">
           {/* Image hero */}
           {hasImage && (
-            <div className="relative w-full h-32 bg-muted/30 overflow-hidden">
+            <div className="relative w-full h-28 bg-muted/20 overflow-hidden">
               <img 
                 src={update.imageUrl} 
                 alt={update.interest}
@@ -157,11 +160,15 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
                 loading="lazy"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-card/90 via-card/20 to-transparent" />
-              <div className="absolute bottom-2 left-3">
-                <span className="text-[10px] font-bold text-primary uppercase tracking-wider bg-background/80 backdrop-blur-sm px-2 py-0.5 rounded-md">
-                  {update.interest}
-                </span>
+              <div className="absolute inset-0 bg-gradient-to-t from-card/95 via-card/30 to-transparent" />
+              <div className="absolute bottom-2 left-3 flex items-center gap-1.5">
+                {isLocal && <span className="text-[9px] font-bold text-green-400 bg-green-500/15 backdrop-blur-sm px-1.5 py-0.5 rounded-md uppercase tracking-wider">📍 Local</span>}
+                {isWorld && <span className="text-[9px] font-bold text-blue-400 bg-blue-500/15 backdrop-blur-sm px-1.5 py-0.5 rounded-md uppercase tracking-wider">🌍 World</span>}
+                {!isLocal && !isWorld && (
+                  <span className="text-[9px] font-bold text-primary/90 bg-background/70 backdrop-blur-sm px-1.5 py-0.5 rounded-md uppercase tracking-wider">
+                    {update.interest}
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -171,25 +178,33 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
             {!hasImage && (
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1.5">
-                  <Newspaper className="h-3 w-3 text-primary/60" />
-                  <span className="text-[10px] font-bold text-primary/80 uppercase tracking-wider">
-                    {update.interest}
-                  </span>
+                  {isLocal ? (
+                    <span className="text-[10px] font-bold text-green-400 uppercase tracking-wider">📍 Near You</span>
+                  ) : isWorld ? (
+                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">🌍 World</span>
+                  ) : (
+                    <>
+                      <Newspaper className="h-3 w-3 text-primary/50" />
+                      <span className="text-[10px] font-bold text-primary/70 uppercase tracking-wider">
+                        {update.interest}
+                      </span>
+                    </>
+                  )}
                 </div>
                 <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.15 }}>
-                  <ChevronDown className="h-3 w-3 text-muted-foreground/30" />
+                  <ChevronDown className="h-3 w-3 text-muted-foreground/25" />
                 </motion.div>
               </div>
             )}
 
             {/* Content */}
-            <p className="text-[13px] text-foreground/85 leading-relaxed">
+            <p className="text-[12.5px] text-foreground/80 leading-relaxed">
               {expanded ? update.content : preview}
             </p>
 
             {/* Source favicons row */}
             {update.sources && update.sources.length > 0 && (
-              <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-border/10">
+              <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-border/8">
                 <div className="flex -space-x-1">
                   {(update.sourceFavicons || update.sources.slice(0, 3).map(s => {
                     try { return `https://www.google.com/s2/favicons?domain=${new URL(s).hostname}&sz=32`; } catch { return null; }
@@ -198,13 +213,13 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
                       key={i} 
                       src={favicon as string} 
                       alt="" 
-                      className="w-4 h-4 rounded-full border border-background bg-muted"
+                      className="w-3.5 h-3.5 rounded-full border border-background bg-muted"
                       loading="lazy"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                   ))}
                 </div>
-                <span className="text-[10px] text-muted-foreground/50">
+                <span className="text-[9px] text-muted-foreground/40">
                   {update.sources.length} source{update.sources.length > 1 ? 's' : ''}
                 </span>
               </div>
@@ -223,7 +238,7 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="px-2 py-2 mt-1 space-y-1">
+            <div className="px-2 py-1.5 mt-1 space-y-0.5">
               {update.sources.slice(0, 4).map((source, idx) => {
                 try {
                   const url = new URL(source);
@@ -235,7 +250,7 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors"
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-muted/15 hover:bg-muted/30 transition-colors"
                     >
                       <img 
                         src={`https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`} 
@@ -243,8 +258,8 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
                         className="w-3.5 h-3.5 rounded-sm" 
                         loading="lazy"
                       />
-                      <span className="text-[11px] text-muted-foreground truncate flex-1">{domain}</span>
-                      <ExternalLink className="h-2.5 w-2.5 text-muted-foreground/40 flex-shrink-0" />
+                      <span className="text-[10px] text-muted-foreground/70 truncate flex-1">{domain}</span>
+                      <ExternalLink className="h-2.5 w-2.5 text-muted-foreground/30 flex-shrink-0" />
                     </a>
                   );
                 } catch { return null; }
@@ -322,6 +337,23 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
 
       if (!isBackground) { setLoadingProgress(35); setLoadingStage('data'); }
 
+      // Try to get GPS location (non-blocking)
+      let latitude: number | null = null;
+      let longitude: number | null = null;
+      const locationEnabled = localStorage.getItem('vybe_ai_location') === 'true';
+      
+      if (locationEnabled && navigator.geolocation) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, maximumAge: 300000 });
+          });
+          latitude = pos.coords.latitude;
+          longitude = pos.coords.longitude;
+        } catch {
+          // Location unavailable, continue without it
+        }
+      }
+
       let progressInterval: ReturnType<typeof setInterval> | null = null;
       if (!isBackground) {
         let current = 35;
@@ -333,12 +365,18 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
         }, 400);
       }
 
+      const bodyPayload: Record<string, any> = {};
+      if (latitude && longitude) {
+        bodyPayload.latitude = latitude;
+        bodyPayload.longitude = longitude;
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-catch-up`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-          body: JSON.stringify({}),
+          body: JSON.stringify(bodyPayload),
           signal: abortControllerRef.current.signal,
         }
       );
