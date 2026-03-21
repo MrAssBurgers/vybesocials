@@ -27,6 +27,9 @@ interface Post {
   created_at: string;
   is_pinned: boolean;
   view_count: number;
+  is_ai_generated?: boolean;
+  ai_confidence?: number;
+  ai_override?: boolean | null;
   author: {
     id: string;
     username: string;
