@@ -624,73 +624,85 @@ export function HomeEditModeProvider({
 
   /* ── RESIZE ENGINE: grid-snapped preview overlay ── */
   const handleResizeStart = useCallback((id: string, direction: 'right' | 'bottom' | 'corner', e: React.PointerEvent) => {
-    e.preventDefault();
-    triggerHaptic('light');
+    try {
+      e.preventDefault();
+      triggerHaptic('light');
 
-    const widget = localWidgets.find(w => w.id === id);
-    if (!widget) return;
+      const widget = localWidgets.find(w => w.id === id);
+      if (!widget) return;
 
-    const el = document.querySelector(`[data-widget-id="${id}"]`) as HTMLElement | null;
-    if (!el) return;
+      const el = document.querySelector(`[data-widget-id="${id}"]`) as HTMLElement | null;
+      if (!el) return;
 
-    const originRect = el.getBoundingClientRect();
-    const { colWidth, rowHeight, gap } = measureGrid(gridRef.current);
+      // Disable scrolling during resize
+      document.body.style.touchAction = 'none';
+      document.body.style.overflow = 'hidden';
 
-    setResizeState({
-      isResizing: true,
-      widgetId: id,
-      direction,
-      previewCol: widget.colSpan,
-      previewRow: widget.rowSpan,
-      overlayRect: { x: originRect.left, y: originRect.top, w: originRect.width, h: originRect.height },
-    });
+      const originRect = el.getBoundingClientRect();
+      const { colWidth, rowHeight, gap } = measureGrid(gridRef.current);
 
-    const startCol = widget.colSpan;
-    const startRow = widget.rowSpan;
-
-    const onMove = (ev: PointerEvent) => {
-      const dx = ev.clientX - e.clientX;
-      const dy = ev.clientY - e.clientY;
-
-      let newCol = startCol as 1 | 2;
-      let newRow = startRow as 1 | 2;
-
-      if (direction === 'right' || direction === 'corner') {
-        const totalW = originRect.width + dx;
-        newCol = totalW > colWidth + gap * 0.5 ? 2 : 1;
-      }
-      if (direction === 'bottom' || direction === 'corner') {
-        const totalH = originRect.height + dy;
-        newRow = totalH > rowHeight + gap * 0.5 ? 2 : 1;
-      }
-
-      const previewW = newCol * colWidth + (newCol - 1) * gap;
-      const previewH = newRow * rowHeight + (newRow - 1) * gap;
-
-      setResizeState(prev => ({
-        ...prev,
-        previewCol: newCol,
-        previewRow: newRow,
-        overlayRect: { x: originRect.left, y: originRect.top, w: previewW, h: previewH },
-      }));
-    };
-
-    const onUp = () => {
-      const final = { ...resizeState };
-      // Apply resize from current state
-      setResizeState(prev => {
-        handleResize(id, prev.previewCol, prev.previewRow);
-        triggerHaptic('medium');
-        return defaultResize;
+      setResizeState({
+        isResizing: true,
+        widgetId: id,
+        direction,
+        previewCol: widget.colSpan,
+        previewRow: widget.rowSpan,
+        overlayRect: { x: originRect.left, y: originRect.top, w: originRect.width, h: originRect.height },
       });
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-    };
 
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
+      const startCol = widget.colSpan;
+      const startRow = widget.rowSpan;
+
+      const onMove = (ev: PointerEvent) => {
+        const dx = ev.clientX - e.clientX;
+        const dy = ev.clientY - e.clientY;
+
+        let newCol = startCol as 1 | 2;
+        let newRow = startRow as 1 | 2;
+
+        if (direction === 'right' || direction === 'corner') {
+          const totalW = originRect.width + dx;
+          newCol = totalW > colWidth + gap * 0.5 ? 2 : 1;
+        }
+        if (direction === 'bottom' || direction === 'corner') {
+          const totalH = originRect.height + dy;
+          newRow = totalH > rowHeight + gap * 0.5 ? 2 : 1;
+        }
+
+        const previewW = newCol * colWidth + (newCol - 1) * gap;
+        const previewH = newRow * rowHeight + (newRow - 1) * gap;
+
+        setResizeState(prev => ({
+          ...prev,
+          previewCol: newCol,
+          previewRow: newRow,
+          overlayRect: { x: originRect.left, y: originRect.top, w: previewW, h: previewH },
+        }));
+      };
+
+      const onUp = () => {
+        setResizeState(prev => {
+          handleResize(id, prev.previewCol, prev.previewRow);
+          triggerHaptic('medium');
+          return defaultResize;
+        });
+        // Re-enable scrolling
+        document.body.style.touchAction = '';
+        document.body.style.overflow = '';
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    } catch (err) {
+      console.warn('[EditMode] resize error:', err);
+      document.body.style.touchAction = '';
+      document.body.style.overflow = '';
+      setResizeState(defaultResize);
+    }
   }, [localWidgets, handleResize]);
 
   /* ── Save / Cancel ── */
