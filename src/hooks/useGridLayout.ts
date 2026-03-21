@@ -67,23 +67,26 @@ export function useGridLayout() {
     return parseConfig(saved as Partial<GridLayoutConfig> | undefined);
   }, [prefs?.extra, variant]);
 
-  const saveGridLayout = useCallback(async (newConfig: Partial<GridLayoutConfig>) => {
+  const saveGridLayout = useCallback(async (newConfig: Partial<GridLayoutConfig>, allDevices = false) => {
     const currentExtra = (prefs?.extra as any) ?? {};
     const currentGrid = currentExtra.grid_layout ?? {};
     const currentVariant = currentGrid[variant] ?? currentGrid;
     const merged = { ...currentVariant, ...newConfig };
 
+    const homeLayout = {
+      order: (newConfig.widgets ?? config.widgets).filter(w => w.enabled).map(w => w.id),
+      hidden: (newConfig.widgets ?? config.widgets).filter(w => !w.enabled).map(w => w.id),
+    };
+
+    const gridLayout = allDevices
+      ? { ...currentGrid, mobile: merged, desktop: merged }
+      : { ...currentGrid, [variant]: merged };
+
     await update.mutateAsync({
       extra: {
         ...currentExtra,
-        grid_layout: {
-          ...currentGrid,
-          [variant]: merged,
-        },
-        home_layout: {
-          order: (newConfig.widgets ?? config.widgets).filter(w => w.enabled).map(w => w.id),
-          hidden: (newConfig.widgets ?? config.widgets).filter(w => !w.enabled).map(w => w.id),
-        },
+        grid_layout: gridLayout,
+        home_layout: homeLayout,
       },
     });
   }, [prefs?.extra, update, config.widgets, variant]);
