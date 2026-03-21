@@ -493,121 +493,133 @@ export function HomeEditModeProvider({
 
   /* ── DRAG ENGINE: Apple-style insertion reorder ── */
   const startDrag = useCallback((id: string, e: React.PointerEvent) => {
-    e.preventDefault();
-    triggerHaptic('medium');
+    try {
+      e.preventDefault();
+      triggerHaptic('medium');
 
-    const el = document.querySelector(`[data-widget-id="${id}"]`) as HTMLElement | null;
-    if (!el) return;
+      const el = document.querySelector(`[data-widget-id="${id}"]`) as HTMLElement | null;
+      if (!el) return;
 
-    const rect = el.getBoundingClientRect();
-    dragCloneRef.current = el;
+      // Disable scrolling during drag
+      document.body.style.touchAction = 'none';
+      document.body.style.overflow = 'hidden';
 
-    // Snapshot current order for snap-back
-    dragOriginalRef.current = [...localWidgetsRef.current];
+      const rect = el.getBoundingClientRect();
+      dragCloneRef.current = el;
 
-    const offsetX = e.clientX - rect.left;
-    const offsetY = e.clientY - rect.top;
+      // Snapshot current order for snap-back
+      dragOriginalRef.current = [...localWidgetsRef.current];
 
-    setDragState({
-      isDragging: true,
-      dragId: id,
-      ghostX: e.clientX,
-      ghostY: e.clientY,
-      offsetX,
-      offsetY,
-      ghostWidth: rect.width,
-      ghostHeight: rect.height,
-    });
-    setSelectedWidget(null);
-    lastHoverRef.current = null;
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
 
-    let lastInsertIndex = -1;
+      setDragState({
+        isDragging: true,
+        dragId: id,
+        ghostX: e.clientX,
+        ghostY: e.clientY,
+        offsetX,
+        offsetY,
+        ghostWidth: rect.width,
+        ghostHeight: rect.height,
+      });
+      setSelectedWidget(null);
+      lastHoverRef.current = null;
 
-    const onMove = (ev: PointerEvent) => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        setDragState(prev => ({ ...prev, ghostX: ev.clientX, ghostY: ev.clientY }));
+      let lastInsertIndex = -1;
 
-        // Get enabled widgets in order (excluding dragged) from the CURRENT state
-        const currentWidgets = localWidgetsRef.current;
-        const enabled = currentWidgets
-          .filter(w => w.enabled)
-          .sort((a, b) => a.order - b.order);
-        const enabledWithoutDrag = enabled.filter(w => w.id !== id);
+      const onMove = (ev: PointerEvent) => {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(() => {
+          try {
+            setDragState(prev => ({ ...prev, ghostX: ev.clientX, ghostY: ev.clientY }));
 
-        // Collect rects of non-dragged widgets in their current DOM positions
-        const entries: { id: string; rect: DOMRect; idx: number }[] = [];
-        enabledWithoutDrag.forEach((w, idx) => {
-          const node = document.querySelector(`[data-widget-id="${w.id}"]`) as HTMLElement | null;
-          if (node) {
-            entries.push({ id: w.id, rect: node.getBoundingClientRect(), idx });
+            const currentWidgets = localWidgetsRef.current;
+            const enabled = currentWidgets
+              .filter(w => w.enabled)
+              .sort((a, b) => a.order - b.order);
+            const enabledWithoutDrag = enabled.filter(w => w.id !== id);
+
+            const entries: { id: string; rect: DOMRect; idx: number }[] = [];
+            enabledWithoutDrag.forEach((w, idx) => {
+              const node = document.querySelector(`[data-widget-id="${w.id}"]`) as HTMLElement | null;
+              if (node) {
+                entries.push({ id: w.id, rect: node.getBoundingClientRect(), idx });
+              }
+            });
+
+            if (entries.length === 0) return;
+
+            const ghostCenterX = ev.clientX - offsetX + rect.width / 2;
+            const ghostCenterY = ev.clientY - offsetY + rect.height / 2;
+
+            let insertIndex = entries.length;
+            for (let i = 0; i < entries.length; i++) {
+              const r = entries[i].rect;
+              const cy = (r.top + r.bottom) / 2;
+              const cx = (r.left + r.right) / 2;
+
+              if (ghostCenterY < cy) {
+                insertIndex = i;
+                break;
+              }
+              if (Math.abs(ghostCenterY - cy) < r.height * 0.4 && ghostCenterX < cx) {
+                insertIndex = i;
+                break;
+              }
+            }
+
+            if (insertIndex !== lastInsertIndex) {
+              lastInsertIndex = insertIndex;
+              clearTimeout(swapTimerRef.current);
+              swapTimerRef.current = window.setTimeout(() => {
+                setLocalWidgets(prev => {
+                  const en = prev.filter(w => w.enabled).sort((a, b) => a.order - b.order);
+                  const dis = prev.filter(w => !w.enabled);
+                  const dragIdx = en.findIndex(w => w.id === id);
+                  if (dragIdx === -1) return prev;
+
+                  const without = [...en];
+                  const [item] = without.splice(dragIdx, 1);
+                  const clamped = Math.max(0, Math.min(without.length, insertIndex));
+                  without.splice(clamped, 0, item);
+
+                  return [...without.map((w, i) => ({ ...w, order: i })), ...dis];
+                });
+                triggerHaptic('light');
+              }, 60);
+            }
+          } catch (err) {
+            console.warn('[EditMode] drag move error:', err);
           }
         });
+      };
 
-        if (entries.length === 0) return;
+      const onUp = () => {
+        cancelAnimationFrame(rafRef.current);
+        clearTimeout(swapTimerRef.current);
+        lastHoverRef.current = null;
+        lastInsertIndex = -1;
+        dragOriginalRef.current = null;
+        setDragState(defaultDrag);
+        dragCloneRef.current = null;
+        // Re-enable scrolling
+        document.body.style.touchAction = '';
+        document.body.style.overflow = '';
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+      };
 
-        // Use the ghost center point for more accurate hit testing
-        const ghostCenterX = ev.clientX - offsetX + rect.width / 2;
-        const ghostCenterY = ev.clientY - offsetY + rect.height / 2;
-
-        // Find insertion index: where the ghost center falls relative to other widgets
-        let insertIndex = entries.length; // default: end
-        for (let i = 0; i < entries.length; i++) {
-          const r = entries[i].rect;
-          const cy = (r.top + r.bottom) / 2;
-          const cx = (r.left + r.right) / 2;
-
-          if (ghostCenterY < cy) {
-            insertIndex = i;
-            break;
-          }
-          // Same row: check horizontal position
-          if (Math.abs(ghostCenterY - cy) < r.height * 0.4 && ghostCenterX < cx) {
-            insertIndex = i;
-            break;
-          }
-        }
-
-        if (insertIndex !== lastInsertIndex) {
-          lastInsertIndex = insertIndex;
-          clearTimeout(swapTimerRef.current);
-          swapTimerRef.current = window.setTimeout(() => {
-            // Reorder: remove dragged from enabled list, insert at new position
-            setLocalWidgets(prev => {
-              const en = prev.filter(w => w.enabled).sort((a, b) => a.order - b.order);
-              const dis = prev.filter(w => !w.enabled);
-              const dragIdx = en.findIndex(w => w.id === id);
-              if (dragIdx === -1) return prev;
-
-              const without = [...en];
-              const [item] = without.splice(dragIdx, 1);
-              const clamped = Math.max(0, Math.min(without.length, insertIndex));
-              without.splice(clamped, 0, item);
-
-              return [...without.map((w, i) => ({ ...w, order: i })), ...dis];
-            });
-            triggerHaptic('light');
-          }, 60);
-        }
-      });
-    };
-
-    const onUp = () => {
-      cancelAnimationFrame(rafRef.current);
-      clearTimeout(swapTimerRef.current);
-      lastHoverRef.current = null;
-      lastInsertIndex = -1;
-      dragOriginalRef.current = null;
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    } catch (err) {
+      console.warn('[EditMode] drag start error:', err);
+      document.body.style.touchAction = '';
+      document.body.style.overflow = '';
       setDragState(defaultDrag);
-      dragCloneRef.current = null;
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-    };
-
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
+    }
   }, [handleReorder]);
 
   /* ── RESIZE ENGINE: grid-snapped preview overlay ── */
