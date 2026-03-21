@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, createContext, useContext, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { X, Eye, Check, Smartphone, Monitor, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,27 @@ import { useGridLayout, type GridWidgetState } from '@/hooks/useGridLayout';
 import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
 
-/* ── Context ── */
+/* ── Types ── */
+interface DragState {
+  isDragging: boolean;
+  dragId: string | null;
+  ghostX: number;
+  ghostY: number;
+  offsetX: number;
+  offsetY: number;
+  ghostWidth: number;
+  ghostHeight: number;
+}
+
+interface ResizeDragState {
+  isResizing: boolean;
+  widgetId: string | null;
+  direction: 'right' | 'bottom' | 'corner';
+  previewCol: 1 | 2;
+  previewRow: 1 | 2;
+  overlayRect: { x: number; y: number; w: number; h: number } | null;
+}
+
 interface EditModeCtx {
   isEditing: boolean;
   localWidgets: GridWidgetState[];
@@ -18,28 +39,28 @@ interface EditModeCtx {
   orderedEnabledIds: string[];
   handleReorder: (fromId: string, toId: string) => void;
   dragState: DragState;
+  resizeState: ResizeDragState;
   startDrag: (id: string, e: React.PointerEvent) => void;
+  gridRef: React.RefObject<HTMLDivElement | null>;
 }
 
-interface DragState {
-  isDragging: boolean;
-  dragId: string | null;
-  ghostX: number;
-  ghostY: number;
-  hoverTargetId: string | null;
-}
+const defaultDrag: DragState = {
+  isDragging: false, dragId: null, ghostX: 0, ghostY: 0,
+  offsetX: 0, offsetY: 0, ghostWidth: 0, ghostHeight: 0,
+};
+
+const defaultResize: ResizeDragState = {
+  isResizing: false, widgetId: null, direction: 'corner',
+  previewCol: 1, previewRow: 1, overlayRect: null,
+};
 
 const EditModeContext = createContext<EditModeCtx>({
-  isEditing: false,
-  localWidgets: [],
-  selectedWidget: null,
-  setSelectedWidget: () => {},
-  handleToggle: () => {},
-  handleResize: () => {},
-  orderedEnabledIds: [],
-  handleReorder: () => {},
-  dragState: { isDragging: false, dragId: null, ghostX: 0, ghostY: 0, hoverTargetId: null },
-  startDrag: () => {},
+  isEditing: false, localWidgets: [], selectedWidget: null,
+  setSelectedWidget: () => {}, handleToggle: () => {},
+  handleResize: () => {}, orderedEnabledIds: [],
+  handleReorder: () => {}, dragState: defaultDrag,
+  resizeState: defaultResize, startDrag: () => {},
+  gridRef: { current: null },
 });
 
 export const useEditMode = () => useContext(EditModeContext);
@@ -47,84 +68,57 @@ export const useEditMode = () => useContext(EditModeContext);
 /* ── Jiggle CSS ── */
 const jiggleCSS = `
 @keyframes widget-jiggle {
-  0%   { transform: rotate(-0.35deg); }
-  50%  { transform: rotate(0.35deg); }
-  100% { transform: rotate(-0.35deg); }
+  0%   { transform: rotate(-0.3deg); }
+  50%  { transform: rotate(0.3deg); }
+  100% { transform: rotate(-0.3deg); }
 }
-.widget-jiggle { animation: widget-jiggle 0.28s ease-in-out infinite; }
-.widget-jiggle-dragging { animation: none !important; opacity: 0.25; transform: scale(0.95); }
+.widget-jiggle { animation: widget-jiggle 0.3s ease-in-out infinite; }
+.widget-placeholder {
+  opacity: 0.3;
+  border: 2px dashed hsl(var(--primary) / 0.5);
+  border-radius: 16px;
+  animation: none !important;
+}
 `;
 
-const layoutSpring = { type: 'spring' as const, damping: 30, stiffness: 400, mass: 0.6 };
+const layoutSpring = { type: 'spring' as const, damping: 28, stiffness: 350, mass: 0.6 };
 
-/* ── Continuous drag-to-resize handle ── */
+/* ── Grid measurement helper ── */
+function measureGrid(gridEl: HTMLElement | null) {
+  if (!gridEl) return { colWidth: 0, rowHeight: 80, gap: 12 };
+  const style = getComputedStyle(gridEl);
+  const gap = parseFloat(style.gap) || 12;
+  const cols = style.gridTemplateColumns.split(' ');
+  const colWidth = cols.length > 0 ? parseFloat(cols[0]) : gridEl.clientWidth / 2;
+  // Measure actual row height from first widget
+  const firstChild = gridEl.querySelector('[data-widget-id]') as HTMLElement | null;
+  const rowHeight = firstChild ? firstChild.getBoundingClientRect().height : 80;
+  return { colWidth, rowHeight, gap };
+}
+
+/* ── Resize handle component ── */
 function ResizeHandle({
-  widgetId,
-  direction,
-  widget,
-  onResize,
+  widgetId, direction, widget, onResizeStart,
 }: {
   widgetId: string;
   direction: 'right' | 'bottom' | 'corner';
   widget: GridWidgetState;
-  onResize: (id: string, col: 1 | 2, row: 1 | 2) => void;
+  onResizeStart: (id: string, dir: 'right' | 'bottom' | 'corner', e: React.PointerEvent) => void;
 }) {
-  const lastSizeRef = useRef({ col: widget.colSpan, row: widget.rowSpan });
-
-  useEffect(() => {
-    lastSizeRef.current = { col: widget.colSpan, row: widget.rowSpan };
-  }, [widget.colSpan, widget.rowSpan]);
-
   const onPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startCol = widget.colSpan;
-    const startRow = widget.rowSpan;
-    triggerHaptic('light');
-
-    const onMove = (ev: PointerEvent) => {
-      const dx = ev.clientX - startX;
-      const dy = ev.clientY - startY;
-      const thresh = 35;
-
-      let newCol = startCol as 1 | 2;
-      let newRow = startRow as 1 | 2;
-
-      if (direction === 'right' || direction === 'corner') {
-        if (dx > thresh) newCol = 2;
-        else if (dx < -thresh) newCol = 1;
-      }
-      if (direction === 'bottom' || direction === 'corner') {
-        if (dy > thresh) newRow = 2;
-        else if (dy < -thresh) newRow = 1;
-      }
-
-      if (newCol !== lastSizeRef.current.col || newRow !== lastSizeRef.current.row) {
-        lastSizeRef.current = { col: newCol, row: newRow };
-        onResize(widgetId, newCol, newRow);
-        triggerHaptic('light');
-      }
-    };
-
-    const onUp = () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-    };
-
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
+    onResizeStart(widgetId, direction, e);
   };
 
-  const base = "absolute z-40 touch-none";
+  const base = "absolute z-40";
 
   if (direction === 'right') {
     return (
       <div
+        data-resize-handle
         onPointerDown={onPointerDown}
+        style={{ touchAction: 'none' }}
         className={cn(base, "top-1/2 -right-3 -translate-y-1/2 w-6 h-12 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center cursor-ew-resize")}
       >
         <div className="w-[2px] h-5 rounded-full bg-primary-foreground/80" />
@@ -135,7 +129,9 @@ function ResizeHandle({
   if (direction === 'bottom') {
     return (
       <div
+        data-resize-handle
         onPointerDown={onPointerDown}
+        style={{ touchAction: 'none' }}
         className={cn(base, "-bottom-3 left-1/2 -translate-x-1/2 h-6 w-12 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center cursor-ns-resize")}
       >
         <div className="h-[2px] w-5 rounded-full bg-primary-foreground/80" />
@@ -145,7 +141,9 @@ function ResizeHandle({
 
   return (
     <div
+      data-resize-handle
       onPointerDown={onPointerDown}
+      style={{ touchAction: 'none' }}
       className={cn(base, "-bottom-3 -right-3 w-7 h-7 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center cursor-nwse-resize border-2 border-background")}
     >
       <Maximize2 className="h-2.5 w-2.5 text-primary-foreground/80 rotate-90" />
@@ -153,19 +151,15 @@ function ResizeHandle({
   );
 }
 
-/* ── Editable wrapper — hold anywhere to drag, all clicks blocked ── */
+/* ── Editable widget wrapper ── */
 export function EditableWidgetWrapper({
-  widgetId,
-  children,
-  className,
+  widgetId, children, className,
 }: {
-  widgetId: string;
-  children: ReactNode;
-  className?: string;
+  widgetId: string; children: ReactNode; className?: string;
 }) {
   const {
     isEditing, localWidgets, selectedWidget, setSelectedWidget,
-    handleToggle, handleResize, dragState, startDrag,
+    handleToggle, dragState, startDrag, resizeState,
   } = useEditMode();
   const widget = localWidgets.find(w => w.id === widgetId);
   const didDragRef = useRef(false);
@@ -175,36 +169,38 @@ export function EditableWidgetWrapper({
 
   const isSelected = selectedWidget === widgetId;
   const isBeingDragged = dragState.dragId === widgetId;
-  const isHoverTarget = dragState.hoverTargetId === widgetId;
+  const isBeingResized = resizeState.widgetId === widgetId && resizeState.isResizing;
 
-  // Tap = select, drag (move 6px+) = move widget
   const onPointerDown = (e: React.PointerEvent) => {
     const target = e.target as HTMLElement;
     if (target.closest('[data-resize-handle]') || target.closest('[data-widget-control]')) return;
 
     didDragRef.current = false;
     startPosRef.current = { x: e.clientX, y: e.clientY };
-    const savedEvent = { clientX: e.clientX, clientY: e.clientY, preventDefault: () => {} } as React.PointerEvent;
+    const savedEvent = { ...e, clientX: e.clientX, clientY: e.clientY, preventDefault: () => {} } as React.PointerEvent;
 
     const onMoveCheck = (ev: PointerEvent) => {
       const dx = ev.clientX - startPosRef.current.x;
       const dy = ev.clientY - startPosRef.current.y;
       if (Math.abs(dx) + Math.abs(dy) > 6) {
         didDragRef.current = true;
-        window.removeEventListener('pointermove', onMoveCheck);
-        window.removeEventListener('pointerup', onUpCheck);
-        window.removeEventListener('pointercancel', onUpCheck);
+        cleanup();
         startDrag(widgetId, savedEvent);
       }
     };
 
     const onUpCheck = () => {
+      cleanup();
+      if (!didDragRef.current) {
+        setSelectedWidget(isSelected ? null : widgetId);
+        triggerHaptic('light');
+      }
+    };
+
+    const cleanup = () => {
       window.removeEventListener('pointermove', onMoveCheck);
       window.removeEventListener('pointerup', onUpCheck);
       window.removeEventListener('pointercancel', onUpCheck);
-      if (!didDragRef.current) {
-        setSelectedWidget(isSelected ? null : widgetId);
-      }
     };
 
     window.addEventListener('pointermove', onMoveCheck);
@@ -223,8 +219,8 @@ export function EditableWidgetWrapper({
         'relative select-none cursor-grab active:cursor-grabbing',
         widget.colSpan === 2 ? 'col-span-2' : 'col-span-1',
         widget.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
-        isBeingDragged && 'widget-jiggle-dragging',
-        !isBeingDragged && 'widget-jiggle',
+        isBeingDragged && 'widget-placeholder',
+        !isBeingDragged && !isBeingResized && 'widget-jiggle',
         className,
       )}
       style={{
@@ -233,16 +229,15 @@ export function EditableWidgetWrapper({
         touchAction: 'none',
       }}
     >
-      {/* Content card — pointer-events-none blocks ALL inner clicks/navigation */}
+      {/* Content card */}
       <motion.div
         layout
         transition={layoutSpring}
         className={cn(
-          'relative rounded-2xl overflow-hidden h-full transition-all duration-200',
+          'relative rounded-2xl overflow-hidden h-full transition-shadow duration-200',
           isSelected
             ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/20'
             : 'ring-1 ring-border/30',
-          isHoverTarget && !isBeingDragged && 'ring-2 ring-primary/60 scale-[1.04] shadow-md shadow-primary/15',
           !widget.enabled && 'opacity-30 grayscale',
         )}
         style={{ pointerEvents: 'none' }}
@@ -250,16 +245,14 @@ export function EditableWidgetWrapper({
         {children}
       </motion.div>
 
-      {/* Toggle button (remove / re-add) */}
+      {/* Toggle button */}
       <motion.button
         data-widget-control
         whileTap={{ scale: 0.85 }}
         onClick={e => { e.stopPropagation(); triggerHaptic('medium'); handleToggle(widgetId); }}
         className={cn(
           'absolute -top-1.5 -left-1.5 w-6 h-6 rounded-full flex items-center justify-center shadow-lg z-40',
-          widget.enabled
-            ? 'bg-destructive text-destructive-foreground'
-            : 'bg-primary text-primary-foreground',
+          widget.enabled ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground',
         )}
       >
         {widget.enabled ? <X className="h-3 w-3" strokeWidth={3} /> : <Eye className="h-3 w-3" strokeWidth={3} />}
@@ -272,51 +265,50 @@ export function EditableWidgetWrapper({
         </span>
       </div>
 
-      {/* Drag-to-resize handles when selected */}
+      {/* Resize handles */}
       <AnimatePresence>
         {isSelected && widget.enabled && (
-          <>
-            <motion.div
-              data-resize-handle
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0 }}
-              transition={{ duration: 0.12 }}
-            >
-              <ResizeHandle widgetId={widgetId} direction="right" widget={widget} onResize={handleResize} />
-            </motion.div>
-            <motion.div
-              data-resize-handle
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0 }}
-              transition={{ duration: 0.12, delay: 0.02 }}
-            >
-              <ResizeHandle widgetId={widgetId} direction="bottom" widget={widget} onResize={handleResize} />
-            </motion.div>
-            <motion.div
-              data-resize-handle
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0 }}
-              transition={{ duration: 0.12, delay: 0.04 }}
-            >
-              <ResizeHandle widgetId={widgetId} direction="corner" widget={widget} onResize={handleResize} />
-            </motion.div>
-          </>
+          <ResizeHandles widgetId={widgetId} widget={widget} />
         )}
       </AnimatePresence>
     </motion.div>
   );
 }
 
-/* ── The grid wrapper ── */
+/* ── Extracted resize handles group ── */
+function ResizeHandles({ widgetId, widget }: { widgetId: string; widget: GridWidgetState }) {
+  const { handleResizeStart } = useResizeContext();
+  return (
+    <>
+      {(['right', 'bottom', 'corner'] as const).map((dir, i) => (
+        <motion.div
+          key={dir}
+          data-resize-handle
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0 }}
+          transition={{ duration: 0.12, delay: i * 0.02 }}
+        >
+          <ResizeHandle widgetId={widgetId} direction={dir} widget={widget} onResizeStart={handleResizeStart} />
+        </motion.div>
+      ))}
+    </>
+  );
+}
+
+// Tiny context to pass resize start handler without prop drilling
+const ResizeCtx = createContext<{ handleResizeStart: (id: string, dir: 'right' | 'bottom' | 'corner', e: React.PointerEvent) => void }>({
+  handleResizeStart: () => {},
+});
+const useResizeContext = () => useContext(ResizeCtx);
+
+/* ── Edit grid wrapper ── */
 export function EditableWidgetList({ children }: { children: ReactNode }) {
-  const { isEditing } = useEditMode();
+  const { isEditing, gridRef } = useEditMode();
   if (!isEditing) return <>{children}</>;
   return (
     <LayoutGroup>
-      <div className="grid grid-cols-2 gap-3 px-3 auto-rows-auto">
+      <div ref={gridRef} className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(80px, auto)' }}>
         {children}
       </div>
     </LayoutGroup>
@@ -326,47 +318,68 @@ export function EditableWidgetList({ children }: { children: ReactNode }) {
 /* ── Non-edit grid wrapper ── */
 export function WidgetGrid({ children }: { children: ReactNode }) {
   return (
-    <div className="grid grid-cols-2 gap-2 px-3 auto-rows-auto">
+    <div className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(80px, auto)' }}>
       {children}
     </div>
   );
 }
 
-/* ── Floating drag ghost ── */
-function DragGhost({ widgets, dragState }: { widgets: GridWidgetState[]; dragState: DragState }) {
-  const w = widgets.find(x => x.id === dragState.dragId);
-  if (!dragState.isDragging || !w) return null;
+/* ── Drag Ghost (portal-based, renders actual widget clone) ── */
+function DragGhost({ dragState, dragCloneRef }: { dragState: DragState; dragCloneRef: React.RefObject<HTMLElement | null> }) {
+  if (!dragState.isDragging || !dragCloneRef.current) return null;
 
-  return (
-    <motion.div
-      initial={{ scale: 1, opacity: 0.9 }}
-      animate={{ scale: 1.08, opacity: 0.85 }}
-      className="fixed z-[100] pointer-events-none"
+  return createPortal(
+    <div
+      className="fixed z-[200] pointer-events-none"
       style={{
-        left: dragState.ghostX - 50,
-        top: dragState.ghostY - 30,
-        width: w.colSpan === 2 ? 180 : 90,
+        left: dragState.ghostX - dragState.offsetX,
+        top: dragState.ghostY - dragState.offsetY,
+        width: dragState.ghostWidth,
+        height: dragState.ghostHeight,
+        transition: 'transform 0.08s ease-out',
+        transform: 'scale(1.05)',
+        filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.25))',
+        borderRadius: 16,
+        overflow: 'hidden',
+      }}
+      dangerouslySetInnerHTML={{ __html: dragCloneRef.current.innerHTML }}
+    />,
+    document.body,
+  );
+}
+
+/* ── Resize Preview Overlay ── */
+function ResizeOverlay({ resizeState }: { resizeState: ResizeDragState }) {
+  if (!resizeState.isResizing || !resizeState.overlayRect) return null;
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="fixed z-[150] pointer-events-none rounded-2xl border-2 border-primary/60"
+      style={{
+        left: resizeState.overlayRect.x,
+        top: resizeState.overlayRect.y,
+        width: resizeState.overlayRect.w,
+        height: resizeState.overlayRect.h,
+        background: 'hsl(var(--primary) / 0.12)',
       }}
     >
-      <div className="bg-card/90 backdrop-blur-xl rounded-2xl border-2 border-primary shadow-2xl shadow-primary/30 p-2.5 flex items-center justify-center gap-1.5">
-        <span className="text-base">{w.icon}</span>
-        <span className="text-[10px] font-bold text-foreground truncate">{w.label}</span>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-xs font-bold text-primary bg-background/80 rounded-md px-2 py-0.5">
+          {resizeState.previewCol}×{resizeState.previewRow}
+        </span>
       </div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
 
 /* ── Floating toolbar ── */
 function EditToolbar({
-  saving,
-  variant,
-  onSave,
-  onCancel,
+  saving, variant, onSave, onCancel,
 }: {
-  saving: boolean;
-  variant: string;
-  onSave: () => void;
-  onCancel: () => void;
+  saving: boolean; variant: string; onSave: () => void; onCancel: () => void;
 }) {
   return (
     <motion.div
@@ -400,31 +413,30 @@ function EditToolbar({
         </Button>
       </div>
       <p className="text-center text-[10px] text-muted-foreground mt-1">
-        Hold to drag · Tap to select · Drag edges to resize
+        Tap to select · Drag to move · Drag handles to resize
       </p>
     </motion.div>
   );
 }
 
-/* ── Provider wraps home content ── */
+/* ── Provider ── */
 export function HomeEditModeProvider({
-  editing,
-  onEditingChange,
-  children,
+  editing, onEditingChange, children,
 }: {
-  editing: boolean;
-  onEditingChange: (v: boolean) => void;
-  children: ReactNode;
+  editing: boolean; onEditingChange: (v: boolean) => void; children: ReactNode;
 }) {
   const { config, variant, saveGridLayout } = useGridLayout();
   const [localWidgets, setLocalWidgets] = useState<GridWidgetState[]>(config.widgets);
   const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [dragState, setDragState] = useState<DragState>({
-    isDragging: false, dragId: null, ghostX: 0, ghostY: 0, hoverTargetId: null,
-  });
+  const [dragState, setDragState] = useState<DragState>(defaultDrag);
+  const [resizeState, setResizeState] = useState<ResizeDragState>(defaultResize);
 
-  const widgetRectsRef = useRef<Map<string, DOMRect>>(new Map());
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const dragCloneRef = useRef<HTMLElement | null>(null);
+  const rafRef = useRef<number>(0);
+  const swapTimerRef = useRef<number>(0);
+  const lastHoverRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (editing) {
@@ -439,89 +451,96 @@ export function HomeEditModeProvider({
     .map(w => w.id);
 
   const handleToggle = useCallback((id: string) => {
-    setLocalWidgets(prev => prev.map(w =>
-      w.id === id ? { ...w, enabled: !w.enabled } : w
-    ));
+    setLocalWidgets(prev => prev.map(w => w.id === id ? { ...w, enabled: !w.enabled } : w));
   }, []);
 
   const handleResize = useCallback((id: string, col: 1 | 2, row: 1 | 2) => {
-    setLocalWidgets(prev => prev.map(w =>
-      w.id === id ? { ...w, colSpan: col, rowSpan: row } : w
-    ));
+    setLocalWidgets(prev => prev.map(w => w.id === id ? { ...w, colSpan: col, rowSpan: row } : w));
   }, []);
 
   const handleReorder = useCallback((fromId: string, toId: string) => {
     setLocalWidgets(prev => {
       const updated = [...prev];
-      const fromIdx = updated.findIndex(w => w.id === fromId);
-      const toIdx = updated.findIndex(w => w.id === toId);
-      if (fromIdx === -1 || toIdx === -1) return prev;
-      const fromOrder = updated[fromIdx].order;
-      const toOrder = updated[toIdx].order;
-      updated[fromIdx] = { ...updated[fromIdx], order: toOrder };
-      updated[toIdx] = { ...updated[toIdx], order: fromOrder };
+      const fi = updated.findIndex(w => w.id === fromId);
+      const ti = updated.findIndex(w => w.id === toId);
+      if (fi === -1 || ti === -1) return prev;
+      const fo = updated[fi].order;
+      const to = updated[ti].order;
+      updated[fi] = { ...updated[fi], order: to };
+      updated[ti] = { ...updated[ti], order: fo };
       return updated.sort((a, b) => a.order - b.order);
     });
     triggerHaptic('light');
   }, []);
 
-  // ── Pointer-based drag — hold anywhere on widget to move ──
+  /* ── DRAG ENGINE: live hit-testing via rAF ── */
   const startDrag = useCallback((id: string, e: React.PointerEvent) => {
     e.preventDefault();
     triggerHaptic('medium');
 
-    const rects = new Map<string, DOMRect>();
-    document.querySelectorAll('[data-widget-id]').forEach(el => {
-      const wid = el.getAttribute('data-widget-id');
-      if (wid) rects.set(wid, el.getBoundingClientRect());
-    });
-    widgetRectsRef.current = rects;
+    // Clone the widget DOM for the ghost
+    const el = document.querySelector(`[data-widget-id="${id}"]`) as HTMLElement | null;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    dragCloneRef.current = el;
 
     setDragState({
-      isDragging: true, dragId: id,
-      ghostX: e.clientX, ghostY: e.clientY,
-      hoverTargetId: null,
+      isDragging: true,
+      dragId: id,
+      ghostX: e.clientX,
+      ghostY: e.clientY,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      ghostWidth: rect.width,
+      ghostHeight: rect.height,
     });
     setSelectedWidget(null);
-
-    let lastSwap = 0;
+    lastHoverRef.current = null;
 
     const onMove = (ev: PointerEvent) => {
-      const gx = ev.clientX;
-      const gy = ev.clientY;
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        setDragState(prev => ({ ...prev, ghostX: ev.clientX, ghostY: ev.clientY }));
 
-      let hoverId: string | null = null;
-      for (const [wid, rect] of widgetRectsRef.current.entries()) {
-        if (wid === id) continue;
-        if (gx >= rect.left && gx <= rect.right && gy >= rect.top && gy <= rect.bottom) {
-          hoverId = wid;
-          break;
-        }
-      }
-
-      setDragState(prev => ({ ...prev, ghostX: gx, ghostY: gy, hoverTargetId: hoverId }));
-
-      // Auto-swap when hovering over another widget
-      const now = Date.now();
-      if (hoverId && now - lastSwap > 180) {
-        lastSwap = now;
-        handleReorder(id, hoverId);
-        // Re-snapshot rects after DOM settles
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const newRects = new Map<string, DOMRect>();
-            document.querySelectorAll('[data-widget-id]').forEach(el => {
-              const w = el.getAttribute('data-widget-id');
-              if (w) newRects.set(w, el.getBoundingClientRect());
-            });
-            widgetRectsRef.current = newRects;
-          });
+        // Live hit-testing: read fresh rects every frame
+        const rects = new Map<string, DOMRect>();
+        document.querySelectorAll('[data-widget-id]').forEach(node => {
+          const wid = node.getAttribute('data-widget-id');
+          if (wid && wid !== id) rects.set(wid, node.getBoundingClientRect());
         });
-      }
+
+        let hoverId: string | null = null;
+        for (const [wid, r] of rects) {
+          if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
+            hoverId = wid;
+            break;
+          }
+        }
+
+        // Debounced swap: only swap if hovering same target for 120ms
+        if (hoverId && hoverId !== lastHoverRef.current) {
+          lastHoverRef.current = hoverId;
+          clearTimeout(swapTimerRef.current);
+          swapTimerRef.current = window.setTimeout(() => {
+            if (lastHoverRef.current === hoverId) {
+              handleReorder(id, hoverId!);
+              triggerHaptic('light');
+            }
+          }, 120);
+        } else if (!hoverId) {
+          lastHoverRef.current = null;
+          clearTimeout(swapTimerRef.current);
+        }
+      });
     };
 
     const onUp = () => {
-      setDragState({ isDragging: false, dragId: null, ghostX: 0, ghostY: 0, hoverTargetId: null });
+      cancelAnimationFrame(rafRef.current);
+      clearTimeout(swapTimerRef.current);
+      lastHoverRef.current = null;
+      setDragState(defaultDrag);
+      dragCloneRef.current = null;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
@@ -532,6 +551,78 @@ export function HomeEditModeProvider({
     window.addEventListener('pointercancel', onUp);
   }, [handleReorder]);
 
+  /* ── RESIZE ENGINE: grid-snapped preview overlay ── */
+  const handleResizeStart = useCallback((id: string, direction: 'right' | 'bottom' | 'corner', e: React.PointerEvent) => {
+    e.preventDefault();
+    triggerHaptic('light');
+
+    const widget = localWidgets.find(w => w.id === id);
+    if (!widget) return;
+
+    const el = document.querySelector(`[data-widget-id="${id}"]`) as HTMLElement | null;
+    if (!el) return;
+
+    const originRect = el.getBoundingClientRect();
+    const { colWidth, rowHeight, gap } = measureGrid(gridRef.current);
+
+    setResizeState({
+      isResizing: true,
+      widgetId: id,
+      direction,
+      previewCol: widget.colSpan,
+      previewRow: widget.rowSpan,
+      overlayRect: { x: originRect.left, y: originRect.top, w: originRect.width, h: originRect.height },
+    });
+
+    const startCol = widget.colSpan;
+    const startRow = widget.rowSpan;
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - e.clientX;
+      const dy = ev.clientY - e.clientY;
+
+      let newCol = startCol as 1 | 2;
+      let newRow = startRow as 1 | 2;
+
+      if (direction === 'right' || direction === 'corner') {
+        const totalW = originRect.width + dx;
+        newCol = totalW > colWidth + gap * 0.5 ? 2 : 1;
+      }
+      if (direction === 'bottom' || direction === 'corner') {
+        const totalH = originRect.height + dy;
+        newRow = totalH > rowHeight + gap * 0.5 ? 2 : 1;
+      }
+
+      const previewW = newCol * colWidth + (newCol - 1) * gap;
+      const previewH = newRow * rowHeight + (newRow - 1) * gap;
+
+      setResizeState(prev => ({
+        ...prev,
+        previewCol: newCol,
+        previewRow: newRow,
+        overlayRect: { x: originRect.left, y: originRect.top, w: previewW, h: previewH },
+      }));
+    };
+
+    const onUp = () => {
+      const final = { ...resizeState };
+      // Apply resize from current state
+      setResizeState(prev => {
+        handleResize(id, prev.previewCol, prev.previewRow);
+        triggerHaptic('medium');
+        return defaultResize;
+      });
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }, [localWidgets, handleResize]);
+
+  /* ── Save / Cancel ── */
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -561,20 +652,25 @@ export function HomeEditModeProvider({
     orderedEnabledIds,
     handleReorder,
     dragState,
+    resizeState,
     startDrag,
+    gridRef,
   };
 
   return (
     <EditModeContext.Provider value={ctx}>
-      {editing && <style>{jiggleCSS}</style>}
-      <AnimatePresence>
-        {editing && <EditToolbar saving={saving} variant={variant} onSave={handleSave} onCancel={handleCancel} />}
-      </AnimatePresence>
-      {editing && <div className="h-20" />}
-      <div onClick={editing ? (e) => { e.preventDefault(); setSelectedWidget(null); } : undefined}>
-        {children}
-      </div>
-      <DragGhost widgets={localWidgets} dragState={dragState} />
+      <ResizeCtx.Provider value={{ handleResizeStart }}>
+        {editing && <style>{jiggleCSS}</style>}
+        <AnimatePresence>
+          {editing && <EditToolbar saving={saving} variant={variant} onSave={handleSave} onCancel={handleCancel} />}
+        </AnimatePresence>
+        {editing && <div className="h-20" />}
+        <div onClick={editing ? (e) => { e.preventDefault(); setSelectedWidget(null); } : undefined}>
+          {children}
+        </div>
+        <DragGhost dragState={dragState} dragCloneRef={dragCloneRef} />
+        <ResizeOverlay resizeState={resizeState} />
+      </ResizeCtx.Provider>
     </EditModeContext.Provider>
   );
 }
