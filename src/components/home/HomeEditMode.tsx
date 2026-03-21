@@ -643,8 +643,9 @@ export function HomeEditModeProvider({
   const handleSave = async () => {
     setSaving(true);
     try {
-      await saveGridLayout({ widgets: localWidgets });
-      toast.success(`${variant === 'mobile' ? 'Mobile' : 'Desktop'} layout saved! 🎨`);
+      // Save to ALL devices so layout persists everywhere
+      await saveGridLayout({ widgets: localWidgets }, true);
+      toast.success('Layout saved for all devices! 🎨');
       onEditingChange(false);
     } catch (err) {
       console.error('Failed to save:', err);
