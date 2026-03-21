@@ -150,7 +150,14 @@ serve(async (req) => {
     const onboardingInterests = userProfile?.interests || [];
     const customTopics = briefPrefs?.custom_topics || [];
     const excludedTopics = briefPrefs?.excluded_topics || [];
-    const allInterests = [...new Set([...onboardingInterests, ...customTopics])]
+    
+    // Default interests if user has none set — ensures brief always has news
+    const defaultInterests = ['breaking news', 'technology', 'pop culture'];
+    const baseInterests = onboardingInterests.length > 0 || customTopics.length > 0
+      ? [...onboardingInterests, ...customTopics]
+      : defaultInterests;
+    
+    const allInterests = [...new Set(baseInterests)]
       .filter(i => !excludedTopics.includes(i));
 
     // ── REAL-TIME DATA: Fetch actual counts from DB (all in parallel) ──
