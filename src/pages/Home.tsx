@@ -1,21 +1,13 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Globe, Sparkles, LayoutGrid, Eye } from 'lucide-react';
-import { Reorder } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import type { Post } from '@/hooks/useInfinitePosts';
 import { useDNAPreferences } from '@/hooks/useDNAPreferences';
 import { useNewPostsBanner } from '@/hooks/usePostsRealtime';
-import { PostCard } from '@/components/posts/PostCard';
-import { PostSkeletonList } from '@/components/posts/PostSkeleton';
 import { useShowAds } from '@/hooks/useShowAds';
-
-const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
-import { getAdInterval } from '@/components/ads/FeedAdCard';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { StoriesBar } from '@/components/stories/StoriesBar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
 import { hasActiveReferral, isInviteEntryMode } from '@/lib/referral';
 import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
@@ -23,20 +15,11 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { AutoFriendDrop } from '@/components/friends/AutoFriendDrop';
-import { GreetingWidget } from '@/components/home/GreetingWidget';
-import { XPStreakWidget } from '@/components/home/XPStreakWidget';
-import { DailyBriefWidget } from '@/components/home/DailyBriefWidget';
 import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { PageTransition } from '@/components/ui/PageTransition';
-import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
 import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMode';
 import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
 import { VYBECommandBar } from '@/components/ai/VYBECommandBar';
 import { useGridLayout } from '@/hooks/useGridLayout';
-
-// Memoized PostCard for better performance
-const MemoizedPostCard = memo(PostCard);
 
 // DNA preference scoring - boost/reduce based on tag matching
 function getDNAScore(post: Post, boostSet: Set<string>, reduceSet: Set<string>): number {
