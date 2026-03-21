@@ -80,10 +80,8 @@ async function showCallNotification(caller: CallUser, callType: CallType, callId
   // Request permission if needed
   if (!('Notification' in window)) return;
   
-  if (Notification.permission === 'default') {
-    Notification.requestPermission();
-    return;
-  }
+  // Don't auto-request notification permission — only use it if already granted
+  if (Notification.permission !== 'granted') return;
   
   if (Notification.permission !== 'granted') return;
   
