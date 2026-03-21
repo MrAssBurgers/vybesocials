@@ -4,19 +4,18 @@ import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Decrypts an array of messages in-place, caching keys.
- * Returns decrypted messages + loading state.
+ * Uses profile IDs (sender_id) to look up encryption keys.
  */
-export function useDecryptedMessages<T extends { content: string | null; sender_id: string }>(
+export function useDecryptedMessages<T extends { content: string | null; sender_id: string; id: string }>(
   messages: T[] | undefined
 ): { messages: T[]; decrypting: boolean } {
   const [decrypted, setDecrypted] = useState<T[]>([]);
   const [decrypting, setDecrypting] = useState(false);
   const keyCache = useRef<Record<string, JsonWebKey | null>>({});
   const privateKeyRef = useRef<CryptoKey | null>(null);
-  const lastInput = useRef<string>('');
+  const processedIds = useRef<Set<string>>(new Set());
 
   const decryptAll = useCallback(async (msgs: T[]) => {
-    // Check if any messages need decryption
     const needsDecryption = msgs.some(m => m.content && isEncrypted(m.content));
     if (!needsDecryption) {
       setDecrypted(msgs);
@@ -25,13 +24,12 @@ export function useDecryptedMessages<T extends { content: string | null; sender_
 
     setDecrypting(true);
     try {
-      // Get private key
       if (!privateKeyRef.current) {
         const { privateKey } = await getOrCreateLocalKeyPair();
         privateKeyRef.current = privateKey;
       }
 
-      // Collect unique sender IDs that need keys
+      // Collect unique sender IDs needing key lookup
       const senderIds = [...new Set(
         msgs
           .filter(m => m.content && isEncrypted(m.content))
@@ -39,7 +37,6 @@ export function useDecryptedMessages<T extends { content: string | null; sender_
           .filter(id => !(id in keyCache.current))
       )];
 
-      // Batch fetch missing keys
       if (senderIds.length > 0) {
         const { data } = await supabase
           .from('encryption_keys' as any)
@@ -49,13 +46,11 @@ export function useDecryptedMessages<T extends { content: string | null; sender_
         (data as any[])?.forEach(row => {
           keyCache.current[row.user_id] = row.public_key;
         });
-        // Mark missing ones as null
         senderIds.forEach(id => {
           if (!(id in keyCache.current)) keyCache.current[id] = null;
         });
       }
 
-      // Decrypt all messages
       const result = await Promise.all(
         msgs.map(async (msg) => {
           if (!msg.content || !isEncrypted(msg.content)) return msg;
@@ -93,13 +88,17 @@ export function useDecryptedMessages<T extends { content: string | null; sender_
       return;
     }
 
-    // Build a fingerprint to avoid re-processing unchanged data
-    const fingerprint = messages.map(m => m.content?.slice(0, 20)).join('|');
-    if (fingerprint === lastInput.current) return;
-    lastInput.current = fingerprint;
+    // Check if messages changed (new messages added)
+    const currentIds = messages.map(m => m.id).join(',');
+    const hasNewMessages = messages.some(m => !processedIds.current.has(m.id));
+    
+    if (!hasNewMessages && decrypted.length === messages.length) return;
+    
+    // Track processed IDs
+    messages.forEach(m => processedIds.current.add(m.id));
 
     decryptAll(messages);
-  }, [messages, decryptAll]);
+  }, [messages, decryptAll, decrypted.length]);
 
   return { messages: decrypted.length ? decrypted : (messages || []), decrypting };
 }
