@@ -65,6 +65,7 @@ async function fetchPerplexityData(interest: string, apiKey: string): Promise<Pe
   const query = interestSearchQueries[interest.toLowerCase()] || `latest ${interest} news and updates today`;
   
   try {
+    console.log(`[Perplexity] Fetching: ${interest}`);
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -85,18 +86,21 @@ async function fetchPerplexityData(interest: string, apiKey: string): Promise<Pe
     });
 
     if (!response.ok) {
-      console.error('Perplexity API error:', response.status);
+      const errBody = await response.text().catch(() => 'unknown');
+      console.error(`[Perplexity] API error ${response.status} for "${interest}":`, errBody);
       return null;
     }
 
     const data = await response.json();
-    return {
-      content: data.choices?.[0]?.message?.content || '',
-      citations: data.citations || [],
-      images: data.images || [],
-    };
+    const content = data.choices?.[0]?.message?.content || '';
+    const citations = data.citations || [];
+    const images = data.images || [];
+    
+    console.log(`[Perplexity] Got ${interest}: ${content.length} chars, ${citations.length} citations, ${images.length} images`);
+    
+    return { content, citations, images };
   } catch (error) {
-    console.error('Perplexity fetch error:', error);
+    console.error(`[Perplexity] Fetch error for "${interest}":`, error);
     return null;
   }
 }
@@ -150,7 +154,14 @@ serve(async (req) => {
     const onboardingInterests = userProfile?.interests || [];
     const customTopics = briefPrefs?.custom_topics || [];
     const excludedTopics = briefPrefs?.excluded_topics || [];
-    const allInterests = [...new Set([...onboardingInterests, ...customTopics])]
+    
+    // Default interests if user has none set — ensures brief always has news
+    const defaultInterests = ['breaking news', 'technology', 'pop culture'];
+    const baseInterests = onboardingInterests.length > 0 || customTopics.length > 0
+      ? [...onboardingInterests, ...customTopics]
+      : defaultInterests;
+    
+    const allInterests = [...new Set(baseInterests)]
       .filter(i => !excludedTopics.includes(i));
 
     // ── REAL-TIME DATA: Fetch actual counts from DB (all in parallel) ──
@@ -280,8 +291,8 @@ serve(async (req) => {
       sourceFavicons?: string[];
     }
     
-    let liveUpdates: LiveUpdate[] = [];
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
+    console.log(`[Brief] Interests: ${allInterests.join(', ')} | Perplexity key: ${PERPLEXITY_API_KEY ? 'set' : 'MISSING'}`);
     
     if (PERPLEXITY_API_KEY && allInterests.length > 0) {
       const selectedInterests = allInterests.slice(0, 5);
