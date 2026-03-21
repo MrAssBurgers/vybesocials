@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
+import { useDecryptedMessages } from '@/hooks/useDecryptedMessages';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
