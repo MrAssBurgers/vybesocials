@@ -27,7 +27,7 @@ import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
-import { HomeGridEditor } from '@/components/home/HomeGridEditor';
+import { HomeEditMode } from '@/components/home/HomeEditMode';
 import { VYBECommandBar } from '@/components/ai/VYBECommandBar';
 import { useGridLayout } from '@/hooks/useGridLayout';
 import { DiscoveryCards } from '@/components/home/DiscoveryCards';
