@@ -417,16 +417,16 @@ export const TutorialOverlay = memo(function TutorialOverlay({
           <motion.div
             animate={{ 
               opacity: 1, 
-              top: spotlight.top - 6,
-              left: spotlight.left - 6,
-              width: spotlight.width + 12,
-              height: spotlight.height + 12,
+              top: spotlight.top - 3,
+              left: spotlight.left - 3,
+              width: spotlight.width + 6,
+              height: spotlight.height + 6,
             }}
             initial={{ opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 28 }}
-            className="absolute rounded-2xl pointer-events-none"
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="absolute rounded-xl pointer-events-none"
             style={{
-              boxShadow: '0 0 0 4px hsl(var(--primary) / 0.7), 0 0 80px hsl(var(--primary) / 0.5), 0 0 120px hsl(var(--primary) / 0.3)',
+              boxShadow: '0 0 0 2px hsl(var(--primary) / 0.8), 0 0 30px hsl(var(--primary) / 0.4)',
             }}
           />
         )}
