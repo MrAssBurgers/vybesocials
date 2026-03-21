@@ -6337,12 +6337,15 @@ export type Database = {
       }
       posts: {
         Row: {
+          ai_confidence: number | null
+          ai_override: boolean | null
           author_id: string
           caption: string | null
           created_at: string
           filter_id: string | null
           has_profanity: boolean | null
           id: string
+          is_ai_generated: boolean | null
           is_pinned: boolean | null
           is_sensitive: boolean | null
           media_url: string | null
@@ -6356,12 +6359,15 @@ export type Database = {
           view_count: number | null
         }
         Insert: {
+          ai_confidence?: number | null
+          ai_override?: boolean | null
           author_id: string
           caption?: string | null
           created_at?: string
           filter_id?: string | null
           has_profanity?: boolean | null
           id?: string
+          is_ai_generated?: boolean | null
           is_pinned?: boolean | null
           is_sensitive?: boolean | null
           media_url?: string | null
@@ -6375,12 +6381,15 @@ export type Database = {
           view_count?: number | null
         }
         Update: {
+          ai_confidence?: number | null
+          ai_override?: boolean | null
           author_id?: string
           caption?: string | null
           created_at?: string
           filter_id?: string | null
           has_profanity?: boolean | null
           id?: string
+          is_ai_generated?: boolean | null
           is_pinned?: boolean | null
           is_sensitive?: boolean | null
           media_url?: string | null
