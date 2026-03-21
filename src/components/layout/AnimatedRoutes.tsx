@@ -12,6 +12,7 @@ import Home from "@/pages/Home";
 import Landing from "@/pages/Landing";
 import Onboarding from "@/pages/Onboarding";
 import AuthCallback from "@/pages/AuthCallback";
+import VybeDNA from "@/pages/VybeDNA";
 
 // High-priority pages - lazy but prefetched early
 const Explore = lazy(() => import("@/pages/Explore"));
@@ -69,7 +70,7 @@ const ReactionStreaks = lazy(() => import("@/pages/ReactionStreaks"));
 const VYBERoulette = lazy(() => import("@/pages/VYBERoulette"));
 const VYBESpaces = lazy(() => import("@/pages/VYBESpaces"));
 const SpaceRoom = lazy(() => import("@/pages/SpaceRoom"));
-const VybeDNA = lazy(() => import("@/pages/VybeDNA"));
+// VybeDNA is eagerly loaded above for instant navigation
 const TokenWallet = lazy(() => import("@/pages/TokenWallet"));
 const TokenMarketplace = lazy(() => import("@/pages/TokenMarketplace"));
 const PremiumSuccess = lazy(() => import("@/pages/PremiumSuccess"));
