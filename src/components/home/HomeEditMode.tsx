@@ -220,7 +220,7 @@ export function EditableWidgetWrapper({
       data-widget-id={widgetId}
       onPointerDown={onPointerDown}
       className={cn(
-        'relative touch-none select-none cursor-grab active:cursor-grabbing',
+        'relative select-none cursor-grab active:cursor-grabbing',
         widget.colSpan === 2 ? 'col-span-2' : 'col-span-1',
         widget.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
         isBeingDragged && 'widget-jiggle-dragging',
@@ -230,6 +230,7 @@ export function EditableWidgetWrapper({
       style={{
         animationDelay: `${(widget.order % 5) * 0.05}s`,
         zIndex: isSelected ? 20 : isBeingDragged ? 0 : 1,
+        touchAction: 'none',
       }}
     >
       {/* Content card — pointer-events-none blocks ALL inner clicks/navigation */}
@@ -237,13 +238,14 @@ export function EditableWidgetWrapper({
         layout
         transition={layoutSpring}
         className={cn(
-          'relative rounded-2xl overflow-hidden h-full pointer-events-none transition-all duration-200',
+          'relative rounded-2xl overflow-hidden h-full transition-all duration-200',
           isSelected
             ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/20'
             : 'ring-1 ring-border/30',
           isHoverTarget && !isBeingDragged && 'ring-2 ring-primary/60 scale-[1.04] shadow-md shadow-primary/15',
           !widget.enabled && 'opacity-30 grayscale',
         )}
+        style={{ pointerEvents: 'none' }}
       >
         {children}
       </motion.div>
