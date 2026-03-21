@@ -97,7 +97,7 @@ export const SplashScreen = memo(function SplashScreen({
             initial={{ scale: 0.7, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            className="mb-5 relative flex items-center justify-center"
+            className="mb-6 relative flex items-center justify-center"
           >
             {/* Outer ring pulse */}
             <motion.div
@@ -105,12 +105,12 @@ export const SplashScreen = memo(function SplashScreen({
               animate={{ scale: [1, 1.15, 1], opacity: [0, 0.3, 0] }}
               transition={{ delay: 0.9, duration: 2, repeat: Infinity, ease: 'easeInOut' }}
               className="absolute rounded-full border-2 border-primary/30"
-              style={{ width: 80, height: 80 }}
+              style={{ width: 120, height: 120 }}
             />
             <svg
               viewBox="0 0 100 100"
               fill="none"
-              style={{ width: 56, height: 56 }}
+              style={{ width: 88, height: 88 }}
             >
               <defs>
                 <linearGradient id="sp-l" x1="0%" y1="0%" x2="100%" y2="100%">
