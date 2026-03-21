@@ -414,62 +414,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
           {/* Hidden widgets in edit mode */}
           {customizerOpen && <HiddenWidgetPlaceholders />}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
-                <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                  <Sparkles className="h-4 w-4 mr-1.5" />
-                  For You
-                </TabsTrigger>
-                <TabsTrigger value="global" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                  <Globe className="h-4 w-4 mr-1.5" />
-                  Global
-                </TabsTrigger>
-              </TabsList>
-
-              {/* X-style "New posts" banner */}
-              {hasNewPosts && (
-                <button
-                  onClick={() => {
-                    clearNewPosts();
-                    handleRefresh();
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="w-full mb-4 py-2.5 px-4 rounded-full bg-primary text-primary-foreground text-sm font-semibold shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-300"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  New posts available — tap to see
-                </button>
-              )}
-
-              <TabsContent value="foryou" className="space-y-4" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
-                <PostList
-                  posts={forYouPosts}
-                  isLoading={forYouLoading && followingLoading}
-                  isFetching={forYouFetching || followingFetching}
-                  isFetchingNext={isFetchingNextForYou || isFetchingNextFollowing}
-                  loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
-                  emptyIcon="✨"
-                  emptyText="No posts yet. Follow creators or check Global!"
-                  onExplore={() => navigate('/explore')}
-                  showAds={showAds}
-                />
-              </TabsContent>
-
-              <TabsContent value="global" className="space-y-4" forceMount style={{ display: activeTab === 'global' ? 'block' : 'none' }}>
-                <PostList
-                  posts={globalPosts}
-                  isLoading={globalLoading}
-                  isFetching={globalFetching}
-                  isFetchingNext={isFetchingNextGlobal}
-                  loadMoreRef={activeTab === 'global' ? loadMoreRef : () => {}}
-                  emptyIcon="🌍"
-                  emptyText="No posts yet. Be the first to share something!"
-                  onExplore={() => navigate('/explore')}
-                  showAds={showAds}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
         </div>
       </HomeEditModeProvider>
 
