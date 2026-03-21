@@ -24,9 +24,10 @@ export interface PendingMessage {
  * Snapchat-style instant message sending
  * Messages appear immediately, then sync with server
  */
-export function useInstantSend(conversationId: string | undefined) {
+export function useInstantSend(conversationId: string | undefined, recipientProfileId?: string) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const { encrypt } = useMessageEncryption();
   const pendingMessagesRef = useRef<Map<string, PendingMessage>>(new Map());
   const [videoUploadProgress, setVideoUploadProgress] = useState<Record<string, number>>({});
 
