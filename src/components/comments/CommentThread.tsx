@@ -227,6 +227,18 @@ export const CommentThread = memo(function CommentThread({
                   variant="ghost" 
                   size="icon"
                   className="h-6 w-6 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                  onPointerDown={(e) => {
+                    (e.currentTarget as any)._pointerY = e.clientY;
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const startY = (e.currentTarget as any)._pointerY;
+                    if (startY !== undefined && Math.abs(e.clientY - startY) > 8) {
+                      e.preventDefault();
+                      return;
+                    }
+                  }}
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </Button>

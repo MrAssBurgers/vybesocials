@@ -66,6 +66,19 @@ function CommentDropdownMenu({ isOwn, onDelete, onEdit, onReport, isDeleting }: 
               "h-7 w-7 flex-shrink-0 transition-opacity duration-150",
               open ? "opacity-100" : "opacity-0 group-hover:opacity-100"
             )}
+            onPointerDown={(e) => {
+              (e.currentTarget as any)._pointerY = e.clientY;
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              const startY = (e.currentTarget as any)._pointerY;
+              if (startY !== undefined && Math.abs(e.clientY - startY) > 8) {
+                e.preventDefault();
+                setOpen(false);
+                return;
+              }
+            }}
           >
             <MoreHorizontal className="h-4 w-4" />
           </Button>

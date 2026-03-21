@@ -86,6 +86,19 @@ export function MessageActionMenu({
           variant="ghost"
           size="icon"
           className="h-6 w-6 opacity-0 group-hover/message:opacity-100 transition-opacity rounded-full hover:bg-muted/80"
+          onPointerDown={(e) => {
+            (e.currentTarget as any)._pointerY = e.clientY;
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            const startY = (e.currentTarget as any)._pointerY;
+            if (startY !== undefined && Math.abs(e.clientY - startY) > 8) {
+              e.preventDefault();
+              setOpen(false);
+              return;
+            }
+          }}
         >
           <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
         </Button>
