@@ -2963,11 +2963,7 @@ img, video {
 /* ── Variant: Error ── */
 .toast-pill-error::before,
 .toast-pill[data-type="error"]::before {
-  background: linear-gradient(180deg, hsl(var(--destructive)), hsl(var(--destructive) / 0.4)) !important;
-}
-.toast-pill-error::after,
-.toast-pill[data-type="error"]::after {
-  background: hsl(var(--destructive) / 0.25) !important;
+  background: hsl(var(--destructive)) !important;
 }
 .toast-pill-error .toast-pill-title,
 .toast-pill[data-type="error"] [data-title] {
@@ -2975,11 +2971,7 @@ img, video {
 }
 .toast-pill-error,
 .toast-pill[data-type="error"] {
-  border-color: hsl(var(--destructive) / 0.2) !important;
-  box-shadow:
-    0 8px 32px hsl(var(--destructive) / 0.12),
-    0 2px 8px hsl(var(--foreground) / 0.04),
-    inset 0 1px 0 hsl(var(--destructive) / 0.06) !important;
+  border-color: hsl(var(--destructive) / 0.15) !important;
 }
 
 /* ── Variant: Warning ── */
