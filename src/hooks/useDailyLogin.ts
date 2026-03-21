@@ -24,8 +24,11 @@ export function useDailyLoginChallenge() {
     if (!profile?.id || triggeredRef.current) return;
     
     const today = new Date().toISOString().slice(0, 10);
-    const tracked = sessionStorage.getItem(SESSION_KEY);
-    if (tracked === today) {
+    
+    // Check BOTH sessionStorage AND localStorage for dedup
+    const sessionTracked = sessionStorage.getItem(SESSION_KEY);
+    const localTracked = localStorage.getItem(LOCAL_KEY);
+    if (sessionTracked === today || localTracked === today) {
       triggeredRef.current = true;
       return;
     }
