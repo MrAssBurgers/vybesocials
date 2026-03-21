@@ -60,6 +60,9 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
           created_at,
           is_pinned,
           view_count,
+          is_ai_generated,
+          ai_confidence,
+          ai_override,
           author:profiles!author_id (
             id,
             username,
