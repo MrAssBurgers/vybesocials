@@ -145,6 +145,7 @@ export default function AIChat() {
     setIsLoading(true);
 
     let assistantContent = '';
+    streamingContentRef.current = '';
 
     try {
       const headers = await getFunctionAuthHeaders();
@@ -174,7 +175,8 @@ export default function AIChat() {
       const decoder = new TextDecoder();
       if (!reader) throw new Error('No reader');
 
-      setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date() }]);
+      // Show empty assistant bubble with typing dots
+      setStreamingText('');
 
       let buffer = '';
       let streamDone = false;
@@ -197,16 +199,15 @@ export default function AIChat() {
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
               assistantContent += content;
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: 'assistant', content: assistantContent, timestamp: new Date() };
-                return updated;
-              });
+              streamingContentRef.current = assistantContent;
+              // Update streaming text directly — lightweight, only re-renders the bubble
+              setStreamingText(assistantContent);
             }
           } catch { buffer = line + '\n' + buffer; break; }
         }
       }
       
+      // Process any remaining buffer
       if (buffer.trim()) {
         for (const raw of buffer.split('\n')) {
           if (!raw || raw.startsWith(':') || raw.trim() === '') continue;
@@ -218,18 +219,22 @@ export default function AIChat() {
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
               assistantContent += content;
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: 'assistant', content: assistantContent, timestamp: new Date() };
-                return updated;
-              });
+              streamingContentRef.current = assistantContent;
+              setStreamingText(assistantContent);
             }
           } catch {}
         }
       }
+
+      // Finalize: commit the completed message to the messages array
+      setMessages(prev => [...prev, { role: 'assistant', content: assistantContent, timestamp: new Date() }]);
+      setStreamingText('');
+      streamingContentRef.current = '';
     } catch (error) {
       console.error('AI chat error:', error);
-      setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: "Oops, something went wrong. Try again!", timestamp: new Date() }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: "Oops, something went wrong. Try again!", timestamp: new Date() }]);
+      setStreamingText('');
+      streamingContentRef.current = '';
     } finally {
       setIsLoading(false);
     }
