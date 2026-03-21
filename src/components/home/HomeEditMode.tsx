@@ -85,7 +85,7 @@ const layoutSpring = { type: 'spring' as const, damping: 28, stiffness: 350, mas
 
 /* ── Grid measurement helper ── */
 function measureGrid(gridEl: HTMLElement | null) {
-  if (!gridEl) return { colWidth: 0, rowHeight: 80, gap: 12 };
+  if (!gridEl) return { colWidth: 0, rowHeight: 56, gap: 12 };
   const style = getComputedStyle(gridEl);
   const gap = parseFloat(style.gap) || 12;
   const cols = style.gridTemplateColumns.split(' ');
@@ -308,7 +308,7 @@ export function EditableWidgetList({ children }: { children: ReactNode }) {
   if (!isEditing) return <>{children}</>;
   return (
     <LayoutGroup>
-      <div ref={gridRef} className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(80px, auto)' }}>
+      <div ref={gridRef} className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(56px, auto)' }}>
         {children}
       </div>
     </LayoutGroup>
@@ -318,7 +318,7 @@ export function EditableWidgetList({ children }: { children: ReactNode }) {
 /* ── Non-edit grid wrapper ── */
 export function WidgetGrid({ children }: { children: ReactNode }) {
   return (
-    <div className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(80px, auto)' }}>
+    <div className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(56px, auto)' }}>
       {children}
     </div>
   );
