@@ -95,6 +95,31 @@ export default function AIChat() {
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  // Re-acquire location on mount if user previously had it enabled
+  useEffect(() => {
+    if (locationEnabled && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${loc.lat}&lon=${loc.lng}&format=json`);
+            const data = await res.json();
+            const city = data.address?.city || data.address?.town || data.address?.village || 'Unknown';
+            setUserLocation({ ...loc, city });
+          } catch {
+            setUserLocation(loc);
+          }
+        },
+        () => {
+          // Permission revoked since last session
+          setLocationEnabled(false);
+          localStorage.setItem('vybe_ai_location', 'false');
+        },
+        { enableHighAccuracy: true }
+      );
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const requestGPSPermission = useCallback(() => {
     setShowGPSDialog(true);
   }, []);
@@ -114,6 +139,7 @@ export default function AIChat() {
           setUserLocation(loc);
         }
         setLocationEnabled(true);
+        localStorage.setItem('vybe_ai_location', 'true');
         toast.success('📍 Location enabled');
       },
       () => toast.error('Location permission denied'),
