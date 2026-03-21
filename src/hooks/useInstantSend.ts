@@ -219,7 +219,7 @@ export function useInstantSend(conversationId: string | undefined) {
       markFailed(tempId, error.message || 'Failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed]);
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, encrypt]);
 
   // Send media message
   const sendMedia = useCallback(async (
