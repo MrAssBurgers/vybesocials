@@ -37,7 +37,7 @@ interface EditModeCtx {
   handleToggle: (id: string) => void;
   handleResize: (id: string, col: 1 | 2, row: 1 | 2) => void;
   orderedEnabledIds: string[];
-  handleReorder: (fromId: string, toId: string) => void;
+  handleReorder: (draggedId: string, targetIndex: number) => void;
   dragState: DragState;
   resizeState: ResizeDragState;
   startDrag: (id: string, e: React.PointerEvent) => void;
