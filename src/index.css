@@ -2920,18 +2920,9 @@ img, video {
   pointer-events: none;
 }
 
-/* Auto-dismiss progress bar at the bottom */
+/* Hidden progress bar — cleaner look */
 .toast-pill::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  right: 0;
-  height: 2px;
-  background: hsl(var(--primary) / 0.3);
-  transform-origin: left;
-  animation: toast-progress 4s linear forwards;
-  pointer-events: none;
+  display: none !important;
 }
 
 /* ── Title / Description ── */
