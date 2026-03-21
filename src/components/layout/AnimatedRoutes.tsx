@@ -54,6 +54,7 @@ const AdminBugReports = lazy(() => import("@/pages/AdminBugReports"));
 const BadgeLibrary = lazy(() => import("@/pages/BadgeLibrary"));
 const ChallengesHub = lazy(() => import("@/pages/ChallengesHub"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+const ModeratorApplication = lazy(() => import("@/pages/ModeratorApplication"));
 const HowUDoinHub = lazy(() => import("@/pages/HowUDoinHub"));
 const BusinessPortal = lazy(() => import("@/pages/BusinessPortal"));
 const OrderSuccess = lazy(() => import("@/pages/OrderSuccess"));
