@@ -2587,6 +2587,140 @@ export type Database = {
           },
         ]
       }
+      community_filter_likes: {
+        Row: {
+          created_at: string
+          filter_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          filter_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          filter_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_filter_likes_filter_id_fkey"
+            columns: ["filter_id"]
+            isOneToOne: false
+            referencedRelation: "community_filters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_filter_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "community_filter_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_filter_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_filter_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
+      community_filters: {
+        Row: {
+          category: string
+          created_at: string
+          creator_id: string
+          description: string | null
+          filter_config: Json
+          icon: string
+          id: string
+          is_approved: boolean
+          is_featured: boolean
+          like_count: number
+          name: string
+          updated_at: string
+          use_count: number
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          creator_id: string
+          description?: string | null
+          filter_config: Json
+          icon?: string
+          id?: string
+          is_approved?: boolean
+          is_featured?: boolean
+          like_count?: number
+          name: string
+          updated_at?: string
+          use_count?: number
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          creator_id?: string
+          description?: string | null
+          filter_config?: Json
+          icon?: string
+          id?: string
+          is_approved?: boolean
+          is_featured?: boolean
+          like_count?: number
+          name?: string
+          updated_at?: string
+          use_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_filters_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "community_filters_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_filters_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_filters_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       community_guidelines: {
         Row: {
           content: string
