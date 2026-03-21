@@ -23,6 +23,7 @@ interface BriefUpdate {
   sources?: string[];
   imageUrl?: string;
   sourceFavicons?: string[];
+  category?: string;
 }
 
 interface ActiveChallenge {
