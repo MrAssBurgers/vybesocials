@@ -30,7 +30,7 @@ const jiggleVariant = {
       rotate: {
         repeat: Infinity,
         duration: 0.3 + i * 0.05,
-        ease: 'easeInOut',
+        ease: 'easeInOut' as const,
       },
     },
   }),
