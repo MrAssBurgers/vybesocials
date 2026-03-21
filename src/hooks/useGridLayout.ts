@@ -52,10 +52,10 @@ export function useGridLayout() {
     };
   }, [prefs?.extra]);
 
-  const saveGridLayout = useCallback((newConfig: Partial<GridLayoutConfig>) => {
+  const saveGridLayout = useCallback(async (newConfig: Partial<GridLayoutConfig>) => {
     const currentExtra = (prefs?.extra as any) ?? {};
     const current = currentExtra.grid_layout ?? {};
-    update.mutate({
+    await update.mutateAsync({
       extra: {
         ...currentExtra,
         grid_layout: { ...current, ...newConfig },

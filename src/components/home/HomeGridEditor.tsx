@@ -144,10 +144,20 @@ export function HomeGridEditor({ open, onOpenChange, onOpenCommandBar }: Props) 
     }));
   };
 
-  const handleSave = () => {
-    saveGridLayout(localConfig);
-    toast.success('Layout saved! 🔥');
-    onOpenChange(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await saveGridLayout(localConfig);
+      toast.success('Layout saved! 🔥');
+      onOpenChange(false);
+    } catch (err) {
+      console.error('Failed to save layout:', err);
+      toast.error('Failed to save layout. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleShare = () => {
