@@ -90,7 +90,12 @@ export default function AIChat() {
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  const requestGPSPermission = useCallback(() => {
+    setShowGPSDialog(true);
+  }, []);
+
   const enableLocation = useCallback(() => {
+    setShowGPSDialog(false);
     if (!navigator.geolocation) { toast.error('GPS not supported on this device'); return; }
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
