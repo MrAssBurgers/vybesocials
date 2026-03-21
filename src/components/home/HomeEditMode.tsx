@@ -387,7 +387,7 @@ function EditToolbar({
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: -60, opacity: 0 }}
       transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-      className="fixed top-0 left-0 right-0 z-[60] px-3 pt-[max(env(safe-area-inset-top),8px)] pb-2 bg-card/90 backdrop-blur-xl border-b border-border/50 shadow-lg"
+      className="fixed top-0 left-0 right-0 z-[100] px-3 pt-[max(env(safe-area-inset-top),8px)] pb-2 bg-card/95 backdrop-blur-xl border-b border-primary/30 shadow-xl shadow-primary/10"
     >
       <div className="max-w-xl mx-auto flex items-center justify-between gap-3">
         <Button variant="ghost" size="sm" onClick={onCancel} className="text-sm font-medium text-muted-foreground">
