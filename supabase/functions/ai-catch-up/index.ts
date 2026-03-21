@@ -48,6 +48,17 @@ const interestSearchQueries: Record<string, string> = {
 interface PerplexityResult {
   content: string;
   citations: string[];
+  images: string[];
+}
+
+// Extract a favicon/logo URL from a domain
+function getFaviconUrl(url: string): string {
+  try {
+    const domain = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+  } catch {
+    return '';
+  }
 }
 
 async function fetchPerplexityData(interest: string, apiKey: string): Promise<PerplexityResult | null> {
@@ -69,6 +80,7 @@ async function fetchPerplexityData(interest: string, apiKey: string): Promise<Pe
           },
           { role: 'user', content: query }
         ],
+        search_recency_filter: 'day',
       }),
     });
 
@@ -80,7 +92,8 @@ async function fetchPerplexityData(interest: string, apiKey: string): Promise<Pe
     const data = await response.json();
     return {
       content: data.choices?.[0]?.message?.content || '',
-      citations: data.citations || []
+      citations: data.citations || [],
+      images: data.images || [],
     };
   } catch (error) {
     console.error('Perplexity fetch error:', error);
@@ -153,82 +166,19 @@ serve(async (req) => {
       streakResult,
       challengeResult,
       levelResult,
-      // NEW: actual unread notifications with details
       unreadNotifsResult,
-      // NEW: unread message previews
       unreadMsgsResult,
     ] = await Promise.all([
-      // 1) Unread notifications count
-      supabase
-        .from('notifications')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', profileId)
-        .eq('read', false),
-      // 2) Who user follows
-      supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', profileId),
-      // 3) Conversations
-      supabase
-        .from('conversation_members')
-        .select(`conversation_id, last_read_at, conversations!inner(id, updated_at)`)
-        .eq('user_id', profileId),
-      // 4) New followers in 24h
-      supabase
-        .from('follows')
-        .select('id', { count: 'exact', head: true })
-        .eq('following_id', profileId)
-        .gte('created_at', oneDayAgo),
-      // 5) Pending friend requests
-      supabase
-        .from('friend_requests')
-        .select('id', { count: 'exact', head: true })
-        .eq('receiver_id', profileId)
-        .eq('status', 'pending'),
-      // 6) Login streak
-      supabase
-        .from('login_streaks')
-        .select('current_streak, longest_streak')
-        .eq('user_id', user.id)
-        .single(),
-      // 7) Active challenges with progress
-      supabase
-        .from('challenges')
-        .select(`
-          id, title, requirement_count, reward_xp, type,
-          challenge_progress!inner(current_count, is_completed)
-        `)
-        .eq('is_active', true)
-        .eq('challenge_progress.user_id', profileId)
-        .eq('challenge_progress.is_completed', false)
-        .limit(5),
-      // 8) User level
-      supabase
-        .from('user_levels')
-        .select('current_level, total_xp')
-        .eq('user_id', user.id)
-        .single(),
-      // 9) Actual unread notification details (up to 10)
-      supabase
-        .from('notifications')
-        .select('id, type, message, created_at, sender_id, post_id, read')
-        .eq('user_id', profileId)
-        .eq('read', false)
-        .order('created_at', { ascending: false })
-        .limit(10),
-      // 10) Recent messages in unread convos
-      supabase
-        .from('conversation_members')
-        .select(`
-          conversation_id, last_read_at,
-          conversations!inner(id, updated_at, name, is_group,
-            messages(id, content, created_at, media_type, sender_id, profiles:sender_id(username, display_name))
-          )
-        `)
-        .eq('user_id', profileId)
-        .order('conversations(updated_at)', { ascending: false })
-        .limit(10),
+      supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', profileId).eq('read', false),
+      supabase.from('follows').select('following_id').eq('follower_id', profileId),
+      supabase.from('conversation_members').select(`conversation_id, last_read_at, conversations!inner(id, updated_at)`).eq('user_id', profileId),
+      supabase.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', profileId).gte('created_at', oneDayAgo),
+      supabase.from('friend_requests').select('id', { count: 'exact', head: true }).eq('receiver_id', profileId).eq('status', 'pending'),
+      supabase.from('login_streaks').select('current_streak, longest_streak').eq('user_id', user.id).single(),
+      supabase.from('challenges').select(`id, title, requirement_count, reward_xp, type, challenge_progress!inner(current_count, is_completed)`).eq('is_active', true).eq('challenge_progress.user_id', profileId).eq('challenge_progress.is_completed', false).limit(5),
+      supabase.from('user_levels').select('current_level, total_xp').eq('user_id', user.id).single(),
+      supabase.from('notifications').select('id, type, message, created_at, sender_id, post_id, read').eq('user_id', profileId).eq('read', false).order('created_at', { ascending: false }).limit(10),
+      supabase.from('conversation_members').select(`conversation_id, last_read_at, conversations!inner(id, updated_at, name, is_group, messages(id, content, created_at, media_type, sender_id, profiles:sender_id(username, display_name)))`).eq('user_id', profileId).order('conversations(updated_at)', { ascending: false }).limit(10),
     ]);
 
     const realNotifCount = notifResult.count || 0;
@@ -281,7 +231,6 @@ serve(async (req) => {
         const updated = new Date(convoData.updated_at);
         if (updated > lastRead) {
           unreadConvos++;
-          // Get the most recent unread message
           const messages = convoData.messages || [];
           const unreadMsgs = messages
             .filter((m: any) => new Date(m.created_at) > lastRead && m.sender_id !== profileId)
@@ -307,7 +256,6 @@ serve(async (req) => {
         }
       }
     } else if (convResult.data) {
-      // Fallback to count-only from original query
       for (const conv of convResult.data) {
         const lastRead = conv.last_read_at ? new Date(conv.last_read_at) : new Date(0);
         const updated = new Date((conv.conversations as any).updated_at);
@@ -315,24 +263,21 @@ serve(async (req) => {
       }
     }
 
-    // Process actual unread notification details
+    // Process notification details
     const notificationDetails: Array<{ type: string; message: string; time: string }> = [];
     if (unreadNotifsResult.data) {
       for (const notif of unreadNotifsResult.data) {
-        notificationDetails.push({
-          type: notif.type || 'general',
-          message: notif.message || '',
-          time: notif.created_at,
-        });
+        notificationDetails.push({ type: notif.type || 'general', message: notif.message || '', time: notif.created_at });
       }
     }
 
-    // Fetch Perplexity live updates
+    // ── Fetch Perplexity live updates with images ──
     interface LiveUpdate {
       interest: string;
       content: string;
       sources: string[];
       imageUrl?: string;
+      sourceFavicons?: string[];
     }
     
     let liveUpdates: LiveUpdate[] = [];
@@ -343,7 +288,30 @@ serve(async (req) => {
       const fetchPromises = selectedInterests.map(async (interest: string): Promise<LiveUpdate | null> => {
         const result = await fetchPerplexityData(interest, PERPLEXITY_API_KEY);
         if (result && result.content) {
-          return { interest, content: result.content, sources: result.citations || [] };
+          // Get image: first from Perplexity images, then try og-image proxy from first citation
+          let imageUrl: string | undefined;
+          
+          // Use Perplexity's returned images if available
+          if (result.images && result.images.length > 0) {
+            imageUrl = result.images[0];
+          }
+          
+          // If no Perplexity images, try extracting an og:image from the first citation
+          if (!imageUrl && result.citations && result.citations.length > 0) {
+            // Use a favicon as fallback thumbnail
+            imageUrl = undefined; // Will use favicon display instead
+          }
+
+          // Generate favicons for all citation sources
+          const sourceFavicons = (result.citations || []).slice(0, 4).map((url: string) => getFaviconUrl(url)).filter(Boolean);
+
+          return { 
+            interest, 
+            content: result.content, 
+            sources: result.citations || [],
+            imageUrl,
+            sourceFavicons,
+          };
         }
         return null;
       });
@@ -362,7 +330,6 @@ serve(async (req) => {
     // Build the system prompt
     const systemPrompt = `You are VYBE's friendly AI assistant creating a personalized daily brief. Keep it warm, concise, and actionable. Use emojis sparingly. Never exceed 3 sentences. Address the user by name if available.`;
 
-    // Build the user prompt with all gathered data
     let userPrompt = `Create a brief daily catch-up for ${userName}.\n`;
     userPrompt += `Stats: ${realNotifCount} notifications, ${unreadConvos} unread messages, ${newFollowerCount} new followers, ${pendingFriendRequests} friend requests.\n`;
     userPrompt += `Streak: ${streak} days. Level: ${userLevel} (${userXp} XP).\n`;
@@ -395,16 +362,10 @@ serve(async (req) => {
 
     if (!response.ok) {
       if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return new Response(JSON.stringify({ error: "AI credits exhausted." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       throw new Error(`AI gateway error: ${response.status}`);
     }
@@ -448,7 +409,6 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("AI Catch-up error:", error);
-    // Return a graceful fallback brief instead of an error
     return new Response(
       JSON.stringify({ 
         summary: "Welcome back! Tap refresh to load your personalized brief. 🌟",
