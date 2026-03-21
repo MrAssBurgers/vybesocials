@@ -226,7 +226,7 @@ export function EditableWidgetWrapper({
       style={{
         animationDelay: `${(widget.order % 5) * 0.05}s`,
         zIndex: isSelected ? 20 : isBeingDragged ? 0 : 1,
-        touchAction: 'none',
+        touchAction: 'pan-y',
       }}
     >
       {/* Content card */}
