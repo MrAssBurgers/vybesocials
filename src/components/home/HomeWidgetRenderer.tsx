@@ -267,7 +267,8 @@ export function HomeWidgetRenderer(props: Props) {
           <motion.div
             key={id}
             layout
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            data-widget-id={id}
+            transition={{ type: 'spring', damping: 28, stiffness: 350 }}
             className={cn(
               w?.colSpan === 2 ? 'col-span-2' : 'col-span-1',
               w?.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
