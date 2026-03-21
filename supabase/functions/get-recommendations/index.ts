@@ -39,7 +39,7 @@ serve(async (req) => {
 
     const authenticatedUserId = user.id;
     
-    const { interests, userId } = await req.json();
+    const { interests, userId, location } = await req.json();
     
     // Validate that the requested userId matches the authenticated user
     // Get the profile ID for the authenticated user
