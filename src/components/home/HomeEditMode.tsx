@@ -501,6 +501,7 @@ export function HomeEditModeProvider({
     const onMove = (ev: PointerEvent) => {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
+        // Ghost follows pointer freely — no boundaries
         setDragState(prev => ({ ...prev, ghostX: ev.clientX, ghostY: ev.clientY }));
 
         // Live hit-testing: read fresh rects every frame
@@ -510,11 +511,27 @@ export function HomeEditModeProvider({
           if (wid && wid !== id) rects.set(wid, node.getBoundingClientRect());
         });
 
+        // Check direct hit first
         let hoverId: string | null = null;
         for (const [wid, r] of rects) {
           if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
             hoverId = wid;
             break;
+          }
+        }
+
+        // If pointer is outside grid, find nearest widget by distance
+        if (!hoverId && rects.size > 0) {
+          let minDist = Infinity;
+          for (const [wid, r] of rects) {
+            const cx = (r.left + r.right) / 2;
+            const cy = (r.top + r.bottom) / 2;
+            const dist = Math.hypot(ev.clientX - cx, ev.clientY - cy);
+            // Only snap if reasonably close (within 120px)
+            if (dist < minDist && dist < 120) {
+              minDist = dist;
+              hoverId = wid;
+            }
           }
         }
 
@@ -665,7 +682,13 @@ export function HomeEditModeProvider({
           {editing && <EditToolbar saving={saving} variant={variant} onSave={handleSave} onCancel={handleCancel} />}
         </AnimatePresence>
         {editing && <div className="h-20" />}
-        <div onClick={editing ? (e) => { e.preventDefault(); setSelectedWidget(null); } : undefined}>
+        <div onPointerDown={editing ? (e) => {
+          // Only deselect if tapping the background, not a widget
+          const target = e.target as HTMLElement;
+          if (!target.closest('[data-widget-id]') && !target.closest('[data-widget-control]') && !target.closest('[data-resize-handle]')) {
+            setSelectedWidget(null);
+          }
+        } : undefined}>
           {children}
         </div>
         <DragGhost dragState={dragState} dragCloneRef={dragCloneRef} />
