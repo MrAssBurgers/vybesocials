@@ -239,11 +239,12 @@ export function HomeWidgetCustomizer({ open, onOpenChange, onOpenCommandBar }: P
 
         <div className="shrink-0 pt-2 border-t border-border/50 space-y-2">
           <Button
-            onClick={() => { handleSave(); onOpenChange(false); }}
+            onClick={async () => { await handleSave(); onOpenChange(false); }}
+            disabled={saving}
             className="w-full gradient-animated text-white font-semibold"
           >
             <Check className="h-4 w-4 mr-2" />
-            Save My VYBE Layout
+            {saving ? 'Saving...' : 'Save My VYBE Layout'}
           </Button>
           {user && (
             <Button
