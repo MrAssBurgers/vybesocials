@@ -69,12 +69,12 @@ export function HomeWidgetCustomizer({ open, onOpenChange, onOpenCommandBar }: P
   const { data: userTheme } = useUserTheme();
 
   // Sync when sheet opens
-  const handleOpenChange = (v: boolean) => {
+  const handleOpenChange = async (v: boolean) => {
     if (v) {
       setLocalOrder(widgets.map(w => w.id));
       setShowShareFlow(false);
     } else {
-      handleSave();
+      await handleSave();
     }
     onOpenChange(v);
   };
