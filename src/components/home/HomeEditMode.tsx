@@ -168,8 +168,8 @@ export function EditableWidgetWrapper({
     handleToggle, handleResize, dragState, startDrag,
   } = useEditMode();
   const widget = localWidgets.find(w => w.id === widgetId);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didDragRef = useRef(false);
+  const startPosRef = useRef({ x: 0, y: 0 });
 
   if (!isEditing || !widget) return <>{children}</>;
 
@@ -177,37 +177,39 @@ export function EditableWidgetWrapper({
   const isBeingDragged = dragState.dragId === widgetId;
   const isHoverTarget = dragState.hoverTargetId === widgetId;
 
-  // Hold anywhere on widget to start dragging (Samsung-style long press)
+  // Tap = select, drag (move 6px+) = move widget
   const onPointerDown = (e: React.PointerEvent) => {
-    // Don't hijack resize handles or control buttons
     const target = e.target as HTMLElement;
     if (target.closest('[data-resize-handle]') || target.closest('[data-widget-control]')) return;
 
     didDragRef.current = false;
-    const pe = { ...e, clientX: e.clientX, clientY: e.clientY, preventDefault: () => e.preventDefault() } as unknown as React.PointerEvent;
+    startPosRef.current = { x: e.clientX, y: e.clientY };
+    const savedEvent = { clientX: e.clientX, clientY: e.clientY, preventDefault: () => {} } as React.PointerEvent;
 
-    longPressTimerRef.current = setTimeout(() => {
-      didDragRef.current = true;
-      startDrag(widgetId, pe);
-    }, 150);
-  };
+    const onMoveCheck = (ev: PointerEvent) => {
+      const dx = ev.clientX - startPosRef.current.x;
+      const dy = ev.clientY - startPosRef.current.y;
+      if (Math.abs(dx) + Math.abs(dy) > 6) {
+        didDragRef.current = true;
+        window.removeEventListener('pointermove', onMoveCheck);
+        window.removeEventListener('pointerup', onUpCheck);
+        window.removeEventListener('pointercancel', onUpCheck);
+        startDrag(widgetId, savedEvent);
+      }
+    };
 
-  const onPointerUp = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    // If didn't drag, treat as tap to select
-    if (!didDragRef.current) {
-      setSelectedWidget(isSelected ? null : widgetId);
-    }
-  };
+    const onUpCheck = () => {
+      window.removeEventListener('pointermove', onMoveCheck);
+      window.removeEventListener('pointerup', onUpCheck);
+      window.removeEventListener('pointercancel', onUpCheck);
+      if (!didDragRef.current) {
+        setSelectedWidget(isSelected ? null : widgetId);
+      }
+    };
 
-  const onPointerCancel = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
+    window.addEventListener('pointermove', onMoveCheck);
+    window.addEventListener('pointerup', onUpCheck);
+    window.addEventListener('pointercancel', onUpCheck);
   };
 
   return (
