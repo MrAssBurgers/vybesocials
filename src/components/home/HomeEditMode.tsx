@@ -37,7 +37,7 @@ interface EditModeCtx {
   handleToggle: (id: string) => void;
   handleResize: (id: string, col: 1 | 2, row: 1 | 2) => void;
   orderedEnabledIds: string[];
-  handleReorder: (fromId: string, toId: string) => void;
+  handleReorder: (draggedId: string, targetIndex: number) => void;
   dragState: DragState;
   resizeState: ResizeDragState;
   startDrag: (id: string, e: React.PointerEvent) => void;
@@ -458,32 +458,44 @@ export function HomeEditModeProvider({
     setLocalWidgets(prev => prev.map(w => w.id === id ? { ...w, colSpan: col, rowSpan: row } : w));
   }, []);
 
-  const handleReorder = useCallback((fromId: string, toId: string) => {
+  // Apple-style insertion reorder: remove dragged item, insert at target index
+  const handleReorder = useCallback((draggedId: string, targetIndex: number) => {
     setLocalWidgets(prev => {
-      const updated = [...prev];
-      const fi = updated.findIndex(w => w.id === fromId);
-      const ti = updated.findIndex(w => w.id === toId);
-      if (fi === -1 || ti === -1) return prev;
-      const fo = updated[fi].order;
-      const to = updated[ti].order;
-      updated[fi] = { ...updated[fi], order: to };
-      updated[ti] = { ...updated[ti], order: fo };
-      return updated.sort((a, b) => a.order - b.order);
+      const enabled = prev.filter(w => w.enabled).sort((a, b) => a.order - b.order);
+      const disabled = prev.filter(w => !w.enabled);
+      const dragIdx = enabled.findIndex(w => w.id === draggedId);
+      if (dragIdx === -1 || targetIndex === dragIdx) return prev;
+
+      // Remove from old position, insert at new position
+      const item = enabled[dragIdx];
+      const without = [...enabled];
+      without.splice(dragIdx, 1);
+      const clampedTarget = Math.max(0, Math.min(without.length, targetIndex));
+      without.splice(clampedTarget, 0, item);
+
+      // Reassign sequential orders
+      const reordered = without.map((w, i) => ({ ...w, order: i }));
+      return [...reordered, ...disabled];
     });
     triggerHaptic('light');
   }, []);
 
-  /* ── DRAG ENGINE: live hit-testing via rAF ── */
+  // Store original widget order at drag start for snap-back
+  const dragOriginalRef = useRef<GridWidgetState[] | null>(null);
+
+  /* ── DRAG ENGINE: Apple-style insertion reorder ── */
   const startDrag = useCallback((id: string, e: React.PointerEvent) => {
     e.preventDefault();
     triggerHaptic('medium');
 
-    // Clone the widget DOM for the ghost
     const el = document.querySelector(`[data-widget-id="${id}"]`) as HTMLElement | null;
     if (!el) return;
 
     const rect = el.getBoundingClientRect();
     dragCloneRef.current = el;
+
+    // Snapshot current order for snap-back
+    dragOriginalRef.current = [...localWidgets];
 
     setDragState({
       isDragging: true,
@@ -498,56 +510,54 @@ export function HomeEditModeProvider({
     setSelectedWidget(null);
     lastHoverRef.current = null;
 
+    let lastInsertIndex = -1;
+
     const onMove = (ev: PointerEvent) => {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
-        // Ghost follows pointer freely — no boundaries
         setDragState(prev => ({ ...prev, ghostX: ev.clientX, ghostY: ev.clientY }));
 
-        // Live hit-testing: read fresh rects every frame
-        const rects = new Map<string, DOMRect>();
+        // Collect rects of all non-dragged widgets in DOM order
+        const entries: { id: string; rect: DOMRect }[] = [];
         document.querySelectorAll('[data-widget-id]').forEach(node => {
           const wid = node.getAttribute('data-widget-id');
-          if (wid && wid !== id) rects.set(wid, node.getBoundingClientRect());
+          if (wid && wid !== id) {
+            entries.push({ id: wid, rect: node.getBoundingClientRect() });
+          }
         });
 
-        // Check direct hit first
-        let hoverId: string | null = null;
-        for (const [wid, r] of rects) {
-          if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
-            hoverId = wid;
+        if (entries.length === 0) return;
+
+        // Find the insertion index by comparing pointer Y (then X) against widget centers
+        const pointerX = ev.clientX;
+        const pointerY = ev.clientY;
+
+        let insertIndex = entries.length; // default: insert at end
+        for (let i = 0; i < entries.length; i++) {
+          const r = entries[i].rect;
+          const cy = (r.top + r.bottom) / 2;
+          const cx = (r.left + r.right) / 2;
+
+          // If pointer is above this widget's center, insert before it
+          if (pointerY < cy || (pointerY < r.bottom && pointerX < cx)) {
+            insertIndex = i;
             break;
           }
         }
 
-        // If pointer is outside grid, find nearest widget by distance
-        if (!hoverId && rects.size > 0) {
-          let minDist = Infinity;
-          for (const [wid, r] of rects) {
-            const cx = (r.left + r.right) / 2;
-            const cy = (r.top + r.bottom) / 2;
-            const dist = Math.hypot(ev.clientX - cx, ev.clientY - cy);
-            // Only snap if reasonably close (within 120px)
-            if (dist < minDist && dist < 120) {
-              minDist = dist;
-              hoverId = wid;
-            }
-          }
-        }
+        // Account for the dragged item's original position in the enabled list
+        // (since it's still in the array, indices after it shift by 1)
+        const enabled = localWidgets.filter(w => w.enabled).sort((a, b) => a.order - b.order);
+        const dragIdx = enabled.findIndex(w => w.id === id);
+        const adjustedIndex = insertIndex >= dragIdx ? insertIndex + 1 : insertIndex;
+        const finalIndex = Math.min(adjustedIndex, enabled.length - 1);
 
-        // Debounced swap: only swap if hovering same target for 120ms
-        if (hoverId && hoverId !== lastHoverRef.current) {
-          lastHoverRef.current = hoverId;
+        if (finalIndex !== lastInsertIndex) {
+          lastInsertIndex = finalIndex;
           clearTimeout(swapTimerRef.current);
           swapTimerRef.current = window.setTimeout(() => {
-            if (lastHoverRef.current === hoverId) {
-              handleReorder(id, hoverId!);
-              triggerHaptic('light');
-            }
-          }, 120);
-        } else if (!hoverId) {
-          lastHoverRef.current = null;
-          clearTimeout(swapTimerRef.current);
+            handleReorder(id, finalIndex);
+          }, 80);
         }
       });
     };
@@ -556,6 +566,8 @@ export function HomeEditModeProvider({
       cancelAnimationFrame(rafRef.current);
       clearTimeout(swapTimerRef.current);
       lastHoverRef.current = null;
+      lastInsertIndex = -1;
+      dragOriginalRef.current = null;
       setDragState(defaultDrag);
       dragCloneRef.current = null;
       window.removeEventListener('pointermove', onMove);
@@ -566,7 +578,7 @@ export function HomeEditModeProvider({
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
-  }, [handleReorder]);
+  }, [handleReorder, localWidgets]);
 
   /* ── RESIZE ENGINE: grid-snapped preview overlay ── */
   const handleResizeStart = useCallback((id: string, direction: 'right' | 'bottom' | 'corner', e: React.PointerEvent) => {
