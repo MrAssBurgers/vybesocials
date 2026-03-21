@@ -111,6 +111,20 @@ export default function AdminDashboard() {
     staleTime: 30_000,
   });
 
+  // Mod applications count for badge
+  const { data: pendingModApps = 0 } = useQuery({
+    queryKey: ['admin-pending-mod-apps-count'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('moderator_applications')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      if (error) return 0;
+      return count || 0;
+    },
+    staleTime: 30_000,
+  });
+
   const isAdmin = userRole === 'admin';
   const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
 
