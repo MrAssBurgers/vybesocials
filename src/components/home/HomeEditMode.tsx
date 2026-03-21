@@ -308,7 +308,7 @@ export function EditableWidgetList({ children }: { children: ReactNode }) {
   if (!isEditing) return <>{children}</>;
   return (
     <LayoutGroup>
-      <div ref={gridRef} className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(80px, auto)' }}>
+      <div ref={gridRef} className="grid grid-cols-2 gap-3 px-3" style={{ gridAutoRows: 'minmax(56px, auto)' }}>
         {children}
       </div>
     </LayoutGroup>
