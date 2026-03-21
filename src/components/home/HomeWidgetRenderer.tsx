@@ -44,25 +44,47 @@ interface Props {
   loadMoreRef: (node: HTMLDivElement | null) => void;
 }
 
-/* ── Quick Access Card - compact, auto-scaling ── */
-function QuickAccessCard({ icon, label, path, gradient, iconColor }: {
-  icon: ReactNode; label: string; path: string; gradient: string; iconColor: string;
+/* ── Quick Access Card - adapts size to grid span ── */
+function QuickAccessCard({ icon, label, path, gradient, iconColor, widgetId }: {
+  icon: ReactNode; label: string; path: string; gradient: string; iconColor: string; widgetId?: string;
 }) {
   const navigate = useNavigate();
+  const { isEditing, localWidgets } = useEditMode();
+  const { config } = useGridLayout();
+  const widgets = isEditing ? localWidgets : config.widgets;
+  const w = widgetId ? widgets.find(wi => wi.id === widgetId) : null;
+  const col = w?.colSpan ?? 1;
+  const row = w?.rowSpan ?? 1;
+  const isWide = col === 2;
+  const isTall = row === 2;
+
   return (
     <button
-      onClick={() => { triggerHaptic('light'); navigate(path); }}
+      onClick={() => { if (!isEditing) { triggerHaptic('light'); navigate(path); } }}
       className={cn(
-        "flex flex-col items-center justify-center gap-1 py-2 rounded-xl transition-all h-full w-full min-h-0",
+        "flex items-center transition-all h-full w-full min-h-0",
         "bg-gradient-to-br border border-white/[0.08] shadow-sm",
         "hover:scale-[1.03] active:scale-[0.97]",
         gradient,
+        isWide
+          ? 'flex-row gap-3 px-4 py-3 rounded-2xl justify-start'
+          : 'flex-col justify-center gap-1 py-2 rounded-xl',
+        isTall && !isWide && 'gap-2.5 py-4',
+        isTall && isWide && 'py-5',
       )}
     >
-      <div className={cn("w-6 h-6 rounded-md flex items-center justify-center shadow-inner", iconColor)}>
+      <div className={cn(
+        "rounded-md flex items-center justify-center shadow-inner shrink-0",
+        iconColor,
+        isWide || isTall ? 'w-9 h-9 rounded-lg' : 'w-6 h-6',
+      )}>
         {icon}
       </div>
-      <span className="text-[9px] font-semibold text-foreground/90 tracking-wide leading-tight">{label}</span>
+      <span className={cn(
+        "font-semibold text-foreground/90 tracking-wide leading-tight",
+        isWide ? 'text-sm' : 'text-[9px]',
+        isTall && !isWide && 'text-xs',
+      )}>{label}</span>
     </button>
   );
 }
@@ -83,6 +105,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'vybe_dna':
       return (
         <QuickAccessCard
+          widgetId="vybe_dna"
           icon={<Dna className="h-3.5 w-3.5 text-white" />}
           label="VYBE DNA"
           path="/vybe-dna"
@@ -93,6 +116,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'wallet':
       return (
         <QuickAccessCard
+          widgetId="wallet"
           icon={<Wallet className="h-3.5 w-3.5 text-white" />}
           label="Wallet"
           path="/wallet"
@@ -103,6 +127,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'shop':
       return (
         <QuickAccessCard
+          widgetId="shop"
           icon={<ShoppingBag className="h-3.5 w-3.5 text-white" />}
           label="Shop"
           path="/marketplace"
@@ -113,6 +138,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'communities':
       return (
         <QuickAccessCard
+          widgetId="communities"
           icon={<Radio className="h-3.5 w-3.5 text-white" />}
           label="Communities"
           path="/community"

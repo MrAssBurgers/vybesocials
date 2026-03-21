@@ -85,7 +85,7 @@ const layoutSpring = { type: 'spring' as const, damping: 28, stiffness: 350, mas
 
 /* ── Grid measurement helper ── */
 function measureGrid(gridEl: HTMLElement | null) {
-  if (!gridEl) return { colWidth: 0, rowHeight: 80, gap: 12 };
+  if (!gridEl) return { colWidth: 0, rowHeight: 56, gap: 12 };
   const style = getComputedStyle(gridEl);
   const gap = parseFloat(style.gap) || 12;
   const cols = style.gridTemplateColumns.split(' ');
