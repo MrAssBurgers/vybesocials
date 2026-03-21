@@ -64,7 +64,7 @@ export const ARFilterPicker = memo(function ARFilterPicker({
     if (!profile) { toast.error('Sign in to share filters'); return; }
 
     const { masks, particles, colorGrade, lighting, cssFilter } = filter;
-    const config = { masks, particles, colorGrade, lighting, cssFilter } as unknown as Record<string, unknown>;
+    const config = JSON.parse(JSON.stringify({ masks, particles, colorGrade, lighting, cssFilter }));
 
     const { error } = await supabase.from('community_filters').insert([{
       creator_id: profile.id,
