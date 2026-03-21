@@ -68,22 +68,34 @@ async function getFaceLandmarker() {
       const { FaceLandmarker, FilesetResolver } = vision;
 
       const filesetResolver = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
       );
 
-      faceLandmarkerInstance = await FaceLandmarker.createFromOptions(filesetResolver, {
-        baseOptions: {
-          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-          delegate: 'GPU',
-        },
-        runningMode: 'VIDEO',
-        numFaces: 2,
-        minFaceDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-        outputFaceBlendshapes: false,
-        outputFacialTransformationMatrixes: false,
-      });
+      // Try GPU first, fall back to CPU
+      let landmarker: any = null;
+      for (const delegate of ['GPU', 'CPU'] as const) {
+        try {
+          landmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+            baseOptions: {
+              modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+              delegate,
+            },
+            runningMode: 'VIDEO',
+            numFaces: 2,
+            minFaceDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+            outputFaceBlendshapes: false,
+            outputFacialTransformationMatrixes: false,
+          });
+          console.log(`[FaceTracking] Initialized with ${delegate} delegate`);
+          break;
+        } catch (delegateErr) {
+          console.warn(`[FaceTracking] ${delegate} delegate failed, trying fallback...`, delegateErr);
+        }
+      }
 
+      if (!landmarker) throw new Error('All delegates failed');
+      faceLandmarkerInstance = landmarker;
       return faceLandmarkerInstance;
     } catch (err) {
       console.error('[FaceTracking] Failed to initialize:', err);

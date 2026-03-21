@@ -80,6 +80,12 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   }, []);
 
   // Start camera
+  // Use refs for values needed inside startCamera to avoid stale closures
+  const filterModeRef = useRef(filterMode);
+  const arReadyRef = useRef(arReady);
+  filterModeRef.current = filterMode;
+  arReadyRef.current = arReady;
+
   const startCamera = useCallback(async () => {
     try {
       if (streamRef.current) {
@@ -100,8 +106,8 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
               width: videoRef.current.videoWidth,
               height: videoRef.current.videoHeight,
             });
-            // Start face tracking if AR mode is active
-            if (filterMode === 'ar' && arReady) {
+            // Start face tracking if AR mode is active (use refs for fresh values)
+            if (filterModeRef.current === 'ar' && arReadyRef.current) {
               startTracking(videoRef.current);
             }
           }
@@ -113,7 +119,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
     } catch (err) {
       console.error('[MobileCreateStudio] Camera error:', err);
     }
-  }, [facingMode, mode]);
+  }, [facingMode, mode, startTracking]);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach(t => t.stop());
