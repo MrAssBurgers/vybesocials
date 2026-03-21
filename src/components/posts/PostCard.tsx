@@ -662,6 +662,17 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {/* AI Generated Badge */}
+            {(post.is_ai_generated || post.ai_override !== undefined) && (
+              <AIBadge
+                postId={post.id}
+                authorId={post.author.id}
+                isAiGenerated={!!post.is_ai_generated}
+                aiConfidence={post.ai_confidence || 0}
+                aiOverride={post.ai_override ?? null}
+              />
+            )}
           </div>
         );
       })()}
