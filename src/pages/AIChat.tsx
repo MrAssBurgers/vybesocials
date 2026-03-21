@@ -81,7 +81,9 @@ export default function AIChat() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editName, setEditName] = useState(aiName);
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
-  const [locationEnabled, setLocationEnabled] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(() => {
+    try { return localStorage.getItem('vybe_ai_location') === 'true'; } catch { return false; }
+  });
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
   const [showGPSDialog, setShowGPSDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
