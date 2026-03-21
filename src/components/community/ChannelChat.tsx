@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { ServerSafetyGate } from './ServerSafetyGate';
+import { EmojiPicker } from '@/components/chat/EmojiPicker';
 import { useChannelMessages, useSendChannelMessage, ChannelMessage, useMyServerRole } from '@/hooks/useServers';
 import { useMyChannelPermissions } from '@/hooks/useChannelPermissions';
 import { useAuth } from '@/lib/auth';
@@ -166,6 +167,11 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
               onKeyPress={handleKeyPress}
               placeholder={`Message #${channelName}`}
               className="flex-1 h-10 sm:h-10 text-[15px] sm:text-sm"
+            />
+            <EmojiPicker
+              onEmojiSelect={(emoji) => {
+                setMessageText(prev => prev + emoji);
+              }}
             />
             <Button
               size="icon"

@@ -84,6 +84,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { Toybox } from './Toybox';
+import { EmojiPicker } from './EmojiPicker';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
 import { VybeViewer } from './VybeViewer';
 // Flying bubble removed - messages now pop in like iMessage
@@ -1900,6 +1901,13 @@ const MessageInputArea = memo(function MessageInputArea({
               onKeyPress={handleKeyPress}
               placeholder={t('messages.typeMessage')}
               className="flex-1 h-9 sm:h-10 text-sm"
+            />
+
+            <EmojiPicker
+              onEmojiSelect={(emoji) => {
+                handleInputChange(messageText + emoji);
+                inputRef.current?.focus();
+              }}
             />
 
             {!messageText.trim() ? (
