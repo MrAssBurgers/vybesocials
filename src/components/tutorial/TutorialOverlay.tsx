@@ -394,8 +394,9 @@ export const TutorialOverlay = memo(function TutorialOverlay({
                     opacity: 1,
                   }}
                   initial={{ opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 200, damping: 28 }}
-                  rx="16"
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  rx="12"
+                  ry="12"
                   fill="black"
                 />
               )}
