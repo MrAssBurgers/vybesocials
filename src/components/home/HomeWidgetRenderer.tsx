@@ -93,7 +93,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'wallet':
       return (
         <QuickAccessCard
-          icon={<Wallet className="h-4 w-4 text-white" />}
+          icon={<Wallet className="h-3.5 w-3.5 text-white" />}
           label="Wallet"
           path="/wallet"
           gradient="from-amber-500/20 via-orange-500/15 to-yellow-500/20"
