@@ -682,7 +682,7 @@ export function HomeEditModeProvider({
         <AnimatePresence>
           {editing && <EditToolbar saving={saving} variant={variant} onSave={handleSave} onCancel={handleCancel} />}
         </AnimatePresence>
-        {editing && <div className="h-20" />}
+        {editing && <div className="h-24" />}
         <div onPointerDown={editing ? (e) => {
           // Only deselect if tapping the background, not a widget
           const target = e.target as HTMLElement;
