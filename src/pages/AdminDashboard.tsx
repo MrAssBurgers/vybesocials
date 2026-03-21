@@ -167,6 +167,8 @@ export default function AdminDashboard() {
         return <AdminBadgeManager />;
       case 'meme-bans':
         return <MemeBanManager />;
+      case 'mod-apps':
+        return isAdmin ? <AdminModApplicationsSection /> : null;
       case 'roles':
         return isAdmin ? <AdminRolesSection /> : null;
       case 'errors':

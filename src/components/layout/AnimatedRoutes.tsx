@@ -154,6 +154,7 @@ export function AnimatedRoutes() {
             <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
             <Route path="/admin/music-settings" element={<ProtectedRoute><AdminMusicSettings /></ProtectedRoute>} />
             <Route path="/admin/bugs" element={<ProtectedRoute><AdminBugReports /></ProtectedRoute>} />
+            <Route path="/apply-moderator" element={<ProtectedRoute><ModeratorApplication /></ProtectedRoute>} />
             <Route path="/badges" element={<ProtectedRoute><BadgeLibrary /></ProtectedRoute>} />
             <Route path="/challenges" element={<ProtectedRoute><ChallengesHub /></ProtectedRoute>} />
             <Route path="/howudoin" element={<ProtectedRoute><HowUDoinHub /></ProtectedRoute>} />
