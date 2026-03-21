@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, createContext, useContext, type ReactNode } from 'react';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
+import { useState, useCallback, useEffect, useRef, createContext, useContext, type ReactNode } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X, Eye, Check, Smartphone, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -14,10 +14,9 @@ interface EditModeCtx {
   setSelectedWidget: (id: string | null) => void;
   handleToggle: (id: string) => void;
   handleResize: (id: string, col: 1 | 2, row: 1 | 2) => void;
-  /** Ordered list of enabled widget IDs — drive rendering order */
   orderedEnabledIds: string[];
-  /** Reorder callback for Reorder.Group */
-  handleReorder: (ids: string[]) => void;
+  handleSwap: (dragId: string, targetId: string) => void;
+  dragOverId: string | null;
 }
 
 const EditModeContext = createContext<EditModeCtx>({
@@ -28,7 +27,8 @@ const EditModeContext = createContext<EditModeCtx>({
   handleToggle: () => {},
   handleResize: () => {},
   orderedEnabledIds: [],
-  handleReorder: () => {},
+  handleSwap: () => {},
+  dragOverId: null,
 });
 
 export const useEditMode = () => useContext(EditModeContext);
@@ -36,11 +36,12 @@ export const useEditMode = () => useContext(EditModeContext);
 /* ── Jiggle CSS ── */
 const jiggleCSS = `
 @keyframes widget-jiggle {
-  0%   { transform: rotate(-0.5deg); }
-  50%  { transform: rotate(0.5deg); }
-  100% { transform: rotate(-0.5deg); }
+  0%   { transform: rotate(-0.6deg); }
+  50%  { transform: rotate(0.6deg); }
+  100% { transform: rotate(-0.6deg); }
 }
-.widget-jiggle { animation: widget-jiggle 0.22s ease-in-out infinite; }
+.widget-jiggle { animation: widget-jiggle 0.2s ease-in-out infinite; }
+.widget-jiggle:active { animation: none; }
 `;
 
 /* ── Resize handles ── */
@@ -50,19 +51,19 @@ function ResizeHandle({ position, onClick }: { position: 'right' | 'bottom' | 'c
       onPointerDown={e => { e.stopPropagation(); e.preventDefault(); onClick(); }}
       className={cn(
         'absolute z-30 touch-none',
-        position === 'right' && 'top-3 -right-1.5 bottom-3 w-3 cursor-ew-resize flex items-center justify-center',
-        position === 'bottom' && '-bottom-1.5 left-3 right-3 h-3 cursor-ns-resize flex items-center justify-center',
-        position === 'corner' && '-bottom-2 -right-2 w-5 h-5 cursor-nwse-resize',
+        position === 'right' && 'top-3 -right-2 bottom-3 w-4 cursor-ew-resize flex items-center justify-center',
+        position === 'bottom' && '-bottom-2 left-3 right-3 h-4 cursor-ns-resize flex items-center justify-center',
+        position === 'corner' && '-bottom-2.5 -right-2.5 w-6 h-6 cursor-nwse-resize',
       )}
     >
-      {position === 'right' && <div className="w-1 h-8 rounded-full bg-primary/70" />}
-      {position === 'bottom' && <div className="h-1 w-8 rounded-full bg-primary/70" />}
-      {position === 'corner' && <div className="w-3.5 h-3.5 rounded-full bg-primary border-2 border-background shadow-lg" />}
+      {position === 'right' && <div className="w-1 h-8 rounded-full bg-primary/80" />}
+      {position === 'bottom' && <div className="h-1 w-8 rounded-full bg-primary/80" />}
+      {position === 'corner' && <div className="w-4 h-4 rounded-full bg-primary border-2 border-background shadow-lg" />}
     </button>
   );
 }
 
-/* ── Editable wrapper for each widget section ── */
+/* ── Editable wrapper for each widget ── */
 export function EditableWidgetWrapper({
   widgetId,
   children,
@@ -72,12 +73,17 @@ export function EditableWidgetWrapper({
   children: ReactNode;
   className?: string;
 }) {
-  const { isEditing, localWidgets, selectedWidget, setSelectedWidget, handleToggle, handleResize } = useEditMode();
+  const {
+    isEditing, localWidgets, selectedWidget, setSelectedWidget,
+    handleToggle, handleResize, handleSwap, dragOverId,
+  } = useEditMode();
   const widget = localWidgets.find(w => w.id === widgetId);
+  const dragRef = useRef<HTMLDivElement>(null);
 
   if (!isEditing || !widget) return <>{children}</>;
 
   const isSelected = selectedWidget === widgetId;
+  const isDragOver = dragOverId === widgetId;
 
   const cycleSize = (dir: 'right' | 'bottom' | 'corner') => {
     const { colSpan, rowSpan } = widget;
@@ -92,19 +98,40 @@ export function EditableWidgetWrapper({
   };
 
   return (
-    <Reorder.Item
-      value={widgetId}
-      id={widgetId}
-      dragListener={isEditing}
-      className={cn('relative widget-jiggle touch-none', className)}
+    <div
+      ref={dragRef}
+      draggable={isEditing}
+      onDragStart={e => {
+        e.dataTransfer.setData('text/plain', widgetId);
+        e.dataTransfer.effectAllowed = 'move';
+        if (dragRef.current) dragRef.current.style.opacity = '0.4';
+      }}
+      onDragEnd={() => {
+        if (dragRef.current) dragRef.current.style.opacity = '1';
+      }}
+      onDragOver={e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      }}
+      onDrop={e => {
+        e.preventDefault();
+        const dragId = e.dataTransfer.getData('text/plain');
+        if (dragId && dragId !== widgetId) handleSwap(dragId, widgetId);
+      }}
+      className={cn(
+        'relative widget-jiggle touch-none transition-transform duration-200',
+        widget.colSpan === 2 ? 'col-span-2' : 'col-span-1',
+        widget.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
+        isDragOver && 'scale-105 ring-2 ring-primary/60 ring-offset-2 ring-offset-background rounded-2xl',
+        className,
+      )}
       style={{ animationDelay: `${(widget.order % 5) * 0.04}s` }}
-      whileDrag={{ scale: 1.03, zIndex: 50, boxShadow: '0 12px 40px -8px hsl(var(--primary) / 0.35)' }}
-      onClick={(e: React.MouseEvent) => { e.stopPropagation(); setSelectedWidget(isSelected ? null : widgetId); }}
+      onClick={(e) => { e.stopPropagation(); setSelectedWidget(isSelected ? null : widgetId); }}
     >
       {/* Content with edit border */}
       <div
         className={cn(
-          'relative rounded-2xl transition-all overflow-hidden',
+          'relative rounded-2xl transition-all overflow-hidden h-full',
           isSelected
             ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/20'
             : 'ring-1 ring-border/50',
@@ -142,25 +169,29 @@ export function EditableWidgetWrapper({
           <ResizeHandle position="corner" onClick={() => cycleSize('corner')} />
         </>
       )}
-    </Reorder.Item>
+    </div>
   );
 }
 
-/* ── The reorder group wrapper ── */
+/* ── The grid wrapper ── */
 export function EditableWidgetList({ children }: { children: ReactNode }) {
-  const { isEditing, orderedEnabledIds, handleReorder } = useEditMode();
+  const { isEditing } = useEditMode();
 
   if (!isEditing) return <>{children}</>;
 
   return (
-    <Reorder.Group
-      axis="y"
-      values={orderedEnabledIds}
-      onReorder={handleReorder}
-      className="space-y-1"
-    >
+    <div className="grid grid-cols-2 gap-2 px-3">
       {children}
-    </Reorder.Group>
+    </div>
+  );
+}
+
+/* ── Non-edit grid wrapper ── */
+export function WidgetGrid({ children }: { children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 px-3">
+      {children}
+    </div>
   );
 }
 
@@ -208,7 +239,7 @@ function EditToolbar({
         </Button>
       </div>
       <p className="text-center text-[10px] text-muted-foreground mt-1">
-        Drag to reorder · tap to select · grab edges to resize · {variant === 'mobile' ? '📱' : '🖥️'} {variant}
+        Drag to swap · tap to select · grab edges to resize · {variant === 'mobile' ? '📱' : '🖥️'} {variant}
       </p>
     </motion.div>
   );
@@ -228,6 +259,7 @@ export function HomeEditModeProvider({
   const [localWidgets, setLocalWidgets] = useState<GridWidgetState[]>(config.widgets);
   const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   useEffect(() => {
     if (editing) {
@@ -253,17 +285,20 @@ export function HomeEditModeProvider({
     ));
   }, []);
 
-  const handleReorder = useCallback((ids: string[]) => {
+  const handleSwap = useCallback((dragId: string, targetId: string) => {
     setLocalWidgets(prev => {
-      const map = new Map(prev.map(w => [w.id, w]));
-      // Re-number order for enabled ones based on new array order
       const updated = [...prev];
-      ids.forEach((id, i) => {
-        const idx = updated.findIndex(w => w.id === id);
-        if (idx !== -1) updated[idx] = { ...updated[idx], order: i };
-      });
-      return updated;
+      const dragIdx = updated.findIndex(w => w.id === dragId);
+      const targetIdx = updated.findIndex(w => w.id === targetId);
+      if (dragIdx === -1 || targetIdx === -1) return prev;
+      // Swap orders
+      const dragOrder = updated[dragIdx].order;
+      const targetOrder = updated[targetIdx].order;
+      updated[dragIdx] = { ...updated[dragIdx], order: targetOrder };
+      updated[targetIdx] = { ...updated[targetIdx], order: dragOrder };
+      return updated.sort((a, b) => a.order - b.order);
     });
+    setDragOverId(null);
   }, []);
 
   const handleSave = async () => {
@@ -285,6 +320,18 @@ export function HomeEditModeProvider({
     onEditingChange(false);
   };
 
+  // Listen for dragover on widget wrappers via event delegation
+  const handleContainerDragOver = useCallback((e: React.DragEvent) => {
+    const target = (e.target as HTMLElement).closest('[data-widget-id]');
+    if (target) {
+      setDragOverId(target.getAttribute('data-widget-id'));
+    }
+  }, []);
+
+  const handleContainerDragLeave = useCallback(() => {
+    setDragOverId(null);
+  }, []);
+
   const ctx: EditModeCtx = {
     isEditing: editing,
     localWidgets: editing ? localWidgets : config.widgets,
@@ -293,7 +340,8 @@ export function HomeEditModeProvider({
     handleToggle,
     handleResize,
     orderedEnabledIds,
-    handleReorder,
+    handleSwap,
+    dragOverId,
   };
 
   return (
@@ -303,7 +351,11 @@ export function HomeEditModeProvider({
         {editing && <EditToolbar saving={saving} variant={variant} onSave={handleSave} onCancel={handleCancel} />}
       </AnimatePresence>
       {editing && <div className="h-20" />}
-      <div onClick={editing ? () => setSelectedWidget(null) : undefined}>
+      <div
+        onClick={editing ? () => setSelectedWidget(null) : undefined}
+        onDragOver={editing ? handleContainerDragOver : undefined}
+        onDragLeave={editing ? handleContainerDragLeave : undefined}
+      >
         {children}
       </div>
     </EditModeContext.Provider>

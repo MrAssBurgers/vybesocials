@@ -22,18 +22,14 @@ export interface GridLayoutConfig {
 
 export type LayoutVariant = 'mobile' | 'desktop';
 
-const DEFAULT_WIDGETS = (variant: LayoutVariant): GridWidgetState[] =>
-  ALL_WIDGETS.map((w, i) => ({
-    ...w,
-    enabled: i < 4,
-    colSpan: (w.id === 'ai_brief' || w.id === 'stories') ? 2 as const : 1 as const,
-    rowSpan: 1 as const,
-    order: i,
-  }));
+const DEFAULT_ENABLED = new Set([
+  'greeting', 'stories', 'xp_streak', 'ai_brief',
+  'vybe_dna', 'wallet', 'shop', 'communities',
+  'weekly_rhythm', 'feed',
+]);
 
 function parseConfig(saved: Partial<GridLayoutConfig> | undefined): GridLayoutConfig {
   const savedWidgets = saved?.widgets;
-  const DEFAULT_ENABLED = new Set(['greeting', 'stories', 'xp_streak', 'ai_brief', 'weekly_rhythm', 'discovery', 'feed']);
 
   const widgets: GridWidgetState[] = ALL_WIDGETS.map((def, i) => {
     const sw = savedWidgets?.find((w: any) => w.id === def.id);
@@ -41,7 +37,7 @@ function parseConfig(saved: Partial<GridLayoutConfig> | undefined): GridLayoutCo
     return {
       ...def,
       enabled: DEFAULT_ENABLED.has(def.id),
-      colSpan: (def.id === 'feed' || def.id === 'stories') ? 2 as const : 1 as const,
+      colSpan: (def.defaultCol ?? 1) as 1 | 2,
       rowSpan: 1 as const,
       order: i,
     };
@@ -67,7 +63,6 @@ export function useGridLayout() {
 
   const config = useMemo((): GridLayoutConfig => {
     const gridRoot = (prefs?.extra as any)?.grid_layout;
-    // Try variant-specific first, fall back to legacy root
     const saved = gridRoot?.[variant] ?? gridRoot;
     return parseConfig(saved as Partial<GridLayoutConfig> | undefined);
   }, [prefs?.extra, variant]);
@@ -85,7 +80,6 @@ export function useGridLayout() {
           ...currentGrid,
           [variant]: merged,
         },
-        // Sync legacy home_layout for backwards compat
         home_layout: {
           order: (newConfig.widgets ?? config.widgets).filter(w => w.enabled).map(w => w.id),
           hidden: (newConfig.widgets ?? config.widgets).filter(w => !w.enabled).map(w => w.id),

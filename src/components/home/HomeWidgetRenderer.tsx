@@ -1,17 +1,19 @@
 import { memo, type ReactNode } from 'react';
-import { Sparkles, Globe } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Sparkles, Globe, Dna, Wallet, ShoppingBag, Radio } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StoriesBar } from '@/components/stories/StoriesBar';
 import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
-import { DiscoveryCards } from '@/components/home/DiscoveryCards';
 import { GreetingWidget } from '@/components/home/GreetingWidget';
 import { XPStreakWidget } from '@/components/home/XPStreakWidget';
 import { DailyBriefWidget } from '@/components/home/DailyBriefWidget';
-import { EditableWidgetWrapper, EditableWidgetList, useEditMode } from '@/components/home/HomeEditMode';
+import { EditableWidgetWrapper, EditableWidgetList, WidgetGrid, useEditMode } from '@/components/home/HomeEditMode';
 import { useGridLayout } from '@/hooks/useGridLayout';
+import { cn } from '@/lib/utils';
+import { triggerHaptic } from '@/lib/haptics';
 import type { Post } from '@/hooks/useInfinitePosts';
 import { Loader2 } from 'lucide-react';
 import { lazy, Suspense, useMemo } from 'react';
@@ -41,6 +43,26 @@ interface Props {
   loadMoreRef: (node: HTMLDivElement | null) => void;
 }
 
+/* ── Quick Access Card ── */
+function QuickAccessCard({ icon, label, path, gradient }: {
+  icon: ReactNode; label: string; path: string; gradient: string;
+}) {
+  const navigate = useNavigate();
+  return (
+    <button
+      onClick={() => { triggerHaptic('light'); navigate(path); }}
+      className={cn(
+        "flex flex-col items-center justify-center gap-2 py-4 rounded-xl transition-all h-full",
+        "bg-gradient-to-br border border-white/10 hover:scale-[1.04] active:scale-95",
+        gradient
+      )}
+    >
+      <span className="text-foreground">{icon}</span>
+      <span className="text-[11px] font-medium text-foreground/80">{label}</span>
+    </button>
+  );
+}
+
 /* ── Map widget IDs to actual components ── */
 function WidgetContent({ id, props }: { id: string; props: Props }) {
   switch (id) {
@@ -54,8 +76,14 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
       return <StoriesBar />;
     case 'weekly_rhythm':
       return <WeeklyRhythmBanner />;
-    case 'discovery':
-      return <DiscoveryCards />;
+    case 'vybe_dna':
+      return <QuickAccessCard icon={<Dna className="h-5 w-5" />} label="VYBE DNA" path="/vybe-dna" gradient="from-violet-500/20 to-fuchsia-500/20" />;
+    case 'wallet':
+      return <QuickAccessCard icon={<Wallet className="h-5 w-5" />} label="Wallet" path="/wallet" gradient="from-amber-500/20 to-orange-500/20" />;
+    case 'shop':
+      return <QuickAccessCard icon={<ShoppingBag className="h-5 w-5" />} label="Shop" path="/marketplace" gradient="from-emerald-500/20 to-teal-500/20" />;
+    case 'communities':
+      return <QuickAccessCard icon={<Radio className="h-5 w-5" />} label="Communities" path="/community" gradient="from-blue-500/20 to-cyan-500/20" />;
     case 'feed':
       return <FeedSection {...props} />;
     default:
@@ -70,7 +98,7 @@ function FeedSection({
   globalPosts, globalLoading, globalFetching, isFetchingNextGlobal, loadMoreRef,
 }: Props) {
   return (
-    <div className="px-3 pb-6" data-tutorial="feed-area">
+    <div className="pb-6" data-tutorial="feed-area">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
           <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
@@ -170,24 +198,47 @@ function InlinePostList({
   );
 }
 
-/* ── Main renderer: orders widgets and wraps in editable list ── */
+/* ── Main renderer: 2D grid with drag-swap ── */
 export function HomeWidgetRenderer(props: Props) {
   const { isEditing, localWidgets, orderedEnabledIds } = useEditMode();
   const { config } = useGridLayout();
 
-  // Use local widgets when editing, saved config otherwise
   const widgets = isEditing ? localWidgets : config.widgets;
   const enabledIds = isEditing
     ? orderedEnabledIds
     : widgets.filter(w => w.enabled).sort((a, b) => a.order - b.order).map(w => w.id);
 
+  if (isEditing) {
+    return (
+      <EditableWidgetList>
+        {enabledIds.map(id => (
+          <EditableWidgetWrapper key={id} widgetId={id}>
+            <div data-widget-id={id}>
+              <WidgetContent id={id} props={props} />
+            </div>
+          </EditableWidgetWrapper>
+        ))}
+      </EditableWidgetList>
+    );
+  }
+
+  // Non-editing: render as 2-col grid with saved sizes
   return (
-    <EditableWidgetList>
-      {enabledIds.map(id => (
-        <EditableWidgetWrapper key={id} widgetId={id}>
-          <WidgetContent id={id} props={props} />
-        </EditableWidgetWrapper>
-      ))}
-    </EditableWidgetList>
+    <WidgetGrid>
+      {enabledIds.map(id => {
+        const w = widgets.find(wi => wi.id === id);
+        return (
+          <div
+            key={id}
+            className={cn(
+              w?.colSpan === 2 ? 'col-span-2' : 'col-span-1',
+              w?.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
+            )}
+          >
+            <WidgetContent id={id} props={props} />
+          </div>
+        );
+      })}
+    </WidgetGrid>
   );
 }

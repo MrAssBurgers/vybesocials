@@ -6,6 +6,8 @@ export interface WidgetDef {
   label: string;
   icon: string;
   description: string;
+  /** Default colSpan for this widget */
+  defaultCol?: 1 | 2;
 }
 
 export interface WidgetState extends WidgetDef {
@@ -13,18 +15,21 @@ export interface WidgetState extends WidgetDef {
 }
 
 export const ALL_WIDGETS: WidgetDef[] = [
-  { id: 'greeting',       label: 'Greeting',       icon: '👋', description: 'Good morning / evening message' },
-  { id: 'stories',        label: 'Stories',         icon: '📸', description: 'Stories from people you follow' },
-  { id: 'xp_streak',      label: 'XP & Streak',    icon: '🔥', description: 'Level progress and daily streak' },
-  { id: 'ai_brief',       label: 'Daily Brief',    icon: '⚡', description: 'Your personalized AI catch-up' },
-  { id: 'weekly_rhythm',  label: 'Weekly Vibes',   icon: '📊', description: 'Top XP earners and activity' },
-  { id: 'discovery',      label: 'Quick Access',   icon: '🧭', description: 'Wallet, Shop, DNA, Communities' },
-  { id: 'feed',           label: 'Feed',           icon: '📰', description: 'Posts from your community' },
+  { id: 'greeting',       label: 'Greeting',       icon: '👋', description: 'Good morning / evening message', defaultCol: 2 },
+  { id: 'stories',        label: 'Stories',         icon: '📸', description: 'Stories from people you follow', defaultCol: 2 },
+  { id: 'xp_streak',      label: 'XP & Streak',    icon: '🔥', description: 'Level progress and daily streak', defaultCol: 2 },
+  { id: 'ai_brief',       label: 'Daily Brief',    icon: '⚡', description: 'Your personalized AI catch-up', defaultCol: 2 },
+  { id: 'vybe_dna',       label: 'VYBE DNA',       icon: '🧬', description: 'Your VYBE DNA profile' },
+  { id: 'wallet',         label: 'Wallet',          icon: '💰', description: 'Your VYBE wallet' },
+  { id: 'shop',           label: 'Shop',            icon: '🛍️', description: 'Browse the marketplace' },
+  { id: 'communities',    label: 'Communities',     icon: '📡', description: 'Join live communities' },
+  { id: 'weekly_rhythm',  label: 'Weekly Vibes',   icon: '📊', description: 'Top XP earners and activity', defaultCol: 2 },
+  { id: 'feed',           label: 'Feed',           icon: '📰', description: 'Posts from your community', defaultCol: 2 },
   { id: 'trending',       label: 'Trending Tags',  icon: '🏷️', description: "What's blowing up on VYBE" },
   { id: 'online_friends', label: 'Online Now',     icon: '👥', description: 'Friends currently online (mobile)' },
 ];
 
-const DEFAULT_ORDER = ['ai_brief', 'xp_streak', 'stories', 'weekly_rhythm'];
+const DEFAULT_ORDER = ['greeting', 'stories', 'xp_streak', 'ai_brief', 'vybe_dna', 'wallet', 'shop', 'communities'];
 const DEFAULT_HIDDEN: string[] = [];
 
 export interface HomeLayout {
@@ -43,7 +48,6 @@ export function useHomeLayout() {
 
   const widgets = useMemo((): WidgetState[] => {
     const orderedIds = [...layout.order];
-    // Append any new widgets not yet in user's saved order
     ALL_WIDGETS.forEach(w => {
       if (!orderedIds.includes(w.id)) orderedIds.push(w.id);
     });
