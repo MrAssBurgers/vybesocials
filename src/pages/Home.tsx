@@ -360,110 +360,153 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         threshold={threshold} 
       />
 
-      <div 
-        className="max-w-xl mx-auto"
-        data-tutorial="tutorial-welcome-center"
-        style={{ 
-          transform: pullDistance > 0 ? `translateY(${pullDistance * 0.5}px)` : undefined 
-        }}
-      >
-        {/* Announcements Banner */}
-        <AnnouncementBanner />
+      <HomeEditModeProvider editing={customizerOpen} onEditingChange={setCustomizerOpen}>
+        <div 
+          className="max-w-xl mx-auto"
+          data-tutorial="tutorial-welcome-center"
+          style={{ 
+            transform: pullDistance > 0 ? `translateY(${pullDistance * 0.5}px)` : undefined 
+          }}
+        >
+          {/* Announcements Banner */}
+          <AnnouncementBanner />
 
-        {/* Global Events Banner */}
-        <GlobalEventBanner />
+          {/* Global Events Banner */}
+          <GlobalEventBanner />
 
-        {/* Welcome Header (greeting) */}
-        <WelcomeHeader />
+          {/* Welcome Header (greeting) */}
+          <EditableWidgetWrapper widgetId="ai_brief">
+            <WelcomeHeader />
+          </EditableWidgetWrapper>
 
-        {/* Stories Bar - right below greeting */}
-        {isVisible('stories') && <StoriesBar />}
+          {/* Stories Bar */}
+          {isVisible('stories') && (
+            <EditableWidgetWrapper widgetId="stories">
+              <StoriesBar />
+            </EditableWidgetWrapper>
+          )}
 
-        {/* Weekly Rhythm / Daily Brief - below stories */}
-        {isVisible('weekly_rhythm') && <WeeklyRhythmBanner />}
+          {/* Weekly Rhythm / Daily Brief */}
+          {isVisible('weekly_rhythm') && (
+            <EditableWidgetWrapper widgetId="weekly_rhythm">
+              <WeeklyRhythmBanner />
+            </EditableWidgetWrapper>
+          )}
 
-        {/* Discovery Cards — quick access to Wallet, Shop, DNA, Spaces */}
-        <DiscoveryCards />
+          {/* Discovery Cards */}
+          <EditableWidgetWrapper widgetId="trending">
+            <DiscoveryCards />
+          </EditableWidgetWrapper>
 
-        {/* Customize Button — below discovery cards */}
-        <div className="px-4 pb-2 flex justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCustomizerOpen(true)}
-            className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-            Customize
-          </Button>
-        </div>
-        <div className="px-3 pb-6" data-tutorial="feed-area">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
-              <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                <Sparkles className="h-4 w-4 mr-1.5" />
-                For You
-              </TabsTrigger>
-              <TabsTrigger value="global" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                <Globe className="h-4 w-4 mr-1.5" />
-                Global
-              </TabsTrigger>
-            </TabsList>
-
-            {/* X-style "New posts" banner */}
-            {hasNewPosts && (
-              <button
-                onClick={() => {
-                  clearNewPosts();
-                  handleRefresh();
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="w-full mb-4 py-2.5 px-4 rounded-full bg-primary text-primary-foreground text-sm font-semibold shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-300"
+          {/* Customize Button */}
+          {!customizerOpen && (
+            <div className="px-4 pb-2 flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCustomizerOpen(true)}
+                className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
               >
-                <Sparkles className="h-4 w-4" />
-                New posts available — tap to see
-              </button>
-            )}
+                <LayoutGrid className="h-3.5 w-3.5" />
+                Customize
+              </Button>
+            </div>
+          )}
 
-            <TabsContent value="foryou" className="space-y-4" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
-              <PostList
-                posts={forYouPosts}
-                isLoading={forYouLoading && followingLoading}
-                isFetching={forYouFetching || followingFetching}
-                isFetchingNext={isFetchingNextForYou || isFetchingNextFollowing}
-                loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
-                emptyIcon="✨"
-                emptyText="No posts yet. Follow creators or check Global!"
-                onExplore={() => navigate('/explore')}
-                showAds={showAds}
-              />
-            </TabsContent>
+          {/* Hidden widgets shown as placeholders in edit mode */}
+          {customizerOpen && (
+            <HiddenWidgetPlaceholders />
+          )}
 
-            <TabsContent value="global" className="space-y-4" forceMount style={{ display: activeTab === 'global' ? 'block' : 'none' }}>
-              <PostList
-                posts={globalPosts}
-                isLoading={globalLoading}
-                isFetching={globalFetching}
-                isFetchingNext={isFetchingNextGlobal}
-                loadMoreRef={activeTab === 'global' ? loadMoreRef : () => {}}
-                emptyIcon="🌍"
-                emptyText="No posts yet. Be the first to share something!"
-                onExplore={() => navigate('/explore')}
-                showAds={showAds}
-              />
-            </TabsContent>
-          </Tabs>
+          <div className="px-3 pb-6" data-tutorial="feed-area">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
+                <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                  <Sparkles className="h-4 w-4 mr-1.5" />
+                  For You
+                </TabsTrigger>
+                <TabsTrigger value="global" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                  <Globe className="h-4 w-4 mr-1.5" />
+                  Global
+                </TabsTrigger>
+              </TabsList>
+
+              {/* X-style "New posts" banner */}
+              {hasNewPosts && (
+                <button
+                  onClick={() => {
+                    clearNewPosts();
+                    handleRefresh();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="w-full mb-4 py-2.5 px-4 rounded-full bg-primary text-primary-foreground text-sm font-semibold shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-300"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  New posts available — tap to see
+                </button>
+              )}
+
+              <TabsContent value="foryou" className="space-y-4" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
+                <PostList
+                  posts={forYouPosts}
+                  isLoading={forYouLoading && followingLoading}
+                  isFetching={forYouFetching || followingFetching}
+                  isFetchingNext={isFetchingNextForYou || isFetchingNextFollowing}
+                  loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
+                  emptyIcon="✨"
+                  emptyText="No posts yet. Follow creators or check Global!"
+                  onExplore={() => navigate('/explore')}
+                  showAds={showAds}
+                />
+              </TabsContent>
+
+              <TabsContent value="global" className="space-y-4" forceMount style={{ display: activeTab === 'global' ? 'block' : 'none' }}>
+                <PostList
+                  posts={globalPosts}
+                  isLoading={globalLoading}
+                  isFetching={globalFetching}
+                  isFetchingNext={isFetchingNextGlobal}
+                  loadMoreRef={activeTab === 'global' ? loadMoreRef : () => {}}
+                  emptyIcon="🌍"
+                  emptyText="No posts yet. Be the first to share something!"
+                  onExplore={() => navigate('/explore')}
+                  showAds={showAds}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
         </div>
-      </div>
-
-      {/* Inline Edit Mode (Apple-style) */}
-      <HomeEditMode 
-        open={customizerOpen} 
-        onOpenChange={setCustomizerOpen}
-      />
+      </HomeEditModeProvider>
 
       {/* AI Command Bar */}
       <VYBECommandBar />
     </AppLayout>
+  );
+}
+
+/* ── Shows disabled widgets as tap-to-add placeholders in edit mode ── */
+function HiddenWidgetPlaceholders() {
+  const { localWidgets, handleToggle } = useEditMode();
+  const hidden = localWidgets.filter(w => !w.enabled);
+
+  if (hidden.length === 0) return null;
+
+  return (
+    <div className="px-4 pb-3">
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Hidden Widgets</p>
+      <div className="flex flex-wrap gap-2">
+        {hidden.map(w => (
+          <button
+            key={w.id}
+            onClick={() => handleToggle(w.id)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-border/50 bg-muted/20 text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+          >
+            <span className="text-sm">{w.icon}</span>
+            <span className="text-xs font-medium">{w.label}</span>
+            <Eye className="h-3 w-3 ml-1 text-primary" />
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
