@@ -266,7 +266,8 @@ export const TutorialOverlay = memo(function TutorialOverlay({
       await scrollElementIntoView(target);
       
       const rect = target.getBoundingClientRect();
-      const padding = 8;
+      const padding = 6;
+      const borderRadius = Math.min(12, rect.height / 2, rect.width / 2);
       
       setSpotlight({
         top: rect.top - padding,
