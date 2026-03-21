@@ -182,7 +182,7 @@ export function EditableWidgetWrapper({
     const onMoveCheck = (ev: PointerEvent) => {
       const dx = ev.clientX - startPosRef.current.x;
       const dy = ev.clientY - startPosRef.current.y;
-      if (Math.abs(dx) + Math.abs(dy) > 6) {
+      if (Math.abs(dx) + Math.abs(dy) > 15) {
         didDragRef.current = true;
         cleanup();
         startDrag(widgetId, savedEvent);
