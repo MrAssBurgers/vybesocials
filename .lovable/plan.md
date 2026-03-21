@@ -1,159 +1,96 @@
 
 
-# Comprehensive VYBE Fix & Enhancement Plan
+## Samsung-Style Widget System — Complete Rewrite Plan
 
-This plan addresses all the issues raised across multiple areas of the app.
+### Problem Summary
+The current drag/resize system has multiple reliability issues:
+- Widget rects go stale during drag, causing missed swap targets
+- Resize uses a threshold-based approach that feels rigid instead of continuous
+- No visual grid preview during resize (Samsung shows an outline of the target size)
+- The ghost element is a simplified placeholder instead of the actual widget
+- Tap-to-select + drag separation has edge cases that break on touch devices
 
----
+### How Samsung Widgets Actually Work
+1. **Enter edit mode** → all widgets jiggle subtly
+2. **Tap a widget** → it gets a selection frame with blue dot handles on edges/corners
+3. **Drag the widget body** → it lifts up (scale + shadow), follows finger, other widgets slide apart in real-time with spring animations
+4. **Drag an edge handle** → a semi-transparent grid overlay shows the proposed new size, snapping to grid cells. On release, the widget animates to the new size and neighbors reflow
+5. **Everything is grid-locked** — no free-floating positions, widgets always snap into the CSS grid
 
-## 1. Fix Black Screen (Preview Crash)
+### Plan
 
-**Problem**: The Vite alias config may not work consistently across all module resolution paths, causing the preview to intermittently fail.
+#### 1. Rewrite the drag engine in `HomeEditMode.tsx`
 
-**Fix**:
-- Simplify `vite.config.ts` — remove the `previewSupabaseClientShimPlugin` middleware (it conflicts with the alias approach) and the `runtimeEnvFallbackPlugin` (redundant since `define` already handles it)
-- Keep only the `define` block and the `resolve.alias` redirect from `client.ts` → `runtime-client.ts`
-- This eliminates race conditions between three competing approaches
+**Move system:**
+- On pointer down anywhere on a selected widget (or long-press 200ms on unselected), begin drag
+- Clone the widget DOM node into a fixed-position overlay (the "lifted" ghost) with `scale(1.05)` and elevated shadow
+- The original widget stays in the grid but becomes a transparent placeholder (dashed border)
+- On pointer move, update ghost position AND run hit-testing against live `getBoundingClientRect()` of all grid cells (not cached rects — read them fresh each frame via `requestAnimationFrame`)
+- When the pointer center enters a different widget's bounds for >120ms, execute an order swap with `framer-motion layout` animation
+- On pointer up, animate ghost back to the placeholder position, then remove ghost and restore widget
 
----
+**Resize system:**
+- When a widget is selected, show 3 handles: right edge (horizontal resize), bottom edge (vertical resize), corner (both)
+- On pointer down on a handle, show a semi-transparent blue overlay rectangle that previews the target grid size
+- As the user drags, calculate the target colSpan/rowSpan based on how many grid cells the overlay covers (using the grid's `gap` and `column width` from the container's own measurements)
+- Snap the overlay to valid sizes (1×1, 2×1, 1×2, 2×2) in real-time
+- On pointer up, apply the new size and animate the reflow with spring physics
+- The preview overlay should pulse gently to feel alive
 
-## 2. Token Shop — Make Purchases Functional
+#### 2. Fix hit-testing with live rect reads
 
-**Problem**: Shop items are static placeholders with emoji icons; purchases call `purchase_marketplace_item` RPC but items don't actually apply any cosmetic/boost effect.
+Replace the stale `widgetRectsRef` snapshot approach with a `requestAnimationFrame`-based live read:
+```text
+onPointerMove → rAF → read all [data-widget-id] rects → find hover target → swap if changed
+```
+This eliminates the #1 bug where cached rects become wrong after a swap.
 
-**Changes**:
-- Replace emoji-only item cards with **visual preview mockups** showing what the item looks like on a profile (avatar frame preview, theme swatch, badge icon)
-- Create a `MarketplaceItemPreview` component that renders a mini profile card showing the cosmetic applied (frame around a sample avatar, theme color swatch, badge display)
-- Wire purchases to the existing `locker_items` / `user_cosmetics` system so bought items appear in the Profile Locker
-- Add a "Purchased ✓" state to items already owned
-- For boosts (streak shield, XP boost), record the active boost with an expiry timestamp
+#### 3. Improve the grid container
 
----
+- Set explicit `grid-auto-rows: minmax(80px, auto)` so row heights are predictable
+- Use `gap-3` consistently in both edit and non-edit modes
+- The grid measures its own column width at drag start so resize calculations are pixel-accurate
 
-## 3. Home Page Shop Button → Token Marketplace
+#### 4. Polish animations and haptics
 
-**Problem**: The "Shop" discovery card on home navigates to `/marketplace` (Token Shop) which is correct, but user wants it to go to the locker shop.
+- Jiggle: reduce intensity to `±0.3deg` at `0.3s` — barely perceptible, professional
+- Drag lift: `scale(1.05)`, `box-shadow: 0 20px 40px rgba(0,0,0,0.25)`, 120ms spring transition
+- Swap reflow: `type: 'spring', damping: 28, stiffness: 350` — snappy but not jarring
+- Resize preview: semi-transparent primary color overlay with `border-radius: 16px`
+- Drop: ghost animates to final position with `duration: 0.25s ease-out`, then fades
 
-**Fix**: Change the Shop discovery card path from `/marketplace` to `/marketplace` (it's already correct — the TokenMarketplace page IS the shop). Ensure the marketplace route works and items are purchasable.
+#### 5. Files to modify
 
----
+- **`src/components/home/HomeEditMode.tsx`** — Full rewrite of drag engine, resize handles, ghost rendering, and hit-testing
+- **`src/components/home/HomeWidgetRenderer.tsx`** — Minor: ensure `data-widget-id` is on the correct outer element for hit-testing, clean up duplicate wrapper nesting
 
-## 4. Remove Loading Screen / Make Navigation Instant
+### Technical Details
 
-**Problem**: `PageFallback` shows a spinner on every lazy route transition.
+**Drag ghost implementation:**
+Instead of a simplified card, use `React.createPortal` to render the actual `<WidgetContent>` inside a fixed-position container during drag, with `pointer-events: none` and the lifted visual treatment.
 
-**Fix**:
-- Convert high-traffic pages (Explore, Messages, Notifications, Profile, Settings, Community) from `lazy()` to eager imports
-- Reduce `PageFallback` to a transparent empty `div` (no spinner) for remaining lazy routes
-- This ensures clicking any main nav item opens instantly
+**Live hit-testing (replaces stale rect cache):**
+```text
+let rafId: number;
+const onMove = (ev: PointerEvent) => {
+  cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(() => {
+    // Read fresh rects every frame
+    const rects = new Map<string, DOMRect>();
+    document.querySelectorAll('[data-widget-id]').forEach(el => {
+      const id = el.getAttribute('data-widget-id');
+      if (id && id !== dragId) rects.set(id, el.getBoundingClientRect());
+    });
+    // Find which widget the pointer is over
+    for (const [id, rect] of rects) {
+      if (pointInRect(ev.clientX, ev.clientY, rect)) {
+        // Swap if different from last target and debounce 120ms
+      }
+    }
+  });
+};
+```
 
----
-
-## 5. Remove Floating Bell Notification Icon
-
-**Problem**: `PushNotificationPrompt` renders as a full-screen modal with a bell icon that may appear stuck in the bottom-right corner on certain states.
-
-**Fix**:
-- In `App.tsx`, remove the `<PushNotificationPrompt />` component entirely (or gate it behind a settings opt-in instead of an automatic popup)
-- This eliminates the floating bell
-
----
-
-## 6. Fix Double X Buttons on Popups/Notifications
-
-**Problem**: Some Sheet/Dialog components have both a built-in close button from Radix AND a custom X button.
-
-**Fix**:
-- Audit all Sheet/Dialog components for duplicate close buttons
-- Remove custom X buttons where the Radix `SheetClose` or `DialogClose` already provides one
-- Check `AIBriefSheet`, notification sheets, and profile locker sheets specifically
-
----
-
-## 7. Revamp Tutorial
-
-**Problem**: Tutorial steps reference selectors that may not exist, and descriptions are verbose.
-
-**Fix**:
-- Simplify to 6 core steps (Welcome → Feed → Create → Messages → Profile → Done)
-- Each step: short title, 1-sentence description, clear visual target
-- Remove menu-opening actions (they break tutorial flow)
-- Add a "crucial features" summary card at the end (Shop, Communities, Daily Brief, Locker)
-- Ensure all `targetSelector` values match actual DOM elements
-
----
-
-## 8. Fix Daily Brief Content
-
-**Problem**: The AI brief may return generic content instead of personalized data.
-
-**Fix**:
-- In `AIBriefSheet.tsx`, ensure the edge function call passes the user's selected interests/topics from their brief preferences
-- Verify the brief data includes actual unread message counts, notification details, and activity stats (not placeholder text)
-- Add fallback content if the AI response is empty
-
----
-
-## 9. Add Real Progression to Progress Bars
-
-**Problem**: XP progress bar exists but may not have real data behind it.
-
-**Fix**:
-- Ensure `useNextLevelProgress` hook returns actual XP data from the database
-- Add progression tracking to all features with progress bars (battle pass, challenges)
-- Wire the home page XP bar to real XP transactions
-
----
-
-## 10. Profile Page Layout — XP Tracker & Customization Button
-
-**Problem**: On other users' profiles, the XP tracker should be above the customization button, and the whole area should be compact.
-
-**Fix**:
-- In `Home.tsx`, move the Customize button **below** the XP/streak strip (swap lines 379-390 with the WelcomeHeader area)
-- Make the XP strip and customize button a single compact row
-- For other users' profiles, show their level/XP above the stats section
-
----
-
-## 11. Community Cards — Fix Cut-off Icons & Consistent Design
-
-**Problem**: Community card icons get cut off at `-mt-8` overlap, and the screenshot shows inconsistent styling.
-
-**Fix**:
-- In `CommunityCard.tsx` and `PublicCommunityCard.tsx`:
-  - Move the icon **inside** the cover area (bottom-left, overlapping the edge) with proper `overflow-visible`
-  - Increase icon size slightly and add more border
-  - Standardize card height with `min-h` to prevent layout shifts
-  - Use consistent gradient backgrounds with different colors per community (already done via hash)
-  - Match the "Join Community" button style (rounded, bold yellow/primary as shown in screenshot)
-
----
-
-## 12. Community Page — Mobile-Friendly Create/Join Buttons
-
-**Problem**: The Join and Create buttons only show icons on mobile (`<span className="hidden sm:inline">`), making them ambiguous.
-
-**Fix**:
-- Remove the `hidden sm:inline` class so button labels ("Join" / "Create") always show on mobile
-- Use compact button text that fits mobile widths
-
----
-
-## Technical Details
-
-### Files to modify:
-1. `vite.config.ts` — Simplify plugins
-2. `src/pages/TokenMarketplace.tsx` — Visual item previews, purchase state
-3. `src/components/layout/AnimatedRoutes.tsx` — Eager-load more routes, minimal fallback
-4. `src/App.tsx` — Remove PushNotificationPrompt
-5. `src/components/tutorial/tutorialSteps.ts` — Simplified 6-step tutorial
-6. `src/components/tutorial/TutorialOverlay.tsx` — Simplify overlay logic
-7. `src/components/home/AIBriefSheet.tsx` — Fix brief data passing
-8. `src/pages/Home.tsx` — Reorder XP strip and customize button
-9. `src/components/community/CommunityCard.tsx` — Fix icon overlap, consistent design
-10. `src/pages/Community.tsx` — Show button labels on mobile
-11. `src/components/community/ServerList.tsx` — Label buttons for mobile
-12. `src/pages/Profile.tsx` — Compact XP/customization area
-13. Various Sheet/Dialog components — Fix double X buttons
+**Resize preview overlay:**
+A `position: fixed` div rendered via portal, sized to `N * columnWidth + (N-1) * gap` by `M * rowHeight + (M-1) * gap`, positioned at the widget's grid origin. Updates in real-time as the pointer moves.
 
