@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { Message, ViewMode } from './useMessages';
+import { useMessageEncryption } from './useMessageEncryption';
 
 export interface PendingMessage {
   tempId: string;
