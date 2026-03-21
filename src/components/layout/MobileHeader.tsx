@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Bell, Target, Flame, Crown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { HeaderSearch } from './HeaderSearch';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
+import { navVisibility } from '@/lib/navVisibility';
 
 export const MobileHeader = React.forwardRef<HTMLElement, {}>(function MobileHeader(_props, ref) {
   const { profile } = useAuth();
@@ -18,12 +19,17 @@ export const MobileHeader = React.forwardRef<HTMLElement, {}>(function MobileHea
   const { isPremium } = usePremiumStatus();
   const location = useLocation();
   const debugPanel = useDebugPanel();
+  const [headerVisible, setHeaderVisible] = useState(true);
+
+  useEffect(() => {
+    return navVisibility.subscribeHeader(setHeaderVisible);
+  }, []);
 
   const isNotificationsActive = location.pathname === '/notifications';
   const isChallengesActive = location.pathname === '/challenges';
 
-  // Hide header on clips page for immersive experience
-  if (location.pathname === '/clips') {
+  // Hide header on clips page or during edit mode
+  if (location.pathname === '/clips' || !headerVisible) {
     return null;
   }
 
