@@ -14,7 +14,6 @@ import { useCreateConversation } from '@/hooks/useMessages';
 import { supabase } from '@/integrations/supabase/client';
 import { useSwingDetection } from '@/hooks/useSwingDetection';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
-import { useNFC } from '@/hooks/useNFC';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -243,85 +242,6 @@ export function AutoFriendDrop() {
       handleAutoAdd(peer.userId);
     },
   });
-
-  const { hasWebNFC, shareProfile: nfcShareProfile, stopScan: nfcStopScan } = useNFC();
-  const nfcDiscoveryRef = useRef(false);
-
-  // Passive NFC listening — guard against iframe context
-  useEffect(() => {
-    // NFC only works in top-level browsing context
-    if (window.self !== window.top) return;
-    if (!hasWebNFC || !user?.id || isActive || !profile?.username) return;
-    if (nfcDiscoveryRef.current) return;
-
-    let cancelled = false;
-    
-    const startPassiveNFC = async () => {
-      try {
-        nfcDiscoveryRef.current = true;
-        
-        const started = await nfcShareProfile(user.id, async (theirUserId) => {
-          if (cancelled || isActive) return;
-          if (theirUserId === user.id) return;
-          
-          haptics.success();
-          setIsActive(true);
-          setPhase('exchanging');
-          
-          const theirProfile = await fetchUser(theirUserId);
-          if (theirProfile) {
-            setFoundUser(theirProfile);
-          }
-          
-          try {
-            await sendRequest.mutateAsync(theirUserId);
-            setPhase('success');
-            haptics.success();
-            
-            try {
-              const conversation = await createConversation.mutateAsync({ memberIds: [theirUserId] });
-              setTimeout(() => {
-                setIsActive(false);
-                setPhase('idle');
-                setFoundUser(null);
-                navigate(`/messages/${conversation.id}`);
-              }, 3000);
-            } catch {
-              setTimeout(() => {
-                setIsActive(false);
-                setPhase('idle');
-                setFoundUser(null);
-              }, 3000);
-            }
-          } catch (error: any) {
-            if (error?.message?.includes('already')) {
-              setPhase('success');
-              haptics.success();
-              setTimeout(() => {
-                setIsActive(false);
-                setPhase('idle');
-                setFoundUser(null);
-              }, 2000);
-            }
-          }
-        });
-        
-        if (started) {
-          console.log('[AutoFriendDrop] Passive NFC active');
-        }
-      } catch (e) {
-        nfcDiscoveryRef.current = false;
-      }
-    };
-
-    startPassiveNFC();
-    
-    return () => {
-      cancelled = true;
-      nfcDiscoveryRef.current = false;
-      nfcStopScan();
-    };
-  }, [hasWebNFC, user?.id, isActive, profile?.username, nfcShareProfile, nfcStopScan, sendRequest, createConversation, navigate]);
 
   const toggleQrExpand = useCallback(() => {
     setIsQrExpanded(prev => !prev);
