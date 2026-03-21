@@ -144,10 +144,20 @@ export function HomeGridEditor({ open, onOpenChange, onOpenCommandBar }: Props) 
     }));
   };
 
-  const handleSave = () => {
-    saveGridLayout(localConfig);
-    toast.success('Layout saved! 🔥');
-    onOpenChange(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await saveGridLayout(localConfig);
+      toast.success('Layout saved! 🔥');
+      onOpenChange(false);
+    } catch (err) {
+      console.error('Failed to save layout:', err);
+      toast.error('Failed to save layout. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleShare = () => {
@@ -414,9 +424,9 @@ export function HomeGridEditor({ open, onOpenChange, onOpenCommandBar }: Props) 
 
         {/* Actions */}
         <div className="shrink-0 pt-2 border-t border-border/50 space-y-2">
-          <Button onClick={handleSave} className="w-full gradient-animated text-white font-semibold">
+          <Button onClick={handleSave} disabled={saving} className="w-full gradient-animated text-white font-semibold">
             <Save className="h-4 w-4 mr-2" />
-            Save Layout
+            {saving ? 'Saving...' : 'Save Layout'}
           </Button>
           {user && (
             <Button variant="outline" onClick={() => setShowShareFlow(!showShareFlow)} className="w-full">

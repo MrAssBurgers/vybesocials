@@ -53,26 +53,26 @@ export function useHomeLayout() {
       .filter(Boolean) as WidgetState[];
   }, [layout]);
 
-  const saveLayout = useCallback((order: string[], hidden: string[]) => {
+  const saveLayout = useCallback(async (order: string[], hidden: string[]) => {
     const currentExtra = (prefs?.extra as any) ?? {};
-    update.mutate({
+    await update.mutateAsync({
       extra: { ...currentExtra, home_layout: { order, hidden } },
     });
   }, [prefs?.extra, update]);
 
-  const toggleWidget = useCallback((id: string) => {
+  const toggleWidget = useCallback(async (id: string) => {
     const newHidden = layout.hidden.includes(id)
       ? layout.hidden.filter(h => h !== id)
       : [...layout.hidden, id];
-    saveLayout(layout.order, newHidden);
+    await saveLayout(layout.order, newHidden);
   }, [layout, saveLayout]);
 
-  const reorderWidgets = useCallback((newOrder: string[]) => {
-    saveLayout(newOrder, layout.hidden);
+  const reorderWidgets = useCallback(async (newOrder: string[]) => {
+    await saveLayout(newOrder, layout.hidden);
   }, [layout.hidden, saveLayout]);
 
-  const applyLayout = useCallback((order: string[], hidden: string[]) => {
-    saveLayout(order, hidden);
+  const applyLayout = useCallback(async (order: string[], hidden: string[]) => {
+    await saveLayout(order, hidden);
   }, [saveLayout]);
 
   const isVisible = useCallback((id: string) => !layout.hidden.includes(id), [layout.hidden]);

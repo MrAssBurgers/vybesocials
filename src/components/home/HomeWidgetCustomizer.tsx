@@ -69,12 +69,12 @@ export function HomeWidgetCustomizer({ open, onOpenChange, onOpenCommandBar }: P
   const { data: userTheme } = useUserTheme();
 
   // Sync when sheet opens
-  const handleOpenChange = (v: boolean) => {
+  const handleOpenChange = async (v: boolean) => {
     if (v) {
       setLocalOrder(widgets.map(w => w.id));
       setShowShareFlow(false);
     } else {
-      handleSave();
+      await handleSave();
     }
     onOpenChange(v);
   };
@@ -87,9 +87,19 @@ export function HomeWidgetCustomizer({ open, onOpenChange, onOpenCommandBar }: P
     setLocalOrder(newOrder);
   };
 
-  const handleSave = () => {
-    reorderWidgets(localOrder);
-    toast.success('Your VYBE layout saved! 🔥');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await reorderWidgets(localOrder);
+      toast.success('Your VYBE layout saved! 🔥');
+    } catch (err) {
+      console.error('Failed to save layout:', err);
+      toast.error('Failed to save layout. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleShareWithCommunity = () => {
@@ -229,11 +239,12 @@ export function HomeWidgetCustomizer({ open, onOpenChange, onOpenCommandBar }: P
 
         <div className="shrink-0 pt-2 border-t border-border/50 space-y-2">
           <Button
-            onClick={() => { handleSave(); onOpenChange(false); }}
+            onClick={async () => { await handleSave(); onOpenChange(false); }}
+            disabled={saving}
             className="w-full gradient-animated text-white font-semibold"
           >
             <Check className="h-4 w-4 mr-2" />
-            Save My VYBE Layout
+            {saving ? 'Saving...' : 'Save My VYBE Layout'}
           </Button>
           {user && (
             <Button

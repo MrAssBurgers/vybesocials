@@ -52,10 +52,10 @@ export function useGridLayout() {
     };
   }, [prefs?.extra]);
 
-  const saveGridLayout = useCallback((newConfig: Partial<GridLayoutConfig>) => {
+  const saveGridLayout = useCallback(async (newConfig: Partial<GridLayoutConfig>) => {
     const currentExtra = (prefs?.extra as any) ?? {};
     const current = currentExtra.grid_layout ?? {};
-    update.mutate({
+    await update.mutateAsync({
       extra: {
         ...currentExtra,
         grid_layout: { ...current, ...newConfig },
@@ -68,26 +68,26 @@ export function useGridLayout() {
     });
   }, [prefs?.extra, update, config.widgets]);
 
-  const toggleWidget = useCallback((id: string) => {
+  const toggleWidget = useCallback(async (id: string) => {
     const updated = config.widgets.map(w =>
       w.id === id ? { ...w, enabled: !w.enabled } : w
     );
-    saveGridLayout({ widgets: updated });
+    await saveGridLayout({ widgets: updated });
   }, [config.widgets, saveGridLayout]);
 
-  const resizeWidget = useCallback((id: string, colSpan: 1 | 2, rowSpan: 1 | 2) => {
+  const resizeWidget = useCallback(async (id: string, colSpan: 1 | 2, rowSpan: 1 | 2) => {
     const updated = config.widgets.map(w =>
       w.id === id ? { ...w, colSpan, rowSpan } : w
     );
-    saveGridLayout({ widgets: updated });
+    await saveGridLayout({ widgets: updated });
   }, [config.widgets, saveGridLayout]);
 
-  const reorderWidgets = useCallback((newOrder: string[]) => {
+  const reorderWidgets = useCallback(async (newOrder: string[]) => {
     const updated = config.widgets.map(w => ({
       ...w,
       order: newOrder.indexOf(w.id),
     })).sort((a, b) => a.order - b.order);
-    saveGridLayout({ widgets: updated });
+    await saveGridLayout({ widgets: updated });
   }, [config.widgets, saveGridLayout]);
 
   return {
