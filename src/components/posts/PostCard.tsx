@@ -289,6 +289,9 @@ interface PostCardProps {
     is_liked: boolean;
     is_bookmarked: boolean;
     is_pinned?: boolean;
+    is_ai_generated?: boolean;
+    ai_confidence?: number;
+    ai_override?: boolean | null;
   };
 }
 
