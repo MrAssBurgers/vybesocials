@@ -371,7 +371,11 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
   }, [user]);
 
   useEffect(() => {
-    if (open) { hasFetchedRef.current = true; fetchBrief(!!briefData); }
+    if (open && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      // Always fetch fresh data when opening; show cached data in the meantime
+      fetchBrief(!!briefData);
+    }
     if (!open) hasFetchedRef.current = false;
     return () => { if (abortControllerRef.current) abortControllerRef.current.abort(); };
   }, [open, fetchBrief]);
