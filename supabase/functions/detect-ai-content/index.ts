@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { image_base64, mime_type, caption, post_id } = await req.json();
+    const { image_base64, mime_type, caption, post_id, content_type } = await req.json();
 
     if (!post_id) {
       return new Response(
@@ -29,20 +29,32 @@ serve(async (req) => {
       );
     }
 
+    const isVideo = content_type === 'video';
+
     // Build parts for Gemini
     const parts: any[] = [];
     
-    const systemInstruction = `You are an AI-generated content detector. Your task is to analyze images and/or text to determine if they were created by AI (e.g., Midjourney, DALL-E, Stable Diffusion, ChatGPT, etc.).
+    const systemInstruction = `You are an AI-generated content detector. Your task is to analyze ${isVideo ? 'video frames' : 'images'} and/or text to determine if they were created by AI.
 
-Look for these AI indicators in images:
+${isVideo ? `Look for these AI VIDEO indicators:
+- Unnaturally smooth or plastic-looking motion (from a single frame: overly smooth skin, hair, fabric)
+- Morphing artifacts (warped edges, melting backgrounds, flickering details)
+- Inconsistent physics (objects defying gravity, unnatural cloth/hair flow)
+- Too-perfect or surreal lighting and reflections
+- Uncanny valley faces (slightly off proportions, dead eyes, teeth artifacts)
+- Hands/fingers that look distorted or have wrong number of digits
+- Background elements that shift, duplicate, or dissolve
+- Watermarks from AI video tools (Runway, Sora, Pika, Kling, etc.)
+- Temporal artifacts visible in single frames (motion blur inconsistencies)
+- Overly cinematic quality that looks "too perfect" for user-generated content` : `Look for these AI IMAGE indicators:
 - Unnaturally smooth skin/textures
 - Distorted hands, fingers, or teeth
 - Inconsistent lighting or shadows
 - Too-perfect symmetry
 - Artifacts in backgrounds (melting objects, impossible geometry)
-- Watermarks from AI tools
+- Watermarks from AI tools (Midjourney, DALL-E, etc.)
 - Overly stylized/hyperrealistic quality
-- Text rendering errors
+- Text rendering errors`}
 
 For text/captions, look for:
 - Overly polished or generic phrasing
@@ -59,7 +71,10 @@ Respond ONLY with valid JSON:
           data: image_base64,
         },
       });
-      parts.push({ text: "Analyze this image. Is it AI-generated?" });
+      parts.push({ text: isVideo 
+        ? "Analyze this video frame. Is this from an AI-generated video (Runway, Sora, Pika, Kling, etc.)?" 
+        : "Analyze this image. Is it AI-generated?" 
+      });
     }
 
     if (caption) {
@@ -108,11 +123,10 @@ Respond ONLY with valid JSON:
       console.error("Failed to parse Gemini response:", text);
     }
 
-    // Update the post in background (non-blocking for response)
+    // Update the post in background
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Only flag as AI if confidence is above 0.6
     const isAi = result.is_ai && result.confidence >= 0.6;
 
     fetch(`${SUPABASE_URL}/rest/v1/posts?id=eq.${post_id}`, {
