@@ -81,7 +81,9 @@ export default function AIChat() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editName, setEditName] = useState(aiName);
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
-  const [locationEnabled, setLocationEnabled] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(() => {
+    try { return localStorage.getItem('vybe_ai_location') === 'true'; } catch { return false; }
+  });
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
   const [showGPSDialog, setShowGPSDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -92,6 +94,31 @@ export default function AIChat() {
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages, streamingText]);
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  // Re-acquire location on mount if user previously had it enabled
+  useEffect(() => {
+    if (locationEnabled && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${loc.lat}&lon=${loc.lng}&format=json`);
+            const data = await res.json();
+            const city = data.address?.city || data.address?.town || data.address?.village || 'Unknown';
+            setUserLocation({ ...loc, city });
+          } catch {
+            setUserLocation(loc);
+          }
+        },
+        () => {
+          // Permission revoked since last session
+          setLocationEnabled(false);
+          localStorage.setItem('vybe_ai_location', 'false');
+        },
+        { enableHighAccuracy: true }
+      );
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const requestGPSPermission = useCallback(() => {
     setShowGPSDialog(true);
@@ -112,6 +139,7 @@ export default function AIChat() {
           setUserLocation(loc);
         }
         setLocationEnabled(true);
+        localStorage.setItem('vybe_ai_location', 'true');
         toast.success('📍 Location enabled');
       },
       () => toast.error('Location permission denied'),
@@ -396,7 +424,7 @@ export default function AIChat() {
               </div>
             )}
             <button
-              onClick={() => locationEnabled ? setLocationEnabled(false) : requestGPSPermission()}
+              onClick={() => { if (locationEnabled) { setLocationEnabled(false); localStorage.setItem('vybe_ai_location', 'false'); setUserLocation(null); } else { requestGPSPermission(); } }}
               className="flex items-center gap-1 ml-auto"
             >
               <div className={cn("w-1.5 h-1.5 rounded-full", locationEnabled ? "bg-green-500" : "bg-destructive")} />
@@ -410,7 +438,7 @@ export default function AIChat() {
               variant="ghost"
               size="icon"
               className={cn("h-9 w-9 rounded-full shrink-0", locationEnabled ? "text-green-500" : "text-muted-foreground")}
-              onClick={() => locationEnabled ? setLocationEnabled(false) : requestGPSPermission()}
+              onClick={() => { if (locationEnabled) { setLocationEnabled(false); localStorage.setItem('vybe_ai_location', 'false'); setUserLocation(null); } else { requestGPSPermission(); } }}
             >
               <MapPin className="h-4 w-4" />
             </Button>
