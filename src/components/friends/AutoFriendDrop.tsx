@@ -534,9 +534,7 @@ export function AutoFriendDrop() {
             <div className="friendlink-shimmer absolute inset-0 pointer-events-none rounded-lg" />
             
             <div className="friendlink-icon-wrap p-1.5 rounded-md relative z-[1]" style={{ background: 'hsl(var(--primary) / 0.1)' }}>
-              {hasWebNFC ? (
-                <Radio className="h-4 w-4 text-primary" />
-              ) : nativeFriendDrop.isAvailable ? (
+              {nativeFriendDrop.isAvailable ? (
                 <Bluetooth className="h-4 w-4 text-primary" />
               ) : (
                 <Zap className="h-4 w-4 text-primary" />
