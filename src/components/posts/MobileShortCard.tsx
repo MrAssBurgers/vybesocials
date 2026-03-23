@@ -242,8 +242,8 @@ export const MobileShortCard = memo(function MobileShortCard({
         clearTimeout(singleTapTimer.current);
         singleTapTimer.current = null;
       }
-      if (!isLiked) {
-        handleLike();
+      if (!currentReaction) {
+        handleReaction('like');
         setShowHeart(true);
         setTimeout(() => setShowHeart(false), 800);
       }
