@@ -312,8 +312,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   };
 
   const handleDoubleTap = () => {
-    if (!isLiked) {
-      handleLike();
+    if (!currentReaction) {
+      handleReaction('like');
     }
     setShowHeart(true);
     setTimeout(() => setShowHeart(false), 800);
