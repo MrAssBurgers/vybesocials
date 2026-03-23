@@ -67,6 +67,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [hasError, setHasError] = useState(false);
   const [isMuted, setIsMuted] = useState(globalMuted);
   const [isLiked, setIsLiked] = useState(post.is_liked);
+  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(post.is_liked ? 'like' : null);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
