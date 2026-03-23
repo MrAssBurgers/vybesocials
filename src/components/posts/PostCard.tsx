@@ -423,12 +423,12 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   }, [profile, isBookmarked, post.id, isGuest]);
 
   const handleDoubleTap = useCallback(() => {
-    if (!isLiked) {
-      handleLike();
+    if (!currentReaction) {
+      handleReaction('like');
     }
     setShowHeart(true);
     setTimeout(() => setShowHeart(false), 800);
-  }, [isLiked, handleLike]);
+  }, [currentReaction, handleReaction]);
 
   const handleShare = useCallback(async () => {
     const url = `${window.location.origin}/p/${post.id}`;
