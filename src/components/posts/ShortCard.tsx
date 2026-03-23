@@ -247,27 +247,36 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
   const canDelete = isOwnPost || isAdmin;
 
-  const handleLike = async () => {
+  const handleReaction = async (reactionType: ReactionType | null) => {
     if (!profile || !post.author) return;
 
-    const newIsLiked = !isLiked;
-    const prevIsLiked = isLiked;
+    const wasLiked = currentReaction !== null;
+    const newIsLiked = reactionType !== null;
+    const prevReaction = currentReaction;
     const prevLikeCount = likeCount;
     
+    setCurrentReaction(reactionType);
     setIsLiked(newIsLiked);
-    setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
+    setLikeCount(prev => {
+      if (wasLiked && !newIsLiked) return prev - 1;
+      if (!wasLiked && newIsLiked) return prev + 1;
+      return prev;
+    });
 
-    if (newIsLiked) {
+    if (newIsLiked && !wasLiked) {
       setShowLikeParticles(true);
       setTimeout(() => setShowLikeParticles(false), 700);
     }
 
     try {
       if (newIsLiked) {
-        const { error } = await supabase.from('likes').insert({ user_id: profile.id, post_id: post.id });
+        const { error } = await supabase.from('likes').upsert(
+          { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
+          { onConflict: 'user_id,post_id', ignoreDuplicates: false }
+        );
         if (error) throw error;
         
-        if (post.author.id !== profile.id) {
+        if (!wasLiked && post.author.id !== profile.id) {
           await supabase.from('notifications').insert({
             user_id: post.author.id,
             type: 'like',
@@ -281,10 +290,11 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       }
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     } catch (error) {
-      console.error('Like failed:', error);
-      setIsLiked(prevIsLiked);
+      console.error('Reaction failed:', error);
+      setCurrentReaction(prevReaction);
+      setIsLiked(wasLiked);
       setLikeCount(prevLikeCount);
-      toast.error('Failed to update like');
+      toast.error('Failed to update reaction');
     }
   };
 
