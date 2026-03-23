@@ -545,9 +545,7 @@ export function AutoFriendDrop() {
                 FRIEND LINK
               </span>
               <span className="text-[7px] text-muted-foreground font-mono tracking-[0.15em]">
-                {hasWebNFC
-                  ? 'TAP PHONES'
-                  : nativeFriendDrop.isAvailable 
+                {nativeFriendDrop.isAvailable 
                     ? 'PROXIMITY'
                     : 'SHAKE TO ACTIVATE'}
               </span>
