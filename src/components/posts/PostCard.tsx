@@ -726,8 +726,13 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           </button>
         </div>
 
-        {/* Likes */}
-        <p className="font-semibold text-sm">{likeCount.toLocaleString()} likes</p>
+        {/* Reaction Summary */}
+        {likeCount > 0 ? (
+          <ReactionSummary
+            reactions={currentReaction ? [currentReaction] : []}
+            totalCount={likeCount}
+          />
+        ) : null}
 
         {/* Caption */}
         {post.caption && (
