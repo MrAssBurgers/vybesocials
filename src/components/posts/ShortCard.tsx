@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Send as SendIcon, Bookmark, Volume2, VolumeX, Play, MoreVertical, Trash2, Flag, Eye, Pencil } from 'lucide-react';
+import { ReactionPicker } from '@/components/reactions/ReactionPicker';
+import { ReactionType } from '@/lib/reactions';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -65,6 +67,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [hasError, setHasError] = useState(false);
   const [isMuted, setIsMuted] = useState(globalMuted);
   const [isLiked, setIsLiked] = useState(post.is_liked);
+  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(post.is_liked ? 'like' : null);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
@@ -244,27 +247,36 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
   const canDelete = isOwnPost || isAdmin;
 
-  const handleLike = async () => {
+  const handleReaction = async (reactionType: ReactionType | null) => {
     if (!profile || !post.author) return;
 
-    const newIsLiked = !isLiked;
-    const prevIsLiked = isLiked;
+    const wasLiked = currentReaction !== null;
+    const newIsLiked = reactionType !== null;
+    const prevReaction = currentReaction;
     const prevLikeCount = likeCount;
     
+    setCurrentReaction(reactionType);
     setIsLiked(newIsLiked);
-    setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
+    setLikeCount(prev => {
+      if (wasLiked && !newIsLiked) return prev - 1;
+      if (!wasLiked && newIsLiked) return prev + 1;
+      return prev;
+    });
 
-    if (newIsLiked) {
+    if (newIsLiked && !wasLiked) {
       setShowLikeParticles(true);
       setTimeout(() => setShowLikeParticles(false), 700);
     }
 
     try {
       if (newIsLiked) {
-        const { error } = await supabase.from('likes').insert({ user_id: profile.id, post_id: post.id });
+        const { error } = await supabase.from('likes').upsert(
+          { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
+          { onConflict: 'user_id,post_id', ignoreDuplicates: false }
+        );
         if (error) throw error;
         
-        if (post.author.id !== profile.id) {
+        if (!wasLiked && post.author.id !== profile.id) {
           await supabase.from('notifications').insert({
             user_id: post.author.id,
             type: 'like',
@@ -278,10 +290,11 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       }
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     } catch (error) {
-      console.error('Like failed:', error);
-      setIsLiked(prevIsLiked);
+      console.error('Reaction failed:', error);
+      setCurrentReaction(prevReaction);
+      setIsLiked(wasLiked);
       setLikeCount(prevLikeCount);
-      toast.error('Failed to update like');
+      toast.error('Failed to update reaction');
     }
   };
 
@@ -299,8 +312,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   };
 
   const handleDoubleTap = () => {
-    if (!isLiked) {
-      handleLike();
+    if (!currentReaction) {
+      handleReaction('like');
     }
     setShowHeart(true);
     setTimeout(() => setShowHeart(false), 800);
@@ -518,39 +531,16 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           </Avatar>
         </Link>
 
-        {/* Like */}
-        <button onClick={handleLike} className="flex flex-col items-center gap-1 relative">
-          <div className="relative">
-            <Heart
-              className={cn(
-                "h-8 w-8 drop-shadow-lg transition-all",
-                isLiked ? "fill-red-500 text-red-500 scale-110" : "text-white"
-              )}
-            />
-            <AnimatePresence>
-              {showLikeParticles && (
-                <>
-                  {[...Array(6)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      className="absolute top-1/2 left-1/2 w-1.5 h-1.5 rounded-full bg-red-400"
-                      initial={{ x: 0, y: 0, scale: 1, opacity: 1 }}
-                      animate={{
-                        x: Math.cos(i * 60 * Math.PI / 180) * 20,
-                        y: Math.sin(i * 60 * Math.PI / 180) * 20,
-                        scale: 0,
-                        opacity: 0,
-                      }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.5 }}
-                    />
-                  ))}
-                </>
-              )}
-            </AnimatePresence>
-          </div>
+        {/* Like - Reaction Picker */}
+        <div className="flex flex-col items-center gap-1">
+          <ReactionPicker
+            currentReaction={currentReaction}
+            onReact={handleReaction}
+            likeCount={likeCount}
+            compact
+          />
           <span className="text-xs font-semibold text-white drop-shadow-lg">{likeCount}</span>
-        </button>
+        </div>
 
         {/* Comment */}
         <button onClick={handleOpenComments} className="flex flex-col items-center gap-1">

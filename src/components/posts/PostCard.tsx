@@ -1,6 +1,8 @@
 import { useState, useRef, memo, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play, Type } from 'lucide-react';
+import { ReactionPicker, ReactionSummary } from '@/components/reactions/ReactionPicker';
+import { ReactionType } from '@/lib/reactions';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -307,6 +309,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const { data: authorRole } = useUserRoleById(menuOpen ? post.author.id : undefined);
   const isModOrAdmin = useIsModOrAdmin();
   const [isLiked, setIsLiked] = useState(post.is_liked);
+  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(post.is_liked ? 'like' : null);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
@@ -356,7 +359,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     togglePin.mutate({ postId: post.id, isPinned: !post.is_pinned });
   }, [togglePin, post.id, post.is_pinned]);
 
-  const handleLike = useCallback(async () => {
+  const handleReaction = useCallback(async (reactionType: ReactionType | null) => {
     if (isGuest) {
       setAuthPromptAction('like posts');
       setShowAuthPrompt(true);
@@ -364,33 +367,41 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     }
     if (!profile) return;
 
-    const newIsLiked = !isLiked;
+    const wasLiked = currentReaction !== null;
+    const newIsLiked = reactionType !== null;
+    
+    setCurrentReaction(reactionType);
     setIsLiked(newIsLiked);
-    setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
+    setLikeCount(prev => {
+      if (wasLiked && !newIsLiked) return prev - 1;
+      if (!wasLiked && newIsLiked) return prev + 1;
+      return prev; // Changed reaction type, count stays same
+    });
 
-    // Trigger particle burst and haptic on like
-    if (newIsLiked) {
+    if (newIsLiked && !wasLiked) {
       triggerHaptic('light');
       setShowLikeParticles(true);
       setTimeout(() => setShowLikeParticles(false), 700);
     }
 
     if (newIsLiked) {
-      await supabase.from('likes').upsert({ user_id: profile.id, post_id: post.id }, { onConflict: 'user_id,post_id', ignoreDuplicates: true });
-      if (post.author.id !== profile.id) {
+      await supabase.from('likes').upsert(
+        { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
+        { onConflict: 'user_id,post_id', ignoreDuplicates: false }
+      );
+      if (!wasLiked && post.author.id !== profile.id) {
         await supabase.from('notifications').insert({
           user_id: post.author.id,
           type: 'like',
           actor_id: profile.id,
           post_id: post.id,
         });
-        // Bump reaction streak with post author
         bumpStreak(post.author.id);
       }
     } else {
       await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
     }
-  }, [profile, isLiked, post.id, post.author.id, isGuest]);
+  }, [profile, currentReaction, post.id, post.author.id, isGuest]);
 
   const handleBookmark = useCallback(async () => {
     if (isGuest) {
@@ -412,12 +423,12 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   }, [profile, isBookmarked, post.id, isGuest]);
 
   const handleDoubleTap = useCallback(() => {
-    if (!isLiked) {
-      handleLike();
+    if (!currentReaction) {
+      handleReaction('like');
     }
     setShowHeart(true);
     setTimeout(() => setShowHeart(false), 800);
-  }, [isLiked, handleLike]);
+  }, [currentReaction, handleReaction]);
 
   const handleShare = useCallback(async () => {
     const url = `${window.location.origin}/p/${post.id}`;
@@ -682,18 +693,12 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         <div className="flex items-center justify-between h-8">
           {/* Left action buttons - perfectly aligned */}
           <div className="flex items-center gap-1">
-            {/* Like button - with glow feedback */}
-            <button 
-              onClick={handleLike} 
-              className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform"
-            >
-              <Heart
-                className={cn(
-                  "h-6 w-6 transition-all",
-                  isLiked ? "fill-red-500 text-red-500 scale-110 like-glow" : "text-foreground hover:text-primary"
-                )}
-              />
-            </button>
+            {/* Reaction button - long press for picker */}
+            <ReactionPicker
+              currentReaction={currentReaction}
+              onReact={handleReaction}
+              likeCount={likeCount}
+            />
 
             <button onClick={() => setShowCommentSheet(true)} className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform">
               <MessageCircle className="h-6 w-6 hover:text-primary transition-colors" />
@@ -721,8 +726,13 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           </button>
         </div>
 
-        {/* Likes */}
-        <p className="font-semibold text-sm">{likeCount.toLocaleString()} likes</p>
+        {/* Reaction Summary */}
+        {likeCount > 0 ? (
+          <ReactionSummary
+            reactions={currentReaction ? [currentReaction] : []}
+            totalCount={likeCount}
+          />
+        ) : null}
 
         {/* Caption */}
         {post.caption && (
