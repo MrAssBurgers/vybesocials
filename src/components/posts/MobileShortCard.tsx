@@ -478,19 +478,16 @@ export const MobileShortCard = memo(function MobileShortCard({
           </Avatar>
         </Link>
 
-        {/* Like */}
-        <button 
-          onClick={handleLike} 
-          className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
-        >
-          <Heart
-            className={cn(
-              "h-7 w-7 sm:h-8 sm:w-8 drop-shadow-lg",
-              isLiked ? "fill-red-500 text-red-500" : "text-white"
-            )}
+        {/* Like - Reaction Picker */}
+        <div className="flex flex-col items-center gap-0.5 sm:gap-1">
+          <ReactionPicker
+            currentReaction={currentReaction}
+            onReact={handleReaction}
+            likeCount={likeCount}
+            compact
           />
           <span className="text-[11px] sm:text-xs font-bold text-white drop-shadow-lg">{likeCount}</span>
-        </button>
+        </div>
 
         {/* Comment - opens bottom sheet */}
         <button 
