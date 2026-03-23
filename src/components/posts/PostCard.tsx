@@ -693,18 +693,12 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         <div className="flex items-center justify-between h-8">
           {/* Left action buttons - perfectly aligned */}
           <div className="flex items-center gap-1">
-            {/* Like button - with glow feedback */}
-            <button 
-              onClick={handleLike} 
-              className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform"
-            >
-              <Heart
-                className={cn(
-                  "h-6 w-6 transition-all",
-                  isLiked ? "fill-red-500 text-red-500 scale-110 like-glow" : "text-foreground hover:text-primary"
-                )}
-              />
-            </button>
+            {/* Reaction button - long press for picker */}
+            <ReactionPicker
+              currentReaction={currentReaction}
+              onReact={handleReaction}
+              likeCount={likeCount}
+            />
 
             <button onClick={() => setShowCommentSheet(true)} className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform">
               <MessageCircle className="h-6 w-6 hover:text-primary transition-colors" />
