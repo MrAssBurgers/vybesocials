@@ -262,16 +262,26 @@ export const MobileShortCard = memo(function MobileShortCard({
     }
   }, [isMuted, onToggleMute, isLiked, isHolding, isPlaying]);
 
-  const handleLike = async () => {
+  const handleReaction = async (reactionType: ReactionType | null) => {
     if (!profile) return;
 
-    const newIsLiked = !isLiked;
+    const wasLiked = currentReaction !== null;
+    const newIsLiked = reactionType !== null;
+    
+    setCurrentReaction(reactionType);
     setIsLiked(newIsLiked);
-    setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
+    setLikeCount(prev => {
+      if (wasLiked && !newIsLiked) return prev - 1;
+      if (!wasLiked && newIsLiked) return prev + 1;
+      return prev;
+    });
 
     if (newIsLiked) {
-      await supabase.from('likes').insert({ user_id: profile.id, post_id: post.id });
-      if (post.author.id !== profile.id) {
+      await supabase.from('likes').upsert(
+        { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
+        { onConflict: 'user_id,post_id', ignoreDuplicates: false }
+      );
+      if (!wasLiked && post.author.id !== profile.id) {
         await supabase.from('notifications').insert({
           user_id: post.author.id,
           type: 'like',
