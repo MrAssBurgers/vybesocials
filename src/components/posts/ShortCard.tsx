@@ -531,39 +531,16 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           </Avatar>
         </Link>
 
-        {/* Like */}
-        <button onClick={handleLike} className="flex flex-col items-center gap-1 relative">
-          <div className="relative">
-            <Heart
-              className={cn(
-                "h-8 w-8 drop-shadow-lg transition-all",
-                isLiked ? "fill-red-500 text-red-500 scale-110" : "text-white"
-              )}
-            />
-            <AnimatePresence>
-              {showLikeParticles && (
-                <>
-                  {[...Array(6)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      className="absolute top-1/2 left-1/2 w-1.5 h-1.5 rounded-full bg-red-400"
-                      initial={{ x: 0, y: 0, scale: 1, opacity: 1 }}
-                      animate={{
-                        x: Math.cos(i * 60 * Math.PI / 180) * 20,
-                        y: Math.sin(i * 60 * Math.PI / 180) * 20,
-                        scale: 0,
-                        opacity: 0,
-                      }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.5 }}
-                    />
-                  ))}
-                </>
-              )}
-            </AnimatePresence>
-          </div>
+        {/* Like - Reaction Picker */}
+        <div className="flex flex-col items-center gap-1">
+          <ReactionPicker
+            currentReaction={currentReaction}
+            onReact={handleReaction}
+            likeCount={likeCount}
+            compact
+          />
           <span className="text-xs font-semibold text-white drop-shadow-lg">{likeCount}</span>
-        </button>
+        </div>
 
         {/* Comment */}
         <button onClick={handleOpenComments} className="flex flex-col items-center gap-1">
