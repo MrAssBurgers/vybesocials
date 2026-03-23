@@ -359,7 +359,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     togglePin.mutate({ postId: post.id, isPinned: !post.is_pinned });
   }, [togglePin, post.id, post.is_pinned]);
 
-  const handleLike = useCallback(async () => {
+  const handleReaction = useCallback(async (reactionType: ReactionType | null) => {
     if (isGuest) {
       setAuthPromptAction('like posts');
       setShowAuthPrompt(true);
@@ -367,33 +367,41 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     }
     if (!profile) return;
 
-    const newIsLiked = !isLiked;
+    const wasLiked = currentReaction !== null;
+    const newIsLiked = reactionType !== null;
+    
+    setCurrentReaction(reactionType);
     setIsLiked(newIsLiked);
-    setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
+    setLikeCount(prev => {
+      if (wasLiked && !newIsLiked) return prev - 1;
+      if (!wasLiked && newIsLiked) return prev + 1;
+      return prev; // Changed reaction type, count stays same
+    });
 
-    // Trigger particle burst and haptic on like
-    if (newIsLiked) {
+    if (newIsLiked && !wasLiked) {
       triggerHaptic('light');
       setShowLikeParticles(true);
       setTimeout(() => setShowLikeParticles(false), 700);
     }
 
     if (newIsLiked) {
-      await supabase.from('likes').upsert({ user_id: profile.id, post_id: post.id }, { onConflict: 'user_id,post_id', ignoreDuplicates: true });
-      if (post.author.id !== profile.id) {
+      await supabase.from('likes').upsert(
+        { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
+        { onConflict: 'user_id,post_id', ignoreDuplicates: false }
+      );
+      if (!wasLiked && post.author.id !== profile.id) {
         await supabase.from('notifications').insert({
           user_id: post.author.id,
           type: 'like',
           actor_id: profile.id,
           post_id: post.id,
         });
-        // Bump reaction streak with post author
         bumpStreak(post.author.id);
       }
     } else {
       await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
     }
-  }, [profile, isLiked, post.id, post.author.id, isGuest]);
+  }, [profile, currentReaction, post.id, post.author.id, isGuest]);
 
   const handleBookmark = useCallback(async () => {
     if (isGuest) {
