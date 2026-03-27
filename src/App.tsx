@@ -134,7 +134,7 @@ function AppWithPreloader() {
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
   usePostsRealtime();
-  useInitEncryption();
+  // useInitEncryption moved to DeferredAuthHooks (inside AuthProvider)
 
   useEffect(() => {
     if (preloadStatus.isComplete && showSplash) {
