@@ -137,6 +137,11 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     return merged;
   }, [forYouData, followingData, dnaPrefs]);
   
+  const localPosts = useMemo(() => 
+    localData?.pages.flatMap(page => page.posts) || [], 
+    [localData]
+  );
+
   const globalPosts = useMemo(() => 
     globalData?.pages.flatMap(page => page.posts) || [], 
     [globalData]
