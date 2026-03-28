@@ -161,7 +161,9 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
 function FeedSection({
   activeTab, setActiveTab, showAds, navigate, hasNewPosts, clearNewPosts, handleRefresh,
   forYouPosts, forYouLoading, forYouFetching, isFetchingNextForYou,
-  globalPosts, globalLoading, globalFetching, isFetchingNextGlobal, loadMoreRef,
+  globalPosts, globalLoading, globalFetching, isFetchingNextGlobal,
+  localPosts, localLoading, localFetching, isFetchingNextLocal,
+  loadMoreRef,
 }: Props) {
   return (
     <div className="pb-6" data-tutorial="feed-area">
