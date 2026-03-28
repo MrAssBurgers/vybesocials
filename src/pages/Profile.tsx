@@ -37,6 +37,7 @@ import { useLockerItems } from '@/hooks/useLockerItems';
 import { UpgradeButton } from '@/components/premium/UpgradeButton';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { GiftPremiumButton } from '@/components/premium/GiftPremiumButton';
+import { EngagementScore } from '@/components/profile/EngagementScore';
 
 import {
   NAME_COLOR_MAP, THEME_GRADIENTS, THEME_IMAGES, THEME_ACCENTS,
