@@ -438,6 +438,12 @@ function VideosGalleryView({
           </div>
         </form>
 
+        {/* Trending Creators */}
+        <TrendingCreators creators={trendingCreators} />
+
+        {/* Trending Hashtags */}
+        <TrendingHashtags tags={trendingTags} selectedTag={selectedTag} onSelect={handleTagClick} />
+
         {/* Category chips */}
         <ScrollArea className="w-full">
           <div className="flex gap-2 pb-2">
