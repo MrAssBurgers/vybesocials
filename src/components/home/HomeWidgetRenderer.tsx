@@ -1,6 +1,6 @@
 import { memo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Globe, Dna, Wallet, ShoppingBag, Radio } from 'lucide-react';
+import { Sparkles, Globe, Dna, Wallet, ShoppingBag, Radio, MapPin } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
@@ -41,6 +41,10 @@ interface Props {
   globalLoading: boolean;
   globalFetching: boolean;
   isFetchingNextGlobal: boolean;
+  localPosts: Post[];
+  localLoading: boolean;
+  localFetching: boolean;
+  isFetchingNextLocal: boolean;
   loadMoreRef: (node: HTMLDivElement | null) => void;
 }
 
@@ -157,7 +161,9 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
 function FeedSection({
   activeTab, setActiveTab, showAds, navigate, hasNewPosts, clearNewPosts, handleRefresh,
   forYouPosts, forYouLoading, forYouFetching, isFetchingNextForYou,
-  globalPosts, globalLoading, globalFetching, isFetchingNextGlobal, loadMoreRef,
+  globalPosts, globalLoading, globalFetching, isFetchingNextGlobal,
+  localPosts, localLoading, localFetching, isFetchingNextLocal,
+  loadMoreRef,
 }: Props) {
   return (
     <div className="pb-6" data-tutorial="feed-area">
@@ -166,6 +172,10 @@ function FeedSection({
           <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <Sparkles className="h-4 w-4 mr-1.5" />
             For You
+          </TabsTrigger>
+          <TabsTrigger value="local" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <MapPin className="h-4 w-4 mr-1.5" />
+            Local
           </TabsTrigger>
           <TabsTrigger value="global" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <Globe className="h-4 w-4 mr-1.5" />
@@ -191,6 +201,19 @@ function FeedSection({
             loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
             emptyIcon="✨"
             emptyText="No posts yet. Follow creators or check Global!"
+            onExplore={() => navigate('/explore')}
+            showAds={showAds}
+          />
+        </TabsContent>
+
+        <TabsContent value="local" className="space-y-4" forceMount style={{ display: activeTab === 'local' ? 'block' : 'none' }}>
+          <InlinePostList
+            posts={localPosts}
+            isLoading={localLoading}
+            isFetchingNext={isFetchingNextLocal}
+            loadMoreRef={activeTab === 'local' ? loadMoreRef : () => {}}
+            emptyIcon="📍"
+            emptyText="No local posts yet. Share what's happening nearby!"
             onExplore={() => navigate('/explore')}
             showAds={showAds}
           />

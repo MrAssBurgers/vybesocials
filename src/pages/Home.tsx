@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Globe, Sparkles, LayoutGrid, Eye } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
+import { useLocalFeed } from '@/hooks/useLocalFeed';
 import type { Post } from '@/hooks/useInfinitePosts';
 import { useDNAPreferences } from '@/hooks/useDNAPreferences';
 import { useNewPostsBanner } from '@/hooks/usePostsRealtime';
@@ -85,6 +86,17 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     refetch: refetchGlobal,
   } = useInfinitePosts('post');
 
+  // Local feed - nearby content
+  const {
+    data: localData,
+    isLoading: localLoading,
+    isFetching: localFetching,
+    fetchNextPage: fetchNextLocal,
+    hasNextPage: hasNextLocal,
+    isFetchingNextPage: isFetchingNextLocal,
+    refetch: refetchLocal,
+  } = useLocalFeed();
+
   // Prefetch posts for faster navigation
   usePrefetchPosts();
 
@@ -125,6 +137,11 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     return merged;
   }, [forYouData, followingData, dnaPrefs]);
   
+  const localPosts = useMemo(() => 
+    localData?.pages.flatMap(page => page.posts) || [], 
+    [localData]
+  );
+
   const globalPosts = useMemo(() => 
     globalData?.pages.flatMap(page => page.posts) || [], 
     [globalData]
@@ -138,12 +155,15 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     if (activeTab === 'global') {
       queryClient.invalidateQueries({ queryKey: ['infinite-posts'] });
       await refetchGlobal();
+    } else if (activeTab === 'local') {
+      queryClient.invalidateQueries({ queryKey: ['local-feed'] });
+      await refetchLocal();
     } else {
       queryClient.invalidateQueries({ queryKey: ['personalized-feed'] });
       queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
       await Promise.all([refetchForYou(), refetchFollowing()]);
     }
-  }, [activeTab, queryClient, refetchForYou, refetchGlobal, refetchFollowing, clearNewPosts]);
+  }, [activeTab, queryClient, refetchForYou, refetchGlobal, refetchFollowing, refetchLocal, clearNewPosts]);
 
   const { pullDistance, isRefreshing, threshold } = usePullToRefresh({
     onRefresh: handleRefresh,
@@ -159,9 +179,11 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextForYou,
     hasNextFollowing,
     hasNextGlobal,
+    hasNextLocal,
     isFetchingNextForYou,
     isFetchingNextFollowing,
     isFetchingNextGlobal,
+    isFetchingNextLocal,
   });
   
   useEffect(() => {
@@ -170,23 +192,26 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       hasNextForYou,
       hasNextFollowing,
       hasNextGlobal,
+      hasNextLocal,
       isFetchingNextForYou,
       isFetchingNextFollowing,
       isFetchingNextGlobal,
+      isFetchingNextLocal,
     };
-  }, [activeTab, hasNextForYou, hasNextFollowing, hasNextGlobal, isFetchingNextForYou, isFetchingNextFollowing, isFetchingNextGlobal]);
+  }, [activeTab, hasNextForYou, hasNextFollowing, hasNextGlobal, hasNextLocal, isFetchingNextForYou, isFetchingNextFollowing, isFetchingNextGlobal, isFetchingNextLocal]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          const state = fetchStateRef.current;
+           const state = fetchStateRef.current;
           if (state.activeTab === 'foryou') {
-            // For You loads both personalized + following
             if (state.hasNextForYou && !state.isFetchingNextForYou) fetchNextForYou();
             if (state.hasNextFollowing && !state.isFetchingNextFollowing) fetchNextFollowing();
           } else if (state.activeTab === 'global' && state.hasNextGlobal && !state.isFetchingNextGlobal) {
             fetchNextGlobal();
+          } else if (state.activeTab === 'local' && state.hasNextLocal && !state.isFetchingNextLocal) {
+            fetchNextLocal();
           }
         }
       },
@@ -200,7 +225,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       observer.disconnect();
       observerRef.current = null;
     };
-  }, [fetchNextForYou, fetchNextFollowing, fetchNextGlobal]);
+  }, [fetchNextForYou, fetchNextFollowing, fetchNextGlobal, fetchNextLocal]);
 
   const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
     // Disconnect from previous node
@@ -305,6 +330,10 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             globalLoading={globalLoading}
             globalFetching={globalFetching}
             isFetchingNextGlobal={isFetchingNextGlobal}
+            localPosts={localPosts}
+            localLoading={localLoading}
+            localFetching={localFetching}
+            isFetchingNextLocal={isFetchingNextLocal}
             loadMoreRef={loadMoreRef}
           />
 
