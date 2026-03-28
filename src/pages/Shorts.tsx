@@ -50,11 +50,11 @@ export default function ClipsPage() {
   const { isMobileOrTablet, isIPad } = useIsMobileOrTablet();
   const { isSlowConnection } = useNetworkStatus();
   
-  // Smart preload videos around current position - disabled on slow connections
+  // Smart preload videos around current position - preload next 5 for instant scrolling
   const videoUrls = useMemo(() => shorts.map(s => s.media_url), [shorts]);
   useVideoPreload(videoUrls, { 
     currentIndex, 
-    preloadDepth: isSlowConnection ? 1 : 2,
+    preloadDepth: isSlowConnection ? 2 : 5,
     enabled: !isSlowConnection 
   });
 
