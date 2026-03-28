@@ -709,6 +709,8 @@ export default function ExplorePage() {
       handleCategoryChange={handleCategoryChange}
       selectedTag={selectedTag}
       handleTagClick={handleTagClick}
+      trendingCreators={trendingCreators}
+      trendingTags={trendingTags}
     />
   );
 }
