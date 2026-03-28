@@ -225,7 +225,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       observer.disconnect();
       observerRef.current = null;
     };
-  }, [fetchNextForYou, fetchNextFollowing, fetchNextGlobal]);
+  }, [fetchNextForYou, fetchNextFollowing, fetchNextGlobal, fetchNextLocal]);
 
   const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
     // Disconnect from previous node
