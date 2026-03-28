@@ -152,6 +152,10 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
           iconColor="bg-gradient-to-br from-blue-500 to-cyan-500"
         />
       );
+    case 'creator_analytics':
+      return <CreatorAnalytics />;
+    case 'battle_pass':
+      return <BattlePassWidget />;
     case 'feed':
       return <FeedSection {...props} />;
     default:
