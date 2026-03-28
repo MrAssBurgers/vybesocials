@@ -103,10 +103,12 @@ function calculateEngagementScore(post: any, userInteractions: Map<string, any>)
   const ageHours = (Date.now() - new Date(post.created_at).getTime()) / (1000 * 60 * 60);
   const recencyMultiplier = Math.max(0.3, 1 - (ageHours / (24 * 7)) * 0.7);
   
-  // Engagement signals
-  const likeWeight = 2;
+  // Engagement signals weighted: shares > watch_time > saves > comments > likes
+  const likeWeight = 1;
   const commentWeight = 3;
   const viewWeight = 0.1;
+  const shareWeight = 5;
+  const saveWeight = 4;
   
   score += (post.like_count || 0) * likeWeight;
   score += (post.comment_count || 0) * commentWeight;
