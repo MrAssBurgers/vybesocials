@@ -206,6 +206,19 @@ function FeedSection({
           />
         </TabsContent>
 
+        <TabsContent value="local" className="space-y-4" forceMount style={{ display: activeTab === 'local' ? 'block' : 'none' }}>
+          <InlinePostList
+            posts={localPosts}
+            isLoading={localLoading}
+            isFetchingNext={isFetchingNextLocal}
+            loadMoreRef={activeTab === 'local' ? loadMoreRef : () => {}}
+            emptyIcon="📍"
+            emptyText="No local posts yet. Share what's happening nearby!"
+            onExplore={() => navigate('/explore')}
+            showAds={showAds}
+          />
+        </TabsContent>
+
         <TabsContent value="global" className="space-y-4" forceMount style={{ display: activeTab === 'global' ? 'block' : 'none' }}>
           <InlinePostList
             posts={globalPosts}
