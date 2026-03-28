@@ -149,37 +149,24 @@ const StoryAvatar = memo(function StoryAvatar({
       className="flex flex-col items-center gap-1.5 flex-shrink-0 active:scale-95 transition-transform"
     >
       <div className="relative">
-        <div className={cn(
-          "h-[68px] w-[68px] rounded-full p-[3px]",
-          isUploading 
-            ? "story-ring-gradient animate-pulse"
-            : hasStory && hasUnviewed 
-              ? "story-ring-gradient" 
-              : hasStory 
-                ? "bg-muted-foreground/30" 
-                : "bg-transparent"
-        )}>
-          <Avatar className={cn(
-            "h-full w-full border-[3px] border-background",
-            !hasStory && !isUploading && "border-0"
-          )}>
+        <StoryRing
+          hasUnviewed={!!hasUnviewed}
+          hasStory={!!hasStory}
+          isUploading={isUploading}
+        >
+          <Avatar className="h-full w-full border-[3px] border-background">
             <AvatarImage src={signedUrl || undefined} className="object-cover" />
             <AvatarFallback className="bg-muted text-muted-foreground text-lg">
               {username?.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-        </div>
+        </StoryRing>
         {showAddButton && !isUploading && (
           <div 
             onClick={handleAddClick}
             className="absolute -bottom-0.5 -right-0.5 z-20 bg-accent rounded-full p-[3px] border-2 border-background cursor-pointer active:scale-95 transition-transform shadow-[0_1px_4px_rgba(0,0,0,0.3)]"
           >
             <Plus className="h-3 w-3 text-accent-foreground" strokeWidth={3} />
-          </div>
-        )}
-        {isUploading && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="h-[68px] w-[68px] rounded-full border-2 border-transparent border-t-white animate-spin" />
           </div>
         )}
       </div>
