@@ -4,6 +4,7 @@ import { ShortCard } from '@/components/posts/ShortCard';
 import { MobileShortCard } from '@/components/posts/MobileShortCard';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ClipSkeleton } from '@/components/clips/ClipSkeleton';
 import { useInView } from 'react-intersection-observer';
 import { X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
