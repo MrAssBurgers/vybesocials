@@ -330,6 +330,10 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             globalLoading={globalLoading}
             globalFetching={globalFetching}
             isFetchingNextGlobal={isFetchingNextGlobal}
+            localPosts={localPosts}
+            localLoading={localLoading}
+            localFetching={localFetching}
+            isFetchingNextLocal={isFetchingNextLocal}
             loadMoreRef={loadMoreRef}
           />
 
