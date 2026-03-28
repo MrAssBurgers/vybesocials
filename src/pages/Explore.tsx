@@ -545,6 +545,34 @@ export default function ExplorePage() {
   const selectedTag = searchParams.get('tag');
   const { data: posts, isLoading } = usePosts();
 
+  // Compute trending creators from posts
+  const trendingCreators = useMemo(() => {
+    if (!posts) return [];
+    const creatorMap = new Map<string, { id: string; username: string; avatar_url: string | null; post_count: number }>();
+    posts.forEach(p => {
+      const existing = creatorMap.get(p.author.id);
+      if (existing) {
+        existing.post_count++;
+      } else {
+        creatorMap.set(p.author.id, { id: p.author.id, username: p.author.username, avatar_url: p.author.avatar_url, post_count: 1 });
+      }
+    });
+    return Array.from(creatorMap.values())
+      .sort((a, b) => b.post_count - a.post_count)
+      .slice(0, 10);
+  }, [posts]);
+
+  // Compute trending hashtags from posts
+  const trendingTags = useMemo(() => {
+    if (!posts) return [];
+    const tagMap = new Map<string, number>();
+    posts.forEach(p => p.tags?.forEach(t => tagMap.set(t, (tagMap.get(t) || 0) + 1)));
+    return Array.from(tagMap.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15);
+  }, [posts]);
+
   // Separate clips (shorts) and videos
   const { clips, videos } = useMemo(() => {
     if (!posts) return { clips: [], videos: [] };
