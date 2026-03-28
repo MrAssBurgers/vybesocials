@@ -155,12 +155,15 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     if (activeTab === 'global') {
       queryClient.invalidateQueries({ queryKey: ['infinite-posts'] });
       await refetchGlobal();
+    } else if (activeTab === 'local') {
+      queryClient.invalidateQueries({ queryKey: ['local-feed'] });
+      await refetchLocal();
     } else {
       queryClient.invalidateQueries({ queryKey: ['personalized-feed'] });
       queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
       await Promise.all([refetchForYou(), refetchFollowing()]);
     }
-  }, [activeTab, queryClient, refetchForYou, refetchGlobal, refetchFollowing, clearNewPosts]);
+  }, [activeTab, queryClient, refetchForYou, refetchGlobal, refetchFollowing, refetchLocal, clearNewPosts]);
 
   const { pullDistance, isRefreshing, threshold } = usePullToRefresh({
     onRefresh: handleRefresh,
