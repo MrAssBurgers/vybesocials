@@ -4,6 +4,7 @@ import { ShortCard } from '@/components/posts/ShortCard';
 import { MobileShortCard } from '@/components/posts/MobileShortCard';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ClipSkeleton } from '@/components/clips/ClipSkeleton';
 import { useInView } from 'react-intersection-observer';
 import { X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -150,10 +151,10 @@ export default function ClipsPage() {
     return (
       <AppLayout hideNav>
         <div 
-          className="flex items-center justify-center bg-black"
+          className="bg-black"
           style={{ height: isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh' }}
         >
-          <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+          <ClipSkeleton />
         </div>
       </AppLayout>
     );

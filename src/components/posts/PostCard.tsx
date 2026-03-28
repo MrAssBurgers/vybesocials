@@ -39,6 +39,7 @@ import { CommentSheet } from '@/components/comments/CommentSheet';
 import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 import { triggerHaptic } from '@/lib/haptics';
 import { AIBadge } from './AIBadge';
+import { ProductTagBadge } from './ProductTagBadge';
 // Video player component - maintains the video's native aspect ratio (no cropping)
 // NEVER shows broken placeholder - graceful degradation
 function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
@@ -683,6 +684,13 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 aiConfidence={post.ai_confidence || 0}
                 aiOverride={post.ai_override ?? null}
               />
+            )}
+            
+            {/* Product/Shop Tag Badge */}
+            {post.tags && post.tags.length > 0 && (
+              <div className="absolute top-3 left-3 z-10">
+                <ProductTagBadge tags={post.tags} />
+              </div>
             )}
           </div>
         );

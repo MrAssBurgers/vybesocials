@@ -37,6 +37,7 @@ import { useLockerItems } from '@/hooks/useLockerItems';
 import { UpgradeButton } from '@/components/premium/UpgradeButton';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { GiftPremiumButton } from '@/components/premium/GiftPremiumButton';
+import { EngagementScore } from '@/components/profile/EngagementScore';
 
 import {
   NAME_COLOR_MAP, THEME_GRADIENTS, THEME_IMAGES, THEME_ACCENTS,
@@ -435,22 +436,29 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Stats */}
-            <div className="flex justify-center md:justify-start gap-8 mb-4">
-              <div className="text-center">
-                <p className="font-bold text-xl text-foreground drop-shadow-md">{profile.post_count}</p>
-                <p className="text-sm font-medium text-foreground drop-shadow-sm">posts</p>
+            {/* Stats + Engagement Score */}
+            <div className="flex justify-center md:justify-start items-center gap-6 mb-4">
+              <div className="flex gap-8">
+                <div className="text-center">
+                  <p className="font-bold text-xl text-foreground drop-shadow-md">{profile.post_count}</p>
+                  <p className="text-sm font-medium text-foreground drop-shadow-sm">posts</p>
+                </div>
+                <div className="text-center">
+                  <p className="font-bold text-xl text-foreground drop-shadow-md">
+                    {liveFollowerCount}
+                  </p>
+                  <p className="text-sm font-medium text-foreground drop-shadow-sm">followers</p>
+                </div>
+                <div className="text-center">
+                  <p className="font-bold text-xl text-foreground drop-shadow-md">{profile.following_count}</p>
+                  <p className="text-sm font-medium text-foreground drop-shadow-sm">following</p>
+                </div>
               </div>
-              <div className="text-center">
-                <p className="font-bold text-xl text-foreground drop-shadow-md">
-                  {liveFollowerCount}
-                </p>
-                <p className="text-sm font-medium text-foreground drop-shadow-sm">followers</p>
-              </div>
-              <div className="text-center">
-                <p className="font-bold text-xl text-foreground drop-shadow-md">{profile.following_count}</p>
-                <p className="text-sm font-medium text-foreground drop-shadow-sm">following</p>
-              </div>
+              <EngagementScore
+                postCount={profile.post_count || 0}
+                followerCount={liveFollowerCount || 0}
+                followingCount={profile.following_count || 0}
+              />
             </div>
 
             {/* Bio */}
