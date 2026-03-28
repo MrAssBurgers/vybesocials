@@ -86,6 +86,17 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     refetch: refetchGlobal,
   } = useInfinitePosts('post');
 
+  // Local feed - nearby content
+  const {
+    data: localData,
+    isLoading: localLoading,
+    isFetching: localFetching,
+    fetchNextPage: fetchNextLocal,
+    hasNextPage: hasNextLocal,
+    isFetchingNextPage: isFetchingNextLocal,
+    refetch: refetchLocal,
+  } = useLocalFeed();
+
   // Prefetch posts for faster navigation
   usePrefetchPosts();
 
