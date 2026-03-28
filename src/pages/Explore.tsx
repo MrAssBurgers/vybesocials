@@ -32,6 +32,8 @@ import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { supabase } from '@/integrations/supabase/client';
+import { TrendingCreators } from '@/components/explore/TrendingCreators';
+import { TrendingHashtags } from '@/components/explore/TrendingHashtags';
 
 const popularTags = ['meme', 'fails', 'pets', 'gaming', 'comedy', 'sports', 'music', 'food', 'tech', 'beauty'];
 
