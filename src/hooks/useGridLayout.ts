@@ -25,7 +25,7 @@ export type LayoutVariant = 'mobile' | 'desktop';
 const DEFAULT_ENABLED = new Set([
   'greeting', 'stories', 'xp_streak', 'ai_brief',
   'vybe_dna', 'wallet', 'shop', 'communities',
-  'weekly_rhythm', 'feed',
+  'weekly_rhythm', 'creator_analytics', 'battle_pass', 'feed',
 ]);
 
 function parseConfig(saved: Partial<GridLayoutConfig> | undefined): GridLayoutConfig {
