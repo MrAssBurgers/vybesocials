@@ -179,9 +179,11 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextForYou,
     hasNextFollowing,
     hasNextGlobal,
+    hasNextLocal,
     isFetchingNextForYou,
     isFetchingNextFollowing,
     isFetchingNextGlobal,
+    isFetchingNextLocal,
   });
   
   useEffect(() => {
@@ -190,11 +192,13 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       hasNextForYou,
       hasNextFollowing,
       hasNextGlobal,
+      hasNextLocal,
       isFetchingNextForYou,
       isFetchingNextFollowing,
       isFetchingNextGlobal,
+      isFetchingNextLocal,
     };
-  }, [activeTab, hasNextForYou, hasNextFollowing, hasNextGlobal, isFetchingNextForYou, isFetchingNextFollowing, isFetchingNextGlobal]);
+  }, [activeTab, hasNextForYou, hasNextFollowing, hasNextGlobal, hasNextLocal, isFetchingNextForYou, isFetchingNextFollowing, isFetchingNextGlobal, isFetchingNextLocal]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
