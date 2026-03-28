@@ -173,6 +173,10 @@ function FeedSection({
             <Sparkles className="h-4 w-4 mr-1.5" />
             For You
           </TabsTrigger>
+          <TabsTrigger value="local" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <MapPin className="h-4 w-4 mr-1.5" />
+            Local
+          </TabsTrigger>
           <TabsTrigger value="global" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <Globe className="h-4 w-4 mr-1.5" />
             Global
