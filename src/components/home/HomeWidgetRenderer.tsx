@@ -41,6 +41,10 @@ interface Props {
   globalLoading: boolean;
   globalFetching: boolean;
   isFetchingNextGlobal: boolean;
+  localPosts: Post[];
+  localLoading: boolean;
+  localFetching: boolean;
+  isFetchingNextLocal: boolean;
   loadMoreRef: (node: HTMLDivElement | null) => void;
 }
 
