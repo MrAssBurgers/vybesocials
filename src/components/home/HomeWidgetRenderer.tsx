@@ -20,6 +20,8 @@ import { lazy, Suspense, useMemo } from 'react';
 import { useShowAds } from '@/hooks/useShowAds';
 import { getAdInterval } from '@/components/ads/FeedAdCard';
 import { motion } from 'framer-motion';
+import { CreatorAnalytics } from '@/components/analytics/CreatorAnalytics';
+import { BattlePassWidget } from '@/components/gamification/BattlePassWidget';
 
 const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
 const MemoizedPostCard = memo(PostCard);
