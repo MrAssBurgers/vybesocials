@@ -54,7 +54,7 @@ export const BattlePassWidget = memo(function BattlePassWidget() {
             Level {currentLevel}
           </span>
           <span className="text-[10px] text-primary font-bold">
-            {levelProgress?.currentXP || 0} / {levelProgress?.xpForNext || 1000} XP
+            {levelProgress?.currentXP || 0} / {levelProgress?.nextLevelXP || 1000} XP
           </span>
         </div>
         <Progress 
