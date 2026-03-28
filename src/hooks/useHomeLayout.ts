@@ -24,6 +24,8 @@ export const ALL_WIDGETS: WidgetDef[] = [
   { id: 'shop',           label: 'Shop',            icon: '🛍️', description: 'Browse the marketplace' },
   { id: 'communities',    label: 'Communities',     icon: '📡', description: 'Join live communities' },
   { id: 'weekly_rhythm',  label: 'Weekly Vibes',   icon: '📊', description: 'Top XP earners and activity', defaultCol: 2 },
+  { id: 'creator_analytics', label: 'Creator Analytics', icon: '📈', description: 'Your content performance stats', defaultCol: 2 },
+  { id: 'battle_pass',   label: 'VYBE Pass',      icon: '⚔️', description: 'Daily quests and battle pass progress', defaultCol: 2 },
   { id: 'feed',           label: 'Feed',           icon: '📰', description: 'Posts from your community', defaultCol: 2 },
   { id: 'trending',       label: 'Trending Tags',  icon: '🏷️', description: "What's blowing up on VYBE" },
   { id: 'online_friends', label: 'Online Now',     icon: '👥', description: 'Friends currently online (mobile)' },

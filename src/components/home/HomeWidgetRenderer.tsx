@@ -20,6 +20,8 @@ import { lazy, Suspense, useMemo } from 'react';
 import { useShowAds } from '@/hooks/useShowAds';
 import { getAdInterval } from '@/components/ads/FeedAdCard';
 import { motion } from 'framer-motion';
+import { CreatorAnalytics } from '@/components/analytics/CreatorAnalytics';
+import { BattlePassWidget } from '@/components/gamification/BattlePassWidget';
 
 const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
 const MemoizedPostCard = memo(PostCard);
@@ -150,6 +152,10 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
           iconColor="bg-gradient-to-br from-blue-500 to-cyan-500"
         />
       );
+    case 'creator_analytics':
+      return <CreatorAnalytics />;
+    case 'battle_pass':
+      return <BattlePassWidget />;
     case 'feed':
       return <FeedSection {...props} />;
     default:
