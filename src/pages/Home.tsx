@@ -204,13 +204,14 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          const state = fetchStateRef.current;
+           const state = fetchStateRef.current;
           if (state.activeTab === 'foryou') {
-            // For You loads both personalized + following
             if (state.hasNextForYou && !state.isFetchingNextForYou) fetchNextForYou();
             if (state.hasNextFollowing && !state.isFetchingNextFollowing) fetchNextFollowing();
           } else if (state.activeTab === 'global' && state.hasNextGlobal && !state.isFetchingNextGlobal) {
             fetchNextGlobal();
+          } else if (state.activeTab === 'local' && state.hasNextLocal && !state.isFetchingNextLocal) {
+            fetchNextLocal();
           }
         }
       },
