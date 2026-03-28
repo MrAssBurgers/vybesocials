@@ -685,6 +685,13 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 aiOverride={post.ai_override ?? null}
               />
             )}
+            
+            {/* Product/Shop Tag Badge */}
+            {post.tags && post.tags.length > 0 && (
+              <div className="absolute top-3 left-3 z-10">
+                <ProductTagBadge tags={post.tags} />
+              </div>
+            )}
           </div>
         );
       })()}
