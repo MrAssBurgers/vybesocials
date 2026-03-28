@@ -1,6 +1,6 @@
 import { memo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Globe, Dna, Wallet, ShoppingBag, Radio } from 'lucide-react';
+import { Sparkles, Globe, Dna, Wallet, ShoppingBag, Radio, MapPin } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
