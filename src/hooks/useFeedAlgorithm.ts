@@ -113,6 +113,8 @@ function calculateEngagementScore(post: any, userInteractions: Map<string, any>)
   score += (post.like_count || 0) * likeWeight;
   score += (post.comment_count || 0) * commentWeight;
   score += (post.view_count || 0) * viewWeight;
+  score += (post.share_count || 0) * shareWeight;
+  score += (post.save_count || 0) * saveWeight;
 
   // Apply recency
   score *= recencyMultiplier;

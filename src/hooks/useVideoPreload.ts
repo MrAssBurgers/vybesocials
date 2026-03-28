@@ -6,7 +6,7 @@ const preloadingInProgress = new Set<string>();
 const createdElements: HTMLVideoElement[] = [];
 
 // Limit concurrent preloads to prevent iOS freezing
-const MAX_CONCURRENT_PRELOADS = 2;
+const MAX_CONCURRENT_PRELOADS = 3;
 
 // Detect iOS/iPadOS - needs more conservative preloading
 const isIOSDevice = () => {

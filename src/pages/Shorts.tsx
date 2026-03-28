@@ -25,17 +25,24 @@ export default function ClipsPage() {
     isFetchingNextPage 
   } = usePersonalizedFeed('short');
   
-  // Shuffle clips to keep feed fresh like TikTok/YouTube Shorts
+  // Stable session-seeded shuffle - prevents re-ordering on every re-render
+  const sessionSeed = useMemo(() => Math.random(), []);
   const shorts = useMemo(() => {
     const allPosts = data?.pages.flatMap(page => page.posts) || [];
-    // Fisher-Yates shuffle for each session
+    if (allPosts.length === 0) return [];
+    // Seeded shuffle for stable ordering within a session
     const shuffled = [...allPosts];
+    let seed = sessionSeed;
+    const seededRandom = () => {
+      seed = (seed * 16807 + 0.5) % 1;
+      return Math.abs(seed);
+    };
     for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(seededRandom() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;
-  }, [data]);
+  }, [data, sessionSeed]);
   
   const [currentIndex, setCurrentIndex] = useState(0);
   const [globalMuted, setGlobalMuted] = useState(() => {
