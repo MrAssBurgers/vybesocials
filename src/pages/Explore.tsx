@@ -138,7 +138,7 @@ function FullscreenClipsViewer({
   const videoUrls = useMemo(() => clips.map(c => c.media_url), [clips]);
   useVideoPreload(videoUrls, { 
     currentIndex, 
-    preloadDepth: isSlowConnection ? 1 : 2,
+    preloadDepth: isSlowConnection ? 2 : 5,
     enabled: !isSlowConnection 
   });
 
