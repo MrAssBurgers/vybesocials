@@ -378,6 +378,8 @@ function VideosGalleryView({
   handleCategoryChange,
   selectedTag,
   handleTagClick,
+  trendingCreators,
+  trendingTags,
 }: {
   videos: ClipPost[];
   isLoading: boolean;
@@ -390,6 +392,8 @@ function VideosGalleryView({
   handleCategoryChange: (cat: string) => void;
   selectedTag: string | null;
   handleTagClick: (tag: string) => void;
+  trendingCreators: { id: string; username: string; avatar_url: string | null; post_count: number }[];
+  trendingTags: { tag: string; count: number }[];
 }) {
   const { isMobileOrTablet } = useIsMobileOrTablet();
 
