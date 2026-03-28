@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
+import { StoryRing } from './StoryRing';
 
 export const StoriesBar = memo(function StoriesBar() {
   const { t } = useTranslation();
