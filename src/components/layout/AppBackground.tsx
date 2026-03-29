@@ -75,7 +75,6 @@ const BackgroundLayer = memo(function BackgroundLayer({ background }: { backgrou
 });
 
 export function AppBackgroundProvider({ children }: { children: ReactNode }) {
-  const { profile } = useAuth();
   const [background, setBackground] = useState<BackgroundState>({
     imageUrl: null,
     opacity: 0.85,
