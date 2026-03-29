@@ -12,7 +12,6 @@
  */
 
 import { createContext, useContext, useState, useCallback, memo, ReactNode } from 'react';
-import { useAuth } from '@/lib/auth';
 
 interface BackgroundState {
   imageUrl: string | null;
