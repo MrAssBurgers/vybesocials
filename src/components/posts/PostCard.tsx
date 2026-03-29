@@ -508,31 +508,31 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 variant="ghost" 
                 size="icon-sm"
                 onPointerDown={(e) => {
+                  // Prevent Radix from opening on pointerdown
+                  e.preventDefault();
+                  e.stopPropagation();
                   const el = e.currentTarget as any;
                   el._ptrStart = { x: e.clientX, y: e.clientY, time: Date.now() };
-                  e.stopPropagation();
                 }}
-                onClick={(e) => {
+                onPointerUp={(e) => {
                   e.stopPropagation();
                   const el = e.currentTarget as any;
                   const start = el._ptrStart;
-                  if (start) {
-                    const dx = Math.abs(e.clientX - start.x);
-                    const dy = Math.abs(e.clientY - start.y);
-                    const dt = Date.now() - start.time;
-                    // Cancel if finger moved >10px or tap shorter than 50ms
-                    if (dx > 10 || dy > 10 || dt < 50) {
-                      e.preventDefault();
-                      setMenuOpen(false);
-                      return;
-                    }
-                  }
+                  if (!start) return;
+                  const dx = Math.abs(e.clientX - start.x);
+                  const dy = Math.abs(e.clientY - start.y);
+                  const dt = Date.now() - start.time;
+                  // Cancel if finger moved >10px or tap shorter than 50ms
+                  if (dx > 10 || dy > 10 || dt < 50) return;
                   // Debounce: block repeat taps within 300ms
-                  if (el._lastTap && Date.now() - el._lastTap < 300) {
-                    e.preventDefault();
-                    return;
-                  }
+                  if (el._lastTap && Date.now() - el._lastTap < 300) return;
                   el._lastTap = Date.now();
+                  setMenuOpen(prev => !prev);
+                }}
+                onClick={(e) => {
+                  // Prevent default click from also toggling
+                  e.preventDefault();
+                  e.stopPropagation();
                 }}
                 className="transition-transform active:scale-95"
               >
