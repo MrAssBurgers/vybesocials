@@ -90,6 +90,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
     { id: "post", icon: Image, label: "Post", subtitle: "Share media", gradient: "from-primary via-accent to-primary" },
     { id: "camera", icon: Camera, label: "Camera", subtitle: "Capture moment", gradient: "from-accent via-primary to-accent" },
     { id: "hub", icon: Zap, label: "Hub", subtitle: "Explore more", gradient: "from-primary via-accent to-primary" },
+    { id: "utilities", icon: Wrench, label: "Utilities", subtitle: "Creator tools & more", gradient: "from-accent via-primary to-accent" },
   ], []);
 
   const hubItems = useMemo(() => {
@@ -105,7 +106,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
   }, [isModOrAdmin]);
 
   const utilityItems = useMemo(() => [
-    { path: '/creator-dashboard', icon: BarChart3, label: 'Creator Analytics', description: 'Track your content stats', gradient: 'from-accent via-primary to-accent' },
+    { path: '/creator', icon: BarChart3, label: 'Creator Analytics', description: 'Track your content stats', gradient: 'from-accent via-primary to-accent' },
   ], []);
 
   // Reset view when menu closes
@@ -334,19 +335,10 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                                 onClick={() => handleNavigate(item.path)}
                               />
                             ))}
-                            {/* Utilities button */}
-                            <MenuButton
-                              icon={Wrench}
-                              label="Utilities"
-                              subtitle="Creator tools & more"
-                              gradient="from-accent via-primary to-accent"
-                              index={hubItems.length}
-                              onClick={() => handleAction("utilities")}
-                            />
                             {/* Close button */}
                             <motion.button
                               variants={itemVariants}
-                              custom={hubItems.length + 1}
+                              custom={hubItems.length}
                               whileTap="tap"
                               onClick={close}
                               className="mt-1 p-3 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 text-muted-foreground hover:text-foreground transition-colors duration-100 flex items-center justify-center gap-2"
