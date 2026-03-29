@@ -508,20 +508,33 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 variant="ghost" 
                 size="icon-sm"
                 onPointerDown={(e) => {
-                  // Record pointer position to detect scroll vs tap
-                  (e.currentTarget as any)._pointerY = e.clientY;
+                  const el = e.currentTarget as any;
+                  el._ptrStart = { x: e.clientX, y: e.clientY, time: Date.now() };
                   e.stopPropagation();
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  // If pointer moved >8px vertically since pointerDown, user was scrolling — cancel
-                  const startY = (e.currentTarget as any)._pointerY;
-                  if (startY !== undefined && Math.abs(e.clientY - startY) > 8) {
+                  const el = e.currentTarget as any;
+                  const start = el._ptrStart;
+                  if (start) {
+                    const dx = Math.abs(e.clientX - start.x);
+                    const dy = Math.abs(e.clientY - start.y);
+                    const dt = Date.now() - start.time;
+                    // Cancel if finger moved >10px or tap shorter than 50ms
+                    if (dx > 10 || dy > 10 || dt < 50) {
+                      e.preventDefault();
+                      setMenuOpen(false);
+                      return;
+                    }
+                  }
+                  // Debounce: block repeat taps within 300ms
+                  if (el._lastTap && Date.now() - el._lastTap < 300) {
                     e.preventDefault();
-                    setMenuOpen(false);
                     return;
                   }
+                  el._lastTap = Date.now();
                 }}
+                className="transition-transform active:scale-95"
               >
                 <MoreHorizontal className="h-5 w-5" />
               </Button>
