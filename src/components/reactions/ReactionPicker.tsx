@@ -92,6 +92,7 @@ export const ReactionPicker = memo(function ReactionPicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const isLongPress = useRef(false);
   const touchMoved = useRef(false);
+  const pointerStart = useRef<{ x: number; y: number } | null>(null);
 
   const activeReaction = currentReaction ? getReaction(currentReaction) : null;
 
