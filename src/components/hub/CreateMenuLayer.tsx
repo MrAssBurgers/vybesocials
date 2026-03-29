@@ -90,6 +90,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
     { id: "post", icon: Image, label: "Post", subtitle: "Share media", gradient: "from-primary via-accent to-primary" },
     { id: "camera", icon: Camera, label: "Camera", subtitle: "Capture moment", gradient: "from-accent via-primary to-accent" },
     { id: "hub", icon: Zap, label: "Hub", subtitle: "Explore more", gradient: "from-primary via-accent to-primary" },
+    { id: "utilities", icon: Wrench, label: "Utilities", subtitle: "Creator tools & more", gradient: "from-accent via-primary to-accent" },
   ], []);
 
   const hubItems = useMemo(() => {
