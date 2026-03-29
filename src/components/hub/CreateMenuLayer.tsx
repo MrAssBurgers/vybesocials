@@ -335,19 +335,10 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                                 onClick={() => handleNavigate(item.path)}
                               />
                             ))}
-                            {/* Utilities button */}
-                            <MenuButton
-                              icon={Wrench}
-                              label="Utilities"
-                              subtitle="Creator tools & more"
-                              gradient="from-accent via-primary to-accent"
-                              index={hubItems.length}
-                              onClick={() => handleAction("utilities")}
-                            />
                             {/* Close button */}
                             <motion.button
                               variants={itemVariants}
-                              custom={hubItems.length + 1}
+                              custom={hubItems.length}
                               whileTap="tap"
                               onClick={close}
                               className="mt-1 p-3 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 text-muted-foreground hover:text-foreground transition-colors duration-100 flex items-center justify-center gap-2"
