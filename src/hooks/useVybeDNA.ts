@@ -10,6 +10,11 @@ export interface VybeDNA {
   glyph_pattern: string;
   aura_intensity: number;
   personality_vector: Record<string, number>;
+  watch_time_avg: number;
+  session_time_avg: number;
+  active_hours: Array<{ hour: number; count: number }>;
+  engagement_score: number;
+  interests: string[];
   generated_at: string;
   updated_at: string;
 }
