@@ -226,6 +226,11 @@ function CreatorApplicationsTab() {
           })
           .eq('id', id);
         if (error) throw error;
+
+        // Send acceptance DM with monetization info
+        if (profile?.id) {
+          await sendAcceptanceDM(profile.id, userId, 'creator');
+        }
       } else {
         // Delete the creator profile so they can reapply
         const { error } = await supabase
