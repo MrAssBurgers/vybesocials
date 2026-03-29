@@ -76,9 +76,12 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
         setShowCamera(true);
         return;
       case "hub":
-        // Slide to hub view inline
         triggerHaptic("light");
         setView("hub");
+        return;
+      case "utilities":
+        triggerHaptic("light");
+        setView("utilities");
         return;
     }
   }, [close, navigate]);
