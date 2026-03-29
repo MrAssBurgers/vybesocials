@@ -245,7 +245,54 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                     {/* Content area with slide transitions */}
                     <div className="relative z-10">
                       <AnimatePresence mode="wait" initial={false}>
-                        {!isHub ? (
+                        {isUtilities ? (
+                          <motion.div
+                            key="utilities-items"
+                            variants={containerVariants}
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                            className="flex flex-col gap-2"
+                          >
+                            {utilityItems.map((item, i) => (
+                              <MenuButton
+                                key={item.path}
+                                icon={item.icon}
+                                label={item.label}
+                                subtitle={item.description}
+                                gradient={item.gradient}
+                                index={i}
+                                onClick={() => handleNavigate(item.path)}
+                              />
+                            ))}
+                            {/* Coming soon placeholder */}
+                            <motion.div
+                              variants={itemVariants}
+                              custom={utilityItems.length}
+                              className="flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.02] border border-dashed border-border/40"
+                            >
+                              <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center">
+                                <Clock className="h-5 w-5 text-muted-foreground/60" />
+                              </div>
+                              <div className="flex flex-col items-start">
+                                <span className="text-sm font-medium text-muted-foreground/70">More Coming Soon</span>
+                                <span className="text-xs text-muted-foreground/50">New tools on the way</span>
+                              </div>
+                            </motion.div>
+                            {/* Close button */}
+                            <motion.button
+                              variants={itemVariants}
+                              custom={utilityItems.length + 1}
+                              whileTap="tap"
+                              onClick={close}
+                              className="mt-1 p-3 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 text-muted-foreground hover:text-foreground transition-colors duration-100 flex items-center justify-center gap-2"
+                              style={{ transform: 'translateZ(0)' }}
+                            >
+                              <X className="h-4 w-4" />
+                              <span className="text-sm">Close</span>
+                            </motion.button>
+                          </motion.div>
+                        ) : !isHub ? (
                           <motion.div
                             key="create-items"
                             variants={containerVariants}
@@ -287,10 +334,19 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                                 onClick={() => handleNavigate(item.path)}
                               />
                             ))}
+                            {/* Utilities button */}
+                            <MenuButton
+                              icon={Wrench}
+                              label="Utilities"
+                              subtitle="Creator tools & more"
+                              gradient="from-accent via-primary to-accent"
+                              index={hubItems.length}
+                              onClick={() => handleAction("utilities")}
+                            />
                             {/* Close button */}
                             <motion.button
                               variants={itemVariants}
-                              custom={hubItems.length}
+                              custom={hubItems.length + 1}
                               whileTap="tap"
                               onClick={close}
                               className="mt-1 p-3 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 text-muted-foreground hover:text-foreground transition-colors duration-100 flex items-center justify-center gap-2"
