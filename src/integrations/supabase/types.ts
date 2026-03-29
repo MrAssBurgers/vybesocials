@@ -11010,10 +11010,12 @@ export type Database = {
       }
     }
     Functions: {
-      add_user_xp: {
-        Args: { p_user_id: string; p_xp_amount: number }
-        Returns: Json
-      }
+      add_user_xp:
+        | {
+            Args: { p_source: string; p_user_id: string; p_xp: number }
+            Returns: undefined
+          }
+        | { Args: { p_user_id: string; p_xp_amount: number }; Returns: Json }
       award_badge: {
         Args: {
           p_awarded_by?: string
