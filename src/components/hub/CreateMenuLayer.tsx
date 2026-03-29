@@ -21,7 +21,7 @@ const Z = {
   surface: 9999,
 } as const;
 
-type View = "create" | "hub";
+type View = "create" | "hub" | "utilities";
 
 const itemVariants = {
   hidden: { opacity: 0, y: 12, scale: 0.95 },
