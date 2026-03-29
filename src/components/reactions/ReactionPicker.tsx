@@ -131,12 +131,13 @@ export const ReactionPicker = memo(function ReactionPicker({
       left = margin;
     }
 
-    // Vertical: above the button
-    bottom = viewportHeight - buttonRect.top + margin;
+    // Vertical: right above the button with a small gap
+    const gap = 4;
+    bottom = viewportHeight - buttonRect.top + gap;
 
     // If it would go off top, show below
-    if (buttonRect.top - pickerHeight - margin < 0) {
-      bottom = viewportHeight - buttonRect.bottom - margin - pickerHeight;
+    if (buttonRect.top - pickerHeight - gap < 0) {
+      bottom = viewportHeight - buttonRect.bottom - gap - pickerHeight;
     }
 
     setPickerStyle({
