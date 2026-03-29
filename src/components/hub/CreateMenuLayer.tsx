@@ -133,6 +133,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
   if (!portalTarget) return null;
 
   const isHub = view === "hub";
+  const isUtilities = view === "utilities";
 
   return createPortal(
     <>
