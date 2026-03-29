@@ -140,6 +140,9 @@ function ModApplicationsTab() {
         await supabase
           .from('user_roles')
           .upsert({ user_id: app.user_id, role: 'moderator' }, { onConflict: 'user_id,role' });
+        if (profile?.id) {
+          await sendAcceptanceDM(profile.id, app.user_id, 'moderator');
+        }
       } else if (status === 'rejected' && profile?.id) {
         await sendRejectionDM(profile.id, app.user_id, 'moderator', notes || '');
       }
