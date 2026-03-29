@@ -30,7 +30,7 @@ import { AdminBansSection } from '@/components/admin/sections/AdminBansSection';
 import { AdminAnnouncementsSection } from '@/components/admin/sections/AdminAnnouncementsSection';
 import { AdminRolesSection } from '@/components/admin/sections/AdminRolesSection';
 import { AdminErrorsSection } from '@/components/admin/sections/AdminErrorsSection';
-import { AdminModApplicationsSection } from '@/components/admin/sections/AdminModApplicationsSection';
+import { AdminSubmissionsSection } from '@/components/admin/sections/AdminSubmissionsSection';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -54,7 +54,7 @@ const navItems: NavItem[] = [
   { id: 'announcements', label: 'Announcements', icon: Megaphone },
   { id: 'badges', label: 'Badges', icon: Award },
   { id: 'meme-bans', label: 'Meme Bans', icon: ImageIcon },
-  { id: 'mod-apps', label: 'Mod Applications', icon: Shield, adminOnly: true },
+  { id: 'submissions', label: 'Submissions', icon: Shield, adminOnly: true },
   { id: 'roles', label: 'User Roles', icon: Users, adminOnly: true },
   { id: 'errors', label: 'Error Monitor', icon: Bug, adminOnly: true },
 ];
@@ -111,16 +111,15 @@ export default function AdminDashboard() {
     staleTime: 30_000,
   });
 
-  // Mod applications count for badge
-  const { data: pendingModApps = 0 } = useQuery({
-    queryKey: ['admin-pending-mod-apps-count'],
+  // Submissions count for badge (mod apps + creator apps)
+  const { data: pendingSubmissions = 0 } = useQuery({
+    queryKey: ['admin-pending-submissions-count'],
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from('moderator_applications')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'pending');
-      if (error) return 0;
-      return count || 0;
+      const [modRes, creatorRes] = await Promise.all([
+        supabase.from('moderator_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('creator_profiles').select('id', { count: 'exact', head: true }).not('applied_at', 'is', null).eq('is_approved', false),
+      ]);
+      return (modRes.count || 0) + (creatorRes.count || 0);
     },
     staleTime: 30_000,
   });
@@ -153,7 +152,7 @@ export default function AdminDashboard() {
       case 'flags': return pendingFlags || undefined;
       case 'appeals': return pendingAppeals || undefined;
       case 'errors': return pendingBugs || undefined;
-      case 'mod-apps': return pendingModApps || undefined;
+      case 'submissions': return pendingSubmissions || undefined;
       default: return undefined;
     }
   };
@@ -182,8 +181,8 @@ export default function AdminDashboard() {
         return <AdminBadgeManager />;
       case 'meme-bans':
         return <MemeBanManager />;
-      case 'mod-apps':
-        return isAdmin ? <AdminModApplicationsSection /> : null;
+      case 'submissions':
+        return isAdmin ? <AdminSubmissionsSection /> : null;
       case 'roles':
         return isAdmin ? <AdminRolesSection /> : null;
       case 'errors':
