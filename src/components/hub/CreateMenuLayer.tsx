@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Image, Zap, ShoppingBag, Calendar, Users, Shield, X, ChevronLeft } from "lucide-react";
+import { Camera, Image, Zap, ShoppingBag, Calendar, Users, Shield, X, ChevronLeft, BarChart3 } from "lucide-react";
 import { VybeMiniIcon } from "@/components/ui/VybeMiniIcon";
 
 import { triggerHaptic } from "@/lib/haptics";
@@ -94,6 +94,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
       { path: '/market', icon: ShoppingBag, label: 'Marketplace', description: 'Buy & sell with friends', gradient: 'from-primary via-accent to-primary' },
       { path: '/events', icon: Calendar, label: 'Community Events', description: "Discover what's happening", gradient: 'from-accent via-primary to-accent' },
       { path: '/community', icon: Users, label: 'Communities', description: 'Group chats & channels', gradient: 'from-primary via-accent to-primary' },
+      { path: '/creator-dashboard', icon: BarChart3, label: 'Creator Analytics', description: 'Track your content stats', gradient: 'from-accent via-primary to-accent' },
     ];
     if (isModOrAdmin) {
       items.push({ path: '/admin', icon: Shield, label: 'Admin Panel', description: 'Manage & moderate', gradient: 'from-destructive via-primary to-destructive' });
