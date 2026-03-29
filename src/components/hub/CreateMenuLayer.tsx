@@ -182,7 +182,28 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                     {/* Header */}
                     <motion.div layout="position" className="relative z-10 flex items-center justify-center gap-2 mb-1">
                       <AnimatePresence mode="wait">
-                        {isHub ? (
+                        {isUtilities ? (
+                          <motion.div
+                            key="utilities-header"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.15 }}
+                            className="flex items-center gap-2 w-full"
+                          >
+                            <button
+                              onClick={() => { triggerHaptic("light"); setView("hub"); }}
+                              className="p-1.5 rounded-xl hover:bg-foreground/[0.06] transition-colors"
+                            >
+                              <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+                            </button>
+                            <div className="flex-1 flex items-center justify-center gap-2">
+                              <Wrench className="w-4 h-4 text-primary" />
+                              <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">Utilities</span>
+                            </div>
+                            <div className="w-7" />
+                          </motion.div>
+                        ) : isHub ? (
                           <motion.div
                             key="hub-header"
                             initial={{ opacity: 0, x: 20 }}
@@ -202,7 +223,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                               <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">VYBE Hub</span>
                               <VybeMiniIcon size={16} showSparkles animated={false} />
                             </div>
-                            <div className="w-7" /> {/* Spacer for centering */}
+                            <div className="w-7" />
                           </motion.div>
                         ) : (
                           <motion.div
