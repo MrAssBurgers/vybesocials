@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Image, Zap, ShoppingBag, Calendar, Users, Shield, X, ChevronLeft, BarChart3 } from "lucide-react";
+import { Camera, Image, Zap, ShoppingBag, Calendar, Users, Shield, X, ChevronLeft, BarChart3, Wrench, Clock } from "lucide-react";
 import { VybeMiniIcon } from "@/components/ui/VybeMiniIcon";
 
 import { triggerHaptic } from "@/lib/haptics";
@@ -21,7 +21,7 @@ const Z = {
   surface: 9999,
 } as const;
 
-type View = "create" | "hub";
+type View = "create" | "hub" | "utilities";
 
 const itemVariants = {
   hidden: { opacity: 0, y: 12, scale: 0.95 },
@@ -76,9 +76,12 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
         setShowCamera(true);
         return;
       case "hub":
-        // Slide to hub view inline
         triggerHaptic("light");
         setView("hub");
+        return;
+      case "utilities":
+        triggerHaptic("light");
+        setView("utilities");
         return;
     }
   }, [close, navigate]);
@@ -94,13 +97,16 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
       { path: '/market', icon: ShoppingBag, label: 'Marketplace', description: 'Buy & sell with friends', gradient: 'from-primary via-accent to-primary' },
       { path: '/events', icon: Calendar, label: 'Community Events', description: "Discover what's happening", gradient: 'from-accent via-primary to-accent' },
       { path: '/community', icon: Users, label: 'Communities', description: 'Group chats & channels', gradient: 'from-primary via-accent to-primary' },
-      { path: '/creator-dashboard', icon: BarChart3, label: 'Creator Analytics', description: 'Track your content stats', gradient: 'from-accent via-primary to-accent' },
     ];
     if (isModOrAdmin) {
       items.push({ path: '/admin', icon: Shield, label: 'Admin Panel', description: 'Manage & moderate', gradient: 'from-destructive via-primary to-destructive' });
     }
     return items;
   }, [isModOrAdmin]);
+
+  const utilityItems = useMemo(() => [
+    { path: '/creator-dashboard', icon: BarChart3, label: 'Creator Analytics', description: 'Track your content stats', gradient: 'from-accent via-primary to-accent' },
+  ], []);
 
   // Reset view when menu closes
   useEffect(() => {
@@ -127,6 +133,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
   if (!portalTarget) return null;
 
   const isHub = view === "hub";
+  const isUtilities = view === "utilities";
 
   return createPortal(
     <>
@@ -175,7 +182,28 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                     {/* Header */}
                     <motion.div layout="position" className="relative z-10 flex items-center justify-center gap-2 mb-1">
                       <AnimatePresence mode="wait">
-                        {isHub ? (
+                        {isUtilities ? (
+                          <motion.div
+                            key="utilities-header"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.15 }}
+                            className="flex items-center gap-2 w-full"
+                          >
+                            <button
+                              onClick={() => { triggerHaptic("light"); setView("hub"); }}
+                              className="p-1.5 rounded-xl hover:bg-foreground/[0.06] transition-colors"
+                            >
+                              <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+                            </button>
+                            <div className="flex-1 flex items-center justify-center gap-2">
+                              <Wrench className="w-4 h-4 text-primary" />
+                              <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">Utilities</span>
+                            </div>
+                            <div className="w-7" />
+                          </motion.div>
+                        ) : isHub ? (
                           <motion.div
                             key="hub-header"
                             initial={{ opacity: 0, x: 20 }}
@@ -195,7 +223,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                               <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">VYBE Hub</span>
                               <VybeMiniIcon size={16} showSparkles animated={false} />
                             </div>
-                            <div className="w-7" /> {/* Spacer for centering */}
+                            <div className="w-7" />
                           </motion.div>
                         ) : (
                           <motion.div
@@ -217,7 +245,54 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                     {/* Content area with slide transitions */}
                     <div className="relative z-10">
                       <AnimatePresence mode="wait" initial={false}>
-                        {!isHub ? (
+                        {isUtilities ? (
+                          <motion.div
+                            key="utilities-items"
+                            variants={containerVariants}
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                            className="flex flex-col gap-2"
+                          >
+                            {utilityItems.map((item, i) => (
+                              <MenuButton
+                                key={item.path}
+                                icon={item.icon}
+                                label={item.label}
+                                subtitle={item.description}
+                                gradient={item.gradient}
+                                index={i}
+                                onClick={() => handleNavigate(item.path)}
+                              />
+                            ))}
+                            {/* Coming soon placeholder */}
+                            <motion.div
+                              variants={itemVariants}
+                              custom={utilityItems.length}
+                              className="flex items-center gap-4 p-4 rounded-2xl bg-foreground/[0.02] border border-dashed border-border/40"
+                            >
+                              <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center">
+                                <Clock className="h-5 w-5 text-muted-foreground/60" />
+                              </div>
+                              <div className="flex flex-col items-start">
+                                <span className="text-sm font-medium text-muted-foreground/70">More Coming Soon</span>
+                                <span className="text-xs text-muted-foreground/50">New tools on the way</span>
+                              </div>
+                            </motion.div>
+                            {/* Close button */}
+                            <motion.button
+                              variants={itemVariants}
+                              custom={utilityItems.length + 1}
+                              whileTap="tap"
+                              onClick={close}
+                              className="mt-1 p-3 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 text-muted-foreground hover:text-foreground transition-colors duration-100 flex items-center justify-center gap-2"
+                              style={{ transform: 'translateZ(0)' }}
+                            >
+                              <X className="h-4 w-4" />
+                              <span className="text-sm">Close</span>
+                            </motion.button>
+                          </motion.div>
+                        ) : !isHub ? (
                           <motion.div
                             key="create-items"
                             variants={containerVariants}
@@ -259,10 +334,19 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                                 onClick={() => handleNavigate(item.path)}
                               />
                             ))}
+                            {/* Utilities button */}
+                            <MenuButton
+                              icon={Wrench}
+                              label="Utilities"
+                              subtitle="Creator tools & more"
+                              gradient="from-accent via-primary to-accent"
+                              index={hubItems.length}
+                              onClick={() => handleAction("utilities")}
+                            />
                             {/* Close button */}
                             <motion.button
                               variants={itemVariants}
-                              custom={hubItems.length}
+                              custom={hubItems.length + 1}
                               whileTap="tap"
                               onClick={close}
                               className="mt-1 p-3 rounded-2xl bg-foreground/[0.03] hover:bg-foreground/[0.08] border border-border/30 text-muted-foreground hover:text-foreground transition-colors duration-100 flex items-center justify-center gap-2"
