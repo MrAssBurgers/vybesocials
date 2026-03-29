@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Image, Zap, ShoppingBag, Calendar, Users, Shield, X, ChevronLeft } from "lucide-react";
+import { Camera, Image, Zap, ShoppingBag, Calendar, Users, Shield, X, ChevronLeft, BarChart3 } from "lucide-react";
 import { VybeMiniIcon } from "@/components/ui/VybeMiniIcon";
 
 import { triggerHaptic } from "@/lib/haptics";
