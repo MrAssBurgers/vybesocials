@@ -11,7 +11,7 @@ interface ReactionPickerProps {
   onReact: (type: ReactionType | null) => void;
   likeCount: number;
   className?: string;
-  compact?: boolean; // For clips/shorts overlay
+  compact?: boolean;
 }
 
 // Individual reaction bubble in the picker
@@ -19,46 +19,30 @@ const ReactionBubble = memo(function ReactionBubble({
   reaction, 
   index, 
   isHovered,
-  onHover,
-  onSelect 
 }: { 
   reaction: ReactionConfig;
   index: number;
   isHovered: boolean;
-  onHover: (index: number | null) => void;
-  onSelect: (type: ReactionType) => void;
 }) {
   return (
-    <motion.button
-      initial={{ scale: 0, y: 20, opacity: 0 }}
-      animate={{ 
-        scale: isHovered ? 1.45 : 1, 
-        y: isHovered ? -12 : 0, 
-        opacity: 1 
-      }}
-      exit={{ scale: 0, y: 10, opacity: 0 }}
-      transition={{ 
-        type: 'spring', 
-        stiffness: 500, 
-        damping: 25,
-        delay: index * 0.035
-      }}
-      onMouseEnter={() => onHover(index)}
-      onTouchStart={() => onHover(index)}
-      onClick={() => onSelect(reaction.type)}
+    <div
+      data-reaction-index={index}
       className="relative flex flex-col items-center"
+      style={{
+        transform: isHovered ? 'scale(1.45) translateY(-12px)' : 'scale(1) translateY(0)',
+        transition: 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+      }}
     >
       {/* Glow effect */}
       {isHovered && (
-        <motion.div
-          layoutId="reaction-glow"
+        <div
           className="absolute -inset-2 rounded-full opacity-30 blur-md"
           style={{ background: `hsl(${reaction.color})` }}
         />
       )}
       
       {/* Emoji */}
-      <span className="text-[28px] relative z-10 select-none drop-shadow-lg">
+      <span className="text-[28px] relative z-10 select-none drop-shadow-lg pointer-events-none">
         {reaction.emoji}
       </span>
       
@@ -69,13 +53,13 @@ const ReactionBubble = memo(function ReactionBubble({
             initial={{ opacity: 0, y: 4, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.8 }}
-            className="absolute -top-7 text-[10px] font-bold text-white bg-black/80 backdrop-blur-sm px-2 py-0.5 rounded-full whitespace-nowrap"
+            className="absolute -top-7 text-[10px] font-bold text-white bg-black/80 backdrop-blur-sm px-2 py-0.5 rounded-full whitespace-nowrap pointer-events-none"
           >
             {reaction.label}
           </motion.span>
         )}
       </AnimatePresence>
-    </motion.button>
+    </div>
   );
 });
 
@@ -90,16 +74,21 @@ export const ReactionPicker = memo(function ReactionPicker({
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const isLongPress = useRef(false);
   const touchMoved = useRef(false);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
+  const isDragging = useRef(false);
+  const bubbleRects = useRef<DOMRect[]>([]);
+  const [pickerStyle, setPickerStyle] = useState<React.CSSProperties>({});
 
   const activeReaction = currentReaction ? getReaction(currentReaction) : null;
 
-  // Close picker on outside click
+  // Close picker on outside click (only when not dragging)
   useEffect(() => {
     if (!showPicker) return;
     const handleClick = (e: MouseEvent | TouchEvent) => {
+      if (isDragging.current) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setShowPicker(false);
         setHoveredIndex(null);
@@ -113,15 +102,99 @@ export const ReactionPicker = memo(function ReactionPicker({
     };
   }, [showPicker]);
 
+  // Calculate picker position to stay on screen
+  const updatePickerPosition = useCallback(() => {
+    if (!containerRef.current) return;
+    const buttonRect = containerRef.current.getBoundingClientRect();
+    const pickerWidth = 280; // approximate picker width
+    const pickerHeight = 56;
+    const margin = 12;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    let left: number;
+    let bottom: number;
+
+    // Horizontal: try left-aligned, then adjust
+    if (compact) {
+      // Center on button
+      left = buttonRect.left + buttonRect.width / 2 - pickerWidth / 2;
+    } else {
+      left = buttonRect.left - 8;
+    }
+
+    // Clamp horizontal
+    if (left + pickerWidth > viewportWidth - margin) {
+      left = viewportWidth - pickerWidth - margin;
+    }
+    if (left < margin) {
+      left = margin;
+    }
+
+    // Vertical: above the button
+    bottom = viewportHeight - buttonRect.top + margin;
+
+    // If it would go off top, show below
+    if (buttonRect.top - pickerHeight - margin < 0) {
+      bottom = viewportHeight - buttonRect.bottom - margin - pickerHeight;
+    }
+
+    setPickerStyle({
+      position: 'fixed' as const,
+      left: `${left}px`,
+      bottom: `${bottom}px`,
+      zIndex: 9999,
+    });
+  }, [compact]);
+
+  // Cache bubble positions for drag hit-testing
+  const cacheBubbleRects = useCallback(() => {
+    if (!pickerRef.current) return;
+    const bubbles = pickerRef.current.querySelectorAll('[data-reaction-index]');
+    bubbleRects.current = Array.from(bubbles).map(el => el.getBoundingClientRect());
+  }, []);
+
+  // Find which reaction the pointer is over
+  const getReactionIndexAtPoint = useCallback((clientX: number, clientY: number): number | null => {
+    // Expand vertical hit area for easier dragging
+    for (let i = 0; i < bubbleRects.current.length; i++) {
+      const rect = bubbleRects.current[i];
+      const expandY = 20; // extra vertical tolerance
+      const expandX = 4;
+      if (
+        clientX >= rect.left - expandX &&
+        clientX <= rect.right + expandX &&
+        clientY >= rect.top - expandY &&
+        clientY <= rect.bottom + expandY
+      ) {
+        return i;
+      }
+    }
+    return null;
+  }, []);
+
+  const openPicker = useCallback(() => {
+    isLongPress.current = true;
+    isDragging.current = true;
+    triggerHaptic('medium');
+    updatePickerPosition();
+    setShowPicker(true);
+    // Cache rects after render
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        cacheBubbleRects();
+      });
+    });
+  }, [updatePickerPosition, cacheBubbleRects]);
+
   const startLongPress = useCallback(() => {
     isLongPress.current = false;
     touchMoved.current = false;
+    isDragging.current = false;
     longPressTimer.current = setTimeout(() => {
-      isLongPress.current = true;
-      triggerHaptic('medium');
-      setShowPicker(true);
+      openPicker();
     }, 400);
-  }, []);
+  }, [openPicker]);
 
   const cancelLongPress = useCallback(() => {
     if (longPressTimer.current) {
@@ -132,28 +205,48 @@ export const ReactionPicker = memo(function ReactionPicker({
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
+    // Capture pointer so we get move/up even outside element
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     pointerStart.current = { x: e.clientX, y: e.clientY };
     startLongPress();
   }, [startLongPress]);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
     cancelLongPress();
-    if (!isLongPress.current && !touchMoved.current) {
+
+    if (isDragging.current && showPicker) {
+      // We were in drag mode - select whatever we're hovering
+      isDragging.current = false;
+      if (hoveredIndex !== null) {
+        const reaction = REACTIONS[hoveredIndex];
+        triggerHaptic('medium');
+        sounds[reaction.sound]();
+        if (currentReaction === reaction.type) {
+          onReact(null);
+        } else {
+          onReact(reaction.type);
+        }
+      }
+      setShowPicker(false);
+      setHoveredIndex(null);
+    } else if (!isLongPress.current && !touchMoved.current) {
       // Quick tap - toggle like
       if (currentReaction) {
-        onReact(null); // Remove reaction
+        onReact(null);
       } else {
         onReact('like');
         triggerHaptic('light');
         sounds.pop();
       }
     }
+
     pointerStart.current = null;
-  }, [cancelLongPress, currentReaction, onReact]);
+    isDragging.current = false;
+  }, [cancelLongPress, currentReaction, onReact, showPicker, hoveredIndex]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    // Only count as "moved" if finger traveled more than 10px
-    if (pointerStart.current) {
+    // Check movement threshold for tap detection
+    if (pointerStart.current && !isLongPress.current) {
       const dx = e.clientX - pointerStart.current.x;
       const dy = e.clientY - pointerStart.current.y;
       if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
@@ -161,15 +254,30 @@ export const ReactionPicker = memo(function ReactionPicker({
         cancelLongPress();
       }
     }
-  }, [cancelLongPress]);
 
+    // Drag-to-select: update hovered reaction
+    if (isDragging.current && showPicker) {
+      // Re-cache rects in case of scroll
+      cacheBubbleRects();
+      const idx = getReactionIndexAtPoint(e.clientX, e.clientY);
+      if (idx !== hoveredIndex) {
+        setHoveredIndex(idx);
+        if (idx !== null) {
+          triggerHaptic('light');
+        }
+      }
+    }
+  }, [cancelLongPress, showPicker, hoveredIndex, cacheBubbleRects, getReactionIndexAtPoint]);
+
+  // Also handle tapping on individual reactions when picker is open (non-drag)
   const handleSelectReaction = useCallback((type: ReactionType) => {
+    if (isDragging.current) return; // handled by pointer up
     triggerHaptic('medium');
     const reaction = getReaction(type);
     sounds[reaction.sound]();
     
     if (currentReaction === type) {
-      onReact(null); // Toggle off if same reaction
+      onReact(null);
     } else {
       onReact(type);
     }
@@ -180,38 +288,41 @@ export const ReactionPicker = memo(function ReactionPicker({
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
-      {/* Reaction Picker Popup */}
+      {/* Reaction Picker Popup - rendered with fixed positioning */}
       <AnimatePresence>
         {showPicker && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.6, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.6, y: 10 }}
+            ref={pickerRef}
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.6 }}
             transition={{ type: 'spring', stiffness: 400, damping: 22 }}
             className={cn(
-              "absolute z-50 flex items-center gap-1.5 px-3 py-2",
+              "flex items-center gap-1.5 px-3 py-2",
               "bg-card/95 backdrop-blur-xl border border-border/50",
               "rounded-full shadow-2xl shadow-black/30",
-              compact ? "bottom-full mb-3 left-1/2 -translate-x-1/2" : "bottom-full mb-3 -left-2"
             )}
-            onMouseLeave={() => setHoveredIndex(null)}
+            style={pickerStyle}
+            onMouseLeave={() => {
+              if (!isDragging.current) setHoveredIndex(null);
+            }}
           >
             {/* Decorative gradient border */}
             <div className="absolute inset-0 rounded-full bg-gradient-to-r from-primary/20 via-transparent to-primary/20 opacity-50 pointer-events-none" />
             
             {REACTIONS.map((reaction, index) => (
-              <ReactionBubble
+              <div
                 key={reaction.type}
-                reaction={reaction}
-                index={index}
-                isHovered={hoveredIndex === index}
-                onHover={setHoveredIndex}
-                onSelect={handleSelectReaction}
-              />
+                onMouseEnter={() => { if (!isDragging.current) setHoveredIndex(index); }}
+                onClick={() => handleSelectReaction(reaction.type)}
+              >
+                <ReactionBubble
+                  reaction={reaction}
+                  index={index}
+                  isHovered={hoveredIndex === index}
+                />
+              </div>
             ))}
-            
-            {/* Notch/arrow */}
-            <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-card/95 border-b border-r border-border/50 rotate-45" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -220,7 +331,7 @@ export const ReactionPicker = memo(function ReactionPicker({
       <button
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
-        onPointerLeave={cancelLongPress}
+        onPointerCancel={() => { cancelLongPress(); isDragging.current = false; }}
         onPointerMove={handlePointerMove}
         className={cn(
           "flex items-center justify-center h-8 w-8 active:scale-90 transition-transform touch-none select-none",
@@ -248,7 +359,7 @@ export const ReactionPicker = memo(function ReactionPicker({
   );
 });
 
-// Reaction summary display - shows top reactions with count
+// Reaction summary display
 interface ReactionSummaryProps {
   reactions: ReactionType[];
   totalCount: number;
@@ -262,7 +373,6 @@ export const ReactionSummary = memo(function ReactionSummary({
 }: ReactionSummaryProps) {
   if (totalCount === 0) return null;
 
-  // Get unique reaction types, ordered by frequency
   const typeCounts = new Map<ReactionType, number>();
   for (const r of reactions) {
     typeCounts.set(r, (typeCounts.get(r) || 0) + 1);
