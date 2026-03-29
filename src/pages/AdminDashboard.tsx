@@ -111,16 +111,15 @@ export default function AdminDashboard() {
     staleTime: 30_000,
   });
 
-  // Mod applications count for badge
-  const { data: pendingModApps = 0 } = useQuery({
-    queryKey: ['admin-pending-mod-apps-count'],
+  // Submissions count for badge (mod apps + creator apps)
+  const { data: pendingSubmissions = 0 } = useQuery({
+    queryKey: ['admin-pending-submissions-count'],
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from('moderator_applications')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'pending');
-      if (error) return 0;
-      return count || 0;
+      const [modRes, creatorRes] = await Promise.all([
+        supabase.from('moderator_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('creator_profiles').select('id', { count: 'exact', head: true }).not('applied_at', 'is', null).eq('is_approved', false),
+      ]);
+      return (modRes.count || 0) + (creatorRes.count || 0);
     },
     staleTime: 30_000,
   });
