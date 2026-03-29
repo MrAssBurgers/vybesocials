@@ -97,13 +97,16 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
       { path: '/market', icon: ShoppingBag, label: 'Marketplace', description: 'Buy & sell with friends', gradient: 'from-primary via-accent to-primary' },
       { path: '/events', icon: Calendar, label: 'Community Events', description: "Discover what's happening", gradient: 'from-accent via-primary to-accent' },
       { path: '/community', icon: Users, label: 'Communities', description: 'Group chats & channels', gradient: 'from-primary via-accent to-primary' },
-      { path: '/creator-dashboard', icon: BarChart3, label: 'Creator Analytics', description: 'Track your content stats', gradient: 'from-accent via-primary to-accent' },
     ];
     if (isModOrAdmin) {
       items.push({ path: '/admin', icon: Shield, label: 'Admin Panel', description: 'Manage & moderate', gradient: 'from-destructive via-primary to-destructive' });
     }
     return items;
   }, [isModOrAdmin]);
+
+  const utilityItems = useMemo(() => [
+    { path: '/creator-dashboard', icon: BarChart3, label: 'Creator Analytics', description: 'Track your content stats', gradient: 'from-accent via-primary to-accent' },
+  ], []);
 
   // Reset view when menu closes
   useEffect(() => {
