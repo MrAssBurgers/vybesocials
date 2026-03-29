@@ -10282,34 +10282,49 @@ export type Database = {
       }
       vybe_dna: {
         Row: {
+          active_hours: Json | null
           aura_intensity: number | null
+          engagement_score: number | null
           generated_at: string | null
           glyph_pattern: string | null
           id: string
+          interests: string[] | null
           personality_vector: Json | null
+          session_time_avg: number | null
           signature_colors: string[] | null
           updated_at: string | null
           user_id: string
+          watch_time_avg: number | null
         }
         Insert: {
+          active_hours?: Json | null
           aura_intensity?: number | null
+          engagement_score?: number | null
           generated_at?: string | null
           glyph_pattern?: string | null
           id?: string
+          interests?: string[] | null
           personality_vector?: Json | null
+          session_time_avg?: number | null
           signature_colors?: string[] | null
           updated_at?: string | null
           user_id: string
+          watch_time_avg?: number | null
         }
         Update: {
+          active_hours?: Json | null
           aura_intensity?: number | null
+          engagement_score?: number | null
           generated_at?: string | null
           glyph_pattern?: string | null
           id?: string
+          interests?: string[] | null
           personality_vector?: Json | null
+          session_time_avg?: number | null
           signature_colors?: string[] | null
           updated_at?: string | null
           user_id?: string
+          watch_time_avg?: number | null
         }
         Relationships: []
       }
