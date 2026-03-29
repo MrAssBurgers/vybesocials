@@ -40,7 +40,6 @@ interface CreatorApplication {
 // ─── Send rejection DM helper ───
 async function sendRejectionDM(adminProfileId: string, targetUserId: string, type: 'moderator' | 'creator', reason: string) {
   try {
-    // Create or get conversation
     const { data: conversationId } = await supabase.rpc('create_dm_conversation', {
       other_profile_id: targetUserId,
     });
@@ -57,6 +56,45 @@ async function sendRejectionDM(adminProfileId: string, targetUserId: string, typ
     });
   } catch (err) {
     console.error('Failed to send rejection DM:', err);
+  }
+}
+
+// ─── Send acceptance DM helper ───
+async function sendAcceptanceDM(adminProfileId: string, targetUserId: string, type: 'moderator' | 'creator') {
+  try {
+    const { data: conversationId } = await supabase.rpc('create_dm_conversation', {
+      other_profile_id: targetUserId,
+    });
+
+    if (!conversationId) return;
+
+    if (type === 'creator') {
+      const message = `🎉 **Congratulations! You've Been Accepted as a VYBE Creator Partner!**\n\n` +
+        `You're now part of the VYBE Creator Program and can start earning money from your content — just like YouTube and TikTok creators!\n\n` +
+        `💰 **How You Earn:**\n` +
+        `• **Ads** — 60% revenue share\n` +
+        `• **Subscriptions** — 80% revenue share\n` +
+        `• **Tips** — 85% revenue share\n` +
+        `• **Brand Deals** — 75% revenue share\n\n` +
+        `🏦 **Next Step:** Head to your **Creator Dashboard** and set up your payout method so you can get paid!\n\n` +
+        `The more you create and engage, the more you earn. Welcome to the team! 🚀`;
+
+      await supabase.from('messages').insert({
+        conversation_id: conversationId,
+        sender_id: adminProfileId,
+        content: message,
+      });
+    } else {
+      const message = `🎉 **Congratulations! You've Been Accepted as a Moderator!**\n\nYou now have moderator privileges. Use them wisely to keep the community safe and positive!\n\nWelcome to the team! 🛡️`;
+
+      await supabase.from('messages').insert({
+        conversation_id: conversationId,
+        sender_id: adminProfileId,
+        content: message,
+      });
+    }
+  } catch (err) {
+    console.error('Failed to send acceptance DM:', err);
   }
 }
 
@@ -102,6 +140,9 @@ function ModApplicationsTab() {
         await supabase
           .from('user_roles')
           .upsert({ user_id: app.user_id, role: 'moderator' }, { onConflict: 'user_id,role' });
+        if (profile?.id) {
+          await sendAcceptanceDM(profile.id, app.user_id, 'moderator');
+        }
       } else if (status === 'rejected' && profile?.id) {
         await sendRejectionDM(profile.id, app.user_id, 'moderator', notes || '');
       }
@@ -188,6 +229,11 @@ function CreatorApplicationsTab() {
           })
           .eq('id', id);
         if (error) throw error;
+
+        // Send acceptance DM with monetization info
+        if (profile?.id) {
+          await sendAcceptanceDM(profile.id, userId, 'creator');
+        }
       } else {
         // Delete the creator profile so they can reapply
         const { error } = await supabase
