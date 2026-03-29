@@ -30,7 +30,7 @@ import { AdminBansSection } from '@/components/admin/sections/AdminBansSection';
 import { AdminAnnouncementsSection } from '@/components/admin/sections/AdminAnnouncementsSection';
 import { AdminRolesSection } from '@/components/admin/sections/AdminRolesSection';
 import { AdminErrorsSection } from '@/components/admin/sections/AdminErrorsSection';
-import { AdminModApplicationsSection } from '@/components/admin/sections/AdminModApplicationsSection';
+import { AdminSubmissionsSection } from '@/components/admin/sections/AdminSubmissionsSection';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
