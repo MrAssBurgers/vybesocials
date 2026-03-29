@@ -11,8 +11,7 @@
  * theme changes from accidentally clearing or overriding it.
  */
 
-import { createContext, useContext, useState, useEffect, useCallback, memo, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createContext, useContext, useState, useCallback, memo, ReactNode } from 'react';
 import { useAuth } from '@/lib/auth';
 
 interface BackgroundState {
