@@ -92,6 +92,7 @@ export const ReactionPicker = memo(function ReactionPicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const isLongPress = useRef(false);
   const touchMoved = useRef(false);
+  const pointerStart = useRef<{ x: number; y: number } | null>(null);
 
   const activeReaction = currentReaction ? getReaction(currentReaction) : null;
 
@@ -131,6 +132,7 @@ export const ReactionPicker = memo(function ReactionPicker({
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
+    pointerStart.current = { x: e.clientX, y: e.clientY };
     startLongPress();
   }, [startLongPress]);
 
@@ -146,11 +148,19 @@ export const ReactionPicker = memo(function ReactionPicker({
         sounds.pop();
       }
     }
+    pointerStart.current = null;
   }, [cancelLongPress, currentReaction, onReact]);
 
-  const handlePointerMove = useCallback(() => {
-    touchMoved.current = true;
-    cancelLongPress();
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    // Only count as "moved" if finger traveled more than 10px
+    if (pointerStart.current) {
+      const dx = e.clientX - pointerStart.current.x;
+      const dy = e.clientY - pointerStart.current.y;
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+        touchMoved.current = true;
+        cancelLongPress();
+      }
+    }
   }, [cancelLongPress]);
 
   const handleSelectReaction = useCallback((type: ReactionType) => {
