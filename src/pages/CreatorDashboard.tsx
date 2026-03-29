@@ -116,28 +116,99 @@ function StatusPill({ ok, label }: { ok?: boolean; label: string }) {
   );
 }
 
+// ─── Eligibility Requirements ───
+const CREATOR_REQUIREMENTS = [
+  { label: 'Total Views', required: 3000, icon: Eye, key: 'views' as const },
+  { label: 'Subscribers', required: 1000, icon: Users, key: 'subscribers' as const },
+  { label: 'Video Watch Time', required: 100, icon: Clock, key: 'watchHours', unit: 'hrs' as const },
+];
+
 // ─── Apply Screen ───
 function ApplyScreen() {
   const apply = useApplyForPartner();
+  const { data: contentStats } = useCreatorContentStats();
+  const { data: followerData } = useFollowerGrowth();
+
+  const currentViews = contentStats?.totalViews || 0;
+  const currentSubscribers = followerData?.total || 0;
+  // Estimate watch hours from view count (approximate: avg 2 min per view)
+  const currentWatchHours = Math.round((currentViews * 2) / 60);
+
+  const progress = [
+    { ...CREATOR_REQUIREMENTS[0], current: currentViews },
+    { ...CREATOR_REQUIREMENTS[1], current: currentSubscribers },
+    { ...CREATOR_REQUIREMENTS[2], current: currentWatchHours },
+  ];
+
+  const allMet = progress.every(p => p.current >= p.required);
 
   return (
     <AppLayout>
-      <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center gap-6">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center"
-        >
-          <Sparkles className="h-10 w-10 text-primary" />
-        </motion.div>
+      <div className="p-4 pb-24 space-y-6 max-w-lg mx-auto">
+        {/* Analytics Preview */}
+        <div>
+          <h1 className="text-xl font-bold mb-1">Creator Analytics</h1>
+          <p className="text-sm text-muted-foreground">Track your content performance</p>
+        </div>
 
-        <h1 className="text-2xl font-bold">VYBE Partner Program</h1>
-        <p className="text-muted-foreground max-w-sm leading-relaxed">
-          Monetize your content, earn revenue from ads, subscriptions, and tips.
-          Grow through three creator tiers with increasing perks.
-        </p>
+        <CreatorAnalyticsTab />
 
-        <div className="w-full max-w-md space-y-3">
+        {/* Eligibility Requirements */}
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Creator Partner Requirements
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Meet these milestones to apply for the Creator Partner Program and start monetizing your content.
+            </p>
+
+            {progress.map((req) => {
+              const Icon = req.icon;
+              const pct = Math.min((req.current / req.required) * 100, 100);
+              const met = req.current >= req.required;
+              return (
+                <div key={req.key} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Icon className={`h-4 w-4 ${met ? 'text-emerald-400' : 'text-muted-foreground'}`} />
+                      <span className="font-medium">{req.label}</span>
+                    </div>
+                    <span className={`text-xs font-mono ${met ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                      {req.current.toLocaleString()} / {req.required.toLocaleString()}{req.unit ? ` ${req.unit}` : ''}
+                    </span>
+                  </div>
+                  <Progress value={pct} className="h-2" />
+                </div>
+              );
+            })}
+
+            {allMet ? (
+              <Button
+                size="lg"
+                className="w-full rounded-2xl"
+                onClick={() => apply.mutate()}
+                disabled={apply.isPending}
+              >
+                {apply.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                Apply for Creator Partner
+              </Button>
+            ) : (
+              <div className="p-3 rounded-xl bg-muted/30 text-center">
+                <p className="text-xs text-muted-foreground">
+                  Keep creating! You'll unlock the application once all requirements are met.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Tier Info */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold">Partner Tiers</h3>
           {(['emerging', 'verified', 'elite'] as const).map((tier) => {
             const config = TIER_CONFIG[tier];
             const Icon = config.icon;
@@ -161,7 +232,8 @@ function ApplyScreen() {
           })}
         </div>
 
-        <Card className="w-full max-w-md">
+        {/* Revenue Splits */}
+        <Card className="border-border/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Revenue Sharing</CardTitle>
           </CardHeader>
@@ -174,16 +246,6 @@ function ApplyScreen() {
             ))}
           </CardContent>
         </Card>
-
-        <Button
-          size="lg"
-          className="rounded-2xl px-8"
-          onClick={() => apply.mutate()}
-          disabled={apply.isPending}
-        >
-          {apply.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-          Apply Now
-        </Button>
       </div>
     </AppLayout>
   );
