@@ -228,9 +228,9 @@ function QuickAddCard({
         {/* Dismiss */}
         <button
           onClick={handleDismiss}
-          className="absolute -top-0.5 -right-0.5 z-10 bg-card rounded-full p-[2px] border border-border/50 cursor-pointer active:scale-95 transition-transform shadow-sm"
+          className="absolute -top-0.5 -right-0.5 z-10 cursor-pointer active:scale-95 transition-transform"
         >
-          <X className="h-2.5 w-2.5 text-muted-foreground" strokeWidth={3} />
+          <X className="h-3 w-3 text-muted-foreground" strokeWidth={3} />
         </button>
 
         {/* Avatar */}
