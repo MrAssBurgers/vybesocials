@@ -106,7 +106,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
   }, [isModOrAdmin]);
 
   const utilityItems = useMemo(() => [
-    { path: '/creator-dashboard', icon: BarChart3, label: 'Creator Analytics', description: 'Track your content stats', gradient: 'from-accent via-primary to-accent' },
+    { path: '/creator', icon: BarChart3, label: 'Creator Analytics', description: 'Track your content stats', gradient: 'from-accent via-primary to-accent' },
   ], []);
 
   // Reset view when menu closes
