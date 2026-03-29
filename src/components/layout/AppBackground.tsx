@@ -11,9 +11,7 @@
  * theme changes from accidentally clearing or overriding it.
  */
 
-import { createContext, useContext, useState, useEffect, useCallback, memo, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
+import { createContext, useContext, useState, useCallback, memo, ReactNode } from 'react';
 
 interface BackgroundState {
   imageUrl: string | null;
@@ -77,69 +75,17 @@ const BackgroundLayer = memo(function BackgroundLayer({ background }: { backgrou
 });
 
 export function AppBackgroundProvider({ children }: { children: ReactNode }) {
-  const { profile } = useAuth();
   const [background, setBackground] = useState<BackgroundState>({
     imageUrl: null,
     opacity: 0.85,
     blur: 0,
   });
 
-  // Load active background from database
+  // Background is now profile-only — do NOT auto-load globally.
+  // Profile pages set the background via setBackgroundImage when viewing a profile.
   const refreshBackground = useCallback(async () => {
-    if (!profile?.id) return;
-
-    try {
-      // First try to get active background
-      let { data: activeBg } = await supabase
-        .from('user_backgrounds')
-        .select('id, image_url')
-        .eq('user_id', profile.id)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      // If no active background, fall back to most recent
-      if (!activeBg?.image_url) {
-        const { data: latestBg } = await supabase
-          .from('user_backgrounds')
-          .select('id, image_url')
-          .eq('user_id', profile.id)
-          .order('updated_at', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (latestBg?.image_url) {
-          activeBg = latestBg;
-          // Repair DB state (non-blocking)
-          try {
-            await supabase.rpc('set_active_background', { p_background_id: latestBg.id });
-          } catch {
-            // Ignore - non-critical
-          }
-        }
-      }
-
-      if (activeBg?.image_url) {
-        setBackground(prev => ({
-          ...prev,
-          imageUrl: activeBg.image_url,
-        }));
-        // Set data attribute for CSS fallback
-        document.documentElement.dataset.hasBgImage = 'true';
-        console.log('[AppBackground] Applied background:', activeBg.image_url);
-      } else {
-        // No background
-        document.documentElement.dataset.hasBgImage = 'false';
-      }
-    } catch (error) {
-      console.error('[AppBackground] Failed to load background:', error);
-    }
-  }, [profile?.id]);
-
-  // Load background on mount and when profile changes
-  useEffect(() => {
-    refreshBackground();
-  }, [refreshBackground]);
+    // No-op: backgrounds are managed by profile pages only
+  }, []);
 
   const setBackgroundImage = useCallback((url: string | null) => {
     setBackground(prev => ({ ...prev, imageUrl: url }));
