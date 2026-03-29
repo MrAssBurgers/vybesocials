@@ -152,7 +152,7 @@ export default function AdminDashboard() {
       case 'flags': return pendingFlags || undefined;
       case 'appeals': return pendingAppeals || undefined;
       case 'errors': return pendingBugs || undefined;
-      case 'mod-apps': return pendingModApps || undefined;
+      case 'submissions': return pendingSubmissions || undefined;
       default: return undefined;
     }
   };
