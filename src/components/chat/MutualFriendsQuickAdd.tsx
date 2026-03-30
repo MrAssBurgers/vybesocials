@@ -150,7 +150,7 @@ export function MutualFriendsQuickAdd({
         className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide snap-x snap-mandatory"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence initial={false}>
           {displayUsers.slice(0, 8).map((user) => (
             <QuickAddCard 
               key={user.id} 
