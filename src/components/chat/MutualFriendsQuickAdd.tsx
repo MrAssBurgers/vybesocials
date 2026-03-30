@@ -150,7 +150,7 @@ export function MutualFriendsQuickAdd({
         className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide snap-x snap-mandatory"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence initial={false}>
           {displayUsers.slice(0, 8).map((user) => (
             <QuickAddCard 
               key={user.id} 
@@ -212,13 +212,12 @@ function QuickAddCard({
 
   return (
     <motion.div
-      layout
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ 
         opacity: justAdded ? 0.6 : 1, 
         scale: justAdded ? 0.95 : 1,
       }}
-      exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
+      exit={{ opacity: 0, width: 0, marginRight: -6, overflow: 'hidden', transition: { duration: 0.25 } }}
       className="relative w-[100px] shrink-0 snap-start"
     >
       <div className={cn(
