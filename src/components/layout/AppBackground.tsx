@@ -11,7 +11,9 @@
  * theme changes from accidentally clearing or overriding it.
  */
 
-import { createContext, useContext, useState, useCallback, memo, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, memo, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
 
 interface BackgroundState {
   imageUrl: string | null;
@@ -75,17 +77,31 @@ const BackgroundLayer = memo(function BackgroundLayer({ background }: { backgrou
 });
 
 export function AppBackgroundProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [background, setBackground] = useState<BackgroundState>({
     imageUrl: null,
     opacity: 0.85,
     blur: 0,
   });
 
-  // Background is now profile-only — do NOT auto-load globally.
-  // Profile pages set the background via setBackgroundImage when viewing a profile.
+  // Auto-load user's active background on auth
   const refreshBackground = useCallback(async () => {
-    // No-op: backgrounds are managed by profile pages only
-  }, []);
+    if (!user?.id) return;
+    const { data } = await supabase
+      .from('user_backgrounds')
+      .select('image_url')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (data?.image_url) {
+      setBackground(prev => ({ ...prev, imageUrl: data.image_url }));
+      document.documentElement.dataset.hasBgImage = 'true';
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    refreshBackground();
+  }, [refreshBackground]);
 
   const setBackgroundImage = useCallback((url: string | null) => {
     setBackground(prev => ({ ...prev, imageUrl: url }));
