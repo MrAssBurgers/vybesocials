@@ -259,7 +259,7 @@ export function EditableWidgetWrapper({
       </motion.button>
 
       {/* Size badge */}
-      <div className="absolute -top-1.5 -right-1.5 z-40">
+      <div className="absolute -top-1.5 -left-1.5 z-40">
         <span className="text-[8px] font-bold bg-card/90 backdrop-blur border border-border/40 rounded-md px-1.5 py-0.5 shadow-sm text-muted-foreground">
           {widget.colSpan}×{widget.rowSpan}
         </span>
