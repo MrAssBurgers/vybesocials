@@ -615,7 +615,7 @@ export function BackgroundCustomizer({
         </div>
         
         {userBackgrounds.length > 0 ? (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {userBackgrounds.map((bg) => (
               <div
                 key={bg.id}
