@@ -10764,7 +10764,7 @@ export type Database = {
           avatar_url?: string | null
           badge_settings?: Json | null
           bio?: string | null
-          coins_balance?: number | null
+          coins_balance?: never
           created_at?: string | null
           date_of_birth?: never
           display_name?: string | null
@@ -10795,7 +10795,7 @@ export type Database = {
           avatar_url?: string | null
           badge_settings?: Json | null
           bio?: string | null
-          coins_balance?: number | null
+          coins_balance?: never
           created_at?: string | null
           date_of_birth?: never
           display_name?: string | null
