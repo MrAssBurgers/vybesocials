@@ -3262,32 +3262,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "creator_profiles_user_id_profiles_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "invite_leaderboard"
-            referencedColumns: ["profile_id"]
-          },
-          {
-            foreignKeyName: "creator_profiles_user_id_profiles_fkey"
+            foreignKeyName: "creator_profiles_user_id_profiles_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
-            foreignKeyName: "creator_profiles_user_id_profiles_fkey"
+            foreignKeyName: "creator_profiles_user_id_profiles_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "public_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "creator_profiles_user_id_profiles_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "xp_leaderboard"
-            referencedColumns: ["profile_id"]
+            referencedColumns: ["user_id"]
           },
         ]
       }
