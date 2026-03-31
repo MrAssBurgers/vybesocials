@@ -384,16 +384,20 @@ export const ReactionSummary = memo(function ReactionSummary({
     .map(([type]) => getReaction(type));
 
   return (
-    <div className={cn("flex items-center gap-1", className)}>
-      <div className="flex -space-x-1">
+    <div className={cn("flex items-center gap-1.5", className)}>
+      {/* Facebook-style stacked emoji circles */}
+      <div className="relative flex items-center" style={{ width: `${18 + (topTypes.length - 1) * 14}px`, height: '22px' }}>
         {topTypes.map((r, i) => (
           <motion.span
             key={r.type}
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            transition={{ delay: i * 0.05 }}
-            className="text-sm relative inline-block"
-            style={{ zIndex: topTypes.length - i }}
+            transition={{ delay: i * 0.05, type: 'spring', stiffness: 400, damping: 20 }}
+            className="absolute flex items-center justify-center w-[22px] h-[22px] rounded-full bg-card border-2 border-background text-xs shadow-sm"
+            style={{ 
+              left: `${i * 14}px`,
+              zIndex: topTypes.length - i,
+            }}
           >
             {r.emoji}
           </motion.span>
