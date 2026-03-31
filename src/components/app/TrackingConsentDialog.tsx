@@ -28,16 +28,12 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
     // If logged in, check DB first
     if (profile?.id) {
       supabase
-        .from('profiles')
-        .select('tracking_consent')
-        .eq('id', profile.id)
+        .rpc('get_own_sensitive_profile')
         .single()
         .then(({ data }) => {
           if (data?.tracking_consent) {
-            // Already answered on another device — sync to localStorage
             localStorage.setItem(TRACKING_CONSENT_KEY, data.tracking_consent);
           } else {
-            // Never answered — show dialog
             const timer = setTimeout(() => setVisible(true), 2000);
             return () => clearTimeout(timer);
           }
