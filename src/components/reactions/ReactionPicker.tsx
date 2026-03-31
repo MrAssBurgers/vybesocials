@@ -131,8 +131,8 @@ export const ReactionPicker = memo(function ReactionPicker({
       left = margin;
     }
 
-    // Vertical: right above the button with a small gap
-    const gap = 4;
+    // Vertical: position just above the like button (tight gap)
+    const gap = 2;
     bottom = viewportHeight - buttonRect.top + gap;
 
     // If it would go off top, show below
