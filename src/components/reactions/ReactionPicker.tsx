@@ -385,18 +385,19 @@ export const ReactionSummary = memo(function ReactionSummary({
 
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
-      {/* Facebook-style stacked emoji circles */}
-      <div className="relative flex items-center" style={{ width: `${18 + (topTypes.length - 1) * 14}px`, height: '22px' }}>
+      {/* Deck-of-cards style stacked emoji circles */}
+      <div className="relative flex items-center" style={{ width: `${22 + (topTypes.length - 1) * 10}px`, height: '26px' }}>
         {topTypes.map((r, i) => (
           <motion.span
             key={r.type}
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: i * 0.05, type: 'spring', stiffness: 400, damping: 20 }}
-            className="absolute flex items-center justify-center w-[22px] h-[22px] rounded-full bg-card border-2 border-background text-xs shadow-sm"
+            initial={{ scale: 0, rotate: 0 }}
+            animate={{ scale: 1, rotate: i === 0 ? -6 : i === 2 ? 6 : 0 }}
+            transition={{ delay: i * 0.06, type: 'spring', stiffness: 500, damping: 22 }}
+            className="absolute flex items-center justify-center w-[24px] h-[24px] rounded-full bg-card border-2 border-background text-xs shadow-md"
             style={{ 
-              left: `${i * 14}px`,
+              left: `${i * 10}px`,
               zIndex: topTypes.length - i,
+              transformOrigin: 'center bottom',
             }}
           >
             {r.emoji}
