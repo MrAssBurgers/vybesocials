@@ -357,12 +357,12 @@ export function ThemeCustomizer() {
             <ChevronRight className="h-5 w-5 text-muted-foreground" />
           </button>
         </SheetTrigger>
-        <SheetContent side="bottom" className="h-[85vh]">
-          <SheetHeader className="pb-4">
+        <SheetContent side="bottom" className="h-[85vh] flex flex-col">
+          <SheetHeader className="pb-4 flex-shrink-0">
             <SheetTitle>Background Image</SheetTitle>
             <SheetDescription>Upload your own image or generate one with AI</SheetDescription>
           </SheetHeader>
-          <div className="overflow-y-auto pb-8">
+          <div className="flex-1 overflow-y-auto overscroll-contain -webkit-overflow-scrolling-touch pb-safe pb-12">
             <BackgroundCustomizer
               currentBackground={backgroundImage || undefined}
               backgroundOpacity={backgroundOpacity}
