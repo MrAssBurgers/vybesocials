@@ -158,16 +158,20 @@ serve(async (req) => {
       .single();
 
     // Combine onboarding interests with custom topics
+    // IMPORTANT: Prioritize custom topics so they are always searched
     const onboardingInterests = userProfile?.interests || [];
     const customTopics = briefPrefs?.custom_topics || [];
     const excludedTopics = briefPrefs?.excluded_topics || [];
     
     // Default interests if user has none set
     const defaultInterests = ['breaking news', 'technology', 'pop culture'];
-    const baseInterests = onboardingInterests.length > 0 || customTopics.length > 0
-      ? [...onboardingInterests, ...customTopics]
+    
+    // Custom topics go first so they're never cut off by the slice(0, 5) limit
+    const baseInterests = customTopics.length > 0 || onboardingInterests.length > 0
+      ? [...customTopics, ...onboardingInterests]
       : defaultInterests;
     
+    // Deduplicate while preserving priority order (custom topics first)
     const allInterests = [...new Set(baseInterests)]
       .filter(i => !excludedTopics.includes(i));
 
@@ -309,7 +313,7 @@ serve(async (req) => {
       const fetchPromises: Promise<{ label: string; result: PerplexityResult; category?: string } | null>[] = [];
 
       // 1. User interest-based searches (up to 5)
-      const selectedInterests = allInterests.slice(0, 5);
+      const selectedInterests = allInterests.slice(0, 7);
       for (const interest of selectedInterests) {
         const query = interestSearchQueries[interest.toLowerCase()] || `latest ${interest} news and updates today`;
         fetchPromises.push(

@@ -473,7 +473,7 @@ export function BackgroundCustomizer({
   }, [onBackgroundChange]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 px-1">
       {/* Error Message */}
       {uploadError && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm">
@@ -615,7 +615,7 @@ export function BackgroundCustomizer({
         </div>
         
         {userBackgrounds.length > 0 ? (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {userBackgrounds.map((bg) => (
               <div
                 key={bg.id}
@@ -748,7 +748,7 @@ export function BackgroundCustomizer({
       {/* Quick Style Buttons */}
       <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">Quick Styles</Label>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-4 gap-2.5">
           {AI_BACKGROUND_STYLES.map((style) => {
             const Icon = style.icon;
             const isLoading = isGenerating && selectedStyle === style.id;

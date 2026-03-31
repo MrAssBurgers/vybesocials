@@ -11,7 +11,7 @@
  * theme changes from accidentally clearing or overriding it.
  */
 
-import { createContext, useContext, useState, useCallback, useEffect, memo, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, memo, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 
@@ -77,27 +77,34 @@ const BackgroundLayer = memo(function BackgroundLayer({ background }: { backgrou
 });
 
 export function AppBackgroundProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [background, setBackground] = useState<BackgroundState>({
     imageUrl: null,
     opacity: 0.85,
     blur: 0,
   });
+  const hasLoadedRef = useRef(false);
 
   // Auto-load user's active background on auth
+  // IMPORTANT: user_backgrounds.user_id stores profile.id, NOT auth user id
   const refreshBackground = useCallback(async () => {
-    if (!user?.id) return;
+    const profileId = profile?.id;
+    if (!profileId) return;
     const { data } = await supabase
       .from('user_backgrounds')
       .select('image_url')
-      .eq('user_id', user.id)
+      .eq('user_id', profileId)
       .eq('is_active', true)
       .maybeSingle();
     if (data?.image_url) {
       setBackground(prev => ({ ...prev, imageUrl: data.image_url }));
       document.documentElement.dataset.hasBgImage = 'true';
+      hasLoadedRef.current = true;
+    } else if (!hasLoadedRef.current) {
+      // No active background found — make sure we don't show stale state
+      document.documentElement.dataset.hasBgImage = 'false';
     }
-  }, [user?.id]);
+  }, [profile?.id]);
 
   useEffect(() => {
     refreshBackground();

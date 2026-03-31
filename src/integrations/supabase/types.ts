@@ -6642,6 +6642,38 @@ export type Database = {
           },
         ]
       }
+      post_mood_signals: {
+        Row: {
+          created_at: string
+          id: string
+          mood: string
+          post_id: string
+          signal_strength: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mood: string
+          post_id: string
+          signal_strength?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mood?: string
+          post_id?: string
+          signal_strength?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_mood_signals_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       posts: {
         Row: {
           ai_confidence: number | null
