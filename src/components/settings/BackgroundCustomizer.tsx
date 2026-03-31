@@ -748,7 +748,7 @@ export function BackgroundCustomizer({
       {/* Quick Style Buttons */}
       <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">Quick Styles</Label>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-4 gap-2.5">
           {AI_BACKGROUND_STYLES.map((style) => {
             const Icon = style.icon;
             const isLoading = isGenerating && selectedStyle === style.id;
