@@ -473,7 +473,7 @@ export function BackgroundCustomizer({
   }, [onBackgroundChange]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 px-1">
       {/* Error Message */}
       {uploadError && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm">
