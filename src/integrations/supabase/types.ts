@@ -11271,6 +11271,17 @@ export type Database = {
           username: string
         }[]
       }
+      get_own_sensitive_profile: {
+        Args: never
+        Returns: {
+          date_of_birth: string
+          email: string
+          phone_number: string
+          phone_verified: boolean
+          stripe_customer_id: string
+          tracking_consent: string
+        }[]
+      }
       get_owner_auth_id: { Args: never; Returns: string }
       get_owner_wife_auth_id: { Args: never; Returns: string }
       get_personalized_feed: {
