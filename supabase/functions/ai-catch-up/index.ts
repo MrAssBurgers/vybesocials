@@ -313,7 +313,7 @@ serve(async (req) => {
       const fetchPromises: Promise<{ label: string; result: PerplexityResult; category?: string } | null>[] = [];
 
       // 1. User interest-based searches (up to 5)
-      const selectedInterests = allInterests.slice(0, 5);
+      const selectedInterests = allInterests.slice(0, 7);
       for (const interest of selectedInterests) {
         const query = interestSearchQueries[interest.toLowerCase()] || `latest ${interest} news and updates today`;
         fetchPromises.push(
