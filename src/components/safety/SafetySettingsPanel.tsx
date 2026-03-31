@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Shield, 
@@ -31,6 +31,7 @@ import {
   canAccessMinimalFiltering 
 } from '@/hooks/useSafetySettings';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/integrations/supabase/client';
 import { triggerHaptic } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -40,12 +41,16 @@ export const SafetySettingsPanel = memo(function SafetySettingsPanel() {
   const { data: settings, isLoading } = useSafetySettings();
   const updateSettings = useUpdateSafetySettings();
   const [newKeyword, setNewKeyword] = useState('');
+  const [canUseMinimal, setCanUseMinimal] = useState(false);
 
-  // Check if user can access minimal filtering (18+ only)
-  // Use the date_of_birth from the profile if available
-  const canUseMinimal = profile && (profile as any).date_of_birth 
-    ? canAccessMinimalFiltering((profile as any).date_of_birth) 
-    : false;
+  useEffect(() => {
+    if (!profile?.id) return;
+    supabase.rpc('get_own_sensitive_profile').single().then(({ data }) => {
+      if (data?.date_of_birth) {
+        setCanUseMinimal(canAccessMinimalFiltering(data.date_of_birth));
+      }
+    });
+  }, [profile?.id]);
 
   const handleUpdate = async (updates: Parameters<typeof updateSettings.mutateAsync>[0]) => {
     triggerHaptic('light');
