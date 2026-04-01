@@ -42,6 +42,13 @@ export async function getStripeSecretKey(): Promise<string> {
 }
 
 /**
+ * Backwards-compatible alias used by older Stripe functions.
+ */
+export async function resolveStripeKey(): Promise<string> {
+  return getStripeSecretKey();
+}
+
+/**
  * Validates that the key format is correct (sk_test_ or sk_live_, not pk_ or rk_).
  */
 export function validateStripeKey(key: string): { valid: boolean; mode: string; error?: string } {
