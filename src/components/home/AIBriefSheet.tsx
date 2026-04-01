@@ -274,7 +274,7 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
 
 // Cache
 const BRIEF_CACHE_KEY = 'vybe_ai_brief_cache';
-const CACHE_TTL = 1000 * 60 * 5;
+const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
 
 function isValidBrief(data: unknown): data is BriefData {
   if (!data || typeof data !== 'object') return false;
