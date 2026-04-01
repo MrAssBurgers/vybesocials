@@ -638,7 +638,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                 )}
               </div>
             ) : (
-              <GeneratingScreen progress={loadingProgress} stage={loadingStage} />
+              <GeneratingScreen />
             )}
           </div>
         </SheetContent>
