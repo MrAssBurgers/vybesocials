@@ -6,49 +6,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Map interests to search queries for Perplexity
-const interestSearchQueries: Record<string, string> = {
-  'politics': 'breaking political news today unbiased factual summary',
-  'gaming': 'trending video game releases and gaming news this week',
-  'cooking': 'trending recipes and cooking tips today popular dishes',
-  'fitness': 'fitness tips and workout trends today',
-  'music': 'new music releases and trending songs this week',
-  'sports': 'top sports news and scores today breaking',
-  'movies': 'new movie releases and entertainment news today reviews',
-  'technology': 'latest tech news and gadget releases today AI',
-  'fashion': 'fashion trends and style tips this week',
-  'travel': 'trending travel destinations and tips deals',
-  'art': 'art exhibitions and creative trends this week',
-  'photography': 'photography tips and trending photo styles',
-  'reading': 'best new book releases and reading recommendations',
-  'science': 'latest science discoveries and research news breaking',
-  'business': 'business news and market updates today stocks',
-  'health': 'health news and wellness tips today',
-  'nature': 'environmental news and nature discoveries',
-  'comedy': 'trending comedy and viral funny content',
-  'animals': 'cute animal news and pet care tips',
-  'diy': 'trending DIY projects and craft ideas',
-  'breaking news': 'top breaking news stories today world',
-  'stock market': 'stock market news today S&P 500 updates',
-  'crypto': 'cryptocurrency news today bitcoin ethereum updates',
-  'ai news': 'artificial intelligence news today latest developments',
-  'space': 'space exploration news NASA SpaceX updates',
-  'climate': 'climate change news environmental updates today',
-  'pop culture': 'pop culture news celebrities entertainment today',
-  'sports scores': 'latest sports scores results today',
-  'movie reviews': 'latest movie reviews ratings today',
-  'recipes': 'popular recipes trending dishes today easy',
-  'workout tips': 'workout tips fitness routines today',
-  'travel deals': 'travel deals and vacation discounts today',
-  'tech reviews': 'tech product reviews gadgets today',
-  'gaming news': 'video game news releases updates today',
-  'music releases': 'new music releases albums songs today',
-};
-
-interface PerplexityResult {
+interface LiveUpdate {
+  interest: string;
   content: string;
-  citations: string[];
-  images: string[];
+  sources: string[];
+  imageUrl?: string;
+  sourceFavicons?: string[];
+  category?: string;
 }
 
 function getFaviconUrl(url: string): string {
@@ -60,45 +24,110 @@ function getFaviconUrl(url: string): string {
   }
 }
 
-async function fetchPerplexityData(query: string, label: string, apiKey: string): Promise<{ label: string; result: PerplexityResult } | null> {
+async function fetchGeminiNews(
+  interests: string[],
+  latitude: number | null,
+  longitude: number | null,
+): Promise<LiveUpdate[]> {
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+  if (!GEMINI_API_KEY) {
+    console.error("[Brief] GEMINI_API_KEY not set");
+    return [];
+  }
+
+  const interestList = interests.map((i, idx) => `${idx + 1}. ${i}`).join('\n');
+  let locationContext = '';
+  if (latitude && longitude) {
+    locationContext = `\nAlso include one item about local news/events/weather near coordinates ${latitude.toFixed(2)}, ${longitude.toFixed(2)}. Use category "local" and label "📍 Near You" for it.`;
+  }
+
+  const prompt = `You are a news assistant. Return the latest trending news for these topics:
+${interestList}
+${locationContext}
+
+Return ONLY valid JSON, no markdown fences. Format:
+{"items":[{"topic":"<topic label>","summary":"<2-3 sentence factual summary with specific details>","sources":["<url1>","<url2>"],"category":"<interests|local|world>"}]}
+
+Rules:
+- One item per topic, plus the local item if requested
+- Summaries must be factual, current (today), and specific (names, numbers, dates)
+- Include real source URLs from your grounding results
+- category is "interests" for topic items, "local" for location-based, "world" for general news`;
+
   try {
-    console.log(`[Perplexity] Fetching: ${label}`);
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'sonar',
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a helpful news assistant. Provide a brief, factual summary in 2-3 sentences. Include specific details like names, numbers, dates, or statistics when available. Be informative and engaging.' 
+    console.log("[Brief] Calling Gemini with Google Search grounding...");
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          tools: [{ google_search: {} }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 2048,
           },
-          { role: 'user', content: query }
-        ],
-        search_recency_filter: 'day',
-      }),
-    });
+        }),
+      }
+    );
 
     if (!response.ok) {
-      const errBody = await response.text().catch(() => 'unknown');
-      console.error(`[Perplexity] API error ${response.status} for "${label}":`, errBody);
-      return null;
+      const errText = await response.text().catch(() => 'unknown');
+      console.error(`[Brief] Gemini API error ${response.status}:`, errText);
+      return [];
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
-    const citations = data.citations || [];
-    const images = data.images || [];
-    
-    console.log(`[Perplexity] Got ${label}: ${content.length} chars, ${citations.length} citations, ${images.length} images`);
-    
-    return { label, result: { content, citations, images } };
+    const textContent = data.candidates?.[0]?.content?.parts
+      ?.filter((p: any) => p.text)
+      ?.map((p: any) => p.text)
+      ?.join('') || '';
+
+    console.log(`[Brief] Gemini raw response length: ${textContent.length}`);
+
+    // Extract grounding sources from metadata
+    const groundingChunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const groundingSources: string[] = groundingChunks
+      .filter((c: any) => c.web?.uri)
+      .map((c: any) => c.web.uri);
+
+    // Parse JSON from response (strip markdown fences if present)
+    let jsonStr = textContent.trim();
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+    }
+
+    let parsed: { items: Array<{ topic: string; summary: string; sources?: string[]; category?: string }> };
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch (parseErr) {
+      console.error("[Brief] Failed to parse Gemini JSON:", parseErr, "Raw:", jsonStr.slice(0, 500));
+      return [];
+    }
+
+    if (!parsed.items || !Array.isArray(parsed.items)) {
+      console.error("[Brief] Gemini response missing items array");
+      return [];
+    }
+
+    return parsed.items.map((item) => {
+      // Merge grounding sources with inline sources
+      const itemSources = item.sources || [];
+      const allSources = [...new Set([...itemSources, ...groundingSources])].slice(0, 6);
+      const sourceFavicons = allSources.slice(0, 4).map(getFaviconUrl).filter(Boolean);
+
+      return {
+        interest: item.topic,
+        content: item.summary,
+        sources: allSources,
+        sourceFavicons,
+        category: item.category || 'interests',
+      };
+    });
   } catch (error) {
-    console.error(`[Perplexity] Fetch error for "${label}":`, error);
-    return null;
+    console.error("[Brief] Gemini fetch error:", error);
+    return [];
   }
 }
 
@@ -157,30 +186,23 @@ serve(async (req) => {
       .eq('user_id', profileId)
       .single();
 
-    // Combine onboarding interests with custom topics
-    // IMPORTANT: Prioritize custom topics so they are always searched
+    // Combine interests
     const onboardingInterests = userProfile?.interests || [];
     const customTopics = briefPrefs?.custom_topics || [];
     const excludedTopics = briefPrefs?.excluded_topics || [];
-    
-    // Default interests if user has none set
     const defaultInterests = ['breaking news', 'technology', 'pop culture'];
     
-    // Custom topics go first so they're never cut off by the slice(0, 5) limit
     const baseInterests = customTopics.length > 0 || onboardingInterests.length > 0
       ? [...customTopics, ...onboardingInterests]
       : defaultInterests;
     
-    // Deduplicate while preserving priority order (custom topics first)
     const allInterests = [...new Set(baseInterests)]
-      .filter(i => !excludedTopics.includes(i));
+      .filter(i => !excludedTopics.includes(i))
+      .slice(0, 7);
 
-    console.log(`[Brief] Onboarding interests: ${onboardingInterests.join(', ')}`);
-    console.log(`[Brief] Custom topics: ${customTopics.join(', ')}`);
     console.log(`[Brief] Final interests: ${allInterests.join(', ')}`);
-    console.log(`[Brief] GPS: ${latitude ? `${latitude},${longitude}` : 'not provided'}`);
 
-    // ── REAL-TIME DATA: Fetch actual counts from DB (all in parallel) ──
+    // ── Fetch app data + Gemini news in parallel ──
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const [
@@ -194,6 +216,7 @@ serve(async (req) => {
       levelResult,
       unreadNotifsResult,
       unreadMsgsResult,
+      liveUpdates,
     ] = await Promise.all([
       supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', profileId).eq('read', false),
       supabase.from('follows').select('following_id').eq('follower_id', profileId),
@@ -205,6 +228,8 @@ serve(async (req) => {
       supabase.from('user_levels').select('current_level, total_xp').eq('user_id', user.id).single(),
       supabase.from('notifications').select('id, type, message, created_at, sender_id, post_id, read').eq('user_id', profileId).eq('read', false).order('created_at', { ascending: false }).limit(10),
       supabase.from('conversation_members').select(`conversation_id, last_read_at, conversations!inner(id, updated_at, name, is_group, messages(id, content, created_at, media_type, sender_id, profiles:sender_id(username, display_name)))`).eq('user_id', profileId).order('conversations(updated_at)', { ascending: false }).limit(10),
+      // Gemini news fetch runs in parallel with DB queries
+      fetchGeminiNews(allInterests, latitude, longitude),
     ]);
 
     const realNotifCount = notifResult.count || 0;
@@ -293,78 +318,7 @@ serve(async (req) => {
       }
     }
 
-    // ── Fetch Perplexity live updates ──
-    interface LiveUpdate {
-      interest: string;
-      content: string;
-      sources: string[];
-      imageUrl?: string;
-      sourceFavicons?: string[];
-      category?: string;
-    }
-    
-    let liveUpdates: LiveUpdate[] = [];
-    
-    const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
-    console.log(`[Brief] Interests: ${allInterests.join(', ')} | Perplexity key: ${PERPLEXITY_API_KEY ? 'set' : 'MISSING'}`);
-    
-    if (PERPLEXITY_API_KEY) {
-      // Build all search promises
-      const fetchPromises: Promise<{ label: string; result: PerplexityResult; category?: string } | null>[] = [];
-
-      // 1. User interest-based searches (up to 5)
-      const selectedInterests = allInterests.slice(0, 7);
-      for (const interest of selectedInterests) {
-        const query = interestSearchQueries[interest.toLowerCase()] || `latest ${interest} news and updates today`;
-        fetchPromises.push(
-          fetchPerplexityData(query, interest, PERPLEXITY_API_KEY)
-            .then(r => r ? { ...r, category: 'interests' } : null)
-        );
-      }
-
-      // 2. GPS-based local news (if location provided)
-      if (latitude && longitude) {
-        fetchPromises.push(
-          fetchPerplexityData(
-            `Important local news, events, and weather happening near coordinates ${latitude.toFixed(2)}, ${longitude.toFixed(2)} today. Include any severe weather warnings, major local events, or important community updates.`,
-            '📍 Near You',
-            PERPLEXITY_API_KEY
-          ).then(r => r ? { ...r, category: 'local' } : null)
-        );
-      }
-
-      // 3. Always include a "What's happening" general catch-all if few interests
-      if (selectedInterests.length < 3) {
-        fetchPromises.push(
-          fetchPerplexityData(
-            'Most important news stories happening right now in the world today',
-            '🌍 World',
-            PERPLEXITY_API_KEY
-          ).then(r => r ? { ...r, category: 'world' } : null)
-        );
-      }
-
-      const results = await Promise.all(fetchPromises);
-      
-      liveUpdates = results
-        .filter((r): r is { label: string; result: PerplexityResult; category?: string } => r !== null && !!r.result.content)
-        .map(r => {
-          let imageUrl: string | undefined;
-          if (r.result.images && r.result.images.length > 0) {
-            imageUrl = r.result.images[0];
-          }
-          const sourceFavicons = (r.result.citations || []).slice(0, 4).map((url: string) => getFaviconUrl(url)).filter(Boolean);
-          return {
-            interest: r.label,
-            content: r.result.content,
-            sources: r.result.citations || [],
-            imageUrl,
-            sourceFavicons,
-            category: r.category || 'interests',
-          };
-        });
-    }
-
+    // ── Generate summary with Lovable AI ──
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");

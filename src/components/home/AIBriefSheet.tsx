@@ -399,7 +399,14 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
       if (!isBackground) { setLoadingProgress(100); haptics.success(); }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      setError('Could not load brief. Tap refresh to try again.');
+      // If we have cached data, show it instead of error
+      const cached = getCachedBrief();
+      if (cached && !isBackground) {
+        setBriefData(cached);
+        toast.error('Could not refresh — showing cached brief');
+      } else {
+        setError('Could not load brief. Tap refresh to try again.');
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
