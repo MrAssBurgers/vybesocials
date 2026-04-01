@@ -1,59 +1,14 @@
-import { memo, useState, useEffect } from 'react';
+import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, MessageCircle, Globe, ChevronDown, Zap } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
-import { Progress } from '@/components/ui/progress';
 
-interface GeneratingScreenProps {
-  progress?: number; // 0-100
-  stage?: string;
-}
-
-// Generating screen with spinning V animation + staged progress bar
-export const GeneratingScreen = memo(function GeneratingScreen({ progress = 0, stage }: GeneratingScreenProps) {
-  // If no external progress provided, simulate it
-  const [simulatedProgress, setSimulatedProgress] = useState(0);
-  const useExternal = progress > 0;
-  const displayProgress = useExternal ? Math.min(progress, 100) : simulatedProgress;
-
-  useEffect(() => {
-    if (useExternal) return;
-    // Simulate progress stages
-    const stages = [
-      { target: 15, delay: 300 },
-      { target: 35, delay: 800 },
-      { target: 55, delay: 1500 },
-      { target: 70, delay: 2500 },
-      { target: 82, delay: 4000 },
-      { target: 90, delay: 6000 },
-    ];
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    for (const s of stages) {
-      timers.push(setTimeout(() => setSimulatedProgress(s.target), s.delay));
-    }
-    return () => timers.forEach(clearTimeout);
-  }, [useExternal]);
-
-  const stageLabels: Record<string, string> = {
-    'auth': 'Authenticating...',
-    'data': 'Gathering your data...',
-    'interests': 'Fetching live updates...',
-    'ai': 'AI is summarizing...',
-    'done': 'Almost ready!',
-  };
-
-  const displayStage = stage ? (stageLabels[stage] || stage) : 
-    displayProgress < 20 ? 'Connecting...' :
-    displayProgress < 45 ? 'Gathering your data...' :
-    displayProgress < 70 ? 'Fetching live updates...' :
-    displayProgress < 90 ? 'AI is summarizing...' :
-    'Almost ready!';
-
+// Generating screen with spinning V animation (indeterminate)
+export const GeneratingScreen = memo(function GeneratingScreen() {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-4">
-      {/* Centered spinning V with glow ring + orbiting sparkles */}
+      {/* Centered spinning V with glow ring */}
       <div className="relative mb-8" data-allow-animation="true">
-        {/* Outer glow ring */}
         <div
           className="absolute rounded-full glow-ring-pulse"
           style={{
@@ -64,7 +19,6 @@ export const GeneratingScreen = memo(function GeneratingScreen({ progress = 0, s
           }}
         />
         
-        {/* Spinning V container with sparkles */}
         <div className="relative spin-smooth" style={{ width: 100, height: 100 }} data-allow-animation="true">
           <div className="absolute inset-0" style={{ width: 100, height: 100 }}>
             {[0, 60, 120, 180, 240, 300].map((angle, i) => {
@@ -101,21 +55,24 @@ export const GeneratingScreen = memo(function GeneratingScreen({ progress = 0, s
           Crafting Your Brief
         </h3>
         <motion.p 
-          key={displayStage}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0.4, 1, 0.4] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
           className="text-sm text-muted-foreground"
         >
-          {displayStage}
+          Fetching live updates...
         </motion.p>
       </div>
 
-      {/* Progress bar */}
-      <div className="w-48 mt-6 space-y-1.5">
-        <Progress value={displayProgress} className="h-2" />
-        <p className="text-[10px] text-muted-foreground/60 text-center font-medium">
-          {Math.round(displayProgress)}%
-        </p>
+      {/* Indeterminate loading bar */}
+      <div className="w-48 mt-6 h-1.5 rounded-full bg-muted/30 overflow-hidden">
+        <motion.div
+          className="h-full rounded-full"
+          style={{ background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))' }}
+          initial={{ x: '-100%', width: '40%' }}
+          animate={{ x: '250%' }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+        />
       </div>
     </div>
   );
@@ -137,18 +94,13 @@ interface PreviewCardProps {
   index: number;
 }
 
-// Static color class mappings to ensure Tailwind includes these classes
 const colorClasses = {
   primary: { bg: 'bg-primary/10', text: 'text-primary' },
   accent: { bg: 'bg-accent/10', text: 'text-accent' },
 } as const;
 
 const PreviewCard = memo(function PreviewCard({ 
-  icon: Icon, 
-  title, 
-  description, 
-  color,
-  index 
+  icon: Icon, title, description, color, index 
 }: PreviewCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const colorClass = colorClasses[color as keyof typeof colorClasses] || colorClasses.primary;
@@ -191,7 +143,6 @@ const PreviewCard = memo(function PreviewCard({
           >
             <div className="px-4 py-3 mt-1 rounded-xl bg-muted/30 border border-border/20">
               <div className="space-y-2">
-                {/* Shimmer skeleton lines */}
                 {[1, 0.85, 0.7].map((width, i) => (
                   <div
                     key={i}
@@ -216,6 +167,8 @@ const PreviewCard = memo(function PreviewCard({
     </motion.div>
   );
 });
+
+import { useState } from 'react';
 
 // Main loading state with preview cards
 export const BriefLoadingState = memo(function BriefLoadingState({ 

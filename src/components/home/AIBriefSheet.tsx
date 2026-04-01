@@ -274,7 +274,7 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
 
 // Cache
 const BRIEF_CACHE_KEY = 'vybe_ai_brief_cache';
-const CACHE_TTL = 1000 * 60 * 5;
+const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
 
 function isValidBrief(data: unknown): data is BriefData {
   if (!data || typeof data !== 'object') return false;
@@ -399,7 +399,14 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
       if (!isBackground) { setLoadingProgress(100); haptics.success(); }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      setError('Could not load brief. Tap refresh to try again.');
+      // If we have cached data, show it instead of error
+      const cached = getCachedBrief();
+      if (cached && !isBackground) {
+        setBriefData(cached);
+        toast.error('Could not refresh — showing cached brief');
+      } else {
+        setError('Could not load brief. Tap refresh to try again.');
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -481,7 +488,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
             style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}
           >
             {isLoading ? (
-              <GeneratingScreen progress={loadingProgress} stage={loadingStage} />
+              <GeneratingScreen />
             ) : error ? (
               <div className="flex flex-col items-center justify-center py-16">
                 <div className="p-3 rounded-full bg-destructive/10 mb-4">
@@ -631,7 +638,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                 )}
               </div>
             ) : (
-              <GeneratingScreen progress={loadingProgress} stage={loadingStage} />
+              <GeneratingScreen />
             )}
           </div>
         </SheetContent>
