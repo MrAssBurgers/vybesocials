@@ -251,7 +251,7 @@ export function EditableWidgetWrapper({
         whileTap={{ scale: 0.85 }}
         onClick={e => { e.stopPropagation(); triggerHaptic('medium'); handleToggle(widgetId); }}
         className={cn(
-          'absolute -top-1.5 -right-1.5 z-40',
+          'absolute top-0.5 right-0.5 z-40',
           widget.enabled ? 'text-destructive' : 'text-primary',
         )}
       >
