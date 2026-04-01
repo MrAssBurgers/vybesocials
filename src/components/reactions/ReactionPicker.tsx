@@ -131,20 +131,21 @@ export const ReactionPicker = memo(function ReactionPicker({
       left = margin;
     }
 
-    // Vertical: position just above the like button (tight gap)
-    const gap = 2;
-    bottom = viewportHeight - buttonRect.top + gap;
+    // Vertical: position directly above the like button with minimal gap
+    const gap = 4;
+    let top = buttonRect.top - pickerHeight - gap;
 
-    // If it would go off top, show below
-    if (buttonRect.top - pickerHeight - gap < 0) {
-      bottom = viewportHeight - buttonRect.bottom - gap - pickerHeight;
+    // If it would go off top, show below instead
+    if (top < margin) {
+      top = buttonRect.bottom + gap;
     }
 
     setPickerStyle({
       position: 'fixed' as const,
       left: `${left}px`,
-      bottom: `${bottom}px`,
+      top: `${top}px`,
       zIndex: 9999,
+      transformOrigin: 'bottom left',
     });
   }, [compact]);
 
