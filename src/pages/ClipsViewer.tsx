@@ -59,6 +59,8 @@ export default function ClipsViewer() {
   const { isSlowConnection } = useNetworkStatus();
 
   const fromSource = (location.state as any)?.from || null;
+  const fromConversationId = (location.state as any)?.conversationId || null;
+  const isFromMessages = fromSource === 'messages';
 
   // ─── 1. Fetch the specific clicked post FIRST ───
   const { data: initialPost, isLoading: loadingInitial } = useQuery({
