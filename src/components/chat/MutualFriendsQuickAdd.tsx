@@ -27,7 +27,7 @@ function useSuggestedUsers() {
   const { data: hiddenIds } = useHiddenFromDiscovery();
   
   return useQuery({
-    queryKey: ['suggested-users', profile?.id, friends?.length, hiddenIds?.size],
+    queryKey: ['suggested-users', profile?.id, friends?.length ?? 0],
     queryFn: async (): Promise<UserWithMutualFriends[]> => {
       if (!profile?.id) return [];
       
@@ -83,9 +83,10 @@ function useSuggestedUsers() {
         .sort((a: any, b: any) => b.affinity_score - a.affinity_score)
         .slice(0, 12);
     },
-    enabled: !!profile?.id,
+    enabled: !!profile?.id && hiddenIds !== undefined,
     staleTime: 60000,
     gcTime: 300000,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -227,7 +228,7 @@ function QuickAddCard({
         {/* Dismiss */}
         <button
           onClick={handleDismiss}
-          className="absolute -top-2 -right-2.5 z-10 cursor-pointer active:scale-95 transition-transform"
+          className="absolute -top-3 -right-4 z-10 cursor-pointer active:scale-95 transition-transform"
         >
           <X className="h-3 w-3 text-muted-foreground" strokeWidth={3} />
         </button>
