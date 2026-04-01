@@ -228,7 +228,7 @@ function QuickAddCard({
         {/* Dismiss */}
         <button
           onClick={handleDismiss}
-          className="absolute -top-3 -right-4 z-10 cursor-pointer active:scale-95 transition-transform"
+          className="absolute -top-3 -right-6 z-10 cursor-pointer active:scale-95 transition-transform"
         >
           <X className="h-3 w-3 text-muted-foreground" strokeWidth={3} />
         </button>
