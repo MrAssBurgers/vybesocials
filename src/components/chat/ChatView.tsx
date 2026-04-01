@@ -1519,7 +1519,7 @@ export function ChatView() {
                     )}
                     profileId={profile?.id}
                     isEmojiOnly={isEmojiOnly}
-                    onNavigateToPost={(postId) => navigate(`/shorts?id=${postId}`)}
+                    onNavigateToPost={(postId) => navigate(`/clips/${postId}`, { state: { from: 'messages', conversationId } })}
                     onScrollToMessage={scrollToMessage}
                   />
                 </SwipeToReply>
