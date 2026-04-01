@@ -273,7 +273,10 @@ export default function ClipsViewer() {
   const CardComponent = isMobileOrTablet ? MobileShortCard : ShortCard;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black">
+    <div className={cn(
+      "fixed inset-0 z-50 bg-black",
+      isFromMessages && "animate-in slide-in-from-bottom duration-300"
+    )}>
       <div
         ref={containerRef}
         className="h-[100dvh] w-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide overscroll-contain"
