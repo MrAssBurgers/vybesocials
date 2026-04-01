@@ -59,6 +59,8 @@ export default function ClipsViewer() {
   const { isSlowConnection } = useNetworkStatus();
 
   const fromSource = (location.state as any)?.from || null;
+  const fromConversationId = (location.state as any)?.conversationId || null;
+  const isFromMessages = fromSource === 'messages';
 
   // ─── 1. Fetch the specific clicked post FIRST ───
   const { data: initialPost, isLoading: loadingInitial } = useQuery({
@@ -271,7 +273,10 @@ export default function ClipsViewer() {
   const CardComponent = isMobileOrTablet ? MobileShortCard : ShortCard;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black">
+    <div className={cn(
+      "fixed inset-0 z-50 bg-black",
+      isFromMessages && "animate-in slide-in-from-bottom duration-300"
+    )}>
       <div
         ref={containerRef}
         className="h-[100dvh] w-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide overscroll-contain"
@@ -323,10 +328,11 @@ export default function ClipsViewer() {
         <ArrowLeft className="w-6 h-6 text-white" strokeWidth={2.5} />
       </button>
 
-      {/* Source label — safe area aware */}
+      {/* Source label — safe area aware, tappable to go back */}
       {fromSource && (
-        <div
-          className="fixed z-[60] flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm"
+        <button
+          onClick={handleBack}
+          className="fixed z-[60] flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm active:bg-black/60 transition-colors"
           style={{
             top: 'calc(env(safe-area-inset-top, 0px) + 20px)',
             left: '72px',
@@ -336,7 +342,7 @@ export default function ClipsViewer() {
           <span className="text-xs text-white/80 font-medium">
             From {fromSource === 'messages' ? 'Messages' : fromSource === 'notifications' ? 'Notifications' : 'Feed'}
           </span>
-        </div>
+        </button>
       )}
 
       {/* Desktop progress dots */}

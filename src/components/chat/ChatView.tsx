@@ -96,6 +96,7 @@ import { VideoMessageViewer } from './VideoMessageViewer';
 import { SharedPostBubble } from './SharedPostBubble';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { saveScrollPosition, restoreScrollPosition } from '@/lib/scrollMemory';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { useUserOnlineStatus } from '@/hooks/usePresence';
 import { DMSafetyGate } from './DMSafetyGate';
@@ -354,9 +355,24 @@ export function ChatView() {
     });
   }, [messages, profile?.id, conversationId, markViewed]);
 
+  // Save scroll position on unmount so returning from clips preserves position
+  useEffect(() => {
+    if (!conversationId) return;
+    const container = messagesContainerRef.current;
+    return () => {
+      if (container) {
+        saveScrollPosition(`chat-${conversationId}`);
+      }
+    };
+  }, [conversationId]);
+
   // Scroll to bottom when conversation opens or messages change - instant method
   useEffect(() => {
     if (!conversationId) return;
+    
+    // Check if we have a saved scroll position (returning from clips viewer)
+    const container = messagesContainerRef.current;
+    const savedKey = `chat-${conversationId}`;
     
     // Scroll immediately without delay for instant feel
     const scrollToBottom = () => {
