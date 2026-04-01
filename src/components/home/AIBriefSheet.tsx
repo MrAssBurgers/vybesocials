@@ -488,7 +488,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
             style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}
           >
             {isLoading ? (
-              <GeneratingScreen progress={loadingProgress} stage={loadingStage} />
+              <GeneratingScreen />
             ) : error ? (
               <div className="flex flex-col items-center justify-center py-16">
                 <div className="p-3 rounded-full bg-destructive/10 mb-4">
