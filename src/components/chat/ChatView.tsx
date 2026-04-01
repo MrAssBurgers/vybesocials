@@ -96,6 +96,7 @@ import { VideoMessageViewer } from './VideoMessageViewer';
 import { SharedPostBubble } from './SharedPostBubble';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { saveScrollPosition, restoreScrollPosition } from '@/lib/scrollMemory';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { useUserOnlineStatus } from '@/hooks/usePresence';
 import { DMSafetyGate } from './DMSafetyGate';
