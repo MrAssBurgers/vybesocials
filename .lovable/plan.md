@@ -1,61 +1,39 @@
 
 
-## Plan: Revamp Daily Brief — Replace Dead Perplexity with Gemini + Google Search Grounding
+## Plan: Polish DM → Clips Viewer Flow (Instagram Reels Style)
 
-### Root Cause
+### Current State
+The system already has the core Instagram-style flow working: `SharedPostBubble` navigates to `/clips/:postId`, the `ClipsViewer` fetches that clip first, then loads a discovery feed below for infinite scroll. Back button and "From Messages" context pill exist.
 
-The Daily Brief is completely broken because the **Perplexity API quota is exhausted** (401 insufficient_quota). Every single news fetch fails, so the brief returns with zero live updates — making it useless. The session replay confirms: it loads, hits the error state immediately, and shows "Could not load brief."
+### What Needs Polishing
 
-### Solution
+#### 1. Eager-load ClipsViewer for instant open
+Currently `ClipsViewer` is lazy-loaded, meaning there's a loading spinner when tapping a shared clip in DMs. Move it to eager import (like VybeDNA and Home) so the transition is instant.
 
-Replace Perplexity entirely with **Gemini API + Google Search grounding**, which is already available via the `GEMINI_API_KEY` secret and costs nothing extra. Gemini's grounding feature lets it search Google in real-time and return sourced, current news — exactly what Perplexity was doing but without the quota issues.
+**File:** `src/components/layout/AnimatedRoutes.tsx`
+- Change from `lazy(() => import("@/pages/ClipsViewer"))` to a direct eager import
 
-### Technical Details
+#### 2. Preserve DM scroll position when navigating to clip and back
+When a user taps a shared clip, leaves to the viewer, then comes back — the chat should be exactly where they left it. Use the existing `scrollMemory` utility to save/restore chat scroll position.
 
-#### 1. Rewrite the Edge Function (`supabase/functions/ai-catch-up/index.ts`)
+**File:** `src/components/chat/ChatView.tsx` (or equivalent chat scroll container)
+- Save scroll position on unmount/navigation away
+- Restore on mount/return
 
-**Remove**: All Perplexity-specific code (`fetchPerplexityData`, `PERPLEXITY_API_KEY`, `interestSearchQueries` map, `PerplexityResult` interface)
+#### 3. Smoother transition animation
+Add a subtle slide-up transition when opening the clips viewer from DMs, matching Instagram's behavior.
 
-**Add**: Gemini API with Google Search grounding
-- Use `gemini-2.5-flash` model via `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
-- Enable grounding with `tools: [{ google_search: {} }]` in the request body
-- Send a single batched prompt asking Gemini to return news for ALL user interests at once (1 API call instead of 7+ Perplexity calls — faster and cheaper)
-- Parse the response into the same `LiveUpdate[]` format the frontend expects (interest, content, sources, imageUrl, category)
-- Extract grounding sources from `groundingMetadata.groundingChunks` in the response
-- Keep GPS-based local news by including location context in the prompt
+**File:** `src/pages/ClipsViewer.tsx`
+- Add an initial slide-up + fade-in animation on the root container when `from === 'messages'`
 
-**Fallback chain**: If Gemini grounding fails, use Lovable AI gateway as backup. If both fail, still return the app stats (messages, notifications, challenges) so the brief is never completely empty.
+#### 4. Improve "From Messages" pill with back-to-chat action
+Make the "From Messages" pill tappable to return directly to the conversation (not just browser back which can be unreliable).
 
-**Response format**: Ask Gemini to return structured JSON with an array of news items, each with `topic`, `summary`, `sources[]`, and `category`. Parse this to match the existing `BriefUpdate` interface.
-
-#### 2. Consolidate AI calls
-Currently the function makes 7+ Perplexity calls THEN another Lovable AI call for the summary. Instead:
-- **One Gemini call** with grounding for news + summary combined
-- Include the user's app stats (notifications, messages, streak) in the prompt context
-- Ask it to return both the personalized summary AND the news items in one structured JSON response
-- This cuts latency from ~8-10 seconds to ~3-4 seconds
-
-#### 3. Improve error resilience in the frontend (`src/components/home/AIBriefSheet.tsx`)
-- If the edge function returns app stats but no news (partial success), show the stats sections (messages, challenges, notifications) instead of showing nothing
-- Increase cache TTL from 5 minutes to 30 minutes so stale data is shown while refreshing
-- Add a retry with exponential backoff (currently just fails immediately)
-- Show a more helpful error message distinguishing "no news available" from "brief failed entirely"
-
-#### 4. Speed up the loading experience
-- Remove the artificial progress simulation — it currently fakes progress at fixed intervals which makes it feel slower than it is
-- Use a simple indeterminate spinner/animation instead of the fake percentage bar
-- Show cached brief immediately while fetching fresh data in background (currently only does this sometimes)
+**File:** `src/pages/ClipsViewer.tsx`
+- Make the source label a button that navigates back
 
 ### Files Changed
-
-1. **`supabase/functions/ai-catch-up/index.ts`** — Major rewrite: remove Perplexity, add Gemini with Google Search grounding, single consolidated AI call, structured JSON output
-2. **`src/components/home/AIBriefSheet.tsx`** — Increase cache TTL, improve partial-data handling, better error states
-3. **`src/components/home/AIBriefLoadingState.tsx`** — Replace fake progress bar with clean indeterminate loading animation
-
-### What This Achieves
-- Brief actually works (no more quota errors)
-- Faster load times (1 API call instead of 8+)
-- Real-time sourced news with Google Search grounding
-- Graceful degradation (app stats always shown even if news fails)
-- No ongoing cost concerns (Gemini API key is already paid for)
+1. `src/components/layout/AnimatedRoutes.tsx` — Eager import ClipsViewer
+2. `src/pages/ClipsViewer.tsx` — Slide-up animation, tappable source pill
+3. `src/components/chat/ChatView.tsx` — Scroll position preservation on navigation
 
