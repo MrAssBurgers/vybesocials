@@ -678,6 +678,8 @@ const ConversationContent = memo(function ConversationContent({
                     ? '🎤 Voice'
                     : lastMessage.media_type === 'gif'
                     ? '🎞️ GIF'
+                    : lastMessage.content?.startsWith('e2ee:') 
+                    ? '🔒 Encrypted message'
                     : (lastMessage.content?.slice(0, 30) || 'Media') + (lastMessage.content && lastMessage.content.length > 30 ? '...' : '')}
                 </p>
               </>
