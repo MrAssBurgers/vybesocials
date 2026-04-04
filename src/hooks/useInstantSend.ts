@@ -27,7 +27,7 @@ export interface PendingMessage {
 export function useInstantSend(conversationId: string | undefined) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const { encrypt } = useMessageEncryption();
+  
   const pendingMessagesRef = useRef<Map<string, PendingMessage>>(new Map());
   const [videoUploadProgress, setVideoUploadProgress] = useState<Record<string, number>>({});
 
