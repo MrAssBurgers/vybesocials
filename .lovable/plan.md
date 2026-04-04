@@ -1,39 +1,34 @@
 
 
-## Plan: Polish DM → Clips Viewer Flow (Instagram Reels Style)
+## Plan: Remove Client-Side E2EE Completely — Use Infrastructure Encryption Only
 
-### Current State
-The system already has the core Instagram-style flow working: `SharedPostBubble` navigates to `/clips/:postId`, the `ClipsViewer` fetches that clip first, then loads a discovery feed below for infinite scroll. Back button and "From Messages" context pill exist.
+### How Major Companies Do It
+WhatsApp/Instagram/iMessage use E2EE but the **user never sees ciphertext**. The encryption/decryption happens transparently at the protocol level. Your current setup has a broken client-side ECDH implementation where encrypted text (`e2ee:...`) leaks into the UI and database, and old encrypted messages are permanently unreadable.
 
-### What Needs Polishing
+The right approach for this platform (per your existing memory/architecture decisions): **messages are plaintext in the client and database, protected by TLS in transit and AES-256 at rest** — exactly how Discord, Telegram (cloud chats), and Slack operate. No client-side crypto needed.
 
-#### 1. Eager-load ClipsViewer for instant open
-Currently `ClipsViewer` is lazy-loaded, meaning there's a loading spinner when tapping a shared clip in DMs. Move it to eager import (like VybeDNA and Home) so the transition is instant.
+### Changes
 
-**File:** `src/components/layout/AnimatedRoutes.tsx`
-- Change from `lazy(() => import("@/pages/ClipsViewer"))` to a direct eager import
+**1. Remove all E2EE infrastructure files**
+- Delete `src/lib/e2ee.ts`
+- Delete `src/hooks/useMessageEncryption.ts`
+- Delete `src/hooks/useDecryptedMessages.ts`
+- Delete `src/hooks/useEncryptionKeys.ts`
 
-#### 2. Preserve DM scroll position when navigating to clip and back
-When a user taps a shared clip, leaves to the viewer, then comes back — the chat should be exactly where they left it. Use the existing `scrollMemory` utility to save/restore chat scroll position.
+**2. Stop initializing encryption on login**
+- `src/components/app/DeferredAuthHooks.tsx` — Remove `useInitEncryption` import and call
 
-**File:** `src/components/chat/ChatView.tsx` (or equivalent chat scroll container)
-- Save scroll position on unmount/navigation away
-- Restore on mount/return
+**3. Clean up message display for old encrypted messages**
+- `src/components/chat/ChatView.tsx` — Add a simple inline check: if message content starts with `e2ee:`, display "🔒 Message from older encryption version" instead of raw ciphertext
+- `src/components/chat/ConversationList.tsx` — Already handles this with the `e2ee:` check; keep the "🔒 Encrypted message" fallback for conversation previews
 
-#### 3. Smoother transition animation
-Add a subtle slide-up transition when opening the clips viewer from DMs, matching Instagram's behavior.
+**4. Remove stale encryption references**
+- `src/hooks/useInstantSend.ts` — Remove the `encryptedContent` variable and plaintext-preservation comment; just pass `content` directly
+- `src/App.tsx` — Remove the encryption comment
 
-**File:** `src/pages/ClipsViewer.tsx`
-- Add an initial slide-up + fade-in animation on the root container when `from === 'messages'`
+**5. Keep "Secret Chats" branding in premium perks**
+- The PaywallSheet and PremiumPerkActions references to "encrypted messages" are marketing copy for a future feature — leave them as-is
 
-#### 4. Improve "From Messages" pill with back-to-chat action
-Make the "From Messages" pill tappable to return directly to the conversation (not just browser back which can be unreliable).
-
-**File:** `src/pages/ClipsViewer.tsx`
-- Make the source label a button that navigates back
-
-### Files Changed
-1. `src/components/layout/AnimatedRoutes.tsx` — Eager import ClipsViewer
-2. `src/pages/ClipsViewer.tsx` — Slide-up animation, tappable source pill
-3. `src/components/chat/ChatView.tsx` — Scroll position preservation on navigation
+### Result
+Messages send and display as plaintext. No `e2ee:` prefix ever appears. Old encrypted messages show a graceful fallback. Security comes from TLS + database-level AES-256 encryption at rest — the industry standard for platforms without device-to-device E2EE.
 
