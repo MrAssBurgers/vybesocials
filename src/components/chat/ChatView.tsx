@@ -2444,7 +2444,7 @@ const MessageBubble = memo(function MessageBubble({
               isEmojiOnly 
                 ? "text-2xl sm:text-3xl" // Larger font for emoji-only
                 : "text-[14px] sm:text-[15px]" // Readable size
-            )} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{message.content}</p>
+            )} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{message.content?.startsWith('e2ee:') ? '🔒 Message from older version' : message.content}</p>
           ) : null}
 
           {message.view_mode !== 'permanent' && (
