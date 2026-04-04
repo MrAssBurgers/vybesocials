@@ -57,6 +57,7 @@ export function VybeViewer({
   const [mediaDuration, setMediaDuration] = useState<number>(IMAGE_DURATION);
   const isVideo = isVideoUrl(mediaUrl);
   const signedUrl = useSignedUrl(mediaUrl);
+  const [imgError, setImgError] = useState(false);
   const resolvedUrl = signedUrl || mediaUrl;
 
   // Capture detection
@@ -325,10 +326,13 @@ export function VybeViewer({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
-              src={resolvedUrl}
+              src={imgError ? mediaUrl : resolvedUrl}
               alt="VYBE"
               className="max-w-full max-h-full object-contain select-none"
               draggable={false}
+              onError={() => {
+                if (!imgError) setImgError(true);
+              }}
             />
           )}
 

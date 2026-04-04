@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { Message, ViewMode } from './useMessages';
-import { useMessageEncryption } from './useMessageEncryption';
+
 
 export interface PendingMessage {
   tempId: string;
@@ -27,7 +27,7 @@ export interface PendingMessage {
 export function useInstantSend(conversationId: string | undefined) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const { encrypt } = useMessageEncryption();
+  
   const pendingMessagesRef = useRef<Map<string, PendingMessage>>(new Map());
   const [videoUploadProgress, setVideoUploadProgress] = useState<Record<string, number>>({});
 
@@ -186,11 +186,8 @@ export function useInstantSend(conversationId: string | undefined) {
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      // Encrypt content for 1:1 DMs if recipient has a key
-      let encryptedContent = content;
-      if (recipientProfileId) {
-        encryptedContent = await encrypt(content, recipientProfileId);
-      }
+      // Messages are stored as plaintext — encryption is handled at the transport/infrastructure level
+      const encryptedContent = content;
 
       const { data, error } = await supabase
         .from('messages')
@@ -226,7 +223,7 @@ export function useInstantSend(conversationId: string | undefined) {
       markFailed(tempId, error.message || 'Failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, encrypt]);
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed]);
 
   // Send media message
   const sendMedia = useCallback(async (
