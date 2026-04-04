@@ -69,18 +69,15 @@ export function VybeViewer({
     },
   });
   
-  // Only auto-close if already viewed AND not the owner AND viewer just opened (not re-render)
-  const hasAutoClosedRef = useRef(false);
+  // Track whether WE opened the viewer this session (prevents auto-close from realtime updates)
+  const openedByUserRef = useRef(false);
   useEffect(() => {
-    if (!isOpen) {
-      hasAutoClosedRef.current = false;
-      return;
+    if (isOpen) {
+      openedByUserRef.current = true;
+    } else {
+      openedByUserRef.current = false;
     }
-    if (isOpen && isViewed && !isOwn && !hasAutoClosedRef.current) {
-      hasAutoClosedRef.current = true;
-      onClose();
-    }
-  }, [isOpen, isViewed, isOwn, onClose]);
+  }, [isOpen]);
   
   // Mark vybe as viewed IMMEDIATELY when opened
   useEffect(() => {
