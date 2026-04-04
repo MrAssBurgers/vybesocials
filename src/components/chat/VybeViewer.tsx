@@ -57,6 +57,7 @@ export function VybeViewer({
   const [mediaDuration, setMediaDuration] = useState<number>(IMAGE_DURATION);
   const isVideo = isVideoUrl(mediaUrl);
   const signedUrl = useSignedUrl(mediaUrl);
+  const [imgError, setImgError] = useState(false);
   const resolvedUrl = signedUrl || mediaUrl;
 
   // Capture detection
