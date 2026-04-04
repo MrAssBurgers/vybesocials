@@ -109,12 +109,9 @@ export function useInstantSend(conversationId: string | undefined) {
     queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
       if (!old) return [realMessage];
       
-      // Replace temp message with real one, but preserve plaintext content
-      // because ECDH means the sender can't decrypt their own encrypted message
       return old.map(m => {
         if (m.id === tempId) {
-          const plaintextContent = m.content;
-          return { ...realMessage, content: plaintextContent };
+          return realMessage;
         }
         return m;
       });
