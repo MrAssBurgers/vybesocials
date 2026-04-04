@@ -306,7 +306,14 @@ export function VybeViewer({
 
           {/* Media content */}
           <CaptureShield captured={captured} showBadge={!isOwn} />
-          {isVideo ? (
+          {!hasMedia || imgError ? (
+            <div className="flex flex-col items-center justify-center gap-4">
+              <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+                <Camera className="h-10 w-10 text-white/50" />
+              </div>
+              <p className="text-white/60 text-sm">Media no longer available</p>
+            </div>
+          ) : isVideo ? (
             <motion.video
               ref={videoRef}
               initial={{ scale: 1.2, opacity: 0 }}
