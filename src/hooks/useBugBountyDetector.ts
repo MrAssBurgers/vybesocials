@@ -65,6 +65,10 @@ const IGNORED_PATTERNS = [
   'untrack_presence',
   'presenceRef',
   'heartbeat',
+  'device motion',
+  'DeviceMotionEvent',
+  'user gesture to prompt',
+  'Requesting device',
 ];
 
 // HTTP status codes that indicate real bugs
