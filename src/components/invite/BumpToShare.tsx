@@ -82,17 +82,9 @@ export function BumpToShare({ variant = 'button' }: BumpToShareProps) {
       lastZ = z;
     };
 
-    // Request permission for iOS
-    if (typeof DeviceMotionEvent !== 'undefined' && 
-        typeof (DeviceMotionEvent as any).requestPermission === 'function') {
-      (DeviceMotionEvent as any).requestPermission()
-        .then((response: string) => {
-          if (response === 'granted') {
-            window.addEventListener('devicemotion', handleMotion);
-          }
-        })
-        .catch(console.error);
-    } else {
+    // Skip iOS permission request on mount — requires user gesture
+    const requiresUserGesture = typeof DeviceMotionEvent !== 'undefined' && typeof (DeviceMotionEvent as any).requestPermission === 'function';
+    if (!requiresUserGesture) {
       window.addEventListener('devicemotion', handleMotion);
     }
 
