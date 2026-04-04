@@ -539,9 +539,7 @@ export function ChatView() {
     setMessageText('');
     setTyping(false);
 
-    // Use instant send for immediate optimistic UI
-    // Pass recipientProfileId for E2EE encryption in 1:1 DMs
-    sendText(text, viewMode, replyingTo?.id, !isGroupChat ? otherMember?.id : undefined);
+    sendText(text, viewMode, replyingTo?.id);
     setReplyingTo(null);
     
     // Bump reaction streak with recipient (for DMs only)

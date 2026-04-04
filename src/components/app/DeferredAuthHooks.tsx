@@ -19,6 +19,6 @@ export default function DeferredAuthHooks() {
   useRetroactiveSync();
   useDailyLoginChallenge();
   useCaptureNotifications();
-  useInitEncryption();
+  
   return null;
 }

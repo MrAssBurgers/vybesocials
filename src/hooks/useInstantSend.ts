@@ -158,8 +158,7 @@ export function useInstantSend(conversationId: string | undefined) {
   const sendText = useCallback(async (
     content: string, 
     viewMode: ViewMode = 'permanent',
-    replyToId?: string,
-    recipientProfileId?: string
+    replyToId?: string
   ) => {
     if (!conversationId || !profile?.id || !content.trim()) return;
 
