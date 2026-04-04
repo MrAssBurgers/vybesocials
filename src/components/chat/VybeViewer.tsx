@@ -56,7 +56,8 @@ export function VybeViewer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mediaDuration, setMediaDuration] = useState<number>(IMAGE_DURATION);
   const isVideo = isVideoUrl(mediaUrl);
-  const signedUrl = useSignedUrl(mediaUrl);
+  const hasMedia = !!mediaUrl && mediaUrl.length > 5;
+  const signedUrl = useSignedUrl(hasMedia ? mediaUrl : null);
   const [imgError, setImgError] = useState(false);
   const resolvedUrl = signedUrl || mediaUrl;
 
