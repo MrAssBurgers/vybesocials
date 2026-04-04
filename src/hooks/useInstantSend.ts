@@ -109,12 +109,9 @@ export function useInstantSend(conversationId: string | undefined) {
     queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
       if (!old) return [realMessage];
       
-      // Replace temp message with real one, but preserve plaintext content
-      // because ECDH means the sender can't decrypt their own encrypted message
       return old.map(m => {
         if (m.id === tempId) {
-          const plaintextContent = m.content;
-          return { ...realMessage, content: plaintextContent };
+          return realMessage;
         }
         return m;
       });
@@ -161,8 +158,7 @@ export function useInstantSend(conversationId: string | undefined) {
   const sendText = useCallback(async (
     content: string, 
     viewMode: ViewMode = 'permanent',
-    replyToId?: string,
-    recipientProfileId?: string
+    replyToId?: string
   ) => {
     if (!conversationId || !profile?.id || !content.trim()) return;
 
@@ -186,15 +182,12 @@ export function useInstantSend(conversationId: string | undefined) {
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      // Messages are stored as plaintext — encryption is handled at the transport/infrastructure level
-      const encryptedContent = content;
-
       const { data, error } = await supabase
         .from('messages')
         .insert({
           conversation_id: conversationId,
           sender_id: profile.id,
-          content: encryptedContent,
+          content,
           view_mode: viewMode,
           expires_at: expiresAt,
           reply_to_id: replyToId,

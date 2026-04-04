@@ -5,7 +5,7 @@ import { useDynamicManifest } from '@/hooks/useDynamicManifest';
 import { useRetroactiveSync } from '@/hooks/useRetroactiveSync';
 import { useDailyLoginChallenge } from '@/hooks/useDailyLogin';
 import { useCaptureNotifications } from '@/hooks/useCaptureDetection';
-import { useInitEncryption } from '@/hooks/useEncryptionKeys';
+
 
 /**
  * Deferred auth hooks - lazy loaded to reduce initial bundle size.
@@ -19,6 +19,6 @@ export default function DeferredAuthHooks() {
   useRetroactiveSync();
   useDailyLoginChallenge();
   useCaptureNotifications();
-  useInitEncryption();
+  
   return null;
 }
