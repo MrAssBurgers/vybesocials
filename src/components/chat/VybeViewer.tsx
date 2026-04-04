@@ -56,7 +56,8 @@ export function VybeViewer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mediaDuration, setMediaDuration] = useState<number>(IMAGE_DURATION);
   const isVideo = isVideoUrl(mediaUrl);
-  const signedUrl = useSignedUrl(mediaUrl);
+  const hasMedia = !!mediaUrl && mediaUrl.length > 5;
+  const signedUrl = useSignedUrl(hasMedia ? mediaUrl : null);
   const [imgError, setImgError] = useState(false);
   const resolvedUrl = signedUrl || mediaUrl;
 
@@ -305,7 +306,14 @@ export function VybeViewer({
 
           {/* Media content */}
           <CaptureShield captured={captured} showBadge={!isOwn} />
-          {isVideo ? (
+          {!hasMedia || imgError ? (
+            <div className="flex flex-col items-center justify-center gap-4">
+              <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+                <Camera className="h-10 w-10 text-white/50" />
+              </div>
+              <p className="text-white/60 text-sm">Media no longer available</p>
+            </div>
+          ) : isVideo ? (
             <motion.video
               ref={videoRef}
               initial={{ scale: 1.2, opacity: 0 }}
@@ -326,13 +334,11 @@ export function VybeViewer({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
-              src={imgError ? mediaUrl : resolvedUrl}
+              src={resolvedUrl}
               alt="VYBE"
               className="max-w-full max-h-full object-contain select-none"
               draggable={false}
-              onError={() => {
-                if (!imgError) setImgError(true);
-              }}
+              onError={() => setImgError(true)}
             />
           )}
 
