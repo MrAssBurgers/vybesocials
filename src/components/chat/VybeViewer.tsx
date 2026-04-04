@@ -69,12 +69,16 @@ export function VybeViewer({
     },
   });
   
-  // CRITICAL: Check server truth - if already viewed and not owner, close immediately
+  // Only auto-close if already viewed AND not the owner AND viewer just opened (not re-render)
+  const hasAutoClosedRef = useRef(false);
   useEffect(() => {
-    if (isOpen && isViewed && !isOwn) {
-      console.log('[VybeViewer] Already viewed on server, closing');
-      onClose();
+    if (!isOpen) {
+      hasAutoClosedRef.current = false;
       return;
+    }
+    if (isOpen && isViewed && !isOwn && !hasAutoClosedRef.current) {
+      hasAutoClosedRef.current = true;
+      onClose();
     }
   }, [isOpen, isViewed, isOwn, onClose]);
   

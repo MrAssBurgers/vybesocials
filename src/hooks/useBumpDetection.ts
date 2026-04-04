@@ -25,14 +25,14 @@ export function useBumpDetection({
   }, [onBump]);
 
   const requestPermission = useCallback(async () => {
-    // iOS 13+ requires permission for DeviceMotionEvent
+    // iOS 13+ requires permission for DeviceMotionEvent (needs user gesture)
     if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
       try {
         const permission = await (DeviceMotionEvent as any).requestPermission();
         setPermissionGranted(permission === 'granted');
         return permission === 'granted';
-      } catch (error) {
-        console.error('DeviceMotion permission error:', error);
+      } catch {
+        // Silently fail — permission requires user gesture, not an error
         setPermissionGranted(false);
         return false;
       }
