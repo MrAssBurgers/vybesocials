@@ -2040,10 +2040,10 @@ const MessageBubble = memo(function MessageBubble({
   
   // Sync local state with server truth when message updates (realtime)
   useEffect(() => {
-    if (hasAnyViews && !vybeViewed) {
+    if (hasAnyViews && !showVybeViewer) {
       setVybeViewed(true);
     }
-  }, [hasAnyViews, vybeViewed]);
+  }, [hasAnyViews, showVybeViewer]);
 
   const repliedMessage = useMemo(() => 
     message.reply_to_id ? allMessages?.find(m => m.id === message.reply_to_id) : null,
@@ -2051,11 +2051,11 @@ const MessageBubble = memo(function MessageBubble({
   );
 
   useEffect(() => {
-    if (!isOwn && message.view_mode === 'view_once' && !isViewed) {
+    if (!isOwn && message.view_mode === 'view_once' && message.media_type !== 'vybe' && !isViewed) {
       onView();
       setIsViewed(true);
     }
-  }, [isOwn, message.view_mode, isViewed, onView]);
+  }, [isOwn, message.view_mode, message.media_type, isViewed, onView]);
 
   const hasBeenViewed = message.views && message.views.length > 0;
   
@@ -2408,12 +2408,11 @@ const MessageBubble = memo(function MessageBubble({
                   senderName={sender?.username}
                   senderAvatar={sender?.avatar_url}
                   isOpen={showVybeViewer}
-                  isViewed={hasAnyViews}
+                  isViewed={vybeViewed}
                   isOwn={false}
                   onClose={() => {
                     setShowVybeViewer(false);
                     setVybeViewed(true);
-                    onView();
                   }}
                   onReply={onReply}
                   onViewed={onView}

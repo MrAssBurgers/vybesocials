@@ -29,6 +29,7 @@ export function useSwingDetection({
   const onSwingRef = useRef(onSwing);
   const motionStateRef = useRef<MotionState>({ direction: 'neutral', timestamp: 0, magnitude: 0 });
   const backDetectedRef = useRef<{ timestamp: number; magnitude: number } | null>(null);
+  const requiresUserGesture = typeof DeviceMotionEvent !== 'undefined' && typeof (DeviceMotionEvent as any).requestPermission === 'function';
   
   // Keep callback ref updated
   useEffect(() => {
@@ -37,7 +38,7 @@ export function useSwingDetection({
 
   const requestPermission = useCallback(async () => {
     // iOS 13+ requires permission for DeviceMotionEvent (needs user gesture)
-    if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
+    if (requiresUserGesture) {
       try {
         const permission = await (DeviceMotionEvent as any).requestPermission();
         setPermissionGranted(permission === 'granted');
@@ -51,7 +52,7 @@ export function useSwingDetection({
     // Android and older iOS don't need permission
     setPermissionGranted(true);
     return true;
-  }, []);
+  }, [requiresUserGesture]);
 
   const handleMotion = useCallback((event: DeviceMotionEvent) => {
     if (!enabled) return;
@@ -104,13 +105,19 @@ export function useSwingDetection({
     }
   }, [enabled, threshold, swingWindow, cooldown, lastSwingTime]);
 
-  const startListening = useCallback(async () => {
-    const hasPermission = await requestPermission();
-    if (hasPermission) {
-      window.addEventListener('devicemotion', handleMotion);
-      setIsListening(true);
+  const startListening = useCallback(async (promptForPermission = true) => {
+    if (isListening) return;
+
+    if (requiresUserGesture && permissionGranted !== true) {
+      if (!promptForPermission) return;
+
+      const hasPermission = await requestPermission();
+      if (!hasPermission) return;
     }
-  }, [requestPermission, handleMotion]);
+
+    window.addEventListener('devicemotion', handleMotion);
+    setIsListening(true);
+  }, [requestPermission, handleMotion, isListening, permissionGranted, requiresUserGesture]);
 
   const stopListening = useCallback(() => {
     window.removeEventListener('devicemotion', handleMotion);
@@ -121,7 +128,11 @@ export function useSwingDetection({
 
   useEffect(() => {
     if (enabled) {
-      startListening();
+      if (requiresUserGesture && permissionGranted !== true) {
+        stopListening();
+      } else {
+        startListening(false);
+      }
     } else {
       stopListening();
     }
@@ -129,7 +140,7 @@ export function useSwingDetection({
     return () => {
       stopListening();
     };
-  }, [enabled, startListening, stopListening]);
+  }, [enabled, startListening, stopListening, permissionGranted, requiresUserGesture]);
 
   return {
     isListening,

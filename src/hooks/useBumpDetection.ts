@@ -18,6 +18,7 @@ export function useBumpDetection({
   const [lastBumpTime, setLastBumpTime] = useState<number>(0);
   const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
   const onBumpRef = useRef(onBump);
+  const requiresUserGesture = typeof DeviceMotionEvent !== 'undefined' && typeof (DeviceMotionEvent as any).requestPermission === 'function';
   
   // Keep callback ref updated
   useEffect(() => {
@@ -26,7 +27,7 @@ export function useBumpDetection({
 
   const requestPermission = useCallback(async () => {
     // iOS 13+ requires permission for DeviceMotionEvent (needs user gesture)
-    if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
+    if (requiresUserGesture) {
       try {
         const permission = await (DeviceMotionEvent as any).requestPermission();
         setPermissionGranted(permission === 'granted');
@@ -40,7 +41,7 @@ export function useBumpDetection({
     // Android and older iOS don't need permission
     setPermissionGranted(true);
     return true;
-  }, []);
+  }, [requiresUserGesture]);
 
   const handleMotion = useCallback((event: DeviceMotionEvent) => {
     if (!enabled) return;
@@ -73,13 +74,19 @@ export function useBumpDetection({
     }
   }, [enabled, threshold, cooldown, lastBumpTime]);
 
-  const startListening = useCallback(async () => {
-    const hasPermission = await requestPermission();
-    if (hasPermission) {
-      window.addEventListener('devicemotion', handleMotion);
-      setIsListening(true);
+  const startListening = useCallback(async (promptForPermission = true) => {
+    if (isListening) return;
+
+    if (requiresUserGesture && permissionGranted !== true) {
+      if (!promptForPermission) return;
+
+      const hasPermission = await requestPermission();
+      if (!hasPermission) return;
     }
-  }, [requestPermission, handleMotion]);
+
+    window.addEventListener('devicemotion', handleMotion);
+    setIsListening(true);
+  }, [requestPermission, handleMotion, isListening, permissionGranted, requiresUserGesture]);
 
   const stopListening = useCallback(() => {
     window.removeEventListener('devicemotion', handleMotion);
@@ -88,7 +95,11 @@ export function useBumpDetection({
 
   useEffect(() => {
     if (enabled) {
-      startListening();
+      if (requiresUserGesture && permissionGranted !== true) {
+        stopListening();
+      } else {
+        startListening(false);
+      }
     } else {
       stopListening();
     }
@@ -96,7 +107,7 @@ export function useBumpDetection({
     return () => {
       stopListening();
     };
-  }, [enabled, startListening, stopListening]);
+  }, [enabled, startListening, stopListening, permissionGranted, requiresUserGesture]);
 
   return {
     isListening,

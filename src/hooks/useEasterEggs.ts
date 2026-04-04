@@ -209,17 +209,9 @@ export function useShakeDetection(onShake: () => void, threshold = 15) {
       lastAcceleration.current = { x: x || 0, y: y || 0, z: z || 0 };
     };
 
-    // Try to get permission on iOS 13+
-    if (typeof DeviceMotionEvent !== 'undefined' && 
-        typeof (DeviceMotionEvent as any).requestPermission === 'function') {
-      (DeviceMotionEvent as any).requestPermission()
-        .then((response: string) => {
-          if (response === 'granted') {
-            window.addEventListener('devicemotion', handleMotion);
-          }
-        })
-        .catch(console.error);
-    } else {
+    const requiresUserGesture = typeof DeviceMotionEvent !== 'undefined' && typeof (DeviceMotionEvent as any).requestPermission === 'function';
+
+    if (!requiresUserGesture) {
       window.addEventListener('devicemotion', handleMotion);
     }
 
