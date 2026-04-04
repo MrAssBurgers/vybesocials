@@ -2359,11 +2359,7 @@ const MessageBubble = memo(function MessageBubble({
                     transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
                   />
                   
-                  {/* Blurred preview background */}
-                  <div 
-                    className="absolute inset-0 bg-cover bg-center blur-2xl opacity-30 scale-110"
-                    style={{ backgroundImage: `url(${message.media_url})` }}
-                  />
+                  {/* Gradient only — no raw storage URL for preview */}
                   
                   {/* Tap to view overlay */}
                   <div className="relative z-10 flex flex-col items-center gap-3 text-white">

@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Reply, Camera, Eye, Download } from 'lucide-react';
+import { X, Reply, Camera, Eye, Download, Loader2 } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { haptics } from '@/lib/haptics';
 import { useCaptureDetection } from '@/hooks/useCaptureDetection';
 import { CaptureShield } from '@/components/chat/CaptureShield';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { needsSigning } from '@/lib/signedUrlCache';
 import { toast } from 'sonner';
 
 interface VybeViewerProps {
@@ -24,12 +25,20 @@ interface VybeViewerProps {
   onSave?: () => void;
 }
 
-const IMAGE_DURATION = 5000; // 5 seconds for photos
+const IMAGE_DURATION = 5000;
 
 function isVideoUrl(url: string): boolean {
   if (!url) return false;
   const lower = url.toLowerCase();
   return lower.includes('.mp4') || lower.includes('.mov') || lower.includes('.webm') || lower.includes('.avi') || lower.includes('video');
+}
+
+/**
+ * Check if a URL is a private storage URL that needs signing before it can be displayed.
+ */
+function isStorageUrl(url: string): boolean {
+  if (!url) return false;
+  return needsSigning(url);
 }
 
 export function VybeViewer({ 
@@ -50,6 +59,8 @@ export function VybeViewer({
   const [isPaused, setIsPaused] = useState(false);
   const [showReplyHint, setShowReplyHint] = useState(false);
   const [hasMarkedViewed, setHasMarkedViewed] = useState(false);
+  const [mediaLoaded, setMediaLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const isLongPress = useRef(false);
   const startTime = useRef<number>(0);
@@ -57,9 +68,20 @@ export function VybeViewer({
   const [mediaDuration, setMediaDuration] = useState<number>(IMAGE_DURATION);
   const isVideo = isVideoUrl(mediaUrl);
   const hasMedia = !!mediaUrl && mediaUrl.length > 5;
-  const signedUrl = useSignedUrl(hasMedia ? mediaUrl : null);
-  const [imgError, setImgError] = useState(false);
-  const resolvedUrl = signedUrl || mediaUrl;
+  
+  // Only sign storage URLs; for data:/blob: URLs use directly
+  const requiresSigning = hasMedia && isStorageUrl(mediaUrl);
+  const signedUrl = useSignedUrl(requiresSigning ? mediaUrl : null);
+  
+  // Determine the display URL:
+  // - For storage URLs: wait for signedUrl, don't use raw mediaUrl
+  // - For data/blob/external URLs: use directly
+  const displayUrl = requiresSigning
+    ? signedUrl  // null until signed, then the signed URL
+    : (hasMedia ? mediaUrl : null);
+  
+  // Are we still waiting for the signed URL?
+  const isSigningPending = requiresSigning && !signedUrl;
 
   // Capture detection
   const { captured } = useCaptureDetection({
@@ -71,7 +93,6 @@ export function VybeViewer({
     },
   });
   
-  // Track whether WE opened the viewer this session (prevents auto-close from realtime updates)
   const openedByUserRef = useRef(false);
   useEffect(() => {
     if (isOpen) {
@@ -81,30 +102,50 @@ export function VybeViewer({
     }
   }, [isOpen]);
   
-  // Mark vybe as viewed IMMEDIATELY when opened
+  // Reset all state when viewer opens or media changes
   useEffect(() => {
-    if (isOpen && messageId && !isViewed && !hasMarkedViewed && !isOwn) {
-      console.log('[VybeViewer] Marking as viewed immediately');
+    if (isOpen) {
+      setProgress(0);
+      setIsPaused(false);
+      setShowReplyHint(false);
+      setMediaDuration(IMAGE_DURATION);
+      setMediaLoaded(false);
+      setImgError(false);
+      setHasMarkedViewed(false);
+      haptics.impact();
+    }
+  }, [isOpen, mediaUrl]);
+
+  // Mark vybe as viewed only AFTER media has loaded successfully
+  useEffect(() => {
+    if (isOpen && messageId && !isViewed && !hasMarkedViewed && !isOwn && mediaLoaded) {
+      console.log('[VybeViewer] Marking as viewed after successful load');
       setHasMarkedViewed(true);
       onViewed?.();
     }
-  }, [isOpen, messageId, isViewed, hasMarkedViewed, isOwn, onViewed]);
+  }, [isOpen, messageId, isViewed, hasMarkedViewed, isOwn, onViewed, mediaLoaded]);
 
-  // Handle video metadata loaded — get real duration
+  // Handle successful media load
+  const handleMediaLoaded = useCallback(() => {
+    setMediaLoaded(true);
+    setImgError(false);
+  }, []);
+
+  // Handle video metadata loaded
   const handleVideoLoaded = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
     if (video.duration && isFinite(video.duration)) {
-      setMediaDuration(video.duration * 1000); // convert to ms
+      setMediaDuration(video.duration * 1000);
     }
-  }, []);
+    handleMediaLoaded();
+  }, [handleMediaLoaded]);
 
-  // Handle video ended — close viewer
   const handleVideoEnded = useCallback(() => {
     haptics.impact();
     onClose();
   }, [onClose]);
 
-  // Pause/resume video when isPaused changes
+  // Pause/resume video
   useEffect(() => {
     if (!isVideo || !videoRef.current) return;
     if (isPaused) {
@@ -114,15 +155,13 @@ export function VybeViewer({
     }
   }, [isPaused, isVideo]);
 
-  // Progress timer for images; for videos, sync progress from video timeupdate
+  // Progress timer — only start AFTER media has loaded
   useEffect(() => {
-    if (!isOpen || isPaused) return;
+    if (!isOpen || isPaused || !mediaLoaded) return;
 
-    // For videos, use timeupdate instead
     if (isVideo) {
       const video = videoRef.current;
       if (!video) return;
-      
       const updateProgress = () => {
         if (video.duration && isFinite(video.duration)) {
           setProgress((video.currentTime / video.duration) * 100);
@@ -132,7 +171,7 @@ export function VybeViewer({
       return () => video.removeEventListener('timeupdate', updateProgress);
     }
 
-    // For images, use interval
+    // For images
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -145,18 +184,7 @@ export function VybeViewer({
     }, 50);
 
     return () => clearInterval(interval);
-  }, [isOpen, isPaused, onClose, isVideo, mediaDuration]);
-
-  // Reset progress when opening
-  useEffect(() => {
-    if (isOpen) {
-      setProgress(0);
-      setIsPaused(false);
-      setShowReplyHint(false);
-      setMediaDuration(IMAGE_DURATION);
-      haptics.impact();
-    }
-  }, [isOpen]);
+  }, [isOpen, isPaused, onClose, isVideo, mediaDuration, mediaLoaded]);
 
   // Long press to pause (for reply)
   const handleTouchStart = useCallback(() => {
@@ -212,7 +240,87 @@ export function VybeViewer({
     };
   }, [isOpen, onClose]);
 
-  // Use portal to render at document body level
+  // Render media content based on state
+  const renderMediaContent = () => {
+    // No media URL at all
+    if (!hasMedia) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4">
+          <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+            <Camera className="h-10 w-10 text-white/50" />
+          </div>
+          <p className="text-white/60 text-sm">Media no longer available</p>
+        </div>
+      );
+    }
+
+    // Still waiting for signed URL
+    if (isSigningPending) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          >
+            <Loader2 className="h-10 w-10 text-white/70" />
+          </motion.div>
+          <p className="text-white/60 text-sm">Loading...</p>
+        </div>
+      );
+    }
+
+    // Signed URL resolved but image failed to load
+    if (imgError) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4">
+          <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+            <Camera className="h-10 w-10 text-white/50" />
+          </div>
+          <p className="text-white/60 text-sm">Media no longer available</p>
+        </div>
+      );
+    }
+
+    // We have a displayUrl, render the media
+    if (displayUrl) {
+      if (isVideo) {
+        return (
+          <motion.video
+            ref={videoRef}
+            initial={{ scale: 1.2, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            src={displayUrl}
+            className="max-w-full max-h-full object-contain select-none"
+            autoPlay
+            playsInline
+            onLoadedMetadata={handleVideoLoaded}
+            onEnded={handleVideoEnded}
+            onError={() => setImgError(true)}
+            draggable={false}
+          />
+        );
+      }
+      return (
+        <motion.img
+          initial={{ scale: 1.2, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.8, opacity: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          src={displayUrl}
+          alt="VYBE"
+          className="max-w-full max-h-full object-contain select-none"
+          draggable={false}
+          onLoad={handleMediaLoaded}
+          onError={() => setImgError(true)}
+        />
+      );
+    }
+
+    return null;
+  };
+
   const viewerContent = (
     <AnimatePresence>
       {isOpen && (
@@ -227,7 +335,7 @@ export function VybeViewer({
           onMouseDown={handleTouchStart}
           onMouseUp={handleTouchEnd}
         >
-          {/* Progress bar at top */}
+          {/* Progress bar */}
           <div className="absolute top-0 left-0 right-0 z-20 p-3 safe-area-inset-top">
             <div className="h-1 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
               <motion.div
@@ -306,41 +414,7 @@ export function VybeViewer({
 
           {/* Media content */}
           <CaptureShield captured={captured} showBadge={!isOwn} />
-          {!hasMedia || imgError ? (
-            <div className="flex flex-col items-center justify-center gap-4">
-              <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
-                <Camera className="h-10 w-10 text-white/50" />
-              </div>
-              <p className="text-white/60 text-sm">Media no longer available</p>
-            </div>
-          ) : isVideo ? (
-            <motion.video
-              ref={videoRef}
-              initial={{ scale: 1.2, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-              src={resolvedUrl}
-              className="max-w-full max-h-full object-contain select-none"
-              autoPlay
-              playsInline
-              onLoadedMetadata={handleVideoLoaded}
-              onEnded={handleVideoEnded}
-              draggable={false}
-            />
-          ) : (
-            <motion.img
-              initial={{ scale: 1.2, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-              src={resolvedUrl}
-              alt="VYBE"
-              className="max-w-full max-h-full object-contain select-none"
-              draggable={false}
-              onError={() => setImgError(true)}
-            />
-          )}
+          {renderMediaContent()}
 
           {/* Hold to reply indicator */}
           <AnimatePresence>
@@ -376,11 +450,9 @@ export function VybeViewer({
             )}
           </AnimatePresence>
 
-          {/* Bottom gradient for polish */}
+          {/* Gradients and vignette */}
           <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none" />
           <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-black/50 to-transparent pointer-events-none" />
-          
-          {/* Subtle vignette effect */}
           <div className="absolute inset-0 pointer-events-none" style={{
             background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.4) 100%)'
           }} />
