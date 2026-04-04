@@ -328,13 +328,6 @@ export function VybeViewer({
               onEnded={handleVideoEnded}
               draggable={false}
             />
-          ) : imgError ? (
-            <div className="flex flex-col items-center justify-center gap-4">
-              <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
-                <Camera className="h-10 w-10 text-white/50" />
-              </div>
-              <p className="text-white/60 text-sm">Media no longer available</p>
-            </div>
           ) : (
             <motion.img
               initial={{ scale: 1.2, opacity: 0 }}
