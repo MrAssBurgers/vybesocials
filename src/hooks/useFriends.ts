@@ -224,85 +224,136 @@ export function useSendFriendRequest() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
 
+  const ensureDirectConversation = async (currentUserId: string, receiverId: string) => {
+    const [{ data: myMemberships }, { data: theirMemberships }] = await Promise.all([
+      supabase
+        .from('conversation_members')
+        .select('conversation_id')
+        .eq('user_id', currentUserId),
+      supabase
+        .from('conversation_members')
+        .select('conversation_id')
+        .eq('user_id', receiverId),
+    ]);
+
+    const myConversationIds = (myMemberships || []).map((membership) => membership.conversation_id);
+    const theirConversationIds = (theirMemberships || []).map((membership) => membership.conversation_id);
+    const sharedConversationIds = myConversationIds.filter((id) => theirConversationIds.includes(id));
+
+    if (sharedConversationIds.length > 0) {
+      const { data: sharedConversations } = await supabase
+        .from('conversations')
+        .select('id')
+        .in('id', sharedConversationIds)
+        .eq('is_group', false)
+        .limit(1);
+
+      if ((sharedConversations?.length || 0) > 0) {
+        return false;
+      }
+    }
+
+    const { data: newConversation, error: conversationError } = await supabase
+      .from('conversations')
+      .insert({
+        is_group: false,
+        created_by: currentUserId,
+      })
+      .select('id')
+      .single();
+
+    if (conversationError || !newConversation) {
+      return false;
+    }
+
+    const { error: membersError } = await supabase.from('conversation_members').insert([
+      { conversation_id: newConversation.id, user_id: currentUserId },
+      { conversation_id: newConversation.id, user_id: receiverId },
+    ]);
+
+    return !membersError;
+  };
+
   return useMutation({
     mutationFn: async (receiverId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
-        .from('friend_requests')
-        .insert({
+      if (receiverId === profile.id) {
+        throw new Error('Cannot send a friend request to yourself');
+      }
+
+      const [sameDirectionResult, reverseDirectionResult] = await Promise.all([
+        supabase
+          .from('friend_requests')
+          .select('id, status')
+          .eq('sender_id', profile.id)
+          .eq('receiver_id', receiverId)
+          .maybeSingle(),
+        supabase
+          .from('friend_requests')
+          .select('id, status')
+          .eq('sender_id', receiverId)
+          .eq('receiver_id', profile.id)
+          .maybeSingle(),
+      ]);
+
+      if (sameDirectionResult.error) throw sameDirectionResult.error;
+      if (reverseDirectionResult.error) throw reverseDirectionResult.error;
+
+      const existingSentRequest = sameDirectionResult.data;
+      const existingReceivedRequest = reverseDirectionResult.data;
+
+      if (
+        existingSentRequest?.status === 'pending' ||
+        existingSentRequest?.status === 'accepted' ||
+        existingReceivedRequest?.status === 'pending' ||
+        existingReceivedRequest?.status === 'accepted'
+      ) {
+        const conversationCreated = await ensureDirectConversation(profile.id, receiverId);
+        return { alreadyExists: true, conversationCreated };
+      }
+
+      if (existingSentRequest?.status === 'declined') {
+        const { error: reviveError } = await supabase
+          .from('friend_requests')
+          .update({ status: 'pending' })
+          .eq('id', existingSentRequest.id);
+
+        if (reviveError) throw reviveError;
+      } else {
+        const { error: insertError } = await supabase.from('friend_requests').insert({
           sender_id: profile.id,
           receiver_id: receiverId,
-        })
-        .select()
-        .single();
+        });
 
-      if (error) throw error;
+        if (insertError) {
+          if (insertError.code === '23505') {
+            const conversationCreated = await ensureDirectConversation(profile.id, receiverId);
+            return { alreadyExists: true, conversationCreated };
+          }
 
-      // Create notification
+          throw insertError;
+        }
+      }
+
       await supabase.from('notifications').insert({
         user_id: receiverId,
         actor_id: profile.id,
         type: 'friend_request',
       });
 
-      // Auto-create a conversation for instant chatting
-      // First check if a conversation already exists between the two users
-      const { data: existingConv } = await supabase
-        .from('conversation_members')
-        .select('conversation_id')
-        .eq('user_id', profile.id);
+      const conversationCreated = await ensureDirectConversation(profile.id, receiverId);
 
-      const { data: theirConvs } = await supabase
-        .from('conversation_members')
-        .select('conversation_id')
-        .eq('user_id', receiverId);
-
-      const myConvIds = (existingConv || []).map(c => c.conversation_id);
-      const theirConvIds = (theirConvs || []).map(c => c.conversation_id);
-      
-      // Find shared non-group conversations
-      const sharedConvIds = myConvIds.filter(id => theirConvIds.includes(id));
-      
-      let conversationExists = false;
-      if (sharedConvIds.length > 0) {
-        // Check if any are 1:1 (non-group) conversations
-        const { data: sharedConvs } = await supabase
-          .from('conversations')
-          .select('id, is_group')
-          .in('id', sharedConvIds)
-          .eq('is_group', false);
-        
-        conversationExists = (sharedConvs && sharedConvs.length > 0);
-      }
-
-      // If no conversation exists, create one
-      if (!conversationExists) {
-        const { data: newConv, error: convError } = await supabase
-          .from('conversations')
-          .insert({
-            is_group: false,
-            created_by: profile.id,
-          })
-          .select()
-          .single();
-
-        if (!convError && newConv) {
-          // Add both users as members
-          await supabase.from('conversation_members').insert([
-            { conversation_id: newConv.id, user_id: profile.id },
-            { conversation_id: newConv.id, user_id: receiverId },
-          ]);
-        }
-      }
-
-      return data;
+      return { alreadyExists: false, conversationCreated };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
       queryClient.invalidateQueries({ queryKey: ['friendship-status'] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      toast.success('Friend request sent! Chat created.');
+
+      if (result?.alreadyExists) return;
+
+      toast.success(result?.conversationCreated ? 'Friend request sent! Chat created.' : 'Friend request sent!');
     },
     onError: () => {
       toast.error('Failed to send friend request');

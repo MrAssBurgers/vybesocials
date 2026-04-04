@@ -69,6 +69,7 @@ const IGNORED_PATTERNS = [
   'DeviceMotionEvent',
   'user gesture to prompt',
   'Requesting device',
+  'OneSignal service worker not found',
 ];
 
 // HTTP status codes that indicate real bugs
