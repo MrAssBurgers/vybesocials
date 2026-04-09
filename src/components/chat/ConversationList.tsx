@@ -429,6 +429,7 @@ export function ConversationList() {
                     hasStory={hasStory}
                     storyGroup={storyGroup}
                     streak={streak}
+                    userStatus={otherMemberId ? statusMap.get(otherMemberId) : undefined}
                   />
                 );
               })}
@@ -450,6 +451,7 @@ export function ConversationList() {
                     hasStory={hasStory}
                     storyGroup={storyGroup}
                     streak={streak}
+                    userStatus={otherMemberId ? statusMap.get(otherMemberId) : undefined}
                   />
                 );
               })}
