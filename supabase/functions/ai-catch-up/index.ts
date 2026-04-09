@@ -66,7 +66,7 @@ Rules:
           tools: [{ google_search: {} }],
           generationConfig: {
             temperature: 0.3,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 8192,
           },
         }),
       }
@@ -79,12 +79,19 @@ Rules:
     }
 
     const data = await response.json();
+
+    // Check if response was truncated
+    const finishReason = data.candidates?.[0]?.finishReason;
+    if (finishReason === 'MAX_TOKENS') {
+      console.warn("[Brief] Response truncated by token limit");
+    }
+
     const textContent = data.candidates?.[0]?.content?.parts
       ?.filter((p: any) => p.text)
       ?.map((p: any) => p.text)
       ?.join('') || '';
 
-    console.log(`[Brief] Gemini raw response length: ${textContent.length}`);
+    console.log(`[Brief] Gemini raw response length: ${textContent.length}, finishReason: ${finishReason}`);
 
     // Extract grounding sources from metadata
     const groundingChunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
@@ -98,12 +105,44 @@ Rules:
       jsonStr = jsonStr.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
     }
 
+    // Sanitize control characters that Gemini injects into JSON string values
+    jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, (ch: string) => {
+      if (ch === '\n' || ch === '\r' || ch === '\t') return ' ';
+      return '';
+    });
+
     let parsed: { items: Array<{ topic: string; summary: string; sources?: string[]; category?: string }> };
     try {
       parsed = JSON.parse(jsonStr);
     } catch (parseErr) {
-      console.error("[Brief] Failed to parse Gemini JSON:", parseErr, "Raw:", jsonStr.slice(0, 500));
-      return [];
+      console.warn("[Brief] JSON.parse failed after sanitization, attempting regex fallback:", parseErr);
+      // Fallback: extract items via regex
+      try {
+        const items: Array<{ topic: string; summary: string; sources: string[]; category: string }> = [];
+        const topicMatches = jsonStr.matchAll(/"topic"\s*:\s*"([^"]+)"/g);
+        const summaryMatches = [...jsonStr.matchAll(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/g)];
+        const categoryMatches = [...jsonStr.matchAll(/"category"\s*:\s*"([^"]+)"/g)];
+        let idx = 0;
+        for (const tm of topicMatches) {
+          items.push({
+            topic: tm[1],
+            summary: summaryMatches[idx]?.[1]?.replace(/\\"/g, '"').replace(/\\n/g, ' ') || 'No details available.',
+            sources: [],
+            category: categoryMatches[idx]?.[1] || 'interests',
+          });
+          idx++;
+        }
+        if (items.length > 0) {
+          console.log(`[Brief] Regex fallback extracted ${items.length} items`);
+          parsed = { items };
+        } else {
+          console.error("[Brief] Regex fallback found 0 items. Raw:", jsonStr.slice(0, 500));
+          return [];
+        }
+      } catch (regexErr) {
+        console.error("[Brief] Regex fallback also failed:", regexErr);
+        return [];
+      }
     }
 
     if (!parsed.items || !Array.isArray(parsed.items)) {
