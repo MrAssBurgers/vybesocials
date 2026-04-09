@@ -9,6 +9,8 @@ import { useScrollOptimization } from '@/hooks/useScrollOptimization';
 import { useBreakpoint } from '@/hooks/usePlatform';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useSwipeBack } from '@/hooks/useSwipeBack';
+import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -31,6 +33,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const { user, loading } = useAuth();
   const { isDesktop, isTablet, isIPad } = useBreakpoint();
   const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const { swipeBackHandlers, swipeProgress } = useSwipeBack();
   
   // Track online presence
   usePresence();
