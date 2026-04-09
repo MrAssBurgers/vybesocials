@@ -199,11 +199,40 @@ function useFriendLocations(friendIds: string[]) {
 
 /* ── search hook ─────────────────────────────────────── */
 
-function useNominatimSearch() {
+function useNominatimSearch(myCoords: [number, number] | null) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [nearby, setNearby] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout>>();
+  const nearbyLoaded = useRef(false);
+
+  // Load nearby places when coords become available
+  useEffect(() => {
+    if (!myCoords || nearbyLoaded.current) return;
+    nearbyLoaded.current = true;
+    const categories = ['restaurant', 'cafe', 'gas station', 'grocery', 'pharmacy'];
+    const fetches = categories.map(async (cat) => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=2&q=${encodeURIComponent(cat)}&viewbox=${myCoords[1] - 0.05},${myCoords[0] + 0.05},${myCoords[1] + 0.05},${myCoords[0] - 0.05}&bounded=1`
+        );
+        return await res.json();
+      } catch { return []; }
+    });
+    Promise.all(fetches).then((all) => {
+      const flat = all.flat().filter(Boolean);
+      // Sort by distance from user
+      if (myCoords) {
+        flat.sort((a: any, b: any) => {
+          const da = distanceBetween(myCoords, [parseFloat(a.lat), parseFloat(a.lon)]);
+          const db = distanceBetween(myCoords, [parseFloat(b.lat), parseFloat(b.lon)]);
+          return da - db;
+        });
+      }
+      setNearby(flat.slice(0, 8));
+    });
+  }, [myCoords]);
 
   const search = useCallback((q: string) => {
     setQuery(q);
@@ -212,17 +241,30 @@ function useNominatimSearch() {
     setLoading(true);
     debounce.current = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(q)}`);
+        const locBias = myCoords
+          ? `&viewbox=${myCoords[1] - 0.5},${myCoords[0] + 0.5},${myCoords[1] + 0.5},${myCoords[0] - 0.5}&bounded=0`
+          : '';
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=8&q=${encodeURIComponent(q)}${locBias}`
+        );
         const data = await res.json();
+        // Sort results by distance if we have coords
+        if (myCoords && data?.length) {
+          data.sort((a: any, b: any) => {
+            const da = distanceBetween(myCoords, [parseFloat(a.lat), parseFloat(a.lon)]);
+            const db = distanceBetween(myCoords, [parseFloat(b.lat), parseFloat(b.lon)]);
+            return da - db;
+          });
+        }
         setResults(data || []);
       } catch { setResults([]); }
       setLoading(false);
     }, 400);
-  }, []);
+  }, [myCoords]);
 
   const clear = useCallback(() => { setQuery(''); setResults([]); }, []);
 
-  return { query, results, loading, search, clear };
+  return { query, results, nearby, loading, search, clear };
 }
 
 /* ── component ───────────────────────────────────────── */
@@ -297,7 +339,7 @@ export default function FriendMap() {
     return { singles, clusters };
   }, [friendsArr, zoom]);
 
-  const { query: searchQuery, results: searchResults, loading: searchLoading, search: doSearch, clear: clearSearch } = useNominatimSearch();
+  const { query: searchQuery, results: searchResults, nearby: nearbyPlaces, loading: searchLoading, search: doSearch, clear: clearSearch } = useNominatimSearch(myCoords);
 
   /* ── upsert location to DB (debounced) ─────────────── */
 
@@ -720,6 +762,38 @@ export default function FriendMap() {
               )}
               {searchLoading && (
                 <div className="border-t border-white/10 p-3 text-center text-xs text-white/40">Searching...</div>
+              )}
+              {/* Nearby suggestions when no query */}
+              {!searchQuery && nearbyPlaces.length > 0 && (
+                <div className="border-t border-white/10">
+                  <p className="px-3 pt-2.5 pb-1 text-[10px] font-semibold text-white/30 uppercase tracking-wider">Nearby</p>
+                  {nearbyPlaces.map((r, i) => {
+                    const dist = myCoords ? distanceBetween(myCoords, [parseFloat(r.lat), parseFloat(r.lon)]).toFixed(1) : null;
+                    return (
+                      <div key={i} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-white/5 transition-colors">
+                        <button
+                          onClick={() => flyToSearch(r)}
+                          className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
+                        >
+                          <MapPin className="h-3.5 w-3.5 text-primary/60 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs text-white/80 truncate block">{r.display_name}</span>
+                            {dist && <span className="text-[10px] text-white/40">{dist} mi away</span>}
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lon}`, '_blank');
+                          }}
+                          className="shrink-0 flex items-center gap-1 rounded-full bg-primary/20 px-2.5 py-1 text-[10px] font-bold text-primary hover:bg-primary/30 transition-colors"
+                        >
+                          <Navigation className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </motion.div>
           )}
