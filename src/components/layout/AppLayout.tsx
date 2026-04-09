@@ -103,7 +103,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   return (
     <div 
       ref={ref} 
-      className="h-screen w-full overflow-hidden"
+      className="h-screen w-full overflow-hidden overflow-x-hidden"
       {...swipeBackHandlers}
     >
       {/* Swipe-back edge indicator */}
