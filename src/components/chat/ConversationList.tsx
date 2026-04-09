@@ -882,17 +882,7 @@ const ConversationItem = memo(function ConversationItem({
 
   const formattedTime = useMemo(() => {
     if (!lastMessage?.created_at) return null;
-    const date = new Date(lastMessage.created_at);
-    const now = new Date();
-    const mins = differenceInMinutes(now, date);
-    if (mins < 1) return 'now';
-    if (mins < 60) return `${mins}m`;
-    const hrs = differenceInHours(now, date);
-    if (hrs < 24) return `${hrs}h`;
-    const days = differenceInDays(now, date);
-    if (days < 7) return `${days}d`;
-    const weeks = differenceInWeeks(now, date);
-    return `${weeks}w`;
+    return compactTime(lastMessage.created_at);
   }, [lastMessage?.created_at]);
 
   const isMuted = conversation.members?.find((m) => m.user_id === currentUserId)?.is_muted;
@@ -926,6 +916,7 @@ const ConversationItem = memo(function ConversationItem({
     handleAvatarClick,
     otherMember,
     streak,
+    userStatus,
   };
 
   // Mobile swipeable version with long-press for options
