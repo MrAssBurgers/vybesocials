@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -37,6 +38,21 @@ export function QuickAddRow({
   showOnlineIndicator?: boolean;
 }) {
   const navigate = useNavigate();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
+
   if (!users.length) return null;
 
   return (
@@ -50,17 +66,12 @@ export function QuickAddRow({
       </motion.div>
 
       <motion.div 
+        ref={scrollRef}
         variants={containerVariants}
         initial="hidden"
         animate="show"
         className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        onWheel={(e) => {
-          if (e.deltaY !== 0) {
-            e.currentTarget.scrollLeft += e.deltaY;
-            e.preventDefault();
-          }
-        }}
       >
         {users.map((u, i) => (
           <motion.button
