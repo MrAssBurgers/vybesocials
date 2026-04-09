@@ -286,14 +286,6 @@ function PersonRow({ person, index }: { person: any; index: number }) {
             <p className="text-xs text-muted-foreground/70 truncate mt-0.5">{person.bio}</p>
           )}
         </div>
-        {person.follower_count > 0 && (
-          <span className="text-xs text-muted-foreground shrink-0">
-            {person.follower_count >= 1000
-              ? `${(person.follower_count / 1000).toFixed(1)}k`
-              : person.follower_count}{' '}
-            followers
-          </span>
-        )}
       </Link>
     </motion.div>
   );
