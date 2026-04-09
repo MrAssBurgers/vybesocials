@@ -150,13 +150,14 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       setUploadProgress(85);
 
       // Create story record
-      await createStory.mutateAsync({
+      await (createStory as any).mutateAsync({
         mediaUrl: publicUrl,
         mediaType: mediaInfo.isVideo ? 'video' : 'image',
         caption: caption.trim() || undefined,
         isCloseFriendsOnly,
         aspectRatio: mediaInfo.aspectRatio,
         duration: mediaInfo.duration,
+        pollData: pollData || undefined,
       });
 
       setUploadProgress(100);
