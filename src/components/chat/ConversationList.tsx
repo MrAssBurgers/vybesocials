@@ -707,6 +707,10 @@ const ConversationContent = memo(function ConversationContent({
                     : (lastMessage.content?.slice(0, 30) || 'Media') + (lastMessage.content && lastMessage.content.length > 30 ? '...' : '')}
                 </p>
               </>
+            ) : userStatus ? (
+              <p className="text-xs text-muted-foreground/70 truncate italic">
+                {userStatus.emoji} {userStatus.text}
+              </p>
             ) : conversation.is_group ? (
               <p className="text-xs text-muted-foreground truncate">
                 Start chatting
