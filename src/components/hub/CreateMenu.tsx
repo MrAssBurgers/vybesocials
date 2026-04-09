@@ -113,12 +113,24 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
                   {/* Animated gradient border */}
                   <div className="absolute inset-0 rounded-3xl p-px bg-gradient-to-br from-primary/50 via-transparent to-accent/50 pointer-events-none" />
                   
+                  {/* Map button - top right */}
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.15 }}
+                    onClick={() => handleAction('map')}
+                    whileTap={{ scale: 0.9 }}
+                    className="absolute top-4 right-4 z-10 w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow"
+                  >
+                    <MapPin className="h-5 w-5 text-white" />
+                  </motion.button>
+
                   {/* Header */}
                   <motion.div 
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="text-center mb-6"
+                    className="text-center mb-6 pr-10"
                   >
                     <div className="inline-flex items-center gap-2 mb-2">
                       <motion.div
