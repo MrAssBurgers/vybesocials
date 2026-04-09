@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, MoreHorizontal, Award, Package, Crown } from 'lucide-react';
+import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, MoreHorizontal, Award, Package, Crown, Share2 } from 'lucide-react';
 import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
@@ -356,6 +356,24 @@ export default function ProfilePage() {
                       </Button>
                     </motion.div>
                   </Link>
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const url = `${window.location.origin}/u/${profile.username}`;
+                        if (navigator.share) {
+                          navigator.share({ title: `${profile.display_name || profile.username} on VYBE`, url });
+                        } else {
+                          navigator.clipboard.writeText(url);
+                          toast.success('Profile link copied!');
+                        }
+                      }}
+                    >
+                      <Share2 className="h-4 w-4 mr-2" />
+                      Share
+                    </Button>
+                  </motion.div>
                   <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     {isPremium ? (
                       <Link to="/settings?tab=subscription">
