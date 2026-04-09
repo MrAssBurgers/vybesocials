@@ -21,6 +21,7 @@ import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMod
 import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
 import { VYBECommandBar } from '@/components/ai/VYBECommandBar';
 import { useGridLayout } from '@/hooks/useGridLayout';
+import { WeeklyRecapModal } from '@/components/recap/WeeklyRecapModal';
 
 // DNA preference scoring - boost/reduce based on tag matching
 function getDNAScore(post: Post, boostSet: Set<string>, reduceSet: Set<string>): number {
@@ -345,6 +346,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
       {/* AI Command Bar */}
       <VYBECommandBar />
+      
+      {/* Weekly Recap */}
+      <WeeklyRecapModal />
     </AppLayout>
   );
 }

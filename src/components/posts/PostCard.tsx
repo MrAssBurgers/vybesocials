@@ -240,26 +240,27 @@ function NaturalAspectImage({ src, caption }: { src: string; caption?: string })
   const isWide = aspectRatio > 1.5;
 
   return (
-    <div className="relative w-full flex items-center justify-center bg-muted/10">
-      {/* Skeleton placeholder - maintains space while loading */}
+    <div className="relative w-full flex items-center justify-center bg-muted/10 overflow-hidden">
+      {/* Blur-up placeholder while loading */}
       {!isLoaded && (
-        <div className="w-full aspect-square bg-gradient-to-br from-muted/40 via-muted/20 to-transparent">
+        <div className="w-full aspect-square">
+          <div 
+            className="absolute inset-0 bg-gradient-to-br from-primary/10 via-muted/30 to-accent/10 animate-pulse"
+            style={{ filter: 'blur(20px)', transform: 'scale(1.1)' }}
+          />
           <MediaSkeleton className="absolute inset-0" />
         </div>
       )}
       <img
-        key={retryCount} // Force remount on retry
+        key={retryCount}
         src={src}
         alt={caption || ''}
         className={cn(
-          "w-full h-auto transition-opacity duration-200",
-          // Tall images: limit height to prevent excessive scrolling
+          "w-full h-auto transition-all duration-500 ease-out",
           isTall && "max-h-[70vh] w-auto object-contain",
-          // Wide/landscape images: full width, natural height
           isWide && "w-full h-auto",
-          // Normal images: just display naturally
           !isTall && !isWide && "w-full h-auto",
-          isLoaded ? "opacity-100" : "opacity-0"
+          isLoaded ? "opacity-100 blur-0 scale-100" : "opacity-0 blur-sm scale-[1.02]"
         )}
         style={!isLoaded ? { position: 'absolute', top: 0, left: 0 } : undefined}
         loading="lazy"
