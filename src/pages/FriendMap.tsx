@@ -149,7 +149,7 @@ export default function FriendMap() {
         const lng = Math.round(pos.coords.longitude * 100) / 100;
         const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
         
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('user_locations')
           .upsert({
             user_id: user.id,
@@ -161,7 +161,7 @@ export default function FriendMap() {
           }, { onConflict: 'user_id' });
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('user_locations')
           .update({ sharing_enabled: false })
           .eq('user_id', user.id);
@@ -188,7 +188,7 @@ export default function FriendMap() {
       });
       const lat = Math.round(pos.coords.latitude * 100) / 100;
       const lng = Math.round(pos.coords.longitude * 100) / 100;
-      await supabase
+      await (supabase as any)
         .from('user_locations')
         .update({ latitude: lat, longitude: lng, updated_at: new Date().toISOString() })
         .eq('user_id', user.id);
