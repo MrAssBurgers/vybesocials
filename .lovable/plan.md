@@ -1,62 +1,66 @@
 
-Fix VYBE snaps by addressing the actual failure path in both backend access and viewer timing.
 
-1. Fix chat-media access so recipients can read each other’s snap files
-- Add a migration to correct the storage SELECT policy for `chat-media`.
-- Right now the policy compares the uploader’s auth user id in the storage path to `conversation_members.user_id`, which stores profile ids. That mismatch prevents recipients from getting signed URLs for each other’s uploads.
-- Update the policy to resolve the uploader through `profiles.user_id` (or otherwise compare like-for-like ids) so members of the same DM/group can access the file.
-- Keep the bucket private; use authenticated access correctly instead of making everything public.
+## DM System Revamp — Snapchat-Perfect Messaging
 
-2. Make VYBE uploads store files in a path that matches the fixed policy consistently
-- Review `ChatView.handleVybeSend` and align the upload path and message insert flow with the corrected storage policy.
-- Keep using auth user id in the file path if policy checks auth ids, or switch to profile id only if policy is updated to that convention everywhere.
-- Also harden image parsing so only real data URLs are accepted before upload.
+This revamp addresses the remaining bugs and upgrades the DM experience to match Snapchat's messaging standards.
 
-3. Fix `VybeViewer` so it waits for the signed URL instead of failing early
-- The current viewer renders `resolvedUrl = signedUrl || mediaUrl`.
-- For private bucket media, `mediaUrl` is a non-working raw storage URL for recipients, so the `<img>` errors before the signed URL arrives and `imgError` gets stuck on.
-- Change the viewer to:
-  - show a loading state while a private storage URL is still being signed
-  - use the raw URL only for non-storage/public/blob/data URLs
-  - reset `imgError` whenever `mediaUrl`, `signedUrl`, or `isOpen` changes
-  - only show “Media no longer available” after the signed URL path actually fails
+### 1. Fix the 409 friend_requests error on app load
 
-4. Stop consuming a snap before it has displayed successfully
-- In `VybeViewer`, don’t mark the snap as viewed immediately on open.
-- Mark it viewed only after the image/video has successfully loaded enough to display.
-- This prevents “tap once -> broken -> snap marked opened forever” behavior.
+The `AutoFriendDrop` component on the Home page fires `useSendFriendRequest` which hits the unique constraint. The `useSendFriendRequest` hook already handles `23505` gracefully (line 330), but the error still surfaces in the network console because the HTTP 409 happens before the JS catch. Fix: add an `onError` handler that silences `23505` errors and also add a pre-check in `AutoFriendDrop` to skip users who already have a pending/accepted request.
 
-5. Improve the closed-state preview tile in chat
-- In `ChatView`, use a signed/background-safe preview source for the unopened VYBE tile instead of the raw private storage URL.
-- If signing is still pending, show the branded gradient card without trying to paint the background image yet.
-- This removes broken preview/background behavior before the snap opens.
+### 2. Remove the "encrypted" label from chat header
 
-6. Keep existing Snapchat-style UX intact
-- Preserve fullscreen viewer, reply gesture, progress bar, and “Opened” status.
-- Preserve the current no-auto-close logic from realtime updates.
-- Only change the loading/access logic, not the core interaction model.
+Line 1287-1288 in `ChatView.tsx` still shows a green lock icon with "encrypted" text. Remove this and replace with just the `LivePresenceBar` — clean like Snapchat where you only see online/typing/last seen.
 
-Technical details
-- Root cause 1:
-  `chat-media` is private, but the latest storage policy checks:
-  uploader folder name = auth uid
-  conversation_members.user_id = profile id
-  Those ids are different types in this app, so recipient access fails.
-- Root cause 2:
-  `useSignedUrl()` is async. `VybeViewer` renders the raw private URL first, image load fails, `imgError` becomes `true`, and the fallback UI appears permanently.
-- Root cause 3:
-  the snap is marked viewed too early, before successful media render.
+### 3. Fix VYBE Snap display — the actual image issue
 
-Files likely involved
-- `src/components/chat/VybeViewer.tsx`
-- `src/components/chat/ChatView.tsx`
-- `src/lib/signedUrlCache.ts` or signed-url usage pattern
-- new migration in `supabase/migrations/...` for `chat-media` SELECT policy
+The storage policy migration was created but the core problem persists: when `signedUrlCache` fails to sign (returns the original URL as fallback for failed entries via `isFailedUrl`), the VybeViewer treats it as a valid URL, tries to load a raw storage URL, gets a 403, and shows "Media not available."
 
-Verification checklist
-- Send photo VYBE from user A to user B
-- Open it on user B and confirm the real image displays fullscreen
-- Confirm it is marked opened only after successful display
-- Confirm the unopened preview card no longer breaks
-- Test both sender and receiver on fresh app load
-- Test again with video VYBE to ensure signed URL loading still works
+Fix the `useFastSignedUrl` hook: when a URL is marked as `failed` in cache, return `null` instead of the original URL so the viewer shows the loading state and retries. Also add a retry mechanism in VybeViewer — if the signed URL fails on first try, wait 2 seconds and retry once (the policy might not have propagated yet).
+
+### 4. Snapchat-style conversation list status indicators
+
+Replace the current text-based preview in `ConversationContent` with Snapchat's iconic status system:
+- **Red arrow** (sent snap) / **Red square** (received snap) for VYBE messages  
+- **Blue arrow** (sent chat) / **Blue square** (received chat) for text messages
+- **Purple arrow/square** for audio/voice messages
+- Show "Delivered", "Opened", "Received" as status text instead of message preview content
+- Show relative time (1m, 5m, 2h, 1d) instead of "5 minutes ago"
+
+### 5. Snapchat-style chat header — minimal and clean
+
+Simplify the chat header:
+- Avatar + Name + online dot only (no lock, no "encrypted")
+- Streak flame next to name if active
+- Call buttons on the right
+- Typing/presence shown inline below name
+
+### 6. Snapchat-style message input — camera-first
+
+Reorganize the input bar:
+- Camera icon on the left (prominent, primary color) — opens VYBE camera
+- Text input in center with rounded pill shape
+- When empty: show mic button on right
+- When typing: show send button on right  
+- Remove the view mode button from the default view (move to long-press/menu)
+- Remove the toybox button clutter — consolidate into a single "+" menu
+
+### 7. Compact time formatting in conversation list
+
+Replace `formatDistanceToNow` with compact format: "1m", "5m", "2h", "3d", "1w" — matching Snapchat's style.
+
+---
+
+### Technical details
+
+**Files to modify:**
+- `src/components/chat/ChatView.tsx` — Remove "encrypted" label, simplify header, restructure input area
+- `src/components/chat/ConversationList.tsx` — Snapchat status indicators, compact time, cleaner preview text
+- `src/components/chat/VybeViewer.tsx` — Add retry logic for signed URL failures
+- `src/hooks/useFastSignedUrl.ts` — Don't return failed URLs as valid
+- `src/lib/signedUrlCache.ts` — Add `isFailedUrl` export for viewer to check
+- `src/components/friends/AutoFriendDrop.tsx` — Silence 409 errors
+- `src/hooks/useFriends.ts` — Silence the 23505 error in `onError` callback
+
+**No database changes needed** — the storage policy migration from the last change should handle access. The fixes are purely frontend.
+
