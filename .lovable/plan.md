@@ -1,43 +1,60 @@
 
 
-## Plan: Fix Daily Brief Live News — JSON Parsing & Token Limit
+## Plan: Fix VybeDNA Scroll, Locker Shop Route, Daily Brief, QuickAdd Mouse Scroll
 
-### Root Cause
+### 1. VybeDNA Page — Fix Scrolling
 
-The edge function logs show the exact error:
+**Problem**: The page uses `min-h-full` which doesn't create enough scrollable height inside AppLayout's overflow container. Content below the fold is unreachable.
 
+**Fix** in `src/pages/VybeDNA.tsx`:
+- Change outer `div` from `min-h-full pb-24` to `min-h-screen pb-24 overflow-y-auto`
+- This ensures the page content extends beyond the viewport and the AppLayout scroll container can scroll it
+
+### 2. Profile Locker Shop — Route to /marketplace
+
+**Problem**: The `ShopContent` component in `src/components/profile/ProfileLocker.tsx` shows a static "Coming Soon" placeholder, but `/marketplace` already exists.
+
+**Fix** in `src/components/profile/ProfileLocker.tsx`:
+- Replace the `ShopContent` component body with a button/link that navigates to `/marketplace`
+- Keep the shop emoji and title but replace "Coming Soon" with a "Browse Shop" button using `useNavigate`
+
+### 3. Daily Brief — Redeploy Edge Function + Enhance News Cards
+
+**Problem**: Edge function logs show the **old version** is still deployed — `JSON.parse` fails at line 84 (old code) instead of line 116 (new code with sanitization). The sanitization fix from the last change was never deployed. Additionally, Gemini is intermittently returning 503 errors.
+
+**Fix**:
+- **Redeploy** `ai-catch-up` edge function so the sanitization + token limit fix goes live
+- **Add retry logic** in the edge function: if Gemini returns 503, retry once after 2 seconds
+- **Enhance NewsCard** in `AIBriefSheet.tsx` to be more Samsung Brief-like:
+  - Larger hero image (h-36 instead of h-28)
+  - Show full summary on tap with smooth expand animation (already exists but make it more prominent)
+  - Show source favicons more prominently with domain names visible
+  - Add a "Read more" indicator on collapsed cards
+
+### 4. QuickAddRow — Mouse Wheel Horizontal Scroll
+
+**Problem**: The horizontal scroll row of online friends only scrolls via touch drag. Desktop users with a mouse wheel can't scroll it.
+
+**Fix** in `src/components/chat/QuickAddRow.tsx`:
+- Add an `onWheel` handler to the scrollable container that converts vertical scroll delta into horizontal scroll:
+```typescript
+onWheel={(e) => {
+  if (e.deltaY !== 0) {
+    e.currentTarget.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }
+}}
 ```
-Failed to parse Gemini JSON: SyntaxError: Bad control character in string literal in JSON at position 763
-```
 
-Gemini's response contains unescaped control characters (newlines, tabs) inside JSON string values, which breaks `JSON.parse`. Additionally, `maxOutputTokens: 2048` is borderline — responses are getting truncated mid-JSON, producing incomplete output that also fails to parse.
+### Files to Change
 
-When parsing fails, `fetchGeminiNews` returns `[]`, so `liveUpdates` is empty and the brief shows no news.
-
-### Fix (single file)
-
-**File: `supabase/functions/ai-catch-up/index.ts`**
-
-1. **Increase `maxOutputTokens` from 2048 to 8192** — prevents truncated JSON for 7+ topics
-
-2. **Sanitize JSON before parsing** — strip control characters that Gemini injects into string values:
-   ```typescript
-   // Before JSON.parse, sanitize control chars inside strings
-   jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, (ch) => {
-     if (ch === '\n' || ch === '\r' || ch === '\t') return ' ';
-     return '';
-   });
-   ```
-
-3. **Add a fallback regex extractor** — if `JSON.parse` still fails after sanitization, attempt to extract items via regex pattern matching so partial results aren't lost entirely
-
-4. **Check `finishReason`** — log if the response was truncated so we can diagnose future issues:
-   ```typescript
-   const finishReason = data.candidates?.[0]?.finishReason;
-   if (finishReason === 'MAX_TOKENS') {
-     console.warn("[Brief] Response truncated by token limit");
-   }
-   ```
+| File | Change |
+|------|--------|
+| `src/pages/VybeDNA.tsx` | Fix outer container to allow scrolling |
+| `src/components/profile/ProfileLocker.tsx` | Replace "Coming Soon" with link to `/marketplace` |
+| `supabase/functions/ai-catch-up/index.ts` | Add retry on 503 errors + redeploy |
+| `src/components/home/AIBriefSheet.tsx` | Enhance NewsCard to Samsung Brief style |
+| `src/components/chat/QuickAddRow.tsx` | Add `onWheel` horizontal scroll handler |
 
 ### No database changes needed.
 
