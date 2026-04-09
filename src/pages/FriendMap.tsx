@@ -32,6 +32,10 @@ const DEFAULT_ZOOM = 4;
 const FRIEND_FOCUS_ZOOM = 15;
 const MY_LOCATION_ZOOM = 15;
 
+function isLocationFeatureUnavailableError(error: any) {
+  return error?.code === 'PGRST205' || error?.status === 404 || /user_locations/i.test(String(error?.message || ''));
+}
+
 function useFriendLocations() {
   return useQuery({
     queryKey: ['friend-locations'],
@@ -41,7 +45,11 @@ function useFriendLocations() {
         .select('*, profile:profiles(username, display_name, avatar_url)')
         .eq('sharing_enabled', true);
 
-      if (error) throw error;
+      if (error) {
+        if (isLocationFeatureUnavailableError(error)) return [];
+        throw error;
+      }
+
       return (data || []) as FriendLocation[];
     },
     refetchInterval: 30000,
@@ -49,96 +57,32 @@ function useFriendLocations() {
 }
 
 function useMyLocation() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
 
   return useQuery({
-    queryKey: ['my-location'],
+    queryKey: ['my-location', profile?.id],
     queryFn: async () => {
-      if (!user) return null;
+      if (!profile?.id) return null;
 
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from('user_locations')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', profile.id)
         .maybeSingle();
+
+      if (error) {
+        if (isLocationFeatureUnavailableError(error)) return null;
+        throw error;
+      }
 
       return data as any;
     },
-    enabled: !!user,
+    enabled: !!profile?.id,
   });
 }
-
-function createAvatarIcon(avatarUrl: string | null, name: string) {
-  const initial = (name || '?')[0].toUpperCase();
-  const safeAvatarUrl = avatarUrl?.replace(/"/g, '&quot;') ?? null;
-
-  return L.divIcon({
-    className: 'friend-map-marker',
-    html: `
-      <div style="
-        width: 52px;
-        height: 52px;
-        border-radius: 9999px;
-        overflow: hidden;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: ${safeAvatarUrl ? 'hsl(var(--card))' : 'hsl(var(--primary))'};
-        border: 3px solid hsl(var(--background));
-        box-shadow: 0 10px 30px hsl(var(--foreground) / 0.25), 0 0 0 3px hsl(var(--background) / 0.35);
-        color: hsl(var(--primary-foreground));
-        font-weight: 800;
-        font-size: 18px;
-      ">
-        ${safeAvatarUrl
-          ? `<img src="${safeAvatarUrl}" alt="${initial}" style="width:100%;height:100%;object-fit:cover;display:block;" />`
-          : initial}
-      </div>
-      <div style="
-        position: absolute;
-        bottom: -2px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 14px;
-        height: 14px;
-        border-radius: 9999px;
-        background: hsl(var(--accent));
-        border: 2px solid hsl(var(--background));
-        box-shadow: 0 2px 8px hsl(var(--foreground) / 0.2);
-      "></div>
-    `,
-    iconSize: [52, 64],
-    iconAnchor: [26, 58],
-  });
-}
-
-function createMyLocationIcon() {
-  return L.divIcon({
-    className: 'my-location-marker',
-    html: `
-      <div style="
-        width: 18px;
-        height: 18px;
-        border-radius: 9999px;
-        background: hsl(var(--primary));
-        border: 3px solid hsl(var(--background));
-        box-shadow: 0 0 20px hsl(var(--primary) / 0.55), 0 8px 24px hsl(var(--foreground) / 0.18);
-      "></div>
-      <div style="
-        position: absolute;
-        inset: -8px;
-        border-radius: 9999px;
-        background: hsl(var(--primary) / 0.18);
-        animation: pulse-ring 2s infinite;
-      "></div>
-    `,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
-  });
-}
-
+...
 export default function FriendMap() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { data: friends = [], isLoading } = useFriendLocations();
@@ -155,121 +99,11 @@ export default function FriendMap() {
   const [selectedFriend, setSelectedFriend] = useState<FriendLocation | null>(null);
 
   const isSharingEnabled = myLocation?.sharing_enabled === true;
-  const otherFriends = friends.filter((friend) => friend.user_id !== user?.id);
-
-  useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
-
-    const map = L.map(mapContainerRef.current, {
-      zoomControl: false,
-      attributionControl: false,
-      preferCanvas: true,
-    }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
-
-    L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 19 }
-    ).addTo(map);
-
-    L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 19 }
-    ).addTo(map);
-
-    friendLayerRef.current = L.layerGroup().addTo(map);
-    mapRef.current = map;
-
-    return () => {
-      friendLayerRef.current?.clearLayers();
-      friendLayerRef.current = null;
-      myMarkerRef.current = null;
-      map.remove();
-      mapRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
-        setMyCoords(coords);
-        setMapCenter(coords);
-        setMapZoom(13);
-      },
-      () => undefined,
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    map.flyTo(mapCenter, mapZoom, { duration: 1.1 });
-  }, [mapCenter, mapZoom]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    if (!myCoords) {
-      if (myMarkerRef.current) {
-        map.removeLayer(myMarkerRef.current);
-        myMarkerRef.current = null;
-      }
-      return;
-    }
-
-    if (!myMarkerRef.current) {
-      myMarkerRef.current = L.marker(myCoords, {
-        icon: createMyLocationIcon(),
-        interactive: false,
-        keyboard: false,
-        zIndexOffset: 1000,
-      }).addTo(map);
-      return;
-    }
-
-    myMarkerRef.current.setLatLng(myCoords);
-  }, [myCoords]);
-
-  useEffect(() => {
-    const layer = friendLayerRef.current;
-    if (!layer) return;
-
-    layer.clearLayers();
-
-    otherFriends.forEach((friend) => {
-      const marker = L.marker([friend.latitude, friend.longitude], {
-        icon: createAvatarIcon(
-          friend.profile?.avatar_url || null,
-          friend.profile?.display_name || friend.profile?.username || '?'
-        ),
-        riseOnHover: true,
-      });
-
-      marker.on('click', () => {
-        setSelectedFriend(friend);
-        setMapCenter([friend.latitude, friend.longitude]);
-        setMapZoom(FRIEND_FOCUS_ZOOM);
-        triggerHaptic('light');
-      });
-
-      marker.addTo(layer);
-    });
-  }, [otherFriends]);
-
-  useEffect(() => {
-    if (selectedFriend && !otherFriends.some((friend) => friend.id === selectedFriend.id)) {
-      setSelectedFriend(null);
-    }
-  }, [otherFriends, selectedFriend]);
-
+  const otherFriends = friends.filter((friend) => friend.user_id !== profile?.id);
+...
   const toggleSharing = useMutation({
     mutationFn: async (enable: boolean) => {
-      if (!user) throw new Error('Not logged in');
+      if (!profile?.id) throw new Error('Not logged in');
 
       if (enable) {
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -287,7 +121,7 @@ export default function FriendMap() {
           .from('user_locations')
           .upsert(
             {
-              user_id: user.id,
+              user_id: profile.id,
               latitude,
               longitude,
               accuracy: position.coords.accuracy,
@@ -309,7 +143,7 @@ export default function FriendMap() {
       const { error } = await (supabase as any)
         .from('user_locations')
         .update({ sharing_enabled: false })
-        .eq('user_id', user.id);
+        .eq('user_id', profile.id);
 
       if (error) throw error;
       return enable;
@@ -321,7 +155,11 @@ export default function FriendMap() {
       toast.success(enabled ? 'Location sharing on 📍' : 'Location sharing off');
     },
     onError: (error: any) => {
-      toast.error(error?.message || 'Failed to update location');
+      toast.error(
+        isLocationFeatureUnavailableError(error)
+          ? 'Friend Map backend is still being set up.'
+          : error?.message || 'Failed to update location'
+      );
     },
   });
 
