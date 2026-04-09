@@ -298,10 +298,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
           {/* Global Events Banner */}
           <GlobalEventBanner />
 
-          {/* Stories — always visible, not widget-controlled */}
-          <div className="px-1">
-            <StoriesBar />
-          </div>
 
           {/* Customize Button - prominent floating pill */}
           {!customizerOpen && (
