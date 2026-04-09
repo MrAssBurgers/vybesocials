@@ -31,12 +31,12 @@ function useFriendLocations() {
   return useQuery({
     queryKey: ['friend-locations'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('user_locations')
-        .select('*, profile:profiles!user_locations_user_id_fkey(username, display_name, avatar_url)')
+        .select('*, profile:profiles(username, display_name, avatar_url)')
         .eq('sharing_enabled', true);
       if (error) throw error;
-      return (data || []) as unknown as FriendLocation[];
+      return (data || []) as FriendLocation[];
     },
     refetchInterval: 30000,
   });
@@ -48,12 +48,12 @@ function useMyLocation() {
     queryKey: ['my-location'],
     queryFn: async () => {
       if (!user) return null;
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('user_locations')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
-      return data;
+      return data as any;
     },
     enabled: !!user,
   });
