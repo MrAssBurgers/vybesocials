@@ -579,6 +579,7 @@ const ConversationContent = memo(function ConversationContent({
   handleAvatarClick,
   otherMember,
   streak,
+  userStatus,
 }: any) {
   return (
     <>
