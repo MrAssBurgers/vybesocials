@@ -43,6 +43,9 @@ import { useUsersRoles } from '@/hooks/useUserRoleById';
 import { AvatarRing } from '@/components/ui/AvatarRing';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { NFCFriendShare } from '@/components/friends/NFCFriendShare';
+import { useBatchUserStatuses } from '@/hooks/useUserStatus';
+import { StatusPicker } from '@/components/status/StatusPicker';
+import { compactTime } from '@/lib/compactTime';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
