@@ -447,7 +447,95 @@ function EmptyState({ icon, title, description }: { icon: React.ReactNode; title
   );
 }
 
-// ─── Notification Row ───
+// ─── Grouped Notification Row ───
+function GroupedNotificationRow({ group, index, isRead, isLast }: { 
+  group: GroupedNotification; index: number; isRead?: boolean; isLast?: boolean 
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const config = ICON_CONFIG[group.type] || ICON_CONFIG.announcement;
+  const Icon = config.icon;
+  const actorCount = group.actors.length;
+  const firstActor = group.actors[0];
+  
+  const groupText = actorCount > 1
+    ? `${firstActor.display_name || firstActor.username} and ${actorCount - 1} other${actorCount > 2 ? 's' : ''} ${NOTIFICATION_TEXT[group.type]}`
+    : `${firstActor.display_name || firstActor.username} ${NOTIFICATION_TEXT[group.type]}`;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.035, duration: 0.35 }}
+      onClick={() => actorCount > 1 && setExpanded(!expanded)}
+      className={cn(
+        "px-3 py-3 cursor-pointer select-none transition-colors hover:bg-foreground/[0.04]",
+        !isLast && "border-b border-border/20",
+        isRead && "opacity-60"
+      )}
+    >
+      <div className="flex items-center gap-3">
+        {/* Stacked avatars */}
+        <div className="relative shrink-0" style={{ width: actorCount > 1 ? 48 : 44, height: 44 }}>
+          <Avatar className="h-11 w-11 absolute top-0 left-0">
+            <AvatarImage src={firstActor.avatar_url || undefined} />
+            <AvatarFallback className="bg-muted text-foreground text-sm font-semibold">
+              {firstActor.username[0].toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          {actorCount > 1 && group.actors[1] && (
+            <Avatar className="h-7 w-7 absolute bottom-0 right-0 ring-2 ring-background">
+              <AvatarImage src={group.actors[1].avatar_url || undefined} />
+              <AvatarFallback className="bg-muted text-foreground text-[10px] font-semibold">
+                {group.actors[1].username[0].toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          )}
+          <div className={cn(
+            "absolute -bottom-0.5 -right-0.5 h-5 w-5 rounded-full flex items-center justify-center ring-2 ring-background",
+            config.bg
+          )}>
+            <Icon className={cn("h-2.5 w-2.5", config.color)} fill={group.type === 'like' ? 'currentColor' : 'none'} />
+          </div>
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] leading-snug text-foreground">{groupText}</p>
+          <p className="text-[11px] text-muted-foreground/60 mt-0.5">{compactTime(group.latest_created_at)}</p>
+        </div>
+
+        {!group.read && (
+          <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
+        )}
+      </div>
+      
+      {/* Expanded actors list */}
+      <AnimatePresence>
+        {expanded && actorCount > 1 && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden mt-2 ml-14 space-y-1"
+          >
+            {group.actors.slice(0, 8).map(actor => (
+              <Link key={actor.id} to={`/u/${actor.username}`} className="flex items-center gap-2 py-1 hover:bg-foreground/[0.03] rounded-lg px-1">
+                <Avatar className="h-6 w-6">
+                  <AvatarImage src={actor.avatar_url || undefined} />
+                  <AvatarFallback className="text-[9px]">{actor.username[0].toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <span className="text-xs text-muted-foreground">@{actor.username}</span>
+              </Link>
+            ))}
+            {actorCount > 8 && (
+              <p className="text-[11px] text-muted-foreground/60 px-1">and {actorCount - 8} more</p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
 interface NotificationRowProps {
   notification: {
     id: string;
