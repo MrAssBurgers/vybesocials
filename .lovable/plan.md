@@ -1,32 +1,43 @@
 
 
-## Plan: Fix Profile Mobile Sizing & Global Layout Polish
+## Plan: Fix Daily Brief Live News — JSON Parsing & Token Limit
 
-### Problem
-On mobile (390px viewport), the profile page has several layout issues:
-1. **Display name clips off the left edge** — centered text can overflow when names + badges are wide
-2. **Action buttons overflow right** — "Edit Profile", "Share", "Manage Premium" don't wrap, causing horizontal cutoff
-3. **Stats + Engagement row can overflow** — the stats and engagement score sit in a non-wrapping flex row
-4. **No horizontal overflow protection** — the page container doesn't prevent content from bleeding out
+### Root Cause
 
-### Changes
+The edge function logs show the exact error:
 
-**File: `src/pages/Profile.tsx`**
+```
+Failed to parse Gemini JSON: SyntaxError: Bad control character in string literal in JSON at position 763
+```
 
-1. **Add `flex-wrap` to the own-profile action buttons** (line ~351): Wrap `flex gap-2` → `flex flex-wrap gap-2 justify-center` so buttons stack gracefully on narrow screens
+Gemini's response contains unescaped control characters (newlines, tabs) inside JSON string values, which breaks `JSON.parse`. Additionally, `maxOutputTokens: 2048` is borderline — responses are getting truncated mid-JSON, producing incomplete output that also fails to parse.
 
-2. **Add `flex-wrap` to other-user action buttons** (line ~396): Same treatment for Follow/Message/Gift buttons
+When parsing fails, `fetchGeminiNews` returns `[]`, so `liveUpdates` is empty and the brief shows no news.
 
-3. **Add `overflow-hidden` to the page container** (line 252): Add `overflow-x-hidden` to the outer `div` to prevent any horizontal scroll bleed
+### Fix (single file)
 
-4. **Wrap stats + engagement row** (line ~459): Add `flex-wrap` so the engagement score wraps below stats on very narrow screens
+**File: `supabase/functions/ai-catch-up/index.ts`**
 
-5. **Constrain display name width**: Add `max-w-full overflow-hidden` to the name container (line ~289) and `truncate` or `break-words` to prevent long names + badges from overflowing
+1. **Increase `maxOutputTokens` from 2048 to 8192** — prevents truncated JSON for 7+ topics
 
-6. **Fix button sizing on mobile**: Make "Manage Premium" / "Edit Profile" buttons use `text-xs` on mobile to fit better, or allow them to stack vertically
+2. **Sanitize JSON before parsing** — strip control characters that Gemini injects into string values:
+   ```typescript
+   // Before JSON.parse, sanitize control chars inside strings
+   jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, (ch) => {
+     if (ch === '\n' || ch === '\r' || ch === '\t') return ' ';
+     return '';
+   });
+   ```
 
-### Other Pages — Quick Scan Fixes
+3. **Add a fallback regex extractor** — if `JSON.parse` still fails after sanitization, attempt to extract items via regex pattern matching so partial results aren't lost entirely
 
-7. **`src/components/layout/AppLayout.tsx`**: Add `overflow-x-hidden` to the mobile outer wrapper (line 106) to globally prevent horizontal overflow on all pages
+4. **Check `finishReason`** — log if the response was truncated so we can diagnose future issues:
+   ```typescript
+   const finishReason = data.candidates?.[0]?.finishReason;
+   if (finishReason === 'MAX_TOKENS') {
+     console.warn("[Brief] Response truncated by token limit");
+   }
+   ```
 
 ### No database changes needed.
+
