@@ -188,6 +188,7 @@ export function ConversationList() {
 
   const { data: onlineStatus = {} } = useUsersOnlineStatus(otherMemberIds);
   const { data: usersRoles = {} } = useUsersRoles(otherMemberIds);
+  const { data: statusMap = new Map() } = useBatchUserStatuses(otherMemberIds);
 
   useEffect(() => {
     setRecentUsers(getRecentMessageUsers());
@@ -296,8 +297,11 @@ export function ConversationList() {
             </button>
           )}
 
-          {/* Center: Title */}
-          <h1 className="text-lg font-bold text-foreground tracking-tight">Chat</h1>
+          {/* Center: Title + Status */}
+          <div className="flex flex-col items-center">
+            <h1 className="text-lg font-bold text-foreground tracking-tight">Chat</h1>
+            <StatusPicker />
+          </div>
 
           {/* Right: Actions */}
           <div className="flex items-center gap-0.5">
