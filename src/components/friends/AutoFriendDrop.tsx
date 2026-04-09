@@ -118,6 +118,7 @@ export function AutoFriendDrop() {
   const [isQrExpanded, setIsQrExpanded] = useState(false);
   const [activeDropId, setActiveDropId] = useState<string | null>(null);
   const [createdConversationId, setCreatedConversationId] = useState<string | null>(null);
+  const createdConversationIdRef = useRef<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
