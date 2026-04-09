@@ -271,8 +271,26 @@ export function VybeViewer({
       );
     }
 
-    // Signed URL resolved but image failed to load
+    // Signed URL resolved but image failed to load — retry once after 2s
     if (imgError) {
+      if (retryCount < 2) {
+        // Auto-retry
+        setTimeout(() => {
+          setImgError(false);
+          setRetryCount(prev => prev + 1);
+        }, 2000);
+        return (
+          <div className="flex flex-col items-center justify-center gap-4">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            >
+              <Loader2 className="h-10 w-10 text-white/70" />
+            </motion.div>
+            <p className="text-white/60 text-sm">Retrying...</p>
+          </div>
+        );
+      }
       return (
         <div className="flex flex-col items-center justify-center gap-4">
           <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
