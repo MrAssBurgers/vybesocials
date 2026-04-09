@@ -52,6 +52,99 @@ const NOTIFICATION_TEXT: Record<NotificationType, string> = {
   content_removed: 'removed your content',
 };
 
+function compactTime(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const mins = differenceInMinutes(now, date);
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m`;
+  const hrs = differenceInHours(now, date);
+  if (hrs < 24) return `${hrs}h`;
+  const days = differenceInDays(now, date);
+  if (days < 7) return `${days}d`;
+  const weeks = differenceInWeeks(now, date);
+  return `${weeks}w`;
+}
+
+interface GroupedNotification {
+  type: NotificationType;
+  post_id: string | null;
+  actors: { id: string; username: string; avatar_url: string | null; display_name: string | null }[];
+  latest_created_at: string;
+  read: boolean;
+  notifications: any[];
+}
+
+function groupNotifications(notifications: any[]): (GroupedNotification | any)[] {
+  const groups: Map<string, GroupedNotification> = new Map();
+  const ungroupable: any[] = [];
+  
+  for (const n of notifications) {
+    // Group likes and comments by post_id
+    if ((n.type === 'like' || n.type === 'comment') && n.post_id) {
+      const key = `${n.type}:${n.post_id}`;
+      const existing = groups.get(key);
+      if (existing) {
+        if (!existing.actors.find(a => a.id === n.actor.id)) {
+          existing.actors.push(n.actor);
+        }
+        if (new Date(n.created_at) > new Date(existing.latest_created_at)) {
+          existing.latest_created_at = n.created_at;
+        }
+        if (!n.read) existing.read = false;
+        existing.notifications.push(n);
+      } else {
+        groups.set(key, {
+          type: n.type,
+          post_id: n.post_id,
+          actors: [n.actor],
+          latest_created_at: n.created_at,
+          read: n.read,
+          notifications: [n],
+        });
+      }
+    } else if (n.type === 'follow') {
+      const key = 'follow';
+      const existing = groups.get(key);
+      if (existing) {
+        if (!existing.actors.find(a => a.id === n.actor.id)) {
+          existing.actors.push(n.actor);
+        }
+        if (new Date(n.created_at) > new Date(existing.latest_created_at)) {
+          existing.latest_created_at = n.created_at;
+        }
+        if (!n.read) existing.read = false;
+        existing.notifications.push(n);
+      } else {
+        groups.set(key, {
+          type: 'follow',
+          post_id: null,
+          actors: [n.actor],
+          latest_created_at: n.created_at,
+          read: n.read,
+          notifications: [n],
+        });
+      }
+    } else {
+      ungroupable.push(n);
+    }
+  }
+  
+  // Merge and sort by latest time
+  const result: (GroupedNotification | any)[] = [
+    ...Array.from(groups.values()),
+    ...ungroupable.map(n => ({ ...n, _single: true })),
+  ];
+  
+  result.sort((a, b) => {
+    const aTime = a.latest_created_at || a.created_at;
+    const bTime = b.latest_created_at || b.created_at;
+    return new Date(bTime).getTime() - new Date(aTime).getTime();
+  });
+  
+  return result;
+}
+
 export default function NotificationsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
