@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Image, Camera, X, Zap } from 'lucide-react';
+import { Image, Camera, X, Zap, MapPin } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
@@ -18,7 +18,7 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
   const [showHub, setShowHub] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
 
-  const handleAction = (action: 'post' | 'camera' | 'hub') => {
+  const handleAction = (action: 'post' | 'camera' | 'hub' | 'map') => {
     triggerHaptic('medium');
     playSound('pop');
     
@@ -34,6 +34,10 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
       case 'hub':
         onClose();
         setShowHub(true);
+        break;
+      case 'map':
+        onClose();
+        navigate('/map');
         break;
     }
   };
@@ -59,6 +63,13 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
       label: 'VYBE Hub', 
       description: 'Marketplace, Events & More',
       gradient: 'from-violet-500 via-purple-500 to-fuchsia-500',
+    },
+    { 
+      id: 'map' as const, 
+      icon: MapPin, 
+      label: 'Friend Map', 
+      description: 'See where your friends are',
+      gradient: 'from-emerald-500 via-teal-500 to-cyan-500',
     },
   ];
 
