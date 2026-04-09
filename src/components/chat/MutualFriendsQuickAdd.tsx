@@ -103,6 +103,19 @@ export function MutualFriendsQuickAdd({
   const [localDismissed, setLocalDismissed] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
+
   const handleDismiss = useCallback((userId: string) => {
     setLocalDismissed(prev => new Set([...prev, userId]));
     dismissProfile.mutate(userId, {
@@ -150,7 +163,6 @@ export function MutualFriendsQuickAdd({
         ref={scrollRef}
         className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide snap-x snap-mandatory"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        onWheelCapture={undefined}
       >
         <AnimatePresence initial={false}>
           {displayUsers.slice(0, 8).map((user) => (
