@@ -239,7 +239,8 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
       try {
         await supabase.rpc('add_user_xp', {
           p_user_id: user.id,
-          p_xp_amount: 50
+          p_xp: 50,
+          p_source: 'music_share'
         });
       } catch (e) {
         console.warn('Failed to add XP for sharing track', e);

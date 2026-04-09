@@ -21,7 +21,7 @@ const CreatorChip = memo(function CreatorChip({ creator, index }: { creator: Tre
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      onClick={() => navigate(`/profile/${creator.id}`)}
+      onClick={() => navigate(`/u/${creator.username}`)}
       className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-card/80 border border-border/40 backdrop-blur-sm hover:bg-accent/20 transition-colors flex-shrink-0"
     >
       <Avatar className="h-7 w-7">

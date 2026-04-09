@@ -217,7 +217,8 @@ export default function MusicPersonalityQuiz() {
       // Award XP for completing the quiz
       await supabase.rpc('add_user_xp', {
         p_user_id: profile.id,
-        p_xp_amount: 100
+        p_xp: 100,
+        p_source: 'music_quiz'
       });
       toast.success('Quiz completed! +100 XP 🎉');
     } catch (e) {
@@ -244,7 +245,8 @@ export default function MusicPersonalityQuiz() {
       
       await supabase.rpc('add_user_xp', {
         p_user_id: profile.id,
-        p_xp_amount: 50
+        p_xp: 50,
+        p_source: 'music_quiz_share'
       });
 
       toast.success('Shared to your feed! +50 XP 🚀');
