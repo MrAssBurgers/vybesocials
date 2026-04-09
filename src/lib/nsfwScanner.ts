@@ -3,18 +3,24 @@
  * 
  * Fully standalone - no external API dependencies.
  * Uses TensorFlow.js + NSFWJS model for image/video classification.
+ * Dynamic imports to avoid bundling TF.js (~2MB) in main chunk.
  * 
  * Categories: Porn, Sexy, Hentai, Drawing, Neutral
  */
 
-import * as tf from '@tensorflow/tfjs';
-import * as nsfwjs from 'nsfwjs';
+type NSFWJS = any;
+type PredictionType = { className: string; probability: number };
 
-let model: nsfwjs.NSFWJS | null = null;
-let modelLoading: Promise<nsfwjs.NSFWJS> | null = null;
+let model: NSFWJS | null = null;
+let modelLoading: Promise<NSFWJS> | null = null;
+let tfInitialized = false;
 
-// Ensure TF.js doesn't consume all GPU memory
-tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 0);
+async function initTF() {
+  if (tfInitialized) return;
+  const tf = await import('@tensorflow/tfjs');
+  tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 0);
+  tfInitialized = true;
+}
 
 /**
  * Lazy-load the NSFWJS model (cached after first load)
