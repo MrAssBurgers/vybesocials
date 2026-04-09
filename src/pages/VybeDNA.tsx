@@ -36,7 +36,7 @@ export default function VybeDNAPage() {
   };
 
   return (
-    <div className="min-h-full pb-24">
+    <div className="min-h-screen pb-24 overflow-y-auto">
       {/* Header */}
       <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border/30 px-4 py-3">
         <div className="max-w-lg mx-auto flex items-center gap-3">

@@ -709,12 +709,15 @@ function ShopContent() {
       <span className="inline-block text-5xl mb-3">🛍️</span>
       <h3 className="text-base font-bold text-foreground mb-1">Profile Shop</h3>
       <p className="text-xs text-muted-foreground mb-4 max-w-[200px] mx-auto leading-relaxed">
-        Exclusive cosmetics and profile upgrades are on the way
+        Browse exclusive cosmetics and profile upgrades
       </p>
-      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
-        <Package className="w-3.5 h-3.5 text-primary" data-allow-animation="true" />
-        <span className="text-xs font-bold text-foreground">Coming Soon</span>
-      </div>
+      <Link
+        to="/marketplace"
+        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-primary to-accent text-primary-foreground font-bold text-xs shadow-md hover:shadow-lg transition-all active:scale-95"
+      >
+        <ShoppingBag className="w-3.5 h-3.5" />
+        Browse Shop
+      </Link>
     </div>
   );
 }
