@@ -142,8 +142,8 @@ export function WeeklyRecapModal() {
           <div className="space-y-6">
             <h2 className="text-xl font-bold text-center">Engagement</h2>
             <div className="grid grid-cols-2 gap-4">
-              <StatCard icon={<Heart className="h-5 w-5 text-red-500" />} label="Likes Received" value={stats.likesReceived} />
-              <StatCard icon={<MessageCircle className="h-5 w-5 text-blue-500" />} label="Comments" value={stats.commentsReceived} />
+              <StatCard icon={<Heart className="h-5 w-5 text-destructive" />} label="Likes Received" value={stats.likesReceived} />
+              <StatCard icon={<MessageCircle className="h-5 w-5 text-primary" />} label="Comments" value={stats.commentsReceived} />
             </div>
           </div>
         );
@@ -152,7 +152,7 @@ export function WeeklyRecapModal() {
           <div className="space-y-6">
             <h2 className="text-xl font-bold text-center">Growth</h2>
             <div className="grid grid-cols-2 gap-4">
-              <StatCard icon={<Users className="h-5 w-5 text-green-500" />} label="New Followers" value={stats.newFollowers} />
+              <StatCard icon={<Users className="h-5 w-5 text-accent-foreground" />} label="New Followers" value={stats.newFollowers} />
               <StatCard icon={<TrendingUp className="h-5 w-5 text-primary" />} label="Posts Created" value={stats.postsCreated} />
             </div>
           </div>
@@ -160,7 +160,7 @@ export function WeeklyRecapModal() {
       case 'topPost':
         return stats.topPost ? (
           <div className="text-center space-y-4">
-            <Sparkles className="h-8 w-8 text-yellow-500 mx-auto" />
+            <Sparkles className="h-8 w-8 text-primary mx-auto" />
             <h2 className="text-xl font-bold">Your Top Post</h2>
             <p className="text-muted-foreground line-clamp-2">{stats.topPost.caption}</p>
             <p className="text-2xl font-bold text-primary">{stats.topPost.likes} ❤️</p>
