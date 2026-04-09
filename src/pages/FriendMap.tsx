@@ -339,7 +339,7 @@ export default function FriendMap() {
     return { singles, clusters };
   }, [friendsArr, zoom]);
 
-  const { query: searchQuery, results: searchResults, loading: searchLoading, search: doSearch, clear: clearSearch } = useNominatimSearch();
+  const { query: searchQuery, results: searchResults, nearby: nearbyPlaces, loading: searchLoading, search: doSearch, clear: clearSearch } = useNominatimSearch(myCoords);
 
   /* ── upsert location to DB (debounced) ─────────────── */
 
