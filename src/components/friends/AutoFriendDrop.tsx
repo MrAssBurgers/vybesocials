@@ -148,25 +148,27 @@ export function AutoFriendDrop() {
       try {
         const conversation = await createConversation.mutateAsync({ memberIds: [targetUserId] });
         setCreatedConversationId(conversation.id);
+        createdConversationIdRef.current = conversation.id;
       } catch {
         // Conversation might already exist
       }
     }
     
     setTimeout(() => {
-      const convId = createdConversationId;
+      const convId = createdConversationIdRef.current;
       setIsActive(false);
       setPhase('idle');
       setFoundUser(null);
       setActiveDropId(null);
       setIsQrOwner(false);
       setCreatedConversationId(null);
+      createdConversationIdRef.current = null;
       
       if (convId) {
         navigate(`/messages/${convId}`);
       }
     }, 3000);
-  }, [foundUser?.id, createConversation, createdConversationId, navigate]);
+  }, [foundUser?.id, createConversation, navigate]);
   
   const friendDropSync = useFriendDropSync({
     enabled: isActive,
