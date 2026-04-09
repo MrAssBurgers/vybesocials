@@ -763,6 +763,38 @@ export default function FriendMap() {
               {searchLoading && (
                 <div className="border-t border-white/10 p-3 text-center text-xs text-white/40">Searching...</div>
               )}
+              {/* Nearby suggestions when no query */}
+              {!searchQuery && nearbyPlaces.length > 0 && (
+                <div className="border-t border-white/10">
+                  <p className="px-3 pt-2.5 pb-1 text-[10px] font-semibold text-white/30 uppercase tracking-wider">Nearby</p>
+                  {nearbyPlaces.map((r, i) => {
+                    const dist = myCoords ? distanceBetween(myCoords, [parseFloat(r.lat), parseFloat(r.lon)]).toFixed(1) : null;
+                    return (
+                      <div key={i} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-white/5 transition-colors">
+                        <button
+                          onClick={() => flyToSearch(r)}
+                          className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
+                        >
+                          <MapPin className="h-3.5 w-3.5 text-primary/60 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs text-white/80 truncate block">{r.display_name}</span>
+                            {dist && <span className="text-[10px] text-white/40">{dist} mi away</span>}
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lon}`, '_blank');
+                          }}
+                          className="shrink-0 flex items-center gap-1 rounded-full bg-primary/20 px-2.5 py-1 text-[10px] font-bold text-primary hover:bg-primary/30 transition-colors"
+                        >
+                          <Navigation className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
