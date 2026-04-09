@@ -9,6 +9,8 @@ import { useScrollOptimization } from '@/hooks/useScrollOptimization';
 import { useBreakpoint } from '@/hooks/usePlatform';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useSwipeBack } from '@/hooks/useSwipeBack';
+import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -31,6 +33,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const { user, loading } = useAuth();
   const { isDesktop, isTablet, isIPad } = useBreakpoint();
   const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const { swipeBackHandlers, swipeProgress } = useSwipeBack();
   
   // Track online presence
   usePresence();
@@ -100,7 +103,16 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     <div 
       ref={ref} 
       className="h-screen w-full overflow-hidden"
+      {...swipeBackHandlers}
     >
+      {/* Swipe-back edge indicator */}
+      {swipeProgress > 0 && (
+        <div 
+          className="fixed left-0 top-0 bottom-0 z-50 w-1 bg-primary/60 rounded-r-full transition-opacity"
+          style={{ opacity: swipeProgress, transform: `scaleX(${1 + swipeProgress * 3})` }}
+        />
+      )}
+
       {/* Header - visible on mobile/tablet */}
       {!hideNav && <MobileHeader />}
 
@@ -117,10 +129,15 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           height: hideNav ? '100dvh' : (noPadding ? 'calc(100dvh - 3.5rem)' : 'calc(100dvh)'),
           WebkitOverflowScrolling: 'touch',
           overscrollBehaviorY: 'contain',
+          transform: swipeProgress > 0 ? `translateX(${swipeProgress * 60}px)` : undefined,
+          transition: swipeProgress === 0 ? 'transform 0.2s ease-out' : undefined,
         }}
       >
         {children}
       </main>
+
+      {/* PWA Install Prompt */}
+      <PWAInstallBanner />
     </div>
   );
 }));

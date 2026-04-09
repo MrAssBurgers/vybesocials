@@ -6,7 +6,6 @@ import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePerso
 import { useLocalFeed } from '@/hooks/useLocalFeed';
 import type { Post } from '@/hooks/useInfinitePosts';
 import { useDNAPreferences } from '@/hooks/useDNAPreferences';
-import { StoriesBar } from '@/components/stories/StoriesBar';
 import { useNewPostsBanner } from '@/hooks/usePostsRealtime';
 import { useShowAds } from '@/hooks/useShowAds';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -298,10 +297,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
           {/* Global Events Banner */}
           <GlobalEventBanner />
 
-          {/* Stories — always visible, not widget-controlled */}
-          <div className="px-1">
-            <StoriesBar />
-          </div>
 
           {/* Customize Button - prominent floating pill */}
           {!customizerOpen && (
