@@ -358,7 +358,7 @@ export function useBugBountyDetector() {
 
       // Award 150 XP
       try {
-        await supabase.rpc('add_user_xp', { p_user_id: user.id, p_xp_amount: 150 });
+        await supabase.rpc('add_user_xp', { p_user_id: user.id, p_xp: 150, p_source: 'bug_bounty' });
       } catch {
         // XP award failed silently — don't block the report
       }

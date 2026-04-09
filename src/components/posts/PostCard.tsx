@@ -435,7 +435,14 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const handleShare = useCallback(async () => {
     const url = `${window.location.origin}/p/${post.id}`;
     if (navigator.share) {
-      await navigator.share({ title: 'Check this out on LOLLoop', url });
+      try {
+        await navigator.share({ title: 'Check this out on VYBE', url });
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') {
+          navigator.clipboard.writeText(url);
+          toast.success('Link copied!');
+        }
+      }
     } else {
       navigator.clipboard.writeText(url);
       toast.success('Link copied!');

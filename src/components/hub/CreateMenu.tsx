@@ -64,13 +64,6 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
       description: 'Marketplace, Events & More',
       gradient: 'from-violet-500 via-purple-500 to-fuchsia-500',
     },
-    { 
-      id: 'map' as const, 
-      icon: MapPin, 
-      label: 'Friend Map', 
-      description: 'See where your friends are',
-      gradient: 'from-emerald-500 via-teal-500 to-cyan-500',
-    },
   ];
 
   return (
