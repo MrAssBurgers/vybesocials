@@ -183,6 +183,10 @@ export default function NotificationsPage() {
   const pendingRequests = friendRequests?.incoming || [];
   const unreadNotifications = notifications?.filter(n => !n.read) || [];
   const readNotifications = notifications?.filter(n => n.read) || [];
+  
+  // Group notifications for better UX
+  const groupedUnread = useMemo(() => groupNotifications(unreadNotifications), [unreadNotifications]);
+  const groupedRead = useMemo(() => groupNotifications(readNotifications), [readNotifications]);
 
   const handleAcceptRequest = (requestId: string) => {
     respondToRequest.mutate({ requestId, action: 'accept' });
