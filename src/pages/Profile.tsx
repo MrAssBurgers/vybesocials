@@ -248,7 +248,7 @@ export default function ProfilePage() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70" />
         </div>
       )}
-      <div className="max-w-4xl mx-auto px-4 py-6 relative min-h-screen" style={{ zIndex: 1 }}>
+      <div className="max-w-4xl mx-auto px-4 py-6 pb-28 relative min-h-screen" style={{ zIndex: 1 }}>
 
         {/* Profile Header */}
         <motion.div
