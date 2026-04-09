@@ -2530,15 +2530,30 @@ const MessageBubble = memo(function MessageBubble({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-2xl z-[100] min-w-[200px] py-2"
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-2xl shadow-2xl z-[100] min-w-[220px] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <button
-                onClick={() => { onToggleReactions(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted flex items-center gap-3"
-              >
-                <span>😀</span> React
-              </button>
+              {/* Inline emoji reaction bar — iMessage style */}
+              <div className="flex justify-center gap-1 px-3 py-2.5 border-b border-border/30">
+                {QUICK_REACTIONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReaction(emoji);
+                      setShowContextMenu(false);
+                      menuOpenedRef.current = false;
+                    }}
+                    className={cn(
+                      "p-1.5 hover:scale-125 active:scale-90 transition-transform text-xl rounded-full",
+                      userReaction === emoji && "bg-primary/20 ring-2 ring-primary/30"
+                    )}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+              <div className="py-1">
               <button
                 onClick={() => { onReply(); setShowContextMenu(false); menuOpenedRef.current = false; }}
                 className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted flex items-center gap-3"
@@ -2575,6 +2590,7 @@ const MessageBubble = memo(function MessageBubble({
               >
                 <EyeOff className="h-4 w-4" /> Delete for me
               </button>
+              </div>
             </motion.div>
           </>
         )}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { 
@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StyledUsername } from '@/components/ui/StyledUsername';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, differenceInMinutes, differenceInHours, differenceInDays, differenceInWeeks } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useQueryClient } from '@tanstack/react-query';
@@ -51,6 +51,99 @@ const NOTIFICATION_TEXT: Record<NotificationType, string> = {
   announcement: 'posted an announcement',
   content_removed: 'removed your content',
 };
+
+function compactTime(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const mins = differenceInMinutes(now, date);
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m`;
+  const hrs = differenceInHours(now, date);
+  if (hrs < 24) return `${hrs}h`;
+  const days = differenceInDays(now, date);
+  if (days < 7) return `${days}d`;
+  const weeks = differenceInWeeks(now, date);
+  return `${weeks}w`;
+}
+
+interface GroupedNotification {
+  type: NotificationType;
+  post_id: string | null;
+  actors: { id: string; username: string; avatar_url: string | null; display_name: string | null }[];
+  latest_created_at: string;
+  read: boolean;
+  notifications: any[];
+}
+
+function groupNotifications(notifications: any[]): (GroupedNotification | any)[] {
+  const groups: Map<string, GroupedNotification> = new Map();
+  const ungroupable: any[] = [];
+  
+  for (const n of notifications) {
+    // Group likes and comments by post_id
+    if ((n.type === 'like' || n.type === 'comment') && n.post_id) {
+      const key = `${n.type}:${n.post_id}`;
+      const existing = groups.get(key);
+      if (existing) {
+        if (!existing.actors.find(a => a.id === n.actor.id)) {
+          existing.actors.push(n.actor);
+        }
+        if (new Date(n.created_at) > new Date(existing.latest_created_at)) {
+          existing.latest_created_at = n.created_at;
+        }
+        if (!n.read) existing.read = false;
+        existing.notifications.push(n);
+      } else {
+        groups.set(key, {
+          type: n.type,
+          post_id: n.post_id,
+          actors: [n.actor],
+          latest_created_at: n.created_at,
+          read: n.read,
+          notifications: [n],
+        });
+      }
+    } else if (n.type === 'follow') {
+      const key = 'follow';
+      const existing = groups.get(key);
+      if (existing) {
+        if (!existing.actors.find(a => a.id === n.actor.id)) {
+          existing.actors.push(n.actor);
+        }
+        if (new Date(n.created_at) > new Date(existing.latest_created_at)) {
+          existing.latest_created_at = n.created_at;
+        }
+        if (!n.read) existing.read = false;
+        existing.notifications.push(n);
+      } else {
+        groups.set(key, {
+          type: 'follow',
+          post_id: null,
+          actors: [n.actor],
+          latest_created_at: n.created_at,
+          read: n.read,
+          notifications: [n],
+        });
+      }
+    } else {
+      ungroupable.push(n);
+    }
+  }
+  
+  // Merge and sort by latest time
+  const result: (GroupedNotification | any)[] = [
+    ...Array.from(groups.values()),
+    ...ungroupable.map(n => ({ ...n, _single: true })),
+  ];
+  
+  result.sort((a, b) => {
+    const aTime = a.latest_created_at || a.created_at;
+    const bTime = b.latest_created_at || b.created_at;
+    return new Date(bTime).getTime() - new Date(aTime).getTime();
+  });
+  
+  return result;
+}
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
@@ -90,6 +183,10 @@ export default function NotificationsPage() {
   const pendingRequests = friendRequests?.incoming || [];
   const unreadNotifications = notifications?.filter(n => !n.read) || [];
   const readNotifications = notifications?.filter(n => n.read) || [];
+  
+  // Group notifications for better UX
+  const groupedUnread = useMemo(() => groupNotifications(unreadNotifications), [unreadNotifications]);
+  const groupedRead = useMemo(() => groupNotifications(readNotifications), [readNotifications]);
 
   const handleAcceptRequest = (requestId: string) => {
     respondToRequest.mutate({ requestId, action: 'accept' });
@@ -192,37 +289,56 @@ export default function NotificationsPage() {
               ) : notifications && notifications.length > 0 ? (
                 <motion.div key="notifications" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   {/* Unread */}
-                  {unreadNotifications.length > 0 && (
+                  {groupedUnread.length > 0 && (
                     <div className="mb-2">
                       <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">New</p>
                       <div className="rounded-2xl bg-card/95 border border-primary/10 overflow-hidden">
-                        {unreadNotifications.map((notification, idx) => (
-                          <NotificationRow
-                            key={notification.id}
-                            notification={notification}
-                            index={idx}
-                            isLast={idx === unreadNotifications.length - 1}
-                          />
+                        {groupedUnread.map((item, idx) => (
+                          item._single ? (
+                            <NotificationRow
+                              key={item.id}
+                              notification={item}
+                              index={idx}
+                              isLast={idx === groupedUnread.length - 1}
+                            />
+                          ) : (
+                            <GroupedNotificationRow
+                              key={`${item.type}-${item.post_id || 'follow'}`}
+                              group={item as GroupedNotification}
+                              index={idx}
+                              isLast={idx === groupedUnread.length - 1}
+                            />
+                          )
                         ))}
                       </div>
                     </div>
                   )}
 
                   {/* Read */}
-                  {readNotifications.length > 0 && (
+                  {groupedRead.length > 0 && (
                     <div className="mt-5">
-                      {unreadNotifications.length > 0 && (
+                      {groupedUnread.length > 0 && (
                         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">Earlier</p>
                       )}
                       <div className="rounded-2xl bg-card/95 overflow-hidden">
-                        {readNotifications.map((notification, idx) => (
-                          <NotificationRow
-                            key={notification.id}
-                            notification={notification}
-                            index={idx}
-                            isRead
-                            isLast={idx === readNotifications.length - 1}
-                          />
+                        {groupedRead.map((item, idx) => (
+                          item._single ? (
+                            <NotificationRow
+                              key={item.id}
+                              notification={item}
+                              index={idx}
+                              isRead
+                              isLast={idx === groupedRead.length - 1}
+                            />
+                          ) : (
+                            <GroupedNotificationRow
+                              key={`${item.type}-${item.post_id || 'follow'}`}
+                              group={item as GroupedNotification}
+                              index={idx}
+                              isRead
+                              isLast={idx === groupedRead.length - 1}
+                            />
+                          )
                         ))}
                       </div>
                     </div>
@@ -331,7 +447,95 @@ function EmptyState({ icon, title, description }: { icon: React.ReactNode; title
   );
 }
 
-// ─── Notification Row ───
+// ─── Grouped Notification Row ───
+function GroupedNotificationRow({ group, index, isRead, isLast }: { 
+  group: GroupedNotification; index: number; isRead?: boolean; isLast?: boolean 
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const config = ICON_CONFIG[group.type] || ICON_CONFIG.announcement;
+  const Icon = config.icon;
+  const actorCount = group.actors.length;
+  const firstActor = group.actors[0];
+  
+  const groupText = actorCount > 1
+    ? `${firstActor.display_name || firstActor.username} and ${actorCount - 1} other${actorCount > 2 ? 's' : ''} ${NOTIFICATION_TEXT[group.type]}`
+    : `${firstActor.display_name || firstActor.username} ${NOTIFICATION_TEXT[group.type]}`;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.035, duration: 0.35 }}
+      onClick={() => actorCount > 1 && setExpanded(!expanded)}
+      className={cn(
+        "px-3 py-3 cursor-pointer select-none transition-colors hover:bg-foreground/[0.04]",
+        !isLast && "border-b border-border/20",
+        isRead && "opacity-60"
+      )}
+    >
+      <div className="flex items-center gap-3">
+        {/* Stacked avatars */}
+        <div className="relative shrink-0" style={{ width: actorCount > 1 ? 48 : 44, height: 44 }}>
+          <Avatar className="h-11 w-11 absolute top-0 left-0">
+            <AvatarImage src={firstActor.avatar_url || undefined} />
+            <AvatarFallback className="bg-muted text-foreground text-sm font-semibold">
+              {firstActor.username[0].toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          {actorCount > 1 && group.actors[1] && (
+            <Avatar className="h-7 w-7 absolute bottom-0 right-0 ring-2 ring-background">
+              <AvatarImage src={group.actors[1].avatar_url || undefined} />
+              <AvatarFallback className="bg-muted text-foreground text-[10px] font-semibold">
+                {group.actors[1].username[0].toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          )}
+          <div className={cn(
+            "absolute -bottom-0.5 -right-0.5 h-5 w-5 rounded-full flex items-center justify-center ring-2 ring-background",
+            config.bg
+          )}>
+            <Icon className={cn("h-2.5 w-2.5", config.color)} fill={group.type === 'like' ? 'currentColor' : 'none'} />
+          </div>
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] leading-snug text-foreground">{groupText}</p>
+          <p className="text-[11px] text-muted-foreground/60 mt-0.5">{compactTime(group.latest_created_at)}</p>
+        </div>
+
+        {!group.read && (
+          <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
+        )}
+      </div>
+      
+      {/* Expanded actors list */}
+      <AnimatePresence>
+        {expanded && actorCount > 1 && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden mt-2 ml-14 space-y-1"
+          >
+            {group.actors.slice(0, 8).map(actor => (
+              <Link key={actor.id} to={`/u/${actor.username}`} className="flex items-center gap-2 py-1 hover:bg-foreground/[0.03] rounded-lg px-1">
+                <Avatar className="h-6 w-6">
+                  <AvatarImage src={actor.avatar_url || undefined} />
+                  <AvatarFallback className="text-[9px]">{actor.username[0].toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <span className="text-xs text-muted-foreground">@{actor.username}</span>
+              </Link>
+            ))}
+            {actorCount > 8 && (
+              <p className="text-[11px] text-muted-foreground/60 px-1">and {actorCount - 8} more</p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
 interface NotificationRowProps {
   notification: {
     id: string;
@@ -432,7 +636,7 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
           </p>
         )}
         <p className="text-[11px] text-muted-foreground/60 mt-0.5">
-          {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+          {compactTime(notification.created_at)}
         </p>
       </div>
 
