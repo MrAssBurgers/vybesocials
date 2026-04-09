@@ -643,7 +643,7 @@ const ConversationContent = memo(function ConversationContent({
           <div className="flex items-center gap-0.5 flex-shrink-0">
             {formattedTime && (
               <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                {formattedTime.replace(' ago', '').replace('about ', '').replace('less than a minute', '1m')}
+                {formattedTime}
               </span>
             )}
           </div>
@@ -658,28 +658,43 @@ const ConversationContent = memo(function ConversationContent({
               </div>
             ) : lastMessage ? (
               <>
-                {lastMessage.sender_id === currentUserId && (
-                  <span className="flex-shrink-0">
-                    {unreadCount === 0 ? (
-                      <CheckCheck className="h-3.5 w-3.5 text-primary" />
-                    ) : (
-                      <Check className="h-3.5 w-3.5 text-muted-foreground" />
-                    )}
-                  </span>
+                {/* Snapchat-style status icons */}
+                {lastMessage.sender_id === currentUserId ? (
+                  // Sent messages: arrows
+                  lastMessage.media_type === 'vybe' ? (
+                    <span className="flex-shrink-0 text-red-500">▶</span>
+                  ) : lastMessage.media_type === 'audio' ? (
+                    <span className="flex-shrink-0 text-purple-500">▶</span>
+                  ) : (
+                    <span className="flex-shrink-0 text-primary">▶</span>
+                  )
+                ) : (
+                  // Received messages: squares
+                  lastMessage.media_type === 'vybe' ? (
+                    <span className="flex-shrink-0 text-red-500">◼</span>
+                  ) : lastMessage.media_type === 'audio' ? (
+                    <span className="flex-shrink-0 text-purple-500">◼</span>
+                  ) : (
+                    <span className="flex-shrink-0 text-primary">◼</span>
+                  )
                 )}
                 <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">
-                  {lastMessage.media_type === 'vybe' 
-                    ? '🌟 VYBE'
-                    : lastMessage.media_type === 'image' 
-                    ? '📷 Photo' 
+                  {lastMessage.sender_id === currentUserId
+                    ? lastMessage.viewed_at
+                      ? 'Opened'
+                      : 'Delivered'
+                    : lastMessage.media_type === 'vybe'
+                    ? 'New Snap'
+                    : lastMessage.media_type === 'image'
+                    ? 'Photo'
                     : lastMessage.media_type === 'video'
-                    ? '📹 Video'
+                    ? 'Video'
                     : lastMessage.media_type === 'audio'
-                    ? '🎤 Voice'
+                    ? 'Voice'
                     : lastMessage.media_type === 'gif'
-                    ? '🎞️ GIF'
-                    : lastMessage.content?.startsWith('e2ee:') 
-                    ? '🔒 Encrypted message'
+                    ? 'GIF'
+                    : lastMessage.content?.startsWith('e2ee:')
+                    ? 'Chat'
                     : (lastMessage.content?.slice(0, 30) || 'Media') + (lastMessage.content && lastMessage.content.length > 30 ? '...' : '')}
                 </p>
               </>
