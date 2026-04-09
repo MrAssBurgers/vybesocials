@@ -25,11 +25,13 @@ async function initTF() {
 /**
  * Lazy-load the NSFWJS model (cached after first load)
  */
-async function getModel(): Promise<nsfwjs.NSFWJS> {
+async function getModel(): Promise<NSFWJS> {
   if (model) return model;
   if (modelLoading) return modelLoading;
   
-  modelLoading = nsfwjs.load().then((m) => {
+  await initTF();
+  const nsfwjs = await import('nsfwjs');
+  modelLoading = nsfwjs.load().then((m: any) => {
     model = m;
     modelLoading = null;
     return m;
@@ -43,7 +45,7 @@ export interface ScanResult {
   message: string;
   categories: string[];
   score: number;
-  predictions?: nsfwjs.PredictionType[];
+  predictions?: PredictionType[];
 }
 
 // Thresholds for classification
@@ -188,7 +190,7 @@ export function scanText(text: string): ScanResult {
 /**
  * Interpret NSFWJS predictions into our safety system
  */
-function interpretPredictions(predictions: nsfwjs.PredictionType[]): ScanResult {
+function interpretPredictions(predictions: PredictionType[]): ScanResult {
   const predMap: Record<string, number> = {};
   for (const p of predictions) {
     predMap[p.className] = p.probability;
