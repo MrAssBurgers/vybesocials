@@ -7,7 +7,7 @@ import { haptics } from '@/lib/haptics';
 import { useCaptureDetection } from '@/hooks/useCaptureDetection';
 import { CaptureShield } from '@/components/chat/CaptureShield';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
-import { needsSigning } from '@/lib/signedUrlCache';
+import { needsSigning, isFailedUrl } from '@/lib/signedUrlCache';
 import { toast } from 'sonner';
 
 interface VybeViewerProps {
@@ -61,6 +61,7 @@ export function VybeViewer({
   const [hasMarkedViewed, setHasMarkedViewed] = useState(false);
   const [mediaLoaded, setMediaLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const isLongPress = useRef(false);
   const startTime = useRef<number>(0);
@@ -112,6 +113,7 @@ export function VybeViewer({
       setMediaLoaded(false);
       setImgError(false);
       setHasMarkedViewed(false);
+      setRetryCount(0);
       haptics.impact();
     }
   }, [isOpen, mediaUrl]);
