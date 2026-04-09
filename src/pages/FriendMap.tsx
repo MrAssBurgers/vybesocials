@@ -80,7 +80,7 @@ function useMyLocation() {
     enabled: !!profile?.id,
   });
 }
-...
+
 export default function FriendMap() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -100,7 +100,7 @@ export default function FriendMap() {
 
   const isSharingEnabled = myLocation?.sharing_enabled === true;
   const otherFriends = friends.filter((friend) => friend.user_id !== profile?.id);
-...
+
   const toggleSharing = useMutation({
     mutationFn: async (enable: boolean) => {
       if (!profile?.id) throw new Error('Not logged in');
