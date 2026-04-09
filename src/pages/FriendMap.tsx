@@ -211,25 +211,27 @@ function useNominatimSearch(myCoords: [number, number] | null) {
   useEffect(() => {
     if (!myCoords || nearbyLoaded.current) return;
     nearbyLoaded.current = true;
-    const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
-    const categories = ['restaurant', 'cafe', 'gas station', 'grocery', 'pharmacy'];
-    const all: any[] = [];
-    for (const cat of categories) {
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&limit=2&q=${encodeURIComponent(cat)}&viewbox=${myCoords[1] - 0.05},${myCoords[0] + 0.05},${myCoords[1] + 0.05},${myCoords[0] - 0.05}&bounded=1`
-        );
-        const data = await res.json();
-        all.push(...data);
-        await delay(1100); // respect Nominatim 1 req/s rate limit
-      } catch { /* skip */ }
-    }
-    all.sort((a: any, b: any) => {
-      const da = distanceBetween(myCoords!, [parseFloat(a.lat), parseFloat(a.lon)]);
-      const db = distanceBetween(myCoords!, [parseFloat(b.lat), parseFloat(b.lon)]);
-      return da - db;
-    });
-    setNearby(all.slice(0, 8));
+    (async () => {
+      const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+      const categories = ['restaurant', 'cafe', 'gas station', 'grocery', 'pharmacy'];
+      const all: any[] = [];
+      for (const cat of categories) {
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&limit=2&q=${encodeURIComponent(cat)}&viewbox=${myCoords[1] - 0.05},${myCoords[0] + 0.05},${myCoords[1] + 0.05},${myCoords[0] - 0.05}&bounded=1`
+          );
+          const data = await res.json();
+          all.push(...data);
+          await delay(1100);
+        } catch { /* skip */ }
+      }
+      all.sort((a: any, b: any) => {
+        const da = distanceBetween(myCoords!, [parseFloat(a.lat), parseFloat(a.lon)]);
+        const db = distanceBetween(myCoords!, [parseFloat(b.lat), parseFloat(b.lon)]);
+        return da - db;
+      });
+      setNearby(all.slice(0, 8));
+    })();
   }, [myCoords]);
 
   const search = useCallback((q: string) => {
