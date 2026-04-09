@@ -102,8 +102,7 @@ function useTrendingPeople() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, bio, follower_count')
-        .order('follower_count', { ascending: false })
+        .select('id, username, display_name, avatar_url, bio')
         .limit(10);
       if (error) throw error;
       return data || [];
