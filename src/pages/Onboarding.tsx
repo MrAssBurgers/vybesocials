@@ -8,12 +8,7 @@ import { UsernameSetup } from '@/components/onboarding/UsernameSetup';
 import { InterestPicker } from '@/components/onboarding/InterestPicker';
 import { CreatorSuggestions } from '@/components/onboarding/CreatorSuggestions';
 import { ProfileSetup } from '@/components/onboarding/ProfileSetup';
-import { SensitivitySettings, SensitivityLevel } from '@/components/onboarding/SensitivitySettings';
 import { AgeSetup } from '@/components/onboarding/AgeSetup';
-import { EmailVerification } from '@/components/onboarding/EmailVerification';
-import { ContactDiscovery } from '@/components/onboarding/ContactDiscovery';
-import { PrivacySettings } from '@/components/onboarding/PrivacySettings';
-import { PermissionsSetup } from '@/components/onboarding/PermissionsSetup';
 import { AIVybeDesigner } from '@/components/onboarding/AIVybeDesigner';
 import { LegalAcceptance } from '@/components/onboarding/LegalAcceptance';
 import { useAuth } from '@/lib/auth';
@@ -21,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { toast } from 'sonner';
+import { haptics } from '@/lib/haptics';
 
 // Invite mode stage type - must match InviteRedeem state machine
 type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
@@ -30,21 +26,30 @@ interface OnboardingProps {
   isInviteMode?: boolean;
 }
 
+/**
+ * Streamlined 5-step onboarding:
+ * 1. Username (if needed, e.g. Google OAuth)
+ * 2. Birthday/Age
+ * 3. Pick interests (+ follow suggested creators inline)
+ * 4. Profile setup (name, avatar, bio)
+ * 5. Legal acceptance
+ * 
+ * Post-onboarding (moved to Settings): Sensitivity, Privacy, Permissions, Email verification
+ */
 export default function Onboarding({ onInviteNavigate, isInviteMode = false }: OnboardingProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { profile, user } = useAuth();
   
-  // Check if user needs to set username (Google OAuth users without profile)
   const needsUsername = !profile?.username;
-  // Total steps: username(optional) + age + interests + creators + profile + sensitivity + privacy + permissions + email + legal (then straight to VYBE designer)
-  const TOTAL_STEPS = needsUsername ? 11 : 10;
+  // 5 core steps (or 6 if username needed)
+  const TOTAL_STEPS = needsUsername ? 6 : 5;
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [usernameValid, setUsernameValid] = useState(false);
-  const [permissionsGranted, setPermissionsGranted] = useState(false);
   const [showAIDesigner, setShowAIDesigner] = useState(false);
+  const [showCreators, setShowCreators] = useState(false);
 
   // State for each step
   const [username, setUsername] = useState('');
@@ -59,13 +64,10 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     avatarPreview: null as string | null,
     avatarFile: null as File | null,
   });
-  const [sensitivity, setSensitivity] = useState<SensitivityLevel>('protected');
-  const [isPrivate, setIsPrivate] = useState(false);
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [userAge, setUserAge] = useState<number | undefined>(undefined);
   const [legalAccepted, setLegalAccepted] = useState(false);
 
-  // Username IS the display name by default
   useEffect(() => {
     const name = needsUsername ? username : profile?.username;
     if (name) {
@@ -73,43 +75,31 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     }
   }, [username, profile?.username, needsUsername]);
 
-  // Get the actual step content based on whether username is needed
-  const getStepContent = () => {
-    if (needsUsername) {
-      // Username step is step 1
-      return step;
-    }
-    // No username step, so actual steps are shifted
-    return step;
-  };
+  // Step mapping (actual content step)
+  const getActualStep = () => needsUsername ? step : step + 1;
 
   const canProceed = useCallback(() => {
-    if (needsUsername && step === 1) {
-      return usernameValid;
-    }
-    
-    const actualStep = needsUsername ? step - 1 : step;
-    switch (actualStep) {
-      case 1: return dateOfBirth !== null && (userAge === undefined || userAge >= 13); // Age step
-      case 2: return interests.length >= 3;
-      case 3: return true; // Can skip following
-      case 4: return profileData.firstName.length > 0 && profileData.lastName.length > 0;
-      case 5: return true; // Sensitivity
-      case 6: return true; // Privacy
-      case 7: return true; // Permissions - always allow proceeding (optional)
-      case 8: return true; // Email verification is optional
-      case 9: return legalAccepted; // Must accept Terms & Privacy
+    const s = getActualStep();
+    switch (s) {
+      case 1: return usernameValid; // Username
+      case 2: return dateOfBirth !== null && (userAge === undefined || userAge >= 13); // Age
+      case 3: return interests.length >= 3; // Interests
+      case 4: return profileData.firstName.length > 0 && profileData.lastName.length > 0; // Profile
+      case 5: return legalAccepted; // Legal
+      case 6: return legalAccepted; // Legal (when username step exists)
       default: return true;
     }
-  }, [needsUsername, step, usernameValid, dateOfBirth, userAge, interests.length, profileData.firstName.length, profileData.lastName.length, legalAccepted]);
+  }, [step, needsUsername, usernameValid, dateOfBirth, userAge, interests.length, profileData.firstName.length, profileData.lastName.length, legalAccepted]);
 
   const handleNext = () => {
+    haptics.impact();
     if (step < TOTAL_STEPS) {
       setStep(step + 1);
     }
   };
 
   const handleBack = () => {
+    haptics.tap();
     if (step > 1) {
       setStep(step - 1);
     }
@@ -119,8 +109,8 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     if (!user) return;
     
     setLoading(true);
+    haptics.impact();
     try {
-      // Upload avatar if changed
       let avatarUrl = profile?.avatar_url || null;
       if (profileData.avatarFile) {
         const fileExt = profileData.avatarFile.name.split('.').pop();
@@ -138,14 +128,11 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         }
       }
 
-      // Determine the final username
       const finalUsername = needsUsername ? username : profile?.username;
-      // Username IS the display name - only override if user explicitly changed it
       const finalDisplayName = profileData.displayName && profileData.displayName !== '' 
         ? profileData.displayName 
         : finalUsername || '';
 
-      // Upsert profile with all onboarding data (handles both new and existing profiles)
       const { error } = await supabase
         .from('profiles')
         .upsert({
@@ -158,8 +145,6 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           link_url: profileData.linkUrl,
           avatar_url: avatarUrl,
           interests: interests,
-          sensitivity_preference: sensitivity,
-          is_private: isPrivate,
           date_of_birth: dateOfBirth?.toISOString().split('T')[0] || null,
           onboarding_completed: true,
         }, {
@@ -168,7 +153,6 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
 
       if (error) throw error;
 
-      // Record legal acceptance
       if (legalAccepted) {
         await supabase.from('legal_acceptances').upsert([
           { user_id: user.id, document_type: 'tos', document_version: '2.0' },
@@ -176,17 +160,17 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         ], { onConflict: 'user_id,document_type,document_version' });
       }
 
-      // Show the AI VYBE Designer
       setLoading(false);
+      haptics.success();
       setShowAIDesigner(true);
     } catch (error) {
       console.error('Onboarding error:', error);
+      haptics.error();
       toast.error('Something went wrong. Please try again.');
       setLoading(false);
     }
   };
 
-  // Called when AI designer completes
   const handleDesignerComplete = () => {
     console.log('[Onboarding] Completed, dispatching event');
     window.dispatchEvent(new CustomEvent('onboarding-completed'));
@@ -200,11 +184,9 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   };
 
   const handleSkip = async () => {
-    // Prevent double-clicks / spam
     if (loading) return;
     
     if (!user) {
-      // Guest user - just go home
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate('home');
       } else {
@@ -214,13 +196,12 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     }
 
     setLoading(true);
+    haptics.tap();
     try {
-      // Determine the username to use
       const finalUsername = needsUsername && username 
         ? username.toLowerCase() 
         : profile?.username || `user_${user.id.substring(0, 8)}`;
 
-      // Save minimal profile with onboarding_completed so Home doesn't redirect back
       const { error } = await supabase
         .from('profiles')
         .upsert({
@@ -237,7 +218,6 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         return;
       }
 
-      // Navigate to home (client-side to preserve auth state)
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate('home');
       } else {
@@ -251,7 +231,6 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     }
   };
 
-  // Show AI VYBE Designer as fullscreen overlay
   if (showAIDesigner) {
     return (
       <AIVybeDesigner
@@ -262,11 +241,83 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     );
   }
 
+  // Render the current step content
+  const renderStep = () => {
+    const s = getActualStep();
+    switch (s) {
+      case 1:
+        return (
+          <UsernameSetup
+            username={username}
+            onChange={setUsername}
+            onValidChange={setUsernameValid}
+          />
+        );
+      case 2:
+        return (
+          <AgeSetup
+            value={dateOfBirth}
+            onChange={setDateOfBirth}
+            onAgeCalculated={setUserAge}
+          />
+        );
+      case 3:
+        return (
+          <div className="space-y-6">
+            <InterestPicker selected={interests} onChange={setInterests} />
+            {interests.length >= 3 && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => setShowCreators(!showCreators)}
+                  className="text-sm text-primary font-medium hover:underline"
+                >
+                  {showCreators ? 'Hide suggested creators ↑' : 'Follow suggested creators →'}
+                </button>
+                {showCreators && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                  >
+                    <CreatorSuggestions
+                      interests={interests}
+                      following={following}
+                      onChange={setFollowing}
+                    />
+                  </motion.div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      case 4:
+        return (
+          <ProfileSetup
+            data={profileData}
+            onChange={setProfileData}
+            username={needsUsername ? username : (profile?.username || '')}
+          />
+        );
+      case 5:
+      case 6:
+        return <LegalAcceptance accepted={legalAccepted} onChange={setLegalAccepted} />;
+      default:
+        return null;
+    }
+  };
+
+  // Step labels for the progress indicator
+  const stepLabels = needsUsername
+    ? ['Username', 'Birthday', 'Interests', 'Profile', 'Terms']
+    : ['Birthday', 'Interests', 'Profile', 'Terms'];
+
+  // Ensure we don't exceed the final step label
+  const currentLabel = stepLabels[Math.min(step - 1, stepLabels.length - 1)] || '';
+
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
-      {/* Animated background - CSS-only for better performance */}
+      {/* Animated background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {/* Primary gradient orb */}
         <div 
           className="absolute -top-1/4 -left-1/4 w-3/4 h-3/4 rounded-full blur-3xl opacity-30"
           style={{
@@ -274,7 +325,6 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
             animation: 'onboarding-float 20s ease-in-out infinite',
           }}
         />
-        {/* Secondary accent orb */}
         <div 
           className="absolute -bottom-1/4 -right-1/4 w-3/4 h-3/4 rounded-full blur-3xl opacity-25"
           style={{
@@ -282,15 +332,6 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
             animation: 'onboarding-float 25s ease-in-out infinite reverse',
           }}
         />
-        {/* Center glow */}
-        <div 
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1/2 h-1/2 rounded-full blur-3xl opacity-15"
-          style={{
-            background: 'radial-gradient(circle, hsl(var(--neon-purple) / 0.4) 0%, transparent 60%)',
-            animation: 'onboarding-pulse 8s ease-in-out infinite',
-          }}
-        />
-        {/* CSS keyframes */}
         <style>{`
           @keyframes onboarding-float {
             0%, 100% { transform: translate(0, 0) scale(1); }
@@ -298,36 +339,39 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
             50% { transform: translate(-5%, 5%) scale(0.95); }
             75% { transform: translate(10%, -5%) scale(1.02); }
           }
-          @keyframes onboarding-pulse {
-            0%, 100% { opacity: 0.15; transform: translate(-50%, -50%) scale(1); }
-            50% { opacity: 0.25; transform: translate(-50%, -50%) scale(1.1); }
-          }
         `}</style>
       </div>
 
       {/* Header */}
       <header className="relative z-10 p-3 sm:p-4 flex items-center justify-between flex-shrink-0">
         <VYBELogo size="md" />
-        <Button variant="ghost" onClick={handleSkip} disabled={loading} className="text-muted-foreground text-sm sm:text-base">
+        <Button variant="ghost" onClick={handleSkip} disabled={loading} className="text-muted-foreground text-sm">
           {t('onboarding.skip')}
         </Button>
       </header>
 
-      {/* Progress bar */}
-      <div className="relative z-10 px-3 sm:px-4 py-2 flex-shrink-0">
-        <div className="h-1 bg-muted rounded-full overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
-            className="h-full gradient-animated"
-          />
+      {/* Progress — dot indicators + step label */}
+      <div className="relative z-10 px-4 py-2 flex-shrink-0">
+        <div className="flex items-center justify-center gap-2 mb-1.5">
+          {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+            <div
+              key={i}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                i + 1 === step
+                  ? 'w-8 bg-primary'
+                  : i + 1 < step
+                  ? 'w-4 bg-primary/50'
+                  : 'w-4 bg-muted'
+              }`}
+            />
+          ))}
         </div>
-        <p className="text-center text-xs sm:text-sm text-muted-foreground mt-2">
-          Step {step} of {TOTAL_STEPS}
+        <p className="text-center text-xs text-muted-foreground">
+          {currentLabel}
         </p>
       </div>
 
-      {/* Content - scrollable area */}
+      {/* Content */}
       <main className="relative z-10 flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <div className="p-3 sm:p-4">
           <div className="max-w-lg mx-auto pb-4">
@@ -337,91 +381,42 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
+                transition={{ duration: 0.25 }}
               >
-                {/* Username step for new users (Google OAuth) */}
-                {needsUsername && step === 1 && (
-                  <UsernameSetup
-                    username={username}
-                    onChange={setUsername}
-                    onValidChange={setUsernameValid}
-                  />
-                )}
-                {/* Age step - new step before interests */}
-                {(needsUsername ? step === 2 : step === 1) && (
-                  <AgeSetup
-                    value={dateOfBirth}
-                    onChange={setDateOfBirth}
-                    onAgeCalculated={setUserAge}
-                  />
-                )}
-                {/* Regular steps - offset by 2 if username step exists, 1 otherwise */}
-                {(needsUsername ? step === 3 : step === 2) && (
-                  <InterestPicker selected={interests} onChange={setInterests} />
-                )}
-                {(needsUsername ? step === 4 : step === 3) && (
-                  <CreatorSuggestions
-                    interests={interests}
-                    following={following}
-                    onChange={setFollowing}
-                  />
-                )}
-                {(needsUsername ? step === 5 : step === 4) && (
-                  <ProfileSetup
-                    data={profileData}
-                    onChange={setProfileData}
-                    username={needsUsername ? username : (profile?.username || '')}
-                  />
-                )}
-                {(needsUsername ? step === 6 : step === 5) && (
-                  <SensitivitySettings value={sensitivity} onChange={setSensitivity} userAge={userAge} />
-                )}
-                {(needsUsername ? step === 7 : step === 6) && (
-                  <PrivacySettings isPrivate={isPrivate} onChange={setIsPrivate} />
-                )}
-                {(needsUsername ? step === 8 : step === 7) && (
-                  <PermissionsSetup onAllRequiredGranted={setPermissionsGranted} />
-                )}
-                {(needsUsername ? step === 9 : step === 8) && (
-                  <EmailVerification />
-                )}
-                {(needsUsername ? step === 10 : step === 9) && (
-                  <LegalAcceptance accepted={legalAccepted} onChange={setLegalAccepted} />
-                )}
+                {renderStep()}
               </motion.div>
             </AnimatePresence>
           </div>
         </div>
       </main>
 
-      {/* Footer navigation */}
+      {/* Footer */}
       <footer className="relative z-10 p-3 sm:p-4 border-t border-border bg-background/80 backdrop-blur-sm">
-        <div className="max-w-lg mx-auto flex items-center justify-between gap-3 sm:gap-4">
+        <div className="max-w-lg mx-auto flex items-center justify-between gap-3">
           <Button
             variant="outline"
             onClick={handleBack}
             disabled={step === 1}
-            className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base"
+            className="flex items-center gap-1.5 text-sm"
           >
             <ChevronLeft className="w-4 h-4" />
-            <span className="hidden xs:inline">{t('onboarding.back')}</span>
+            Back
           </Button>
 
           {step < TOTAL_STEPS ? (
             <Button
               onClick={handleNext}
               disabled={!canProceed()}
-              className="flex items-center gap-1 sm:gap-2 gradient-animated text-sm sm:text-base"
+              className="flex items-center gap-1.5 gradient-animated text-sm"
             >
-              <span className="hidden xs:inline">{t('onboarding.next')}</span>
-              <span className="xs:hidden">Next</span>
+              Next
               <ChevronRight className="w-4 h-4" />
             </Button>
           ) : (
             <Button
               onClick={handleFinish}
-              disabled={loading}
-              className="flex items-center gap-1 sm:gap-2 gradient-animated text-sm sm:text-base"
+              disabled={loading || !canProceed()}
+              className="flex items-center gap-1.5 gradient-animated text-sm"
             >
               {loading ? 'Saving...' : 'Design your VYBE'}
               <VybeMiniIcon size={18} showSparkles />

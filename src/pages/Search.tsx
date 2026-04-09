@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, Users, Hash, Newspaper, Music, X, TrendingUp, Sparkles } from 'lucide-react';
+import { Search as SearchIcon, Users, Hash, Newspaper, Music, X, TrendingUp, Sparkles, Contact } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -13,6 +13,10 @@ import { FriendButton } from '@/components/friends/FriendButton';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { haptics } from '@/lib/haptics';
 import { useDebounce } from '@/hooks/useDebounce';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+
+const ContactDiscovery = lazy(() => import('@/components/onboarding/ContactDiscovery').then(m => ({ default: m.ContactDiscovery })));
 
 type SearchTab = 'people' | 'posts' | 'hashtags' | 'sounds';
 
@@ -118,6 +122,7 @@ export default function SearchPage() {
   const [activeTab, setActiveTab] = useState<SearchTab>('people');
   const inputRef = useRef<HTMLInputElement>(null);
   const { profile } = useAuth();
+  const [contactsOpen, setContactsOpen] = useState(false);
 
   const { data: people, isLoading: loadingPeople } = useSearchPeople(debouncedQuery);
   const { data: posts, isLoading: loadingPosts } = useSearchPosts(debouncedQuery);
@@ -189,6 +194,16 @@ export default function SearchPage() {
         <AnimatePresence mode="wait">
           {!hasQuery ? (
             <motion.div key="discover" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              {/* Find Friends from Contacts */}
+              <Button
+                variant="outline"
+                className="w-full mb-5 rounded-xl h-11 gap-2 border-primary/30 text-primary hover:bg-primary/10"
+                onClick={() => { haptics.tap(); setContactsOpen(true); }}
+              >
+                <Contact className="h-4 w-4" />
+                Find Friends from Contacts
+              </Button>
+
               {/* Trending / Suggested People */}
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
@@ -201,6 +216,18 @@ export default function SearchPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Contact Discovery Dialog */}
+              <Dialog open={contactsOpen} onOpenChange={setContactsOpen}>
+                <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Find Friends</DialogTitle>
+                  </DialogHeader>
+                  <Suspense fallback={<div className="py-8 text-center text-muted-foreground text-sm">Loading...</div>}>
+                    <ContactDiscovery />
+                  </Suspense>
+                </DialogContent>
+              </Dialog>
             </motion.div>
           ) : (
             <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
