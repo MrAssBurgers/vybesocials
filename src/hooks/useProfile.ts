@@ -87,19 +87,30 @@ export function useProfileByUsername(username: string) {
   return useQuery({
     queryKey: ['profile', username, currentProfile?.id],
     queryFn: async (): Promise<Profile | null> => {
-      // Trim the username to handle trailing/leading spaces
       const trimmedUsername = username.trim();
       
-      // Use SECURITY DEFINER function for reliable lookup (bypasses RLS)
+      // Try username lookup first
       const { data: profiles, error } = await supabase
         .rpc('get_profile_by_username', { target_username: trimmedUsername });
 
-      const profile = profiles?.[0];
+      let profile = profiles?.[0];
       
-      if (error || !profile) {
-        console.warn('[useProfile] Profile not found for username:', trimmedUsername, error?.message);
+      // If not found and looks like a UUID, try ID lookup
+      if (!profile && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedUsername)) {
+        const { data: idProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', trimmedUsername)
+          .maybeSingle();
+        if (idProfile) profile = idProfile;
+      }
+      
+      if (error && !profile) {
+        console.warn('[useProfile] Profile not found for:', trimmedUsername, error?.message);
         return null;
       }
+      
+      if (!profile) return null;
 
       // Get counts in parallel
       const [followerCount, followingCount, postCount, isFollowing] = await Promise.all([
