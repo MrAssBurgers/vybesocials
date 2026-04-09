@@ -276,8 +276,8 @@ function QuickAddCard({
             </span>
           </div>
         ) : user.shared_interests && user.shared_interests.length > 0 ? (
-          <div className="flex items-center gap-0.5 mt-0.5 mb-1.5 flex-wrap justify-center">
-            <span className="text-[10px] text-primary/80 leading-none">
+          <div className="flex items-center gap-0.5 mt-0.5 mb-1.5 justify-center overflow-hidden max-w-full">
+            <span className="text-[10px] text-primary/80 leading-none truncate">
               {user.shared_interests.slice(0, 2).join(' · ')}
             </span>
           </div>
