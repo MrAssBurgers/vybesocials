@@ -74,6 +74,7 @@ const VYBESpaces = lazy(() => import("@/pages/VYBESpaces"));
 const SpaceRoom = lazy(() => import("@/pages/SpaceRoom"));
 // VybeDNA is eagerly loaded above for instant navigation
 const TokenWallet = lazy(() => import("@/pages/TokenWallet"));
+const FriendMap = lazy(() => import("@/pages/FriendMap"));
 const TokenMarketplace = lazy(() => import("@/pages/TokenMarketplace"));
 const PremiumSuccess = lazy(() => import("@/pages/PremiumSuccess"));
 const ConnectDashboard = lazy(() => import("@/pages/ConnectDashboard"));
@@ -182,7 +183,8 @@ export function AnimatedRoutes() {
             <Route path="/premium-success" element={<ProtectedRoute><PremiumSuccess /></ProtectedRoute>} />
             <Route path="/filters" element={<ProtectedRoute><Filters /></ProtectedRoute>} />
             <Route path="/filters/:filterId" element={<ProtectedRoute><Filters /></ProtectedRoute>} />
-            
+            <Route path="/map" element={<ProtectedRoute><FriendMap /></ProtectedRoute>} />
+
             {/* Stripe Connect V2 routes */}
             <Route path="/connect/dashboard" element={<ProtectedRoute><ConnectDashboard /></ProtectedRoute>} />
             <Route path="/connect/storefront/:accountId" element={<ConnectStorefront />} />
