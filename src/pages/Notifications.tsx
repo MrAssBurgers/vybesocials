@@ -289,37 +289,56 @@ export default function NotificationsPage() {
               ) : notifications && notifications.length > 0 ? (
                 <motion.div key="notifications" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   {/* Unread */}
-                  {unreadNotifications.length > 0 && (
+                  {groupedUnread.length > 0 && (
                     <div className="mb-2">
                       <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">New</p>
                       <div className="rounded-2xl bg-card/95 border border-primary/10 overflow-hidden">
-                        {unreadNotifications.map((notification, idx) => (
-                          <NotificationRow
-                            key={notification.id}
-                            notification={notification}
-                            index={idx}
-                            isLast={idx === unreadNotifications.length - 1}
-                          />
+                        {groupedUnread.map((item, idx) => (
+                          item._single ? (
+                            <NotificationRow
+                              key={item.id}
+                              notification={item}
+                              index={idx}
+                              isLast={idx === groupedUnread.length - 1}
+                            />
+                          ) : (
+                            <GroupedNotificationRow
+                              key={`${item.type}-${item.post_id || 'follow'}`}
+                              group={item as GroupedNotification}
+                              index={idx}
+                              isLast={idx === groupedUnread.length - 1}
+                            />
+                          )
                         ))}
                       </div>
                     </div>
                   )}
 
                   {/* Read */}
-                  {readNotifications.length > 0 && (
+                  {groupedRead.length > 0 && (
                     <div className="mt-5">
-                      {unreadNotifications.length > 0 && (
+                      {groupedUnread.length > 0 && (
                         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">Earlier</p>
                       )}
                       <div className="rounded-2xl bg-card/95 overflow-hidden">
-                        {readNotifications.map((notification, idx) => (
-                          <NotificationRow
-                            key={notification.id}
-                            notification={notification}
-                            index={idx}
-                            isRead
-                            isLast={idx === readNotifications.length - 1}
-                          />
+                        {groupedRead.map((item, idx) => (
+                          item._single ? (
+                            <NotificationRow
+                              key={item.id}
+                              notification={item}
+                              index={idx}
+                              isRead
+                              isLast={idx === groupedRead.length - 1}
+                            />
+                          ) : (
+                            <GroupedNotificationRow
+                              key={`${item.type}-${item.post_id || 'follow'}`}
+                              group={item as GroupedNotification}
+                              index={idx}
+                              isRead
+                              isLast={idx === groupedRead.length - 1}
+                            />
+                          )
                         ))}
                       </div>
                     </div>
