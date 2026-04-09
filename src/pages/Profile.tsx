@@ -249,7 +249,7 @@ export default function ProfilePage() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70" />
         </div>
       )}
-      <div className="max-w-4xl mx-auto px-4 py-6 pb-28 relative min-h-screen" style={{ zIndex: 1 }}>
+      <div className="max-w-4xl mx-auto px-4 py-6 pb-28 relative min-h-screen overflow-x-hidden" style={{ zIndex: 1 }}>
 
         {/* Profile Header */}
         <motion.div
@@ -286,11 +286,11 @@ export default function ProfilePage() {
           {/* Info */}
           <div className="flex-1 text-center md:text-left">
             <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-              <div className="flex flex-col">
+              <div className="flex flex-col max-w-full overflow-hidden">
                 {/* Display Name */}
                 {profile.display_name && (
                   <h1 className={cn(
-                    "text-2xl font-bold flex items-center gap-2",
+                    "text-2xl font-bold flex items-center gap-2 flex-wrap",
                     effectClass,
                   )}>
                     <StyledUsername
@@ -348,7 +348,7 @@ export default function ProfilePage() {
                 )}
               </div>
               {isOwnProfile ? (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                   <Link to="/settings">
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                       <Button variant="secondary" size="sm">
@@ -456,7 +456,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Stats + Engagement Score */}
-            <div className="flex justify-center md:justify-start items-center gap-6 mb-4">
+            <div className="flex flex-wrap justify-center md:justify-start items-center gap-6 mb-4">
               <div className="flex gap-8">
                 <div className="text-center">
                   <p className="font-bold text-xl text-foreground drop-shadow-md">{profile.post_count}</p>
