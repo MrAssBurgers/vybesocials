@@ -1284,9 +1284,6 @@ export function ChatView() {
             </button>
           ) : (
             <div className="flex items-center gap-1">
-              <Lock className="h-3 w-3 text-emerald-500" />
-              <span className="text-[10px] text-emerald-500 font-medium">encrypted</span>
-              <span className="text-muted-foreground mx-0.5">·</span>
               <LivePresenceBar
                 isOnline={otherMemberOnline}
                 isTyping={typingUsers.length > 0}
@@ -1856,94 +1853,69 @@ const MessageInputArea = memo(function MessageInputArea({
           />
         ) : (
           <div ref={inputContainerRef} className="flex items-center gap-1 sm:gap-2">
-            <Toybox
-              onImageSelect={async (file) => {
-                const dt = new DataTransfer();
-                dt.items.add(file);
-                handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
-              }}
-              onVideoSelect={(file) => {
-                handleVideoSelect(file);
-              }}
-              onGifSelect={async (gifUrl) => {
-                await sendMediaMessage(gifUrl, 'gif');
-              }}
-              onVoiceStart={() => {
-                setIsRecordingVoice(true);
-                onLiveRecordingChange?.(true);
-              }}
-              onEmojiSelect={(emoji) => {
-                handleInputChange(messageText + emoji);
-                inputRef.current?.focus();
-              }}
-              isUploading={isUploadingMedia}
-              onOpenVanishThreads={onOpenVanishThreads}
-              onOpenMemoryPins={onOpenMemoryPins}
-              onOpenScheduleMessage={onOpenScheduleMessage}
-              onOpenDMSettings={onOpenDMSettings}
-              onOpenAdminPanel={onOpenAdminPanel}
-              onOpenVybeCamera={onOpenSnapCamera}
-              onCreateOffer={onCreateOffer}
-              hasBusinessProfile={hasBusinessProfile}
-            />
+            {/* Camera button - Snapchat style, prominent on the left */}
+            {onOpenSnapCamera && (
+              <Button 
+                variant="ghost"
+                size="icon"
+                onClick={onOpenSnapCamera}
+                className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10 text-primary hover:bg-primary/10 rounded-full"
+              >
+                <Camera className="h-5 w-5 sm:h-6 sm:w-6" />
+              </Button>
+            )}
 
-            <DropdownMenu open={showViewModeMenu} onOpenChange={setShowViewModeMenu}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9">
-                  {viewMode === 'view_once' ? (
-                    <EyeOff className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" />
-                  ) : viewMode === '24h' ? (
-                    <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />
-                  ) : (
-                    <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => setViewMode('permanent')}>
-                  <Eye className="h-4 w-4 mr-2" />
-                  {t('messages.permanent')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setViewMode('24h')}>
-                  <Clock className="h-4 w-4 mr-2 text-yellow-500" />
-                  {t('messages.24hours')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setViewMode('view_once')}>
-                  <EyeOff className="h-4 w-4 mr-2 text-orange-500" />
-                  {t('messages.viewOnce')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <Input
-              ref={inputRef}
-              value={messageText}
-              onChange={(e) => handleInputChange(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder={t('messages.typeMessage')}
-              className="flex-1 h-9 sm:h-10 text-sm"
-            />
-
-            <EmojiPicker
-              onEmojiSelect={(emoji) => {
-                handleInputChange(messageText + emoji);
-                inputRef.current?.focus();
-              }}
-            />
+            <div className="flex-1 relative">
+              <Input
+                ref={inputRef}
+                value={messageText}
+                onChange={(e) => handleInputChange(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={t('messages.typeMessage')}
+                className="h-9 sm:h-10 text-sm rounded-full pl-4 pr-10"
+              />
+              <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                <EmojiPicker
+                  onEmojiSelect={(emoji) => {
+                    handleInputChange(messageText + emoji);
+                    inputRef.current?.focus();
+                  }}
+                />
+              </div>
+            </div>
 
             {!messageText.trim() ? (
-              <div className="flex items-center gap-1">
-                {/* VYBE Camera button */}
-                {onOpenSnapCamera && (
-                  <Button 
-                    variant="ghost"
-                    size="icon"
-                    onClick={onOpenSnapCamera}
-                    className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 text-primary hover:bg-primary/10"
-                  >
-                    <Camera className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </Button>
-                )}
+              <div className="flex items-center gap-0.5">
+                <Toybox
+                  onImageSelect={async (file) => {
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
+                  }}
+                  onVideoSelect={(file) => {
+                    handleVideoSelect(file);
+                  }}
+                  onGifSelect={async (gifUrl) => {
+                    await sendMediaMessage(gifUrl, 'gif');
+                  }}
+                  onVoiceStart={() => {
+                    setIsRecordingVoice(true);
+                    onLiveRecordingChange?.(true);
+                  }}
+                  onEmojiSelect={(emoji) => {
+                    handleInputChange(messageText + emoji);
+                    inputRef.current?.focus();
+                  }}
+                  isUploading={isUploadingMedia}
+                  onOpenVanishThreads={onOpenVanishThreads}
+                  onOpenMemoryPins={onOpenMemoryPins}
+                  onOpenScheduleMessage={onOpenScheduleMessage}
+                  onOpenDMSettings={onOpenDMSettings}
+                  onOpenAdminPanel={onOpenAdminPanel}
+                  onOpenVybeCamera={onOpenSnapCamera}
+                  onCreateOffer={onCreateOffer}
+                  hasBusinessProfile={hasBusinessProfile}
+                />
                 <Button 
                   variant="ghost"
                   size="icon"
@@ -1951,7 +1923,7 @@ const MessageInputArea = memo(function MessageInputArea({
                     setIsRecordingVoice(true);
                     onLiveRecordingChange?.(true);
                   }}
-                  className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9"
+                  className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full"
                 >
                   <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
@@ -1961,7 +1933,7 @@ const MessageInputArea = memo(function MessageInputArea({
                 onClick={handleSend}
                 disabled={!messageText.trim() || isPending}
                 size="icon"
-                className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9"
+                className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10 rounded-full"
               >
                 {isPending ? (
                   <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
