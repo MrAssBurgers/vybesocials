@@ -691,14 +691,30 @@ export default function FriendMap() {
               {searchResults.length > 0 && (
                 <div className="border-t border-white/10 max-h-60 overflow-y-auto">
                   {searchResults.map((r, i) => (
-                    <button
+                    <div
                       key={i}
-                      onClick={() => flyToSearch(r)}
-                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left hover:bg-white/5 transition-colors"
+                      className="flex w-full items-center gap-2 px-3 py-2.5 hover:bg-white/5 transition-colors"
                     >
-                      <MapPin className="h-3.5 w-3.5 text-white/40 shrink-0" />
-                      <span className="text-xs text-white/80 truncate">{r.display_name}</span>
-                    </button>
+                      <button
+                        onClick={() => flyToSearch(r)}
+                        className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
+                      >
+                        <MapPin className="h-3.5 w-3.5 text-white/40 shrink-0" />
+                        <span className="text-xs text-white/80 truncate">{r.display_name}</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(`https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lon}`, '_blank');
+                          setSearchOpen(false);
+                          clearSearch();
+                        }}
+                        className="shrink-0 flex items-center gap-1 rounded-full bg-primary/20 px-2.5 py-1 text-[10px] font-bold text-primary hover:bg-primary/30 transition-colors"
+                      >
+                        <Navigation className="h-3 w-3" />
+                        Directions
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
