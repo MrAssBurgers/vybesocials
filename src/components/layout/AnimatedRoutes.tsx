@@ -19,6 +19,7 @@ const Explore = lazy(() => import("@/pages/Explore"));
 const Market = lazy(() => import("@/pages/Market"));
 const Messages = lazy(() => import("@/pages/Messages"));
 const Notifications = lazy(() => import("@/pages/Notifications"));
+const SearchPage = lazy(() => import("@/pages/Search"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Shorts = lazy(() => import("@/pages/Shorts"));
 const Profile = lazy(() => import("@/pages/Profile"));
@@ -125,6 +126,7 @@ export function AnimatedRoutes() {
             <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
             <Route path="/messages/:conversationId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+            <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/u/:username" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
