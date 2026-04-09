@@ -739,6 +739,7 @@ const ConversationItem = memo(function ConversationItem({
   hasStory,
   storyGroup,
   streak,
+  userStatus,
 }: { 
   conversation: Conversation; 
   onClick: () => void;
@@ -750,6 +751,7 @@ const ConversationItem = memo(function ConversationItem({
   hasStory?: boolean;
   storyGroup?: StoryGroup;
   streak?: Streak;
+  userStatus?: { emoji: string; text: string } | null;
 }) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
