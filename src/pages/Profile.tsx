@@ -46,10 +46,11 @@ import {
 } from '@/lib/cosmeticConstants';
 
 export default function ProfilePage() {
-  const { username } = useParams<{ username: string }>();
+  const { username, usernameOrId } = useParams<{ username?: string; usernameOrId?: string }>();
+  const resolvedUsername = username || usernameOrId;
   const navigate = useNavigate();
   const { profile: currentProfile } = useAuth();
-  const { data: profile, isLoading } = useProfileByUsername(username!);
+  const { data: profile, isLoading } = useProfileByUsername(resolvedUsername!);
   const { data: posts } = usePosts(undefined, profile?.id);
   const { data: savedPosts } = useSavedPosts();
   const follow = useFollow();
