@@ -118,6 +118,7 @@ export function AutoFriendDrop() {
   const [isQrExpanded, setIsQrExpanded] = useState(false);
   const [activeDropId, setActiveDropId] = useState<string | null>(null);
   const [createdConversationId, setCreatedConversationId] = useState<string | null>(null);
+  const createdConversationIdRef = useRef<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -147,83 +148,91 @@ export function AutoFriendDrop() {
       try {
         const conversation = await createConversation.mutateAsync({ memberIds: [targetUserId] });
         setCreatedConversationId(conversation.id);
+        createdConversationIdRef.current = conversation.id;
       } catch {
         // Conversation might already exist
       }
     }
     
     setTimeout(() => {
-      const convId = createdConversationId;
+      const convId = createdConversationIdRef.current;
       setIsActive(false);
       setPhase('idle');
       setFoundUser(null);
       setActiveDropId(null);
       setIsQrOwner(false);
       setCreatedConversationId(null);
+      createdConversationIdRef.current = null;
       
       if (convId) {
         navigate(`/messages/${convId}`);
       }
     }, 3000);
-  }, [foundUser?.id, createConversation, createdConversationId, navigate]);
+  }, [foundUser?.id, createConversation, navigate]);
   
+  const handleOnScanned = useCallback((drop: any) => {
+    haptics.success();
+    setIsQrOwner(true);
+    if (drop.to_user_id) {
+      fetchUser(drop.to_user_id).then((scannedUser) => {
+        if (scannedUser) {
+          setFoundUser(scannedUser);
+          setPhase('exchanging');
+          setTimeout(async () => {
+            try {
+              await sendRequest.mutateAsync(scannedUser.id);
+            } catch {
+              // Already friends
+            }
+            if (activeDropId) {
+              await friendDropSync.completeDrop(activeDropId);
+            }
+          }, 1500);
+        }
+      });
+    }
+  }, [activeDropId, sendRequest]);
+
+  const handleOnConfirmed = useCallback(() => {
+    if (phase !== 'exchanging') {
+      setPhase('exchanging');
+      haptics.impact();
+    }
+  }, [phase]);
+
+  const handleOnCompleted = useCallback(async () => {
+    setPhase('success');
+    haptics.success();
+    
+    const targetUserId = foundUser?.id;
+    if (targetUserId) {
+      try {
+        const conversation = await createConversation.mutateAsync({ memberIds: [targetUserId] });
+        setTimeout(() => {
+          setIsActive(false);
+          setPhase('idle');
+          setFoundUser(null);
+          setActiveDropId(null);
+          setIsQrOwner(false);
+          navigate(`/messages/${conversation.id}`);
+        }, 3000);
+      } catch {
+        setTimeout(() => {
+          setIsActive(false);
+          setPhase('idle');
+          setFoundUser(null);
+          setActiveDropId(null);
+          setIsQrOwner(false);
+        }, 3000);
+      }
+    }
+  }, [foundUser?.id, createConversation, navigate]);
+
   const friendDropSync = useFriendDropSync({
     enabled: isActive,
-    onScanned: useCallback((drop) => {
-      haptics.success();
-      setIsQrOwner(true);
-      if (drop.to_user_id) {
-        fetchUser(drop.to_user_id).then((scannedUser) => {
-          if (scannedUser) {
-            setFoundUser(scannedUser);
-            setPhase('exchanging');
-            setTimeout(async () => {
-              try {
-                await sendRequest.mutateAsync(scannedUser.id);
-              } catch {
-                // Already friends
-              }
-              if (activeDropId) {
-                await friendDropSync.completeDrop(activeDropId);
-              }
-            }, 1500);
-          }
-        });
-      }
-    }, [activeDropId, sendRequest]),
-    onConfirmed: useCallback(() => {
-      if (phase !== 'exchanging') {
-        setPhase('exchanging');
-        haptics.impact();
-      }
-    }, [phase]),
-    onCompleted: useCallback(async () => {
-      setPhase('success');
-      haptics.success();
-      
-      const targetUserId = foundUser?.id;
-      if (targetUserId) {
-        try {
-          const conversation = await createConversation.mutateAsync({ memberIds: [targetUserId] });
-          setTimeout(() => {
-            setIsActive(false);
-            setPhase('idle');
-            setFoundUser(null);
-            setActiveDropId(null);
-            setIsQrOwner(false);
-            navigate(`/messages/${conversation.id}`);
-          }, 3000);
-        } catch {
-          setTimeout(() => {
-            setIsActive(false);
-            setPhase('idle');
-            setFoundUser(null);
-            setActiveDropId(null);
-            setIsQrOwner(false);
-          }, 3000);
-        }
-      }
-    }, [foundUser?.id, createConversation, navigate]),
+    onScanned: handleOnScanned,
+    onConfirmed: handleOnConfirmed,
+    onCompleted: handleOnCompleted,
   });
   
   const nativeFriendDrop = useNativeFriendDrop({

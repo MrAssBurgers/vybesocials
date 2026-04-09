@@ -211,27 +211,27 @@ function useNominatimSearch(myCoords: [number, number] | null) {
   useEffect(() => {
     if (!myCoords || nearbyLoaded.current) return;
     nearbyLoaded.current = true;
-    const categories = ['restaurant', 'cafe', 'gas station', 'grocery', 'pharmacy'];
-    const fetches = categories.map(async (cat) => {
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&limit=2&q=${encodeURIComponent(cat)}&viewbox=${myCoords[1] - 0.05},${myCoords[0] + 0.05},${myCoords[1] + 0.05},${myCoords[0] - 0.05}&bounded=1`
-        );
-        return await res.json();
-      } catch { return []; }
-    });
-    Promise.all(fetches).then((all) => {
-      const flat = all.flat().filter(Boolean);
-      // Sort by distance from user
-      if (myCoords) {
-        flat.sort((a: any, b: any) => {
-          const da = distanceBetween(myCoords, [parseFloat(a.lat), parseFloat(a.lon)]);
-          const db = distanceBetween(myCoords, [parseFloat(b.lat), parseFloat(b.lon)]);
-          return da - db;
-        });
+    (async () => {
+      const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+      const categories = ['restaurant', 'cafe', 'gas station', 'grocery', 'pharmacy'];
+      const all: any[] = [];
+      for (const cat of categories) {
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&limit=2&q=${encodeURIComponent(cat)}&viewbox=${myCoords[1] - 0.05},${myCoords[0] + 0.05},${myCoords[1] + 0.05},${myCoords[0] - 0.05}&bounded=1`
+          );
+          const data = await res.json();
+          all.push(...data);
+          await delay(1100);
+        } catch { /* skip */ }
       }
-      setNearby(flat.slice(0, 8));
-    });
+      all.sort((a: any, b: any) => {
+        const da = distanceBetween(myCoords!, [parseFloat(a.lat), parseFloat(a.lon)]);
+        const db = distanceBetween(myCoords!, [parseFloat(b.lat), parseFloat(b.lon)]);
+        return da - db;
+      });
+      setNearby(all.slice(0, 8));
+    })();
   }, [myCoords]);
 
   const search = useCallback((q: string) => {
@@ -487,7 +487,7 @@ export default function FriendMap() {
     mapRef.current = map;
     requestAnimationFrame(() => map.invalidateSize());
 
-    map.on('click', () => setSelId(null));
+    map.on('click', () => { setSelId(null); setStylesOpen(false); });
     map.on('zoomend', () => setZoom(map.getZoom()));
 
     return () => {
@@ -732,9 +732,9 @@ export default function FriendMap() {
               </div>
               {searchResults.length > 0 && (
                 <div className="border-t border-white/10 max-h-60 overflow-y-auto">
-                  {searchResults.map((r, i) => (
+                  {searchResults.map((r) => (
                     <div
-                      key={i}
+                      key={`${r.lat}-${r.lon}`}
                       className="flex w-full items-center gap-2 px-3 py-2.5 hover:bg-white/5 transition-colors"
                     >
                       <button
@@ -770,7 +770,7 @@ export default function FriendMap() {
                   {nearbyPlaces.map((r, i) => {
                     const dist = myCoords ? distanceBetween(myCoords, [parseFloat(r.lat), parseFloat(r.lon)]).toFixed(1) : null;
                     return (
-                      <div key={i} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-white/5 transition-colors">
+                      <div key={`${r.lat}-${r.lon}`} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-white/5 transition-colors">
                         <button
                           onClick={() => flyToSearch(r)}
                           className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
@@ -949,7 +949,7 @@ export default function FriendMap() {
                   <div className="flex gap-2 mt-4">
                     <motion.button
                       whileTap={{ scale: 0.95 }}
-                      onClick={() => { const u = friendUsername(sel); if (u) navigate(`/messages`); }}
+                      onClick={() => navigate(`/messages`)}
                       className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground"
                     >
                       <MessageCircle className="h-3.5 w-3.5" />
