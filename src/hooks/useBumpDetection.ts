@@ -3,111 +3,114 @@ import { haptics } from '@/lib/haptics';
 
 interface BumpDetectionOptions {
   enabled?: boolean;
-  threshold?: number; // Acceleration threshold to detect a bump
-  cooldown?: number; // Cooldown period after a bump is detected (ms)
+  threshold?: number;
+  cooldown?: number;
   onBump?: () => void;
 }
 
 export function useBumpDetection({
   enabled = true,
-  threshold = 15, // Strong single shake threshold
-  cooldown = 3000, // 3 seconds cooldown
+  threshold = 15,
+  cooldown = 3000,
   onBump,
 }: BumpDetectionOptions = {}) {
   const [isListening, setIsListening] = useState(false);
-  const [lastBumpTime, setLastBumpTime] = useState<number>(0);
   const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
+
   const onBumpRef = useRef(onBump);
+  const lastBumpTimeRef = useRef(0);
+  const isListeningRef = useRef(false);
+  const listenerRef = useRef<((e: DeviceMotionEvent) => void) | null>(null);
   const requiresUserGesture = typeof DeviceMotionEvent !== 'undefined' && typeof (DeviceMotionEvent as any).requestPermission === 'function';
-  
-  // Keep callback ref updated
+
+  const enabledRef = useRef(enabled);
+  const thresholdRef = useRef(threshold);
+  const cooldownRef = useRef(cooldown);
+  enabledRef.current = enabled;
+  thresholdRef.current = threshold;
+  cooldownRef.current = cooldown;
+
   useEffect(() => {
     onBumpRef.current = onBump;
   }, [onBump]);
 
   const requestPermission = useCallback(async () => {
-    // iOS 13+ requires permission for DeviceMotionEvent (needs user gesture)
     if (requiresUserGesture) {
       try {
         const permission = await (DeviceMotionEvent as any).requestPermission();
         setPermissionGranted(permission === 'granted');
         return permission === 'granted';
       } catch {
-        // Silently fail — permission requires user gesture, not an error
         setPermissionGranted(false);
         return false;
       }
     }
-    // Android and older iOS don't need permission
     setPermissionGranted(true);
     return true;
   }, [requiresUserGesture]);
 
-  const handleMotion = useCallback((event: DeviceMotionEvent) => {
-    if (!enabled) return;
-    
-    const { accelerationIncludingGravity } = event;
-    if (!accelerationIncludingGravity) return;
+  useEffect(() => {
+    const shouldListen = enabled && (!requiresUserGesture || permissionGranted === true);
 
-    const { x, y, z } = accelerationIncludingGravity;
-    if (x === null || y === null || z === null) return;
+    if (shouldListen && !isListeningRef.current) {
+      const handler = (event: DeviceMotionEvent) => {
+        if (!enabledRef.current) return;
+        const { accelerationIncludingGravity } = event;
+        if (!accelerationIncludingGravity) return;
+        const { x, y, z } = accelerationIncludingGravity;
+        if (x === null || y === null || z === null) return;
 
-    // Calculate total acceleration magnitude
-    const magnitude = Math.sqrt(x * x + y * y + z * z);
-    
-    // Subtract gravity (approximately 9.8 m/s²) to get actual acceleration
-    const actualAcceleration = Math.abs(magnitude - 9.8);
-    const now = Date.now();
+        const magnitude = Math.sqrt(x * x + y * y + z * z);
+        const actualAcceleration = Math.abs(magnitude - 9.8);
+        const now = Date.now();
 
-    // Single strong shake detection
-    if (actualAcceleration > threshold) {
-      // Check cooldown
-      if (now - lastBumpTime > cooldown) {
-        setLastBumpTime(now);
-        
-        // Strong haptic feedback on shake detection
-        haptics.impact();
-        setTimeout(() => haptics.success(), 80);
-        
-        onBumpRef.current?.();
-      }
+        if (actualAcceleration > thresholdRef.current) {
+          if (now - lastBumpTimeRef.current > cooldownRef.current) {
+            lastBumpTimeRef.current = now;
+            haptics.impact();
+            setTimeout(() => haptics.success(), 80);
+            onBumpRef.current?.();
+          }
+        }
+      };
+
+      window.addEventListener('devicemotion', handler);
+      listenerRef.current = handler;
+      isListeningRef.current = true;
+      setIsListening(true);
+
+      return () => {
+        window.removeEventListener('devicemotion', handler);
+        listenerRef.current = null;
+        isListeningRef.current = false;
+        setIsListening(false);
+      };
+    } else if (!shouldListen && isListeningRef.current && listenerRef.current) {
+      window.removeEventListener('devicemotion', listenerRef.current);
+      listenerRef.current = null;
+      isListeningRef.current = false;
+      setIsListening(false);
     }
-  }, [enabled, threshold, cooldown, lastBumpTime]);
+
+    return undefined;
+  }, [enabled, permissionGranted, requiresUserGesture]);
 
   const startListening = useCallback(async (promptForPermission = true) => {
-    if (isListening) return;
-
+    if (isListeningRef.current) return;
     if (requiresUserGesture && permissionGranted !== true) {
       if (!promptForPermission) return;
-
-      const hasPermission = await requestPermission();
-      if (!hasPermission) return;
+      await requestPermission();
     }
-
-    window.addEventListener('devicemotion', handleMotion);
-    setIsListening(true);
-  }, [requestPermission, handleMotion, isListening, permissionGranted, requiresUserGesture]);
+  }, [requestPermission, permissionGranted, requiresUserGesture]);
 
   const stopListening = useCallback(() => {
-    window.removeEventListener('devicemotion', handleMotion);
-    setIsListening(false);
-  }, [handleMotion]);
-
-  useEffect(() => {
-    if (enabled) {
-      if (requiresUserGesture && permissionGranted !== true) {
-        stopListening();
-      } else {
-        startListening(false);
-      }
-    } else {
-      stopListening();
+    if (listenerRef.current) {
+      window.removeEventListener('devicemotion', listenerRef.current);
+      listenerRef.current = null;
     }
-
-    return () => {
-      stopListening();
-    };
-  }, [enabled, startListening, stopListening, permissionGranted, requiresUserGesture]);
+    isListeningRef.current = false;
+    setIsListening(false);
+  }, []);
 
   return {
     isListening,

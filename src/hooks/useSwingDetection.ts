@@ -22,7 +22,19 @@ export function useSwingDetection({
   const onSwingRef = useRef(onSwing);
   const lastSwingTimeRef = useRef(0);
   const backDetectedRef = useRef<{ timestamp: number; magnitude: number } | null>(null);
+  const isListeningRef = useRef(false);
+  const listenerRef = useRef<((e: DeviceMotionEvent) => void) | null>(null);
   const requiresUserGesture = typeof DeviceMotionEvent !== 'undefined' && typeof (DeviceMotionEvent as any).requestPermission === 'function';
+
+  // Keep refs fresh
+  const enabledRef = useRef(enabled);
+  const thresholdRef = useRef(threshold);
+  const swingWindowRef = useRef(swingWindow);
+  const cooldownRef = useRef(cooldown);
+  enabledRef.current = enabled;
+  thresholdRef.current = threshold;
+  swingWindowRef.current = swingWindow;
+  cooldownRef.current = cooldown;
 
   useEffect(() => {
     onSwingRef.current = onSwing;
@@ -43,69 +55,84 @@ export function useSwingDetection({
     return true;
   }, [requiresUserGesture]);
 
-  // Stable handleMotion — all deps are refs or stable primitives from options
-  const handleMotion = useCallback((event: DeviceMotionEvent) => {
-    if (!enabled) return;
-    const { acceleration } = event;
-    if (!acceleration) return;
-    const { z } = acceleration;
-    if (z === null) return;
+  // Single stable effect that manages the listener lifecycle
+  useEffect(() => {
+    const shouldListen = enabled && (!requiresUserGesture || permissionGranted === true);
 
-    const now = Date.now();
-    if (now - lastSwingTimeRef.current < cooldown) return;
+    if (shouldListen && !isListeningRef.current) {
+      const handler = (event: DeviceMotionEvent) => {
+        if (!enabledRef.current) return;
+        const { acceleration } = event;
+        if (!acceleration) return;
+        const { z } = acceleration;
+        if (z === null) return;
 
-    if (z < -threshold) {
-      const magnitude = Math.abs(z);
-      if (!backDetectedRef.current || magnitude > backDetectedRef.current.magnitude) {
-        backDetectedRef.current = { timestamp: now, magnitude };
-      }
-    }
+        const now = Date.now();
+        if (now - lastSwingTimeRef.current < cooldownRef.current) return;
 
-    if (z > threshold && backDetectedRef.current) {
-      const timeSinceBack = now - backDetectedRef.current.timestamp;
-      if (timeSinceBack > 50 && timeSinceBack < swingWindow) {
-        lastSwingTimeRef.current = now;
+        if (z < -thresholdRef.current) {
+          const magnitude = Math.abs(z);
+          if (!backDetectedRef.current || magnitude > backDetectedRef.current.magnitude) {
+            backDetectedRef.current = { timestamp: now, magnitude };
+          }
+        }
+
+        if (z > thresholdRef.current && backDetectedRef.current) {
+          const timeSinceBack = now - backDetectedRef.current.timestamp;
+          if (timeSinceBack > 50 && timeSinceBack < swingWindowRef.current) {
+            lastSwingTimeRef.current = now;
+            backDetectedRef.current = null;
+            haptics.impact();
+            setTimeout(() => haptics.success(), 80);
+            onSwingRef.current?.();
+          }
+        }
+
+        if (backDetectedRef.current && now - backDetectedRef.current.timestamp > swingWindowRef.current) {
+          backDetectedRef.current = null;
+        }
+      };
+
+      window.addEventListener('devicemotion', handler);
+      listenerRef.current = handler;
+      isListeningRef.current = true;
+      setIsListening(true);
+
+      return () => {
+        window.removeEventListener('devicemotion', handler);
+        listenerRef.current = null;
+        isListeningRef.current = false;
+        setIsListening(false);
         backDetectedRef.current = null;
-        haptics.impact();
-        setTimeout(() => haptics.success(), 80);
-        onSwingRef.current?.();
-      }
-    }
-
-    if (backDetectedRef.current && now - backDetectedRef.current.timestamp > swingWindow) {
+      };
+    } else if (!shouldListen && isListeningRef.current && listenerRef.current) {
+      window.removeEventListener('devicemotion', listenerRef.current);
+      listenerRef.current = null;
+      isListeningRef.current = false;
+      setIsListening(false);
       backDetectedRef.current = null;
     }
-  }, [enabled, threshold, swingWindow, cooldown]);
+
+    return undefined;
+  }, [enabled, permissionGranted, requiresUserGesture]);
 
   const startListening = useCallback(async (promptForPermission = true) => {
-    if (isListening) return;
+    if (isListeningRef.current) return;
     if (requiresUserGesture && permissionGranted !== true) {
       if (!promptForPermission) return;
-      const hasPermission = await requestPermission();
-      if (!hasPermission) return;
+      await requestPermission();
     }
-    window.addEventListener('devicemotion', handleMotion);
-    setIsListening(true);
-  }, [requestPermission, handleMotion, isListening, permissionGranted, requiresUserGesture]);
+  }, [requestPermission, permissionGranted, requiresUserGesture]);
 
   const stopListening = useCallback(() => {
-    window.removeEventListener('devicemotion', handleMotion);
+    if (listenerRef.current) {
+      window.removeEventListener('devicemotion', listenerRef.current);
+      listenerRef.current = null;
+    }
+    isListeningRef.current = false;
     setIsListening(false);
     backDetectedRef.current = null;
-  }, [handleMotion]);
-
-  useEffect(() => {
-    if (enabled) {
-      if (requiresUserGesture && permissionGranted !== true) {
-        stopListening();
-      } else {
-        startListening(false);
-      }
-    } else {
-      stopListening();
-    }
-    return () => { stopListening(); };
-  }, [enabled, startListening, stopListening, permissionGranted, requiresUserGesture]);
+  }, []);
 
   return {
     isListening,
