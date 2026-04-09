@@ -77,8 +77,8 @@ export function getCachedSignedUrl(publicUrl: string | null | undefined): string
   
   const entry = cache.get(publicUrl);
   if (entry && entry.expiresAt > Date.now()) {
-    // Return original URL for failed entries (but still "cached")
-    return entry.failed ? publicUrl : entry.signedUrl;
+    // Return null for failed entries so consumers show loading/retry instead of broken image
+    return entry.failed ? null : entry.signedUrl;
   }
   
   return null;
@@ -104,7 +104,7 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
   // Check cache (includes failed entries)
   const entry = cache.get(publicUrl);
   if (entry && entry.expiresAt > Date.now()) {
-    return entry.failed ? publicUrl : entry.signedUrl;
+    return entry.failed ? null : entry.signedUrl;
   }
   
   // Check if already fetching

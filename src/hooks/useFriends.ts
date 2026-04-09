@@ -355,7 +355,9 @@ export function useSendFriendRequest() {
 
       toast.success(result?.conversationCreated ? 'Friend request sent! Chat created.' : 'Friend request sent!');
     },
-    onError: () => {
+    onError: (error: any) => {
+      // Silence duplicate key errors (409/23505) - already handled in mutationFn
+      if (error?.code === '23505' || error?.message?.includes('duplicate') || error?.message?.includes('already')) return;
       toast.error('Failed to send friend request');
     },
   });

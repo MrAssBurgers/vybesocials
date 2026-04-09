@@ -25,7 +25,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Bot, UsersRound, Trash2, Nfc, X, UserCheck, Flame, Camera } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
-import { formatDistanceToNow } from 'date-fns';
+import { differenceInMinutes, differenceInHours, differenceInDays, differenceInWeeks } from 'date-fns';
 import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
 import { MutualFriendsQuickAdd } from './MutualFriendsQuickAdd';
