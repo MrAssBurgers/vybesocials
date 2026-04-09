@@ -636,7 +636,7 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
           </p>
         )}
         <p className="text-[11px] text-muted-foreground/60 mt-0.5">
-          {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+          {compactTime(notification.created_at)}
         </p>
       </div>
 
