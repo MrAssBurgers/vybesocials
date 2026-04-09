@@ -311,16 +311,26 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
               )}
             </AnimatePresence>
 
-            {/* Change button - only when not processing */}
-            {!isProcessing && uploadState !== 'error' && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute top-4 right-4"
-              >
-                Change
-              </Button>
+            {/* Action buttons - only when not processing */}
+            {!isProcessing && uploadState !== 'error' && !showPollEditor && (
+              <div className="absolute top-4 right-4 flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowPollEditor(true)}
+                  className="gap-1"
+                >
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Poll
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Change
+                </Button>
+              </div>
             )}
           </div>
         ) : uploadState === 'error' ? (
