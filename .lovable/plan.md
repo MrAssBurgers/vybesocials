@@ -1,54 +1,32 @@
 
 
-## Plan: Fix Remaining Infinite Re-render Loop & Polish
+## Plan: Fix Profile Mobile Sizing & Global Layout Polish
 
-### Critical Bug — useSwingDetection infinite loop (STILL ACTIVE)
+### Problem
+On mobile (390px viewport), the profile page has several layout issues:
+1. **Display name clips off the left edge** — centered text can overflow when names + badges are wide
+2. **Action buttons overflow right** — "Edit Profile", "Share", "Manage Premium" don't wrap, causing horizontal cutoff
+3. **Stats + Engagement row can overflow** — the stats and engagement score sit in a non-wrapping flex row
+4. **No horizontal overflow protection** — the page container doesn't prevent content from bleeding out
 
-The previous fix converted `lastSwingTime` to a ref but missed the real cycle:
+### Changes
 
-```text
-startListening depends on isListening (line 89)
-  → startListening calls setIsListening(true)
-  → isListening changes → startListening recreates
-  → effect (line 97-108) has startListening in deps → effect re-fires
-  → stopListening called → setIsListening(false) → cycle repeats
-```
+**File: `src/pages/Profile.tsx`**
 
-**Fix**: Remove `isListening` from `startListening`'s deps by using an `isListeningRef` alongside the state. Use the ref for the guard check inside `startListening`/`stopListening`, and keep `setIsListening` only for external consumers. Remove `startListening`/`stopListening` from the effect's dependency array by using refs for those too, or restructure the effect to not depend on them.
+1. **Add `flex-wrap` to the own-profile action buttons** (line ~351): Wrap `flex gap-2` → `flex flex-wrap gap-2 justify-center` so buttons stack gracefully on narrow screens
 
-Concrete approach — replace the effect + callback pattern with a single stable effect:
+2. **Add `flex-wrap` to other-user action buttons** (line ~396): Same treatment for Follow/Message/Gift buttons
 
-```typescript
-const isListeningRef = useRef(false);
-const handleMotionRef = useRef(handleMotion);
-handleMotionRef.current = handleMotion;
+3. **Add `overflow-hidden` to the page container** (line 252): Add `overflow-x-hidden` to the outer `div` to prevent any horizontal scroll bleed
 
-useEffect(() => {
-  const shouldListen = enabled && (!requiresUserGesture || permissionGranted === true);
-  
-  if (shouldListen && !isListeningRef.current) {
-    const listener = (e: DeviceMotionEvent) => handleMotionRef.current(e);
-    window.addEventListener('devicemotion', listener);
-    isListeningRef.current = true;
-    setIsListening(true);
-    return () => {
-      window.removeEventListener('devicemotion', listener);
-      isListeningRef.current = false;
-      setIsListening(false);
-    };
-  } else if (!shouldListen && isListeningRef.current) {
-    // Cleanup handled by previous effect's return
-  }
-}, [enabled, permissionGranted, requiresUserGesture]);
-```
+4. **Wrap stats + engagement row** (line ~459): Add `flex-wrap` so the engagement score wraps below stats on very narrow screens
 
-This eliminates the dependency cycle entirely — the effect only depends on stable primitives/booleans.
+5. **Constrain display name width**: Add `max-w-full overflow-hidden` to the name container (line ~289) and `truncate` or `break-words` to prevent long names + badges from overflowing
 
-### File Changes
+6. **Fix button sizing on mobile**: Make "Manage Premium" / "Edit Profile" buttons use `text-xs` on mobile to fit better, or allow them to stack vertically
 
-| File | Change |
-|------|--------|
-| `src/hooks/useSwingDetection.ts` | Restructure to use refs for listener management, eliminating the startListening→isListening→effect dependency cycle |
+### Other Pages — Quick Scan Fixes
+
+7. **`src/components/layout/AppLayout.tsx`**: Add `overflow-x-hidden` to the mobile outer wrapper (line 106) to globally prevent horizontal overflow on all pages
 
 ### No database changes needed.
-
