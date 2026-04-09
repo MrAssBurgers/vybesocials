@@ -60,45 +60,42 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   // Desktop layout with sidebars (lg+ only, NOT tablets or iPads)
   if (isDesktop) {
     return (
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-primary-foreground focus:text-sm focus:font-medium">
-        Skip to content
-      </a>
-      <div ref={ref} className="h-screen w-full overflow-hidden relative">
-        <div className="flex h-screen w-full">
-          {/* Left Sidebar */}
-          <DesktopLeftSidebar 
-            collapsed={leftCollapsed} 
-            onCollapsedChange={setLeftCollapsed}
-          />
-
-          {/* Main Content Area */}
-          <main 
-            id="main-content"
-            className={cn(
-              "flex-1 min-w-0 h-screen overflow-x-hidden relative z-[2]",
-              noPadding ? "overflow-hidden" : "overflow-y-auto"
-            )}
-            style={{
-              overscrollBehavior: 'contain',
-              WebkitOverflowScrolling: 'touch',
-              contain: 'layout style',
-            }}
-          >
-            <div 
+      <>
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-primary-foreground focus:text-sm focus:font-medium">
+          Skip to content
+        </a>
+        <div ref={ref} className="h-screen w-full overflow-hidden relative">
+          <div className="flex h-screen w-full">
+            <DesktopLeftSidebar 
+              collapsed={leftCollapsed} 
+              onCollapsedChange={setLeftCollapsed}
+            />
+            <main 
+              id="main-content"
               className={cn(
-                "mx-auto w-full",
-                noPadding ? "h-full" : "px-2 lg:px-3 py-3",
-                fullWidth ? "" : "max-w-full"
+                "flex-1 min-w-0 h-screen overflow-x-hidden relative z-[2]",
+                noPadding ? "overflow-hidden" : "overflow-y-auto"
               )}
+              style={{
+                overscrollBehavior: 'contain',
+                WebkitOverflowScrolling: 'touch',
+                contain: 'layout style',
+              }}
             >
-              {children}
-            </div>
-          </main>
-
-          {/* Right Sidebar */}
-          {!hideRightSidebar && <DesktopRightSidebar />}
+              <div 
+                className={cn(
+                  "mx-auto w-full",
+                  noPadding ? "h-full" : "px-2 lg:px-3 py-3",
+                  fullWidth ? "" : "max-w-full"
+                )}
+              >
+                {children}
+              </div>
+            </main>
+            {!hideRightSidebar && <DesktopRightSidebar />}
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
