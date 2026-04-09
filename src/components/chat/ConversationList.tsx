@@ -367,27 +367,27 @@ export function ConversationList() {
         }}
       />
 
-      {/* Quick Add Row - Online Friends (horizontal scroll like Snapchat stories row) */}
-      {!searchQuery && chatFilter === 'all' && onlineFriendsForQuickAdd.length > 0 && (
-        <div className="px-4 pb-2 flex-shrink-0 overflow-hidden">
-          <QuickAddRow
-            title={`Online · ${onlineCount}`}
-            users={onlineFriendsForQuickAdd.slice(0, 10)}
-            onSelect={handleQuickAddSelect}
-            showOnlineIndicator
-          />
-        </div>
-      )}
-
-      {/* Quick Add Section - at top */}
-      {!searchQuery && chatFilter === 'all' && (
-        <div className="px-3 pb-2 flex-shrink-0 overflow-hidden">
-          <MutualFriendsQuickAdd onSelect={handleQuickAddSelect} />
-        </div>
-      )}
-
       {/* Conversation List */}
       <ScrollArea className="flex-1" style={{ overflowX: 'hidden' }}>
+        {/* Quick Add Row - Online Friends (horizontal scroll like Snapchat stories row) */}
+        {!searchQuery && chatFilter === 'all' && onlineFriendsForQuickAdd.length > 0 && (
+          <div className="px-4 pb-2 overflow-hidden">
+            <QuickAddRow
+              title={`Online · ${onlineCount}`}
+              users={onlineFriendsForQuickAdd.slice(0, 10)}
+              onSelect={handleQuickAddSelect}
+              showOnlineIndicator
+            />
+          </div>
+        )}
+
+        {/* Quick Add Section */}
+        {!searchQuery && chatFilter === 'all' && (
+          <div className="px-3 pb-2 overflow-hidden">
+            <MutualFriendsQuickAdd onSelect={handleQuickAddSelect} />
+          </div>
+        )}
+
         {/* AI Chat Row */}
         <div className="px-3 pt-1 pb-1">
           <AutisyAIChatRow />
@@ -834,8 +834,8 @@ const ConversationItem = memo(function ConversationItem({
     const dx = Math.abs(currentX - touchStartPosRef.current.x);
     const dy = Math.abs(currentY - touchStartPosRef.current.y);
     
-    // If moved more than 10px in any direction, cancel long press (scrolling detected)
-    if (dx > 10 || dy > 10) {
+    // If moved more than 5px vertically (scrolling), cancel long press immediately
+    if (dy > 5 || dx > 10) {
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
         longPressTimerRef.current = null;

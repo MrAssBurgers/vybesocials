@@ -219,10 +219,10 @@ function QuickAddCard({
         scale: justAdded ? 0.95 : 1,
       }}
       exit={{ opacity: 0, width: 0, marginRight: -6, overflow: 'hidden', transition: { duration: 0.25 } }}
-      className="relative w-[100px] shrink-0 snap-start"
+      className="relative w-[100px] h-[152px] shrink-0 snap-start"
     >
       <div className={cn(
-        "relative flex flex-col items-center rounded-xl p-2 pt-2 bg-card border border-border/60 transition-all",
+        "relative flex flex-col items-center rounded-xl p-2 pt-2 h-full bg-card border border-border/60 transition-all",
         justAdded && "border-primary/40 bg-primary/5"
       )}>
         {/* Dismiss */}
