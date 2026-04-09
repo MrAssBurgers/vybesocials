@@ -125,7 +125,7 @@ export function GroupChatSettings({ conversationId, conversation, members, onClo
                   </p>
                 </div>
                 {isMemberCreator && (
-                  <Crown className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                  <Crown className="h-4 w-4 text-primary flex-shrink-0" />
                 )}
                 {isCreator && !isSelf && !isMemberCreator && (
                   <button
