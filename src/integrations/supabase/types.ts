@@ -9694,6 +9694,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_locations: {
+        Row: {
+          accuracy: number | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          label: string | null
+          latitude: number
+          longitude: number
+          sharing_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accuracy?: number | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          label?: string | null
+          latitude: number
+          longitude: number
+          sharing_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accuracy?: number | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          label?: string | null
+          latitude?: number
+          longitude?: number
+          sharing_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_preferences: {
         Row: {
           button_sound: string | null
