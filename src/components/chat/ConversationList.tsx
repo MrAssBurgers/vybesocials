@@ -25,7 +25,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Bot, UsersRound, Trash2, Nfc, X, UserCheck, Flame, Camera } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
-import { differenceInMinutes, differenceInHours, differenceInDays, differenceInWeeks } from 'date-fns';
+
 import { toast } from 'sonner';
 import { QuickAddRow } from './QuickAddRow';
 import { MutualFriendsQuickAdd } from './MutualFriendsQuickAdd';
@@ -43,6 +43,9 @@ import { useUsersRoles } from '@/hooks/useUserRoleById';
 import { AvatarRing } from '@/components/ui/AvatarRing';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { NFCFriendShare } from '@/components/friends/NFCFriendShare';
+import { useBatchUserStatuses } from '@/hooks/useUserStatus';
+import { StatusPicker } from '@/components/status/StatusPicker';
+import { compactTime } from '@/lib/compactTime';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
@@ -185,6 +188,7 @@ export function ConversationList() {
 
   const { data: onlineStatus = {} } = useUsersOnlineStatus(otherMemberIds);
   const { data: usersRoles = {} } = useUsersRoles(otherMemberIds);
+  const { data: statusMap = new Map() } = useBatchUserStatuses(otherMemberIds);
 
   useEffect(() => {
     setRecentUsers(getRecentMessageUsers());
@@ -293,8 +297,11 @@ export function ConversationList() {
             </button>
           )}
 
-          {/* Center: Title */}
-          <h1 className="text-lg font-bold text-foreground tracking-tight">Chat</h1>
+          {/* Center: Title + Status */}
+          <div className="flex flex-col items-center">
+            <h1 className="text-lg font-bold text-foreground tracking-tight">Chat</h1>
+            <StatusPicker />
+          </div>
 
           {/* Right: Actions */}
           <div className="flex items-center gap-0.5">
@@ -422,6 +429,7 @@ export function ConversationList() {
                     hasStory={hasStory}
                     storyGroup={storyGroup}
                     streak={streak}
+                    userStatus={otherMemberId ? statusMap.get(otherMemberId) : undefined}
                   />
                 );
               })}
@@ -443,6 +451,7 @@ export function ConversationList() {
                     hasStory={hasStory}
                     storyGroup={storyGroup}
                     streak={streak}
+                    userStatus={otherMemberId ? statusMap.get(otherMemberId) : undefined}
                   />
                 );
               })}
@@ -570,6 +579,7 @@ const ConversationContent = memo(function ConversationContent({
   handleAvatarClick,
   otherMember,
   streak,
+  userStatus,
 }: any) {
   return (
     <>
@@ -698,6 +708,10 @@ const ConversationContent = memo(function ConversationContent({
                     : (lastMessage.content?.slice(0, 30) || 'Media') + (lastMessage.content && lastMessage.content.length > 30 ? '...' : '')}
                 </p>
               </>
+            ) : userStatus ? (
+              <p className="text-xs text-muted-foreground/70 truncate italic">
+                {userStatus.emoji} {userStatus.text}
+              </p>
             ) : conversation.is_group ? (
               <p className="text-xs text-muted-foreground truncate">
                 Start chatting
@@ -730,6 +744,7 @@ const ConversationItem = memo(function ConversationItem({
   hasStory,
   storyGroup,
   streak,
+  userStatus,
 }: { 
   conversation: Conversation; 
   onClick: () => void;
@@ -741,6 +756,7 @@ const ConversationItem = memo(function ConversationItem({
   hasStory?: boolean;
   storyGroup?: StoryGroup;
   streak?: Streak;
+  userStatus?: { emoji: string; text: string } | null;
 }) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -871,17 +887,7 @@ const ConversationItem = memo(function ConversationItem({
 
   const formattedTime = useMemo(() => {
     if (!lastMessage?.created_at) return null;
-    const date = new Date(lastMessage.created_at);
-    const now = new Date();
-    const mins = differenceInMinutes(now, date);
-    if (mins < 1) return 'now';
-    if (mins < 60) return `${mins}m`;
-    const hrs = differenceInHours(now, date);
-    if (hrs < 24) return `${hrs}h`;
-    const days = differenceInDays(now, date);
-    if (days < 7) return `${days}d`;
-    const weeks = differenceInWeeks(now, date);
-    return `${weeks}w`;
+    return compactTime(lastMessage.created_at);
   }, [lastMessage?.created_at]);
 
   const isMuted = conversation.members?.find((m) => m.user_id === currentUserId)?.is_muted;
@@ -915,6 +921,7 @@ const ConversationItem = memo(function ConversationItem({
     handleAvatarClick,
     otherMember,
     streak,
+    userStatus,
   };
 
   // Mobile swipeable version with long-press for options
