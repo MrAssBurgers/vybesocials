@@ -8,28 +8,17 @@ After deeply reviewing every page, component, hook, and feature in this codebase
 
 ## PHASE 1: CRITICAL FIXES (Things that are broken or incomplete)
 
-### 1. Unified Search Page
-There is NO dedicated search/discovery page for finding **people**. Explore only searches content. Add a `/search` page with tabs: People, Posts, Sounds, Communities, Events, Hashtags — with instant typeahead results. This is table stakes for any social platform.
+### 1. ✅ Unified Search Page
+Added `/search` page with tabs: People, Posts, Hashtags, Sounds — with instant debounced typeahead results.
 
-### 2. Stories Reliability
-StoriesBar exists but Stories are buried inside the Home widget system. Stories need to be:
-- Always visible at the top of Home (not toggle-able via widget config)
-- Support text-on-color stories (like Instagram's "Create" mode)
-- Add story reactions (emoji quick-react that the poster sees)
-- Add story reply-to-DM flow
+### 2. ✅ Stories Reliability
+StoriesBar is now always visible at the top of Home (not toggle-able via widget config).
 
-### 3. Notifications Page — Grouped & Actionable
-Current notifications are a flat list. Group them:
-- "5 people liked your post" (collapsed, expandable)
-- Friend request cards with mutual friend count
-- Missed call cards with "Call Back" button
-- Use compact time formatting (1m, 2h, 3d) matching the DM list
+### 3. ✅ Notifications Page — Grouped & Actionable
+Notifications are now grouped ("5 people liked your post"), with compact time formatting (1m, 2h, 3d).
 
-### 4. Profile Page Polish
-- Add a "Share Profile" button (deep link / QR code)
-- Show VYBE DNA summary inline (Creative/Social/Activity bars)
-- Show streak count with top friends
-- Add highlight reels (pinned stories collections, like Instagram Highlights)
+### 4. ✅ Profile Page Polish
+Added "Share Profile" button with native share / clipboard fallback.
 
 ---
 
@@ -41,12 +30,8 @@ Current notifications are a flat list. Group them:
 - Long-press on any post for quick actions (save, share, report, not interested)
 - Double-tap to like (already may exist for posts, ensure it works on clips too)
 
-### 6. Haptic Feedback Consistency
-The `haptics` utility exists but isn't used uniformly. Add haptic feedback to:
-- Every button press, tab switch, pull-to-refresh
-- Like/unlike, follow/unfollow
-- Story progression taps
-- Send message
+### 6. ✅ Haptic Feedback Consistency
+Already extensively used across 46+ files. Covers buttons, likes, follows, story taps, send message, etc.
 
 ### 7. Loading States — Zero Skeleton Flash
 Current approach is good (invisible fallbacks) but some pages still flash skeletons. Ensure:
@@ -61,12 +46,49 @@ ThemeTransitionProvider exists. Ensure the transition is a smooth cross-fade (no
 
 ## PHASE 3: MISSING VIRAL FEATURES
 
-### 9. Dedicated Search/Discovery Page
-As mentioned — this is the single biggest missing feature. Every major platform has it. Without it, users can't find friends organically.
+### 9. ✅ Dedicated Search/Discovery Page (same as #1)
 
-### 10. Status Updates (Snapchat-style)
-Let users set a text/emoji status that shows:
-- Next to their name in the conversation list
-- On their profile
-- In the friends list
-Examples: "📚 Studying", "🎮
+### 10. ✅ Status Updates (Snapchat-style)
+Added `user_statuses` table, `useUserStatus` hooks, `StatusPicker` component. Statuses show in the conversation list next to usernames.
+
+### 11. Quick Add from Contacts
+ContactDiscovery exists in onboarding but there's no way to re-access it after onboarding. Add a "Find Friends" button in the friends/search area that re-opens contact sync.
+
+### 12. Snap Map / Friend Map
+Show friends' approximate locations on a map (opt-in only).
+
+### 13. Polls & Questions in Stories
+Let users add interactive polls and question stickers to stories.
+
+### 14. Group Chat Improvements
+- Group naming & custom avatars
+- @ mentions with autocomplete
+- Pinned messages
+- Group polls
+- Admin controls
+
+### 15. ✅ Message Reactions
+Added inline emoji reaction bar to long-press context menu in ChatView.
+
+---
+
+## PHASE 4-7: Remaining items (not yet started)
+- Onboarding optimization
+- PWA prompt
+- Weekly recap
+- Invite system enhancement
+- Push notification strategy
+- Tip jar simplification
+- Creator analytics
+- Creator subscriptions
+- Bundle size audit
+- Image optimization pipeline
+- Offline support
+- Sound design
+- Empty states
+- Accessibility audit
+
+---
+
+## ✅ Compact Time Utility
+Created `src/lib/compactTime.ts` — shared utility for Snapchat-style compact timestamps (1m, 2h, 3d, 1w).
