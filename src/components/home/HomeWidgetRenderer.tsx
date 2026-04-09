@@ -105,7 +105,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'ai_brief':
       return <DailyBriefWidget />;
     case 'stories':
-      return null; // Stories now rendered directly in Home.tsx, always visible
+      return <StoriesBar />;
     case 'weekly_rhythm':
       return <WeeklyRhythmBanner />;
     case 'vybe_dna':
