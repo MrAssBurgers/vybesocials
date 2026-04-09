@@ -135,7 +135,7 @@ const ChallengePill = memo(function ChallengePill({ challenge, index }: { challe
 const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate; index: number }) {
   const [expanded, setExpanded] = useState(false);
   const hasImage = !!update.imageUrl;
-  const preview = update.content.length > 120 ? update.content.slice(0, 120) + '...' : update.content;
+  const preview = update.content.length > 160 ? update.content.slice(0, 160) + '...' : update.content;
   const isLocal = update.category === 'local';
   const isWorld = update.category === 'world';
 
@@ -152,7 +152,7 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
         <div className="rounded-2xl bg-card/60 border border-border/10 overflow-hidden hover:border-border/25 transition-all duration-200 active:scale-[0.995]">
           {/* Image hero */}
           {hasImage && (
-            <div className="relative w-full h-28 bg-muted/20 overflow-hidden">
+            <div className="relative w-full h-40 bg-muted/20 overflow-hidden">
               <img 
                 src={update.imageUrl} 
                 alt={update.interest}
@@ -198,14 +198,19 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
             )}
 
             {/* Content */}
-            <p className="text-[12.5px] text-foreground/80 leading-relaxed">
+            <p className="text-[13px] text-foreground/85 leading-relaxed font-medium">
               {expanded ? update.content : preview}
             </p>
 
-            {/* Source favicons row */}
+            {/* Read more indicator when collapsed */}
+            {!expanded && update.content.length > 160 && (
+              <span className="text-[11px] text-primary/60 font-semibold mt-1 inline-block">Tap to read more</span>
+            )}
+
+            {/* Source favicons row with domain names */}
             {update.sources && update.sources.length > 0 && (
-              <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-border/8">
-                <div className="flex -space-x-1">
+              <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-border/10">
+                <div className="flex -space-x-1.5">
                   {(update.sourceFavicons || update.sources.slice(0, 3).map(s => {
                     try { return `https://www.google.com/s2/favicons?domain=${new URL(s).hostname}&sz=32`; } catch { return null; }
                   })).filter(Boolean).slice(0, 4).map((favicon, i) => (
@@ -213,14 +218,17 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
                       key={i} 
                       src={favicon as string} 
                       alt="" 
-                      className="w-3.5 h-3.5 rounded-full border border-background bg-muted"
+                      className="w-4 h-4 rounded-full border-2 border-background bg-muted"
                       loading="lazy"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                   ))}
                 </div>
-                <span className="text-[9px] text-muted-foreground/40">
-                  {update.sources.length} source{update.sources.length > 1 ? 's' : ''}
+                <span className="text-[10px] text-muted-foreground/50 truncate">
+                  {update.sources.slice(0, 2).map(s => {
+                    try { return new URL(s).hostname.replace('www.', ''); } catch { return ''; }
+                  }).filter(Boolean).join(', ')}
+                  {update.sources.length > 2 ? ` +${update.sources.length - 2}` : ''}
                 </span>
               </div>
             )}
