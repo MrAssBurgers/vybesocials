@@ -54,9 +54,9 @@ Rules:
 - Include real source URLs from your grounding results
 - category is "interests" for topic items, "local" for location-based, "world" for general news`;
 
-  try {
+  const makeRequest = async () => {
     console.log("[Brief] Calling Gemini with Google Search grounding...");
-    const response = await fetch(
+    return await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
@@ -71,6 +71,17 @@ Rules:
         }),
       }
     );
+  };
+
+  try {
+    let response = await makeRequest();
+
+    // Retry once on 503 (Gemini overloaded)
+    if (response.status === 503) {
+      console.warn("[Brief] Gemini returned 503, retrying after 2s...");
+      await new Promise(r => setTimeout(r, 2000));
+      response = await makeRequest();
+    }
 
     if (!response.ok) {
       const errText = await response.text().catch(() => 'unknown');
