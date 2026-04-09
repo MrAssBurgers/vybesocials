@@ -1,0 +1,1 @@
+ALTER TABLE public.user_locations ADD COLUMN IF NOT EXISTS status text DEFAULT NULL;

@@ -9704,6 +9704,7 @@ export type Database = {
           latitude: number
           longitude: number
           sharing_enabled: boolean
+          status: string | null
           updated_at: string
           user_id: string
         }
@@ -9716,6 +9717,7 @@ export type Database = {
           latitude: number
           longitude: number
           sharing_enabled?: boolean
+          status?: string | null
           updated_at?: string
           user_id: string
         }
@@ -9728,6 +9730,7 @@ export type Database = {
           latitude?: number
           longitude?: number
           sharing_enabled?: boolean
+          status?: string | null
           updated_at?: string
           user_id?: string
         }
