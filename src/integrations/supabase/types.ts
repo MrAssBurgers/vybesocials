@@ -2906,6 +2906,35 @@ export type Database = {
           },
         ]
       }
+      conversation_admins: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_admins_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_members: {
         Row: {
           conversation_id: string
@@ -2988,6 +3017,7 @@ export type Database = {
           is_group: boolean | null
           max_members: number | null
           name: string | null
+          pinned_message_id: string | null
           updated_at: string
         }
         Insert: {
@@ -2999,6 +3029,7 @@ export type Database = {
           is_group?: boolean | null
           max_members?: number | null
           name?: string | null
+          pinned_message_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -3010,6 +3041,7 @@ export type Database = {
           is_group?: boolean | null
           max_members?: number | null
           name?: string | null
+          pinned_message_id?: string | null
           updated_at?: string
         }
         Relationships: [
