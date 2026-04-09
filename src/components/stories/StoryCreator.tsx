@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera as CameraIcon, Image as ImageIcon, Star, Send, Loader2, AlertCircle, RotateCcw } from 'lucide-react';
+import { X, Camera as CameraIcon, Image as ImageIcon, Star, Send, Loader2, AlertCircle, RotateCcw, BarChart3 } from 'lucide-react';
+import { StoryPollEditor, PollData } from './StoryPollEditor';
 import { useCreateStory } from '@/hooks/useStories';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -34,6 +35,8 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   const [isCloseFriendsOnly, setIsCloseFriendsOnly] = useState(false);
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [pollData, setPollData] = useState<PollData | null>(null);
+  const [showPollEditor, setShowPollEditor] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [mediaInfo, setMediaInfo] = useState<{
     aspectRatio: number;
