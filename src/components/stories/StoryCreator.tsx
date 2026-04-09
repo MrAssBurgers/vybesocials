@@ -276,17 +276,40 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
             </AnimatePresence>
 
             {/* Caption input overlay - only when not processing */}
-            {!isProcessing && uploadState !== 'error' && (
-              <div className="absolute bottom-4 inset-x-4">
+            {!isProcessing && uploadState !== 'error' && !showPollEditor && (
+              <div className="absolute bottom-4 inset-x-4 space-y-2">
+                {/* Poll badge if set */}
+                {pollData && (
+                  <div className="flex items-center gap-2 bg-primary/20 backdrop-blur-sm rounded-full px-3 py-1.5 w-fit">
+                    <BarChart3 className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-xs text-primary font-medium">{pollData.type === 'poll' ? 'Poll' : 'Question'} added</span>
+                    <button onClick={() => setPollData(null)} className="ml-1">
+                      <X className="h-3 w-3 text-primary/60" />
+                    </button>
+                  </div>
+                )}
                 <Input
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
-                  placeholder={t('stories.addCaption')}
+                  placeholder="Add a caption..."
                   maxLength={150}
                   className="bg-black/50 border-white/20 text-white placeholder:text-white/50"
                 />
               </div>
             )}
+
+            {/* Poll Editor overlay */}
+            <AnimatePresence>
+              {showPollEditor && (
+                <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/40">
+                  <StoryPollEditor
+                    initial={pollData}
+                    onSave={(data) => { setPollData(data); setShowPollEditor(false); }}
+                    onCancel={() => setShowPollEditor(false)}
+                  />
+                </div>
+              )}
+            </AnimatePresence>
 
             {/* Change button - only when not processing */}
             {!isProcessing && uploadState !== 'error' && (
