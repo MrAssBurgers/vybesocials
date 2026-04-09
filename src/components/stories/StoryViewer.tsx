@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { X, Pause, Play, Eye, Send, Heart, ChevronUp, Users, Megaphone } from 'lucide-react';
+import { StoryPollViewer } from './StoryPollViewer';
 import { StoryGroup, useViewStory } from '@/hooks/useStories';
 import { useStoryLikes, useLikeStory } from '@/hooks/useStoryLikes';
 import { useAuth } from '@/lib/auth';
@@ -387,6 +388,17 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
               <span>⭐</span>
               <span>Close Friends</span>
             </div>
+          </div>
+        )}
+
+        {/* Poll/Question Sticker */}
+        {(currentStory as any).poll_data && (
+          <div className="absolute bottom-28 inset-x-0 z-10">
+            <StoryPollViewer
+              storyId={currentStory.id}
+              pollData={(currentStory as any).poll_data}
+              isOwner={isOwnStory}
+            />
           </div>
         )}
 

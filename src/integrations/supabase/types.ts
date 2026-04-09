@@ -8466,6 +8466,7 @@ export type Database = {
           like_count: number
           media_type: string
           media_url: string
+          poll_data: Json | null
           view_count: number | null
         }
         Insert: {
@@ -8480,6 +8481,7 @@ export type Database = {
           like_count?: number
           media_type?: string
           media_url: string
+          poll_data?: Json | null
           view_count?: number | null
         }
         Update: {
@@ -8494,6 +8496,7 @@ export type Database = {
           like_count?: number
           media_type?: string
           media_url?: string
+          poll_data?: Json | null
           view_count?: number | null
         }
         Relationships: [
@@ -8581,6 +8584,38 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "xp_leaderboard"
             referencedColumns: ["profile_id"]
+          },
+        ]
+      }
+      story_poll_votes: {
+        Row: {
+          created_at: string
+          id: string
+          option_index: number
+          story_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          option_index: number
+          story_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          option_index?: number
+          story_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_poll_votes_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
           },
         ]
       }

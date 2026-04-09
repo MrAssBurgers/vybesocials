@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera as CameraIcon, Image as ImageIcon, Star, Send, Loader2, AlertCircle, RotateCcw } from 'lucide-react';
+import { X, Camera as CameraIcon, Image as ImageIcon, Star, Send, Loader2, AlertCircle, RotateCcw, BarChart3 } from 'lucide-react';
+import { StoryPollEditor, PollData } from './StoryPollEditor';
 import { useCreateStory } from '@/hooks/useStories';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -34,6 +35,8 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   const [isCloseFriendsOnly, setIsCloseFriendsOnly] = useState(false);
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [pollData, setPollData] = useState<PollData | null>(null);
+  const [showPollEditor, setShowPollEditor] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [mediaInfo, setMediaInfo] = useState<{
     aspectRatio: number;
@@ -147,13 +150,14 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       setUploadProgress(85);
 
       // Create story record
-      await createStory.mutateAsync({
+      await (createStory as any).mutateAsync({
         mediaUrl: publicUrl,
         mediaType: mediaInfo.isVideo ? 'video' : 'image',
         caption: caption.trim() || undefined,
         isCloseFriendsOnly,
         aspectRatio: mediaInfo.aspectRatio,
         duration: mediaInfo.duration,
+        pollData: pollData || undefined,
       });
 
       setUploadProgress(100);
@@ -272,28 +276,61 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
             </AnimatePresence>
 
             {/* Caption input overlay - only when not processing */}
-            {!isProcessing && uploadState !== 'error' && (
-              <div className="absolute bottom-4 inset-x-4">
+            {!isProcessing && uploadState !== 'error' && !showPollEditor && (
+              <div className="absolute bottom-4 inset-x-4 space-y-2">
+                {/* Poll badge if set */}
+                {pollData && (
+                  <div className="flex items-center gap-2 bg-primary/20 backdrop-blur-sm rounded-full px-3 py-1.5 w-fit">
+                    <BarChart3 className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-xs text-primary font-medium">{pollData.type === 'poll' ? 'Poll' : 'Question'} added</span>
+                    <button onClick={() => setPollData(null)} className="ml-1">
+                      <X className="h-3 w-3 text-primary/60" />
+                    </button>
+                  </div>
+                )}
                 <Input
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
-                  placeholder={t('stories.addCaption')}
+                  placeholder="Add a caption..."
                   maxLength={150}
                   className="bg-black/50 border-white/20 text-white placeholder:text-white/50"
                 />
               </div>
             )}
 
-            {/* Change button - only when not processing */}
-            {!isProcessing && uploadState !== 'error' && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute top-4 right-4"
-              >
-                Change
-              </Button>
+            {/* Poll Editor overlay */}
+            <AnimatePresence>
+              {showPollEditor && (
+                <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/40">
+                  <StoryPollEditor
+                    initial={pollData}
+                    onSave={(data) => { setPollData(data); setShowPollEditor(false); }}
+                    onCancel={() => setShowPollEditor(false)}
+                  />
+                </div>
+              )}
+            </AnimatePresence>
+
+            {/* Action buttons - only when not processing */}
+            {!isProcessing && uploadState !== 'error' && !showPollEditor && (
+              <div className="absolute top-4 right-4 flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowPollEditor(true)}
+                  className="gap-1"
+                >
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Poll
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Change
+                </Button>
+              </div>
             )}
           </div>
         ) : uploadState === 'error' ? (

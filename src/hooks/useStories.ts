@@ -145,6 +145,7 @@ interface CreateStoryParams {
   isCloseFriendsOnly?: boolean;
   aspectRatio?: number;
   duration?: number | null;
+  pollData?: { type: string; question: string; options: string[] };
 }
 
 export function useCreateStory() {
@@ -159,11 +160,12 @@ export function useCreateStory() {
       isCloseFriendsOnly,
       aspectRatio,
       duration,
+      pollData,
     }: CreateStoryParams) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
-        .from('stories')
+      const { data, error } = await (supabase
+        .from('stories') as any)
         .insert({
           author_id: profile.id,
           media_url: mediaUrl,
@@ -172,6 +174,7 @@ export function useCreateStory() {
           is_close_friends_only: isCloseFriendsOnly || false,
           aspect_ratio: aspectRatio || 0.5625,
           duration: duration,
+          poll_data: pollData || null,
         })
         .select(`
           *,
