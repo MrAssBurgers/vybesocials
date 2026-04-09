@@ -98,7 +98,7 @@ const MapGrid = memo(function MapGrid({ friends, myLocation }: { friends: Friend
                 {(friend.profile?.display_name || '?')[0]}
               </AvatarFallback>
             </Avatar>
-            <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
+            <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary border-2 border-background flex items-center justify-center">
               <MapPin className="h-2 w-2 text-white" />
             </div>
           </div>
