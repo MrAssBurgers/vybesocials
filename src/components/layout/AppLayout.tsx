@@ -119,6 +119,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
       {/* Main content - optimized touch scrolling */}
       <main
+        id="main-content"
         data-app-scroll-container="true"
         className={cn(
           "overflow-x-hidden relative z-[2]",
