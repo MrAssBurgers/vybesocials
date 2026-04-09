@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useMutualFriends, UserWithMutualFriends } from '@/hooks/useMutualFriends';
@@ -102,6 +102,19 @@ export function MutualFriendsQuickAdd({
   const dismissProfile = useDismissProfile();
   const [localDismissed, setLocalDismissed] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
 
   const handleDismiss = useCallback((userId: string) => {
     setLocalDismissed(prev => new Set([...prev, userId]));

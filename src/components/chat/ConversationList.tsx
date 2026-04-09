@@ -371,7 +371,7 @@ export function ConversationList() {
       <ScrollArea className="flex-1" style={{ overflowX: 'hidden' }}>
         {/* Quick Add Row - Online Friends (horizontal scroll like Snapchat stories row) */}
         {!searchQuery && chatFilter === 'all' && onlineFriendsForQuickAdd.length > 0 && (
-          <div className="px-4 pb-2 overflow-hidden">
+          <div className="px-4 pb-2">
             <QuickAddRow
               title={`Online · ${onlineCount}`}
               users={onlineFriendsForQuickAdd.slice(0, 10)}
@@ -383,7 +383,7 @@ export function ConversationList() {
 
         {/* Quick Add Section */}
         {!searchQuery && chatFilter === 'all' && (
-          <div className="px-3 pb-2 overflow-hidden">
+          <div className="px-3 pb-2">
             <MutualFriendsQuickAdd onSelect={handleQuickAddSelect} />
           </div>
         )}
