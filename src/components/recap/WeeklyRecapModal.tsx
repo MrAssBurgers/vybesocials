@@ -55,31 +55,42 @@ export function WeeklyRecapModal() {
     const weekAgoStr = weekAgo.toISOString();
 
     try {
-      const [postsRes, likesRes, commentsRes, followersRes] = await Promise.all([
-        supabase.from('posts').select('id, caption', { count: 'exact' })
-          .eq('user_id', user.id).gte('created_at', weekAgoStr),
-        supabase.from('reactions').select('id', { count: 'exact' })
-          .eq('post_user_id', user.id).gte('created_at', weekAgoStr),
-        supabase.from('comments').select('id', { count: 'exact' })
-          .eq('post_user_id', user.id).gte('created_at', weekAgoStr),
+      // Get user's posts from this week first
+      const postsRes = await supabase.from('posts').select('id, caption', { count: 'exact' })
+        .eq('user_id', user.id).gte('created_at', weekAgoStr);
+
+      const postIds = (postsRes.data || []).map(p => p.id);
+
+      const [likesRes, commentsRes, followersRes] = await Promise.all([
+        postIds.length > 0
+          ? supabase.from('likes').select('id', { count: 'exact' }).in('post_id', postIds).gte('created_at', weekAgoStr)
+          : Promise.resolve({ count: 0 } as any),
+        postIds.length > 0
+          ? supabase.from('comments').select('id', { count: 'exact' }).in('post_id', postIds).gte('created_at', weekAgoStr)
+          : Promise.resolve({ count: 0 } as any),
         supabase.from('follows').select('id', { count: 'exact' })
           .eq('following_id', user.id).gte('created_at', weekAgoStr),
       ]);
 
-      // Find top post by reactions
+      // Find top post by likes count
       let topPost: WeeklyStats['topPost'] = null;
-      if (postsRes.data && postsRes.data.length > 0) {
-        const { data: topData } = await supabase
-          .from('posts')
-          .select('caption, reaction_count')
-          .eq('user_id', user.id)
-          .gte('created_at', weekAgoStr)
-          .order('reaction_count', { ascending: false })
-          .limit(1)
-          .single();
+      if (postIds.length > 0) {
+        // Count likes per post
+        const { data: likeCounts } = await supabase
+          .from('likes')
+          .select('post_id')
+          .in('post_id', postIds);
 
-        if (topData) {
-          topPost = { caption: topData.caption || 'Your post', likes: topData.reaction_count || 0 };
+        if (likeCounts && likeCounts.length > 0) {
+          const countMap: Record<string, number> = {};
+          for (const l of likeCounts) {
+            countMap[l.post_id] = (countMap[l.post_id] || 0) + 1;
+          }
+          const topId = Object.entries(countMap).sort((a, b) => b[1] - a[1])[0];
+          const topData = postsRes.data?.find(p => p.id === topId[0]);
+          if (topData) {
+            topPost = { caption: topData.caption || 'Your post', likes: topId[1] };
+          }
         }
       }
 
