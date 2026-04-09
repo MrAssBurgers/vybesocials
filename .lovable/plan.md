@@ -1,103 +1,47 @@
 
 
-## Plan: Perfect the VybeMap — Live Location, Snap-Style UI Revamp, Backend Hardening
+## Plan: Snap Map Feature Parity for VybeMap
 
-### What's changing
+### Bug Fix (immediate)
+The map crashes with `friends.find is not a function` because `friends` can be `undefined` from the query. Fix by adding defensive array checks on lines 174 and 177-183.
 
-The Friend Map gets a complete overhaul to match Snapchat's map experience: always-on live location tracking, real-time friend updates, and a polished immersive UI that fills every pixel of the phone screen.
+### Snap Map Features to Add
 
----
+**1. Ghost Mode UI** — Already have sharing toggle, but redesign it as a proper Snap-style "Ghost Mode" bottom sheet with three options: Ghost Mode (off), My Friends, Select Friends. For now, keep it as on/off but style it like Snap's ghost mode pill.
 
-### 1. Enable Realtime on `user_locations`
+**2. Marker Clustering** — When friends are near each other at low zoom, group them into a cluster bubble showing count + stacked avatars. Use Leaflet's built-in zoom events to toggle between clustered and individual views.
 
-Add a migration to enable Supabase Realtime so friend locations update live without polling:
+**3. Actionmoji / Status Indicators** — Show activity status on markers (🎵 listening to music, ✈️ traveling, 🏠 home, etc.). Add a `status` field to the location upsert that auto-detects based on speed/time-of-day, or let users manually set it.
 
-```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE public.user_locations;
-```
+**4. Heat Map Layer** — Add a toggleable heat map overlay showing where friends have been recently (aggregate location history). This requires a new `location_history` concept — skip for now, but add a visual toggle placeholder.
 
-This replaces the current 30-second polling with instant updates.
+**5. Weather Overlay** — Show current weather icon on the map at the user's location using a free weather API or simple time-based logic (day/night indicator).
 
----
+**6. Place Search** — Add a search bar that uses the Leaflet/OpenStreetMap Nominatim geocoder to search for places and fly to them.
 
-### 2. Always-On Live Location with `watchPosition`
+**7. Map Styles Toggle** — Add a layers button to switch between satellite, dark, and terrain map styles (like Snap's map style options).
 
-Replace the current one-shot `getCurrentPosition` with the browser's `watchPosition` API:
+**8. Stories on Map** — When friends have recent posts, show a colorful ring around their marker (like Snap shows stories on map). Tap to view.
 
-- Start watching on mount (with user permission).
-- Continuously update `user_locations` via upsert every ~15 seconds (debounced to avoid spamming).
-- Remove the 8-hour expiry concept — location stays live as long as sharing is enabled.
-- Add an "always on" toggle that persists the sharing preference so it survives page reloads.
-- Use `enableHighAccuracy: true` for GPS-level precision (no more 2-decimal rounding — store full precision, only fuzz for *other users' display*).
+**9. Improved Animations** — Smooth marker position transitions using `setLatLng` with requestAnimationFrame interpolation instead of instant jumps.
 
----
+**10. Full-Screen Friend Card** — When tapping a friend, slide up a larger card with: avatar, name, last active time, distance, weather at their location, and action buttons (message, directions, profile).
 
-### 3. Realtime Subscription for Friend Markers
+### Database Changes
+- Add migration: `ALTER TABLE user_locations ADD COLUMN IF NOT EXISTS status text DEFAULT NULL;`
+- This stores optional activity status per user.
 
-Subscribe to `postgres_changes` on `user_locations` filtered to friend IDs:
-
-- On `INSERT`/`UPDATE`, update markers in real-time (smooth `setLatLng` transitions).
-- On `DELETE` or `sharing_enabled = false`, remove marker immediately.
-- Replace the `refetchInterval: 30000` polling entirely.
-
----
-
-### 4. Snap-Style UI Revamp
-
-Complete visual overhaul of `FriendMap.tsx`:
-
-**Top bar:**
-- Minimal frosted-glass pill with just the back arrow and a search/filter icon.
-- Remove the "Friend Map" title — let the map speak for itself.
-
-**My location indicator:**
-- Larger pulsing Bitmoji-style dot with a glowing ring animation.
-- Accuracy circle overlay showing GPS precision radius.
-
-**Friend markers:**
-- Snap-style 3D-ish avatar bubbles with subtle bounce-in animation.
-- Activity status indicator (green dot = active now, grey = last seen X ago).
-- Tap to expand into a card that slides up from below.
-
-**Bottom panel redesign:**
-- Horizontal scrollable friend avatars strip (Snap's "Friends" row at bottom).
-- Each avatar shows a colored ring when actively sharing.
-- Pull-up drawer with friend list, sorted by proximity.
-- Sharing toggle redesigned as a floating action button (FAB) with pulse animation when off.
-
-**Map styling:**
-- Keep satellite tiles but add a subtle dark overlay vignette at edges.
-- Smooth fly-to animations with spring easing.
-- Pinch-to-zoom with momentum.
-
----
-
-### 5. Remove Bottom Nav Completely
-
-Ensure `/map` is in `HIDDEN_NAV_ROUTES` (already done) and that `AppLayout` renders with `hideNav noPadding` so zero chrome interferes with the immersive map.
-
----
-
-### 6. Accuracy & Performance
-
-- Use `enableHighAccuracy: true` + `maximumAge: 0` for real GPS data.
-- Show accuracy circle on map using `L.circle()`.
-- Debounce DB writes to every 15 seconds to avoid excessive upserts.
-- Clean up `watchPosition` on unmount to prevent battery drain.
-
----
-
-### Files to modify
+### Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/pages/FriendMap.tsx` | Full rewrite — live tracking, realtime subscription, Snap UI |
-| New migration SQL | `ALTER PUBLICATION supabase_realtime ADD TABLE public.user_locations` |
+| `src/pages/FriendMap.tsx` | Fix crash bug, add clustering, search, map styles, enhanced cards, ghost mode UI, status indicators |
+| New migration | Add `status` column to `user_locations` |
 
-### Technical notes
-
-- The `user_locations` table already exists with the correct schema (confirmed in DB).
-- Types are already generated in `types.ts` — can remove `(supabase as any)` casts.
-- Realtime channel will use `supabase.channel('friend-locations').on('postgres_changes', ...)`.
-- `watchPosition` returns a watcher ID for cleanup in the `useEffect` return.
+### Technical Notes
+- Fix the `friends.find` crash by ensuring `Array.isArray(friends)` guards
+- Use Nominatim (free, no API key) for place search
+- Map style switching via swapping `L.tileLayer` source URLs
+- Marker clustering done manually via zoom-level checks (no extra dependency)
+- Status auto-detection: speed > 25mph = traveling, stationary + night = sleeping, etc.
 
