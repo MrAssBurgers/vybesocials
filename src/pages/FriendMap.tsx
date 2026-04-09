@@ -199,11 +199,40 @@ function useFriendLocations(friendIds: string[]) {
 
 /* ── search hook ─────────────────────────────────────── */
 
-function useNominatimSearch() {
+function useNominatimSearch(myCoords: [number, number] | null) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [nearby, setNearby] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout>>();
+  const nearbyLoaded = useRef(false);
+
+  // Load nearby places when coords become available
+  useEffect(() => {
+    if (!myCoords || nearbyLoaded.current) return;
+    nearbyLoaded.current = true;
+    const categories = ['restaurant', 'cafe', 'gas station', 'grocery', 'pharmacy'];
+    const fetches = categories.map(async (cat) => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=2&q=${encodeURIComponent(cat)}&viewbox=${myCoords[1] - 0.05},${myCoords[0] + 0.05},${myCoords[1] + 0.05},${myCoords[0] - 0.05}&bounded=1`
+        );
+        return await res.json();
+      } catch { return []; }
+    });
+    Promise.all(fetches).then((all) => {
+      const flat = all.flat().filter(Boolean);
+      // Sort by distance from user
+      if (myCoords) {
+        flat.sort((a: any, b: any) => {
+          const da = distanceBetween(myCoords, [parseFloat(a.lat), parseFloat(a.lon)]);
+          const db = distanceBetween(myCoords, [parseFloat(b.lat), parseFloat(b.lon)]);
+          return da - db;
+        });
+      }
+      setNearby(flat.slice(0, 8));
+    });
+  }, [myCoords]);
 
   const search = useCallback((q: string) => {
     setQuery(q);
@@ -212,17 +241,30 @@ function useNominatimSearch() {
     setLoading(true);
     debounce.current = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(q)}`);
+        const locBias = myCoords
+          ? `&viewbox=${myCoords[1] - 0.5},${myCoords[0] + 0.5},${myCoords[1] + 0.5},${myCoords[0] - 0.5}&bounded=0`
+          : '';
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=8&q=${encodeURIComponent(q)}${locBias}`
+        );
         const data = await res.json();
+        // Sort results by distance if we have coords
+        if (myCoords && data?.length) {
+          data.sort((a: any, b: any) => {
+            const da = distanceBetween(myCoords, [parseFloat(a.lat), parseFloat(a.lon)]);
+            const db = distanceBetween(myCoords, [parseFloat(b.lat), parseFloat(b.lon)]);
+            return da - db;
+          });
+        }
         setResults(data || []);
       } catch { setResults([]); }
       setLoading(false);
     }, 400);
-  }, []);
+  }, [myCoords]);
 
   const clear = useCallback(() => { setQuery(''); setResults([]); }, []);
 
-  return { query, results, loading, search, clear };
+  return { query, results, nearby, loading, search, clear };
 }
 
 /* ── component ───────────────────────────────────────── */
