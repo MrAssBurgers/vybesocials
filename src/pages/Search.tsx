@@ -30,9 +30,8 @@ function useSearchPeople(query: string) {
       if (!query || query.length < 2) return [];
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, bio, follower_count')
+        .select('id, username, display_name, avatar_url, bio')
         .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
-        .order('follower_count', { ascending: false })
         .limit(30);
       if (error) throw error;
       return data || [];
