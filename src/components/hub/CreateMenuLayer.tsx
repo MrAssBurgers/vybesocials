@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Image, Zap, ShoppingBag, Calendar, Users, Shield, X, ChevronLeft, BarChart3, Wrench, Clock } from "lucide-react";
+import { Camera, Image, Zap, ShoppingBag, Calendar, Users, Shield, X, ChevronLeft, BarChart3, Wrench, Clock, MapPin } from "lucide-react";
 import { VybeMiniIcon } from "@/components/ui/VybeMiniIcon";
 
 import { triggerHaptic } from "@/lib/haptics";
@@ -233,11 +233,20 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: 20 }}
                             transition={{ duration: 0.15 }}
-                            className="flex items-center gap-2"
+                            className="flex items-center gap-2 w-full"
                           >
-                            <Zap className="w-4 h-4 text-primary" />
-                            <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">Create</span>
-                            <Zap className="w-4 h-4 text-primary" />
+                            <div className="w-8" />
+                            <div className="flex-1 flex items-center justify-center gap-2">
+                              <Zap className="w-4 h-4 text-primary" />
+                              <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">Create</span>
+                              <Zap className="w-4 h-4 text-primary" />
+                            </div>
+                            <button
+                              onClick={() => { triggerHaptic("light"); playSound("tap"); close(); navigate("/map"); }}
+                              className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
+                            >
+                              <MapPin className="w-4 h-4 text-white" />
+                            </button>
                           </motion.div>
                         )}
                       </AnimatePresence>
