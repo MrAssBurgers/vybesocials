@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useMutualFriends, UserWithMutualFriends } from '@/hooks/useMutualFriends';
@@ -150,6 +150,7 @@ export function MutualFriendsQuickAdd({
         ref={scrollRef}
         className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide snap-x snap-mandatory"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        onWheelCapture={undefined}
       >
         <AnimatePresence initial={false}>
           {displayUsers.slice(0, 8).map((user) => (
