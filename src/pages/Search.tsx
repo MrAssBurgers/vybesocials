@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, Users, Hash, Newspaper, Music, X, TrendingUp, Sparkles } from 'lucide-react';
+import { Search as SearchIcon, Users, Hash, Newspaper, Music, X, TrendingUp, Sparkles, Contact } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -13,6 +13,10 @@ import { FriendButton } from '@/components/friends/FriendButton';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { haptics } from '@/lib/haptics';
 import { useDebounce } from '@/hooks/useDebounce';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+
+const ContactDiscovery = lazy(() => import('@/components/onboarding/ContactDiscovery').then(m => ({ default: m.ContactDiscovery })));
 
 type SearchTab = 'people' | 'posts' | 'hashtags' | 'sounds';
 
