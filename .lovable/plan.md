@@ -1,46 +1,37 @@
 
 
-## Instagram-Style Overlay Gestures for VYBE Snap Editor
+## Fix Long-Press Menu + Redesign Sticker Panel
 
-### Problems
+### Issue 1: Long-Press Menu Not Firing on Stationary Hold
 
-1. **Inaccurate drag**: Overlays use `left/top` percentage positioning with `transform: translate(-50%, -50%)` but framer-motion's `drag` applies pixel-based offsets on top. The initial position uses percentages but drag deltas are pixels — causing a mismatch where the element jumps or drifts away from your finger.
+**Root cause**: `SwipeToReply` uses framer-motion's `drag="x"` which captures pointer events at the framework level. Even with the 15px dead zone, framer-motion internally tracks the pointer and can interfere with the inner bubble's `onTouchStart` long-press timer. The drag system steals the touch before the 400ms timer completes.
 
-2. **No pinch-to-resize**: There's no multi-touch gesture handling. Instagram lets you use two fingers to scale and rotate overlays simultaneously.
+**Fix in `src/components/chat/SwipeToReply.tsx`**:
+- Add `dragSnapToOrigin` and remove `dragConstraints` to let framer handle reset
+- More importantly, use `onPointerDown` capture to detect stationary holds: if the user hasn't moved past the dead zone after 400ms, emit a custom event or call a callback prop
+- Simpler approach: Pass a `onLongPress` callback from the parent. In `SwipeToReply`, attach our own `onTouchStart`/`onTouchMove`/`onTouchEnd` to the wrapper. Run the 400ms long-press timer there (above the drag layer). If movement stays under 10px, fire the long-press. This way the long-press detection happens OUTSIDE the drag system.
 
-3. **No rotation**: The overlay model has no `rotation` property and no gesture to set one.
+**Fix in `src/components/chat/ChatView.tsx`**:
+- Move the long-press timer logic from `MessageBubble` into `SwipeToReply` via a new `onLongPress` prop
+- `SwipeToReply` will handle touch tracking at its level (before framer-motion intercepts), and call `onLongPress` when a stationary 400ms hold is detected
+- `MessageBubble` receives a `triggerContextMenu` prop that `SwipeToReply` calls
 
-### Solution — Replace framer-motion drag with custom multi-touch gesture handler
+### Issue 2: Sticker Panel Redesign (Snapchat-style)
 
-Drop `motion.div` with `drag` in favor of a custom touch handler per overlay that tracks:
-- **One finger**: drag (reposition), using pixel offsets relative to finger-to-element anchor point
-- **Two fingers**: simultaneous pinch-to-scale + rotation, computed from the angle/distance between the two touch points
+**Changes to `src/components/chat/StickerPanel.tsx`**:
 
-This is exactly how Instagram Stories editor works.
-
-### Changes
-
-**`src/components/camera/CameraEditor.tsx`**
-
-1. Add `rotation` and `scale` to `TextOverlay` interface
-2. Replace `motion.div` overlays with a new `<DraggableOverlay>` component that uses raw touch events
-3. `DraggableOverlay` tracks:
-   - `onTouchStart`: record finger position(s) and element's current x/y. For two fingers, record initial distance and angle
-   - `onTouchMove`: for one finger, compute delta from start and update position (pixel-based, converted to percentage). For two fingers, compute new scale (distance ratio) and rotation (angle delta)
-   - `onTouchEnd`: finalize position/scale/rotation into overlay state
-4. Position overlays with `transform: translate(x, y) scale(s) rotate(r)` instead of `left/top` percentages — this ensures the element stays exactly under the finger
-5. Use `touch-action: none` on overlays to prevent browser scroll interference
-
-**Key implementation details:**
-- Store overlay position as pixel offsets from center, converted to/from percentages using container dimensions
-- On drag start, calculate the offset between the touch point and the element center — maintain this offset throughout the drag so the element doesn't jump
-- For pinch: `newScale = initialScale * (currentDistance / initialDistance)`
-- For rotation: `newRotation = initialRotation + (currentAngle - initialAngle)` where angle = `Math.atan2(dy, dx)` between two fingers
-- Delete overlay on tap (existing behavior) only if no drag/pinch occurred
+1. **Remove per-sticker X buttons** — no more hover delete buttons on each sticker
+2. **Add delete mode**: Single trash can icon in header toggles "delete mode"
+3. **In delete mode**: Each sticker shows a selection checkbox overlay. A "Select All" button appears. A "Delete Selected" button confirms deletion
+4. **Panel stays open after sending**: Remove `onClose()` from `handleSend` — tapping a sticker sends it but keeps the panel open
+5. **Swipe-down to close**: Add `onDragEnd` with framer-motion — if user drags the panel down past a threshold, close it
+6. **X button in header still closes it**
 
 ### Files Touched
 
 | File | Change |
 |------|--------|
-| `src/components/camera/CameraEditor.tsx` | Replace motion.div drag with custom multi-touch overlay component supporting drag, pinch-to-resize, and two-finger rotation |
+| `src/components/chat/SwipeToReply.tsx` | Add `onLongPress` prop, handle touch tracking above drag layer |
+| `src/components/chat/ChatView.tsx` | Pass long-press handler through `SwipeToReply` instead of on the bubble div |
+| `src/components/chat/StickerPanel.tsx` | Redesign: bulk delete mode, stays open on send, swipe-down to close |
 
