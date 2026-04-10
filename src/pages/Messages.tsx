@@ -10,8 +10,8 @@ export default function Messages() {
   const { isDesktop } = useBreakpoint();
   const isInChat = location.pathname !== '/messages';
 
-  // On mobile, when in a chat, hide nav for immersive full-screen experience (Instagram-style)
-  const hideNavOnMobile = isInChat && !isDesktop;
+  // Only go immersive (fixed overlay) when actively inside a chat on mobile
+  const isImmersive = isInChat && !isDesktop;
 
   // Hide the global background image while on the DM page (mobile/tablet)
   useEffect(() => {
@@ -24,19 +24,19 @@ export default function Messages() {
   }, [isDesktop]);
 
   return (
-    <AppLayout hideRightSidebar fullWidth hideNav={hideNavOnMobile} noPadding>
+    <AppLayout hideRightSidebar fullWidth hideNav={isImmersive} noPadding>
       <div 
         className={`
-          ${hideNavOnMobile 
+          ${isImmersive
             ? 'h-[100dvh] fixed inset-0 z-50' 
             : 'min-h-[100dvh] md:min-h-screen h-[100dvh] md:h-screen w-full'
           } 
           flex max-w-full pb-0
         `}
         style={{ 
-          position: isDesktop ? undefined : 'fixed',
-          inset: isDesktop ? undefined : 0,
-          zIndex: isDesktop ? undefined : 50,
+          position: isImmersive ? 'fixed' : undefined,
+          inset: isImmersive ? 0 : undefined,
+          zIndex: isImmersive ? 50 : undefined,
           overflow: 'hidden',
           backgroundColor: 'hsl(var(--card))',
           backgroundImage: 'none',

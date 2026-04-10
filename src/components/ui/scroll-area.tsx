@@ -11,28 +11,56 @@ interface ScrollAreaProps extends React.ComponentPropsWithoutRef<typeof ScrollAr
 const ScrollArea = React.forwardRef<
   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
   ScrollAreaProps
->(({ className, children, horizontal = false, ...props }, ref) => (
-  <ScrollAreaPrimitive.Root 
-    ref={ref} 
-    className={cn("relative overflow-hidden", className)} 
-    {...props}
-  >
-    <ScrollAreaPrimitive.Viewport 
-      className="h-full w-full rounded-[inherit] [&>div]:!block"
-      style={{ 
-        WebkitOverflowScrolling: 'touch',
-        overscrollBehavior: 'contain',
-        scrollBehavior: 'smooth',
-        overflowX: horizontal ? 'auto' : 'hidden',
-        overflowY: horizontal ? 'hidden' : 'auto',
-      }}
+>(({ className, children, horizontal = false, ...props }, ref) => {
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+
+  // Mouse-wheel → horizontal scroll for horizontal ScrollAreas
+  React.useEffect(() => {
+    if (!horizontal) return;
+    const el = viewportRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      if (el.scrollWidth <= el.clientWidth) return;
+
+      const atLeft = el.scrollLeft <= 0;
+      const atRight = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+      if (e.deltaY < 0 && atLeft) return;
+      if (e.deltaY > 0 && atRight) return;
+
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [horizontal]);
+
+  return (
+    <ScrollAreaPrimitive.Root 
+      ref={ref} 
+      className={cn("relative overflow-hidden", className)} 
+      {...props}
     >
-      {children}
-    </ScrollAreaPrimitive.Viewport>
-    <ScrollBar orientation={horizontal ? "horizontal" : "vertical"} />
-    <ScrollAreaPrimitive.Corner />
-  </ScrollAreaPrimitive.Root>
-));
+      <ScrollAreaPrimitive.Viewport 
+        ref={viewportRef}
+        className="h-full w-full rounded-[inherit] [&>div]:!block"
+        style={{ 
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+          scrollBehavior: 'smooth',
+          overflowX: horizontal ? 'auto' : 'hidden',
+          overflowY: horizontal ? 'hidden' : 'auto',
+        }}
+      >
+        {children}
+      </ScrollAreaPrimitive.Viewport>
+      <ScrollBar orientation={horizontal ? "horizontal" : "vertical"} />
+      <ScrollAreaPrimitive.Corner />
+    </ScrollAreaPrimitive.Root>
+  );
+});
 ScrollArea.displayName = ScrollAreaPrimitive.Root.displayName;
 
 const ScrollBar = React.forwardRef<
