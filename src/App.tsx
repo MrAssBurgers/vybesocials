@@ -136,8 +136,7 @@ function AppWithPreloader() {
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
   usePostsRealtime();
-  // Background brief pre-fetch for instant daily brief
-  useBriefPreFetch(preloadStatus.isComplete ? undefined : undefined);
+  // useBriefPreFetch is initialized inside AuthProvider via BriefPreFetchInit
   // useInitEncryption moved to DeferredAuthHooks (inside AuthProvider)
 
   useEffect(() => {
@@ -168,6 +167,8 @@ function AppWithPreloader() {
       <GlobalErrorHandler />
       <AuthProvider>
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
+        <BriefPreFetchInit />
+        <LocationProvider>
         {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
         <AppBackgroundProvider>
           <CustomThemeProvider>
