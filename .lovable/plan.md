@@ -1,28 +1,41 @@
 
 
-## Fix: Long-Press Menu Not Firing + Swipe Still Triggering Menu
+## Redesign: Snapchat-Style Frosted Glass Long-Press Menu
 
-### Root Cause
+### Problem
+The current long-press context menu is a plain `bg-background border` card centered on screen. It looks dated and "fixed to the message." The user wants a standalone Snapchat-style frosted glass menu that feels like its own premium overlay.
 
-The problem is in `SwipeToReply.tsx` — framer-motion's `drag="x"` fires `onDragStart` almost immediately when a finger touches the draggable element, even before any real movement. Line 108 calls `cancelToSwipe()` inside `handleDragStart`, which clears the 400ms long-press timer before it ever has a chance to fire.
+### Design (Snapchat Reference)
+- Full-screen blurred backdrop (`backdrop-blur-xl bg-black/50`)
+- The **message bubble itself** is shown floating in the center of the overlay (a preview of what you're acting on)
+- Below it, a **frosted glass pill** with the action buttons — rounded, translucent, with subtle border
+- Emoji reaction bar sits above the message preview as floating pills
+- Smooth spring animations on entry/exit
+- Tap anywhere on backdrop to dismiss
 
-**Result:**
-- **Hold on image** → timer starts → framer fires `onDragStart` → `cancelToSwipe()` kills the timer → menu never opens
-- **Slow swipe** → timer starts → `onPointerMoveCapture` may not fire (framer captures pointer) → `onDragStart` eventually fires but if 400ms already passed, menu already opened
+### Changes in `src/components/chat/ChatView.tsx` (lines 2548-2637)
 
-### Fix
+**Delete** the entire current context menu block and **replace** with:
 
-Two changes in `src/components/chat/SwipeToReply.tsx`:
+1. **Backdrop**: `fixed inset-0 backdrop-blur-xl bg-black/50` with fade animation
+2. **Centered container** (flex column, items-center, justify-center):
+   - **Emoji reaction row**: Horizontal row of emoji pills with frosted glass background, floating above the message
+   - **Message preview**: A scaled-down clone/snapshot of the message bubble content (text or media thumbnail) inside a frosted card so the user knows what they're acting on
+   - **Action menu**: Frosted glass card (`backdrop-blur-2xl bg-white/10 dark:bg-white/5 border border-white/20 rounded-2xl`) with vertically stacked action buttons — each with icon + label, subtle hover states, generous padding
+3. **Destructive actions** (Unsend, Delete) get a separated section at the bottom with red text
 
-1. **Remove `cancelToSwipe()` from `handleDragStart`** — this is what kills the long-press timer prematurely on a stationary hold. The drag start event fires too early to know if the user is holding or swiping.
-
-2. **Keep `cancelToSwipe()` in `handleDrag`** — this already fires on actual movement (line 120), which correctly cancels the timer once real swiping begins. Also add cancellation when `dragActivatedRef` flips to true (past the 15px dead zone) as a belt-and-suspenders measure.
-
-3. **Suppress drag processing when long-press fired** — if `gestureStateRef.current === 'longpress-fired'`, also block `handleDragEnd` from triggering a reply.
+### Styling Details
+- Glass card: `backdrop-blur-2xl bg-white/10 border border-white/20 rounded-2xl shadow-2xl`
+- Action rows: `px-4 py-3 text-sm font-medium flex items-center gap-3` with `hover:bg-white/10` 
+- Separators: `border-white/10`
+- Entry animation: scale from 0.85 + fade, spring physics
+- Exit: scale to 0.9 + fade out, 150ms
 
 ### Files Touched
 
 | File | Change |
 |------|--------|
-| `src/components/chat/SwipeToReply.tsx` | Remove `cancelToSwipe()` from `handleDragStart`; keep it only in `handleDrag` where real movement is detected |
+| `src/components/chat/ChatView.tsx` | Replace lines 2548-2637 with new Snapchat-style frosted glass menu |
+
+No other files need changes. The trigger mechanism (long-press via SwipeToReply + context menu) stays the same. The desktop `MessageActionMenu` 3-dot dropdown also stays unchanged.
 
