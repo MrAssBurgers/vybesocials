@@ -203,7 +203,7 @@ function useFriendLocations(friendIds: string[]) {
       if (!friendIds.length) return [];
       const { data, error } = await supabase
         .from('user_locations')
-        .select('id, user_id, latitude, longitude, accuracy, label, updated_at, expires_at, sharing_enabled, status, profile:profiles(username, display_name, avatar_url)')
+        .select('id, user_id, latitude, longitude, accuracy, label, updated_at, expires_at, sharing_enabled, status, speed, profile:profiles(username, display_name, avatar_url)')
         .in('user_id', friendIds)
         .eq('sharing_enabled', true);
       if (error) throw error;
