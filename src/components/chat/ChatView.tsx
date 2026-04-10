@@ -2030,6 +2030,7 @@ const MessageBubble = memo(function MessageBubble({
   onNavigateToPost,
   onScrollToMessage,
   onSaveSticker,
+  onLongPress: onLongPressProp,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -2051,6 +2052,7 @@ const MessageBubble = memo(function MessageBubble({
   isEmojiOnly?: boolean;
   onNavigateToPost?: (postId: string) => void;
   onScrollToMessage?: (messageId: string) => void;
+  onLongPress?: () => void;
 }) {
   const [isViewed, setIsViewed] = useState(false);
   // For VYBE snaps: check if ANY view exists (server truth)
