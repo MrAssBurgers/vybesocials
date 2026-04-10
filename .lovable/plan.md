@@ -1,98 +1,59 @@
 
+What I found:
+- The camera issue is not just permissions: `VybeSnapCamera` still depends on a second “Tap to activate camera” state, and `getUserMedia()` can finish before the `<video>` element is mounted, so the stream is granted but never attached to the preview.
+- The DM media issue matches the recent storage hardening: chat uploads are going into the private `chat-media` bucket, but chat bubbles still render raw `message.media_url` values in `<img>`, `<video>`, and `<audio>`. That causes the broken blue box / `?` instead of actual media.
+- The app already has pieces of the safety system (`user_safety_settings.dm_content_filter_enabled`, `ReceiverImageFilter`, `useSafetySettings`), but chat settings screens do not expose the toggle consistently and messages do not yet carry enough safety metadata for proper receiver-side blur behavior.
 
-## Announcement Media Upload — Images, Videos, and GIF Conversion
+Plan:
+1. Fix camera opening so one tap actually starts the live camera
+   - Replace the current `setShowSnapCamera(true)` handlers with a single camera-open handler in chat that calls `requestCameraStream()` directly from the camera button / toybox click, then opens the modal.
+   - Remove the “Tap to activate camera” overlay from `VybeSnapCamera`.
+   - Update `VybeSnapCamera` to auto-attach an already-requested stream on open, and add a mount-time attach effect so if the stream arrives before the `<video>` ref exists, it still connects once the element renders.
+   - Keep a proper loading state plus denied/not-found retry states instead of forcing a second tap.
 
-### What changes
+2. Fully fix DM image/video/audio rendering
+   - Update chat message rendering to follow the same signed-URL pattern already used elsewhere: never feed private storage URLs directly into message `<img>`, `<video>`, or `<audio>` elements.
+   - Resolve signed URLs for all storage-backed message media in chat bubbles, including:
+     - images / GIFs
+     - videos and posters/thumbnails
+     - audio messages
+     - any reply/preview usages that still point at raw storage URLs
+   - Keep blob/data URLs working for optimistic previews so uploads still appear instantly while sending.
 
-Replace the "paste image URL" field in announcement creation/editing with a proper file upload from device. Support images, videos, and an option to convert uploaded videos into auto-looping GIFs. Reorder the modal layout so media sits between the title and description.
+3. Make the chat safety filter receiver-side, not sender-blocking
+   - Keep hard platform moderation separate, but make the optional chat filter work the way you described: sender can send, and users who enable the filter see flagged media blurred.
+   - Add message safety metadata to `messages` (for example `is_flagged`, `safety_score`, `safety_categories`, and optionally `scan_status`) so the receiver UI knows whether to blur media.
+   - Rework the DM/group media display to use a shared blurred-media wrapper for flagged content, with reveal / keep hidden behavior.
 
-### Database Migration
+4. Add the toggle to chat settings everywhere it belongs
+   - Expose the filter in `DMSettingsSheetControlled` for DMs.
+   - Expose the same toggle in the group chat settings surface actually used by chat (`GroupInfoSheet`).
+   - Back it with the existing safety setting unless testing shows you truly want per-conversation overrides.
+   - Update the wording so it clearly means “blur flagged media in chats” instead of “block sending”.
 
-Add a `media_type` column to `announcements` to distinguish between image, video, and gif:
+5. Clean up send/scan flow so receiver preference does not punish the sender
+   - Review the current DM image/video send gates and remove receiver-driven friction from the sender path.
+   - If media still needs scanning for blur decisions, do it without forcing the sender through the current visible gate.
+   - Patch the video scan timing guard as part of this pass so `currentTime` never gets `NaN`/`Infinity` on uploaded videos.
 
-```sql
-ALTER TABLE public.announcements ADD COLUMN media_type TEXT DEFAULT 'image';
-```
+6. Backend/database work likely needed
+   - Add a migration for message safety metadata on `public.messages`.
+   - If the existing client-side-only flow is not enough, add a backend scan/update path so media can be sent first and then marked for blur safely.
+   - Do not reopen the `chat-media` bucket publicly; the safer fix is consistent signed URL handling.
 
-### Storage Bucket
+Files likely touched:
+- `src/components/camera/VybeSnapCamera.tsx`
+- `src/components/chat/ChatView.tsx`
+- `src/components/chat/VoiceRecorder.tsx`
+- `src/components/chat/DMSettingsSheetControlled.tsx`
+- `src/components/chat/GroupInfoSheet.tsx`
+- `src/hooks/useCameraPreload.ts`
+- `src/hooks/useDMSettings.ts`
+- likely a new shared chat media safety component
+- a new migration for `messages`
 
-Create an `announcements` storage bucket (private, with RLS for admin/mod upload and public read):
-
-```sql
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('announcements', 'announcements', true, 52428800, 
-  ARRAY['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime','video/webm']);
-```
-
-RLS policies: authenticated users with admin/moderator role can upload; anyone can read.
-
-### 1. Create `useAnnouncementUpload` hook
-
-New hook in `src/hooks/useAnnouncementUpload.ts`:
-- Accept a `File` from device
-- Upload to `announcements/{timestamp}-{filename}` in storage
-- Return the public URL
-- Detect media type from file MIME (image/video)
-
-### 2. Update `CreateAnnouncementDialog`
-
-- Replace URL text input with a file picker button (camera/gallery icon)
-- Accept image and video files
-- Show upload progress and preview (image thumbnail or video player)
-- Add a "Convert to GIF" toggle/checkbox that appears when a video is selected
-- When "Convert to GIF" is enabled, use an edge function or client-side `gifshot`/canvas approach to extract frames and create a GIF
-- Pass `media_type` ('image' | 'video' | 'gif') alongside `image_url` to the mutation
-
-### 3. Update `EditAnnouncementDialog`
-
-- Same file upload UI as Create dialog
-- Show existing media with option to replace or remove
-- Support the same GIF conversion toggle for videos
-
-### 4. Update `useCreateAnnouncement` and `useUpdateAnnouncement`
-
-- Accept `media_type` parameter
-- Include `media_type` in insert/update calls
-
-### 5. Update `Announcement` interface
-
-Add `media_type` field:
-```typescript
-export interface Announcement {
-  // ...existing
-  media_type: 'image' | 'video' | 'gif' | null;
-}
-```
-
-### 6. Update `AnnouncementModal` — Reorder layout
-
-Change the open letter layout to: **Title → Media → Description**
-
-- For `image`: Show `<img>` (as now)
-- For `video`: Show `<video>` with controls, muted autoplay
-- For `gif`: Show `<img>` with the GIF URL (auto-loops natively) or `<video loop muted autoplay playsinline>` if stored as mp4
-
-### 7. Update `AdminAnnouncementsSection`
-
-- Show video/gif thumbnails in the list (use `<video>` element for videos, `<img>` for gif/image)
-
-### 8. GIF Conversion — Client-Side Approach
-
-Use the `gifshot` library to convert video to GIF on the client:
-- When user toggles "Convert to GIF", extract frames from the video using canvas
-- Generate a GIF blob and upload it to the `announcements` bucket
-- Store as `media_type: 'gif'`
-
-### Files Summary
-
-| File | Action |
-|------|--------|
-| Migration SQL | Add `media_type` column, create `announcements` storage bucket + RLS |
-| `src/hooks/useAnnouncementUpload.ts` | Create — file upload to storage |
-| `src/hooks/useAnnouncements.ts` | Edit — add `media_type` to interface and mutations |
-| `src/components/announcements/CreateAnnouncementDialog.tsx` | Edit — file picker, preview, GIF toggle |
-| `src/components/announcements/EditAnnouncementDialog.tsx` | Edit — same upload UI |
-| `src/components/announcements/AnnouncementModal.tsx` | Edit — reorder to Title→Media→Description, render video/gif |
-| `src/components/admin/sections/AdminAnnouncementsSection.tsx` | Edit — video/gif thumbnails |
-| `package.json` | Add `gifshot` dependency |
-
+QA I would run after implementation:
+- Open camera from the chat camera button with one tap only and confirm the live preview appears immediately after permission is granted.
+- Send image, GIF, video, and audio in DMs and verify no blue placeholder/question-mark appears before or after refresh.
+- Turn the chat safety filter on/off and verify one user can still send while the receiving user sees blurred flagged media.
+- Repeat the blur test in group chats to make sure each viewer’s setting is respected.
