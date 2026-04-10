@@ -1,36 +1,98 @@
 
 
-## Fix: Explore Bar Gap + Announcement Cutoff + Dismiss Behavior
+## Announcement Media Upload — Images, Videos, and GIF Conversion
 
-### Problem 1: Explore Tab Bar Gap
-The tab bar wrapper has `pt-[env(safe-area-inset-top)]` on the outer div and then `py-1` on the inner motion div. On iPad where safe-area-inset-top is 0, the `py-1` still creates a visible gap above the tab bar.
+### What changes
 
-**Fix in `src/pages/Explore.tsx`:**
-- Remove `py-1` from the motion.div wrapper around ExploreTabBar
-- Add `mt-1` only inside the tab bar or use a minimal top offset so the bar sits flush at the top
+Replace the "paste image URL" field in announcement creation/editing with a proper file upload from device. Support images, videos, and an option to convert uploaded videos into auto-looping GIFs. Reorder the modal layout so media sits between the title and description.
 
-### Problem 2: Announcement Modal Cutoff
-The open letter modal uses `fixed inset-x-4 top-1/2 -translate-y-1/2` with no max-height or scroll. Long announcements (like the release notes in the screenshot) get cut off at the bottom, especially on shorter viewports.
+### Database Migration
 
-**Fix in `src/components/announcements/AnnouncementModal.tsx`:**
-- Add `max-h-[85vh]` to the modal container
-- Make the content area scrollable with `overflow-y-auto` 
-- Ensure the header and footer stay pinned (flex column layout with the middle section scrolling)
+Add a `media_type` column to `announcements` to distinguish between image, video, and gif:
 
-### Problem 3: Dismiss = Permanent + Show in Notifications
-Currently dismissing already inserts into `dismissed_announcements` so it won't reappear — that part works. But the user wants dismissed announcements to still appear in the Notifications page as a "Recent Announcements" section.
+```sql
+ALTER TABLE public.announcements ADD COLUMN media_type TEXT DEFAULT 'image';
+```
 
-**Changes:**
-- **`src/components/announcements/AnnouncementModal.tsx`**: When user dismisses (X or Dismiss button), the announcement disappears permanently from the home screen (already works via `dismissed_announcements` table)
-- **`src/pages/Notifications.tsx`**: Add a pinned "Announcements" section at the top of the notifications list that shows the most recent announcements (fetched separately from the `announcements` table, not filtered by dismissed status). This gives users a place to re-read announcements they closed. Show the latest 3-5 announcements with title, timestamp, and a tap-to-expand inline view.
-- **`src/hooks/useAnnouncements.ts`**: Add a new `useRecentAnnouncements` hook that fetches active announcements without filtering by dismissed status (for the notifications page).
+### Storage Bucket
 
-### Files to Change
+Create an `announcements` storage bucket (private, with RLS for admin/mod upload and public read):
 
-| File | Change |
+```sql
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('announcements', 'announcements', true, 52428800, 
+  ARRAY['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime','video/webm']);
+```
+
+RLS policies: authenticated users with admin/moderator role can upload; anyone can read.
+
+### 1. Create `useAnnouncementUpload` hook
+
+New hook in `src/hooks/useAnnouncementUpload.ts`:
+- Accept a `File` from device
+- Upload to `announcements/{timestamp}-{filename}` in storage
+- Return the public URL
+- Detect media type from file MIME (image/video)
+
+### 2. Update `CreateAnnouncementDialog`
+
+- Replace URL text input with a file picker button (camera/gallery icon)
+- Accept image and video files
+- Show upload progress and preview (image thumbnail or video player)
+- Add a "Convert to GIF" toggle/checkbox that appears when a video is selected
+- When "Convert to GIF" is enabled, use an edge function or client-side `gifshot`/canvas approach to extract frames and create a GIF
+- Pass `media_type` ('image' | 'video' | 'gif') alongside `image_url` to the mutation
+
+### 3. Update `EditAnnouncementDialog`
+
+- Same file upload UI as Create dialog
+- Show existing media with option to replace or remove
+- Support the same GIF conversion toggle for videos
+
+### 4. Update `useCreateAnnouncement` and `useUpdateAnnouncement`
+
+- Accept `media_type` parameter
+- Include `media_type` in insert/update calls
+
+### 5. Update `Announcement` interface
+
+Add `media_type` field:
+```typescript
+export interface Announcement {
+  // ...existing
+  media_type: 'image' | 'video' | 'gif' | null;
+}
+```
+
+### 6. Update `AnnouncementModal` — Reorder layout
+
+Change the open letter layout to: **Title → Media → Description**
+
+- For `image`: Show `<img>` (as now)
+- For `video`: Show `<video>` with controls, muted autoplay
+- For `gif`: Show `<img>` with the GIF URL (auto-loops natively) or `<video loop muted autoplay playsinline>` if stored as mp4
+
+### 7. Update `AdminAnnouncementsSection`
+
+- Show video/gif thumbnails in the list (use `<video>` element for videos, `<img>` for gif/image)
+
+### 8. GIF Conversion — Client-Side Approach
+
+Use the `gifshot` library to convert video to GIF on the client:
+- When user toggles "Convert to GIF", extract frames from the video using canvas
+- Generate a GIF blob and upload it to the `announcements` bucket
+- Store as `media_type: 'gif'`
+
+### Files Summary
+
+| File | Action |
 |------|--------|
-| `src/pages/Explore.tsx` | Remove inner padding causing tab bar gap |
-| `src/components/announcements/AnnouncementModal.tsx` | Add max-height + scrollable content area |
-| `src/pages/Notifications.tsx` | Add "Recent Announcements" section at top |
-| `src/hooks/useAnnouncements.ts` | Add `useRecentAnnouncements` hook |
+| Migration SQL | Add `media_type` column, create `announcements` storage bucket + RLS |
+| `src/hooks/useAnnouncementUpload.ts` | Create — file upload to storage |
+| `src/hooks/useAnnouncements.ts` | Edit — add `media_type` to interface and mutations |
+| `src/components/announcements/CreateAnnouncementDialog.tsx` | Edit — file picker, preview, GIF toggle |
+| `src/components/announcements/EditAnnouncementDialog.tsx` | Edit — same upload UI |
+| `src/components/announcements/AnnouncementModal.tsx` | Edit — reorder to Title→Media→Description, render video/gif |
+| `src/components/admin/sections/AdminAnnouncementsSection.tsx` | Edit — video/gif thumbnails |
+| `package.json` | Add `gifshot` dependency |
 
