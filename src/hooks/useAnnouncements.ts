@@ -6,6 +6,7 @@ export interface Announcement {
   id: string;
   title: string;
   content: string;
+  image_url: string | null;
   author_id: string;
   created_at: string;
   expires_at: string | null;
@@ -22,7 +23,6 @@ export function useAnnouncements() {
   return useQuery({
     queryKey: ['announcements', profile?.id],
     queryFn: async () => {
-      // Get active announcements
       const { data: announcements, error } = await supabase
         .from('announcements')
         .select(`
@@ -34,7 +34,6 @@ export function useAnnouncements() {
       
       if (error) throw error;
       
-      // Get dismissed announcements for this user
       const { data: dismissed } = await supabase
         .from('dismissed_announcements')
         .select('announcement_id')
@@ -42,7 +41,6 @@ export function useAnnouncements() {
       
       const dismissedIds = new Set(dismissed?.map(d => d.announcement_id) || []);
       
-      // Filter out dismissed announcements
       return (announcements || []).filter(a => !dismissedIds.has(a.id)) as Announcement[];
     },
     enabled: !!profile?.id,
@@ -74,12 +72,13 @@ export function useCreateAnnouncement() {
   const { profile } = useAuth();
   
   return useMutation({
-    mutationFn: async ({ title, content }: { title: string; content: string }) => {
+    mutationFn: async ({ title, content, image_url }: { title: string; content: string; image_url?: string }) => {
       const { data, error } = await supabase
         .from('announcements')
         .insert({
           title,
           content,
+          image_url: image_url || null,
           author_id: profile!.id,
         })
         .select()
@@ -87,15 +86,12 @@ export function useCreateAnnouncement() {
       
       if (error) throw error;
       
-      // Create notifications ONLY for users who have announcements enabled
-      // First get all users with announcements enabled (or no preference = default enabled)
       const { data: usersToNotify } = await supabase
         .from('profiles')
         .select('id')
         .neq('id', profile!.id);
       
       if (usersToNotify && usersToNotify.length > 0) {
-        // Get users who have explicitly disabled announcements
         const { data: disabledPrefs } = await supabase
           .from('notification_preferences')
           .select('user_id')
@@ -103,13 +99,11 @@ export function useCreateAnnouncement() {
         
         const disabledUserIds = new Set(disabledPrefs?.map(p => p.user_id) || []);
         
-        // Filter to only notify users who haven't disabled announcements
         const notifyUserIds = usersToNotify
           .map(u => u.id)
           .filter(id => !disabledUserIds.has(id));
         
         if (notifyUserIds.length > 0) {
-          // Create notification records
           const notifications = notifyUserIds.map(userId => ({
             user_id: userId,
             actor_id: profile!.id,
@@ -128,7 +122,24 @@ export function useCreateAnnouncement() {
   });
 }
 
-// Clear announcement notifications when user disables announcements
+export function useUpdateAnnouncement() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, title, content, image_url }: { id: string; title: string; content: string; image_url?: string | null }) => {
+      const { error } = await supabase
+        .from('announcements')
+        .update({ title, content, image_url: image_url ?? null })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      queryClient.invalidateQueries({ queryKey: ['all-announcements'] });
+    },
+  });
+}
+
 export function useClearAnnouncementNotifications() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -136,8 +147,6 @@ export function useClearAnnouncementNotifications() {
   return useMutation({
     mutationFn: async () => {
       if (!profile?.id) return;
-      
-      // Delete all unread announcement notifications for this user
       await supabase
         .from('notifications')
         .delete()

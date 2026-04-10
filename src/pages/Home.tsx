@@ -11,7 +11,7 @@ import { useShowAds } from '@/hooks/useShowAds';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/lib/auth';
 import { hasActiveReferral, isInviteEntryMode } from '@/lib/referral';
-import { AnnouncementBanner } from '@/components/announcements/AnnouncementBanner';
+import { AnnouncementModal } from '@/components/announcements/AnnouncementModal';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 import { Button } from '@/components/ui/button';
@@ -293,8 +293,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             transform: pullDistance > 0 ? `translateY(${pullDistance * 0.5}px)` : undefined 
           }}
         >
-          {/* Announcements Banner */}
-          <AnnouncementBanner />
+          {/* Announcement Modal */}
+          <AnnouncementModal />
           {/* Global Events Banner */}
           <GlobalEventBanner />
 
