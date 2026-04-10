@@ -78,13 +78,10 @@ export const CallSettingsSheet = forwardRef<HTMLDivElement, CallSettingsSheetPro
   const micStreamRef = useRef<MediaStream | null>(null);
   const animationRef = useRef<number | null>(null);
 
-  // Load available devices
+  // Load available devices - enumerate without requesting permission first
   useEffect(() => {
     const loadDevices = async () => {
       try {
-        // Request permissions first to get device labels
-        await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideoCall });
-        
         const devices = await navigator.mediaDevices.enumerateDevices();
         
         setMicrophones(devices
@@ -109,64 +106,74 @@ export const CallSettingsSheet = forwardRef<HTMLDivElement, CallSettingsSheetPro
     if (isOpen) {
       loadDevices();
     }
-  }, [isOpen, isVideoCall]);
+  }, [isOpen]);
 
-  // Mic level visualization
-  useEffect(() => {
-    if (!isOpen || isMuted) {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-      if (micStreamRef.current) {
-        micStreamRef.current.getTracks().forEach(t => t.stop());
-      }
-      setMicLevel(0);
-      return;
+  // Mic level visualization - only starts on user gesture via "Test Mic" button
+  const [micTestActive, setMicTestActive] = useState(false);
+
+  const startMicTest = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: currentMic ? { deviceId: currentMic } : true 
+      });
+      micStreamRef.current = stream;
+      setMicTestActive(true);
+
+      // Also refresh device list now that we have permission
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setMicrophones(devices
+        .filter(d => d.kind === 'audioinput')
+        .map(d => ({ deviceId: d.deviceId, label: d.label || `Microphone ${d.deviceId.slice(0, 5)}`, kind: d.kind }))
+      );
+      setCameras(devices
+        .filter(d => d.kind === 'videoinput')
+        .map(d => ({ deviceId: d.deviceId, label: d.label || `Camera ${d.deviceId.slice(0, 5)}`, kind: d.kind }))
+      );
+      setSpeakers(devices
+        .filter(d => d.kind === 'audiooutput')
+        .map(d => ({ deviceId: d.deviceId, label: d.label || `Speaker ${d.deviceId.slice(0, 5)}`, kind: d.kind }))
+      );
+
+      audioContextRef.current = new AudioContext();
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      source.connect(analyserRef.current);
+      analyserRef.current.fftSize = 256;
+
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+
+      const updateLevel = () => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        setMicLevel(Math.min(100, average * 1.5));
+        animationRef.current = requestAnimationFrame(updateLevel);
+      };
+
+      updateLevel();
+    } catch (err) {
+      console.error('Failed to start mic visualization:', err);
     }
+  }, [currentMic]);
 
-    const startMicVisualization = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          audio: currentMic ? { deviceId: currentMic } : true 
-        });
-        micStreamRef.current = stream;
+  const stopMicTest = useCallback(() => {
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    if (micStreamRef.current) micStreamRef.current.getTracks().forEach(t => t.stop());
+    if (audioContextRef.current) audioContextRef.current.close();
+    micStreamRef.current = null;
+    audioContextRef.current = null;
+    analyserRef.current = null;
+    animationRef.current = null;
+    setMicLevel(0);
+    setMicTestActive(false);
+  }, []);
 
-        audioContextRef.current = new AudioContext();
-        analyserRef.current = audioContextRef.current.createAnalyser();
-        const source = audioContextRef.current.createMediaStreamSource(stream);
-        source.connect(analyserRef.current);
-        analyserRef.current.fftSize = 256;
-
-        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-
-        const updateLevel = () => {
-          if (!analyserRef.current) return;
-          analyserRef.current.getByteFrequencyData(dataArray);
-          const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-          setMicLevel(Math.min(100, average * 1.5));
-          animationRef.current = requestAnimationFrame(updateLevel);
-        };
-
-        updateLevel();
-      } catch (err) {
-        console.error('Failed to start mic visualization:', err);
-      }
-    };
-
-    startMicVisualization();
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-      if (micStreamRef.current) {
-        micStreamRef.current.getTracks().forEach(t => t.stop());
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
-    };
-  }, [isOpen, isMuted, currentMic]);
+  // Cleanup on close
+  useEffect(() => {
+    if (!isOpen) {
+      stopMicTest();
+    }
+  }, [isOpen, stopMicTest]);
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>

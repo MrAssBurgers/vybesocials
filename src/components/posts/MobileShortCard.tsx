@@ -485,6 +485,7 @@ export const MobileShortCard = memo(function MobileShortCard({
             onReact={handleReaction}
             likeCount={likeCount}
             compact
+            vertical
           />
           <span className="text-[11px] sm:text-xs font-bold text-white drop-shadow-lg">{likeCount}</span>
         </div>
