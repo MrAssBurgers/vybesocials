@@ -9910,6 +9910,7 @@ export type Database = {
           break_reminder_interval_hours: number | null
           content_filter_level: string | null
           created_at: string
+          dm_content_filter_enabled: boolean | null
           dm_filter: string | null
           id: string
           message_requests_enabled: boolean | null
@@ -9926,6 +9927,7 @@ export type Database = {
           break_reminder_interval_hours?: number | null
           content_filter_level?: string | null
           created_at?: string
+          dm_content_filter_enabled?: boolean | null
           dm_filter?: string | null
           id?: string
           message_requests_enabled?: boolean | null
@@ -9942,6 +9944,7 @@ export type Database = {
           break_reminder_interval_hours?: number | null
           content_filter_level?: string | null
           created_at?: string
+          dm_content_filter_enabled?: boolean | null
           dm_filter?: string | null
           id?: string
           message_requests_enabled?: boolean | null
@@ -10146,6 +10149,27 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
         ]
+      }
+      user_stickers: {
+        Row: {
+          created_at: string | null
+          id: string
+          image_url: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          image_url: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          image_url?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_themes: {
         Row: {
