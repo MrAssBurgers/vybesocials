@@ -560,19 +560,16 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
               Try Again
             </Button>
           </div>
-        ) : !cameraActivated ? (
-          <div 
-            className="w-full h-full flex flex-col items-center justify-center cursor-pointer"
-            onClick={handleActivateCamera}
-          >
+        ) : !cameraReady ? (
+          <div className="w-full h-full flex flex-col items-center justify-center">
             <motion.div
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="w-20 h-20 rounded-full bg-muted/20 border-2 border-primary/50 flex items-center justify-center mb-4"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+              className="mb-4"
             >
-              <VybeMiniIcon size={32} />
+              <Loader2 className="h-10 w-10 text-primary" />
             </motion.div>
-            <p className="text-muted-foreground text-sm font-medium">Tap to activate camera</p>
+            <p className="text-muted-foreground text-sm font-medium">Connecting camera...</p>
           </div>
         ) : (
           <video
