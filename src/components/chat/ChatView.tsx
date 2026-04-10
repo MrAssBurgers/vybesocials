@@ -1508,6 +1508,7 @@ export function ChatView() {
                       setMessageText(message.content || '');
                       inputRef.current?.focus();
                     }}
+                    onSaveSticker={(url) => addSticker.mutate(url)}
                     allMessages={messages}
                     themeColor={THEME_COLORS[settings.theme] || THEME_COLORS.default}
                     showReactions={activeReactionMessageId === message.id}
