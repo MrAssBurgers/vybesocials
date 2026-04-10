@@ -4,7 +4,7 @@
  * Includes error handling with retry to prevent broken image placeholders.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Eye, Play, RefreshCw, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -35,11 +35,22 @@ export function ChatMediaBubble({
   const [loadError, setLoadError] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [signingTimedOut, setSigningTimedOut] = useState(false);
 
   // For blob/data URLs (optimistic sends), skip signing
   const isLocalUrl = mediaUrl?.startsWith('blob:') || mediaUrl?.startsWith('data:');
   const resolvedUrl = useSignedUrl(isLocalUrl ? null : mediaUrl);
   const displayUrl = isLocalUrl ? mediaUrl : resolvedUrl;
+
+  // Timeout: if signing hasn't resolved in 8s, treat as error
+  useEffect(() => {
+    if (displayUrl || isLocalUrl) {
+      setSigningTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => setSigningTimedOut(true), 8000);
+    return () => clearTimeout(timer);
+  }, [displayUrl, isLocalUrl]);
 
   // Should we blur this media?
   const shouldBlur = isFlagged && safetyFilterEnabled && !isOwn && !revealed;
@@ -60,8 +71,16 @@ export function ChatMediaBubble({
     setRetryCount(prev => prev + 1);
   }, []);
 
-  // Show skeleton while URL is resolving (not local, not yet resolved)
+  // Show skeleton while URL is resolving, but show error if timed out
   if (!displayUrl && !isLocalUrl) {
+    if (signingTimedOut) {
+      return (
+        <div className={cn("relative flex flex-col items-center justify-center rounded-xl bg-muted/50 border border-border w-full h-40", content ? "mb-2" : "", className)}>
+          <ImageOff className="h-8 w-8 text-muted-foreground mb-2" />
+          <p className="text-muted-foreground text-xs">Media unavailable</p>
+        </div>
+      );
+    }
     return <Skeleton className={cn("rounded-xl w-full h-40", className)} />;
   }
 

@@ -62,6 +62,7 @@ export function VybeViewer({
   const [mediaLoaded, setMediaLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [signingTimedOut, setSigningTimedOut] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const isLongPress = useRef(false);
   const startTime = useRef<number>(0);
@@ -114,9 +115,19 @@ export function VybeViewer({
       setImgError(false);
       setHasMarkedViewed(false);
       setRetryCount(0);
+      setSigningTimedOut(false);
       haptics.impact();
     }
   }, [isOpen, mediaUrl]);
+
+  // Timeout for signing - if URL hasn't resolved in 8s, show error
+  useEffect(() => {
+    if (!isOpen || !isSigningPending) return;
+    const timer = setTimeout(() => {
+      setSigningTimedOut(true);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [isOpen, isSigningPending]);
 
   // Mark vybe as viewed only AFTER media has loaded successfully
   useEffect(() => {
@@ -256,8 +267,18 @@ export function VybeViewer({
       );
     }
 
-    // Still waiting for signed URL
+    // Still waiting for signed URL - but timed out means show error
     if (isSigningPending) {
+      if (signingTimedOut || isFailedUrl(mediaUrl)) {
+        return (
+          <div className="flex flex-col items-center justify-center gap-4">
+            <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+              <Camera className="h-10 w-10 text-white/50" />
+            </div>
+            <p className="text-white/60 text-sm">Media no longer available</p>
+          </div>
+        );
+      }
       return (
         <div className="flex flex-col items-center justify-center gap-4">
           <motion.div
