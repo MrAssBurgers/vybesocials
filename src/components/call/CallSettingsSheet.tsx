@@ -209,9 +209,24 @@ export const CallSettingsSheet = forwardRef<HTMLDivElement, CallSettingsSheetPro
                   disabled={isMuted}
                 />
 
-                {/* Mic level indicator */}
+                {/* Mic test button + level indicator */}
                 <div className="mt-4 space-y-2">
-                  <Label className="text-xs text-muted-foreground">Input Level</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Input Level</Label>
+                    <button
+                      onClick={micTestActive ? stopMicTest : startMicTest}
+                      disabled={isMuted}
+                      className={cn(
+                        "text-xs font-medium px-3 py-1 rounded-full transition-all",
+                        micTestActive
+                          ? "bg-destructive/20 text-destructive hover:bg-destructive/30"
+                          : "bg-primary/20 text-primary hover:bg-primary/30",
+                        isMuted && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {micTestActive ? 'Stop Test' : 'Test Mic'}
+                    </button>
+                  </div>
                   <div className="relative h-2 rounded-full bg-secondary overflow-hidden">
                     <motion.div
                       className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-primary via-primary to-accent"
