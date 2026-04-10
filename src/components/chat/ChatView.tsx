@@ -2118,7 +2118,7 @@ const MessageBubble = memo(function MessageBubble({
   }, [onUnsendForEveryone]);
 
 
-  // Long press is now handled by SwipeToReply wrapper via custom event
+  // Long press handled via custom event from SwipeToReply
   const bubbleRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
