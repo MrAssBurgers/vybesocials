@@ -288,6 +288,7 @@ export default function FriendMap() {
   const { profile } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { coords: myCoords, accuracy, sharing, setSharing, speed: mySpeed } = useLocationContext();
 
   const { data: friendIds = [] } = useFriendIds(profile?.id);
   const { data: friends = [] } = useFriendLocations(friendIds);
@@ -300,13 +301,9 @@ export default function FriendMap() {
   const accCircle = useRef<L.Circle | null>(null);
   const tileRef = useRef<L.TileLayer | null>(null);
   const framed = useRef(false);
-  const lastUpsert = useRef(0);
-  const lastSpeed = useRef<number | null>(null);
+  const friendMarkers = useRef<Map<string, L.Marker>>(new Map());
 
   // State
-  const [myCoords, setMyCoords] = useState<[number, number] | null>(null);
-  const [accuracy, setAccuracy] = useState<number | null>(null);
-  const [sharing, setSharing] = useState(() => localStorage.getItem(SHARING_PREF_KEY) === 'true');
   const [selId, setSelId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [stylesOpen, setStylesOpen] = useState(false);
