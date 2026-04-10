@@ -231,7 +231,7 @@ export function Camera({ onClose }: CameraProps) {
     return <CameraEditor mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} filter={currentFilter} onSave={() => setState('share')} onCancel={() => { setCapturedMedia(null); setState('capture'); }} />;
   }
   if (state === 'share' && capturedMedia) {
-    return <CameraShareSheet mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} onClose={() => setState('edit')} onComplete={onClose} />;
+    return <CameraShareSheet mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} mediaFile={capturedMedia.file} onClose={() => setState('edit')} onComplete={onClose} />;
   }
 
   return (
