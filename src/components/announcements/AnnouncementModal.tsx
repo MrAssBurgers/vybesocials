@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Mail, MailOpen } from 'lucide-react';
+import { X, MailOpen } from 'lucide-react';
 import { useAnnouncements, useDismissAnnouncement } from '@/hooks/useAnnouncements';
+import { AnnouncementMediaPreview } from './AnnouncementMediaPreview';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -33,7 +34,6 @@ export function AnnouncementModal() {
           <div className="relative inline-flex items-center gap-3 px-6 py-4 rounded-2xl bg-card border border-border shadow-lg cursor-pointer group"
             onClick={() => setIsOpen(true)}
           >
-            {/* Dismiss X */}
             <button
               onClick={(e) => { e.stopPropagation(); handleDismiss(); }}
               className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-muted flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors z-10"
@@ -61,9 +61,7 @@ export function AnnouncementModal() {
           </div>
         </motion.div>
       ) : (
-        /* ───── Open letter modal ───── */
         <>
-          {/* Backdrop */}
           <motion.div
             key="backdrop"
             initial={{ opacity: 0 }}
@@ -82,7 +80,7 @@ export function AnnouncementModal() {
             className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 max-w-md mx-auto"
           >
             <div className="bg-card rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-              {/* Header */}
+              {/* Header — Title first */}
               <div className="relative px-6 pt-6 pb-4 shrink-0">
                 <button
                   onClick={() => setIsOpen(false)}
@@ -105,9 +103,9 @@ export function AnnouncementModal() {
                 </h2>
               </div>
 
-              {/* Scrollable content area */}
+              {/* Scrollable: Media → Content */}
               <div className="overflow-y-auto flex-1 min-h-0">
-                {/* Image (optional) */}
+                {/* Media (centered between title and content) */}
                 {latest.image_url && (
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -115,15 +113,15 @@ export function AnnouncementModal() {
                     transition={{ delay: 0.15 }}
                     className="px-4"
                   >
-                    <img
-                      src={latest.image_url}
-                      alt=""
-                      className="w-full rounded-2xl object-cover max-h-64"
+                    <AnnouncementMediaPreview
+                      url={latest.image_url}
+                      mediaType={latest.media_type}
+                      className="max-h-64"
                     />
                   </motion.div>
                 )}
 
-                {/* Content */}
+                {/* Content / Description */}
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}

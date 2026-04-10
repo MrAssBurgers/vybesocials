@@ -82,9 +82,13 @@ export function AdminAnnouncementsSection() {
                     </Badge>
                   </div>
 
-                  {/* Image thumbnail */}
+                  {/* Media thumbnail */}
                   {ann.image_url && (
-                    <img src={ann.image_url} alt="" className="w-full max-h-32 object-cover rounded-xl border border-border" />
+                    ann.media_type === 'video' ? (
+                      <video src={ann.image_url} muted className="w-full max-h-32 object-cover rounded-xl border border-border" />
+                    ) : (
+                      <img src={ann.image_url} alt="" className="w-full max-h-32 object-cover rounded-xl border border-border" />
+                    )
                   )}
 
                   <p className="text-sm text-foreground/80 leading-relaxed">{ann.content}</p>
