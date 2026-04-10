@@ -2058,7 +2058,6 @@ const MessageBubble = memo(function MessageBubble({
   const [vybeViewed, setVybeViewed] = useState(hasAnyViews);
   const [showVybeViewer, setShowVybeViewer] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
-  const longPressRef = useRef<NodeJS.Timeout | null>(null);
   const menuOpenedRef = useRef(false);
   
   // Sync local state with server truth when message updates (realtime)
