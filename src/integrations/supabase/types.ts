@@ -5886,10 +5886,13 @@ export type Database = {
           ignore_deadline: string | null
           is_deleted: boolean | null
           is_edited: boolean | null
+          is_flagged: boolean | null
           media_type: string | null
           media_url: string | null
           message_type: string | null
           reply_to_id: string | null
+          safety_categories: string[] | null
+          safety_score: number | null
           sender_id: string
           view_mode: string | null
           viewed_at: string | null
@@ -5911,10 +5914,13 @@ export type Database = {
           ignore_deadline?: string | null
           is_deleted?: boolean | null
           is_edited?: boolean | null
+          is_flagged?: boolean | null
           media_type?: string | null
           media_url?: string | null
           message_type?: string | null
           reply_to_id?: string | null
+          safety_categories?: string[] | null
+          safety_score?: number | null
           sender_id: string
           view_mode?: string | null
           viewed_at?: string | null
@@ -5936,10 +5942,13 @@ export type Database = {
           ignore_deadline?: string | null
           is_deleted?: boolean | null
           is_edited?: boolean | null
+          is_flagged?: boolean | null
           media_type?: string | null
           media_url?: string | null
           message_type?: string | null
           reply_to_id?: string | null
+          safety_categories?: string[] | null
+          safety_score?: number | null
           sender_id?: string
           view_mode?: string | null
           viewed_at?: string | null
