@@ -1661,6 +1661,9 @@ export function ChatView() {
             typingUserIds={typingUsers}
             editingMessageId={editingMessageId}
             onCancelEdit={() => { setEditingMessageId(null); setEditText(''); }}
+            showStickerPanel={showStickerPanel}
+            setShowStickerPanel={setShowStickerPanel}
+            onSendSticker={async (url) => { await sendMediaMessage(url, 'image'); }}
           />
         </DMSafetyGate>
       ) : (
@@ -1700,6 +1703,9 @@ export function ChatView() {
           typingUserIds={typingUsers}
           editingMessageId={editingMessageId}
           onCancelEdit={() => { setEditingMessageId(null); setEditText(''); }}
+          showStickerPanel={showStickerPanel}
+          setShowStickerPanel={setShowStickerPanel}
+          onSendSticker={async (url) => { await sendMediaMessage(url, 'image'); }}
         />
       )}
 
