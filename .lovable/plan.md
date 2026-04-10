@@ -1,29 +1,34 @@
 
 
-## Fix: VybeSnapCamera Permission Error
+## Fix Toast Redesign + Explore Top Gap
 
-All 11 other items from the plan are already implemented. The one remaining issue:
+### Issues
 
-**VybeSnapCamera calls `getUserMedia` from a `useEffect` (line 106-111)**, which browsers block because it's not triggered by a direct user gesture.
+1. **System notification toasts are ugly and can't be swiped away** — The current sonner toasts use a pill shape with green check icons, left accent bars, and only support horizontal swipe (Sonner default is `swipeDirection: "right"`). They stack up and feel immovable. Need a complete visual redesign and swipe-up-to-dismiss.
 
-### Current code (broken)
-```typescript
-useEffect(() => {
-  if (isOpen && phase === 'camera') {
-    startCamera(); // ← getUserMedia called without gesture
-  }
-  return () => stopCamera();
-}, [isOpen, phase, startCamera, stopCamera]);
-```
+2. **Explore bar has a gap at the top** — The clips fullscreen viewer tab bar at line 320 uses `pt-[max(env(safe-area-inset-top),8px)]` which creates a visible gap. On the videos view (line 404), the `py-4` adds unnecessary top spacing too.
 
-### Fix
-The component is opened by a user tap (e.g., a camera button). The `isOpen` prop changing to `true` happens synchronously from that tap. On most mobile browsers, `getUserMedia` within a `useEffect` triggered by a state change from a click **is** considered gesture-derived — but Safari/WebKit is stricter.
+### Plan
 
-The fix: instead of auto-starting via `useEffect`, show a brief "Tap to start camera" overlay when the component opens. When the user taps it, `startCamera()` runs directly from the click handler, satisfying the gesture requirement.
+**1. Redesign Sonner toast styles (`src/components/ui/sonner.tsx` + `src/index.css`)**
 
-### File to change
-- `src/components/camera/VybeSnapCamera.tsx` — Replace the auto-start `useEffect` with a "Tap to activate camera" overlay that calls `startCamera()` on click. Once the camera is active, hide the overlay and show the live feed as normal.
+- Add `swipeDirection="up"` to the Sonner `<Toaster>` component so users can swipe up to dismiss
+- Completely redesign the `.toast-pill` CSS in `index.css`:
+  - Remove the left accent bar (`::before` pseudo-element)
+  - Use a cleaner, minimal card style: subtle border, tight padding, no colored title text
+  - Smaller icon, muted colors, no heavy shadows
+  - Clean entrance/exit: slide down from top, swipe up to dismiss
+  - Single-line compact layout with icon + text + subtle close button
+  - Remove the `scale(0.97)` active press effect (feels cheap)
+  - Cleaner variant colors: subtle tinted background instead of colored accent bars
 
-### Also
-- The `update_sound_usage` function is missing `search_path` (linter warning) — add `SET search_path = public` via a small migration for security hardening.
+**2. Fix Explore top gap (`src/pages/Explore.tsx`)**
+
+- Line 320: Change `pt-[max(env(safe-area-inset-top),8px)]` to `pt-[env(safe-area-inset-top)]` — no minimum padding, flush to the safe area
+- Line 404 (Videos gallery): Reduce `py-4` to `pt-0 pb-4` so the tab bar sits flush at top
+
+### Files to change
+- `src/components/ui/sonner.tsx` — add `swipeDirection="up"`
+- `src/index.css` — redesign all `.toast-pill*` styles (lines 2885-3066)
+- `src/pages/Explore.tsx` — remove top gap on both clips and videos views
 
