@@ -264,6 +264,7 @@ export function Camera({ onClose, initialSound }: CameraProps) {
       <CameraShareSheet
         mediaUrl={capturedMedia.url}
         mediaType={capturedMedia.type}
+        mediaFile={capturedMedia.file}
         soundId={capturedMedia.soundId}
         soundStartTime={capturedMedia.soundStartTime}
         onClose={() => {
