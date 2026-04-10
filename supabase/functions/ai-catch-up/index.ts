@@ -65,7 +65,7 @@ Rules:
           contents: [{ parts: [{ text: prompt }] }],
           tools: [{ google_search: {} }],
           generationConfig: {
-            temperature: 0.3,
+            temperature: 0.2,
             maxOutputTokens: 8192,
           },
         }),
