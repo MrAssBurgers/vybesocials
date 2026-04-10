@@ -1,34 +1,73 @@
 
 
-## Fix Toast Redesign + Explore Top Gap
+## Plan: Background Location + Enhanced Map + Background Brief Pre-fetch
 
-### Issues
+### 1. Background Location Tracking (Global Provider)
 
-1. **System notification toasts are ugly and can't be swiped away** — The current sonner toasts use a pill shape with green check icons, left accent bars, and only support horizontal swipe (Sonner default is `swipeDirection: "right"`). They stack up and feel immovable. Need a complete visual redesign and swipe-up-to-dismiss.
+Currently, `watchPosition` only runs when the `FriendMap` component is mounted. Move location tracking to a global provider that runs app-wide.
 
-2. **Explore bar has a gap at the top** — The clips fullscreen viewer tab bar at line 320 uses `pt-[max(env(safe-area-inset-top),8px)]` which creates a visible gap. On the videos view (line 404), the `py-4` adds unnecessary top spacing too.
+**Files:**
+- **New: `src/hooks/useBackgroundLocation.ts`** — Global hook that runs `watchPosition` whenever sharing is enabled, regardless of which page the user is on. Upserts to `user_locations` every 15s. Stores last coords in a ref so the map can read them without re-initializing.
+- **New: `src/providers/LocationProvider.tsx`** — Wraps the app, initializes `useBackgroundLocation` for authenticated users with sharing enabled.
+- **Edit: `src/App.tsx`** — Wrap app tree with `<LocationProvider>`.
+- **Edit: `src/pages/FriendMap.tsx`** — Remove the inline `watchPosition` useEffect and `upsertLocation` logic; consume coords from the global provider instead.
 
-### Plan
+**Note:** True background tracking when the PWA is closed is not possible with web APIs alone (no iOS support, limited Android). The service worker can't access `geolocation`. This will keep tracking as long as the app tab is open/foregrounded, which is the best web can do.
 
-**1. Redesign Sonner toast styles (`src/components/ui/sonner.tsx` + `src/index.css`)**
+### 2. Enhanced Friend Profile Card on Map Tap
 
-- Add `swipeDirection="up"` to the Sonner `<Toaster>` component so users can swipe up to dismiss
-- Completely redesign the `.toast-pill` CSS in `index.css`:
-  - Remove the left accent bar (`::before` pseudo-element)
-  - Use a cleaner, minimal card style: subtle border, tight padding, no colored title text
-  - Smaller icon, muted colors, no heavy shadows
-  - Clean entrance/exit: slide down from top, swipe up to dismiss
-  - Single-line compact layout with icon + text + subtle close button
-  - Remove the `scale(0.97)` active press effect (feels cheap)
-  - Cleaner variant colors: subtle tinted background instead of colored accent bars
+The bottom card already shows pfp, name, status, distance, and a Google Maps directions button. Enhance it:
 
-**2. Fix Explore top gap (`src/pages/Explore.tsx`)**
+**Edit: `src/pages/FriendMap.tsx`**
+- Show movement status more prominently: detect from `sel.status` whether they're driving (`🚗`), walking, or stationary — display as a colored badge (e.g., "Driving • 45 mph" or "Walking" or "Stationary").
+- Add speed tracking: store `speed` in the `user_locations` upsert, read it back on friend records. Show estimated activity based on speed thresholds.
+- Make the profile avatar tappable to navigate to their profile (`/u/{username}`).
+- Redesign the card with a Life360-inspired look: larger avatar, activity indicator ring, battery-style freshness indicator.
 
-- Line 320: Change `pt-[max(env(safe-area-inset-top),8px)]` to `pt-[env(safe-area-inset-top)]` — no minimum padding, flush to the safe area
-- Line 404 (Videos gallery): Reduce `py-4` to `pt-0 pb-4` so the tab bar sits flush at top
+**Migration:** Add `speed` column to `user_locations` table (nullable float).
 
-### Files to change
-- `src/components/ui/sonner.tsx` — add `swipeDirection="up"`
-- `src/index.css` — redesign all `.toast-pill*` styles (lines 2885-3066)
-- `src/pages/Explore.tsx` — remove top gap on both clips and videos views
+### 3. Smooth Marker Movement (Apple Maps-style)
+
+**Edit: `src/pages/FriendMap.tsx`**
+- Store previous marker positions in a ref map (`Map<userId, L.Marker>`).
+- Instead of clearing and re-creating all markers on every update, update existing markers with animated `setLatLng` using Leaflet's built-in `L.Marker` animation or a manual `requestAnimationFrame` interpolation loop.
+- For the user's own marker (`myMk`), animate position changes smoothly instead of jumping.
+
+### 4. Life360 + Insta + Vybe Theme Map Styling
+
+**Edit: `src/pages/FriendMap.tsx`** (CSS section)
+- Larger friend avatars with gradient activity rings (green = moving, gray = stationary).
+- Add a subtle glow/pulse to friends who are currently moving.
+- "Last seen" tooltip below avatar with relative time.
+- Friend strip at bottom: Instagram Stories-style rings (green gradient for active, gray for inactive).
+- Selected card: glassmorphic dark card with rounded corners, activity icon, speed, and a prominent "Navigate" button.
+
+### 5. Daily Brief Background Pre-fetch
+
+**Edit: `src/components/home/AIBriefSheet.tsx`**
+- Export `fetchBrief` logic into a standalone utility or hook that can be called outside the sheet.
+
+**New: `src/hooks/useBriefPreFetch.ts`**
+- On app mount (authenticated), check if cached brief is stale (>30 min). If so, fetch in the background silently and update the cache.
+- Re-fetch every 30 minutes while the app is open using `setInterval`.
+- When user opens the brief sheet, it instantly shows the pre-fetched data (no loading spinner).
+
+**Edit: `src/components/home/AIBriefSheet.tsx`**
+- On open, read from cache first. If cache is fresh (<30 min), show immediately with no loading state. Add a manual "Refresh" button that the user can tap to force a new fetch.
+- Remove the `hasFetchedRef` gate — the pre-fetcher handles freshness.
+
+**Edit: `src/App.tsx`** (or a top-level component)
+- Initialize `useBriefPreFetch()` for authenticated users.
+
+### Files Summary
+
+| # | File | Action |
+|---|------|--------|
+| 1 | `src/hooks/useBackgroundLocation.ts` | Create — global location tracking hook |
+| 2 | `src/providers/LocationProvider.tsx` | Create — wrap app with location provider |
+| 3 | `src/App.tsx` | Edit — add LocationProvider + useBriefPreFetch |
+| 4 | `src/pages/FriendMap.tsx` | Edit — consume global location, smooth markers, Life360 UI |
+| 5 | `src/hooks/useBriefPreFetch.ts` | Create — background brief fetcher |
+| 6 | `src/components/home/AIBriefSheet.tsx` | Edit — instant cache display, manual refresh |
+| 7 | Migration SQL | Add `speed` column to `user_locations` |
 
