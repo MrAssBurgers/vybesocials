@@ -1,12 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, SwitchCamera, Zap, ZapOff, Volume2, VolumeX } from 'lucide-react';
+import { X, SwitchCamera, Zap, ZapOff, Volume2, VolumeX, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { VybeRecordButton } from './VybeRecordButton';
 import { VybeSnapEditor } from './VybeSnapEditor';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
+import { getActiveStream, stopCameraStream } from '@/hooks/useCameraPreload';
 
 interface RecordingSegment {
   blob: Blob;
@@ -28,7 +29,7 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingProgress, setRecordingProgress] = useState(0);
-  const [cameraActivated, setCameraActivated] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [segments, setSegments] = useState<RecordingSegment[]>([]);
   const [capturedMedia, setCapturedMedia] = useState<{ url: string; type: 'photo' | 'video' } | null>(null);
   const [showFlash, setShowFlash] = useState(false);
@@ -73,6 +74,14 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         }
       }
 
+      // Check if there's already a preloaded stream from the gesture
+      const preloaded = getActiveStream();
+      if (preloaded) {
+        console.log('[VybeSnapCamera] Using preloaded stream from gesture');
+        // Stop preloaded stream and get a fresh one with correct settings
+        stopCameraStream();
+      }
+
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
@@ -89,11 +98,13 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setPermissionDenied(false);
+      setCameraReady(true);
       streamRef.current = stream;
       
+      // Attach to video element if it exists already
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.play().catch(() => {});
       }
       
       // Apply zoom if supported
@@ -126,19 +137,25 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     }
   }, []);
 
-  // Reset activation state when camera closes
+  // Auto-start camera when modal opens
   useEffect(() => {
+    if (isOpen) {
+      setCameraReady(false);
+      startCamera();
+    }
     if (!isOpen) {
-      setCameraActivated(false);
+      setCameraReady(false);
     }
     return () => stopCamera();
-  }, [isOpen, stopCamera]);
+  }, [isOpen, stopCamera, startCamera]);
 
-  // Activate camera from user gesture
-  const handleActivateCamera = useCallback(() => {
-    setCameraActivated(true);
-    startCamera();
-  }, [startCamera]);
+  // Re-attach stream to video element when it mounts (fixes race condition)
+  useEffect(() => {
+    if (streamRef.current && videoRef.current && !videoRef.current.srcObject) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  });
   
   // Handle pinch-to-zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -543,19 +560,16 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
               Try Again
             </Button>
           </div>
-        ) : !cameraActivated ? (
-          <div 
-            className="w-full h-full flex flex-col items-center justify-center cursor-pointer"
-            onClick={handleActivateCamera}
-          >
+        ) : !cameraReady ? (
+          <div className="w-full h-full flex flex-col items-center justify-center">
             <motion.div
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="w-20 h-20 rounded-full bg-muted/20 border-2 border-primary/50 flex items-center justify-center mb-4"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+              className="mb-4"
             >
-              <VybeMiniIcon size={32} />
+              <Loader2 className="h-10 w-10 text-primary" />
             </motion.div>
-            <p className="text-muted-foreground text-sm font-medium">Tap to activate camera</p>
+            <p className="text-muted-foreground text-sm font-medium">Connecting camera...</p>
           </div>
         ) : (
           <video

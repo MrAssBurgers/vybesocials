@@ -90,6 +90,7 @@ import {
 import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
+import { requestCameraStream } from '@/hooks/useCameraPreload';
 import { VybeViewer } from './VybeViewer';
 // Flying bubble removed - messages now pop in like iMessage
 import { VideoSendPreview } from './VideoSendPreview';
@@ -111,6 +112,8 @@ import { DMImageSafetyGate } from './DMImageSafetyGate';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useUserBusiness } from '@/hooks/useBusinessOffers';
 import { CreateOfferDialog } from '@/components/business/CreateOfferDialog';
+import { ChatMediaBubble, SignedAudioUrl } from './ChatMediaBubble';
+import { useSafetySettings } from '@/hooks/useSafetySettings';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
 // Theme color mapping - now includes both bubble and text classes
@@ -1655,7 +1658,7 @@ export function ChatView() {
             onOpenScheduleMessage={() => setShowScheduleMessage(true)}
             onOpenDMSettings={() => setShowDMSettings(true)}
             onOpenAdminPanel={!isGroupChat ? () => setShowAdminPanel(true) : undefined}
-            onOpenSnapCamera={() => setShowSnapCamera(true)}
+            onOpenSnapCamera={() => { requestCameraStream({ facingMode: 'environment', width: 1920, height: 1080, audio: true }); setShowSnapCamera(true); }}
             onCreateOffer={userBusiness ? () => setShowOfferDialog(true) : undefined}
             hasBusinessProfile={!!userBusiness}
             presentUsers={presentUsers}
@@ -1697,7 +1700,7 @@ export function ChatView() {
           onOpenScheduleMessage={() => setShowScheduleMessage(true)}
           onOpenDMSettings={() => setShowDMSettings(true)}
           onOpenAdminPanel={!isGroupChat ? () => setShowAdminPanel(true) : undefined}
-          onOpenSnapCamera={() => setShowSnapCamera(true)}
+          onOpenSnapCamera={() => { requestCameraStream({ facingMode: 'environment', width: 1920, height: 1080, audio: true }); setShowSnapCamera(true); }}
           onCreateOffer={userBusiness ? () => setShowOfferDialog(true) : undefined}
           hasBusinessProfile={!!userBusiness}
           presentUsers={presentUsers}
@@ -2254,38 +2257,24 @@ const MessageBubble = memo(function MessageBubble({
 
           {/* Image/GIF message (not for shared posts - they use SharedPostBubble) */}
           {isMediaMessage && !isSharedPost && (
-            <div className={message.content ? "mb-2" : ""}>
-              <img
-                src={message.media_url}
-                alt={message.media_type === 'gif' ? "GIF" : "Shared image"}
-                className="rounded-xl max-w-full max-h-52 sm:max-h-64 object-cover"
-                loading="lazy"
-              />
-            </div>
+            <ChatMediaBubble
+              mediaUrl={message.media_url!}
+              mediaType={message.media_type as 'image' | 'gif'}
+              isFlagged={(message as any).is_flagged}
+              isOwn={isOwn}
+              content={message.content}
+            />
           )}
 
           {/* Video message - regular DM video (not shared posts) */}
           {isVideoMessage && !isSharedPost && (
-            <div className={cn(message.content ? "mb-2" : "", "relative cursor-pointer group")}>
-              <div className="relative aspect-[9/16] w-32 sm:w-40 overflow-hidden rounded-xl bg-black">
-                <video
-                  src={message.media_url!}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  playsInline
-                  muted
-                  loop
-                  autoPlay
-                  preload="metadata"
-                  poster={message.media_url + '#t=0.1'}
-                />
-                {/* Play overlay hint */}
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
-                    <Play className="h-5 w-5 text-black ml-0.5" />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ChatMediaBubble
+              mediaUrl={message.media_url!}
+              mediaType="video"
+              isFlagged={(message as any).is_flagged}
+              isOwn={isOwn}
+              content={message.content}
+            />
           )}
 
           {/* VYBE message - Snapchat style tap to view (view once) */}
@@ -2438,7 +2427,9 @@ const MessageBubble = memo(function MessageBubble({
           {/* Voice notes: auto-height with min-height 48px, max width 80% */}
           {isAudioMessage && (
             <div className="min-w-[180px] max-w-[80%] min-h-[48px]">
-              <AudioMessage src={message.media_url} isOwn={isOwn} />
+              <SignedAudioUrl mediaUrl={message.media_url!}>
+                {(url) => url ? <AudioMessage src={url} isOwn={isOwn} /> : <Skeleton className="h-12 w-full rounded-xl" />}
+              </SignedAudioUrl>
             </div>
           )}
 

@@ -2,6 +2,8 @@ import { useState, memo, useMemo } from 'react';
 import { Users, UserPlus, LogOut, Trash2, Crown, Shield, Search, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -34,6 +36,8 @@ import { useFriends } from '@/hooks/useFriends';
 import { useAuth } from '@/lib/auth';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useSafetySettings, useUpdateSafetySettings } from '@/hooks/useSafetySettings';
+import { toast } from 'sonner';
 
 interface GroupInfoSheetProps {
   open: boolean;
@@ -62,6 +66,8 @@ export const GroupInfoSheet = memo(function GroupInfoSheet({
   const addMember = useAddGroupMember();
   const leaveGroup = useLeaveGroup();
   const updateSettings = useUpdateGroupSettings();
+  const { data: safetySettings } = useSafetySettings();
+  const updateSafety = useUpdateSafetySettings();
 
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -191,6 +197,26 @@ export const GroupInfoSheet = memo(function GroupInfoSheet({
               <UserPlus className="h-4 w-4 mr-2" />
               Add Members
             </Button>
+
+            {/* AI Safety Filter */}
+            <div className="space-y-2 p-3 rounded-xl bg-muted/30">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 text-sm">
+                  <Shield className="h-4 w-4" />
+                  AI Safety Filter
+                </Label>
+                <Switch
+                  checked={safetySettings?.dm_content_filter_enabled ?? true}
+                  onCheckedChange={(checked) => {
+                    updateSafety.mutate({ dm_content_filter_enabled: checked });
+                    toast.success(checked ? 'Safety filter enabled' : 'Safety filter disabled', { duration: 1500 });
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Blur flagged media from other users in this group.
+              </p>
+            </div>
 
             {/* Members List */}
             <div className="space-y-2">
