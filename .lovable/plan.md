@@ -1,75 +1,67 @@
 
 
-## Fix publish failure and database errors
+## Updated Plan: Fix 7 UI Issues + 5 Backend/Runtime Errors
 
-### Root cause
+### Part A — UI Fixes (from previous plan, unchanged)
 
-1. **Publish failure** — Migration `20260410005158` tries `CREATE OR REPLACE FUNCTION add_user_xp(uuid, integer) RETURNS void`, but on production the existing function returns `jsonb` (not `void`). Postgres forbids changing return types with `CREATE OR REPLACE`. The `DROP FUNCTION` only exists in the later migration `20260410010248`, which never runs because the earlier one fails first.
+1. **Explore tab not pinned to top** — Fix in `Explore.tsx`
+2. **Map not fullscreen** — Tighten top padding in `FriendMap.tsx`
+3. **Reaction picker position unstable** — Anchor directly above button in `ReactionPicker.tsx`
+4. **Reaction picker clipped in Clips** — Use `ReactDOM.createPortal` to render into `document.body`
+5. **Clips reaction menu should be vertical** — Add `vertical` prop, pass from `MobileShortCard.tsx`
+6. **Quick Add row moves freely** — Add `touch-action: pan-x` and `overflow-y: hidden` to `QuickAddRow.tsx` and `MutualFriendsQuickAdd.tsx`
+7. **VYBE DNA sticky header** — Fix `sticky top-0 z-20` in `VybeDNA.tsx`
 
-2. **`column "xp" does not exist`** — There's a second overload `add_user_xp(uuid, integer, text)` that still does `UPDATE profiles SET xp = ...`. The `profiles` table has no `xp` column. One callsite (`useBugBountyDetector.ts`) uses this 3-arg version.
+### Part B — New Issues (from pending errors)
 
-3. **`user_backgrounds` timeout** — The RLS policies use `current_profile_id()` which queries `profiles`. With only 7 rows this shouldn't timeout; likely a transient issue, but I'll verify indexes are in place.
+**8. `add_user_xp` 404 on Live (3-arg version missing)**
 
-4. **`user_locations` FK** — The FK constraint `user_locations_user_id_fkey` still doesn't exist on prod because the migration that adds it fails before reaching that line.
+The client in `useBugBountyDetector.ts` calls `add_user_xp({ p_user_id, p_xp, p_source })` but only the 2-arg version exists. The new migration needs to also recreate a 3-arg overload that accepts `p_source` and writes to `user_levels`.
 
-### Plan
+- **File**: New migration SQL — add 3-arg `add_user_xp(uuid, integer, text)` targeting `user_levels`
 
-**Step 1 — Fix both migration files**
+**9. `track_daily_login` FK violation (409)**
 
-Replace `20260410005158` with:
-```sql
--- Drop ALL overloads of add_user_xp first
-DROP FUNCTION IF EXISTS public.add_user_xp(uuid, integer);
-DROP FUNCTION IF EXISTS public.add_user_xp(uuid, integer, text);
+`track_daily_login` calls `add_user_xp(v_profile_id, ...)` passing the **profile ID**, but `user_levels.user_id` references `auth.users(id)`. Profile IDs are not auth user IDs.
 
--- Recreate 2-arg version targeting user_levels
-CREATE OR REPLACE FUNCTION public.add_user_xp(p_user_id uuid, p_xp integer)
-RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
-AS $$
-DECLARE v_result jsonb;
-BEGIN
-  INSERT INTO public.user_levels (user_id, total_xp, current_level)
-  VALUES (p_user_id, p_xp, 1)
-  ON CONFLICT (user_id)
-  DO UPDATE SET total_xp = user_levels.total_xp + p_xp, updated_at = now();
-  
-  SELECT jsonb_build_object('success', true, 'xp_added', p_xp) INTO v_result;
-  RETURN v_result;
-END;
-$$;
+- **Fix**: Update `add_user_xp` to accept a profile ID and internally look up the auth user ID from `profiles`, OR fix `track_daily_login` to pass `v_auth_id` instead of `v_profile_id`. The simpler fix: change line 57 in `track_daily_login` from `add_user_xp(v_profile_id, ...)` to `add_user_xp(v_auth_id, ...)` since `user_levels` FK references `auth.users`.
+- **File**: New migration to `DROP` and recreate `track_daily_login` with the corrected parameter
 
--- Add FK from user_locations to profiles (idempotent)
-DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.table_constraints
-    WHERE constraint_name = 'user_locations_user_id_fkey'
-  ) THEN
-    ALTER TABLE public.user_locations
-      ADD CONSTRAINT user_locations_user_id_fkey
-      FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
-  END IF;
-END; $$;
-```
+**10. Mic visualization permission error**
 
-Replace `20260410010248` with just a comment/no-op since everything is handled by the earlier migration:
-```sql
--- Consolidated into previous migration; no-op
-SELECT 1;
-```
+`CallSettingsSheet.tsx` calls `getUserMedia` inside a `useEffect`, not from a user gesture. The browser blocks it.
 
-I'm keeping the return type as `jsonb` to match what production callers expect, and making the function work with `user_levels` instead of `profiles.xp`.
+- **Fix**: Don't auto-start mic visualization on sheet open. Instead, add a "Test mic" button the user taps, which triggers `getUserMedia` from a click handler.
+- **File**: `src/components/call/CallSettingsSheet.tsx`
 
-**Step 2 — Fix the `upload-sound` edge function**
+**11. VybeSnapCamera permission error**
 
-The edge function uses `p_xp_amount` (the old param name). Update it to use `p_xp`.
+Same issue — camera `getUserMedia` called outside a user gesture context. The existing `useCameraPreload` hook is designed for gesture-safe access but may not be wired correctly.
 
-**Step 3 — Verify `user_backgrounds`**
+- **Fix**: Ensure camera start is only triggered from the user's tap on the camera button, not from a `useEffect`.
+- **File**: Relevant camera component (verify wiring)
 
-Check if there's an index on `profiles.user_id` that `current_profile_id()` relies on. Add one if missing to prevent timeout.
+**12. Video safety scan `currentTime` non-finite**
+
+In `extractVideoFrame`, line 117 sets `video.currentTime = Math.min(timeSeconds, video.duration * 0.3)`. If `video.duration` is `NaN` or `Infinity` (common before metadata loads), the result is non-finite.
+
+- **Fix**: Guard the assignment: `const seekTime = Math.min(timeSeconds, (video.duration || 2) * 0.3); if (!isFinite(seekTime)) seekTime = 0;`
+- Also change the event from `onloadeddata` to `onloadedmetadata` which guarantees `duration` is available.
+- **File**: `src/lib/aiSafetyClient.ts`
 
 ### Files to change
-- `supabase/migrations/20260410005158_7e2af4e9-7643-4e5e-a0bf-c32902c0176d.sql`
-- `supabase/migrations/20260410010248_e4a81f99-a60c-414e-bbd8-d5149a35cff4.sql`
-- `supabase/functions/upload-sound/index.ts` (fix param name)
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `src/pages/Explore.tsx` | Pin tab bar to top |
+| 2 | `src/pages/FriendMap.tsx` | Remove extra top padding |
+| 3 | `src/components/reactions/ReactionPicker.tsx` | Portal + vertical mode + stable position |
+| 4 | `src/components/posts/MobileShortCard.tsx` | Pass `vertical` to ReactionPicker |
+| 5 | `src/components/chat/QuickAddRow.tsx` | Lock horizontal touch |
+| 6 | `src/components/chat/MutualFriendsQuickAdd.tsx` | Lock horizontal touch |
+| 7 | `src/pages/VybeDNA.tsx` | Fix sticky header |
+| 8 | New migration SQL | Recreate `add_user_xp` 2-arg + 3-arg, fix `track_daily_login` to pass auth ID |
+| 9 | `src/components/call/CallSettingsSheet.tsx` | Move `getUserMedia` to click handler |
+| 10 | Camera component | Verify gesture-safe camera start |
+| 11 | `src/lib/aiSafetyClient.ts` | Guard `currentTime` against non-finite values |
 
