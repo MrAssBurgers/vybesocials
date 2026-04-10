@@ -1761,6 +1761,9 @@ const MessageInputArea = memo(function MessageInputArea({
   typingUserIds,
   editingMessageId,
   onCancelEdit,
+  showStickerPanel,
+  setShowStickerPanel,
+  onSendSticker,
 }: {
   messageText: string;
   viewMode: ViewMode;
