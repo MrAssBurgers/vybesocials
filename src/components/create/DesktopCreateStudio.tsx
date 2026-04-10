@@ -247,6 +247,36 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
         />
       )}
 
+      {/* Safety scan overlay */}
+      <AnimatePresence>
+        {showSafety && contentSafety.isScanning && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-background/95 backdrop-blur-sm"
+          >
+            <div className="w-80 space-y-6 text-center">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center"
+              >
+                <Sparkles className="h-8 w-8 text-primary" />
+              </motion.div>
+              <div>
+                <p className="text-foreground font-bold text-lg mb-1">Vybe Check</p>
+                <p className="text-muted-foreground text-sm">{contentSafety.message || 'Scanning your content...'}</p>
+              </div>
+              <SafetyScanProgress 
+                phase={contentSafety.scanPhase} 
+                isVideo={files[0]?.type.startsWith('video/')} 
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Success overlay */}
       <AnimatePresence>
         {publishSuccess && (
