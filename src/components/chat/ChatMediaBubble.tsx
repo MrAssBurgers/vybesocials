@@ -115,11 +115,14 @@ export function ChatMediaBubble({
           src={cacheBustedUrl}
           alt={mediaType === 'gif' ? "GIF" : "Shared image"}
           className={cn(
-            "rounded-xl max-w-full max-h-52 sm:max-h-64 object-cover transition-all",
+            "rounded-xl max-w-full max-h-52 sm:max-h-64 object-cover transition-all select-none",
             shouldBlur && "blur-2xl",
             !loaded && "opacity-0 absolute"
           )}
+          style={{ WebkitTouchCallout: 'none' }}
           loading="lazy"
+          draggable={false}
+          onContextMenu={(e) => e.preventDefault()}
           onError={handleError}
           onLoad={handleLoad}
         />
@@ -138,15 +141,18 @@ export function ChatMediaBubble({
           <video
             src={cacheBustedUrl}
             className={cn(
-              "absolute inset-0 w-full h-full object-cover transition-all",
+              "absolute inset-0 w-full h-full object-cover transition-all select-none",
               shouldBlur && "blur-2xl",
               !loaded && "opacity-0"
             )}
+            style={{ WebkitTouchCallout: 'none' }}
             playsInline
             muted
             loop
             autoPlay
             preload="metadata"
+            draggable={false}
+            onContextMenu={(e) => e.preventDefault()}
             onError={handleError}
             onLoadedData={handleLoad}
           />

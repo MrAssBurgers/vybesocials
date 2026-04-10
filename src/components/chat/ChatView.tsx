@@ -138,6 +138,17 @@ export function ChatView() {
   const { data: messages, isLoading } = useMessages(conversationId);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
   
+  // Batch preload all media URLs for instant rendering
+  useEffect(() => {
+    if (!messages || messages.length === 0) return;
+    const mediaUrls = messages
+      .map(m => m.media_url)
+      .filter((url): url is string => !!url && !url.startsWith('blob:') && !url.startsWith('data:'));
+    if (mediaUrls.length > 0) {
+      import('@/lib/signedUrlCache').then(({ batchSignUrls }) => batchSignUrls(mediaUrls));
+    }
+  }, [messages]);
+  
   // Register current conversation for global realtime updates
   useEffect(() => {
     setCurrentConversationId(conversationId || null);
