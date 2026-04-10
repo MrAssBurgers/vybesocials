@@ -75,6 +75,22 @@ const MAP_TILES: Record<string, { url: string; label: string; icon: string }> = 
 
 /* ── helpers ─────────────────────────────────────────── */
 
+/** Smoothly animate a Leaflet marker between two positions (Apple Maps style) */
+function animateMarker(marker: L.Marker, from: L.LatLng, to: L.LatLng, duration = 800) {
+  const start = performance.now();
+  const fromLat = from.lat, fromLng = from.lng;
+  const dLat = to.lat - fromLat, dLng = to.lng - fromLng;
+  
+  function step(now: number) {
+    const t = Math.min((now - start) / duration, 1);
+    // ease-out cubic
+    const ease = 1 - Math.pow(1 - t, 3);
+    marker.setLatLng([fromLat + dLat * ease, fromLng + dLng * ease]);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
 function friendName(loc?: Partial<LocationRecord> | null) {
   return loc?.profile?.display_name || loc?.profile?.username || 'Friend';
 }
