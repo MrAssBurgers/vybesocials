@@ -8,6 +8,7 @@ import { Megaphone, Trash2, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { CreateAnnouncementDialog } from '@/components/announcements/CreateAnnouncementDialog';
+import { EditAnnouncementDialog } from '@/components/announcements/EditAnnouncementDialog';
 
 export function AdminAnnouncementsSection() {
   const queryClient = useQueryClient();
@@ -80,11 +81,18 @@ export function AdminAnnouncementsSection() {
                       {ann.is_active ? 'Active' : 'Inactive'}
                     </Badge>
                   </div>
+
+                  {/* Image thumbnail */}
+                  {ann.image_url && (
+                    <img src={ann.image_url} alt="" className="w-full max-h-32 object-cover rounded-xl border border-border" />
+                  )}
+
                   <p className="text-sm text-foreground/80 leading-relaxed">{ann.content}</p>
                   <p className="text-xs text-muted-foreground">
                     By @{ann.author?.username} • {formatDistanceToNow(new Date(ann.created_at), { addSuffix: true })}
                   </p>
                   <div className="flex gap-2 pt-1">
+                    <EditAnnouncementDialog announcement={ann} />
                     {!ann.is_active && (
                       <Button size="sm" variant="outline" className="rounded-xl" onClick={() => reactivate.mutate(ann.id)}>
                         <RefreshCw className="h-4 w-4 mr-1.5" /> Reactivate
