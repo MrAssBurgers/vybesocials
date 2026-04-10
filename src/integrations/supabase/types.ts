@@ -9749,7 +9749,36 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_locations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_locations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_locations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_locations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
       }
       user_preferences: {
         Row: {
@@ -11301,10 +11330,12 @@ export type Database = {
       }
     }
     Functions: {
-      add_user_xp: {
-        Args: { p_source: string; p_user_id: string; p_xp: number }
-        Returns: undefined
-      }
+      add_user_xp:
+        | { Args: { p_user_id: string; p_xp: number }; Returns: undefined }
+        | {
+            Args: { p_source: string; p_user_id: string; p_xp: number }
+            Returns: undefined
+          }
       award_badge: {
         Args: {
           p_awarded_by?: string

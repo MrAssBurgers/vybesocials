@@ -40,19 +40,26 @@ export function QuickAddRow({
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Touch-based horizontal swipe
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const handler = (e: WheelEvent) => {
-      // Only hijack if the user is scrolling predominantly horizontally
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        e.preventDefault();
-        el.scrollLeft += e.deltaX;
-      }
-      // Never capture vertical scroll — let the page scroll normally
+    let startX = 0;
+    let scrollStart = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+      scrollStart = el.scrollLeft;
     };
-    el.addEventListener('wheel', handler, { passive: false });
-    return () => el.removeEventListener('wheel', handler);
+    const onTouchMove = (e: TouchEvent) => {
+      const dx = startX - e.touches[0].clientX;
+      el.scrollLeft = scrollStart + dx;
+    };
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+    };
   }, []);
 
   if (!users.length) return null;
@@ -72,8 +79,8 @@ export function QuickAddRow({
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide scroll-smooth"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
       >
         {users.map((u, i) => (
           <motion.button

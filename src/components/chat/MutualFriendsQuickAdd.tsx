@@ -103,17 +103,26 @@ export function MutualFriendsQuickAdd({
   const [localDismissed, setLocalDismissed] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Touch-based horizontal swipe
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const handler = (e: WheelEvent) => {
-      if (e.deltaY !== 0) {
-        e.preventDefault();
-        el.scrollLeft += e.deltaY;
-      }
+    let startX = 0;
+    let scrollStart = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+      scrollStart = el.scrollLeft;
     };
-    el.addEventListener('wheel', handler, { passive: false });
-    return () => el.removeEventListener('wheel', handler);
+    const onTouchMove = (e: TouchEvent) => {
+      const dx = startX - e.touches[0].clientX;
+      el.scrollLeft = scrollStart + dx;
+    };
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+    };
   }, []);
 
   const handleDismiss = useCallback((userId: string) => {
@@ -161,8 +170,8 @@ export function MutualFriendsQuickAdd({
       
       <div 
         ref={scrollRef}
-        className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide snap-x snap-mandatory"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide snap-x snap-mandatory scroll-smooth"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
       >
         <AnimatePresence initial={false}>
           {displayUsers.slice(0, 8).map((user) => (
