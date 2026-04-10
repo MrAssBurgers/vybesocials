@@ -1,38 +1,25 @@
 
-Goal: make swipe-to-reply and hold-to-open-menu mutually exclusive on media bubbles, especially on phone and iPad.
 
-What the deep scan found
-- `src/components/chat/SwipeToReply.tsx` still runs long-press from outer `onTouchStart/Move/End`.
-- The inner `motion.div` handles drag with Framer’s pointer system, so a slow horizontal swipe can avoid the wrapper’s touch-move cancellation long enough for the 400ms menu timer to fire.
-- Touch-only handlers are also less reliable on iPad/media children than pointer capture-phase handlers.
-- `src/components/chat/ChatView.tsx` opens the menu through `document.querySelector(...).dispatchEvent(new CustomEvent('longpress'))`, which is brittle and makes this race harder to control.
+## Fix Sticker Panel: Broken Images + Snapchat-Style Layout
 
-Implementation plan
-1. Harden `src/components/chat/SwipeToReply.tsx`
-   - Replace long-press `onTouch*` logic with `onPointerDownCapture`, `onPointerMoveCapture`, `onPointerUpCapture`, and `onPointerCancelCapture`.
-   - Start the 400ms hold timer only for `touch`/`pen` input, not mouse.
-   - Add a smaller “swipe intent” cancel threshold that is lower than the 15px reply drag dead zone, so even a slow swipe cancels the menu immediately.
-   - Track gesture state (`pressing`, `swiping`, `longpress-fired`) so once movement becomes a swipe, the menu cannot open later in that same gesture.
-   - Keep the existing drag-side cancellation in `onDragStart` and `onDrag` as a second safety net.
+### Problem 1: Images Not Loading
+The sticker thumbnails show broken image icons. The `image_url` stored in `user_stickers` likely contains public URLs from the `chat-media` bucket. The `<img>` tag has no error handling — if the URL fails to load, it shows a broken icon with no fallback.
 
-2. Simplify menu opening in `src/components/chat/ChatView.tsx`
-   - Remove the DOM custom-event bridge (`querySelector` + `CustomEvent('longpress')`).
-   - Wire `SwipeToReply` directly to the current message’s menu-open state/callback so the correct bubble opens reliably.
-   - Keep desktop right-click behavior through the existing `onContextMenu`.
+### Problem 2: Grid Too Small and Squished
+Current layout uses a 4-column grid with small `aspect-square` tiles crammed together — doesn't match Snapchat's sticker tray which uses larger, well-spaced items.
 
-3. Make hold-anywhere-on-image reliable
-   - Keep the hold detector on the wrapper around the full bubble so presses on the actual image/video child still count.
-   - Preserve media callout prevention so Safari/iPad native image menus do not interfere.
+### Fix in `src/components/chat/StickerPanel.tsx`
 
-4. Verify the exact cases you reported
-   - Holding still anywhere on the sent image opens the menu.
-   - Swiping to reply, even slowly or partially, never opens the menu.
-   - Full swipe still replies.
-   - Vertical scrolling past media does not open the menu.
-   - Same behavior works on phone-sized mobile and iPad.
+1. **Switch to 3-column grid** with more gap (`gap-3`) — larger sticker previews, less cramped
+2. **Increase max panel height** from 280px to 340px and inner scroll area from 200px to 260px for more room
+3. **Add `onError` fallback** on `<img>` — if the image fails to load, show a placeholder icon instead of a broken image
+4. **Use `object-contain` with padding** instead of `object-cover` — stickers are often transparent/irregular so they shouldn't be cropped; show the full image with some breathing room (like Snapchat)
+5. **Remove heavy borders** — use subtle rounded containers with a light background instead of bordered tiles (cleaner Snapchat look)
+6. **Add `crossOrigin="anonymous"`** and `referrerPolicy="no-referrer"` to the img tag to help with CORS/loading issues
 
-Files to touch
-- `src/components/chat/SwipeToReply.tsx`
-- `src/components/chat/ChatView.tsx`
+### Files Touched
 
-No backend changes are needed for this fix.
+| File | Change |
+|------|--------|
+| `src/components/chat/StickerPanel.tsx` | 3-col grid, larger tiles, image error handling, Snapchat-style spacing |
+
