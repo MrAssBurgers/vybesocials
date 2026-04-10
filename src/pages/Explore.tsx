@@ -317,7 +317,7 @@ function FullscreenClipsViewer({
         </Button>
 
         {/* Tab bar at top - pinned to very top */}
-        <div className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-[max(env(safe-area-inset-top),8px)] pb-2">
+        <div className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-[env(safe-area-inset-top)] pb-2">
           <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -401,7 +401,7 @@ function VideosGalleryView({
 
   return (
     <AppLayout>
-      <div className="max-w-7xl mx-auto px-4 py-4 sm:py-6 space-y-5">
+      <div className="max-w-7xl mx-auto px-4 pt-0 pb-4 sm:pt-0 sm:pb-6 space-y-5">
         {/* Tab bar at top */}
         <ExploreTabBar viewMode={viewMode} onTabChange={onTabChange} />
         
