@@ -6,12 +6,10 @@ import { cn } from '@/lib/utils';
 import { CameraFilters, CAMERA_FILTERS, getFilterCSS } from './CameraFilters';
 import { CameraEditor } from './CameraEditor';
 import { CameraShareSheet } from './CameraShareSheet';
-import { CameraSafetyGate } from './CameraSafetyGate';
 import { SoundPicker } from '@/components/sounds/SoundPicker';
 import { SoundControls } from '@/components/sounds/SoundControls';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
-import { SafetyResult } from '@/hooks/useContentSafety';
 import { Sound } from '@/hooks/useSounds';
 
 interface CameraProps {
@@ -19,7 +17,7 @@ interface CameraProps {
   initialSound?: Sound | null;
 }
 
-type CameraState = 'capture' | 'edit' | 'share' | 'scanning';
+type CameraState = 'capture' | 'edit' | 'share';
 
 export function Camera({ onClose, initialSound }: CameraProps) {
   const [state, setState] = useState<CameraState>('capture');
@@ -229,17 +227,6 @@ export function Camera({ onClose, initialSound }: CameraProps) {
     }
   };
 
-  // Handle safety scan result
-  const handleScanComplete = (result: SafetyResult) => {
-    if (result === 'blocked') {
-      // Go back to capture
-      setCapturedMedia(null);
-      setState('capture');
-    } else {
-      // Proceed to share
-      setState('share');
-    }
-  };
 
   // Sound handling
   const handleSoundSelect = (sound: Sound) => {
@@ -261,23 +248,11 @@ export function Camera({ onClose, initialSound }: CameraProps) {
         filter={currentFilter}
         soundId={capturedMedia.soundId}
         soundStartTime={capturedMedia.soundStartTime}
-        onSave={() => setState('scanning')}
+        onSave={() => setState('share')}
         onCancel={() => {
           setCapturedMedia(null);
           setState('capture');
         }}
-      />
-    );
-  }
-
-  // AI Safety Scanning state
-  if (state === 'scanning' && capturedMedia?.file) {
-    return (
-      <CameraSafetyGate
-        file={capturedMedia.file}
-        mediaType={capturedMedia.type}
-        onResult={handleScanComplete}
-        onCancel={() => setState('edit')}
       />
     );
   }
@@ -287,6 +262,7 @@ export function Camera({ onClose, initialSound }: CameraProps) {
       <CameraShareSheet
         mediaUrl={capturedMedia.url}
         mediaType={capturedMedia.type}
+        mediaFile={capturedMedia.file}
         soundId={capturedMedia.soundId}
         soundStartTime={capturedMedia.soundStartTime}
         onClose={() => {

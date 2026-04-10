@@ -28,12 +28,22 @@ export function AdminAppealsSection() {
   });
 
   const updateAppeal = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: 'approved' | 'rejected' }) => {
+    mutationFn: async ({ id, status, userId }: { id: string; status: 'approved' | 'rejected'; userId?: string }) => {
       const { error } = await supabase
         .from('content_appeals')
         .update({ status, reviewed_at: new Date().toISOString(), reviewed_by: profile?.id })
         .eq('id', id);
       if (error) throw error;
+
+      // On approval, send notification to the user so they can resume posting
+      if (status === 'approved' && userId && profile?.id) {
+        await supabase.from('notifications').insert({
+          user_id: userId,
+          type: 'appeal_approved' as any,
+          actor_id: profile.id,
+          reason: `Your appeal has been approved! You can now re-post your content.`,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-appeals'] });
@@ -83,10 +93,10 @@ export function AdminAppealsSection() {
                   </p>
                   {appeal.status === 'pending' && (
                     <div className="flex gap-2 pt-1">
-                      <Button size="sm" className="rounded-xl" onClick={() => updateAppeal.mutate({ id: appeal.id, status: 'approved' })}>
+                      <Button size="sm" className="rounded-xl" onClick={() => updateAppeal.mutate({ id: appeal.id, status: 'approved', userId: appeal.user?.id })}>
                         <CheckCircle className="h-4 w-4 mr-1.5" /> Approve
                       </Button>
-                      <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => updateAppeal.mutate({ id: appeal.id, status: 'rejected' })}>
+                      <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => updateAppeal.mutate({ id: appeal.id, status: 'rejected', userId: appeal.user?.id })}>
                         <XCircle className="h-4 w-4 mr-1.5" /> Reject
                       </Button>
                     </div>

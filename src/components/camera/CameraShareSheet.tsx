@@ -5,10 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useContentSafety } from '@/hooks/useContentSafety';
+import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
 
 interface CameraShareSheetProps {
   mediaUrl: string;
   mediaType: 'photo' | 'video';
+  mediaFile?: File;
   soundId?: string;
   soundStartTime?: number;
   onClose: () => void;
@@ -17,11 +20,15 @@ interface CameraShareSheetProps {
 
 type ShareDestination = 'clip' | 'story' | 'dm' | 'save';
 
-export function CameraShareSheet({ mediaUrl, mediaType, soundId, soundStartTime, onClose, onComplete }: CameraShareSheetProps) {
+export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soundStartTime, onClose, onComplete }: CameraShareSheetProps) {
   const [selectedDestinations, setSelectedDestinations] = useState<ShareDestination[]>([]);
   const [caption, setCaption] = useState('');
   const [isSharing, setIsSharing] = useState(false);
+  const [vybeCheckFailed, setVybeCheckFailed] = useState(false);
+  const [scanMessage, setScanMessage] = useState('');
+  const [scanCategories, setScanCategories] = useState<string[]>([]);
   const { toast } = useToast();
+  const contentSafety = useContentSafety();
 
   const toggleDestination = (dest: ShareDestination) => {
     setSelectedDestinations(prev => 
@@ -42,6 +49,24 @@ export function CameraShareSheet({ mediaUrl, mediaType, soundId, soundStartTime,
     }
 
     setIsSharing(true);
+
+    // Run AI safety scan before sharing
+    if (mediaFile) {
+      let scanResult;
+      if (mediaType === 'video') {
+        scanResult = await contentSafety.scanVideo(mediaFile);
+      } else {
+        scanResult = await contentSafety.scanImage(mediaFile);
+      }
+
+      if (scanResult.result === 'blocked') {
+        setIsSharing(false);
+        setScanMessage(scanResult.message || 'Content violates community guidelines');
+        setScanCategories(scanResult.categories || []);
+        setVybeCheckFailed(true);
+        return;
+      }
+    }
 
     // Simulate sharing - in real app, this would upload and share
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -71,6 +96,20 @@ export function CameraShareSheet({ mediaUrl, mediaType, soundId, soundStartTime,
     { id: 'dm' as ShareDestination, icon: MessageCircle, label: 'Send to DM', color: 'from-blue-500 to-cyan-500' },
     { id: 'save' as ShareDestination, icon: Download, label: 'Save to Device', color: 'from-emerald-500 to-green-500' },
   ];
+
+  if (vybeCheckFailed) {
+    return (
+      <VybeCheckFailed
+        message={scanMessage}
+        categories={scanCategories}
+        caption={caption}
+        mediaUrls={[mediaUrl]}
+        contentType={mediaType === 'video' ? 'short' : 'post'}
+        onEdit={() => { setVybeCheckFailed(false); onClose(); }}
+        onAppealComplete={() => { setVybeCheckFailed(false); onComplete(); }}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[200] bg-black flex flex-col">
@@ -153,7 +192,7 @@ export function CameraShareSheet({ mediaUrl, mediaType, soundId, soundStartTime,
                 transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
                 className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
               />
-              Sharing...
+              Checking & Sharing...
             </>
           ) : (
             <>
