@@ -217,6 +217,7 @@ function AppWithPreloader() {
             </ThemeTransitionProvider>
           </CustomThemeProvider>
         </AppBackgroundProvider>
+        </LocationProvider>
       </AuthProvider>
     </>
   );
