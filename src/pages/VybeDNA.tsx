@@ -16,10 +16,10 @@ import { DNASimilarUsers } from '@/components/dna/DNASimilarUsers';
 import { DNAChatAssistant } from '@/components/dna/DNAChatAssistant';
 
 const stagger = {
-  initial: { opacity: 0, y: 20 },
-  whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, margin: '-40px' },
-  transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] },
+  initial: { opacity: 0, y: 20 } as const,
+  whileInView: { opacity: 1, y: 0 } as const,
+  viewport: { once: true, margin: '-40px' as any },
+  transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
 };
 
 export default function VybeDNAPage() {
