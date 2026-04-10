@@ -28,6 +28,7 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingProgress, setRecordingProgress] = useState(0);
+  const [cameraActivated, setCameraActivated] = useState(false);
   const [segments, setSegments] = useState<RecordingSegment[]>([]);
   const [capturedMedia, setCapturedMedia] = useState<{ url: string; type: 'photo' | 'video' } | null>(null);
   const [showFlash, setShowFlash] = useState(false);
@@ -102,13 +103,19 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     }
   }, []);
 
-  // Initialize camera
+  // Reset activation state when camera closes
   useEffect(() => {
-    if (isOpen && phase === 'camera') {
-      startCamera();
+    if (!isOpen) {
+      setCameraActivated(false);
     }
     return () => stopCamera();
-  }, [isOpen, phase, startCamera, stopCamera]);
+  }, [isOpen, stopCamera]);
+
+  // Activate camera from user gesture
+  const handleActivateCamera = useCallback(() => {
+    setCameraActivated(true);
+    startCamera();
+  }, [startCamera]);
   
   // Handle pinch-to-zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -496,16 +503,32 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
       >
-        <video
-          ref={videoRef}
-          className="w-full h-full object-cover"
-          style={{ 
-            transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
-          }}
-          playsInline
-          muted
-          autoPlay
-        />
+        {!cameraActivated ? (
+          <div 
+            className="w-full h-full flex flex-col items-center justify-center cursor-pointer"
+            onClick={handleActivateCamera}
+          >
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="w-20 h-20 rounded-full bg-muted/20 border-2 border-primary/50 flex items-center justify-center mb-4"
+            >
+              <VybeMiniIcon size={32} />
+            </motion.div>
+            <p className="text-muted-foreground text-sm font-medium">Tap to activate camera</p>
+          </div>
+        ) : (
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover"
+            style={{ 
+              transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+            }}
+            playsInline
+            muted
+            autoPlay
+          />
+        )}
         
         {/* Flash overlay */}
         <AnimatePresence>
