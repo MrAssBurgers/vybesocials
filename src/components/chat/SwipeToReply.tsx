@@ -94,6 +94,9 @@ export function SwipeToReply({
   ) => {
     if (disabled || longPressFiredRef.current) return;
     
+    // Cancel long-press on ANY drag movement detected by framer-motion
+    clearLongPress();
+    
     const rawX = info.offset.x;
     
     if (!dragActivatedRef.current) {
