@@ -1004,6 +1004,8 @@ export default function FriendMap() {
                 {sortedFriends.map((f, i) => {
                   const isRecent = (Date.now() - new Date(f.updated_at).getTime()) < 300_000;
                   const isSelected = sel?.user_id === f.user_id;
+                  const isMoving = (f.speed || 0) > 0.5;
+                  const fActivity = getActivityFromSpeed(f.speed);
                   return (
                     <motion.button
                       key={f.user_id}
@@ -1015,7 +1017,10 @@ export default function FriendMap() {
                     >
                       <div className={cn(
                         'relative h-14 w-14 rounded-full p-[3px] transition-all',
-                        isSelected ? 'bg-gradient-to-br from-primary to-primary/60' : isRecent ? 'bg-gradient-to-br from-green-400 to-emerald-600' : 'bg-white/20'
+                        isSelected ? 'bg-gradient-to-br from-primary to-primary/60'
+                          : isMoving ? 'bg-gradient-to-br from-green-400 via-emerald-500 to-cyan-500'
+                          : isRecent ? 'bg-green-500'
+                          : 'bg-white/20'
                       )}>
                         <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-black/80">
                           {f.profile?.avatar_url ? (
@@ -1024,16 +1029,11 @@ export default function FriendMap() {
                             <span className="text-sm font-bold text-white">{initial(friendName(f))}</span>
                           )}
                         </div>
-                        {isRecent && (
-                          <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-black bg-green-400" />
-                        )}
+                        <span className="absolute -bottom-0.5 -right-0.5 text-xs">{fActivity.icon}</span>
                       </div>
                       <span className="max-w-[56px] truncate text-[10px] font-semibold text-white/80 text-center">
                         {friendName(f).split(' ')[0]}
                       </span>
-                      {f.status && (
-                        <span className="text-[9px] text-white/50 max-w-[56px] truncate">{f.status.split(' ')[0]}</span>
-                      )}
                     </motion.button>
                   );
                 })}
