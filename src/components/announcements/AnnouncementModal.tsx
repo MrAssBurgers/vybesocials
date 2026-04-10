@@ -81,9 +81,9 @@ export function AnnouncementModal() {
             transition={{ type: 'spring', stiffness: 350, damping: 28 }}
             className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 max-w-md mx-auto"
           >
-            <div className="bg-card rounded-3xl border border-border shadow-2xl overflow-hidden">
+            <div className="bg-card rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
               {/* Header */}
-              <div className="relative px-6 pt-6 pb-4">
+              <div className="relative px-6 pt-6 pb-4 shrink-0">
                 <button
                   onClick={() => setIsOpen(false)}
                   className="absolute top-4 right-4 w-8 h-8 rounded-full bg-muted/80 flex items-center justify-center hover:bg-muted transition-colors"
@@ -105,36 +105,39 @@ export function AnnouncementModal() {
                 </h2>
               </div>
 
-              {/* Image (optional) */}
-              {latest.image_url && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.15 }}
-                  className="px-4"
-                >
-                  <img
-                    src={latest.image_url}
-                    alt=""
-                    className="w-full rounded-2xl object-cover max-h-64"
-                  />
-                </motion.div>
-              )}
+              {/* Scrollable content area */}
+              <div className="overflow-y-auto flex-1 min-h-0">
+                {/* Image (optional) */}
+                {latest.image_url && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.15 }}
+                    className="px-4"
+                  >
+                    <img
+                      src={latest.image_url}
+                      alt=""
+                      className="w-full rounded-2xl object-cover max-h-64"
+                    />
+                  </motion.div>
+                )}
 
-              {/* Content */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="px-6 py-4"
-              >
-                <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">
-                  {latest.content}
-                </p>
-              </motion.div>
+                {/* Content */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="px-6 py-4"
+                >
+                  <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">
+                    {latest.content}
+                  </p>
+                </motion.div>
+              </div>
 
               {/* Footer */}
-              <div className="px-6 pb-5 flex items-center justify-between">
+              <div className="px-6 pb-5 pt-2 flex items-center justify-between shrink-0 border-t border-border/30">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>By @{latest.author?.username}</span>
                   <span>·</span>

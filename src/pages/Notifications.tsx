@@ -6,6 +6,7 @@ import {
   Users, PhoneMissed, Bell, RefreshCw, Sparkles, ShieldAlert, BellRing, Gift
 } from 'lucide-react';
 import { useNotifications, useMarkNotificationsRead, NotificationType } from '@/hooks/useNotifications';
+import { useRecentAnnouncements } from '@/hooks/useAnnouncements';
 import { useFriendRequests, useRespondToFriendRequest } from '@/hooks/useFriends';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -144,9 +145,61 @@ function groupNotifications(notifications: any[]): (GroupedNotification | any)[]
   
   return result;
 }
+function RecentAnnouncementsSection() {
+  const { data: announcements = [] } = useRecentAnnouncements(5);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  if (announcements.length === 0) return null;
+
+  return (
+    <div className="mb-4">
+      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">
+        Announcements
+      </p>
+      <div className="rounded-2xl bg-card/95 border border-border/30 overflow-hidden divide-y divide-border/20">
+        {announcements.map((a) => (
+          <div
+            key={a.id}
+            className="px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
+            onClick={() => setExpandedId(expandedId === a.id ? null : a.id)}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <BellRing className="h-4 w-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">{a.title}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {compactTime(a.created_at)} · @{a.author?.username}
+                </p>
+              </div>
+            </div>
+            <AnimatePresence>
+              {expandedId === a.id && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed mt-2 pl-12">
+                    {a.content}
+                  </p>
+                  {a.image_url && (
+                    <img src={a.image_url} alt="" className="mt-2 ml-12 rounded-xl max-h-40 object-cover" />
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function NotificationsPage() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: notifications, isLoading, refetch } = useNotifications();
   const { data: friendRequests, refetch: refetchRequests } = useFriendRequests();
@@ -273,6 +326,9 @@ export default function NotificationsPage() {
 
           {/* ─── ALL TAB ─── */}
           <TabsContent value="all" className="mt-0">
+            {/* Recent Announcements */}
+            <RecentAnnouncementsSection />
+
             <AnimatePresence mode="popLayout">
               {isLoading && !notifications ? (
                 <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-1">
