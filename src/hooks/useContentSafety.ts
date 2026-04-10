@@ -169,6 +169,7 @@ export function useContentSafety() {
       }
 
       // Pass 2: AI scan - extract a key frame + attempt audio transcription
+      setScanPhase('ai-visual');
       setMessage('Deep scanning video content...');
       
       let aiResult: AISafetyResult = { allowed: true, result: 'allowed', categories: [], score: 0, message: '' };
@@ -178,7 +179,8 @@ export function useContentSafety() {
         // Extract a frame for visual AI analysis
         const frameBlob = await extractVideoFrame(file);
 
-        // Attempt audio transcription (Web Speech API, browser-native)
+        // Attempt audio transcription
+        setScanPhase('ai-audio');
         try {
           audioTranscript = await transcribeVideoAudio(file);
         } catch {
@@ -213,6 +215,7 @@ export function useContentSafety() {
         }
       }
 
+      setScanPhase('done');
       const merged = mergeResults(nsfwResult, aiResult);
       
       // Adjust message for video context
