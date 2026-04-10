@@ -1,12 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, SwitchCamera, Zap, ZapOff, Volume2, VolumeX } from 'lucide-react';
+import { X, SwitchCamera, Zap, ZapOff, Volume2, VolumeX, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { VybeRecordButton } from './VybeRecordButton';
 import { VybeSnapEditor } from './VybeSnapEditor';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
+import { getActiveStream, stopCameraStream } from '@/hooks/useCameraPreload';
 
 interface RecordingSegment {
   blob: Blob;
