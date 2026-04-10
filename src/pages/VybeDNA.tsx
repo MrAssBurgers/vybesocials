@@ -15,6 +15,13 @@ import { DNAPerks } from '@/components/dna/DNAPerks';
 import { DNASimilarUsers } from '@/components/dna/DNASimilarUsers';
 import { DNAChatAssistant } from '@/components/dna/DNAChatAssistant';
 
+const stagger = {
+  initial: { opacity: 0, y: 20 } as const,
+  whileInView: { opacity: 1, y: 0 } as const,
+  viewport: { once: true, margin: '-40px' as any },
+  transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+};
+
 export default function VybeDNAPage() {
   const navigate = useNavigate();
   const { data: dna, isLoading } = useVybeDNA();
@@ -36,7 +43,7 @@ export default function VybeDNAPage() {
   };
 
   return (
-    <div className="pb-24">
+    <div className="pb-24 min-h-[calc(100vh+1px)]">
       {/* Header */}
       <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border/30 px-4 py-3">
         <div className="max-w-lg mx-auto flex items-center gap-3">
@@ -76,14 +83,12 @@ export default function VybeDNAPage() {
             </motion.div>
 
             {/* Archetype */}
-            <PersonalityArchetype dna={dna} />
+            <motion.div {...stagger}>
+              <PersonalityArchetype dna={dna} />
+            </motion.div>
 
             {/* How it works banner */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
+            <motion.div {...stagger}>
               <Card className="border-primary/20 bg-primary/5">
                 <CardContent className="py-3 px-4 flex items-start gap-3">
                   <Activity className="w-4 h-4 text-primary mt-0.5 shrink-0" />
@@ -97,27 +102,32 @@ export default function VybeDNAPage() {
             </motion.div>
 
             {/* DNA Perks */}
-            <DNAPerks dna={dna} />
+            <motion.div {...stagger}>
+              <DNAPerks dna={dna} />
+            </motion.div>
 
             {/* Insights grid */}
-            <DNAInsights dna={dna} />
+            <motion.div {...stagger}>
+              <DNAInsights dna={dna} />
+            </motion.div>
 
             {/* Trait bars */}
-            <DNATraitBars dna={dna} />
+            <motion.div {...stagger}>
+              <DNATraitBars dna={dna} />
+            </motion.div>
 
             {/* Color palette */}
-            <DNAColorPalette dna={dna} />
+            <motion.div {...stagger}>
+              <DNAColorPalette dna={dna} />
+            </motion.div>
 
             {/* Similar DNA users */}
-            <DNASimilarUsers />
+            <motion.div {...stagger}>
+              <DNASimilarUsers />
+            </motion.div>
 
             {/* Share action */}
-            <motion.div
-              className="pt-2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-            >
+            <motion.div {...stagger} className="pt-2">
               <Button className="w-full" onClick={handleShare}>
                 {copied ? <Check className="w-4 h-4 mr-2" /> : <Share2 className="w-4 h-4 mr-2" />}
                 Share My DNA
@@ -125,7 +135,9 @@ export default function VybeDNAPage() {
             </motion.div>
 
             {/* DNA Chat Assistant */}
-            <DNAChatAssistant dna={dna} />
+            <motion.div {...stagger}>
+              <DNAChatAssistant dna={dna} />
+            </motion.div>
           </>
         ) : (
           /* Empty state — DNA hasn't computed yet (new user with no activity) */

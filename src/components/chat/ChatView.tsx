@@ -57,6 +57,8 @@ import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
 import { ReplyPreview } from './ReplyPreview';
+import { StickerPanel } from './StickerPanel';
+import { useAddSticker } from '@/hooks/useStickers';
 import { 
   ArrowLeft, 
   Send, 
@@ -82,7 +84,8 @@ import {
   Camera,
   Play,
   Copy,
-  Pencil
+  Pencil,
+  Sticker
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
@@ -246,6 +249,8 @@ export function ChatView() {
   // Image safety scanning state
   const [pendingSafetyImage, setPendingSafetyImage] = useState<{ url: string; file: File } | null>(null);
   const [showImageSafetyGate, setShowImageSafetyGate] = useState(false);
+  const [showStickerPanel, setShowStickerPanel] = useState(false);
+  const addSticker = useAddSticker();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1504,6 +1509,7 @@ export function ChatView() {
                       setMessageText(message.content || '');
                       inputRef.current?.focus();
                     }}
+                    onSaveSticker={(url) => addSticker.mutate(url)}
                     allMessages={messages}
                     themeColor={THEME_COLORS[settings.theme] || THEME_COLORS.default}
                     showReactions={activeReactionMessageId === message.id}
@@ -1656,6 +1662,9 @@ export function ChatView() {
             typingUserIds={typingUsers}
             editingMessageId={editingMessageId}
             onCancelEdit={() => { setEditingMessageId(null); setEditText(''); }}
+            showStickerPanel={showStickerPanel}
+            setShowStickerPanel={setShowStickerPanel}
+            onSendSticker={async (url) => { await sendMediaMessage(url, 'image'); }}
           />
         </DMSafetyGate>
       ) : (
@@ -1695,6 +1704,9 @@ export function ChatView() {
           typingUserIds={typingUsers}
           editingMessageId={editingMessageId}
           onCancelEdit={() => { setEditingMessageId(null); setEditText(''); }}
+          showStickerPanel={showStickerPanel}
+          setShowStickerPanel={setShowStickerPanel}
+          onSendSticker={async (url) => { await sendMediaMessage(url, 'image'); }}
         />
       )}
 
@@ -1750,6 +1762,9 @@ const MessageInputArea = memo(function MessageInputArea({
   typingUserIds,
   editingMessageId,
   onCancelEdit,
+  showStickerPanel,
+  setShowStickerPanel,
+  onSendSticker,
 }: {
   messageText: string;
   viewMode: ViewMode;
@@ -1786,9 +1801,20 @@ const MessageInputArea = memo(function MessageInputArea({
   typingUserIds?: string[];
   editingMessageId?: string | null;
   onCancelEdit?: () => void;
+  showStickerPanel?: boolean;
+  setShowStickerPanel?: (open: boolean) => void;
+  onSendSticker?: (imageUrl: string) => void;
 }) {
   return (
-    <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30">
+    <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30 relative">
+      {/* Sticker Panel */}
+      {onSendSticker && showStickerPanel && setShowStickerPanel && (
+        <StickerPanel
+          open={showStickerPanel}
+          onClose={() => setShowStickerPanel(false)}
+          onSendSticker={onSendSticker}
+        />
+      )}
       
       <div className="px-2 py-2 sm:px-4 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <input
@@ -1916,6 +1942,16 @@ const MessageInputArea = memo(function MessageInputArea({
                   onCreateOffer={onCreateOffer}
                   hasBusinessProfile={hasBusinessProfile}
                 />
+                {setShowStickerPanel && (
+                  <Button 
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowStickerPanel(!showStickerPanel)}
+                    className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full"
+                  >
+                    <Sticker className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </Button>
+                )}
                 <Button 
                   variant="ghost"
                   size="icon"
@@ -1976,6 +2012,7 @@ const MessageBubble = memo(function MessageBubble({
   isEmojiOnly = false,
   onNavigateToPost,
   onScrollToMessage,
+  onSaveSticker,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -1988,6 +2025,7 @@ const MessageBubble = memo(function MessageBubble({
   onUnsendForEveryone: () => void;
   onDeleteForMe: () => void;
   onEdit?: () => void;
+  onSaveSticker?: (url: string) => void;
   allMessages?: Message[];
   themeColor?: { bubble: string; text: string };
   showReactions: boolean;
@@ -2566,6 +2604,14 @@ const MessageBubble = memo(function MessageBubble({
                   className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted flex items-center gap-3"
                 >
                   <Copy className="h-4 w-4" /> Copy text
+                </button>
+              )}
+              {isMediaMessage && message.media_url && onSaveSticker && (
+                <button
+                  onClick={() => { onSaveSticker(message.media_url!); setShowContextMenu(false); menuOpenedRef.current = false; }}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted flex items-center gap-3"
+                >
+                  <Sparkles className="h-4 w-4" /> Save to Stickers
                 </button>
               )}
               {isOwn && message.content && !message.media_url && (

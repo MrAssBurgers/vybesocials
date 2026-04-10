@@ -65,7 +65,7 @@ Rules:
           contents: [{ parts: [{ text: prompt }] }],
           tools: [{ google_search: {} }],
           generationConfig: {
-            temperature: 0.3,
+            temperature: 0.2,
             maxOutputTokens: 8192,
           },
         }),
@@ -104,11 +104,12 @@ Rules:
 
     console.log(`[Brief] Gemini raw response length: ${textContent.length}, finishReason: ${finishReason}`);
 
-    // Extract grounding sources from metadata
+    // Extract grounding sources from metadata - filter out Google proxy URLs
     const groundingChunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const groundingSources: string[] = groundingChunks
       .filter((c: any) => c.web?.uri)
-      .map((c: any) => c.web.uri);
+      .map((c: any) => c.web.uri)
+      .filter((url: string) => !url.includes('vertexaisearch') && !url.includes('googleapis.com/'));
 
     // Parse JSON from response (strip markdown fences if present)
     let jsonStr = textContent.trim();

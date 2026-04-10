@@ -7,6 +7,7 @@ export interface SafetySettings {
   user_id: string;
   content_filter_level: 'protected' | 'moderate' | 'minimal';
   dm_filter: 'everyone' | 'friends_only' | 'nobody';
+  dm_content_filter_enabled: boolean;
   message_requests_enabled: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start: string | null;
@@ -22,6 +23,7 @@ export interface SafetySettings {
 const DEFAULT_SETTINGS: Omit<SafetySettings, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
   content_filter_level: 'moderate',
   dm_filter: 'friends_only',
+  dm_content_filter_enabled: true,
   message_requests_enabled: true,
   quiet_hours_enabled: false,
   quiet_hours_start: null,
@@ -120,17 +122,13 @@ export function getAgeAppropriateDefaults(age: number): Partial<SafetySettings> 
 // Check if user can access minimal filtering (18+ only)
 export function canAccessMinimalFiltering(dateOfBirth: string | null): boolean {
   if (!dateOfBirth) return false;
-  
-  const birthDate = new Date(dateOfBirth);
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  
-  return age >= 18;
+  return (calculateAge(dateOfBirth) ?? 0) >= 18;
+}
+
+// Check if user can toggle DM content filter (must be 13+)
+export function canToggleDMFilter(dateOfBirth: string | null): boolean {
+  if (!dateOfBirth) return false;
+  return (calculateAge(dateOfBirth) ?? 0) >= 13;
 }
 
 // Calculate age from date of birth
