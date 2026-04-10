@@ -102,8 +102,12 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   return (
     <div 
       ref={ref} 
-      className="h-screen w-full overflow-hidden overflow-x-hidden"
-      {...swipeBackHandlers}
+      className={cn(
+        "h-screen w-full overflow-hidden overflow-x-hidden",
+        hideNav && noPadding && "!overflow-hidden"
+      )}
+      style={hideNav && noPadding ? { touchAction: 'none', overscrollBehavior: 'none' } : undefined}
+      {...(hideNav && noPadding ? {} : swipeBackHandlers)}
     >
       {/* Swipe-back edge indicator */}
       {swipeProgress > 0 && (
