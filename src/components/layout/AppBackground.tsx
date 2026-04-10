@@ -9,6 +9,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { getSignedUrl, needsSigning } from '@/lib/signedUrlCache';
 
 interface BackgroundState {
   imageUrl: string | null;
