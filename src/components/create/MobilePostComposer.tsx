@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown, Check, Sparkles, Image as ImageIcon, Plus } from 'lucide-react';
+import { ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown, Check, Sparkles, Image as ImageIcon, Plus, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
 import { useContentSafety } from '@/hooks/useContentSafety';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
+import { SafetyScanProgress } from '@/components/safety/SafetyScanProgress';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { INTEREST_CATEGORIES, getSuggestedTagsForInterests, getTagCategories } from '@/lib/tagCategories';
@@ -90,7 +91,7 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
     if (files.length > 0 && files[0]) {
       setIsUploading(true);
       setUploadProgress(0);
-      toast('Checking content...', { duration: 2000 });
+      setShowSafetyScanner(true);
 
       let scanResult;
       if (files[0].type.startsWith('video/')) {
@@ -98,6 +99,8 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
       } else {
         scanResult = await contentSafety.scanImage(files[0]);
       }
+
+      setShowSafetyScanner(false);
 
       if (scanResult.result === 'blocked') {
         setIsUploading(false);
