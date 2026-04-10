@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   Home, Compass, MessageCircle, ShoppingBag, Calendar, Bell, Settings, 
-  PlusCircle, Shield, Users, LucideIcon, Gift, Trophy, Crown
+  PlusCircle, Shield, Users, LucideIcon, Gift, Trophy, Crown, MapPin
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -113,6 +113,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0, tutorialId: 'sidebar-home' },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0, tutorialId: 'sidebar-explore' },
     { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages, tutorialId: 'sidebar-messages' },
+    { icon: MapPin, label: 'VibeMap', path: '/map', badge: 0, tutorialId: 'sidebar-map' },
     { icon: Users, labelKey: 'nav.communities', path: '/community', badge: 0, tutorialId: 'sidebar-community' },
     { icon: ShoppingBag, labelKey: 'sidebar.market', path: '/market', badge: 0, tutorialId: 'sidebar-market' },
     { icon: Calendar, labelKey: 'sidebar.events', path: '/events', badge: 0, tutorialId: 'sidebar-events' },

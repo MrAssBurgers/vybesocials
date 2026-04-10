@@ -284,7 +284,7 @@ export function ConversationList() {
     <div className="flex flex-col h-full w-full min-w-0 overflow-hidden">
       {/* Snapchat-style Header */}
       <div className="flex-shrink-0">
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div className="flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-2">
           {/* Left: User Avatar */}
           {profile && (
             <button onClick={() => navigate(`/u/${profile.username}`)} className="flex-shrink-0">
