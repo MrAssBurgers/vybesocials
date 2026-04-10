@@ -58,12 +58,13 @@ export function useFastSignedUrl(publicUrl: string | null | undefined): string |
     let cancelled = false;
     
     getSignedUrl(publicUrl).then(url => {
-      if (!cancelled && url) {
+      if (!cancelled && url && url !== publicUrl) {
+        // Only set if we got a real signed URL, not the raw fallback
         setAsyncUrl(url);
         notifySubscribers();
       }
     }).catch(() => {
-      // Silent fail - will show original URL
+      // Silent fail - consumers will show loading/retry state
     });
     
     return () => { cancelled = true; };

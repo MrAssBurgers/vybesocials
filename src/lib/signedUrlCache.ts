@@ -18,8 +18,8 @@ const pendingRequests = new Map<string, Promise<string | null>>();
 
 // Cache for 50 minutes (before 1 hour expiry)
 const CACHE_DURATION = 50 * 60 * 1000;
-// Cache failed URLs for 5 minutes to prevent spam
-const FAILED_CACHE_DURATION = 5 * 60 * 1000;
+// Cache failed URLs for 30 seconds to allow faster recovery from transient failures
+const FAILED_CACHE_DURATION = 30 * 1000;
 
 // Current project's Supabase URL for validation
 const CURRENT_SUPABASE_PROJECT = 'agtcyxjxgkdyoxwxkjth';
