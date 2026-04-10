@@ -1797,6 +1797,9 @@ const MessageInputArea = memo(function MessageInputArea({
   typingUserIds?: string[];
   editingMessageId?: string | null;
   onCancelEdit?: () => void;
+  showStickerPanel?: boolean;
+  setShowStickerPanel?: (open: boolean) => void;
+  onSendSticker?: (imageUrl: string) => void;
 }) {
   return (
     <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30">
