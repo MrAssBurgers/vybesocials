@@ -123,6 +123,22 @@ const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 // Track if initial load has completed (persists across navigations)
 let hasInitialLoadCompleted = false;
 
+// Background brief pre-fetcher (needs auth context)
+function BriefPreFetchInit() {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {});
+  // We just need a user id - read from supabase directly
+  const [uid, setUid] = useState<string | undefined>();
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUid(data.user?.id));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setUid(session?.user?.id);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+  useBriefPreFetch(uid);
+  return null;
+}
+
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
