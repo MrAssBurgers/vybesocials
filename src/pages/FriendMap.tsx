@@ -353,71 +353,7 @@ export default function FriendMap() {
 
   const { query: searchQuery, results: searchResults, nearby: nearbyPlaces, loading: searchLoading, search: doSearch, clear: clearSearch } = useNominatimSearch(myCoords);
 
-  /* ── upsert location to DB (debounced) ─────────────── */
-
-  const upsertLocation = useCallback(async (lat: number, lng: number, acc: number) => {
-    if (!profile?.id || !sharing) return;
-    const now = Date.now();
-    if (now - lastUpsert.current < UPSERT_INTERVAL_MS) return;
-    lastUpsert.current = now;
-    const hour = new Date().getHours();
-    const status = autoStatus(lastSpeed.current, hour);
-    await supabase
-      .from('user_locations')
-      .upsert({
-        user_id: profile.id,
-        latitude: lat,
-        longitude: lng,
-        accuracy: acc,
-        sharing_enabled: true,
-        status,
-      } as any, { onConflict: 'user_id' });
-  }, [profile?.id, sharing]);
-
-  /* ── watchPosition lifecycle ───────────────────────── */
-
-  useEffect(() => {
-    if (!sharing) return;
-    let watchId: number | undefined;
-
-    try {
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-          setMyCoords(coords);
-          setAccuracy(pos.coords.accuracy);
-          lastSpeed.current = pos.coords.speed;
-          upsertLocation(coords[0], coords[1], pos.coords.accuracy);
-        },
-        (err) => {
-          console.warn('Geolocation error:', err.message);
-          if (err.code === 1) {
-            toast.error('Location permission denied');
-            setSharing(false);
-            localStorage.setItem(SHARING_PREF_KEY, 'false');
-          }
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-      );
-    } catch {
-      // geolocation not available
-    }
-
-    return () => {
-      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
-    };
-  }, [sharing, upsertLocation]);
-
-  /* ── disable sharing in DB when toggled off ────────── */
-
-  useEffect(() => {
-    if (sharing || !profile?.id) return;
-    supabase
-      .from('user_locations')
-      .update({ sharing_enabled: false } as any)
-      .eq('user_id', profile.id)
-      .then();
-  }, [sharing, profile?.id]);
+  /* ── location tracking is handled by LocationProvider ── */
 
   /* ── realtime subscription ─────────────────────────── */
 
