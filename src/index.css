@@ -78,10 +78,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   to { transform: translateX(200%); }
 }
 
-/* When DMs are active on mobile/tablet, hide global background and force solid nav */
-html[data-dm-active="true"] #app-background-layer {
-  display: none !important;
-}
+/* When DMs are active on mobile/tablet, hide custom background and force solid card color */
 html[data-dm-active="true"] body {
   background-image: none !important;
   background-color: hsl(var(--card)) !important;
@@ -515,33 +512,15 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   
   /* =============================================
      BACKGROUND IMAGE SYSTEM
-     Background images are rendered via React component (AppBackground)
-     This ensures they persist through theme changes and navigation.
-     CSS here only handles layering and transparency.
+     Custom backgrounds are applied directly to document.body
+     via inline styles (no overlay div). #root must be
+     transparent so the body background shows through.
      ============================================= */
   
-  /* When AppBackground component is active, ensure all containers are transparent */
-  body:has(#app-background-layer) {
+  /* When a custom background is active, make #root transparent */
+  body.has-custom-bg #root {
     background: transparent !important;
     background-color: transparent !important;
-  }
-  
-  body:has(#app-background-layer) #root {
-    background: transparent !important;
-    background-color: transparent !important;
-  }
-  
-  /* Fallback for browsers without :has() support - use data attribute */
-  html[data-has-bg-image="true"] body,
-  html[data-has-bg-image="true"] #root {
-    background: transparent !important;
-    background-color: transparent !important;
-  }
-  
-  /* App content must be above background layer (z-index 0) */
-  #root {
-    position: relative;
-    z-index: 1;
   }
   
   /* Bottom nav must always be on top */
