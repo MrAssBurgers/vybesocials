@@ -441,6 +441,7 @@ export type Database = {
           created_at: string
           expires_at: string | null
           id: string
+          image_url: string | null
           is_active: boolean
           title: string
         }
@@ -450,6 +451,7 @@ export type Database = {
           created_at?: string
           expires_at?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean
           title: string
         }
@@ -459,6 +461,7 @@ export type Database = {
           created_at?: string
           expires_at?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean
           title?: string
         }
