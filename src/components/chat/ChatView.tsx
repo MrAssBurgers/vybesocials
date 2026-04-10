@@ -2431,7 +2431,7 @@ const MessageBubble = memo(function MessageBubble({
                 {(url) => url ? <AudioMessage src={url} isOwn={isOwn} /> : <Skeleton className="h-12 w-full rounded-xl" />}
               </SignedAudioUrl>
             </div>
-          )
+          )}
 
           {message.view_mode === 'view_once' && !isOwn && isViewed ? (
             <p className="text-[13px] sm:text-sm italic opacity-75 leading-[1.4]">Message viewed</p>

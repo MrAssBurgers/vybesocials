@@ -29,8 +29,10 @@ import {
   Check,
   Settings,
   ImageIcon,
+  Shield,
 } from 'lucide-react';
 import { useDMSettings, ReadReceiptMode, TypingMode, EmotionalPulse, DMSettings } from '@/hooks/useDMSettings';
+import { useSafetySettings, useUpdateSafetySettings } from '@/hooks/useSafetySettings';
 import { cn } from '@/lib/utils';
 
 interface DMSettingsSheetControlledProps {
@@ -81,6 +83,8 @@ const EMOTIONAL_PULSE_OPTIONS: { value: EmotionalPulse; label: string; icon: Rea
 
 export function DMSettingsSheetControlled({ conversationId, open, onOpenChange }: DMSettingsSheetControlledProps) {
   const { settings, updateSettings, isLoading } = useDMSettings(conversationId);
+  const { data: safetySettings } = useSafetySettings();
+  const updateSafety = useUpdateSafetySettings();
 
   const handleUpdateSettings = (updates: Partial<DMSettings>) => {
     updateSettings(updates);
@@ -271,6 +275,26 @@ export function DMSettingsSheetControlled({ conversationId, open, onOpenChange }
                 ))}
               </motion.div>
             )}
+          </div>
+
+          {/* AI Safety Filter */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                AI Safety Filter
+              </Label>
+              <Switch
+                checked={safetySettings?.dm_content_filter_enabled ?? true}
+                onCheckedChange={(checked) => {
+                  updateSafety.mutate({ dm_content_filter_enabled: checked });
+                  toast.success(checked ? 'Safety filter enabled' : 'Safety filter disabled', { duration: 1500 });
+                }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              When enabled, flagged media from other users will be completely blurred. Turn off to see all content unfiltered.
+            </p>
           </div>
         </div>
       </SheetContent>
