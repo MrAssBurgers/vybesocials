@@ -137,19 +137,25 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     }
   }, []);
 
-  // Reset activation state when camera closes
+  // Auto-start camera when modal opens
   useEffect(() => {
+    if (isOpen) {
+      setCameraReady(false);
+      startCamera();
+    }
     if (!isOpen) {
-      setCameraActivated(false);
+      setCameraReady(false);
     }
     return () => stopCamera();
-  }, [isOpen, stopCamera]);
+  }, [isOpen, stopCamera, startCamera]);
 
-  // Activate camera from user gesture
-  const handleActivateCamera = useCallback(() => {
-    setCameraActivated(true);
-    startCamera();
-  }, [startCamera]);
+  // Re-attach stream to video element when it mounts (fixes race condition)
+  useEffect(() => {
+    if (streamRef.current && videoRef.current && !videoRef.current.srcObject) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  });
   
   // Handle pinch-to-zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
