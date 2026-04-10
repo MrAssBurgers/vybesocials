@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown, Check, Sparkles, Image as ImageIcon, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
 import { useContentSafety } from '@/hooks/useContentSafety';
-import { ContentSafetyScanner } from '@/components/safety/ContentSafetyScanner';
+import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { INTEREST_CATEGORIES, getSuggestedTagsForInterests, getTagCategories } from '@/lib/tagCategories';
@@ -44,6 +44,9 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');
   const [showVisibility, setShowVisibility] = useState(false);
   const [showSafetyScanner, setShowSafetyScanner] = useState(false);
+  const [vybeCheckFailed, setVybeCheckFailed] = useState(false);
+  const [scanMessage, setScanMessage] = useState('');
+  const [scanCategories, setScanCategories] = useState<string[]>([]);
   const [publishSuccess, setPublishSuccess] = useState(false);
 
   useEffect(() => {
@@ -55,14 +58,7 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
     setTimeout(() => captionRef.current?.focus(), 300);
   }, []);
 
-  // Safety scan on mount for media posts
-  useEffect(() => {
-    if (files.length > 0 && files[0]) {
-      if (files[0].type.startsWith('video/')) contentSafety.scanVideo(files[0]);
-      else contentSafety.scanImage(files[0]);
-      setShowSafetyScanner(true);
-    }
-  }, []);
+  // No more scan on mount — scan happens at post time
 
   const handleAddTag = (tag: string) => {
     const c = tag.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
@@ -89,8 +85,30 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
   const handleSubmit = async () => {
     if (!canSubmit || !user) return;
     if (tags.length === 0) { toast.error('Add at least one tag'); return; }
-    setIsUploading(true); setUploadProgress(0);
 
+    // Run AI safety scan at post time
+    if (files.length > 0 && files[0]) {
+      setIsUploading(true);
+      setUploadProgress(0);
+      toast('Checking content...', { duration: 2000 });
+
+      let scanResult;
+      if (files[0].type.startsWith('video/')) {
+        scanResult = await contentSafety.scanVideo(files[0]);
+      } else {
+        scanResult = await contentSafety.scanImage(files[0]);
+      }
+
+      if (scanResult.result === 'blocked') {
+        setIsUploading(false);
+        setScanMessage(scanResult.message || 'Content violates community guidelines');
+        setScanCategories(scanResult.categories || []);
+        setVybeCheckFailed(true);
+        return;
+      }
+    }
+
+    setIsUploading(true); setUploadProgress(0);
     const isLargeFile = files[0] && files[0].size > 5 * 1024 * 1024;
     const progressStep = isLargeFile ? 1 : 5;
     const progressInterval = isLargeFile ? 500 : 300;
@@ -115,20 +133,19 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
     }
   };
 
-  // Safety scanner overlay
-  if (showSafetyScanner && files[0]) {
+  // Vybe Check Failed overlay
+  if (vybeCheckFailed) {
     return (
-      <div className="fixed inset-0 z-[201] flex items-center justify-center p-4" style={{ backgroundColor: 'hsl(var(--background) / 0.95)' }}>
-        <ContentSafetyScanner
-          isScanning={contentSafety.isScanning}
-          result={contentSafety.result}
-          message={contentSafety.message}
-          scanDetails={contentSafety.scanDetails}
-          onContinue={() => setShowSafetyScanner(false)}
-          onCancel={() => { setShowSafetyScanner(false); onBack(); }}
-          onAppeal={() => { contentSafety.submitAppeal('image', 'User appealed'); setShowSafetyScanner(false); }}
-        />
-      </div>
+      <VybeCheckFailed
+        message={scanMessage}
+        categories={scanCategories}
+        caption={caption}
+        tags={tags}
+        mediaUrls={previews}
+        contentType={contentType}
+        onEdit={() => { setVybeCheckFailed(false); }}
+        onAppealComplete={() => { setVybeCheckFailed(false); onClose(); }}
+      />
     );
   }
 
