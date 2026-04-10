@@ -622,7 +622,7 @@ export default function FriendMap() {
         <div className="map-vignette" />
 
         {/* ── Top bar ─────────────────────────────────── */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-4 pt-[max(env(safe-area-inset-top),16px)]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-4 pt-[env(safe-area-inset-top)]">
           <div className="mx-auto flex max-w-lg items-center gap-2">
             <motion.button
               onClick={() => navigate(-1)}

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -12,6 +13,7 @@ interface ReactionPickerProps {
   likeCount: number;
   className?: string;
   compact?: boolean;
+  vertical?: boolean;
 }
 
 // Individual reaction bubble in the picker
@@ -69,6 +71,7 @@ export const ReactionPicker = memo(function ReactionPicker({
   likeCount,
   className,
   compact = false,
+  vertical = false,
 }: ReactionPickerProps) {
   const [showPicker, setShowPicker] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -106,48 +109,44 @@ export const ReactionPicker = memo(function ReactionPicker({
   const updatePickerPosition = useCallback(() => {
     if (!containerRef.current) return;
     const buttonRect = containerRef.current.getBoundingClientRect();
-    const pickerWidth = 280; // approximate picker width
-    const pickerHeight = 56;
     const margin = 12;
     const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
 
-    let left: number;
-    let bottom: number;
-
-    // Horizontal: try left-aligned, then adjust
-    if (compact) {
-      // Center on button
-      left = buttonRect.left + buttonRect.width / 2 - pickerWidth / 2;
+    if (vertical) {
+      // Vertical mode (for clips): position to the left of the button
+      const pickerHeight = REACTIONS.length * 44 + 16;
+      const top = buttonRect.top + buttonRect.height / 2 - pickerHeight / 2;
+      const clampedTop = Math.max(margin, Math.min(top, window.innerHeight - pickerHeight - margin));
+      
+      setPickerStyle({
+        position: 'fixed' as const,
+        left: `${buttonRect.left - 56}px`,
+        top: `${clampedTop}px`,
+        zIndex: 9999,
+        transformOrigin: 'right center',
+      });
     } else {
-      left = buttonRect.left - 8;
-    }
+      // Horizontal mode (default)
+      const pickerWidth = 280;
+      const pickerHeight = 56;
+      const gap = 4;
 
-    // Clamp horizontal
-    if (left + pickerWidth > viewportWidth - margin) {
-      left = viewportWidth - pickerWidth - margin;
-    }
-    if (left < margin) {
-      left = margin;
-    }
+      let left = buttonRect.left + buttonRect.width / 2 - pickerWidth / 2;
+      if (left + pickerWidth > viewportWidth - margin) left = viewportWidth - pickerWidth - margin;
+      if (left < margin) left = margin;
 
-    // Vertical: position directly above the like button with minimal gap
-    const gap = 4;
-    let top = buttonRect.top - pickerHeight - gap;
+      let top = buttonRect.top - pickerHeight - gap;
+      if (top < margin) top = buttonRect.bottom + gap;
 
-    // If it would go off top, show below instead
-    if (top < margin) {
-      top = buttonRect.bottom + gap;
+      setPickerStyle({
+        position: 'fixed' as const,
+        left: `${left}px`,
+        top: `${top}px`,
+        zIndex: 9999,
+        transformOrigin: 'bottom center',
+      });
     }
-
-    setPickerStyle({
-      position: 'fixed' as const,
-      left: `${left}px`,
-      top: `${top}px`,
-      zIndex: 9999,
-      transformOrigin: 'bottom left',
-    });
-  }, [compact]);
+  }, [vertical]);
 
   // Cache bubble positions for drag hit-testing
   const cacheBubbleRects = useCallback(() => {
@@ -158,10 +157,9 @@ export const ReactionPicker = memo(function ReactionPicker({
 
   // Find which reaction the pointer is over
   const getReactionIndexAtPoint = useCallback((clientX: number, clientY: number): number | null => {
-    // Expand vertical hit area for easier dragging
     for (let i = 0; i < bubbleRects.current.length; i++) {
       const rect = bubbleRects.current[i];
-      const expandY = 20; // extra vertical tolerance
+      const expandY = 20;
       const expandX = 4;
       if (
         clientX >= rect.left - expandX &&
@@ -181,7 +179,6 @@ export const ReactionPicker = memo(function ReactionPicker({
     triggerHaptic('medium');
     updatePickerPosition();
     setShowPicker(true);
-    // Cache rects after render
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         cacheBubbleRects();
@@ -207,7 +204,6 @@ export const ReactionPicker = memo(function ReactionPicker({
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
-    // Capture pointer so we get move/up even outside element
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     pointerStart.current = { x: e.clientX, y: e.clientY };
     startLongPress();
@@ -217,7 +213,6 @@ export const ReactionPicker = memo(function ReactionPicker({
     cancelLongPress();
 
     if (isDragging.current && showPicker) {
-      // We were in drag mode - select whatever we're hovering
       isDragging.current = false;
       if (hoveredIndex !== null) {
         const reaction = REACTIONS[hoveredIndex];
@@ -232,7 +227,6 @@ export const ReactionPicker = memo(function ReactionPicker({
       setShowPicker(false);
       setHoveredIndex(null);
     } else if (!isLongPress.current && !touchMoved.current) {
-      // Quick tap - toggle like
       if (currentReaction) {
         onReact(null);
       } else {
@@ -247,7 +241,6 @@ export const ReactionPicker = memo(function ReactionPicker({
   }, [cancelLongPress, currentReaction, onReact, showPicker, hoveredIndex]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    // Check movement threshold for tap detection
     if (pointerStart.current && !isLongPress.current) {
       const dx = e.clientX - pointerStart.current.x;
       const dy = e.clientY - pointerStart.current.y;
@@ -257,9 +250,7 @@ export const ReactionPicker = memo(function ReactionPicker({
       }
     }
 
-    // Drag-to-select: update hovered reaction
     if (isDragging.current && showPicker) {
-      // Re-cache rects in case of scroll
       cacheBubbleRects();
       const idx = getReactionIndexAtPoint(e.clientX, e.clientY);
       if (idx !== hoveredIndex) {
@@ -271,9 +262,8 @@ export const ReactionPicker = memo(function ReactionPicker({
     }
   }, [cancelLongPress, showPicker, hoveredIndex, cacheBubbleRects, getReactionIndexAtPoint]);
 
-  // Also handle tapping on individual reactions when picker is open (non-drag)
   const handleSelectReaction = useCallback((type: ReactionType) => {
-    if (isDragging.current) return; // handled by pointer up
+    if (isDragging.current) return;
     triggerHaptic('medium');
     const reaction = getReaction(type);
     sounds[reaction.sound]();
@@ -288,46 +278,55 @@ export const ReactionPicker = memo(function ReactionPicker({
     setHoveredIndex(null);
   }, [currentReaction, onReact]);
 
+  // Render the picker popup via portal to escape overflow:hidden containers
+  const pickerElement = (
+    <AnimatePresence>
+      {showPicker && (
+        <motion.div
+          ref={pickerRef}
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.6 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 22 }}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-2",
+            "bg-card/95 backdrop-blur-xl border border-border/50",
+            "shadow-2xl shadow-black/30",
+            vertical ? "flex-col rounded-2xl" : "flex-row rounded-full",
+          )}
+          style={pickerStyle}
+          onMouseLeave={() => {
+            if (!isDragging.current) setHoveredIndex(null);
+          }}
+        >
+          {/* Decorative gradient border */}
+          <div className={cn(
+            "absolute inset-0 bg-gradient-to-r from-primary/20 via-transparent to-primary/20 opacity-50 pointer-events-none",
+            vertical ? "rounded-2xl" : "rounded-full"
+          )} />
+          
+          {REACTIONS.map((reaction, index) => (
+            <div
+              key={reaction.type}
+              onMouseEnter={() => { if (!isDragging.current) setHoveredIndex(index); }}
+              onClick={() => handleSelectReaction(reaction.type)}
+            >
+              <ReactionBubble
+                reaction={reaction}
+                index={index}
+                isHovered={hoveredIndex === index}
+              />
+            </div>
+          ))}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
   return (
     <div ref={containerRef} className={cn('relative', className)}>
-      {/* Reaction Picker Popup - rendered with fixed positioning */}
-      <AnimatePresence>
-        {showPicker && (
-          <motion.div
-            ref={pickerRef}
-            initial={{ opacity: 0, scale: 0.6 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.6 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 22 }}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-2",
-              "bg-card/95 backdrop-blur-xl border border-border/50",
-              "rounded-full shadow-2xl shadow-black/30",
-            )}
-            style={pickerStyle}
-            onMouseLeave={() => {
-              if (!isDragging.current) setHoveredIndex(null);
-            }}
-          >
-            {/* Decorative gradient border */}
-            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-primary/20 via-transparent to-primary/20 opacity-50 pointer-events-none" />
-            
-            {REACTIONS.map((reaction, index) => (
-              <div
-                key={reaction.type}
-                onMouseEnter={() => { if (!isDragging.current) setHoveredIndex(index); }}
-                onClick={() => handleSelectReaction(reaction.type)}
-              >
-                <ReactionBubble
-                  reaction={reaction}
-                  index={index}
-                  isHovered={hoveredIndex === index}
-                />
-              </div>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Render picker via portal to escape overflow:hidden */}
+      {createPortal(pickerElement, document.body)}
 
       {/* Like/Reaction Button */}
       <button

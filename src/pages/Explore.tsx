@@ -316,8 +316,8 @@ function FullscreenClipsViewer({
           <X className="w-5 h-5" />
         </Button>
 
-        {/* Tab bar at top */}
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30">
+        {/* Tab bar at top - pinned to very top */}
+        <div className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-[max(env(safe-area-inset-top),8px)] pb-2">
           <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
