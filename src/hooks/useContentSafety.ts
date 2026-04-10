@@ -60,10 +60,13 @@ function mergeResults(nsfwResult: ScanResult, aiResult: AISafetyResult): SafetyC
   };
 }
 
+export type ScanPhase = 'init' | 'nsfwjs' | 'ai-visual' | 'ai-audio' | 'done';
+
 export function useContentSafety() {
   const [isScanning, setIsScanning] = useState(false);
   const [result, setResult] = useState<SafetyResult>('scanning');
   const [message, setMessage] = useState<string>('');
+  const [scanPhase, setScanPhase] = useState<ScanPhase>('init');
   const [scanDetails, setScanDetails] = useState<{
     audioTranscript?: string;
     visualAnalysis?: string;
@@ -83,6 +86,7 @@ export function useContentSafety() {
     setIsScanning(true);
     setResult('scanning');
     setMessage('Scanning image...');
+    setScanPhase('nsfwjs');
     setScanDetails({});
 
     try {
@@ -103,6 +107,7 @@ export function useContentSafety() {
       }
 
       // Pass 2: AI scan for violence/gore/weapons
+      setScanPhase('ai-visual');
       setMessage('Deep scanning for harmful content...');
       let aiResult: AISafetyResult;
       try {
