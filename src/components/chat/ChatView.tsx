@@ -2575,6 +2575,14 @@ const MessageBubble = memo(function MessageBubble({
                   <Copy className="h-4 w-4" /> Copy text
                 </button>
               )}
+              {isMediaMessage && message.media_url && onSaveSticker && (
+                <button
+                  onClick={() => { onSaveSticker(message.media_url!); setShowContextMenu(false); menuOpenedRef.current = false; }}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted flex items-center gap-3"
+                >
+                  <Sparkles className="h-4 w-4" /> Save to Stickers
+                </button>
+              )}
               {isOwn && message.content && !message.media_url && (
                 <button
                   onClick={() => { onEdit?.(); setShowContextMenu(false); menuOpenedRef.current = false; }}
