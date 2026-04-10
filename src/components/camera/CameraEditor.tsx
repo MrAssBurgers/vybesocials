@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useRef, useCallback } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { X, Type, Smile, Pencil, Check, Undo, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getFilterCSS } from './CameraFilters';
+import { DraggableOverlay } from './DraggableOverlay';
 
 interface TextOverlay {
   id: string;
@@ -13,6 +14,8 @@ interface TextOverlay {
   y: number;
   color: string;
   fontSize: number;
+  scale: number;
+  rotation: number;
 }
 
 interface DrawPath {
@@ -90,6 +93,8 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
       y: 50,
       color: currentColor,
       fontSize: 24,
+      scale: 1,
+      rotation: 0,
     }]);
     setCurrentText('');
     setMode('none');
@@ -103,8 +108,14 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
       y: 50,
       color: '#ffffff',
       fontSize: 48,
+      scale: 1,
+      rotation: 0,
     }]);
   };
+
+  const updateOverlay = useCallback((id: string, updates: { x?: number; y?: number; scale?: number; rotation?: number }) => {
+    setTextOverlays(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
+  }, []);
 
   const removeOverlay = (id: string) => {
     setTextOverlays(prev => prev.filter(o => o.id !== id));
@@ -204,24 +215,21 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
 
         {/* Text Overlays */}
         {textOverlays.map(overlay => (
-          <motion.div
+          <DraggableOverlay
             key={overlay.id}
-            drag
-            dragMomentum={false}
-            className="absolute cursor-move select-none"
-            style={{
-              left: `${overlay.x}%`,
-              top: `${overlay.y}%`,
-              transform: 'translate(-50%, -50%)',
-              color: overlay.color,
-              fontSize: overlay.fontSize,
-              textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
-            }}
-            onClick={() => mode === 'none' && removeOverlay(overlay.id)}
-            whileTap={{ scale: 1.1 }}
-          >
-            {overlay.text}
-          </motion.div>
+            id={overlay.id}
+            text={overlay.text}
+            x={overlay.x}
+            y={overlay.y}
+            color={overlay.color}
+            fontSize={overlay.fontSize}
+            scale={overlay.scale}
+            rotation={overlay.rotation}
+            containerRef={containerRef as React.RefObject<HTMLDivElement>}
+            onUpdate={updateOverlay}
+            onRemove={removeOverlay}
+            canRemove={mode === 'none'}
+          />
         ))}
       </div>
 
