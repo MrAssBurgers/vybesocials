@@ -1,41 +1,48 @@
 
 
-## Fix Chat Media + VibeMap Directions
+## Replace Background Overlay with Native CSS Background
 
-### Problems Found
+### Current Problem
+The custom background is rendered as a separate `<div>` overlay at z-index 0, with all app content layered above it at z-index 1+. This means:
+- The image loads as a React component, so on slow connections the user sees the default background first, then the overlay fades in — a visible "pop"
+- An extra full-viewport DOM element with `position: fixed` adds a compositing layer the GPU has to manage constantly
+- CSS rules force `body` and `#root` to `transparent !important` to let the overlay show through, which is fragile
 
-**1. VYBE Snap media "not found"**: Snaps upload to the private `chat-media` bucket, but the stored URL uses the public URL format. The RLS SELECT policy for `chat-media` uses a complex 4-table JOIN that can silently fail, causing signed URL generation to fail permanently (cached as "failed" for 5 minutes).
-
-**2. Regular chat images show "shared image" but no picture**: Same root cause — `ChatMediaBubble` feeds a raw public URL to `<img>` when signing fails, and has **no `onError` handler**, so the browser shows a broken image icon (blue box with `?`).
-
-**3. VibeMap Navigate button**: The code already passes the friend's exact `latitude`/`longitude` to Google Maps. The likely issue is that `window.open(..., '_blank')` doesn't reliably trigger the Google Maps app on mobile. Fix: use `window.location.href` for mobile devices so it properly hands off to the native maps app.
+### Better Approach
+Set the background image directly on `document.body` via inline style. No overlay div, no z-index layering, no transparency hacks. The browser's native `background-image` on `<body>` is the most efficient way to paint a full-page background — zero extra compositing layers.
 
 ### Changes
 
-**A. Database migration — simplify chat-media SELECT policy**
-Replace the fragile 4-table JOIN with a simple "any authenticated user can SELECT from chat-media" policy. This is safe because the bucket is private (requires signed URLs which require auth), and message-level access is already controlled by conversation membership RLS on `messages`.
+**1. `src/components/layout/AppBackground.tsx`**
+- Remove the `BackgroundLayer` div entirely
+- In the provider, apply the background via `document.body.style` instead of rendering a child div:
+  - `document.body.style.backgroundImage = url(...)`
+  - `document.body.style.backgroundSize = 'cover'`
+  - `document.body.style.backgroundPosition = 'center'`
+  - `document.body.style.backgroundRepeat = 'no-repeat'`
+  - `document.body.style.backgroundAttachment = 'fixed'`
+  - Apply opacity via a CSS variable (`--bg-opacity`) and use a pseudo-element or filter only if opacity < 1
+  - Apply blur the same way
+- On cleanup / logout / null image, clear the body styles
+- Keep the context API identical so all consumers (`setBackgroundImage`, `setBackgroundOpacity`, etc.) still work
 
-**B. `src/components/chat/ChatMediaBubble.tsx`**
-- Add `onError` handler with retry logic and a fallback "tap to retry" UI instead of broken image
-- Add `onLoad` success state to hide loading skeleton
+**2. `src/index.css`**
+- Remove the `:has(#app-background-layer)` and `data-has-bg-image` transparency hacks (lines ~524-539)
+- Remove the `#root { z-index: 1 }` workaround (line ~542-544) — no overlay to layer above
+- Add a simple rule: when `--bg-image` is set on body, ensure `#root` has `background: transparent` so the body background shows through
 
-**C. `src/lib/signedUrlCache.ts`**
-- Reduce `FAILED_CACHE_DURATION` from 5 minutes to 30 seconds so transient signing failures recover quickly
+**3. Minor: body default background**
+- Ensure `body` has a sensible default dark background color so there's no flash — the custom image simply replaces it when loaded, same element, no layering
 
-**D. `src/hooks/useFastSignedUrl.ts`**
-- When signing fails and the hook falls back to the raw public URL, return `null` instead so consumers show a retry state rather than feeding a 403 URL to `<img>`
+### Why This Is Better
+- **Faster perceived load**: The browser starts fetching `background-image` on body immediately; no React render cycle needed first
+- **Less lag**: Eliminates one GPU compositing layer (the fixed overlay div)
+- **Simpler CSS**: No transparency hacks, no z-index management
+- **Same API**: All existing code that calls `setBackgroundImage()` / `setBackgroundOpacity()` keeps working
 
-**E. `src/pages/FriendMap.tsx`**
-- Change the Navigate button to use `window.location.href` on mobile (detected via user agent or touch capability) so it properly opens in the Google Maps app instead of a new browser tab that may not hand off correctly
-- Keep `window.open` for desktop
-
-### Files touched
-
+### Files Touched
 | File | Change |
 |------|--------|
-| New migration | Simplify `chat-media` SELECT policy to `authenticated` only |
-| `src/components/chat/ChatMediaBubble.tsx` | Add error/retry states |
-| `src/lib/signedUrlCache.ts` | Reduce failed cache TTL |
-| `src/hooks/useFastSignedUrl.ts` | Don't pass through failed raw URLs |
-| `src/pages/FriendMap.tsx` | Mobile-friendly Google Maps handoff |
+| `src/components/layout/AppBackground.tsx` | Replace overlay div with `document.body.style` manipulation |
+| `src/index.css` | Remove overlay-related CSS hacks |
 
