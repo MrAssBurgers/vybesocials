@@ -28,6 +28,7 @@ export function SwipeToReply({
 }: SwipeToReplyProps) {
   const hasTriggeredRef = useRef(false);
   const isDraggingRef = useRef(false);
+  const dragActivatedRef = useRef(false);
   
   // Raw motion value for drag
   const x = useMotionValue(0);
@@ -42,6 +43,7 @@ export function SwipeToReply({
 
   const handleDragStart = useCallback(() => {
     isDraggingRef.current = true;
+    dragActivatedRef.current = false;
   }, []);
 
   const handleDrag = useCallback((
