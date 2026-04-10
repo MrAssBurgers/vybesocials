@@ -156,6 +156,8 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
         scanResult = await contentSafety.scanImage(files[0]);
       }
 
+      setShowSafety(false);
+
       if (scanResult.result === 'blocked') {
         setIsUploading(false);
         setScanMessage(scanResult.message || 'Content violates community guidelines');
