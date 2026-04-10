@@ -20,7 +20,7 @@ export function useStickers() {
       const { data, error } = await supabase
         .from('user_stickers')
         .select('*')
-        .eq('user_id', profile.id)
+        .eq('user_id', profile.user_id)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []) as Sticker[];
@@ -41,7 +41,7 @@ export function useAddSticker() {
       const { data: existing } = await supabase
         .from('user_stickers')
         .select('id')
-        .eq('user_id', profile.id)
+        .eq('user_id', profile.user_id)
         .eq('image_url', imageUrl)
         .maybeSingle();
       
@@ -51,7 +51,7 @@ export function useAddSticker() {
 
       const { data, error } = await supabase
         .from('user_stickers')
-        .insert({ user_id: profile.id, image_url: imageUrl })
+        .insert({ user_id: profile.user_id, image_url: imageUrl })
         .select()
         .single();
       if (error) throw error;
