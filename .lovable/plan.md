@@ -1,45 +1,75 @@
 
-Goal
-- Keep the Messages screen content fully below the fixed VYBE mobile header.
-- Make horizontal mouse-wheel scrolling work consistently and smoothly for Quick Add and VYBE DNA.
 
-What I found
-- The clipping is coming from `src/pages/Messages.tsx`, not from the chat row itself. On mobile, the messages shell is still being rendered with `position: fixed`, `inset: 0`, and `z-index: 50` even when you are just on `/messages`. That makes the list sit under the fixed top header.
-- `QuickAddRow.tsx` and `MutualFriendsQuickAdd.tsx` each have their own wheel listener, but they use a fragile per-event `scrollBy({ behavior: 'smooth' })` approach.
-- `DNASimilarUsers.tsx` uses the shared `ScrollArea` horizontal primitive, and that primitive currently has no mouse-wheel-to-horizontal support, so DNA scrolling fails on mouse even if touch works.
+## Fix publish failure and database errors
 
-Implementation plan
-1. Fix the top clipping at the layout level
-   - Update `src/pages/Messages.tsx` so the fullscreen fixed shell is only used for immersive mobile chat view (`isInChat && !isDesktop`).
-   - For the normal `/messages` list screen, let the page stay in normal layout flow so `AppLayout`’s mobile header offset keeps everything under the VYBE top bar.
-   - Do not add random extra padding inside `ConversationList`; fix the outer shell so the whole screen lays out correctly.
+### Root cause
 
-2. Centralize horizontal mouse scrolling
-   - Add one shared horizontal-wheel helper for overflow rows.
-   - Behavior:
-     - translate dominant wheel motion into horizontal scrolling;
-     - only `preventDefault()` when the row can actually move left/right;
-     - use eased/requestAnimationFrame-style movement for a smoother left/right transition;
-     - leave touch drag/native scrolling intact.
+1. **Publish failure** — Migration `20260410005158` tries `CREATE OR REPLACE FUNCTION add_user_xp(uuid, integer) RETURNS void`, but on production the existing function returns `jsonb` (not `void`). Postgres forbids changing return types with `CREATE OR REPLACE`. The `DROP FUNCTION` only exists in the later migration `20260410010248`, which never runs because the earlier one fails first.
 
-3. Apply the shared fix to the affected rails
-   - `src/components/chat/QuickAddRow.tsx`
-   - `src/components/chat/MutualFriendsQuickAdd.tsx`
-   - `src/components/ui/scroll-area.tsx` when `horizontal` is enabled, so `src/components/dna/DNASimilarUsers.tsx` works automatically too.
+2. **`column "xp" does not exist`** — There's a second overload `add_user_xp(uuid, integer, text)` that still does `UPDATE profiles SET xp = ...`. The `profiles` table has no `xp` column. One callsite (`useBugBountyDetector.ts`) uses this 3-arg version.
 
-4. Make sure the rails truly overflow
-   - Tighten the inner row sizing where needed (`min-w-max` / `w-max` pattern if required) so the browser definitely creates a horizontal scrollable area.
-   - Keep smooth visual motion without relying on repeated `scrollBy({ behavior: 'smooth' })` calls.
+3. **`user_backgrounds` timeout** — The RLS policies use `current_profile_id()` which queries `profiles`. With only 7 rows this shouldn't timeout; likely a transient issue, but I'll verify indexes are in place.
 
-Files to update
-- `src/pages/Messages.tsx`
-- `src/components/chat/QuickAddRow.tsx`
-- `src/components/chat/MutualFriendsQuickAdd.tsx`
-- `src/components/ui/scroll-area.tsx`
-- possibly `src/components/dna/DNASimilarUsers.tsx` only if its inner content needs explicit width for overflow
+4. **`user_locations` FK** — The FK constraint `user_locations_user_id_fkey` still doesn't exist on prod because the migration that adds it fails before reaching that line.
 
-Verification
-- On mobile `/messages`, the chat header/search/filter area starts fully below the fixed VYBE header with nothing clipped.
-- On mouse, Quick Add scrolls left/right smoothly with the wheel.
-- On mouse, the VYBE DNA “Similar DNA Matches” row scrolls left/right the same way.
-- Vertical page scrolling still works normally once a horizontal row reaches either edge.
+### Plan
+
+**Step 1 — Fix both migration files**
+
+Replace `20260410005158` with:
+```sql
+-- Drop ALL overloads of add_user_xp first
+DROP FUNCTION IF EXISTS public.add_user_xp(uuid, integer);
+DROP FUNCTION IF EXISTS public.add_user_xp(uuid, integer, text);
+
+-- Recreate 2-arg version targeting user_levels
+CREATE OR REPLACE FUNCTION public.add_user_xp(p_user_id uuid, p_xp integer)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE v_result jsonb;
+BEGIN
+  INSERT INTO public.user_levels (user_id, total_xp, current_level)
+  VALUES (p_user_id, p_xp, 1)
+  ON CONFLICT (user_id)
+  DO UPDATE SET total_xp = user_levels.total_xp + p_xp, updated_at = now();
+  
+  SELECT jsonb_build_object('success', true, 'xp_added', p_xp) INTO v_result;
+  RETURN v_result;
+END;
+$$;
+
+-- Add FK from user_locations to profiles (idempotent)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'user_locations_user_id_fkey'
+  ) THEN
+    ALTER TABLE public.user_locations
+      ADD CONSTRAINT user_locations_user_id_fkey
+      FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+  END IF;
+END; $$;
+```
+
+Replace `20260410010248` with just a comment/no-op since everything is handled by the earlier migration:
+```sql
+-- Consolidated into previous migration; no-op
+SELECT 1;
+```
+
+I'm keeping the return type as `jsonb` to match what production callers expect, and making the function work with `user_levels` instead of `profiles.xp`.
+
+**Step 2 — Fix the `upload-sound` edge function**
+
+The edge function uses `p_xp_amount` (the old param name). Update it to use `p_xp`.
+
+**Step 3 — Verify `user_backgrounds`**
+
+Check if there's an index on `profiles.user_id` that `current_profile_id()` relies on. Add one if missing to prevent timeout.
+
+### Files to change
+- `supabase/migrations/20260410005158_7e2af4e9-7643-4e5e-a0bf-c32902c0176d.sql`
+- `supabase/migrations/20260410010248_e4a81f99-a60c-414e-bbd8-d5149a35cff4.sql`
+- `supabase/functions/upload-sound/index.ts` (fix param name)
+
