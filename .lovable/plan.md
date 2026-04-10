@@ -1,43 +1,46 @@
 
 
-## Fix Three Issues: Home Background Visibility, Swipe-Reply Menu Conflict, Long-Press Menu Not Appearing
+## Instagram-Style Overlay Gestures for VYBE Snap Editor
 
-### Issue 1: Custom Background Not Visible on Home Screen
+### Problems
 
-**Root cause**: The CSS on `body` uses the `background` shorthand property (line 496 of `index.css`) which sets a `linear-gradient`. When AppBackground sets `body.style.backgroundImage` inline, the CSS gradient can still interfere because the shorthand isn't fully overridden. More importantly, the gradient itself renders as an opaque layer underneath the image. When the custom background is active, the body's default gradient needs to be removed entirely so only the user's image shows.
+1. **Inaccurate drag**: Overlays use `left/top` percentage positioning with `transform: translate(-50%, -50%)` but framer-motion's `drag` applies pixel-based offsets on top. The initial position uses percentages but drag deltas are pixels — causing a mismatch where the element jumps or drifts away from your finger.
 
-**Fix**:
-- In `src/components/layout/AppBackground.tsx`: When applying a custom background, also set `body.style.background = 'none'` to clear the CSS gradient entirely before setting `backgroundImage`. When clearing, restore by removing the inline `background` so the CSS gradient takes over again.
-- In `src/index.css`: Add a rule for `body.has-custom-bg` that sets `background: none !important` to ensure the gradient doesn't paint over the user's image.
+2. **No pinch-to-resize**: There's no multi-touch gesture handling. Instagram lets you use two fingers to scale and rotate overlays simultaneously.
 
-### Issue 2: Swipe-to-Reply Triggering Context Menu
+3. **No rotation**: The overlay model has no `rotation` property and no gesture to set one.
 
-**Root cause**: The `handleTouchMove` callback in `MessageBubble` is empty — it never cancels the long-press timer. So when the user swipes horizontally to reply, the 400ms timer fires mid-swipe and opens the context menu. The `SwipeToReply` component uses framer-motion `drag`, which captures pointer events, but the `onTouchStart`/`onTouchMove` on the inner bubble still fires.
+### Solution — Replace framer-motion drag with custom multi-touch gesture handler
 
-**Fix in `src/components/chat/ChatView.tsx`**:
-- Track the touch start position in `handleTouchStart`
-- In `handleTouchMove`, calculate distance moved. If horizontal movement exceeds 10px (user is swiping), cancel the long-press timer
-- This prevents the menu from popping up during a swipe gesture
+Drop `motion.div` with `drag` in favor of a custom touch handler per overlay that tracks:
+- **One finger**: drag (reposition), using pixel offsets relative to finger-to-element anchor point
+- **Two fingers**: simultaneous pinch-to-scale + rotation, computed from the angle/distance between the two touch points
 
-### Issue 3: Long-Press on Images/VybeSnaps — Haptic But No Menu
+This is exactly how Instagram Stories editor works.
 
-**Root cause**: The haptic feedback the user feels is from `SwipeToReply`'s drag threshold (line 67-69 of SwipeToReply.tsx), NOT from the long-press handler. The `handleTouchStart` in `MessageBubble` sets a 400ms timer, but framer-motion's `drag` handler on `SwipeToReply` intercepts the touch events. The drag system calls `e.preventDefault()` which blocks the touch from reaching the inner bubble's handlers. Even slight finger movement triggers the drag, and the drag's haptic fires at the 50px threshold — so the user feels haptic but it's from the swipe system, not the menu system.
+### Changes
 
-**Fix in `src/components/chat/ChatView.tsx`**:
-- Store the touch start coordinates
-- In `handleTouchMove`, only cancel long-press if the user moved more than 10px (existing comment says this but the code doesn't implement it)
-- Add `e.stopPropagation()` in the touch handlers to prevent framer-motion's drag from stealing the event during a stationary hold
-- This ensures holding still for 400ms opens the menu, while swiping triggers reply
+**`src/components/camera/CameraEditor.tsx`**
 
-**Fix in `src/components/chat/SwipeToReply.tsx`**:
-- Add a small dead zone: only start the drag after 15px+ of horizontal movement. This gives the long-press timer time to fire on a stationary hold without the drag system interfering.
+1. Add `rotation` and `scale` to `TextOverlay` interface
+2. Replace `motion.div` overlays with a new `<DraggableOverlay>` component that uses raw touch events
+3. `DraggableOverlay` tracks:
+   - `onTouchStart`: record finger position(s) and element's current x/y. For two fingers, record initial distance and angle
+   - `onTouchMove`: for one finger, compute delta from start and update position (pixel-based, converted to percentage). For two fingers, compute new scale (distance ratio) and rotation (angle delta)
+   - `onTouchEnd`: finalize position/scale/rotation into overlay state
+4. Position overlays with `transform: translate(x, y) scale(s) rotate(r)` instead of `left/top` percentages — this ensures the element stays exactly under the finger
+5. Use `touch-action: none` on overlays to prevent browser scroll interference
+
+**Key implementation details:**
+- Store overlay position as pixel offsets from center, converted to/from percentages using container dimensions
+- On drag start, calculate the offset between the touch point and the element center — maintain this offset throughout the drag so the element doesn't jump
+- For pinch: `newScale = initialScale * (currentDistance / initialDistance)`
+- For rotation: `newRotation = initialRotation + (currentAngle - initialAngle)` where angle = `Math.atan2(dy, dx)` between two fingers
+- Delete overlay on tap (existing behavior) only if no drag/pinch occurred
 
 ### Files Touched
 
 | File | Change |
 |------|--------|
-| `src/index.css` | Add `body.has-custom-bg { background: none !important }` |
-| `src/components/layout/AppBackground.tsx` | Clear body gradient when applying custom background |
-| `src/components/chat/ChatView.tsx` | Track touch position, cancel long-press on real movement (>10px), keep timer alive for stationary holds |
-| `src/components/chat/SwipeToReply.tsx` | Add drag dead zone so stationary holds don't trigger drag |
+| `src/components/camera/CameraEditor.tsx` | Replace motion.div drag with custom multi-touch overlay component supporting drag, pinch-to-resize, and two-finger rotation |
 
