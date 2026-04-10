@@ -2748,34 +2748,49 @@ export type Database = {
       content_appeals: {
         Row: {
           admin_notes: string | null
+          content_category: string | null
           content_type: string
           created_at: string
+          draft_caption: string | null
+          draft_media_urls: string[] | null
+          draft_tags: string[] | null
           id: string
           reason: string
           reviewed_at: string | null
           reviewed_by: string | null
+          scan_reason: string | null
           status: string
           user_id: string
         }
         Insert: {
           admin_notes?: string | null
+          content_category?: string | null
           content_type: string
           created_at?: string
+          draft_caption?: string | null
+          draft_media_urls?: string[] | null
+          draft_tags?: string[] | null
           id?: string
           reason: string
           reviewed_at?: string | null
           reviewed_by?: string | null
+          scan_reason?: string | null
           status?: string
           user_id: string
         }
         Update: {
           admin_notes?: string | null
+          content_category?: string | null
           content_type?: string
           created_at?: string
+          draft_caption?: string | null
+          draft_media_urls?: string[] | null
+          draft_tags?: string[] | null
           id?: string
           reason?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
+          scan_reason?: string | null
           status?: string
           user_id?: string
         }
