@@ -503,16 +503,32 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
       >
-        <video
-          ref={videoRef}
-          className="w-full h-full object-cover"
-          style={{ 
-            transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
-          }}
-          playsInline
-          muted
-          autoPlay
-        />
+        {!cameraActivated ? (
+          <div 
+            className="w-full h-full flex flex-col items-center justify-center cursor-pointer"
+            onClick={handleActivateCamera}
+          >
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="w-20 h-20 rounded-full bg-muted/20 border-2 border-primary/50 flex items-center justify-center mb-4"
+            >
+              <VybeMiniIcon size={32} />
+            </motion.div>
+            <p className="text-muted-foreground text-sm font-medium">Tap to activate camera</p>
+          </div>
+        ) : (
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover"
+            style={{ 
+              transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+            }}
+            playsInline
+            muted
+            autoPlay
+          />
+        )}
         
         {/* Flash overlay */}
         <AnimatePresence>
