@@ -12,7 +12,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       position="top-center"
       className="toaster group"
       style={{ zIndex: 99998 }}
-      swipeDirection="up"
+      swipeDirections={["up"]}
       toastOptions={{
         classNames: {
           toast:
