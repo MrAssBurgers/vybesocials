@@ -353,7 +353,7 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
       if (locationEnabled && navigator.geolocation) {
         try {
           const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, maximumAge: 300000 });
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000, maximumAge: 300000 });
           });
           latitude = pos.coords.latitude;
           longitude = pos.coords.longitude;
