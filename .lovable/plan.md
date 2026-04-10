@@ -1,43 +1,29 @@
 
 
-## Fix: "Media Not Found" — Root Cause and Permanent Solution
+## Fix Slow Chat Media + Long-Press Popup Menu
 
-### Root Cause
+### Problems
 
-The database contains media URLs pointing to **two different backend projects**:
-- **Old project** (`eabvbtkxdbttjpdpbmuw`): Most existing vybe/chat media from before the migration
-- **Current project** (`agtcyxjxgkdyoxwxkjth`): New uploads only
+1. **Slow media loading**: Each chat image/video triggers an individual `getSignedUrl` call. Unlike feed/clips/stories which batch-sign all URLs at once, chat has zero batch preloading. Opening a conversation with 10 images = 10 sequential network requests.
 
-The `needsSigning()` function only recognizes URLs from the current project. Old-project URLs pass through raw and 403 because that bucket is private. The code treats them as "not needing signing" and feeds the raw URL directly to `<img>`, which fails silently or shows "media not found."
-
-Additionally, when signing fails for current-project URLs, the hook returns `null` permanently (after the 30s failed cache), and VybeViewer gets stuck showing "Loading..." forever instead of transitioning to the error/retry state.
+2. **Long-press on images shows browser context menu instead of app menu**: The `<img>` tag in `ChatMediaBubble` has no `onContextMenu` prevention. On mobile, long-pressing an image triggers the browser's native "Save Image / Copy" menu, intercepting the bubble's custom long-press handler that should show reactions/unsend/pin options.
 
 ### Changes
 
-**1. `src/lib/signedUrlCache.ts` — Handle old project URLs**
-- Add the old project ID (`eabvbtkxdbttjpdpbmuw`) to `isCurrentProjectUrl()` so those URLs are also recognized as needing signing
-- In `parseStorageUrl`, handle both project domains
-- When signing an old-project URL, the `createSignedUrl` call will fail (files don't exist on the current project). This is expected — it will cache as failed and consumers will show the error state
+**A. `src/components/chat/ChatView.tsx` — Batch preload media URLs when messages load**
+- After messages are fetched/loaded, collect all `media_url` values from the message list
+- Call `batchSignUrls(mediaUrls)` once to sign them all in a single network request per bucket
+- This means by the time `ChatMediaBubble` renders, URLs are already in cache and display instantly
 
-**2. `src/hooks/useFastSignedUrl.ts` — Fix infinite loading on failed URLs**
-- After `getSignedUrl` completes but returns the raw URL (meaning failure), still call `notifySubscribers()` so `useSyncExternalStore` re-reads the cache
-- The cache now returns `null` for failed entries, which correctly triggers error states in consumers
-- Reset `fetchedRef` when a URL's failure cache expires so it can retry
-
-**3. `src/components/chat/VybeViewer.tsx` — Fix stuck "Loading..." state**
-- Add a timeout (8 seconds) on the signing-pending state: if `signedUrl` hasn't resolved by then, treat it as an error and show the "Media no longer available" UI with a retry button
-- When `isFailedUrl(mediaUrl)` returns true, skip the loading spinner and go straight to the error state
-- Add a manual retry button that clears the failed cache entry and re-triggers signing
-
-**4. `src/components/chat/ChatMediaBubble.tsx` — Same timeout protection**
-- Add a timeout on the skeleton/loading state so it doesn't show indefinitely if signing never resolves
+**B. `src/components/chat/ChatMediaBubble.tsx` — Prevent native context menu on images**
+- Add `onContextMenu={(e) => e.preventDefault()}` to the `<img>` and `<video>` elements
+- Add `-webkit-touch-callout: none` and `user-select: none` CSS to prevent iOS Safari's native long-press menu
+- This lets the parent bubble's long-press handler fire correctly instead of being intercepted
 
 ### Files Touched
 
 | File | Change |
 |------|--------|
-| `src/lib/signedUrlCache.ts` | Recognize old project URLs, handle cross-project gracefully |
-| `src/hooks/useFastSignedUrl.ts` | Notify subscribers on failure, enable retry after cache expiry |
-| `src/components/chat/VybeViewer.tsx` | Add signing timeout, show retry on failure instead of infinite loading |
-| `src/components/chat/ChatMediaBubble.tsx` | Add loading timeout protection |
+| `src/components/chat/ChatView.tsx` | Add batch URL preloading for chat messages |
+| `src/components/chat/ChatMediaBubble.tsx` | Block native context menu on media elements |
 
