@@ -893,58 +893,93 @@ export default function FriendMap() {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] pb-[max(env(safe-area-inset-bottom),12px)]">
           <div className="mx-auto max-w-lg space-y-2 px-4">
 
-            {/* Selected friend card (enhanced) */}
+            {/* Selected friend card (Life360-inspired) */}
             <AnimatePresence>
-              {sel && (
+              {sel && (() => {
+                const activity = getActivityFromSpeed(sel.speed);
+                const mph = speedToMph(sel.speed);
+                const isLive = (Date.now() - new Date(sel.updated_at).getTime()) < 300_000;
+                const dist = myCoords ? distanceBetween(myCoords, [sel.latitude, sel.longitude]).toFixed(1) : null;
+                return (
                 <motion.div
                   initial={{ opacity: 0, y: 24, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 24, scale: 0.95 }}
                   transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                  className="pointer-events-auto rounded-3xl bg-black/70 p-5 shadow-2xl backdrop-blur-2xl border border-white/10"
+                  className="pointer-events-auto rounded-3xl bg-black/70 p-4 shadow-2xl backdrop-blur-2xl border border-white/10"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10">
-                      {sel.profile?.avatar_url ? (
-                        <img src={sel.profile.avatar_url} alt={friendName(sel)} className="h-full w-full object-cover" loading="lazy" />
-                      ) : (
-                        <span className="text-lg font-bold text-white">{initial(friendName(sel))}</span>
-                      )}
-                      <span className={cn(
-                        'absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-black/60',
-                        (Date.now() - new Date(sel.updated_at).getTime()) < 300_000 ? 'bg-green-400' : 'bg-gray-500'
-                      )} />
-                    </div>
+                  <div className="flex items-center gap-3">
+                    {/* Tappable avatar with activity ring */}
+                    <button
+                      onClick={() => { const u = friendUsername(sel); if (u) navigate(`/u/${u}`); }}
+                      className="relative shrink-0"
+                    >
+                      <div className={cn(
+                        'h-16 w-16 rounded-full p-[3px]',
+                        isLive && (sel.speed || 0) > 0.5
+                          ? 'bg-gradient-to-br from-green-400 via-emerald-500 to-cyan-500'
+                          : isLive ? 'bg-green-500' : 'bg-muted-foreground/30'
+                      )}>
+                        <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-black/90">
+                          {sel.profile?.avatar_url ? (
+                            <img src={sel.profile.avatar_url} alt={friendName(sel)} className="h-full w-full object-cover" loading="lazy" />
+                          ) : (
+                            <span className="text-lg font-bold text-white">{initial(friendName(sel))}</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="absolute -bottom-1 -right-1 text-base">{activity.icon}</span>
+                    </button>
+
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-white">{friendName(sel)}</p>
                       <p className="truncate text-xs text-white/50">
-                        {friendUsername(sel) ? `@${friendUsername(sel)}` : 'Sharing location'}
+                        {friendUsername(sel) ? `@${friendUsername(sel)}` : ''}
                         {' · '}
-                        {timeSince(sel.updated_at) === 'now' ? '📍 Live' : `${timeSince(sel.updated_at)} ago`}
+                        {isLive ? '📍 Live' : `${timeSince(sel.updated_at)} ago`}
                       </p>
-                      {sel.status && (
-                        <p className="text-xs text-white/60 mt-0.5">{sel.status}</p>
-                      )}
-                      {myCoords && (
-                        <p className="text-[11px] text-white/40 mt-0.5">
-                          📏 {distanceBetween(myCoords, [sel.latitude, sel.longitude]).toFixed(1)} mi away
-                        </p>
-                      )}
+                      {/* Activity badge */}
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className={cn(
+                          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold',
+                          (sel.speed || 0) > 2 ? 'bg-blue-500/20 text-blue-300' :
+                          (sel.speed || 0) > 0.5 ? 'bg-green-500/20 text-green-300' :
+                          'bg-white/10 text-white/50'
+                        )}>
+                          {activity.label}
+                          {mph && ` · ${mph}`}
+                        </span>
+                        {dist && (
+                          <span className="text-[10px] text-white/40">{dist} mi</span>
+                        )}
+                      </div>
                     </div>
+
                     <button
                       onClick={() => setSelId(null)}
-                      className="p-1 rounded-full hover:bg-white/10 transition-colors"
+                      className="p-1.5 rounded-full hover:bg-white/10 transition-colors self-start"
                     >
                       <X className="h-4 w-4 text-white/40" />
                     </button>
                   </div>
 
                   {/* Action buttons */}
-                  <div className="flex gap-2 mt-4">
+                  <div className="flex gap-2 mt-3">
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        const origin = myCoords ? `&origin=${myCoords[0]},${myCoords[1]}` : '';
+                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${sel.latitude},${sel.longitude}${origin}&travelmode=driving`, '_blank');
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground"
+                    >
+                      <Navigation className="h-3.5 w-3.5" />
+                      Navigate
+                    </motion.button>
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       onClick={() => navigate(`/messages`)}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground"
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-white/10 py-2.5 text-xs font-bold text-white"
                     >
                       <MessageCircle className="h-3.5 w-3.5" />
                       Message
@@ -953,23 +988,14 @@ export default function FriendMap() {
                       whileTap={{ scale: 0.95 }}
                       onClick={() => { const u = friendUsername(sel); if (u) navigate(`/u/${u}`); }}
                       disabled={!friendUsername(sel)}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-white/10 py-2.5 text-xs font-bold text-white disabled:opacity-40"
+                      className="flex items-center justify-center gap-1.5 rounded-xl bg-white/10 px-3 py-2.5 text-xs font-bold text-white disabled:opacity-40"
                     >
                       <User className="h-3.5 w-3.5" />
-                      Profile
-                    </motion.button>
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => {
-                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${sel.latitude},${sel.longitude}`, '_blank');
-                      }}
-                      className="flex items-center justify-center gap-1.5 rounded-xl bg-white/10 px-4 py-2.5 text-xs font-bold text-white"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
                     </motion.button>
                   </div>
                 </motion.div>
-              )}
+                );
+              })()}
             </AnimatePresence>
 
             {/* Horizontal friend strip */}
