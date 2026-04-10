@@ -30,6 +30,8 @@ import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { NavigationRefSetter } from "@/components/layout/NavigationRefSetter";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
+import { LocationProvider } from "@/providers/LocationProvider";
+import { useBriefPreFetch } from "@/hooks/useBriefPreFetch";
 
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
@@ -134,6 +136,8 @@ function AppWithPreloader() {
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
   usePostsRealtime();
+  // Background brief pre-fetch for instant daily brief
+  useBriefPreFetch(preloadStatus.isComplete ? undefined : undefined);
   // useInitEncryption moved to DeferredAuthHooks (inside AuthProvider)
 
   useEffect(() => {
