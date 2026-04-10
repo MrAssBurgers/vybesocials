@@ -117,6 +117,7 @@ export function useContentSafety() {
         aiResult = { allowed: true, result: 'allowed', categories: [], score: 0, message: '' };
       }
 
+      setScanPhase('done');
       const merged = mergeResults(nsfwResult, aiResult);
       setResult(merged.result);
       setMessage(merged.message || '');
@@ -127,6 +128,7 @@ export function useContentSafety() {
       return merged;
     } catch (err: any) {
       console.error('Safety scan error:', err);
+      setScanPhase('done');
       const errorMessage = 'Safety scan failed. For your protection, this content cannot be shared. Please try again.';
       setResult('error');
       setMessage(errorMessage);
@@ -147,6 +149,7 @@ export function useContentSafety() {
     setIsScanning(true);
     setResult('scanning');
     setMessage('Analyzing video frames...');
+    setScanPhase('nsfwjs');
     setScanDetails({});
 
     try {
