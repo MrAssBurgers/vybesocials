@@ -1,17 +1,12 @@
 /**
- * AppBackground - Persistent background image layer
+ * AppBackground - Native CSS background system
  * 
- * CRITICAL: This component renders a fixed, full-viewport background that:
- * - Is NEVER unmounted or re-rendered by navigation
- * - Is NEVER affected by theme color changes
- * - Sits at the LOWEST z-index (0) in the app
- * - All UI content renders ABOVE this layer
- * 
- * The background image state is stored in a dedicated context to prevent
- * theme changes from accidentally clearing or overriding it.
+ * Sets the user's custom background directly on document.body via inline styles.
+ * No overlay div, no z-index layering, no transparency hacks.
+ * The browser's native background-image on <body> is the most efficient approach.
  */
 
-import { createContext, useContext, useState, useCallback, useEffect, useRef, memo, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 
@@ -44,37 +39,41 @@ export function useAppBackgroundSafe() {
   return useContext(BackgroundContext);
 }
 
-// Memoized background layer - only re-renders when background state changes
-const BackgroundLayer = memo(function BackgroundLayer({ background }: { background: BackgroundState }) {
-  if (!background.imageUrl) {
-    return null;
+/** Apply or clear background styles on document.body */
+function applyBodyBackground(state: BackgroundState) {
+  const { imageUrl, opacity, blur } = state;
+  const body = document.body;
+
+  if (!imageUrl) {
+    body.style.backgroundImage = '';
+    body.style.backgroundSize = '';
+    body.style.backgroundPosition = '';
+    body.style.backgroundRepeat = '';
+    body.style.backgroundAttachment = '';
+    body.style.removeProperty('--bg-opacity');
+    body.style.removeProperty('--bg-blur');
+    document.documentElement.dataset.hasBgImage = 'false';
+    // Remove the pseudo-element opacity/blur layer
+    body.classList.remove('has-custom-bg');
+    return;
   }
 
-  return (
-    <div
-      id="app-background-layer"
-      aria-hidden="true"
-      style={{
-        position: 'fixed',
-        // Extend beyond viewport to prevent blur edge artifacts
-        top: background.blur > 0 ? `-${background.blur * 2}px` : 0,
-        left: background.blur > 0 ? `-${background.blur * 2}px` : 0,
-        right: background.blur > 0 ? `-${background.blur * 2}px` : 0,
-        bottom: background.blur > 0 ? `-${background.blur * 2}px` : 0,
-        zIndex: 0,
-        backgroundImage: `url(${background.imageUrl})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center center',
-        backgroundRepeat: 'no-repeat',
-        opacity: background.opacity,
-        filter: background.blur > 0 ? `blur(${background.blur}px)` : undefined,
-        pointerEvents: 'none',
-        transform: 'translateZ(0)',
-        willChange: 'auto',
-      }}
-    />
-  );
-});
+  body.style.backgroundImage = `url(${imageUrl})`;
+  body.style.backgroundSize = 'cover';
+  body.style.backgroundPosition = 'center center';
+  body.style.backgroundRepeat = 'no-repeat';
+  body.style.backgroundAttachment = 'fixed';
+  document.documentElement.dataset.hasBgImage = 'true';
+  body.classList.add('has-custom-bg');
+
+  // Use CSS custom properties for opacity/blur so a pseudo-element can handle them
+  body.style.setProperty('--bg-opacity', String(opacity));
+  body.style.setProperty('--bg-blur', `${blur}px`);
+}
+
+function clearBodyBackground() {
+  applyBodyBackground({ imageUrl: null, opacity: 1, blur: 0 });
+}
 
 export function AppBackgroundProvider({ children }: { children: ReactNode }) {
   const { user, profile } = useAuth();
@@ -86,7 +85,6 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
   const hasLoadedRef = useRef(false);
 
   // Auto-load user's active background on auth
-  // IMPORTANT: user_backgrounds.user_id stores profile.id, NOT auth user id
   const refreshBackground = useCallback(async () => {
     const profileId = profile?.id;
     if (!profileId) return;
@@ -98,11 +96,9 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
     if (data?.image_url) {
       setBackground(prev => ({ ...prev, imageUrl: data.image_url }));
-      document.documentElement.dataset.hasBgImage = 'true';
       hasLoadedRef.current = true;
     } else if (!hasLoadedRef.current) {
-      // No active background found — make sure we don't show stale state
-      document.documentElement.dataset.hasBgImage = 'false';
+      setBackground(prev => ({ ...prev, imageUrl: null }));
     }
   }, [profile?.id]);
 
@@ -110,10 +106,18 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
     refreshBackground();
   }, [refreshBackground]);
 
+  // Apply body styles whenever background state changes
+  useEffect(() => {
+    applyBodyBackground(background);
+  }, [background]);
+
+  // Clear on unmount (logout / provider removed)
+  useEffect(() => {
+    return () => clearBodyBackground();
+  }, []);
+
   const setBackgroundImage = useCallback((url: string | null) => {
     setBackground(prev => ({ ...prev, imageUrl: url }));
-    // Update data attribute for CSS fallback
-    document.documentElement.dataset.hasBgImage = url ? 'true' : 'false';
   }, []);
 
   const setBackgroundOpacity = useCallback((opacity: number) => {
@@ -134,9 +138,6 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
 
   return (
     <BackgroundContext.Provider value={contextValue}>
-      {/* Background layer - ALWAYS rendered at lowest z-index */}
-      <BackgroundLayer background={background} />
-      {/* All app content renders above */}
       {children}
     </BackgroundContext.Provider>
   );
