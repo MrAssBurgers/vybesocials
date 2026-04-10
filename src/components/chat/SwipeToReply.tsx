@@ -6,23 +6,25 @@ import { cn } from '@/lib/utils';
 interface SwipeToReplyProps {
   children: ReactNode;
   onReply: () => void;
+  onLongPress?: () => void;
   isOwn?: boolean;
   disabled?: boolean;
 }
 
 const SWIPE_THRESHOLD = 50;
 const MAX_SWIPE = 70;
-const DRAG_DEAD_ZONE = 15; // Minimum px before drag activates (allows long-press to work)
+const DRAG_DEAD_ZONE = 15;
+const LONG_PRESS_MS = 400;
+const LONG_PRESS_MOVE_TOLERANCE = 10;
 
 /**
- * Snapchat-style swipe to reply - Clean, satisfying gesture
- * - Smooth spring physics
- * - Clean icon reveal
- * - Haptic feedback at threshold
+ * Snapchat-style swipe to reply with long-press detection ABOVE the drag layer.
+ * Long-press fires before framer-motion can steal the touch.
  */
 export function SwipeToReply({ 
   children, 
   onReply, 
+  onLongPress,
   isOwn = false,
   disabled = false
 }: SwipeToReplyProps) {
@@ -30,32 +32,70 @@ export function SwipeToReply({
   const isDraggingRef = useRef(false);
   const dragActivatedRef = useRef(false);
   
-  // Raw motion value for drag
+  // Long-press state (tracked at wrapper level, above framer-motion)
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressFiredRef = useRef(false);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  
   const x = useMotionValue(0);
   
-  // Reply icon transforms - smooth reveal
   const replyOpacity = useTransform(x, [0, 15, 25, SWIPE_THRESHOLD], [0, 0, 0.5, 1]);
   const replyScale = useTransform(x, [0, 15, SWIPE_THRESHOLD], [0, 0.5, 1]);
   const replyX = useTransform(x, [0, SWIPE_THRESHOLD], [-20, 8]);
-  
-  // Icon rotation for satisfaction
   const replyRotate = useTransform(x, [0, SWIPE_THRESHOLD, MAX_SWIPE], [-45, 0, 10]);
 
+  // --- Long-press handlers (on the OUTER wrapper, before framer-motion) ---
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handleWrapperTouchStart = useCallback((e: React.TouchEvent) => {
+    if (disabled || !onLongPress) return;
+    longPressFiredRef.current = false;
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+    
+    longPressTimerRef.current = setTimeout(() => {
+      longPressFiredRef.current = true;
+      onLongPress();
+      if ('vibrate' in navigator) navigator.vibrate(10);
+    }, LONG_PRESS_MS);
+  }, [disabled, onLongPress, clearLongPress]);
+
+  const handleWrapperTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!longPressTimerRef.current || !touchStartPosRef.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+    if (dx > LONG_PRESS_MOVE_TOLERANCE || dy > LONG_PRESS_MOVE_TOLERANCE) {
+      clearLongPress();
+    }
+  }, [clearLongPress]);
+
+  const handleWrapperTouchEnd = useCallback(() => {
+    clearLongPress();
+    touchStartPosRef.current = null;
+  }, [clearLongPress]);
+
+  // --- Drag handlers (framer-motion) ---
   const handleDragStart = useCallback(() => {
     isDraggingRef.current = true;
     dragActivatedRef.current = false;
-  }, []);
+    // If drag starts, cancel any pending long-press
+    clearLongPress();
+  }, [clearLongPress]);
 
   const handleDrag = useCallback((
     _event: MouseEvent | TouchEvent | PointerEvent,
     info: PanInfo
   ) => {
-    if (disabled) return;
+    if (disabled || longPressFiredRef.current) return;
     
-    // Only allow right swipe with resistance at max
     const rawX = info.offset.x;
     
-    // Dead zone: don't move until past threshold (allows long-press to work)
     if (!dragActivatedRef.current) {
       if (rawX < DRAG_DEAD_ZONE) {
         x.set(0);
@@ -65,8 +105,6 @@ export function SwipeToReply({
     }
     
     const clampedX = Math.max(0, Math.min(rawX, MAX_SWIPE));
-    
-    // Add resistance near the max
     const resistance = clampedX > SWIPE_THRESHOLD ? 0.3 : 1;
     const finalX = clampedX > SWIPE_THRESHOLD 
       ? SWIPE_THRESHOLD + (clampedX - SWIPE_THRESHOLD) * resistance
@@ -74,12 +112,9 @@ export function SwipeToReply({
     
     x.set(finalX);
     
-    // Haptic at threshold (once per gesture)
     if (finalX >= SWIPE_THRESHOLD && !hasTriggeredRef.current) {
       hasTriggeredRef.current = true;
-      if ('vibrate' in navigator) {
-        navigator.vibrate(10);
-      }
+      if ('vibrate' in navigator) navigator.vibrate(10);
     } else if (finalX < SWIPE_THRESHOLD * 0.8) {
       hasTriggeredRef.current = false;
     }
@@ -89,18 +124,11 @@ export function SwipeToReply({
     isDraggingRef.current = false;
     const currentX = x.get();
     
-    // Fire reply if we crossed threshold
-    if (currentX >= SWIPE_THRESHOLD) {
-      // Trigger reply callback
+    if (currentX >= SWIPE_THRESHOLD && !longPressFiredRef.current) {
       onReply();
-      
-      // Success haptic
-      if ('vibrate' in navigator) {
-        navigator.vibrate([8, 50, 8]);
-      }
+      if ('vibrate' in navigator) navigator.vibrate([8, 50, 8]);
     }
     
-    // Smooth spring back to origin
     animate(x, 0, {
       type: 'spring',
       stiffness: 500,
@@ -116,8 +144,14 @@ export function SwipeToReply({
   }
 
   return (
-    <div className="relative overflow-visible">
-      {/* Reply indicator - clean circle icon */}
+    <div 
+      className="relative overflow-visible"
+      onTouchStart={handleWrapperTouchStart}
+      onTouchMove={handleWrapperTouchMove}
+      onTouchEnd={handleWrapperTouchEnd}
+      onTouchCancel={handleWrapperTouchEnd}
+    >
+      {/* Reply indicator */}
       <motion.div
         className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-10"
         style={{ 
