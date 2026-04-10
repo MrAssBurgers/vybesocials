@@ -1658,7 +1658,7 @@ export function ChatView() {
             onOpenScheduleMessage={() => setShowScheduleMessage(true)}
             onOpenDMSettings={() => setShowDMSettings(true)}
             onOpenAdminPanel={!isGroupChat ? () => setShowAdminPanel(true) : undefined}
-            onOpenSnapCamera={() => setShowSnapCamera(true)}
+            onOpenSnapCamera={() => { requestCameraStream({ facingMode: 'environment', width: 1920, height: 1080, audio: true }); setShowSnapCamera(true); }}
             onCreateOffer={userBusiness ? () => setShowOfferDialog(true) : undefined}
             hasBusinessProfile={!!userBusiness}
             presentUsers={presentUsers}
@@ -1700,7 +1700,7 @@ export function ChatView() {
           onOpenScheduleMessage={() => setShowScheduleMessage(true)}
           onOpenDMSettings={() => setShowDMSettings(true)}
           onOpenAdminPanel={!isGroupChat ? () => setShowAdminPanel(true) : undefined}
-          onOpenSnapCamera={() => setShowSnapCamera(true)}
+          onOpenSnapCamera={() => { requestCameraStream({ facingMode: 'environment', width: 1920, height: 1080, audio: true }); setShowSnapCamera(true); }}
           onCreateOffer={userBusiness ? () => setShowOfferDialog(true) : undefined}
           hasBusinessProfile={!!userBusiness}
           presentUsers={presentUsers}
