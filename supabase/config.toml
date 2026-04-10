@@ -1,106 +1,75 @@
 project_id = "agtcyxjxgkdyoxwxkjth"
 
-[functions.create-stripe-connect]
-verify_jwt = false
-
-[functions.create-business-checkout]
-verify_jwt = false
-
-[functions.check-stripe-connect]
-verify_jwt = false
-
-[functions.create-stripe-dashboard-link]
-verify_jwt = false
-
-[functions.validate-stripe-config]
-verify_jwt = false
-
-[functions.admin-ai-builder]
-verify_jwt = false
-
-[functions.admin-debug-tools]
-verify_jwt = false
-
-[functions.generate-challenges]
-verify_jwt = false
-
-[functions.create-tip]
-verify_jwt = false
-
-[functions.create-creator-connect]
-verify_jwt = false
-
-[functions.check-creator-connect]
-verify_jwt = false
-
-[functions.process-creator-payout]
-verify_jwt = false
-
-[functions.ai-chat]
-verify_jwt = false
-
-[functions.ai-adaptive-response]
-verify_jwt = false
-
-[functions.ai-chat-summary]
-verify_jwt = false
-
-[functions.ai-smart-replies]
-verify_jwt = false
-
-[functions.ai-message-assist]
-verify_jwt = false
-
-[functions.confirm-referral]
-verify_jwt = false
-
-[functions.send-reset-email]
-verify_jwt = false
-
-[functions.manage-account]
-verify_jwt = false
-
-[functions.vybe-commander]
-verify_jwt = false
-
-[functions.create-checkout-session]
-verify_jwt = false
-
-[functions.process-email-queue]
-verify_jwt = true
-
-[functions.stripe-webhook]
-verify_jwt = false
-
-[functions.calculate-earnings]
-verify_jwt = false
-
-[functions.connect-v2-create-account]
-verify_jwt = false
-
-[functions.connect-v2-account-link]
-verify_jwt = false
-
-[functions.connect-v2-account-status]
-verify_jwt = false
-
-[functions.connect-v2-create-product]
-verify_jwt = false
-
-[functions.connect-v2-list-products]
-verify_jwt = false
-
-[functions.connect-v2-checkout]
-verify_jwt = false
-
-[functions.connect-v2-subscription]
-verify_jwt = false
-
-[functions.connect-v2-billing-portal]
-verify_jwt = false
-
-[functions.connect-v2-webhook-thin]
-verify_jwt = false
-
-[functions.connect-v2-webhook-subscriptions]
-verify_jwt = false
+[functions]
+  [functions.admin-ai-builder]
+    verify_jwt = false
+  [functions.admin-debug-tools]
+    verify_jwt = false
+  [functions.ai-adaptive-response]
+    verify_jwt = false
+  [functions.ai-chat]
+    verify_jwt = false
+  [functions.ai-chat-summary]
+    verify_jwt = false
+  [functions.ai-message-assist]
+    verify_jwt = false
+  [functions.ai-smart-replies]
+    verify_jwt = false
+  [functions.auth-email-hook]
+    verify_jwt = false
+  [functions.calculate-earnings]
+    verify_jwt = false
+  [functions.check-creator-connect]
+    verify_jwt = false
+  [functions.check-stripe-connect]
+    verify_jwt = false
+  [functions.confirm-referral]
+    verify_jwt = false
+  [functions.connect-v2-account-link]
+    verify_jwt = false
+  [functions.connect-v2-account-status]
+    verify_jwt = false
+  [functions.connect-v2-billing-portal]
+    verify_jwt = false
+  [functions.connect-v2-checkout]
+    verify_jwt = false
+  [functions.connect-v2-create-account]
+    verify_jwt = false
+  [functions.connect-v2-create-product]
+    verify_jwt = false
+  [functions.connect-v2-list-products]
+    verify_jwt = false
+  [functions.connect-v2-subscription]
+    verify_jwt = false
+  [functions.connect-v2-webhook-subscriptions]
+    verify_jwt = false
+  [functions.connect-v2-webhook-thin]
+    verify_jwt = false
+  [functions.create-business-checkout]
+    verify_jwt = false
+  [functions.create-checkout-session]
+    verify_jwt = false
+  [functions.create-creator-connect]
+    verify_jwt = false
+  [functions.create-stripe-connect]
+    verify_jwt = false
+  [functions.create-stripe-dashboard-link]
+    verify_jwt = false
+  [functions.create-tip]
+    verify_jwt = false
+  [functions.generate-challenges]
+    verify_jwt = false
+  [functions.manage-account]
+    verify_jwt = false
+  [functions.process-creator-payout]
+    verify_jwt = false
+  [functions.process-email-queue]
+    verify_jwt = true
+  [functions.send-reset-email]
+    verify_jwt = false
+  [functions.stripe-webhook]
+    verify_jwt = false
+  [functions.validate-stripe-config]
+    verify_jwt = false
+  [functions.vybe-commander]
+    verify_jwt = false
