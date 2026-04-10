@@ -103,25 +103,19 @@ export function MutualFriendsQuickAdd({
   const [localDismissed, setLocalDismissed] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Touch-based horizontal swipe
+  // Mouse wheel horizontal scroll
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    let startX = 0;
-    let scrollStart = 0;
-    const onTouchStart = (e: TouchEvent) => {
-      startX = e.touches[0].clientX;
-      scrollStart = el.scrollLeft;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.scrollWidth > el.clientWidth) {
+        e.preventDefault();
+        el.scrollBy({ left: e.deltaY, behavior: 'smooth' });
+      }
     };
-    const onTouchMove = (e: TouchEvent) => {
-      const dx = startX - e.touches[0].clientX;
-      el.scrollLeft = scrollStart + dx;
-    };
-    el.addEventListener('touchstart', onTouchStart, { passive: true });
-    el.addEventListener('touchmove', onTouchMove, { passive: true });
+    el.addEventListener('wheel', onWheel, { passive: false });
     return () => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('wheel', onWheel);
     };
   }, []);
 

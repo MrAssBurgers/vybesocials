@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   Home, Compass, MessageCircle, ShoppingBag, Calendar, Bell, Settings, 
-  PlusCircle, Shield, Users, LucideIcon, Gift, Trophy, Crown
+  PlusCircle, Shield, Users, LucideIcon, Gift, Trophy, Crown, MapPin
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
