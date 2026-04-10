@@ -1,68 +1,45 @@
 
+Goal
+- Keep the Messages screen content fully below the fixed VYBE mobile header.
+- Make horizontal mouse-wheel scrolling work consistently and smoothly for Quick Add and VYBE DNA.
 
-## Plan: Move AI Scan to Post-Time + Appeal Flow + Mod Review + Resume Posting
+What I found
+- The clipping is coming from `src/pages/Messages.tsx`, not from the chat row itself. On mobile, the messages shell is still being rendered with `position: fixed`, `inset: 0`, and `z-index: 50` even when you are just on `/messages`. That makes the list sit under the fixed top header.
+- `QuickAddRow.tsx` and `MutualFriendsQuickAdd.tsx` each have their own wheel listener, but they use a fragile per-event `scrollBy({ behavior: 'smooth' })` approach.
+- `DNASimilarUsers.tsx` uses the shared `ScrollArea` horizontal primitive, and that primitive currently has no mouse-wheel-to-horizontal support, so DNA scrolling fails on mouse even if touch works.
 
-### Current Flow (broken)
-1. User takes photo/video → edits → **AI scans immediately** → if blocked, content is discarded
-2. No way to appeal, no mod review, no resume
+Implementation plan
+1. Fix the top clipping at the layout level
+   - Update `src/pages/Messages.tsx` so the fullscreen fixed shell is only used for immersive mobile chat view (`isInChat && !isDesktop`).
+   - For the normal `/messages` list screen, let the page stay in normal layout flow so `AppLayout`’s mobile header offset keeps everything under the VYBE top bar.
+   - Do not add random extra padding inside `ConversationList`; fix the outer shell so the whole screen lays out correctly.
 
-### New Flow
-1. User takes photo/video → edits → goes straight to share/compose (NO scan)
-2. User clicks "Post" → AI scan runs **at post time**
-3. If **passed**: post publishes normally
-4. If **blocked**: show "Failed Vybe Check" screen with options to **Edit** or **Appeal**
-5. Appeal goes to admin Appeals section (already exists)
-6. Mod reviews → approves → user gets a **notification** with a "Continue posting" deep link
-7. User taps notification → resumes composer with their saved content
+2. Centralize horizontal mouse scrolling
+   - Add one shared horizontal-wheel helper for overflow rows.
+   - Behavior:
+     - translate dominant wheel motion into horizontal scrolling;
+     - only `preventDefault()` when the row can actually move left/right;
+     - use eased/requestAnimationFrame-style movement for a smoother left/right transition;
+     - leave touch drag/native scrolling intact.
 
-### Changes
+3. Apply the shared fix to the affected rails
+   - `src/components/chat/QuickAddRow.tsx`
+   - `src/components/chat/MutualFriendsQuickAdd.tsx`
+   - `src/components/ui/scroll-area.tsx` when `horizontal` is enabled, so `src/components/dna/DNASimilarUsers.tsx` works automatically too.
 
-**1. Remove pre-scan from Camera flow**
-- `Camera.tsx` / `CameraWithSound.tsx`: Remove the `'scanning'` state entirely. After edit, go straight to `'share'`
-- `CameraSafetyGate.tsx`: No longer used in camera flow (keep file for potential reuse)
+4. Make sure the rails truly overflow
+   - Tighten the inner row sizing where needed (`min-w-max` / `w-max` pattern if required) so the browser definitely creates a horizontal scrollable area.
+   - Keep smooth visual motion without relying on repeated `scrollBy({ behavior: 'smooth' })` calls.
 
-**2. Move scan to post-time in composers**
-- `MobilePostComposer.tsx`: Remove the `useEffect` that scans on mount. Instead, in `handleSubmit`, run the safety scan **before** uploading. If blocked, show a "Failed Vybe Check" overlay with Edit/Appeal buttons
-- `DesktopCreateStudio.tsx`: Same — move scan from component mount to the publish action
-- `CameraShareSheet.tsx`: If this is used for stories/clips, add scan at share time too
+Files to update
+- `src/pages/Messages.tsx`
+- `src/components/chat/QuickAddRow.tsx`
+- `src/components/chat/MutualFriendsQuickAdd.tsx`
+- `src/components/ui/scroll-area.tsx`
+- possibly `src/components/dna/DNASimilarUsers.tsx` only if its inner content needs explicit width for overflow
 
-**3. "Failed Vybe Check" overlay component**
-- New: `src/components/safety/VybeCheckFailed.tsx`
-  - Shows the scan result (what was flagged)
-  - "Edit Post" button → goes back to editor
-  - "Appeal" button → submits to `content_appeals` table with a reference to the draft content
-  - Saves draft data (files, caption, tags) to localStorage so it can be resumed
-
-**4. Appeal approval → notification**
-- `AdminAppealsSection.tsx`: When mod approves an appeal, insert a notification into the `notifications` table with type `'appeal_approved'` and metadata containing the draft info
-- Add `content_id` and `draft_data` columns to `content_appeals` so we can store the pending post's files/caption/tags
-
-**5. Resume posting from notification**
-- In the notification tap handler, if type is `'appeal_approved'`, navigate to `/create?resume=<appeal_id>`
-- `MobilePostComposer` / upload page: check URL params, load draft from localStorage, pre-populate composer
-
-### Database Migration
-
-```sql
--- Add columns to content_appeals for draft resumption
-ALTER TABLE public.content_appeals 
-  ADD COLUMN IF NOT EXISTS draft_caption text,
-  ADD COLUMN IF NOT EXISTS draft_tags text[],
-  ADD COLUMN IF NOT EXISTS draft_media_urls text[],
-  ADD COLUMN IF NOT EXISTS content_category text,
-  ADD COLUMN IF NOT EXISTS scan_reason text;
-```
-
-### Files to Change
-
-| File | Change |
-|------|--------|
-| `src/components/camera/Camera.tsx` | Remove `scanning` state, skip to `share` after edit |
-| `src/components/camera/CameraWithSound.tsx` | Same — remove scanning state |
-| `src/components/create/MobilePostComposer.tsx` | Move scan to `handleSubmit`, show VybeCheckFailed on block |
-| `src/components/create/DesktopCreateStudio.tsx` | Move scan to publish action |
-| `src/components/camera/CameraShareSheet.tsx` | Add scan at share time for stories/clips |
-| New: `src/components/safety/VybeCheckFailed.tsx` | Failed scan overlay with Edit/Appeal |
-| `src/components/admin/sections/AdminAppealsSection.tsx` | On approve, create notification for user |
-| `content_appeals` table | Add draft columns via migration |
-
+Verification
+- On mobile `/messages`, the chat header/search/filter area starts fully below the fixed VYBE header with nothing clipped.
+- On mouse, Quick Add scrolls left/right smoothly with the wheel.
+- On mouse, the VYBE DNA “Similar DNA Matches” row scrolls left/right the same way.
+- Vertical page scrolling still works normally once a horizontal row reaches either edge.
