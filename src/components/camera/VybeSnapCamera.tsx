@@ -54,9 +54,25 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
   const shouldFinalizeOnStopRef = useRef(false);
   const isRecordingRef = useRef(false);
   
-  // Start camera
+  const [permissionDenied, setPermissionDenied] = useState(false);
+
+  // Start camera with proper permission handling
   const startCamera = useCallback(async () => {
     try {
+      // Check permissions first
+      if (navigator.permissions) {
+        try {
+          const camStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          if (camStatus.state === 'denied') {
+            setPermissionDenied(true);
+            console.warn('[VybeSnapCamera] Camera permission denied in settings');
+            return;
+          }
+        } catch {
+          // permissions.query not supported for camera on some browsers
+        }
+      }
+
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
@@ -66,12 +82,13 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
           facingMode,
           width: { ideal: 1920 },
           height: { ideal: 1080 },
-          aspectRatio: { ideal: 9/16 }, // Vertical
+          aspectRatio: { ideal: 9/16 },
         },
         audio: soundEnabled,
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setPermissionDenied(false);
       streamRef.current = stream;
       
       if (videoRef.current) {
@@ -84,14 +101,20 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
       try {
         const capabilities = videoTrack.getCapabilities?.() as MediaTrackCapabilities & { zoom?: { min: number; max: number } };
         if (capabilities?.zoom) {
-          // Use any to bypass strict typing for vendor-specific constraint
           await videoTrack.applyConstraints({ advanced: [{ zoom: zoomLevel } as any] } as any);
         }
-      } catch (e) {
-        // Zoom not supported on this device
+      } catch {
+        // Zoom not supported
       }
-    } catch (error) {
-      console.error('[VybeSnapCamera] Camera error:', error);
+    } catch (error: any) {
+      if (error?.name === 'NotAllowedError') {
+        setPermissionDenied(true);
+        console.warn('[VybeSnapCamera] Camera permission denied by user');
+      } else if (error?.name === 'NotFoundError') {
+        console.error('[VybeSnapCamera] No camera found');
+      } else {
+        console.error('[VybeSnapCamera] Camera error:', error);
+      }
     }
   }, [facingMode, soundEnabled, zoomLevel]);
 
@@ -503,7 +526,24 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
       >
-        {!cameraActivated ? (
+        {permissionDenied ? (
+          <div className="w-full h-full flex flex-col items-center justify-center px-8 text-center">
+            <div className="w-20 h-20 rounded-full bg-destructive/20 flex items-center justify-center mb-4">
+              <X className="h-8 w-8 text-destructive" />
+            </div>
+            <p className="text-foreground font-semibold text-lg mb-2">Camera Access Denied</p>
+            <p className="text-muted-foreground text-sm mb-6">
+              Please enable camera access in your browser or device settings to use this feature.
+            </p>
+            <Button 
+              variant="outline" 
+              className="rounded-xl"
+              onClick={() => { setPermissionDenied(false); startCamera(); }}
+            >
+              Try Again
+            </Button>
+          </div>
+        ) : !cameraActivated ? (
           <div 
             className="w-full h-full flex flex-col items-center justify-center cursor-pointer"
             onClick={handleActivateCamera}

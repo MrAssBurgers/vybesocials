@@ -60,10 +60,13 @@ function mergeResults(nsfwResult: ScanResult, aiResult: AISafetyResult): SafetyC
   };
 }
 
+export type ScanPhase = 'init' | 'nsfwjs' | 'ai-visual' | 'ai-audio' | 'done';
+
 export function useContentSafety() {
   const [isScanning, setIsScanning] = useState(false);
   const [result, setResult] = useState<SafetyResult>('scanning');
   const [message, setMessage] = useState<string>('');
+  const [scanPhase, setScanPhase] = useState<ScanPhase>('init');
   const [scanDetails, setScanDetails] = useState<{
     audioTranscript?: string;
     visualAnalysis?: string;
@@ -83,6 +86,7 @@ export function useContentSafety() {
     setIsScanning(true);
     setResult('scanning');
     setMessage('Scanning image...');
+    setScanPhase('nsfwjs');
     setScanDetails({});
 
     try {
@@ -103,6 +107,7 @@ export function useContentSafety() {
       }
 
       // Pass 2: AI scan for violence/gore/weapons
+      setScanPhase('ai-visual');
       setMessage('Deep scanning for harmful content...');
       let aiResult: AISafetyResult;
       try {
@@ -112,6 +117,7 @@ export function useContentSafety() {
         aiResult = { allowed: true, result: 'allowed', categories: [], score: 0, message: '' };
       }
 
+      setScanPhase('done');
       const merged = mergeResults(nsfwResult, aiResult);
       setResult(merged.result);
       setMessage(merged.message || '');
@@ -122,6 +128,7 @@ export function useContentSafety() {
       return merged;
     } catch (err: any) {
       console.error('Safety scan error:', err);
+      setScanPhase('done');
       const errorMessage = 'Safety scan failed. For your protection, this content cannot be shared. Please try again.';
       setResult('error');
       setMessage(errorMessage);
@@ -142,6 +149,7 @@ export function useContentSafety() {
     setIsScanning(true);
     setResult('scanning');
     setMessage('Analyzing video frames...');
+    setScanPhase('nsfwjs');
     setScanDetails({});
 
     try {
@@ -161,6 +169,7 @@ export function useContentSafety() {
       }
 
       // Pass 2: AI scan - extract a key frame + attempt audio transcription
+      setScanPhase('ai-visual');
       setMessage('Deep scanning video content...');
       
       let aiResult: AISafetyResult = { allowed: true, result: 'allowed', categories: [], score: 0, message: '' };
@@ -170,7 +179,8 @@ export function useContentSafety() {
         // Extract a frame for visual AI analysis
         const frameBlob = await extractVideoFrame(file);
 
-        // Attempt audio transcription (Web Speech API, browser-native)
+        // Attempt audio transcription
+        setScanPhase('ai-audio');
         try {
           audioTranscript = await transcribeVideoAudio(file);
         } catch {
@@ -205,6 +215,7 @@ export function useContentSafety() {
         }
       }
 
+      setScanPhase('done');
       const merged = mergeResults(nsfwResult, aiResult);
       
       // Adjust message for video context
@@ -276,6 +287,7 @@ export function useContentSafety() {
     setIsScanning(false);
     setResult('scanning');
     setMessage('');
+    setScanPhase('init');
     setScanDetails({});
     setBypassEnabled(false);
   }, []);
@@ -320,6 +332,7 @@ export function useContentSafety() {
     isScanning,
     result,
     message,
+    scanPhase,
     scanDetails,
     bypassEnabled,
     scanImage,

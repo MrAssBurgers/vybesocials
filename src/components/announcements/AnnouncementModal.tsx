@@ -77,9 +77,10 @@ export function AnnouncementModal() {
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.8, opacity: 0, y: 20 }}
             transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-            className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 max-w-md mx-auto"
+            className="fixed inset-x-4 z-50 max-w-md mx-auto"
+            style={{ top: '5vh', maxHeight: '80vh' }}
           >
-            <div className="bg-card rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="bg-card rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col h-full max-h-[80vh]">
               {/* Header — Title first */}
               <div className="relative px-6 pt-6 pb-4 shrink-0">
                 <button

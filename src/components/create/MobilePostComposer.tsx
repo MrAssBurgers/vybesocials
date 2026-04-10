@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown, Check, Sparkles, Image as ImageIcon, Plus } from 'lucide-react';
+import { ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown, Check, Sparkles, Image as ImageIcon, Plus, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
 import { useContentSafety } from '@/hooks/useContentSafety';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
+import { SafetyScanProgress } from '@/components/safety/SafetyScanProgress';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { INTEREST_CATEGORIES, getSuggestedTagsForInterests, getTagCategories } from '@/lib/tagCategories';
@@ -90,7 +91,7 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
     if (files.length > 0 && files[0]) {
       setIsUploading(true);
       setUploadProgress(0);
-      toast('Checking content...', { duration: 2000 });
+      setShowSafetyScanner(true);
 
       let scanResult;
       if (files[0].type.startsWith('video/')) {
@@ -98,6 +99,8 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
       } else {
         scanResult = await contentSafety.scanImage(files[0]);
       }
+
+      setShowSafetyScanner(false);
 
       if (scanResult.result === 'blocked') {
         setIsUploading(false);
@@ -151,6 +154,36 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
+      {/* Safety scan overlay */}
+      <AnimatePresence>
+        {showSafetyScanner && contentSafety.isScanning && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[260] flex items-center justify-center bg-background/95 backdrop-blur-sm"
+          >
+            <div className="w-80 space-y-6 text-center">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center"
+              >
+                <Shield className="h-8 w-8 text-primary" />
+              </motion.div>
+              <div>
+                <p className="text-foreground font-bold text-lg mb-1">Vybe Check</p>
+                <p className="text-muted-foreground text-sm">{contentSafety.message || 'Scanning your content...'}</p>
+              </div>
+              <SafetyScanProgress 
+                phase={contentSafety.scanPhase} 
+                isVideo={files[0]?.type.startsWith('video/')} 
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Success overlay */}
       <AnimatePresence>
         {publishSuccess && (

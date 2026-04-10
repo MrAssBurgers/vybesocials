@@ -11,6 +11,7 @@ import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
 import { useContentSafety } from '@/hooks/useContentSafety';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
+import { SafetyScanProgress } from '@/components/safety/SafetyScanProgress';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { AIVideoGenerator } from '@/components/ai/AIVideoGenerator';
 import { StyledUsername } from '@/components/ui/StyledUsername';
@@ -146,7 +147,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
     // Run AI safety scan at post time
     if (files.length > 0 && files[0]) {
       setIsUploading(true); setUploadProgress(0);
-      toast('Checking content...', { duration: 2000 });
+      setShowSafety(true);
 
       let scanResult;
       if (files[0].type.startsWith('video/')) {
@@ -154,6 +155,8 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
       } else {
         scanResult = await contentSafety.scanImage(files[0]);
       }
+
+      setShowSafety(false);
 
       if (scanResult.result === 'blocked') {
         setIsUploading(false);
@@ -243,6 +246,36 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
           onAppealComplete={() => { setVybeCheckFailed(false); navigate('/home'); }}
         />
       )}
+
+      {/* Safety scan overlay */}
+      <AnimatePresence>
+        {showSafety && contentSafety.isScanning && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-background/95 backdrop-blur-sm"
+          >
+            <div className="w-80 space-y-6 text-center">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center"
+              >
+                <Sparkles className="h-8 w-8 text-primary" />
+              </motion.div>
+              <div>
+                <p className="text-foreground font-bold text-lg mb-1">Vybe Check</p>
+                <p className="text-muted-foreground text-sm">{contentSafety.message || 'Scanning your content...'}</p>
+              </div>
+              <SafetyScanProgress 
+                phase={contentSafety.scanPhase} 
+                isVideo={files[0]?.type.startsWith('video/')} 
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Success overlay */}
       <AnimatePresence>
