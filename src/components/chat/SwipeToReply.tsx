@@ -54,6 +54,16 @@ export function SwipeToReply({
     
     // Only allow right swipe with resistance at max
     const rawX = info.offset.x;
+    
+    // Dead zone: don't move until past threshold (allows long-press to work)
+    if (!dragActivatedRef.current) {
+      if (rawX < DRAG_DEAD_ZONE) {
+        x.set(0);
+        return;
+      }
+      dragActivatedRef.current = true;
+    }
+    
     const clampedX = Math.max(0, Math.min(rawX, MAX_SWIPE));
     
     // Add resistance near the max
