@@ -44,13 +44,12 @@ export function QuickAddRow({
     const el = scrollRef.current;
     if (!el) return;
     const handler = (e: WheelEvent) => {
+      // Only hijack if the user is scrolling predominantly horizontally
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         e.preventDefault();
         el.scrollLeft += e.deltaX;
-      } else if (e.deltaY !== 0 && el.scrollWidth > el.clientWidth) {
-        e.preventDefault();
-        el.scrollLeft += e.deltaY;
       }
+      // Never capture vertical scroll — let the page scroll normally
     };
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);
