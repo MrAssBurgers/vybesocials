@@ -108,26 +108,39 @@ function distanceBetween(a: [number, number], b: [number, number]) {
 }
 
 function autoStatus(speed: number | null, hour: number): string | null {
-  if (speed && speed > 11) return '✈️ Traveling';
-  if (speed && speed > 2) return '🚗 On the move';
+  if (speed && speed > 25) return '✈️ Traveling';
+  if (speed && speed > 2) return '🚗 Driving';
+  if (speed && speed > 0.5) return '🚶 Walking';
   if (hour >= 0 && hour < 6) return '😴 Sleeping';
   return null;
+}
+
+function getActivityFromSpeed(speed?: number | null): { label: string; icon: string; color: string } {
+  if (!speed || speed < 0.3) return { label: 'Stationary', icon: '⏸️', color: 'text-muted-foreground' };
+  if (speed < 2) return { label: 'Walking', icon: '🚶', color: 'text-green-400' };
+  if (speed < 15) return { label: 'Driving', icon: '🚗', color: 'text-blue-400' };
+  return { label: 'Traveling', icon: '✈️', color: 'text-purple-400' };
+}
+
+function speedToMph(speed?: number | null): string | null {
+  if (!speed || speed < 0.3) return null;
+  return `${Math.round(speed * 2.237)} mph`;
 }
 
 function friendIcon(f: LocationRecord, selected: boolean) {
   const name = esc(friendName(f));
   const avatar = f.profile?.avatar_url ? esc(f.profile.avatar_url) : null;
   const isRecent = (Date.now() - new Date(f.updated_at).getTime()) < 300_000;
-  const statusEmoji = f.status ? f.status.split(' ')[0] : '';
-  const hasStory = false; // placeholder for stories integration
+  const isMoving = (f.speed || 0) > 0.5;
+  const activity = getActivityFromSpeed(f.speed);
   return L.divIcon({
     className: 'friend-map-marker',
-    iconSize: [56, 72],
-    iconAnchor: [28, 68],
-    html: `<div class="vfm ${selected ? 'sel' : ''} ${hasStory ? 'story' : ''}" aria-label="${name}">
+    iconSize: [60, 78],
+    iconAnchor: [30, 74],
+    html: `<div class="vfm ${selected ? 'sel' : ''} ${isMoving ? 'moving' : ''}" aria-label="${name}">
+      <div class="vfm-ring ${isRecent ? (isMoving ? 'active' : 'online') : 'away'}"></div>
       ${avatar ? `<img src="${avatar}" alt="${name}" class="vfm-av"/>` : `<span class="vfm-in">${initial(name)}</span>`}
-      <span class="vfm-status ${isRecent ? 'online' : 'away'}"></span>
-      ${statusEmoji ? `<span class="vfm-emoji">${statusEmoji}</span>` : ''}
+      <span class="vfm-activity-dot ${isMoving ? 'moving' : ''}">${activity.icon}</span>
       <span class="vfm-arrow"></span>
     </div>
     <div class="vfm-label">${name.split(' ')[0]}</div>`,
