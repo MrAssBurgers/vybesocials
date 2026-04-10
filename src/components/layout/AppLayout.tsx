@@ -77,9 +77,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
                 noPadding ? "overflow-hidden" : "overflow-y-auto"
               )}
               style={{
-                overscrollBehavior: 'contain',
-                WebkitOverflowScrolling: 'touch',
-                contain: 'layout style',
+                  overscrollBehavior: 'contain',
+                  WebkitOverflowScrolling: 'touch',
               }}
             >
               <div 

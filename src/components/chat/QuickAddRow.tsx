@@ -44,7 +44,10 @@ export function QuickAddRow({
     const el = scrollRef.current;
     if (!el) return;
     const handler = (e: WheelEvent) => {
-      if (e.deltaY !== 0) {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaX;
+      } else if (e.deltaY !== 0 && el.scrollWidth > el.clientWidth) {
         e.preventDefault();
         el.scrollLeft += e.deltaY;
       }
