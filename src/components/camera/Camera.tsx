@@ -9,7 +9,6 @@ import { CameraShareSheet } from './CameraShareSheet';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
 import { toast } from 'sonner';
-import { toast } from 'sonner';
 
 interface CameraProps {
   onClose: () => void;

@@ -11,7 +11,6 @@ import { SoundControls } from '@/components/sounds/SoundControls';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
 import { Sound } from '@/hooks/useSounds';
-import { Sound } from '@/hooks/useSounds';
 
 interface CameraProps {
   onClose: () => void;
