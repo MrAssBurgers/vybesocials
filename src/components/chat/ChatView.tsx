@@ -1805,7 +1805,15 @@ const MessageInputArea = memo(function MessageInputArea({
   onSendSticker?: (imageUrl: string) => void;
 }) {
   return (
-    <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30">
+    <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30 relative">
+      {/* Sticker Panel */}
+      {onSendSticker && showStickerPanel && setShowStickerPanel && (
+        <StickerPanel
+          open={showStickerPanel}
+          onClose={() => setShowStickerPanel(false)}
+          onSendSticker={onSendSticker}
+        />
+      )}
       
       <div className="px-2 py-2 sm:px-4 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <input
