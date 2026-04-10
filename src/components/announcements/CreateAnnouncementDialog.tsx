@@ -1,19 +1,26 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Megaphone, Send, ImagePlus, X } from 'lucide-react';
+import { Megaphone, Send } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useCreateAnnouncement } from '@/hooks/useAnnouncements';
+import { MediaUploadField } from './MediaUploadField';
 import { toast } from 'sonner';
 
 export function CreateAnnouncementDialog() {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [mediaUrl, setMediaUrl] = useState('');
+  const [mediaType, setMediaType] = useState<'image' | 'video' | 'gif' | null>(null);
   const createAnnouncement = useCreateAnnouncement();
+
+  const handleMediaChange = (url: string, type: 'image' | 'video' | 'gif' | null) => {
+    setMediaUrl(url);
+    setMediaType(type);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,14 +33,16 @@ export function CreateAnnouncementDialog() {
       await createAnnouncement.mutateAsync({
         title: title.trim(),
         content: content.trim(),
-        image_url: imageUrl.trim() || undefined,
+        image_url: mediaUrl || undefined,
+        media_type: mediaType || 'image',
       });
       toast.success('Announcement posted! 📢');
       setTitle('');
       setContent('');
-      setImageUrl('');
+      setMediaUrl('');
+      setMediaType(null);
       setOpen(false);
-    } catch (error) {
+    } catch {
       toast.error('Failed to post announcement');
     }
   };
@@ -76,29 +85,11 @@ export function CreateAnnouncementDialog() {
             rows={4}
           />
 
-          {/* Image URL */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <ImagePlus className="h-3.5 w-3.5" />
-              Image (optional)
-            </div>
-            <Input
-              placeholder="Paste image URL..."
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-            />
-            {imageUrl && (
-              <div className="relative rounded-xl overflow-hidden border border-border">
-                <img src={imageUrl} alt="Preview" className="w-full max-h-40 object-cover"
-                  onError={(e) => (e.currentTarget.style.display = 'none')}
-                />
-                <button type="button" onClick={() => setImageUrl('')}
-                  className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center">
-                  <X className="h-3 w-3 text-white" />
-                </button>
-              </div>
-            )}
-          </div>
+          <MediaUploadField
+            mediaUrl={mediaUrl}
+            mediaType={mediaType}
+            onMediaChange={handleMediaChange}
+          />
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>

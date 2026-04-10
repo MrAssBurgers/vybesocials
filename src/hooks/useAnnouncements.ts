@@ -7,6 +7,7 @@ export interface Announcement {
   title: string;
   content: string;
   image_url: string | null;
+  media_type: 'image' | 'video' | 'gif' | null;
   author_id: string;
   created_at: string;
   expires_at: string | null;
@@ -72,13 +73,14 @@ export function useCreateAnnouncement() {
   const { profile } = useAuth();
   
   return useMutation({
-    mutationFn: async ({ title, content, image_url }: { title: string; content: string; image_url?: string }) => {
+    mutationFn: async ({ title, content, image_url, media_type }: { title: string; content: string; image_url?: string; media_type?: string }) => {
       const { data, error } = await supabase
         .from('announcements')
         .insert({
           title,
           content,
           image_url: image_url || null,
+          media_type: media_type || 'image',
           author_id: profile!.id,
         })
         .select()
@@ -126,10 +128,10 @@ export function useUpdateAnnouncement() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ id, title, content, image_url }: { id: string; title: string; content: string; image_url?: string | null }) => {
+    mutationFn: async ({ id, title, content, image_url, media_type }: { id: string; title: string; content: string; image_url?: string | null; media_type?: string | null }) => {
       const { error } = await supabase
         .from('announcements')
-        .update({ title, content, image_url: image_url ?? null })
+        .update({ title, content, image_url: image_url ?? null, media_type: media_type ?? 'image' })
         .eq('id', id);
       if (error) throw error;
     },
