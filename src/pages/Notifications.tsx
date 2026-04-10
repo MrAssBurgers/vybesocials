@@ -199,8 +199,7 @@ function RecentAnnouncementsSection() {
   );
 }
 
-
-  const navigate = useNavigate();
+export default function NotificationsPage() {
   const queryClient = useQueryClient();
   const { data: notifications, isLoading, refetch } = useNotifications();
   const { data: friendRequests, refetch: refetchRequests } = useFriendRequests();
