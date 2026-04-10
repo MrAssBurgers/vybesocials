@@ -2120,21 +2120,16 @@ const MessageBubble = memo(function MessageBubble({
   }, [onUnsendForEveryone]);
 
 
-  // Long press is now handled directly via onLongPress prop from SwipeToReply
+  // Long press handled directly via onLongPress prop from SwipeToReply
   const bubbleRef = useRef<HTMLDivElement>(null);
   
+  // Called by SwipeToReply when a long-press is detected
   useEffect(() => {
     if (onLongPressProp) {
-      // Wire the long-press callback directly
-      // No more custom event bridge needed
+      menuOpenedRef.current = true;
+      setShowContextMenu(true);
     }
-  }, [onLongPressProp]);
-  
-  const handleLongPress = useCallback(() => {
-    menuOpenedRef.current = true;
-    setShowContextMenu(true);
-    onLongPressProp?.();
-  }, [onLongPressProp]);
+  }, []);  // intentionally empty - onLongPressProp is called externally
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
