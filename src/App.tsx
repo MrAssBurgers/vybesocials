@@ -30,6 +30,8 @@ import { AppBackgroundProvider } from "@/components/layout/AppBackground";
 import { NavigationRefSetter } from "@/components/layout/NavigationRefSetter";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
+import { LocationProvider } from "@/providers/LocationProvider";
+import { useBriefPreFetch } from "@/hooks/useBriefPreFetch";
 
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
@@ -121,6 +123,20 @@ const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 // Track if initial load has completed (persists across navigations)
 let hasInitialLoadCompleted = false;
 
+// Background brief pre-fetcher (needs auth context)
+function BriefPreFetchInit() {
+  const [uid, setUid] = useState<string | undefined>();
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUid(data.user?.id));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setUid(session?.user?.id);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+  useBriefPreFetch(uid);
+  return null;
+}
+
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
@@ -134,6 +150,7 @@ function AppWithPreloader() {
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
   usePostsRealtime();
+  // useBriefPreFetch is initialized inside AuthProvider via BriefPreFetchInit
   // useInitEncryption moved to DeferredAuthHooks (inside AuthProvider)
 
   useEffect(() => {
@@ -164,6 +181,8 @@ function AppWithPreloader() {
       <GlobalErrorHandler />
       <AuthProvider>
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
+        <BriefPreFetchInit />
+        <LocationProvider>
         {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
         <AppBackgroundProvider>
           <CustomThemeProvider>
@@ -212,6 +231,7 @@ function AppWithPreloader() {
             </ThemeTransitionProvider>
           </CustomThemeProvider>
         </AppBackgroundProvider>
+        </LocationProvider>
       </AuthProvider>
     </>
   );

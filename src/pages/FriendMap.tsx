@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User } from 'lucide-react';
+import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User, Car, Footprints, Pause } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/lib/auth';
@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
+import { useLocationContext } from '@/providers/LocationProvider';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -25,6 +26,7 @@ interface LocationRecord {
   expires_at: string | null;
   sharing_enabled: boolean;
   status?: string | null;
+  speed?: number | null;
   profile?: {
     username: string | null;
     display_name: string | null;
@@ -73,6 +75,22 @@ const MAP_TILES: Record<string, { url: string; label: string; icon: string }> = 
 
 /* ── helpers ─────────────────────────────────────────── */
 
+/** Smoothly animate a Leaflet marker between two positions (Apple Maps style) */
+function animateMarker(marker: L.Marker, from: L.LatLng, to: L.LatLng, duration = 800) {
+  const start = performance.now();
+  const fromLat = from.lat, fromLng = from.lng;
+  const dLat = to.lat - fromLat, dLng = to.lng - fromLng;
+  
+  function step(now: number) {
+    const t = Math.min((now - start) / duration, 1);
+    // ease-out cubic
+    const ease = 1 - Math.pow(1 - t, 3);
+    marker.setLatLng([fromLat + dLat * ease, fromLng + dLng * ease]);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
 function friendName(loc?: Partial<LocationRecord> | null) {
   return loc?.profile?.display_name || loc?.profile?.username || 'Friend';
 }
@@ -106,26 +124,39 @@ function distanceBetween(a: [number, number], b: [number, number]) {
 }
 
 function autoStatus(speed: number | null, hour: number): string | null {
-  if (speed && speed > 11) return '✈️ Traveling';
-  if (speed && speed > 2) return '🚗 On the move';
+  if (speed && speed > 25) return '✈️ Traveling';
+  if (speed && speed > 2) return '🚗 Driving';
+  if (speed && speed > 0.5) return '🚶 Walking';
   if (hour >= 0 && hour < 6) return '😴 Sleeping';
   return null;
+}
+
+function getActivityFromSpeed(speed?: number | null): { label: string; icon: string; color: string } {
+  if (!speed || speed < 0.3) return { label: 'Stationary', icon: '⏸️', color: 'text-muted-foreground' };
+  if (speed < 2) return { label: 'Walking', icon: '🚶', color: 'text-green-400' };
+  if (speed < 15) return { label: 'Driving', icon: '🚗', color: 'text-blue-400' };
+  return { label: 'Traveling', icon: '✈️', color: 'text-purple-400' };
+}
+
+function speedToMph(speed?: number | null): string | null {
+  if (!speed || speed < 0.3) return null;
+  return `${Math.round(speed * 2.237)} mph`;
 }
 
 function friendIcon(f: LocationRecord, selected: boolean) {
   const name = esc(friendName(f));
   const avatar = f.profile?.avatar_url ? esc(f.profile.avatar_url) : null;
   const isRecent = (Date.now() - new Date(f.updated_at).getTime()) < 300_000;
-  const statusEmoji = f.status ? f.status.split(' ')[0] : '';
-  const hasStory = false; // placeholder for stories integration
+  const isMoving = (f.speed || 0) > 0.5;
+  const activity = getActivityFromSpeed(f.speed);
   return L.divIcon({
     className: 'friend-map-marker',
-    iconSize: [56, 72],
-    iconAnchor: [28, 68],
-    html: `<div class="vfm ${selected ? 'sel' : ''} ${hasStory ? 'story' : ''}" aria-label="${name}">
+    iconSize: [60, 78],
+    iconAnchor: [30, 74],
+    html: `<div class="vfm ${selected ? 'sel' : ''} ${isMoving ? 'moving' : ''}" aria-label="${name}">
+      <div class="vfm-ring ${isRecent ? (isMoving ? 'active' : 'online') : 'away'}"></div>
       ${avatar ? `<img src="${avatar}" alt="${name}" class="vfm-av"/>` : `<span class="vfm-in">${initial(name)}</span>`}
-      <span class="vfm-status ${isRecent ? 'online' : 'away'}"></span>
-      ${statusEmoji ? `<span class="vfm-emoji">${statusEmoji}</span>` : ''}
+      <span class="vfm-activity-dot ${isMoving ? 'moving' : ''}">${activity.icon}</span>
       <span class="vfm-arrow"></span>
     </div>
     <div class="vfm-label">${name.split(' ')[0]}</div>`,
@@ -188,7 +219,7 @@ function useFriendLocations(friendIds: string[]) {
       if (!friendIds.length) return [];
       const { data, error } = await supabase
         .from('user_locations')
-        .select('id, user_id, latitude, longitude, accuracy, label, updated_at, expires_at, sharing_enabled, status, profile:profiles(username, display_name, avatar_url)')
+        .select('id, user_id, latitude, longitude, accuracy, label, updated_at, expires_at, sharing_enabled, status, speed, profile:profiles(username, display_name, avatar_url)')
         .in('user_id', friendIds)
         .eq('sharing_enabled', true);
       if (error) throw error;
@@ -273,6 +304,7 @@ export default function FriendMap() {
   const { profile } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { coords: myCoords, accuracy, sharing, setSharing, speed: mySpeed } = useLocationContext();
 
   const { data: friendIds = [] } = useFriendIds(profile?.id);
   const { data: friends = [] } = useFriendLocations(friendIds);
@@ -285,13 +317,9 @@ export default function FriendMap() {
   const accCircle = useRef<L.Circle | null>(null);
   const tileRef = useRef<L.TileLayer | null>(null);
   const framed = useRef(false);
-  const lastUpsert = useRef(0);
-  const lastSpeed = useRef<number | null>(null);
+  const friendMarkers = useRef<Map<string, L.Marker>>(new Map());
 
   // State
-  const [myCoords, setMyCoords] = useState<[number, number] | null>(null);
-  const [accuracy, setAccuracy] = useState<number | null>(null);
-  const [sharing, setSharing] = useState(() => localStorage.getItem(SHARING_PREF_KEY) === 'true');
   const [selId, setSelId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [stylesOpen, setStylesOpen] = useState(false);
@@ -341,71 +369,7 @@ export default function FriendMap() {
 
   const { query: searchQuery, results: searchResults, nearby: nearbyPlaces, loading: searchLoading, search: doSearch, clear: clearSearch } = useNominatimSearch(myCoords);
 
-  /* ── upsert location to DB (debounced) ─────────────── */
-
-  const upsertLocation = useCallback(async (lat: number, lng: number, acc: number) => {
-    if (!profile?.id || !sharing) return;
-    const now = Date.now();
-    if (now - lastUpsert.current < UPSERT_INTERVAL_MS) return;
-    lastUpsert.current = now;
-    const hour = new Date().getHours();
-    const status = autoStatus(lastSpeed.current, hour);
-    await supabase
-      .from('user_locations')
-      .upsert({
-        user_id: profile.id,
-        latitude: lat,
-        longitude: lng,
-        accuracy: acc,
-        sharing_enabled: true,
-        status,
-      } as any, { onConflict: 'user_id' });
-  }, [profile?.id, sharing]);
-
-  /* ── watchPosition lifecycle ───────────────────────── */
-
-  useEffect(() => {
-    if (!sharing) return;
-    let watchId: number | undefined;
-
-    try {
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-          setMyCoords(coords);
-          setAccuracy(pos.coords.accuracy);
-          lastSpeed.current = pos.coords.speed;
-          upsertLocation(coords[0], coords[1], pos.coords.accuracy);
-        },
-        (err) => {
-          console.warn('Geolocation error:', err.message);
-          if (err.code === 1) {
-            toast.error('Location permission denied');
-            setSharing(false);
-            localStorage.setItem(SHARING_PREF_KEY, 'false');
-          }
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-      );
-    } catch {
-      // geolocation not available
-    }
-
-    return () => {
-      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
-    };
-  }, [sharing, upsertLocation]);
-
-  /* ── disable sharing in DB when toggled off ────────── */
-
-  useEffect(() => {
-    if (sharing || !profile?.id) return;
-    supabase
-      .from('user_locations')
-      .update({ sharing_enabled: false } as any)
-      .eq('user_id', profile.id)
-      .then();
-  }, [sharing, profile?.id]);
+  /* ── location tracking is handled by LocationProvider ── */
 
   /* ── realtime subscription ─────────────────────────── */
 
@@ -429,12 +393,10 @@ export default function FriendMap() {
   const toggleSharing = useCallback(() => {
     const next = !sharing;
     setSharing(next);
-    localStorage.setItem(SHARING_PREF_KEY, String(next));
     triggerHaptic('medium');
     toast.success(next ? 'Live location on 📍' : 'Ghost Mode enabled 👻');
-    if (next) lastUpsert.current = 0;
     setGhostOpen(false);
-  }, [sharing]);
+  }, [sharing, setSharing]);
 
   const focus = useCallback((f: LocationRecord) => {
     setSelId(f.user_id);
@@ -533,32 +495,65 @@ export default function FriendMap() {
     if (!myMk.current) {
       myMk.current = L.marker(myCoords, { icon: myIcon(), zIndexOffset: 1000, interactive: false }).addTo(map);
     } else {
-      myMk.current.setLatLng(myCoords);
+      // Smooth animation for own marker (Apple Maps style)
+      const old = myMk.current.getLatLng();
+      if (old.lat !== myCoords[0] || old.lng !== myCoords[1]) {
+        animateMarker(myMk.current, old, L.latLng(myCoords[0], myCoords[1]));
+      }
     }
   }, [myCoords, accuracy]);
 
-  /* ── friend markers (with clustering) ──────────────── */
+  /* ── friend markers (smooth animation) ──────────────── */
 
   useEffect(() => {
     const layer = fLayer.current;
     if (!layer) return;
-    layer.clearLayers();
 
-    // Render individual markers
+    // Track which markers are still present
+    const currentIds = new Set<string>();
+
+    // Smooth animate individual markers
     clusteredMarkers.singles.forEach((f) => {
-      L.marker([f.latitude, f.longitude], { icon: friendIcon(f, f.user_id === selId), keyboard: false })
-        .on('click', () => focus(f))
-        .addTo(layer);
+      currentIds.add(f.user_id);
+      const newPos = L.latLng(f.latitude, f.longitude);
+      const existing = friendMarkers.current.get(f.user_id);
+
+      if (existing) {
+        // Smooth transition: animate from old position to new
+        const oldPos = existing.getLatLng();
+        if (oldPos.lat !== newPos.lat || oldPos.lng !== newPos.lng) {
+          animateMarker(existing, oldPos, newPos);
+        }
+        existing.setIcon(friendIcon(f, f.user_id === selId));
+      } else {
+        const marker = L.marker(newPos, { icon: friendIcon(f, f.user_id === selId), keyboard: false })
+          .on('click', () => focus(f))
+          .addTo(layer);
+        friendMarkers.current.set(f.user_id, marker);
+      }
     });
 
-    // Render clusters
+    // Render clusters (these recreate each time)
+    // Remove markers that are now in clusters
     clusteredMarkers.clusters.forEach((c) => {
+      c.members.forEach(m => {
+        const existing = friendMarkers.current.get(m.user_id);
+        if (existing) { layer.removeLayer(existing); friendMarkers.current.delete(m.user_id); }
+      });
       const avatars = c.members.map((m) => m.profile?.avatar_url || '').filter(Boolean);
       L.marker(c.center, { icon: clusterIcon(c.members.length, avatars), keyboard: false })
         .on('click', () => {
           mapRef.current?.flyTo(c.center, Math.min((zoom || 10) + 3, 16), { duration: 1 });
         })
         .addTo(layer);
+    });
+
+    // Remove markers for friends no longer present
+    friendMarkers.current.forEach((marker, id) => {
+      if (!currentIds.has(id)) {
+        layer.removeLayer(marker);
+        friendMarkers.current.delete(id);
+      }
     });
   }, [clusteredMarkers, selId, focus, zoom]);
 
@@ -584,20 +579,23 @@ export default function FriendMap() {
           @keyframes pulse-glow{0%,100%{box-shadow:0 0 0 0 hsl(217 91% 60%/.4)}50%{box-shadow:0 0 20px 8px hsl(217 91% 60%/.2)}}
           @keyframes bounce-in{0%{transform:scale(0) translateY(20px);opacity:0}60%{transform:scale(1.1) translateY(-4px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}
           @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
-          @keyframes story-spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+          @keyframes ring-pulse{0%,100%{opacity:.7}50%{opacity:1}}
+          @keyframes moving-glow{0%,100%{box-shadow:0 0 8px 2px hsl(142 76% 56%/.3)}50%{box-shadow:0 0 20px 6px hsl(142 76% 56%/.15)}}
           .friend-map-marker,.my-location-marker{background:transparent!important;border:none!important}
           .leaflet-container{height:100%;width:100%;background:#0a0a0a;font-family:inherit}
           .leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
           
-          .vfm{position:relative;display:flex;height:48px;width:48px;align-items:center;justify-content:center;overflow:visible;border-radius:9999px;border:3px solid hsl(var(--background));background:hsl(var(--card));box-shadow:0 8px 32px -8px rgba(0,0,0,.6);animation:bounce-in .5s cubic-bezier(.34,1.56,.64,1) both}
-          .vfm.sel{border-color:hsl(var(--primary));box-shadow:0 0 0 4px hsl(var(--primary)/.3),0 8px 32px -8px rgba(0,0,0,.6);animation:float 2s ease-in-out infinite}
-          .vfm.story{border-color:transparent;background:linear-gradient(hsl(var(--card)),hsl(var(--card))) padding-box,linear-gradient(135deg,#ff6b6b,#ffd93d,#6bcb77,#4d96ff) border-box}
+          .vfm{position:relative;display:flex;height:52px;width:52px;align-items:center;justify-content:center;overflow:visible;border-radius:9999px;background:hsl(var(--card));box-shadow:0 8px 32px -8px rgba(0,0,0,.6);animation:bounce-in .5s cubic-bezier(.34,1.56,.64,1) both;transition:transform .3s ease}
+          .vfm.sel{transform:scale(1.15);animation:float 2s ease-in-out infinite}
+          .vfm.moving{animation:moving-glow 2s ease-in-out infinite,bounce-in .5s cubic-bezier(.34,1.56,.64,1) both}
+          .vfm-ring{position:absolute;inset:-4px;border-radius:9999px;border:3px solid transparent}
+          .vfm-ring.active{border-image:linear-gradient(135deg,#22c55e,#10b981,#06b6d4) 1;border-color:#22c55e;animation:ring-pulse 2s ease-in-out infinite}
+          .vfm-ring.online{border-color:#22c55e}
+          .vfm-ring.away{border-color:hsl(var(--muted-foreground)/.3)}
           .vfm-av{height:100%;width:100%;object-fit:cover;border-radius:9999px}
           .vfm-in{font-size:16px;font-weight:800;color:hsl(var(--foreground))}
-          .vfm-status{position:absolute;top:0;right:0;height:12px;width:12px;border-radius:9999px;border:2.5px solid hsl(var(--background))}
-          .vfm-status.online{background:#22c55e}
-          .vfm-status.away{background:#6b7280}
-          .vfm-emoji{position:absolute;bottom:-2px;left:-4px;font-size:14px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
+          .vfm-activity-dot{position:absolute;bottom:-2px;right:-2px;font-size:12px;height:22px;width:22px;display:flex;align-items:center;justify-content:center;border-radius:9999px;background:hsl(var(--card));border:2px solid hsl(var(--background));box-shadow:0 2px 6px rgba(0,0,0,.3)}
+          .vfm-activity-dot.moving{background:hsl(142 76% 56%/.15)}
           .vfm-arrow{position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:10px solid hsl(var(--card))}
           .vfm.sel .vfm-arrow{border-top-color:hsl(var(--primary))}
           .vfm-label{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;white-space:nowrap;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.8),0 0 2px rgba(0,0,0,.6);pointer-events:none}
@@ -899,58 +897,93 @@ export default function FriendMap() {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] pb-[max(env(safe-area-inset-bottom),12px)]">
           <div className="mx-auto max-w-lg space-y-2 px-4">
 
-            {/* Selected friend card (enhanced) */}
+            {/* Selected friend card (Life360-inspired) */}
             <AnimatePresence>
-              {sel && (
+              {sel && (() => {
+                const activity = getActivityFromSpeed(sel.speed);
+                const mph = speedToMph(sel.speed);
+                const isLive = (Date.now() - new Date(sel.updated_at).getTime()) < 300_000;
+                const dist = myCoords ? distanceBetween(myCoords, [sel.latitude, sel.longitude]).toFixed(1) : null;
+                return (
                 <motion.div
                   initial={{ opacity: 0, y: 24, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 24, scale: 0.95 }}
                   transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                  className="pointer-events-auto rounded-3xl bg-black/70 p-5 shadow-2xl backdrop-blur-2xl border border-white/10"
+                  className="pointer-events-auto rounded-3xl bg-black/70 p-4 shadow-2xl backdrop-blur-2xl border border-white/10"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10">
-                      {sel.profile?.avatar_url ? (
-                        <img src={sel.profile.avatar_url} alt={friendName(sel)} className="h-full w-full object-cover" loading="lazy" />
-                      ) : (
-                        <span className="text-lg font-bold text-white">{initial(friendName(sel))}</span>
-                      )}
-                      <span className={cn(
-                        'absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-black/60',
-                        (Date.now() - new Date(sel.updated_at).getTime()) < 300_000 ? 'bg-green-400' : 'bg-gray-500'
-                      )} />
-                    </div>
+                  <div className="flex items-center gap-3">
+                    {/* Tappable avatar with activity ring */}
+                    <button
+                      onClick={() => { const u = friendUsername(sel); if (u) navigate(`/u/${u}`); }}
+                      className="relative shrink-0"
+                    >
+                      <div className={cn(
+                        'h-16 w-16 rounded-full p-[3px]',
+                        isLive && (sel.speed || 0) > 0.5
+                          ? 'bg-gradient-to-br from-green-400 via-emerald-500 to-cyan-500'
+                          : isLive ? 'bg-green-500' : 'bg-muted-foreground/30'
+                      )}>
+                        <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-black/90">
+                          {sel.profile?.avatar_url ? (
+                            <img src={sel.profile.avatar_url} alt={friendName(sel)} className="h-full w-full object-cover" loading="lazy" />
+                          ) : (
+                            <span className="text-lg font-bold text-white">{initial(friendName(sel))}</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="absolute -bottom-1 -right-1 text-base">{activity.icon}</span>
+                    </button>
+
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-white">{friendName(sel)}</p>
                       <p className="truncate text-xs text-white/50">
-                        {friendUsername(sel) ? `@${friendUsername(sel)}` : 'Sharing location'}
+                        {friendUsername(sel) ? `@${friendUsername(sel)}` : ''}
                         {' · '}
-                        {timeSince(sel.updated_at) === 'now' ? '📍 Live' : `${timeSince(sel.updated_at)} ago`}
+                        {isLive ? '📍 Live' : `${timeSince(sel.updated_at)} ago`}
                       </p>
-                      {sel.status && (
-                        <p className="text-xs text-white/60 mt-0.5">{sel.status}</p>
-                      )}
-                      {myCoords && (
-                        <p className="text-[11px] text-white/40 mt-0.5">
-                          📏 {distanceBetween(myCoords, [sel.latitude, sel.longitude]).toFixed(1)} mi away
-                        </p>
-                      )}
+                      {/* Activity badge */}
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className={cn(
+                          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold',
+                          (sel.speed || 0) > 2 ? 'bg-blue-500/20 text-blue-300' :
+                          (sel.speed || 0) > 0.5 ? 'bg-green-500/20 text-green-300' :
+                          'bg-white/10 text-white/50'
+                        )}>
+                          {activity.label}
+                          {mph && ` · ${mph}`}
+                        </span>
+                        {dist && (
+                          <span className="text-[10px] text-white/40">{dist} mi</span>
+                        )}
+                      </div>
                     </div>
+
                     <button
                       onClick={() => setSelId(null)}
-                      className="p-1 rounded-full hover:bg-white/10 transition-colors"
+                      className="p-1.5 rounded-full hover:bg-white/10 transition-colors self-start"
                     >
                       <X className="h-4 w-4 text-white/40" />
                     </button>
                   </div>
 
                   {/* Action buttons */}
-                  <div className="flex gap-2 mt-4">
+                  <div className="flex gap-2 mt-3">
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        const origin = myCoords ? `&origin=${myCoords[0]},${myCoords[1]}` : '';
+                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${sel.latitude},${sel.longitude}${origin}&travelmode=driving`, '_blank');
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground"
+                    >
+                      <Navigation className="h-3.5 w-3.5" />
+                      Navigate
+                    </motion.button>
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       onClick={() => navigate(`/messages`)}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground"
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-white/10 py-2.5 text-xs font-bold text-white"
                     >
                       <MessageCircle className="h-3.5 w-3.5" />
                       Message
@@ -959,23 +992,14 @@ export default function FriendMap() {
                       whileTap={{ scale: 0.95 }}
                       onClick={() => { const u = friendUsername(sel); if (u) navigate(`/u/${u}`); }}
                       disabled={!friendUsername(sel)}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-white/10 py-2.5 text-xs font-bold text-white disabled:opacity-40"
+                      className="flex items-center justify-center gap-1.5 rounded-xl bg-white/10 px-3 py-2.5 text-xs font-bold text-white disabled:opacity-40"
                     >
                       <User className="h-3.5 w-3.5" />
-                      Profile
-                    </motion.button>
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => {
-                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${sel.latitude},${sel.longitude}`, '_blank');
-                      }}
-                      className="flex items-center justify-center gap-1.5 rounded-xl bg-white/10 px-4 py-2.5 text-xs font-bold text-white"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
                     </motion.button>
                   </div>
                 </motion.div>
-              )}
+                );
+              })()}
             </AnimatePresence>
 
             {/* Horizontal friend strip */}
@@ -984,6 +1008,8 @@ export default function FriendMap() {
                 {sortedFriends.map((f, i) => {
                   const isRecent = (Date.now() - new Date(f.updated_at).getTime()) < 300_000;
                   const isSelected = sel?.user_id === f.user_id;
+                  const isMoving = (f.speed || 0) > 0.5;
+                  const fActivity = getActivityFromSpeed(f.speed);
                   return (
                     <motion.button
                       key={f.user_id}
@@ -995,7 +1021,10 @@ export default function FriendMap() {
                     >
                       <div className={cn(
                         'relative h-14 w-14 rounded-full p-[3px] transition-all',
-                        isSelected ? 'bg-gradient-to-br from-primary to-primary/60' : isRecent ? 'bg-gradient-to-br from-green-400 to-emerald-600' : 'bg-white/20'
+                        isSelected ? 'bg-gradient-to-br from-primary to-primary/60'
+                          : isMoving ? 'bg-gradient-to-br from-green-400 via-emerald-500 to-cyan-500'
+                          : isRecent ? 'bg-green-500'
+                          : 'bg-white/20'
                       )}>
                         <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-black/80">
                           {f.profile?.avatar_url ? (
@@ -1004,16 +1033,11 @@ export default function FriendMap() {
                             <span className="text-sm font-bold text-white">{initial(friendName(f))}</span>
                           )}
                         </div>
-                        {isRecent && (
-                          <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-black bg-green-400" />
-                        )}
+                        <span className="absolute -bottom-0.5 -right-0.5 text-xs">{fActivity.icon}</span>
                       </div>
                       <span className="max-w-[56px] truncate text-[10px] font-semibold text-white/80 text-center">
                         {friendName(f).split(' ')[0]}
                       </span>
-                      {f.status && (
-                        <span className="text-[9px] text-white/50 max-w-[56px] truncate">{f.status.split(' ')[0]}</span>
-                      )}
                     </motion.button>
                   );
                 })}

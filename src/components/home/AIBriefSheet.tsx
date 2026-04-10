@@ -426,8 +426,13 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
   useEffect(() => {
     if (open && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
-      // Always fetch fresh data when opening; show cached data in the meantime
-      fetchBrief(!!briefData);
+      // Check if cache is fresh — if so, show instantly without loading
+      const cached = getCachedBrief();
+      if (cached && !briefData) {
+        setBriefData(cached);
+      }
+      // Always fetch fresh data in background
+      fetchBrief(true);
     }
     if (!open) hasFetchedRef.current = false;
     return () => { if (abortControllerRef.current) abortControllerRef.current.abort(); };
