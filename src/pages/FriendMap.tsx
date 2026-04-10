@@ -575,20 +575,23 @@ export default function FriendMap() {
           @keyframes pulse-glow{0%,100%{box-shadow:0 0 0 0 hsl(217 91% 60%/.4)}50%{box-shadow:0 0 20px 8px hsl(217 91% 60%/.2)}}
           @keyframes bounce-in{0%{transform:scale(0) translateY(20px);opacity:0}60%{transform:scale(1.1) translateY(-4px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}
           @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
-          @keyframes story-spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+          @keyframes ring-pulse{0%,100%{opacity:.7}50%{opacity:1}}
+          @keyframes moving-glow{0%,100%{box-shadow:0 0 8px 2px hsl(142 76% 56%/.3)}50%{box-shadow:0 0 20px 6px hsl(142 76% 56%/.15)}}
           .friend-map-marker,.my-location-marker{background:transparent!important;border:none!important}
           .leaflet-container{height:100%;width:100%;background:#0a0a0a;font-family:inherit}
           .leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
           
-          .vfm{position:relative;display:flex;height:48px;width:48px;align-items:center;justify-content:center;overflow:visible;border-radius:9999px;border:3px solid hsl(var(--background));background:hsl(var(--card));box-shadow:0 8px 32px -8px rgba(0,0,0,.6);animation:bounce-in .5s cubic-bezier(.34,1.56,.64,1) both}
-          .vfm.sel{border-color:hsl(var(--primary));box-shadow:0 0 0 4px hsl(var(--primary)/.3),0 8px 32px -8px rgba(0,0,0,.6);animation:float 2s ease-in-out infinite}
-          .vfm.story{border-color:transparent;background:linear-gradient(hsl(var(--card)),hsl(var(--card))) padding-box,linear-gradient(135deg,#ff6b6b,#ffd93d,#6bcb77,#4d96ff) border-box}
+          .vfm{position:relative;display:flex;height:52px;width:52px;align-items:center;justify-content:center;overflow:visible;border-radius:9999px;background:hsl(var(--card));box-shadow:0 8px 32px -8px rgba(0,0,0,.6);animation:bounce-in .5s cubic-bezier(.34,1.56,.64,1) both;transition:transform .3s ease}
+          .vfm.sel{transform:scale(1.15);animation:float 2s ease-in-out infinite}
+          .vfm.moving{animation:moving-glow 2s ease-in-out infinite,bounce-in .5s cubic-bezier(.34,1.56,.64,1) both}
+          .vfm-ring{position:absolute;inset:-4px;border-radius:9999px;border:3px solid transparent}
+          .vfm-ring.active{border-image:linear-gradient(135deg,#22c55e,#10b981,#06b6d4) 1;border-color:#22c55e;animation:ring-pulse 2s ease-in-out infinite}
+          .vfm-ring.online{border-color:#22c55e}
+          .vfm-ring.away{border-color:hsl(var(--muted-foreground)/.3)}
           .vfm-av{height:100%;width:100%;object-fit:cover;border-radius:9999px}
           .vfm-in{font-size:16px;font-weight:800;color:hsl(var(--foreground))}
-          .vfm-status{position:absolute;top:0;right:0;height:12px;width:12px;border-radius:9999px;border:2.5px solid hsl(var(--background))}
-          .vfm-status.online{background:#22c55e}
-          .vfm-status.away{background:#6b7280}
-          .vfm-emoji{position:absolute;bottom:-2px;left:-4px;font-size:14px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
+          .vfm-activity-dot{position:absolute;bottom:-2px;right:-2px;font-size:12px;height:22px;width:22px;display:flex;align-items:center;justify-content:center;border-radius:9999px;background:hsl(var(--card));border:2px solid hsl(var(--background));box-shadow:0 2px 6px rgba(0,0,0,.3)}
+          .vfm-activity-dot.moving{background:hsl(142 76% 56%/.15)}
           .vfm-arrow{position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:10px solid hsl(var(--card))}
           .vfm.sel .vfm-arrow{border-top-color:hsl(var(--primary))}
           .vfm-label{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;white-space:nowrap;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.8),0 0 2px rgba(0,0,0,.6);pointer-events:none}
