@@ -29,7 +29,7 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingProgress, setRecordingProgress] = useState(0);
-  const [cameraActivated, setCameraActivated] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [segments, setSegments] = useState<RecordingSegment[]>([]);
   const [capturedMedia, setCapturedMedia] = useState<{ url: string; type: 'photo' | 'video' } | null>(null);
   const [showFlash, setShowFlash] = useState(false);
@@ -74,6 +74,14 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         }
       }
 
+      // Check if there's already a preloaded stream from the gesture
+      const preloaded = getActiveStream();
+      if (preloaded) {
+        console.log('[VybeSnapCamera] Using preloaded stream from gesture');
+        // Stop preloaded stream and get a fresh one with correct settings
+        stopCameraStream();
+      }
+
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
@@ -90,11 +98,13 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setPermissionDenied(false);
+      setCameraReady(true);
       streamRef.current = stream;
       
+      // Attach to video element if it exists already
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.play().catch(() => {});
       }
       
       // Apply zoom if supported
