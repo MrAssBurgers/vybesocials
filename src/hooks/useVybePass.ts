@@ -138,10 +138,10 @@ export function useClaimReward() {
 
   return useMutation({
     mutationFn: async (rewardId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!profile?.user_id) throw new Error('Not authenticated');
       
       const { data, error } = await supabase.rpc('claim_challenge_reward', {
-        p_user_id: profile.id,
+        p_user_id: profile.user_id,
         p_reward_id: rewardId,
       });
       
