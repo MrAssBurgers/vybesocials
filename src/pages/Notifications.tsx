@@ -6,6 +6,7 @@ import {
   Users, PhoneMissed, Bell, RefreshCw, Sparkles, ShieldAlert, BellRing, Gift
 } from 'lucide-react';
 import { useNotifications, useMarkNotificationsRead, NotificationType } from '@/hooks/useNotifications';
+import { useRecentAnnouncements } from '@/hooks/useAnnouncements';
 import { useFriendRequests, useRespondToFriendRequest } from '@/hooks/useFriends';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -273,6 +274,9 @@ export default function NotificationsPage() {
 
           {/* ─── ALL TAB ─── */}
           <TabsContent value="all" className="mt-0">
+            {/* Recent Announcements */}
+            <RecentAnnouncementsSection />
+
             <AnimatePresence mode="popLayout">
               {isLoading && !notifications ? (
                 <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-1">
