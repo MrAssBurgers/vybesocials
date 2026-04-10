@@ -90,6 +90,7 @@ import {
 import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
+import { requestCameraStream } from '@/hooks/useCameraPreload';
 import { VybeViewer } from './VybeViewer';
 // Flying bubble removed - messages now pop in like iMessage
 import { VideoSendPreview } from './VideoSendPreview';
@@ -111,6 +112,8 @@ import { DMImageSafetyGate } from './DMImageSafetyGate';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useUserBusiness } from '@/hooks/useBusinessOffers';
 import { CreateOfferDialog } from '@/components/business/CreateOfferDialog';
+import { ChatMediaBubble, SignedAudioUrl } from './ChatMediaBubble';
+import { useSafetySettings } from '@/hooks/useSafetySettings';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
 // Theme color mapping - now includes both bubble and text classes
