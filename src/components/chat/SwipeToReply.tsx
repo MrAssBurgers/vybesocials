@@ -104,9 +104,8 @@ export function SwipeToReply({
   const handleDragStart = useCallback(() => {
     isDraggingRef.current = true;
     dragActivatedRef.current = false;
-    // Safety net: cancel long-press when drag activates
-    cancelToSwipe();
-  }, [cancelToSwipe]);
+    // Do NOT cancel long-press here — onDragStart fires before real movement
+  }, []);
 
   const handleDrag = useCallback((
     _event: MouseEvent | TouchEvent | PointerEvent,
