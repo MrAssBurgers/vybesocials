@@ -7,6 +7,7 @@ export interface SafetySettings {
   user_id: string;
   content_filter_level: 'protected' | 'moderate' | 'minimal';
   dm_filter: 'everyone' | 'friends_only' | 'nobody';
+  dm_content_filter_enabled: boolean;
   message_requests_enabled: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start: string | null;
@@ -22,6 +23,7 @@ export interface SafetySettings {
 const DEFAULT_SETTINGS: Omit<SafetySettings, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
   content_filter_level: 'moderate',
   dm_filter: 'friends_only',
+  dm_content_filter_enabled: true,
   message_requests_enabled: true,
   quiet_hours_enabled: false,
   quiet_hours_start: null,
