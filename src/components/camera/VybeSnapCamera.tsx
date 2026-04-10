@@ -28,6 +28,7 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingProgress, setRecordingProgress] = useState(0);
+  const [cameraActivated, setCameraActivated] = useState(false);
   const [segments, setSegments] = useState<RecordingSegment[]>([]);
   const [capturedMedia, setCapturedMedia] = useState<{ url: string; type: 'photo' | 'video' } | null>(null);
   const [showFlash, setShowFlash] = useState(false);
@@ -102,13 +103,19 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     }
   }, []);
 
-  // Initialize camera
+  // Reset activation state when camera closes
   useEffect(() => {
-    if (isOpen && phase === 'camera') {
-      startCamera();
+    if (!isOpen) {
+      setCameraActivated(false);
     }
     return () => stopCamera();
-  }, [isOpen, phase, startCamera, stopCamera]);
+  }, [isOpen, stopCamera]);
+
+  // Activate camera from user gesture
+  const handleActivateCamera = useCallback(() => {
+    setCameraActivated(true);
+    startCamera();
+  }, [startCamera]);
   
   // Handle pinch-to-zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
