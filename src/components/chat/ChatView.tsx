@@ -2263,6 +2263,7 @@ const MessageBubble = memo(function MessageBubble({
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
           onTouchMove={handleTouchMove}
+          onContextMenu={handleContextMenu}
           onDoubleClick={onToggleReactions}
         >
 

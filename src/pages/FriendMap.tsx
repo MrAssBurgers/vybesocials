@@ -972,14 +972,18 @@ export default function FriendMap() {
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       onClick={() => {
-                        const origin = myCoords ? `&origin=${myCoords[0]},${myCoords[1]}` : '';
-                        const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${sel.latitude},${sel.longitude}${origin}&travelmode=driving`;
-                        // On mobile, use location.href to properly hand off to the native maps app
-                        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                        if (isMobile) {
-                          window.location.href = mapsUrl;
+                        const lat = sel.latitude;
+                        const lng = sel.longitude;
+                        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                        const isAndroid = /Android/i.test(navigator.userAgent);
+                        if (isIOS) {
+                          // Apple Maps deep link — falls back to Google Maps in browser
+                          window.location.href = `maps://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`;
+                        } else if (isAndroid) {
+                          // geo: intent opens user's preferred maps app
+                          window.location.href = `geo:${lat},${lng}?q=${lat},${lng}`;
                         } else {
-                          window.open(mapsUrl, '_blank');
+                          window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, '_blank');
                         }
                       }}
                       className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground"
