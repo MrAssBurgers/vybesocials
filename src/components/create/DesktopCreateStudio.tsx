@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
 import { useContentSafety } from '@/hooks/useContentSafety';
-import { ContentSafetyScanner } from '@/components/safety/ContentSafetyScanner';
+import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { AIVideoGenerator } from '@/components/ai/AIVideoGenerator';
 import { StyledUsername } from '@/components/ui/StyledUsername';
@@ -52,6 +52,9 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const [showCamera, setShowCamera] = useState(false);
   const [showAIVideoGen, setShowAIVideoGen] = useState(false);
   const [showSafety, setShowSafety] = useState(false);
+  const [vybeCheckFailed, setVybeCheckFailed] = useState(false);
+  const [scanMessage, setScanMessage] = useState('');
+  const [scanCategories, setScanCategories] = useState<string[]>([]);
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [activePreview, setActivePreview] = useState(0);
   const [videoTitle, setVideoTitle] = useState('');
@@ -91,10 +94,8 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
       setContentType('post');
     }
 
+    // Don't scan on file select — scan at post time
     contentSafety.reset();
-    if (validFiles[0].type.startsWith('video/')) contentSafety.scanVideo(validFiles[0]);
-    else contentSafety.scanImage(validFiles[0]);
-    setShowSafety(true);
   }, [contentSafety]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,6 +142,28 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const handleSubmit = async () => {
     if (!canSubmit || !user) return;
     if (contentType === 'video' && !videoTitle.trim()) { toast.error('Add a video title'); return; }
+
+    // Run AI safety scan at post time
+    if (files.length > 0 && files[0]) {
+      setIsUploading(true); setUploadProgress(0);
+      toast('Checking content...', { duration: 2000 });
+
+      let scanResult;
+      if (files[0].type.startsWith('video/')) {
+        scanResult = await contentSafety.scanVideo(files[0]);
+      } else {
+        scanResult = await contentSafety.scanImage(files[0]);
+      }
+
+      if (scanResult.result === 'blocked') {
+        setIsUploading(false);
+        setScanMessage(scanResult.message || 'Content violates community guidelines');
+        setScanCategories(scanResult.categories || []);
+        setVybeCheckFailed(true);
+        return;
+      }
+    }
+
     setIsUploading(true); setUploadProgress(0);
     const isLargeFile = files[0] && files[0].size > 5 * 1024 * 1024;
     let pi: ReturnType<typeof setInterval> | null = null;
@@ -207,12 +230,18 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
-      {/* Safety overlay */}
-      {showSafety && files[0] && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'hsl(var(--background) / 0.9)' }}>
-          <ContentSafetyScanner isScanning={contentSafety.isScanning} result={contentSafety.result} message={contentSafety.message} scanDetails={contentSafety.scanDetails}
-            onContinue={() => setShowSafety(false)} onCancel={() => { setShowSafety(false); clearAll(); }} onAppeal={() => { contentSafety.submitAppeal('image', 'Appeal'); setShowSafety(false); }} />
-        </div>
+      {/* Vybe Check Failed overlay */}
+      {vybeCheckFailed && (
+        <VybeCheckFailed
+          message={scanMessage}
+          categories={scanCategories}
+          caption={caption}
+          tags={tags}
+          mediaUrls={previews}
+          contentType={contentType}
+          onEdit={() => setVybeCheckFailed(false)}
+          onAppealComplete={() => { setVybeCheckFailed(false); navigate('/home'); }}
+        />
       )}
 
       {/* Success overlay */}
