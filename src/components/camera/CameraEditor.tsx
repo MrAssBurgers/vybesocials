@@ -215,24 +215,21 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
 
         {/* Text Overlays */}
         {textOverlays.map(overlay => (
-          <motion.div
+          <DraggableOverlay
             key={overlay.id}
-            drag
-            dragMomentum={false}
-            className="absolute cursor-move select-none"
-            style={{
-              left: `${overlay.x}%`,
-              top: `${overlay.y}%`,
-              transform: 'translate(-50%, -50%)',
-              color: overlay.color,
-              fontSize: overlay.fontSize,
-              textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
-            }}
-            onClick={() => mode === 'none' && removeOverlay(overlay.id)}
-            whileTap={{ scale: 1.1 }}
-          >
-            {overlay.text}
-          </motion.div>
+            id={overlay.id}
+            text={overlay.text}
+            x={overlay.x}
+            y={overlay.y}
+            color={overlay.color}
+            fontSize={overlay.fontSize}
+            scale={overlay.scale}
+            rotation={overlay.rotation}
+            containerRef={containerRef as React.RefObject<HTMLDivElement>}
+            onUpdate={updateOverlay}
+            onRemove={removeOverlay}
+            canRemove={mode === 'none'}
+          />
         ))}
       </div>
 
