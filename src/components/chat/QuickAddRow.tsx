@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { OnlineIndicator } from "@/components/ui/OnlineIndicator";
+import { useHorizontalScroll } from '@/hooks/useHorizontalScroll';
 import type { RecentMessageUser } from "@/lib/recentMessageUsers";
 
 const containerVariants = {
@@ -38,25 +38,7 @@ export function QuickAddRow({
   showOnlineIndicator?: boolean;
 }) {
   const navigate = useNavigate();
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Mouse wheel horizontal scroll + touch swipe
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-
-    // Mouse wheel: convert vertical scroll to horizontal when hovering over row
-    const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.scrollWidth > el.clientWidth) {
-        e.preventDefault();
-        el.scrollBy({ left: e.deltaY, behavior: 'smooth' });
-      }
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', onWheel);
-    };
-  }, []);
+  const scrollRef = useHorizontalScroll<HTMLDivElement>();
 
   if (!users.length) return null;
 

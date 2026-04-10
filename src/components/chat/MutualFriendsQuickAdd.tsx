@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useMutualFriends, UserWithMutualFriends } from '@/hooks/useMutualFriends';
@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDismissProfile } from '@/hooks/useDismissedProfiles';
 import { useHiddenFromDiscovery } from '@/hooks/useOutgoingRequests';
+import { useHorizontalScroll } from '@/hooks/useHorizontalScroll';
 import { cn } from '@/lib/utils';
 
 function getFullName(user: { first_name?: string | null; last_name?: string | null; display_name?: string | null; username: string }) {
@@ -101,23 +102,7 @@ export function MutualFriendsQuickAdd({
   const { data: hiddenIds } = useHiddenFromDiscovery();
   const dismissProfile = useDismissProfile();
   const [localDismissed, setLocalDismissed] = useState<Set<string>>(new Set());
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Mouse wheel horizontal scroll
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.scrollWidth > el.clientWidth) {
-        e.preventDefault();
-        el.scrollBy({ left: e.deltaY, behavior: 'smooth' });
-      }
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', onWheel);
-    };
-  }, []);
+  const scrollRef = useHorizontalScroll<HTMLDivElement>();
 
   const handleDismiss = useCallback((userId: string) => {
     setLocalDismissed(prev => new Set([...prev, userId]));
