@@ -526,7 +526,24 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
       >
-        {!cameraActivated ? (
+        {permissionDenied ? (
+          <div className="w-full h-full flex flex-col items-center justify-center px-8 text-center">
+            <div className="w-20 h-20 rounded-full bg-destructive/20 flex items-center justify-center mb-4">
+              <X className="h-8 w-8 text-destructive" />
+            </div>
+            <p className="text-foreground font-semibold text-lg mb-2">Camera Access Denied</p>
+            <p className="text-muted-foreground text-sm mb-6">
+              Please enable camera access in your browser or device settings to use this feature.
+            </p>
+            <Button 
+              variant="outline" 
+              className="rounded-xl"
+              onClick={() => { setPermissionDenied(false); startCamera(); }}
+            >
+              Try Again
+            </Button>
+          </div>
+        ) : !cameraActivated ? (
           <div 
             className="w-full h-full flex flex-col items-center justify-center cursor-pointer"
             onClick={handleActivateCamera}
