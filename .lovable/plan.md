@@ -1,48 +1,43 @@
 
 
-## Replace Background Overlay with Native CSS Background
+## Fix: "Media Not Found" — Root Cause and Permanent Solution
 
-### Current Problem
-The custom background is rendered as a separate `<div>` overlay at z-index 0, with all app content layered above it at z-index 1+. This means:
-- The image loads as a React component, so on slow connections the user sees the default background first, then the overlay fades in — a visible "pop"
-- An extra full-viewport DOM element with `position: fixed` adds a compositing layer the GPU has to manage constantly
-- CSS rules force `body` and `#root` to `transparent !important` to let the overlay show through, which is fragile
+### Root Cause
 
-### Better Approach
-Set the background image directly on `document.body` via inline style. No overlay div, no z-index layering, no transparency hacks. The browser's native `background-image` on `<body>` is the most efficient way to paint a full-page background — zero extra compositing layers.
+The database contains media URLs pointing to **two different backend projects**:
+- **Old project** (`eabvbtkxdbttjpdpbmuw`): Most existing vybe/chat media from before the migration
+- **Current project** (`agtcyxjxgkdyoxwxkjth`): New uploads only
+
+The `needsSigning()` function only recognizes URLs from the current project. Old-project URLs pass through raw and 403 because that bucket is private. The code treats them as "not needing signing" and feeds the raw URL directly to `<img>`, which fails silently or shows "media not found."
+
+Additionally, when signing fails for current-project URLs, the hook returns `null` permanently (after the 30s failed cache), and VybeViewer gets stuck showing "Loading..." forever instead of transitioning to the error/retry state.
 
 ### Changes
 
-**1. `src/components/layout/AppBackground.tsx`**
-- Remove the `BackgroundLayer` div entirely
-- In the provider, apply the background via `document.body.style` instead of rendering a child div:
-  - `document.body.style.backgroundImage = url(...)`
-  - `document.body.style.backgroundSize = 'cover'`
-  - `document.body.style.backgroundPosition = 'center'`
-  - `document.body.style.backgroundRepeat = 'no-repeat'`
-  - `document.body.style.backgroundAttachment = 'fixed'`
-  - Apply opacity via a CSS variable (`--bg-opacity`) and use a pseudo-element or filter only if opacity < 1
-  - Apply blur the same way
-- On cleanup / logout / null image, clear the body styles
-- Keep the context API identical so all consumers (`setBackgroundImage`, `setBackgroundOpacity`, etc.) still work
+**1. `src/lib/signedUrlCache.ts` — Handle old project URLs**
+- Add the old project ID (`eabvbtkxdbttjpdpbmuw`) to `isCurrentProjectUrl()` so those URLs are also recognized as needing signing
+- In `parseStorageUrl`, handle both project domains
+- When signing an old-project URL, the `createSignedUrl` call will fail (files don't exist on the current project). This is expected — it will cache as failed and consumers will show the error state
 
-**2. `src/index.css`**
-- Remove the `:has(#app-background-layer)` and `data-has-bg-image` transparency hacks (lines ~524-539)
-- Remove the `#root { z-index: 1 }` workaround (line ~542-544) — no overlay to layer above
-- Add a simple rule: when `--bg-image` is set on body, ensure `#root` has `background: transparent` so the body background shows through
+**2. `src/hooks/useFastSignedUrl.ts` — Fix infinite loading on failed URLs**
+- After `getSignedUrl` completes but returns the raw URL (meaning failure), still call `notifySubscribers()` so `useSyncExternalStore` re-reads the cache
+- The cache now returns `null` for failed entries, which correctly triggers error states in consumers
+- Reset `fetchedRef` when a URL's failure cache expires so it can retry
 
-**3. Minor: body default background**
-- Ensure `body` has a sensible default dark background color so there's no flash — the custom image simply replaces it when loaded, same element, no layering
+**3. `src/components/chat/VybeViewer.tsx` — Fix stuck "Loading..." state**
+- Add a timeout (8 seconds) on the signing-pending state: if `signedUrl` hasn't resolved by then, treat it as an error and show the "Media no longer available" UI with a retry button
+- When `isFailedUrl(mediaUrl)` returns true, skip the loading spinner and go straight to the error state
+- Add a manual retry button that clears the failed cache entry and re-triggers signing
 
-### Why This Is Better
-- **Faster perceived load**: The browser starts fetching `background-image` on body immediately; no React render cycle needed first
-- **Less lag**: Eliminates one GPU compositing layer (the fixed overlay div)
-- **Simpler CSS**: No transparency hacks, no z-index management
-- **Same API**: All existing code that calls `setBackgroundImage()` / `setBackgroundOpacity()` keeps working
+**4. `src/components/chat/ChatMediaBubble.tsx` — Same timeout protection**
+- Add a timeout on the skeleton/loading state so it doesn't show indefinitely if signing never resolves
 
 ### Files Touched
+
 | File | Change |
 |------|--------|
-| `src/components/layout/AppBackground.tsx` | Replace overlay div with `document.body.style` manipulation |
-| `src/index.css` | Remove overlay-related CSS hacks |
+| `src/lib/signedUrlCache.ts` | Recognize old project URLs, handle cross-project gracefully |
+| `src/hooks/useFastSignedUrl.ts` | Notify subscribers on failure, enable retry after cache expiry |
+| `src/components/chat/VybeViewer.tsx` | Add signing timeout, show retry on failure instead of infinite loading |
+| `src/components/chat/ChatMediaBubble.tsx` | Add loading timeout protection |
 
