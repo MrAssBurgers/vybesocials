@@ -164,7 +164,7 @@ serve(async (req) => {
     try {
       await supabase.rpc("add_user_xp", {
         p_user_id: user.id,
-        p_xp_amount: 10,
+        p_xp: 10,
       });
     } catch {
       // Non-critical
