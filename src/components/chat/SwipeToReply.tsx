@@ -12,6 +12,7 @@ interface SwipeToReplyProps {
 
 const SWIPE_THRESHOLD = 50;
 const MAX_SWIPE = 70;
+const DRAG_DEAD_ZONE = 15; // Minimum px before drag activates (allows long-press to work)
 
 /**
  * Snapchat-style swipe to reply - Clean, satisfying gesture

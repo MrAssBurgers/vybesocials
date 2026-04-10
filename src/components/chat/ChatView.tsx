@@ -2115,12 +2115,17 @@ const MessageBubble = memo(function MessageBubble({
     setShowContextMenu(false);
   }, [onUnsendForEveryone]);
 
+  // Track touch start position for movement detection
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+
   // Long press handlers for context menu
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
     longPressRef.current = setTimeout(() => {
       menuOpenedRef.current = true;
       setShowContextMenu(true);
-      // Prevent default to avoid text selection
+      if ('vibrate' in navigator) navigator.vibrate(10);
     }, 400);
   }, []);
 
@@ -2129,13 +2134,19 @@ const MessageBubble = memo(function MessageBubble({
       clearTimeout(longPressRef.current);
       longPressRef.current = null;
     }
+    touchStartPos.current = null;
   }, []);
 
-  const handleTouchMove = useCallback(() => {
-    // Only cancel long press if significant movement (>10px)
-    if (longPressRef.current) {
-      // Don't cancel on slight movements - just let it trigger
-      // This allows holding to work even with minor finger adjustments
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (longPressRef.current && touchStartPos.current) {
+      const touch = e.touches[0];
+      const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
+      const deltaY = Math.abs(touch.clientY - touchStartPos.current.y);
+      // Cancel long-press if user moved more than 10px (swiping)
+      if (deltaX > 10 || deltaY > 10) {
+        clearTimeout(longPressRef.current);
+        longPressRef.current = null;
+      }
     }
   }, []);
 
