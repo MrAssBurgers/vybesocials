@@ -140,6 +140,26 @@ export function useUpdateAnnouncement() {
   });
 }
 
+export function useRecentAnnouncements(limit = 5) {
+  return useQuery({
+    queryKey: ['recent-announcements', limit],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('announcements')
+        .select(`
+          *,
+          author:profiles!author_id (username, avatar_url)
+        `)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      
+      if (error) throw error;
+      return (data || []) as Announcement[];
+    },
+  });
+}
+
 export function useClearAnnouncementNotifications() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
