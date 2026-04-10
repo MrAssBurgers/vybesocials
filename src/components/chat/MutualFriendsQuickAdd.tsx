@@ -149,8 +149,8 @@ export function MutualFriendsQuickAdd({
       
       <div 
         ref={scrollRef}
-        className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide snap-x snap-mandatory scroll-smooth"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+        className="flex gap-1.5 overflow-x-auto overflow-y-hidden pb-1 scrollbar-hide snap-x snap-mandatory scroll-smooth"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
       >
         <AnimatePresence initial={false}>
           {displayUsers.slice(0, 8).map((user) => (

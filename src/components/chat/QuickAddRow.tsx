@@ -57,8 +57,8 @@ export function QuickAddRow({
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide scroll-smooth"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+        className="flex gap-3 overflow-x-auto overflow-y-hidden pb-2 scrollbar-hide scroll-smooth"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
       >
         {users.map((u, i) => (
           <motion.button

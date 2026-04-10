@@ -113,8 +113,9 @@ export async function extractVideoFrame(file: File, timeSeconds: number = 1): Pr
     const url = URL.createObjectURL(file);
     video.src = url;
 
-    video.onloadeddata = () => {
-      video.currentTime = Math.min(timeSeconds, video.duration * 0.3);
+    video.onloadedmetadata = () => {
+      const seekTime = Math.min(timeSeconds, (video.duration || 2) * 0.3);
+      video.currentTime = isFinite(seekTime) ? seekTime : 0;
     };
 
     video.onseeked = () => {
