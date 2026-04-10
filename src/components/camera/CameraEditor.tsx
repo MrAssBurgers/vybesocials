@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useRef, useCallback } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { X, Type, Smile, Pencil, Check, Undo, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getFilterCSS } from './CameraFilters';
+import { DraggableOverlay } from './DraggableOverlay';
 
 interface TextOverlay {
   id: string;
@@ -13,6 +14,8 @@ interface TextOverlay {
   y: number;
   color: string;
   fontSize: number;
+  scale: number;
+  rotation: number;
 }
 
 interface DrawPath {
