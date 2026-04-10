@@ -6,10 +6,9 @@ import { cn } from '@/lib/utils';
 import { CameraFilterCarousel, PRESET_FILTERS, getFilterCSS } from './CameraFilterCarousel';
 import { CameraEditor } from './CameraEditor';
 import { CameraShareSheet } from './CameraShareSheet';
-import { CameraSafetyGate } from './CameraSafetyGate';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
-import { SafetyResult } from '@/hooks/useContentSafety';
+import { toast } from 'sonner';
 import { toast } from 'sonner';
 
 interface CameraProps {

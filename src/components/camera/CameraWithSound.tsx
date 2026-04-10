@@ -6,12 +6,11 @@ import { cn } from '@/lib/utils';
 import { CameraFilters, CAMERA_FILTERS, getFilterCSS } from './CameraFilters';
 import { CameraEditor } from './CameraEditor';
 import { CameraShareSheet } from './CameraShareSheet';
-import { CameraSafetyGate } from './CameraSafetyGate';
 import { SoundPicker } from '@/components/sounds/SoundPicker';
 import { SoundControls } from '@/components/sounds/SoundControls';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
-import { SafetyResult } from '@/hooks/useContentSafety';
+import { Sound } from '@/hooks/useSounds';
 import { Sound } from '@/hooks/useSounds';
 
 interface CameraProps {
