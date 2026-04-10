@@ -248,6 +248,8 @@ export function ChatView() {
   // Image safety scanning state
   const [pendingSafetyImage, setPendingSafetyImage] = useState<{ url: string; file: File } | null>(null);
   const [showImageSafetyGate, setShowImageSafetyGate] = useState(false);
+  const [showStickerPanel, setShowStickerPanel] = useState(false);
+  const addSticker = useAddSticker();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
