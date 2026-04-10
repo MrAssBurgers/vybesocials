@@ -377,12 +377,10 @@ export default function FriendMap() {
   const toggleSharing = useCallback(() => {
     const next = !sharing;
     setSharing(next);
-    localStorage.setItem(SHARING_PREF_KEY, String(next));
     triggerHaptic('medium');
     toast.success(next ? 'Live location on 📍' : 'Ghost Mode enabled 👻');
-    if (next) lastUpsert.current = 0;
     setGhostOpen(false);
-  }, [sharing]);
+  }, [sharing, setSharing]);
 
   const focus = useCallback((f: LocationRecord) => {
     setSelId(f.user_id);
