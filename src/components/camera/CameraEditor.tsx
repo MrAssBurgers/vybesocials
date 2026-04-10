@@ -93,6 +93,8 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
       y: 50,
       color: currentColor,
       fontSize: 24,
+      scale: 1,
+      rotation: 0,
     }]);
     setCurrentText('');
     setMode('none');
@@ -106,8 +108,14 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
       y: 50,
       color: '#ffffff',
       fontSize: 48,
+      scale: 1,
+      rotation: 0,
     }]);
   };
+
+  const updateOverlay = useCallback((id: string, updates: { x?: number; y?: number; scale?: number; rotation?: number }) => {
+    setTextOverlays(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
+  }, []);
 
   const removeOverlay = (id: string) => {
     setTextOverlays(prev => prev.filter(o => o.id !== id));
