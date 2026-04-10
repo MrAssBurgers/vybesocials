@@ -2117,8 +2117,6 @@ const MessageBubble = memo(function MessageBubble({
     setShowContextMenu(false);
   }, [onUnsendForEveryone]);
 
-  // Track touch start position for movement detection
-  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
 
   // Long press is now handled by SwipeToReply wrapper via custom event
   const bubbleRef = useRef<HTMLDivElement>(null);
