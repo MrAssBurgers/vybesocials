@@ -16,7 +16,7 @@ interface CameraProps {
   onClose: () => void;
 }
 
-type CameraState = 'capture' | 'edit' | 'share' | 'scanning';
+type CameraState = 'capture' | 'edit' | 'share';
 type CaptureMode = 'photo' | 'video' | 'story';
 
 const CAPTURE_MODES: { id: CaptureMode; label: string }[] = [
@@ -213,10 +213,6 @@ export function Camera({ onClose }: CameraProps) {
     }
   };
 
-  const handleScanComplete = (result: SafetyResult) => {
-    if (result === 'blocked') { setCapturedMedia(null); setState('capture'); }
-    else setState('share');
-  };
 
   const cycleTimer = () => {
     const options = [0, 3, 5, 10];
@@ -232,10 +228,7 @@ export function Camera({ onClose }: CameraProps) {
   const combinedFilter = `${getFilterCSS(currentFilter) || 'none'} brightness(${brightness / 100})`;
 
   if (state === 'edit' && capturedMedia) {
-    return <CameraEditor mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} filter={currentFilter} onSave={() => setState('scanning')} onCancel={() => { setCapturedMedia(null); setState('capture'); }} />;
-  }
-  if (state === 'scanning' && capturedMedia?.file) {
-    return <CameraSafetyGate file={capturedMedia.file} mediaType={capturedMedia.type} onResult={handleScanComplete} onCancel={() => setState('edit')} />;
+    return <CameraEditor mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} filter={currentFilter} onSave={() => setState('share')} onCancel={() => { setCapturedMedia(null); setState('capture'); }} />;
   }
   if (state === 'share' && capturedMedia) {
     return <CameraShareSheet mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} onClose={() => setState('edit')} onComplete={onClose} />;
