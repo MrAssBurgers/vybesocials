@@ -11,6 +11,7 @@ import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
 import { useContentSafety } from '@/hooks/useContentSafety';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
+import { SafetyScanProgress } from '@/components/safety/SafetyScanProgress';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { AIVideoGenerator } from '@/components/ai/AIVideoGenerator';
 import { StyledUsername } from '@/components/ui/StyledUsername';
@@ -146,7 +147,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
     // Run AI safety scan at post time
     if (files.length > 0 && files[0]) {
       setIsUploading(true); setUploadProgress(0);
-      toast('Checking content...', { duration: 2000 });
+      setShowSafetyScanner(true);
 
       let scanResult;
       if (files[0].type.startsWith('video/')) {
