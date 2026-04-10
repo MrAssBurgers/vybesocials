@@ -2134,20 +2134,6 @@ const MessageBubble = memo(function MessageBubble({
     el.addEventListener('longpress', handler);
     return () => el.removeEventListener('longpress', handler);
   }, []);
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (longPressRef.current && touchStartPos.current) {
-      const touch = e.touches[0];
-      const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
-      const deltaY = Math.abs(touch.clientY - touchStartPos.current.y);
-      // Cancel long-press if user moved more than 10px (swiping)
-      if (deltaX > 10 || deltaY > 10) {
-        clearTimeout(longPressRef.current);
-        longPressRef.current = null;
-      }
-    }
-  }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -2269,10 +2255,8 @@ const MessageBubble = memo(function MessageBubble({
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
             repliedMessage && 'rounded-t-[14px]'
           )}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchEnd}
-          onTouchMove={handleTouchMove}
+          ref={bubbleRef}
+          data-message-id={message.id}
           onContextMenu={handleContextMenu}
           onDoubleClick={onToggleReactions}
         >
