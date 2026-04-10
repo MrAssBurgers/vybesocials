@@ -495,7 +495,11 @@ export default function FriendMap() {
     if (!myMk.current) {
       myMk.current = L.marker(myCoords, { icon: myIcon(), zIndexOffset: 1000, interactive: false }).addTo(map);
     } else {
-      myMk.current.setLatLng(myCoords);
+      // Smooth animation for own marker (Apple Maps style)
+      const old = myMk.current.getLatLng();
+      if (old.lat !== myCoords[0] || old.lng !== myCoords[1]) {
+        animateMarker(myMk.current, old, L.latLng(myCoords[0], myCoords[1]));
+      }
     }
   }, [myCoords, accuracy]);
 
