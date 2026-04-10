@@ -15,11 +15,16 @@ const SWIPE_THRESHOLD = 50;
 const MAX_SWIPE = 70;
 const DRAG_DEAD_ZONE = 15;
 const LONG_PRESS_MS = 400;
-const LONG_PRESS_MOVE_TOLERANCE = 10;
+// Cancel long-press if finger moves more than 5px in any direction
+// This is intentionally lower than DRAG_DEAD_ZONE so even slow swipes cancel
+const SWIPE_INTENT_TOLERANCE = 5;
+
+type GestureState = 'idle' | 'pressing' | 'swiping' | 'longpress-fired';
 
 /**
- * Snapchat-style swipe to reply with long-press detection ABOVE the drag layer.
- * Long-press fires before framer-motion can steal the touch.
+ * Swipe to reply with long-press detection using pointer capture-phase events.
+ * Pointer events on the capture phase fire before framer-motion can steal them,
+ * ensuring reliable long-press detection on media elements (images, videos).
  */
 export function SwipeToReply({ 
   children, 
@@ -32,10 +37,10 @@ export function SwipeToReply({
   const isDraggingRef = useRef(false);
   const dragActivatedRef = useRef(false);
   
-  // Long-press state (tracked at wrapper level, above framer-motion)
-  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const longPressFiredRef = useRef(false);
-  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  // Gesture state machine
+  const gestureStateRef = useRef<GestureState>('idle');
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerStartRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
   
   const x = useMotionValue(0);
   
@@ -44,7 +49,6 @@ export function SwipeToReply({
   const replyX = useTransform(x, [0, SWIPE_THRESHOLD], [-20, 8]);
   const replyRotate = useTransform(x, [0, SWIPE_THRESHOLD, MAX_SWIPE], [-45, 0, 10]);
 
-  // --- Long-press handlers (on the OUTER wrapper, before framer-motion) ---
   const clearLongPress = useCallback(() => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
@@ -52,50 +56,68 @@ export function SwipeToReply({
     }
   }, []);
 
-  const handleWrapperTouchStart = useCallback((e: React.TouchEvent) => {
-    if (disabled || !onLongPress) return;
-    longPressFiredRef.current = false;
-    const touch = e.touches[0];
-    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
-    
-    longPressTimerRef.current = setTimeout(() => {
-      longPressFiredRef.current = true;
-      onLongPress();
-      if ('vibrate' in navigator) navigator.vibrate(10);
-    }, LONG_PRESS_MS);
-  }, [disabled, onLongPress, clearLongPress]);
-
-  const handleWrapperTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!longPressTimerRef.current || !touchStartPosRef.current) return;
-    const touch = e.touches[0];
-    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
-    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
-    if (dx > LONG_PRESS_MOVE_TOLERANCE || dy > LONG_PRESS_MOVE_TOLERANCE) {
-      clearLongPress();
+  const cancelToSwipe = useCallback(() => {
+    clearLongPress();
+    if (gestureStateRef.current === 'pressing') {
+      gestureStateRef.current = 'swiping';
     }
   }, [clearLongPress]);
 
-  const handleWrapperTouchEnd = useCallback(() => {
+  // --- Pointer capture-phase handlers (fire BEFORE framer-motion) ---
+  const handlePointerDownCapture = useCallback((e: React.PointerEvent) => {
+    if (disabled || !onLongPress) return;
+    // Only handle touch/pen, not mouse (mouse uses right-click context menu)
+    if (e.pointerType === 'mouse') return;
+    
+    gestureStateRef.current = 'pressing';
+    pointerStartRef.current = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
+    
+    longPressTimerRef.current = setTimeout(() => {
+      if (gestureStateRef.current === 'pressing') {
+        gestureStateRef.current = 'longpress-fired';
+        onLongPress();
+        if ('vibrate' in navigator) navigator.vibrate(10);
+      }
+    }, LONG_PRESS_MS);
+  }, [disabled, onLongPress]);
+
+  const handlePointerMoveCapture = useCallback((e: React.PointerEvent) => {
+    if (!pointerStartRef.current) return;
+    if (e.pointerId !== pointerStartRef.current.pointerId) return;
+    
+    const dx = Math.abs(e.clientX - pointerStartRef.current.x);
+    const dy = Math.abs(e.clientY - pointerStartRef.current.y);
+    
+    // If finger moved more than the intent tolerance, this is a swipe/scroll, not a hold
+    if (dx > SWIPE_INTENT_TOLERANCE || dy > SWIPE_INTENT_TOLERANCE) {
+      cancelToSwipe();
+    }
+  }, [cancelToSwipe]);
+
+  const handlePointerUpCapture = useCallback(() => {
     clearLongPress();
-    touchStartPosRef.current = null;
+    gestureStateRef.current = 'idle';
+    pointerStartRef.current = null;
   }, [clearLongPress]);
 
   // --- Drag handlers (framer-motion) ---
   const handleDragStart = useCallback(() => {
     isDraggingRef.current = true;
     dragActivatedRef.current = false;
-    // If drag starts, cancel any pending long-press
-    clearLongPress();
-  }, [clearLongPress]);
+    // Safety net: cancel long-press when drag activates
+    cancelToSwipe();
+  }, [cancelToSwipe]);
 
   const handleDrag = useCallback((
     _event: MouseEvent | TouchEvent | PointerEvent,
     info: PanInfo
   ) => {
-    if (disabled || longPressFiredRef.current) return;
+    if (disabled) return;
+    // If long-press already fired, don't process drag
+    if (gestureStateRef.current === 'longpress-fired') return;
     
-    // Cancel long-press on ANY drag movement detected by framer-motion
-    clearLongPress();
+    // Cancel long-press on ANY drag movement
+    cancelToSwipe();
     
     const rawX = info.offset.x;
     
@@ -121,13 +143,13 @@ export function SwipeToReply({
     } else if (finalX < SWIPE_THRESHOLD * 0.8) {
       hasTriggeredRef.current = false;
     }
-  }, [disabled, x]);
+  }, [disabled, x, cancelToSwipe]);
 
   const handleDragEnd = useCallback(() => {
     isDraggingRef.current = false;
     const currentX = x.get();
     
-    if (currentX >= SWIPE_THRESHOLD && !longPressFiredRef.current) {
+    if (currentX >= SWIPE_THRESHOLD && gestureStateRef.current !== 'longpress-fired') {
       onReply();
       if ('vibrate' in navigator) navigator.vibrate([8, 50, 8]);
     }
@@ -140,6 +162,9 @@ export function SwipeToReply({
     });
     
     hasTriggeredRef.current = false;
+    // Reset gesture state after drag ends
+    gestureStateRef.current = 'idle';
+    pointerStartRef.current = null;
   }, [onReply, x]);
 
   if (disabled) {
@@ -149,10 +174,10 @@ export function SwipeToReply({
   return (
     <div 
       className="relative overflow-visible"
-      onTouchStart={handleWrapperTouchStart}
-      onTouchMove={handleWrapperTouchMove}
-      onTouchEnd={handleWrapperTouchEnd}
-      onTouchCancel={handleWrapperTouchEnd}
+      onPointerDownCapture={handlePointerDownCapture}
+      onPointerMoveCapture={handlePointerMoveCapture}
+      onPointerUpCapture={handlePointerUpCapture}
+      onPointerCancelCapture={handlePointerUpCapture}
     >
       {/* Reply indicator */}
       <motion.div
