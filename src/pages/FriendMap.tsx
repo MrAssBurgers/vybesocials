@@ -26,6 +26,7 @@ interface LocationRecord {
   expires_at: string | null;
   sharing_enabled: boolean;
   status?: string | null;
+  speed?: number | null;
   profile?: {
     username: string | null;
     display_name: string | null;
