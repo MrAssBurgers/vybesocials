@@ -973,7 +973,14 @@ export default function FriendMap() {
                       whileTap={{ scale: 0.95 }}
                       onClick={() => {
                         const origin = myCoords ? `&origin=${myCoords[0]},${myCoords[1]}` : '';
-                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${sel.latitude},${sel.longitude}${origin}&travelmode=driving`, '_blank');
+                        const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${sel.latitude},${sel.longitude}${origin}&travelmode=driving`;
+                        // On mobile, use location.href to properly hand off to the native maps app
+                        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                        if (isMobile) {
+                          window.location.href = mapsUrl;
+                        } else {
+                          window.open(mapsUrl, '_blank');
+                        }
                       }}
                       className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground"
                     >
