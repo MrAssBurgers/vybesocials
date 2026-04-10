@@ -1941,6 +1941,16 @@ const MessageInputArea = memo(function MessageInputArea({
                   onCreateOffer={onCreateOffer}
                   hasBusinessProfile={hasBusinessProfile}
                 />
+                {setShowStickerPanel && (
+                  <Button 
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowStickerPanel(!showStickerPanel)}
+                    className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full"
+                  >
+                    <Sticker className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </Button>
+                )}
                 <Button 
                   variant="ghost"
                   size="icon"
