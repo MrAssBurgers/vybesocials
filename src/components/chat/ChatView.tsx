@@ -57,6 +57,8 @@ import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
 import { ReplyPreview } from './ReplyPreview';
+import { StickerPanel } from './StickerPanel';
+import { useAddSticker } from '@/hooks/useStickers';
 import { 
   ArrowLeft, 
   Send, 
