@@ -8,7 +8,7 @@
  * - Audio/video quality settings
  */
 
-import { useState, useEffect, useRef, forwardRef } from 'react';
+import { useState, useEffect, useRef, forwardRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Settings, 
