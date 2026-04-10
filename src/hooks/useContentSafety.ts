@@ -287,6 +287,7 @@ export function useContentSafety() {
     setIsScanning(false);
     setResult('scanning');
     setMessage('');
+    setScanPhase('init');
     setScanDetails({});
     setBypassEnabled(false);
   }, []);
@@ -331,6 +332,7 @@ export function useContentSafety() {
     isScanning,
     result,
     message,
+    scanPhase,
     scanDetails,
     bypassEnabled,
     scanImage,
@@ -338,5 +340,7 @@ export function useContentSafety() {
     scanText,
     reset,
     submitAppeal,
+  };
+}
   };
 }
