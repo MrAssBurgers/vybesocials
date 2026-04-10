@@ -483,28 +483,57 @@ export default function FriendMap() {
     }
   }, [myCoords, accuracy]);
 
-  /* ── friend markers (with clustering) ──────────────── */
+  /* ── friend markers (smooth animation) ──────────────── */
 
   useEffect(() => {
     const layer = fLayer.current;
     if (!layer) return;
-    layer.clearLayers();
 
-    // Render individual markers
+    // Track which markers are still present
+    const currentIds = new Set<string>();
+
+    // Smooth animate individual markers
     clusteredMarkers.singles.forEach((f) => {
-      L.marker([f.latitude, f.longitude], { icon: friendIcon(f, f.user_id === selId), keyboard: false })
-        .on('click', () => focus(f))
-        .addTo(layer);
+      currentIds.add(f.user_id);
+      const newPos = L.latLng(f.latitude, f.longitude);
+      const existing = friendMarkers.current.get(f.user_id);
+
+      if (existing) {
+        // Smooth transition: animate from old position to new
+        const oldPos = existing.getLatLng();
+        if (oldPos.lat !== newPos.lat || oldPos.lng !== newPos.lng) {
+          animateMarker(existing, oldPos, newPos);
+        }
+        existing.setIcon(friendIcon(f, f.user_id === selId));
+      } else {
+        const marker = L.marker(newPos, { icon: friendIcon(f, f.user_id === selId), keyboard: false })
+          .on('click', () => focus(f))
+          .addTo(layer);
+        friendMarkers.current.set(f.user_id, marker);
+      }
     });
 
-    // Render clusters
+    // Render clusters (these recreate each time)
+    // Remove markers that are now in clusters
     clusteredMarkers.clusters.forEach((c) => {
+      c.members.forEach(m => {
+        const existing = friendMarkers.current.get(m.user_id);
+        if (existing) { layer.removeLayer(existing); friendMarkers.current.delete(m.user_id); }
+      });
       const avatars = c.members.map((m) => m.profile?.avatar_url || '').filter(Boolean);
       L.marker(c.center, { icon: clusterIcon(c.members.length, avatars), keyboard: false })
         .on('click', () => {
           mapRef.current?.flyTo(c.center, Math.min((zoom || 10) + 3, 16), { duration: 1 });
         })
         .addTo(layer);
+    });
+
+    // Remove markers for friends no longer present
+    friendMarkers.current.forEach((marker, id) => {
+      if (!currentIds.has(id)) {
+        layer.removeLayer(marker);
+        friendMarkers.current.delete(id);
+      }
     });
   }, [clusteredMarkers, selId, focus, zoom]);
 
