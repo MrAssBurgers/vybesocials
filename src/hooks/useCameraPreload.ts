@@ -18,19 +18,31 @@ let globalStream: MediaStream | null = null;
 
 /**
  * Request camera stream - MUST be called from a user gesture (click/tap)
+ * Accepts optional constraints for different camera modes
  */
-export async function requestCameraStream(): Promise<MediaStream | null> {
+export async function requestCameraStream(options?: {
+  facingMode?: 'user' | 'environment';
+  width?: number;
+  height?: number;
+  audio?: boolean;
+}): Promise<MediaStream | null> {
   if (globalStream?.active) return globalStream;
 
+  const facingMode = options?.facingMode || 'user';
+  const width = options?.width || 1280;
+  const height = options?.height || 720;
+  const audio = options?.audio ?? false;
+
   try {
-    console.log('[Camera] Requesting camera from user gesture...');
+    console.log('[Camera] Requesting camera from user gesture...', { facingMode, audio });
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        facingMode: 'user',
+        width: { ideal: width },
+        height: { ideal: height },
+        facingMode,
+        aspectRatio: { ideal: 9 / 16 },
       },
-      audio: false,
+      audio,
     });
     globalStream = stream;
     console.log('[Camera] Camera ready');
