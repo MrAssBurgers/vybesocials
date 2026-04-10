@@ -1981,6 +1981,7 @@ const MessageBubble = memo(function MessageBubble({
   isEmojiOnly = false,
   onNavigateToPost,
   onScrollToMessage,
+  onSaveSticker,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -1993,6 +1994,7 @@ const MessageBubble = memo(function MessageBubble({
   onUnsendForEveryone: () => void;
   onDeleteForMe: () => void;
   onEdit?: () => void;
+  onSaveSticker?: (url: string) => void;
   allMessages?: Message[];
   themeColor?: { bubble: string; text: string };
   showReactions: boolean;
