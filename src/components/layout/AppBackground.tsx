@@ -151,8 +151,9 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setBackgroundImage = useCallback((url: string | null) => {
-    setBackground(prev => ({ ...prev, imageUrl: url }));
-  }, []);
+    rawUrlRef.current = url;
+    signAndApply(url);
+  }, [signAndApply]);
 
   const setBackgroundOpacity = useCallback((opacity: number) => {
     setBackground(prev => ({ ...prev, opacity }));
