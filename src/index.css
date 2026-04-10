@@ -517,7 +517,10 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
      transparent so the body background shows through.
      ============================================= */
   
-  /* When a custom background is active, make #root transparent */
+  /* When a custom background is active, remove body gradient and make #root transparent */
+  body.has-custom-bg {
+    background: none !important;
+  }
   body.has-custom-bg #root {
     background: transparent !important;
     background-color: transparent !important;

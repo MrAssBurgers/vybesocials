@@ -12,6 +12,7 @@ interface SwipeToReplyProps {
 
 const SWIPE_THRESHOLD = 50;
 const MAX_SWIPE = 70;
+const DRAG_DEAD_ZONE = 15; // Minimum px before drag activates (allows long-press to work)
 
 /**
  * Snapchat-style swipe to reply - Clean, satisfying gesture
@@ -27,6 +28,7 @@ export function SwipeToReply({
 }: SwipeToReplyProps) {
   const hasTriggeredRef = useRef(false);
   const isDraggingRef = useRef(false);
+  const dragActivatedRef = useRef(false);
   
   // Raw motion value for drag
   const x = useMotionValue(0);
@@ -41,6 +43,7 @@ export function SwipeToReply({
 
   const handleDragStart = useCallback(() => {
     isDraggingRef.current = true;
+    dragActivatedRef.current = false;
   }, []);
 
   const handleDrag = useCallback((
@@ -51,6 +54,16 @@ export function SwipeToReply({
     
     // Only allow right swipe with resistance at max
     const rawX = info.offset.x;
+    
+    // Dead zone: don't move until past threshold (allows long-press to work)
+    if (!dragActivatedRef.current) {
+      if (rawX < DRAG_DEAD_ZONE) {
+        x.set(0);
+        return;
+      }
+      dragActivatedRef.current = true;
+    }
+    
     const clampedX = Math.max(0, Math.min(rawX, MAX_SWIPE));
     
     // Add resistance near the max

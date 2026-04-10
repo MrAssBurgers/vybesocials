@@ -45,6 +45,7 @@ function applyBodyBackground(state: BackgroundState) {
   const body = document.body;
 
   if (!imageUrl) {
+    body.style.background = '';
     body.style.backgroundImage = '';
     body.style.backgroundSize = '';
     body.style.backgroundPosition = '';
@@ -58,6 +59,8 @@ function applyBodyBackground(state: BackgroundState) {
     return;
   }
 
+  // Clear the shorthand first so the CSS gradient doesn't interfere
+  body.style.background = 'none';
   body.style.backgroundImage = `url(${imageUrl})`;
   body.style.backgroundSize = 'cover';
   body.style.backgroundPosition = 'center center';
