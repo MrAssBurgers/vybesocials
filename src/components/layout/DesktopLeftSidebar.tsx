@@ -113,6 +113,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0, tutorialId: 'sidebar-home' },
     { icon: Compass, labelKey: 'nav.explore', path: '/explore', badge: 0, tutorialId: 'sidebar-explore' },
     { icon: MessageCircle, labelKey: 'nav.messages', path: '/messages', badge: unreadMessages, tutorialId: 'sidebar-messages' },
+    { icon: MapPin, label: 'VibeMap', path: '/map', badge: 0, tutorialId: 'sidebar-map' },
     { icon: Users, labelKey: 'nav.communities', path: '/community', badge: 0, tutorialId: 'sidebar-community' },
     { icon: ShoppingBag, labelKey: 'sidebar.market', path: '/market', badge: 0, tutorialId: 'sidebar-market' },
     { icon: Calendar, labelKey: 'sidebar.events', path: '/events', badge: 0, tutorialId: 'sidebar-events' },
