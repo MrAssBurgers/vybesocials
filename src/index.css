@@ -2839,216 +2839,143 @@ img, video {
    Clean notification toasts
    =========================================== */
 
-/* ── Toast entrance / exit keyframes ── */
-@keyframes toast-enter {
+/* ── Toast keyframes ── */
+@keyframes toast-slide-in {
   0% {
     opacity: 0;
-    transform: translateY(-18px) scale(0.92);
-    filter: blur(4px);
-  }
-  60% {
-    opacity: 1;
-    filter: blur(0);
+    transform: translateY(-100%);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0);
+    transform: translateY(0);
   }
 }
-@keyframes toast-exit {
+@keyframes toast-slide-out {
   0% {
     opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0);
+    transform: translateY(0);
   }
   100% {
     opacity: 0;
-    transform: translateY(-14px) scale(0.94);
-    filter: blur(3px);
+    transform: translateY(-100%);
   }
-}
-@keyframes toast-accent-pulse {
-  0%, 100% { opacity: 0.85; }
-  50% { opacity: 1; }
-}
-@keyframes toast-icon-pop {
-  0% { transform: scale(0); opacity: 0; }
-  60% { transform: scale(1.2); }
-  100% { transform: scale(1); opacity: 1; }
-}
-@keyframes toast-progress {
-  from { transform: scaleX(1); }
-  to { transform: scaleX(0); }
 }
 
-/* ── Base toast pill ── */
+/* ── Base toast ── */
 .toast-pill {
   position: relative;
   display: flex !important;
   align-items: center !important;
-  gap: 0.625rem !important;
-  padding: 0.625rem 0.875rem !important;
-  border-radius: 2rem !important;
-  background: hsl(var(--card) / 0.92) !important;
-  backdrop-filter: blur(32px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(32px) saturate(200%) !important;
-  border: 1px solid hsl(var(--border) / 0.15) !important;
-  box-shadow:
-    0 4px 20px hsl(var(--foreground) / 0.06),
-    0 1px 4px hsl(var(--foreground) / 0.03) !important;
+  gap: 0.5rem !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.75rem !important;
+  background: hsl(var(--card)) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid hsl(var(--border) / 0.25) !important;
+  box-shadow: 0 2px 8px hsl(var(--foreground) / 0.04) !important;
   overflow: hidden !important;
-  min-width: 240px !important;
-  max-width: 360px !important;
-  animation: toast-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
-  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
-}
-.toast-pill:active {
-  transform: scale(0.97) !important;
+  min-width: 220px !important;
+  max-width: 340px !important;
+  animation: toast-slide-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+  transition: opacity 0.15s ease !important;
 }
 
-/* Subtle left accent — thin line */
-.toast-pill::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 20%;
-  bottom: 20%;
-  width: 2.5px;
-  border-radius: 0 2px 2px 0;
-  background: hsl(var(--primary) / 0.6);
-  pointer-events: none;
-}
-
-/* Hidden progress bar — cleaner look */
-.toast-pill::after {
-  display: none !important;
-}
+/* No accent bar */
+.toast-pill::before { display: none !important; }
+.toast-pill::after { display: none !important; }
 
 /* ── Title / Description ── */
 .toast-pill-title {
-  font-weight: 600 !important;
+  font-weight: 500 !important;
   font-size: 0.8125rem !important;
   color: hsl(var(--foreground)) !important;
-  line-height: 1.3 !important;
-  letter-spacing: -0.01em !important;
+  line-height: 1.4 !important;
+  letter-spacing: -0.005em !important;
 }
 .toast-pill-description {
   font-size: 0.6875rem !important;
-  color: hsl(var(--muted-foreground) / 0.8) !important;
+  color: hsl(var(--muted-foreground)) !important;
   line-height: 1.35 !important;
-  margin-top: 0.0625rem !important;
+  margin-top: 0.125rem !important;
 }
 
-/* ── Icon bounce-in ── */
+/* ── Icon ── */
 .toast-pill [data-icon] {
   flex-shrink: 0 !important;
-  animation: toast-icon-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both !important;
+  width: 16px !important;
+  height: 16px !important;
 }
 
 /* ── Variant: Success ── */
-.toast-pill-success::before,
-.toast-pill[data-type="success"]::before {
-  background: hsl(142 71% 45%) !important;
-}
-.toast-pill-success .toast-pill-title,
-.toast-pill[data-type="success"] [data-title] {
-  color: hsl(142 71% 45%) !important;
-}
 .toast-pill-success,
 .toast-pill[data-type="success"] {
-  border-color: hsl(142 71% 45% / 0.12) !important;
+  background: hsl(142 71% 45% / 0.08) !important;
+  border-color: hsl(142 71% 45% / 0.15) !important;
 }
 
 /* ── Variant: Error ── */
-.toast-pill-error::before,
-.toast-pill[data-type="error"]::before {
-  background: hsl(var(--destructive)) !important;
-}
-.toast-pill-error .toast-pill-title,
-.toast-pill[data-type="error"] [data-title] {
-  color: hsl(var(--destructive)) !important;
-}
 .toast-pill-error,
 .toast-pill[data-type="error"] {
+  background: hsl(var(--destructive) / 0.08) !important;
   border-color: hsl(var(--destructive) / 0.15) !important;
 }
 
 /* ── Variant: Warning ── */
-.toast-pill-warning::before,
-.toast-pill[data-type="warning"]::before {
-  background: hsl(38 92% 50%) !important;
-}
-.toast-pill-warning .toast-pill-title,
-.toast-pill[data-type="warning"] [data-title] {
-  color: hsl(38 92% 50%) !important;
-}
 .toast-pill-warning,
 .toast-pill[data-type="warning"] {
-  border-color: hsl(38 92% 50% / 0.12) !important;
+  background: hsl(38 92% 50% / 0.08) !important;
+  border-color: hsl(38 92% 50% / 0.15) !important;
 }
 
 /* ── Variant: Info ── */
-.toast-pill-info::before,
-.toast-pill[data-type="info"]::before {
-  background: hsl(var(--primary)) !important;
-}
-.toast-pill-info .toast-pill-title,
-.toast-pill[data-type="info"] [data-title] {
-  color: hsl(var(--primary)) !important;
-}
 .toast-pill-info,
 .toast-pill[data-type="info"] {
+  background: hsl(var(--primary) / 0.06) !important;
   border-color: hsl(var(--primary) / 0.12) !important;
 }
 
 /* ── Action / Cancel buttons ── */
 .toast-pill-action {
-  padding: 0.35rem 0.85rem !important;
-  border-radius: 0.625rem !important;
+  padding: 0.25rem 0.625rem !important;
+  border-radius: 0.5rem !important;
   background: hsl(var(--primary)) !important;
   color: hsl(var(--primary-foreground)) !important;
-  font-weight: 700 !important;
-  font-size: 0.7rem !important;
-  letter-spacing: 0.02em !important;
+  font-weight: 600 !important;
+  font-size: 0.6875rem !important;
   border: none !important;
-  transition: all 0.15s ease !important;
-  text-transform: uppercase !important;
+  transition: opacity 0.15s ease !important;
 }
 .toast-pill-action:hover {
-  opacity: 0.9 !important;
-  transform: scale(1.02) !important;
+  opacity: 0.85 !important;
 }
 .toast-pill-cancel {
-  padding: 0.35rem 0.85rem !important;
-  border-radius: 0.625rem !important;
-  background: hsl(var(--muted) / 0.4) !important;
+  padding: 0.25rem 0.625rem !important;
+  border-radius: 0.5rem !important;
+  background: hsl(var(--muted) / 0.5) !important;
   color: hsl(var(--muted-foreground)) !important;
-  font-weight: 600 !important;
-  font-size: 0.7rem !important;
+  font-weight: 500 !important;
+  font-size: 0.6875rem !important;
   border: none !important;
-  transition: all 0.15s ease !important;
-}
-.toast-pill-cancel:hover {
-  background: hsl(var(--muted)) !important;
+  transition: opacity 0.15s ease !important;
 }
 
 /* ── Close button ── */
 .toast-pill [data-close-button] {
   position: absolute !important;
-  right: 0.625rem !important;
+  right: 0.5rem !important;
   top: 50% !important;
   transform: translateY(-50%) !important;
-  opacity: 0.3 !important;
+  opacity: 0.25 !important;
   transition: opacity 0.15s ease !important;
 }
 .toast-pill [data-close-button]:hover {
-  opacity: 1 !important;
+  opacity: 0.8 !important;
 }
 
-/* ── Exit animation ── */
+/* ── Exit ── */
 .toast-pill[data-removed="true"] {
-  animation: toast-exit 0.25s cubic-bezier(0.4, 0, 1, 1) forwards !important;
+  animation: toast-slide-out 0.2s cubic-bezier(0.4, 0, 1, 1) forwards !important;
 }
 
 /* ── Swipe ── */
@@ -3059,9 +2986,6 @@ img, video {
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .toast-pill {
-    animation: none !important;
-  }
-  .toast-pill::after {
     animation: none !important;
   }
 }
