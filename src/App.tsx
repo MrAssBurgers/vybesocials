@@ -125,8 +125,6 @@ let hasInitialLoadCompleted = false;
 
 // Background brief pre-fetcher (needs auth context)
 function BriefPreFetchInit() {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {});
-  // We just need a user id - read from supabase directly
   const [uid, setUid] = useState<string | undefined>();
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id));
