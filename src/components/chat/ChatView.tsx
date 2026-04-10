@@ -1505,7 +1505,10 @@ export function ChatView() {
                   </div>
                 )}
                 {/* Swipe to reply wrapper */}
-                <SwipeToReply onReply={() => handleReply(message)} isOwn={isOwn}>
+                <SwipeToReply onReply={() => handleReply(message)} isOwn={isOwn} onLongPress={() => {
+                    const bubble = document.querySelector(`[data-message-id="${message.id}"]`);
+                    if (bubble) bubble.dispatchEvent(new CustomEvent('longpress'));
+                  }}>
                   <MessageBubble
                     message={message}
                     isOwn={isOwn}
@@ -2118,23 +2121,19 @@ const MessageBubble = memo(function MessageBubble({
   // Track touch start position for movement detection
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
 
-  // Long press handlers for context menu
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
-    longPressRef.current = setTimeout(() => {
+  // Long press is now handled by SwipeToReply wrapper via custom event
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const el = bubbleRef.current;
+    if (!el) return;
+    const handler = () => {
       menuOpenedRef.current = true;
       setShowContextMenu(true);
-      if ('vibrate' in navigator) navigator.vibrate(10);
-    }, 400);
+    };
+    el.addEventListener('longpress', handler);
+    return () => el.removeEventListener('longpress', handler);
   }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    if (longPressRef.current) {
-      clearTimeout(longPressRef.current);
-      longPressRef.current = null;
-    }
-    touchStartPos.current = null;
   }, []);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
