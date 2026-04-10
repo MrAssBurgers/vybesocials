@@ -1,29 +1,38 @@
 
+Goal: make swipe-to-reply and hold-to-open-menu mutually exclusive on media bubbles, especially on phone and iPad.
 
-## Fix: Context Menu Appearing During Swipe-to-Reply
+What the deep scan found
+- `src/components/chat/SwipeToReply.tsx` still runs long-press from outer `onTouchStart/Move/End`.
+- The inner `motion.div` handles drag with Framer’s pointer system, so a slow horizontal swipe can avoid the wrapper’s touch-move cancellation long enough for the 400ms menu timer to fire.
+- Touch-only handlers are also less reliable on iPad/media children than pointer capture-phase handlers.
+- `src/components/chat/ChatView.tsx` opens the menu through `document.querySelector(...).dispatchEvent(new CustomEvent('longpress'))`, which is brittle and makes this race harder to control.
 
-### Root Cause
+Implementation plan
+1. Harden `src/components/chat/SwipeToReply.tsx`
+   - Replace long-press `onTouch*` logic with `onPointerDownCapture`, `onPointerMoveCapture`, `onPointerUpCapture`, and `onPointerCancelCapture`.
+   - Start the 400ms hold timer only for `touch`/`pen` input, not mouse.
+   - Add a smaller “swipe intent” cancel threshold that is lower than the 15px reply drag dead zone, so even a slow swipe cancels the menu immediately.
+   - Track gesture state (`pressing`, `swiping`, `longpress-fired`) so once movement becomes a swipe, the menu cannot open later in that same gesture.
+   - Keep the existing drag-side cancellation in `onDragStart` and `onDrag` as a second safety net.
 
-The long-press timer (400ms) fires during a slow swipe because of a gap between the two cancellation mechanisms:
+2. Simplify menu opening in `src/components/chat/ChatView.tsx`
+   - Remove the DOM custom-event bridge (`querySelector` + `CustomEvent('longpress')`).
+   - Wire `SwipeToReply` directly to the current message’s menu-open state/callback so the correct bubble opens reliably.
+   - Keep desktop right-click behavior through the existing `onContextMenu`.
 
-1. **Wrapper `onTouchMove`** — supposed to cancel if movement > 10px, but framer-motion's pointer capture on the inner `motion.div` can prevent these touch events from reaching the wrapper reliably
-2. **`handleDragStart`** — cancels the timer, but only fires after the 15px dead zone is exceeded
+3. Make hold-anywhere-on-image reliable
+   - Keep the hold detector on the wrapper around the full bubble so presses on the actual image/video child still count.
+   - Preserve media callout prevention so Safari/iPad native image menus do not interfere.
 
-So if the user swipes slowly (hasn't hit 15px for drag activation, and wrapper touch events aren't firing), the 400ms timer completes and opens the menu mid-swipe.
+4. Verify the exact cases you reported
+   - Holding still anywhere on the sent image opens the menu.
+   - Swiping to reply, even slowly or partially, never opens the menu.
+   - Full swipe still replies.
+   - Vertical scrolling past media does not open the menu.
+   - Same behavior works on phone-sized mobile and iPad.
 
-### Fix
+Files to touch
+- `src/components/chat/SwipeToReply.tsx`
+- `src/components/chat/ChatView.tsx`
 
-In `src/components/chat/SwipeToReply.tsx`:
-
-1. **Cancel long-press inside `handleDrag`** — this callback fires on every drag frame from framer-motion, even before the dead zone is crossed. Add `clearLongPress()` at the top of `handleDrag` so ANY horizontal movement detected by framer-motion kills the timer immediately.
-
-2. This is the most reliable cancellation point because `handleDrag` fires from framer-motion's own pointer tracking system, which is the same system that intercepts the touch events.
-
-### Change
-
-| File | Change |
-|------|--------|
-| `src/components/chat/SwipeToReply.tsx` | Add `clearLongPress()` at the start of `handleDrag` callback, before the dead zone check |
-
-Single line addition — `clearLongPress();` as the first line inside `handleDrag`, right after the `if (disabled || longPressFiredRef.current) return;` check.
-
+No backend changes are needed for this fix.
