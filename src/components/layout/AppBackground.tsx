@@ -9,6 +9,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { getSignedUrl, needsSigning } from '@/lib/signedUrlCache';
 
 interface BackgroundState {
   imageUrl: string | null;
@@ -86,6 +87,22 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
     blur: 0,
   });
   const hasLoadedRef = useRef(false);
+  const rawUrlRef = useRef<string | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Sign the raw URL and update state
+  const signAndApply = useCallback(async (rawUrl: string | null) => {
+    if (!rawUrl) {
+      setBackground(prev => ({ ...prev, imageUrl: null }));
+      return;
+    }
+    if (needsSigning(rawUrl)) {
+      const signed = await getSignedUrl(rawUrl);
+      setBackground(prev => ({ ...prev, imageUrl: signed }));
+    } else {
+      setBackground(prev => ({ ...prev, imageUrl: rawUrl }));
+    }
+  }, []);
 
   // Auto-load user's active background on auth
   const refreshBackground = useCallback(async () => {
@@ -98,16 +115,30 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
       .eq('is_active', true)
       .maybeSingle();
     if (data?.image_url) {
-      setBackground(prev => ({ ...prev, imageUrl: data.image_url }));
+      rawUrlRef.current = data.image_url;
+      await signAndApply(data.image_url);
       hasLoadedRef.current = true;
     } else if (!hasLoadedRef.current) {
+      rawUrlRef.current = null;
       setBackground(prev => ({ ...prev, imageUrl: null }));
     }
-  }, [profile?.id]);
+  }, [profile?.id, signAndApply]);
 
   useEffect(() => {
     refreshBackground();
   }, [refreshBackground]);
+
+  // Re-sign every 45 minutes to prevent expiry
+  useEffect(() => {
+    refreshTimerRef.current = setInterval(() => {
+      if (rawUrlRef.current && needsSigning(rawUrlRef.current)) {
+        signAndApply(rawUrlRef.current);
+      }
+    }, 45 * 60 * 1000);
+    return () => {
+      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+    };
+  }, [signAndApply]);
 
   // Apply body styles whenever background state changes
   useEffect(() => {
@@ -120,8 +151,9 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setBackgroundImage = useCallback((url: string | null) => {
-    setBackground(prev => ({ ...prev, imageUrl: url }));
-  }, []);
+    rawUrlRef.current = url;
+    signAndApply(url);
+  }, [signAndApply]);
 
   const setBackgroundOpacity = useCallback((opacity: number) => {
     setBackground(prev => ({ ...prev, opacity }));
