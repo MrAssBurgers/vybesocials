@@ -147,7 +147,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
     // Run AI safety scan at post time
     if (files.length > 0 && files[0]) {
       setIsUploading(true); setUploadProgress(0);
-      setShowSafetyScanner(true);
+      setShowSafety(true);
 
       let scanResult;
       if (files[0].type.startsWith('video/')) {
