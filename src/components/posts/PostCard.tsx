@@ -311,7 +311,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const { data: authorRole } = useUserRoleById(menuOpen ? post.author.id : undefined);
   const isModOrAdmin = useIsModOrAdmin();
   const [isLiked, setIsLiked] = useState(post.is_liked);
-  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(post.is_liked ? 'like' : null);
+  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(
+    post.is_liked ? ((post as any).reaction_type as ReactionType || 'like') : null
+  );
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);

@@ -584,6 +584,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Reset ALL theme CSS variables to default classic theme
     resetThemeToDefault();
     
+    // Clear custom background image on logout
+    document.body.style.backgroundImage = '';
+    document.body.style.removeProperty('background-image');
+    document.body.style.removeProperty('background-size');
+    document.body.style.removeProperty('background-position');
+    document.body.style.removeProperty('background-attachment');
+    document.body.style.removeProperty('background-repeat');
+    
     await supabase.auth.signOut();
     setProfile(null);
   };
