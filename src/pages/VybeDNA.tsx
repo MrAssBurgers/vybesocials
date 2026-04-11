@@ -147,7 +147,7 @@ export default function VybeDNAPage() {
             </FadeInSection>
           </>
         ) : (
-          /* Empty state */}
+          /* Empty state */
           <div className="animate-in fade-in slide-in-from-bottom-4">
             <Card className="border-border/50">
               <CardContent className="py-16 text-center space-y-6">
