@@ -551,11 +551,14 @@ function FriendMapInner() {
     let timeoutIds: number[] = [];
 
     const forceContainerSize = (el: HTMLDivElement) => {
+      const parent = el.parentElement;
+      const w = parent?.clientWidth || window.innerWidth;
+      const h = parent?.clientHeight || window.innerHeight;
       el.style.position = 'absolute';
       el.style.inset = '0';
       el.style.display = 'block';
-      el.style.width = '100%';
-      el.style.height = '100%';
+      el.style.width = `${Math.max(w, 320)}px`;
+      el.style.height = `${Math.max(h, 320)}px`;
     };
 
     const safeInvalidateSize = () => {
