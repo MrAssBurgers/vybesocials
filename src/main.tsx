@@ -58,6 +58,12 @@ if (isWeb && 'serviceWorker' in navigator) {
   });
 }
 
+// Remove static splash immediately when JS executes
+const staticSplash = document.getElementById("static-splash");
+if (staticSplash) {
+  staticSplash.remove();
+}
+
 // Enable concurrent features for better performance
 const root = createRoot(document.getElementById("root")!);
 root.render(
