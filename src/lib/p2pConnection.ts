@@ -40,13 +40,26 @@ interface SignalMessage {
   data: any;
 }
 
-// ── STUN Configuration ─────────────────────────────────────────
+// ── ICE Configuration (STUN + TURN) ────────────────────────────
 
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'stun:stun3.l.google.com:19302' },
+  // Free TURN relay servers for NAT traversal fallback
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:443?transport=tcp',
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:relay1.expressturn.com:443',
+    username: 'efPXGFATV8MWCURCOO',
+    credential: 'SkwNxdXIIcMHF7vN',
+  },
 ];
 
 const MAX_RECONNECT_ATTEMPTS = 5;
