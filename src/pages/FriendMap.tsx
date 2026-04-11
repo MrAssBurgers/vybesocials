@@ -79,6 +79,7 @@ const MY_LOCATION_ZOOM = 16;
 const UPSERT_INTERVAL_MS = 15_000;
 const SHARING_PREF_KEY = 'vybe-map-sharing';
 const MAP_STYLE_KEY = 'vybe-map-style';
+const HIDDEN_FRIENDS_KEY = 'vybe-map-hidden-friends';
 
 const MAP_TILES: Record<string, { url: string; label: string; icon: string }> = {
   satellite: {
@@ -406,12 +407,31 @@ function FriendMapInner() {
   const [ghostOpen, setGhostOpen] = useState(false);
   const [mapStyle, setMapStyle] = useState<MapStyleKey>(getInitialMapStyle);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [hiddenFriends, setHiddenFriends] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(HIDDEN_FRIENDS_KEY);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  const toggleHiddenFriend = useCallback((friendId: string) => {
+    setHiddenFriends(prev => {
+      const next = new Set(prev);
+      if (next.has(friendId)) next.delete(friendId); else next.add(friendId);
+      try { localStorage.setItem(HIDDEN_FRIENDS_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
 
   const safeMyCoords = useMemo(
     () => (myCoords && isValidLatLng(myCoords[0], myCoords[1]) ? myCoords : null),
     [myCoords]
   );
   const friendsArr = useMemo(
+    () => (Array.isArray(friends) ? friends.filter((friend) => isValidLatLng(friend.latitude, friend.longitude) && !hiddenFriends.has(friend.user_id)) : []),
+    [friends, hiddenFriends]
+  );
+  const allFriendsArr = useMemo(
     () => (Array.isArray(friends) ? friends.filter((friend) => isValidLatLng(friend.latitude, friend.longitude)) : []),
     [friends]
   );
@@ -551,7 +571,7 @@ function FriendMapInner() {
     fLayer.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     const rafId = requestAnimationFrame(safeInvalidateSize);
-    const timeoutIds = [window.setTimeout(safeInvalidateSize, 100), window.setTimeout(safeInvalidateSize, 500)];
+    const timeoutIds = [window.setTimeout(safeInvalidateSize, 100), window.setTimeout(safeInvalidateSize, 500), window.setTimeout(safeInvalidateSize, 1000), window.setTimeout(safeInvalidateSize, 2000)];
     // Invalidate size multiple times to handle desktop layout settling
     safeInvalidateSize();
 
@@ -689,7 +709,7 @@ function FriendMapInner() {
 
   return (
     <AppLayout hideNav noPadding>
-      <div className="fixed inset-0 md:absolute md:inset-0 w-full h-full overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none' }}>
+      <div className="absolute inset-0 w-full h-full overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none' }}>
         <style>{`
           @keyframes pulse-ring{0%{transform:scale(.8);opacity:1}100%{transform:scale(3);opacity:0}}
           @keyframes pulse-glow{0%,100%{box-shadow:0 0 0 0 hsl(217 91% 60%/.4)}50%{box-shadow:0 0 20px 8px hsl(217 91% 60%/.2)}}
@@ -1003,6 +1023,43 @@ function FriendMapInner() {
                     </div>
                     {sharing && <span className="text-green-400 text-xs font-bold">Active</span>}
                   </button>
+
+                  {/* Per-friend visibility */}
+                  {allFriendsArr.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Hide from map</p>
+                      <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-hide">
+                        {allFriendsArr.map((f) => (
+                          <button
+                            key={f.user_id}
+                            onClick={() => toggleHiddenFriend(f.user_id)}
+                            className={cn(
+                              'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 transition-all',
+                              hiddenFriends.has(f.user_id) ? 'bg-white/5 opacity-50' : 'bg-white/5'
+                            )}
+                          >
+                            <div className="h-8 w-8 rounded-full overflow-hidden bg-white/10 shrink-0">
+                              {f.profile?.avatar_url ? (
+                                <img src={f.profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="flex h-full w-full items-center justify-center text-xs font-bold text-white/60">{initial(friendName(f))}</span>
+                              )}
+                            </div>
+                            <span className="text-xs font-medium text-white/80 flex-1 text-left truncate">{friendName(f)}</span>
+                            <div className={cn(
+                              'h-5 w-9 rounded-full transition-all flex items-center px-0.5',
+                              hiddenFriends.has(f.user_id) ? 'bg-white/20' : 'bg-primary'
+                            )}>
+                              <div className={cn(
+                                'h-4 w-4 rounded-full bg-white transition-transform',
+                                hiddenFriends.has(f.user_id) ? 'translate-x-0' : 'translate-x-4'
+                              )} />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </>

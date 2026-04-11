@@ -73,8 +73,7 @@ export default function ProfilePage() {
 
   // Apply profile theme as app background (uses the same fixed layer as custom backgrounds)
   const equippedTheme = lockerData?.equippedProfileTheme;
-  const { setBackgroundImage } = useAppBackground();
-  const previousBgRef = useRef<string | null | undefined>(undefined);
+  const { setBackgroundImage, refreshBackground } = useAppBackground();
 
   useEffect(() => {
     const themeImg = equippedTheme ? THEME_IMAGES[equippedTheme] : null;
@@ -83,21 +82,13 @@ export default function ProfilePage() {
     // Preload then apply
     const img = new Image();
     img.onload = () => {
-      // Save current background to restore on unmount
-      const bgLayer = document.getElementById('app-background-layer');
-      if (previousBgRef.current === undefined) {
-        previousBgRef.current = bgLayer?.style.backgroundImage
-          ? bgLayer.style.backgroundImage.replace(/^url\(["']?/, '').replace(/["']?\)$/, '')
-          : null;
-      }
       setBackgroundImage(themeImg);
     };
     img.src = themeImg;
 
     return () => {
-      // Restore previous background on unmount
-      setBackgroundImage(previousBgRef.current ?? null);
-      previousBgRef.current = undefined;
+      // Restore the user's own background from the database
+      refreshBackground();
     };
   }, [equippedTheme, setBackgroundImage]);
 

@@ -241,12 +241,15 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
                               <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">Create</span>
                               <Zap className="w-4 h-4 text-primary" />
                             </div>
-                            <button
-                              onClick={() => { triggerHaptic("light"); playSound("tap"); close(); navigate("/map"); }}
-                              className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
-                            >
-                              <MapPin className="w-4 h-4 text-white" />
-                            </button>
+                            <div className="flex flex-col items-center gap-0.5">
+                              <button
+                                onClick={() => { triggerHaptic("light"); playSound("tap"); close(); navigate("/map"); }}
+                                className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
+                              >
+                                <MapPin className="w-4 h-4 text-white" />
+                              </button>
+                              <span className="text-[9px] font-bold text-emerald-400">VybeMap</span>
+                            </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
