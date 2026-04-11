@@ -11828,6 +11828,10 @@ export type Database = {
         Returns: boolean
       }
       is_conversation_member: { Args: { conv_id: string }; Returns: boolean }
+      is_conversation_member_for_media: {
+        Args: { _file_owner_id: string; _requesting_user_id: string }
+        Returns: boolean
+      }
       is_conversation_member_for_presence: {
         Args: { conv_id: string }
         Returns: boolean
