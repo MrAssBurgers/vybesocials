@@ -181,7 +181,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       const isGroupCall = data.is_group_call || conversation?.is_group || false;
       const groupName = conversation?.name || undefined;
       const groupAvatar = conversation?.avatar_url || null;
-      const callMode = ((data as any).call_mode as CallMode) || 'p2p';
+      const callMode = (data.call_mode as CallMode) || 'p2p';
 
       const callData: CallData = {
         id: data.id,
@@ -349,7 +349,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           room_name: roomName,
           is_group_call: params.isGroupCall || false,
           call_mode: 'p2p',
-        } as any)
+        })
         .select()
         .single();
 
@@ -442,7 +442,12 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     }
   }, [setState, setIncomingCall]);
 
+  const endCallRef = useRef(false);
   const endCall = useCallback(async () => {
+    // Guard against double execution (e.g. both remote-participant-left + disconnected fire)
+    if (endCallRef.current) return;
+    endCallRef.current = true;
+
     premiumSounds.stopAllCallSounds();
 
     const callId = globalCallState.call?.id || globalLingeringCall?.id;
@@ -460,6 +465,9 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     globalLingeringCall = null;
     callSounds.end();
     setState(initialState);
+
+    // Reset guard after state is cleared
+    setTimeout(() => { endCallRef.current = false; }, 100);
   }, [setState]);
 
   const leaveCall = useCallback(() => {
@@ -526,7 +534,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     // Update in DB — this triggers Realtime to the other client
     await supabase
       .from('calls')
-      .update({ call_mode: mode } as any)
+      .update({ call_mode: mode })
       .eq('id', currentCall.id);
 
     // If switching to persistent, get LiveKit token
@@ -560,7 +568,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         // Revert mode in DB
         await supabase
           .from('calls')
-          .update({ call_mode: currentCall.callMode } as any)
+          .update({ call_mode: currentCall.callMode })
           .eq('id', currentCall.id);
       }
     } else {
