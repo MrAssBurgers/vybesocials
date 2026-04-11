@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 
@@ -7,14 +7,13 @@ import { useAuth } from '@/lib/auth';
  * with tokens in the URL hash, the Supabase client's detectSessionInUrl
  * processes them and fires onAuthStateChange → SIGNED_IN. We wait for
  * `user` to appear, then redirect to /home (or /onboarding for new users).
- *
- * This avoids the race condition in Landing.tsx where intro-checks,
- * authReady guards, and session detection all competed.
  */
 export default function AuthCallback() {
-  const { user, authReady, profile } = useAuth();
+  const { user, authReady, profile, loading } = useAuth();
   const navigate = useNavigate();
   const [timedOut, setTimedOut] = useState(false);
+  const profileCheckTimer = useRef<NodeJS.Timeout | null>(null);
+  const [profileSettled, setProfileSettled] = useState(false);
 
   // Safety timeout — if session never establishes after 10s, go to login
   useEffect(() => {
@@ -22,30 +21,45 @@ export default function AuthCallback() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Once we have a user and auth is no longer loading, wait a beat for profile to load.
+  // If profile is still null after 3s, treat as new user (no profile row).
+  useEffect(() => {
+    if (!user || loading) return;
+
+    if (profile) {
+      setProfileSettled(true);
+      return;
+    }
+
+    // Give profile fetch time to complete
+    profileCheckTimer.current = setTimeout(() => {
+      setProfileSettled(true);
+    }, 3000);
+
+    return () => {
+      if (profileCheckTimer.current) clearTimeout(profileCheckTimer.current);
+    };
+  }, [user, profile, loading]);
+
   useEffect(() => {
     // Clean up the OAuth pending flag no matter what
     if (user || timedOut) {
       sessionStorage.removeItem('vybe-oauth-pending');
     }
 
-    if (user) {
-      // Wait for profile to decide destination
-      if (profile) {
-        if (profile.onboarding_completed === false || !profile.username) {
-          navigate('/onboarding', { replace: true });
-        } else {
-          navigate('/home', { replace: true });
-        }
+    if (user && profileSettled) {
+      if (!profile || profile.onboarding_completed === false || !profile.username) {
+        navigate('/onboarding', { replace: true });
+      } else {
+        navigate('/home', { replace: true });
       }
-      // else: profile still loading, wait
       return;
     }
 
     if (timedOut) {
-      // Session never established — send to login
       navigate('/', { replace: true });
     }
-  }, [user, profile, timedOut, navigate]);
+  }, [user, profile, profileSettled, timedOut, navigate]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
