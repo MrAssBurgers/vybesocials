@@ -29,9 +29,9 @@ async function fetchGeminiNews(
   latitude: number | null,
   longitude: number | null,
 ): Promise<LiveUpdate[]> {
-  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-  if (!GEMINI_API_KEY) {
-    console.error("[Brief] GEMINI_API_KEY not set");
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    console.error("[Brief] LOVABLE_API_KEY not set");
     return [];
   }
 
@@ -41,83 +41,56 @@ async function fetchGeminiNews(
     locationContext = `\nAlso include one item about local news/events/weather near coordinates ${latitude.toFixed(2)}, ${longitude.toFixed(2)}. Use category "local" and label "📍 Near You" for it.`;
   }
 
-  const prompt = `You are a news assistant. Return the latest trending news for these topics:
+  const today = new Date().toISOString().split('T')[0];
+
+  const prompt = `You are a news assistant. Today is ${today}. Return the latest trending news for these topics:
 ${interestList}
 ${locationContext}
 
 Return ONLY valid JSON, no markdown fences. Format:
-{"items":[{"topic":"<topic label>","summary":"<2-3 sentence factual summary with specific details>","sources":["<url1>","<url2>"],"category":"<interests|local|world>"}]}
+{"items":[{"topic":"<topic label>","summary":"<2-3 sentence factual summary with specific details, names, numbers, dates>","sources":["<real_url_1>","<real_url_2>"],"category":"<interests|local|world>"}]}
 
 Rules:
 - One item per topic, plus the local item if requested
-- Summaries must be factual, current (today), and specific (names, numbers, dates)
-- Include real source URLs from your grounding results
+- Summaries must be factual, current, and specific (names, numbers, dates)
+- CRITICAL: Each item MUST include 2-3 real source URLs from major news outlets (e.g. reuters.com, apnews.com, bbc.com, cnn.com, theverge.com, techcrunch.com, nytimes.com, etc.)
+- URLs must be real, complete article URLs — NOT homepages. Example: "https://www.reuters.com/technology/article-slug-2025-04-11/"
 - category is "interests" for topic items, "local" for location-based, "world" for general news`;
 
-  const makeRequest = async () => {
-    console.log("[Brief] Calling Gemini with Google Search grounding...");
-    return await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          tools: [{ google_search: {} }],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 8192,
-          },
-        }),
-      }
-    );
-  };
-
   try {
-    let response = await makeRequest();
-
-    // Retry once on 503 (Gemini overloaded)
-    if (response.status === 503) {
-      console.warn("[Brief] Gemini returned 503, retrying after 2s...");
-      await new Promise(r => setTimeout(r, 2000));
-      response = await makeRequest();
-    }
+    console.log("[Brief] Calling Lovable AI Gateway for news...");
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.2,
+        max_tokens: 8192,
+      }),
+    });
 
     if (!response.ok) {
       const errText = await response.text().catch(() => 'unknown');
-      console.error(`[Brief] Gemini API error ${response.status}:`, errText);
+      console.error(`[Brief] AI Gateway error ${response.status}:`, errText);
       return [];
     }
 
     const data = await response.json();
+    const textContent = data.choices?.[0]?.message?.content?.trim() || '';
 
-    // Check if response was truncated
-    const finishReason = data.candidates?.[0]?.finishReason;
-    if (finishReason === 'MAX_TOKENS') {
-      console.warn("[Brief] Response truncated by token limit");
-    }
-
-    const textContent = data.candidates?.[0]?.content?.parts
-      ?.filter((p: any) => p.text)
-      ?.map((p: any) => p.text)
-      ?.join('') || '';
-
-    console.log(`[Brief] Gemini raw response length: ${textContent.length}, finishReason: ${finishReason}`);
-
-    // Extract grounding sources from metadata - filter out Google proxy URLs
-    const groundingChunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const groundingSources: string[] = groundingChunks
-      .filter((c: any) => c.web?.uri)
-      .map((c: any) => c.web.uri)
-      .filter((url: string) => !url.includes('vertexaisearch') && !url.includes('googleapis.com/'));
+    console.log(`[Brief] AI Gateway response length: ${textContent.length}`);
 
     // Parse JSON from response (strip markdown fences if present)
-    let jsonStr = textContent.trim();
+    let jsonStr = textContent;
     if (jsonStr.startsWith('```')) {
       jsonStr = jsonStr.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
     }
 
-    // Sanitize control characters that Gemini injects into JSON string values
+    // Sanitize control characters
     jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, (ch: string) => {
       if (ch === '\n' || ch === '\r' || ch === '\t') return ' ';
       return '';
@@ -127,8 +100,7 @@ Rules:
     try {
       parsed = JSON.parse(jsonStr);
     } catch (parseErr) {
-      console.warn("[Brief] JSON.parse failed after sanitization, attempting regex fallback:", parseErr);
-      // Fallback: extract items via regex
+      console.warn("[Brief] JSON.parse failed, attempting regex fallback:", parseErr);
       try {
         const items: Array<{ topic: string; summary: string; sources: string[]; category: string }> = [];
         const topicMatches = jsonStr.matchAll(/"topic"\s*:\s*"([^"]+)"/g);
@@ -158,26 +130,26 @@ Rules:
     }
 
     if (!parsed.items || !Array.isArray(parsed.items)) {
-      console.error("[Brief] Gemini response missing items array");
+      console.error("[Brief] Response missing items array");
       return [];
     }
 
     return parsed.items.map((item) => {
-      // Merge grounding sources with inline sources
-      const itemSources = item.sources || [];
-      const allSources = [...new Set([...itemSources, ...groundingSources])].slice(0, 6);
-      const sourceFavicons = allSources.slice(0, 4).map(getFaviconUrl).filter(Boolean);
+      const sources = (item.sources || [])
+        .filter((url: string) => url.startsWith('http') && !url.includes('vertexaisearch') && !url.includes('googleapis.com/'))
+        .slice(0, 6);
+      const sourceFavicons = sources.slice(0, 4).map(getFaviconUrl).filter(Boolean);
 
       return {
         interest: item.topic,
         content: item.summary,
-        sources: allSources,
+        sources,
         sourceFavicons,
         category: item.category || 'interests',
       };
     });
   } catch (error) {
-    console.error("[Brief] Gemini fetch error:", error);
+    console.error("[Brief] AI Gateway fetch error:", error);
     return [];
   }
 }
