@@ -265,6 +265,14 @@ export function useUserAdaptation() {
     return suggestions;
   }, [profile]);
 
+  const recordEmojiPreference = useCallback((emoji: string) => {
+    recordEmoji(emoji);
+  }, []);
+
+  const recordShareTarget = useCallback((userId: string) => {
+    recordShareTo(userId);
+  }, []);
+
   const resetProfile = useCallback(() => {
     setProfile(DEFAULT_PROFILE);
     saveLocalProfile(DEFAULT_PROFILE);
@@ -277,6 +285,8 @@ export function useUserAdaptation() {
     updateInterests,
     getAdaptedSystemPrompt,
     getAdaptedReplySuggestions,
+    recordEmojiPreference,
+    recordShareTarget,
     resetProfile,
   };
 }
