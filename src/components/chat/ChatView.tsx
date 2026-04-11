@@ -117,6 +117,9 @@ import { CreateOfferDialog } from '@/components/business/CreateOfferDialog';
 import { ChatMediaBubble, SignedAudioUrl } from './ChatMediaBubble';
 import { ImageViewer } from './ImageViewer';
 import { useSafetySettings } from '@/hooks/useSafetySettings';
+import { useConversationSafety } from '@/hooks/useConversationSafety';
+import { SafetyFilterRequest } from './SafetyFilterRequest';
+import { SafetyFilterRequestButton } from './SafetyFilterRequestButton';
 import { getTopEmojis, recordEmoji } from '@/lib/frequentEmojis';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
