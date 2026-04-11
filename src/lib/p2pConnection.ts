@@ -129,8 +129,8 @@ export class P2PConnection {
 
     // 5. If initiator, wait a beat for the responder's channel to be ready, then send offer
     if (this.isInitiator) {
-      // Small delay ensures the responder has subscribed to the channel
-      await new Promise(r => setTimeout(r, 300));
+      // Wait for the responder's signaling channel to be ready
+      await new Promise(r => setTimeout(r, 800));
       await this.createAndSendOffer();
     }
   }
