@@ -192,19 +192,8 @@ export function ConversationList() {
     setRecentUsers(getRecentMessageUsers());
   }, []);
 
-  // Convert online friends to the format needed for QuickAddRow
-  const onlineFriendsForQuickAdd = useMemo(() => 
-    onlineFriends
-      .filter(f => f.id !== profile?.id)
-      .map(f => ({
-        id: f.id,
-        username: f.username,
-        avatar_url: f.avatar_url,
-        display_name: f.display_name,
-        isOnline: true,
-      })),
-    [onlineFriends, profile?.id]
-  );
+
+
 
   const handleQuickAddSelect = useCallback(async (userId: string) => {
     if (!profile?.id) {
