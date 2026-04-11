@@ -818,10 +818,34 @@ export function GlobalCallOverlay() {
             opacity: isMinimized ? 0 : 1,
             pointerEvents: isMinimized ? 'none' : 'auto',
             visibility: isMinimized ? 'hidden' : 'visible',
-            background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(240 10% 8%) 50%, hsl(280 20% 8%) 100%)'
+            background: 'linear-gradient(160deg, #0a0a12 0%, #0d0b1a 25%, #12091f 50%, #0e0a1e 75%, #080810 100%)'
           }}
         >
-          <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20" style={{ background: 'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.4) 0%, transparent 50%), radial-gradient(circle at 70% 70%, hsl(var(--accent) / 0.3) 0%, transparent 50%)' }} />
+          {/* Animated ambient blobs */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <motion.div
+              animate={{ x: [0, 40, -20, 0], y: [0, -30, 20, 0], scale: [1, 1.3, 0.9, 1] }}
+              transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -top-20 -left-20 w-[400px] h-[400px] rounded-full opacity-[0.15]"
+              style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }}
+            />
+            <motion.div
+              animate={{ x: [0, -50, 30, 0], y: [0, 40, -20, 0], scale: [1, 1.2, 1.1, 1] }}
+              transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -bottom-32 -right-20 w-[500px] h-[500px] rounded-full opacity-[0.12]"
+              style={{ background: 'radial-gradient(circle, hsl(280 80% 60%) 0%, transparent 70%)' }}
+            />
+            <motion.div
+              animate={{ x: [0, 30, -30, 0], y: [0, -40, 30, 0] }}
+              transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-[0.06]"
+              style={{ background: 'radial-gradient(circle, hsl(200 80% 50%) 0%, transparent 60%)' }}
+            />
+            {/* Subtle grid pattern */}
+            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+            {/* Top vignette */}
+            <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.4) 100%)' }} />
+          </div>
 
           {/* Mode switching overlay */}
           <AnimatePresence>
@@ -902,13 +926,35 @@ export function GlobalCallOverlay() {
           {!isVideoCall && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
-                <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
-                  <Avatar className="h-40 w-40 mx-auto ring-4 ring-white/10 shadow-2xl">
-                    <AvatarImage src={displayAvatar || undefined} />
-                    <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
-                  </Avatar>
-                </motion.div>
-                <h2 className="mt-6 text-2xl font-bold text-white">{displayName}</h2>
+                {/* Outer glow rings */}
+                <div className="relative inline-block">
+                  <motion.div
+                    animate={{ scale: [1, 1.6], opacity: [0.3, 0] }}
+                    transition={{ repeat: Infinity, duration: 3, ease: "easeOut" }}
+                    className="absolute inset-0 rounded-full border border-primary/40"
+                    style={{ width: 176, height: 176, margin: '-8px' }}
+                  />
+                  <motion.div
+                    animate={{ scale: [1, 1.4], opacity: [0.2, 0] }}
+                    transition={{ repeat: Infinity, duration: 3, delay: 0.8, ease: "easeOut" }}
+                    className="absolute inset-0 rounded-full border border-accent/30"
+                    style={{ width: 176, height: 176, margin: '-8px' }}
+                  />
+                  {/* Glowing backdrop behind avatar */}
+                  <motion.div
+                    animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.6, 0.4] }}
+                    transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                    className="absolute inset-0 rounded-full blur-2xl"
+                    style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(280 80% 60% / 0.3))', width: 160, height: 160 }}
+                  />
+                  <motion.div animate={{ scale: [1, 1.03, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
+                    <Avatar className="h-40 w-40 mx-auto ring-4 ring-white/10 shadow-2xl relative z-10">
+                      <AvatarImage src={displayAvatar || undefined} />
+                      <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
+                    </Avatar>
+                  </motion.div>
+                </div>
+                <h2 className="mt-6 text-2xl font-bold text-white tracking-tight">{displayName}</h2>
                 {isConnecting && (
                   <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="mt-2 text-white/60 text-lg">Connecting...</motion.p>
                 )}
@@ -932,7 +978,7 @@ export function GlobalCallOverlay() {
           {/* Header */}
           <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave}>
             <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: showHeader ? 0 : -100, opacity: showHeader ? 1 : 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="pointer-events-auto">
-              <div className="mx-4 mt-4 p-4 rounded-2xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-2xl">
+              <div className="mx-4 mt-4 p-4 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="relative">
@@ -1040,7 +1086,7 @@ export function GlobalCallOverlay() {
             onMouseLeave={handleFooterAreaLeave}
           >
             <div className="flex justify-center">
-              <div className="inline-flex items-center gap-3 p-3 rounded-2xl backdrop-blur-xl bg-white/10 border border-white/10 shadow-2xl">
+              <div className="inline-flex items-center gap-3 p-3 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
                 {/* Settings */}
                 <motion.button whileTap={{ scale: 0.95 }} onClick={() => setSettingsOpen(true)} disabled={!isConnected} className={cn("relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300", "bg-white/10 text-white hover:bg-white/20 border border-white/10", "disabled:opacity-50 disabled:cursor-not-allowed")}>
                   <SlidersHorizontal className="h-5 w-5" />
