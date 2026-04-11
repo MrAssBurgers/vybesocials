@@ -1000,82 +1000,92 @@ const ConversationItem = memo(function ConversationItem({
   );
 });
 
-// New Chat Dialog - now includes NFC option and links to Add Friends page
-function NewChatDialog({ 
-  open, 
-  onOpenChange,
-  onSelectUser,
-}: { 
-  open: boolean; 
-  onOpenChange: (open: boolean) => void;
-  onSelectUser: (userId: string) => void;
-}) {
-  const { t } = useTranslation();
+// Recommended Friends Section - Snapchat Quick Add style at bottom of DMs
+const RecommendedFriendsSection = memo(function RecommendedFriendsSection() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  const { data: searchResults, isLoading: isSearching } = useQuery({
-    queryKey: ['user-search', searchQuery],
-    queryFn: async () => {
-      if (searchQuery.length < 2) return [];
-      
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url, display_name')
-        .neq('id', profile?.id || '')
-        .or(`username.ilike.%${searchQuery}%,display_name.ilike.%${searchQuery}%`)
-        .limit(20);
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: searchQuery.length >= 2,
-    staleTime: 30000,
-  });
+  const { data: suggestions, isLoading } = useSuggestedFriends();
+  const sendRequest = useSendFriendRequest();
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [added, setAdded] = useState<Set<string>>(new Set());
 
-  const handleSelect = useCallback((userId: string) => {
-    onSelectUser(userId);
-    onOpenChange(false);
-    setSearchQuery('');
-  }, [onSelectUser, onOpenChange]);
+  if (isLoading || !suggestions || suggestions.length === 0) return null;
 
-  const handleGoToAddFriends = () => {
-    onOpenChange(false);
-    navigate('/messages/new');
+  const visible = suggestions.filter(s => !dismissed.has(s.id));
+  if (visible.length === 0) return null;
+
+  const handleAdd = (userId: string) => {
+    setAdded(prev => new Set([...prev, userId]));
+    sendRequest.mutate(userId, {
+      onSuccess: () => {
+        toast.success('Friend request sent!');
+        setTimeout(() => setDismissed(prev => new Set([...prev, userId])), 800);
+      },
+      onError: () => setAdded(prev => { const n = new Set(prev); n.delete(userId); return n; }),
+    });
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="icon" variant="ghost">
-          <Plus className="h-5 w-5" />
+    <div className="px-3 pb-4">
+      <div className="flex items-center justify-between px-1 mb-2">
+        <span className="text-xs font-semibold text-foreground tracking-wide uppercase">Quick Add</span>
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-primary" onClick={() => navigate('/messages/new')}>
+          More
         </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5" />
-            Add Friends
-          </DialogTitle>
-        </DialogHeader>
-        
-        <div className="space-y-4">
-          {/* NFC Quick Add Banner */}
-          <div className="rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-3 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-              <Nfc className="h-5 w-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm">Quick Add with NFC</p>
-              <p className="text-xs text-muted-foreground">Tap phones to add friends</p>
-            </div>
-            <NFCFriendShare variant="icon" />
-          </div>
-
-          <MutualFriendsQuickAdd onSelect={handleSelect} />
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+      <div className="space-y-0.5">
+        <AnimatePresence initial={false}>
+          {visible.slice(0, 5).map((person) => (
+            <motion.div
+              key={person.id}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+              className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted/40 transition-colors"
+            >
+              <button onClick={() => navigate(`/u/${person.username}`)} className="flex-shrink-0">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={person.avatar_url || undefined} />
+                  <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
+                    {(person.display_name || person.username)?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{person.display_name || person.username}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {person.mutual_count > 0
+                    ? `${person.mutual_count} mutual friend${person.mutual_count !== 1 ? 's' : ''}`
+                    : `@${person.username}`}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {added.has(person.id) ? (
+                  <div className="h-7 w-16 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Check className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={() => handleAdd(person.id)}
+                      className="h-7 rounded-full text-[10px] font-semibold gap-1 px-3"
+                    >
+                      <UserPlus className="h-3 w-3" />
+                      Add
+                    </Button>
+                    <button
+                      onClick={() => setDismissed(prev => new Set([...prev, person.id]))}
+                      className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </div>
   );
-}
+});
