@@ -81,6 +81,7 @@ export function GlobalCallOverlay() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [p2pFailCount, setP2pFailCount] = useState(0);
+  const p2pEndedRef = useRef(false); // Guard against double endCall from P2P events
   
   // Remote user left — linger state (persistent mode only)
   const [remoteUserLeft, setRemoteUserLeft] = useState(false);
@@ -139,12 +140,14 @@ export function GlobalCallOverlay() {
         setPhase('connected');
         setIsReconnecting(false);
         setP2pFailCount(0);
+        p2pEndedRef.current = false;
         break;
 
       case 'disconnected':
-        if (!isLeavingRef.current) {
+        if (!isLeavingRef.current && !p2pEndedRef.current) {
           // P2P has no linger — if remote hangs up, end call
           if (event.reason === 'remote-hangup') {
+            p2pEndedRef.current = true;
             toast.info('Call ended');
             endCall();
           }
@@ -178,17 +181,14 @@ export function GlobalCallOverlay() {
 
       case 'remote-participant-left':
         setHasRemoteParticipant(false);
-        if (!isLeavingRef.current) {
-          toast.info('Call ended');
-          endCall();
-        }
+        // Don't call endCall here — 'disconnected' with reason 'remote-hangup' handles it
+        // This prevents double endCall firing
         break;
 
       case 'ice-failed':
         setP2pFailCount(prev => {
           const newCount = prev + 1;
           if (newCount >= 3) {
-            // Suggest switching to persistent mode after 3 failures
             toast.error('Connection unstable. Try "Stay On Call" for a better experience.', { duration: 5000 });
           }
           return newCount;
