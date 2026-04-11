@@ -28,10 +28,10 @@ import {
   useResetTheme, 
   useGenerateTheme,
   applyThemeTokens,
-  applyBackgroundImage,
   THEME_PRESETS,
   ThemeTokens,
 } from '@/hooks/useCustomTheme';
+import { useAppBackgroundSafe } from '@/components/layout/AppBackground';
 import { useShareTheme } from '@/hooks/useSharedThemes';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { BackgroundCustomizer } from './BackgroundCustomizer';
@@ -96,9 +96,10 @@ export function ThemeCustomizer() {
   // Theme settings
   const [animationSpeed, setAnimationSpeed] = useState<'slow' | 'normal' | 'fast' | 'instant'>('normal');
   const [borderRadius, setBorderRadius] = useState<'small' | 'medium' | 'large'>('medium');
-  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
-  const [backgroundOpacity, setBackgroundOpacity] = useState(30);
-  const [backgroundBlur, setBackgroundBlur] = useState(0);
+
+  // Get background state from AppBackground (single source of truth)
+  const appBackground = useAppBackgroundSafe();
+  const backgroundImage = appBackground?.background.imageUrl || null;
 
   // Load saved theme
   useEffect(() => {
