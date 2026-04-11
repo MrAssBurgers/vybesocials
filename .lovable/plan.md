@@ -1,122 +1,50 @@
 
 
-## Plan: Dual-Mode Calling System (P2P + LiveKit)
+## Plan: Bug Fixes and Polish for Dual-Mode Calling System
 
-### Summary
-Add a free peer-to-peer WebRTC calling mode as the default, keeping the existing LiveKit system as a premium "Stay On Call" feature. P2P signaling will use Supabase Realtime channels (no new backend needed). Mode switching triggers a controlled reconnect.
+### Issues Found
 
-### Architecture
+1. **Unnecessary `as any` type casts** — `call_mode` exists in the generated types, but the code uses `as any` in 3 places (insert/update). These should be removed for type safety.
 
-```text
-┌──────────────────────────────────────────────────┐
-│                   Call Store                      │
-│  callMode: "p2p" | "persistent"                  │
-│                                                   │
-│  P2P Mode (free)          Persistent Mode (pro)   │
-│  ┌─────────────┐          ┌──────────────────┐   │
-│  │ RTCPeer     │          │ LiveKit Room     │   │
-│  │ Connection  │          │ (existing code)  │   │
-│  │             │          │                  │   │
-│  │ Signaling:  │          │ Token from       │   │
-│  │ Supabase    │          │ livekit-token    │   │
-│  │ Realtime    │          │ edge function    │   │
-│  └─────────────┘          └──────────────────┘   │
-└──────────────────────────────────────────────────┘
-```
+2. **Race condition in P2P signaling** — The signaling channel `subscribe()` doesn't wait for `SUBSCRIBED` status before sending the offer. The initiator could send the offer before the channel is ready, causing it to be lost.
 
-### What Changes
+3. **P2P callee never sends offer back** — When the callee accepts, both sides set up signaling, but only the initiator creates an offer. If the callee's signaling channel subscribes before the initiator's, the offer may be missed because broadcast `self: false` means no replay of past messages.
 
-**1. Database Migration**
-- Add `call_mode` column (`text`, default `'p2p'`) to `calls` table
-- Used to coordinate mode between both clients via Realtime subscription
+4. **Missing `acceptCall` for P2P incoming calls** — When accepting a P2P call, the callee doesn't get a LiveKit token (correct), but the call status update and signaling setup has a timing gap — the DB update happens before the signaling channel is ready.
 
-**2. New File: `src/lib/p2pConnection.ts`**
-- Encapsulates `RTCPeerConnection` lifecycle
-- Uses Google STUN servers (`stun:stun.l.google.com:19302`)
-- Signaling via Supabase Realtime broadcast channel (`p2p-signal:{conversationId}`)
-- Exchanges SDP offers/answers and ICE candidates
-- Handles: connect, disconnect, mute, camera toggle, device switch
-- Reconnect on ICE failure with exponential backoff
-- Exports a clean interface: `createP2PCall()`, `joinP2PCall()`, `disconnectP2P()`
+5. **Double event firing on P2P disconnect** — When `remote-participant-left` fires, `endCall()` is called. But `disconnected` with `reason: 'remote-hangup'` also calls `endCall()`, potentially triggering it twice.
 
-**3. Update: `src/lib/callStore.tsx`**
-- Add `callMode: 'p2p' | 'persistent'` to `CallData` and state
-- Default `startCall` to `'p2p'` mode — no edge function call needed, just insert call record and open Realtime signaling channel
-- Add `switchMode(mode)` function:
-  - Updates `call_mode` in DB (triggers Realtime to other client)
-  - Both clients detect change, show "Switching..." UI
-  - Tear down current connection (P2P or LiveKit)
-  - If switching to `persistent`: fetch LiveKit token, connect to room
-  - If switching to `p2p`: create new peer connection via signaling
-- Keep all existing LiveKit logic intact for persistent mode
-- Add `fallbackToPersistent()` — auto-suggest upgrade if P2P fails
+6. **Memory leak in P2P reconnect** — `attemptReconnect` uses `setTimeout` but doesn't store/clear the timeout on cleanup, so reconnect attempts continue after `disconnect()`.
 
-**4. Update: `src/components/call/GlobalCallOverlay.tsx`**
-- Dual-mode rendering: use P2P connection OR LiveKit Room based on `callMode`
-- Add P2P track attachment (local/remote video/audio via `RTCPeerConnection` tracks)
-- Add "Switching to Stay Connected mode..." transitional UI state
-- Add "Stay On Call" toggle in call controls:
-  - Shows Crown/premium badge
-  - Checks `usePremiumStatus()` before enabling
-  - If not premium: open `PaywallSheet`
-  - If premium: call `switchMode('persistent')`
-- P2P reconnect UI: "Reconnecting..." on ICE restart
-- Fallback prompt: if P2P fails after 3 attempts, suggest persistent mode
+7. **Stale closure in handleP2PEvent** — `endCall` is captured in the callback but the P2PConnection instance holds the initial closure. If endCall changes, the P2P event handler uses the stale reference.
 
-**5. Update: `src/components/call/CallButtons.tsx`**
-- Minor: pass `callMode: 'p2p'` as default when starting calls
-- "Join Back" button only shows for persistent mode (P2P has no rejoin)
+8. **Missing cleanup of auto-end timers on mode switch** — When switching modes, auto-end timers and countdowns from persistent mode are not cleared.
 
-**6. Edge Function: `supabase/functions/livekit-token/index.ts`**
-- No changes needed — already handles token generation for persistent mode
+9. **Signaling channel not waited on** — `setupSignaling()` calls `.subscribe()` but doesn't wait for it to reach `SUBSCRIBED` state, leading to lost signals.
 
-**7. P2P Signaling Flow (via Supabase Realtime)**
-- Channel: `p2p-signal:{conversationId}`
-- Events: `offer`, `answer`, `ice-candidate`, `hangup`, `mode-switch`
-- No new edge function required — Realtime broadcast handles it client-side
+### Changes
 
-### Call Flow
+**File: `src/lib/p2pConnection.ts`**
+- Add a `Promise` wrapper around signaling channel subscription to wait for `SUBSCRIBED` status before proceeding
+- Store reconnect timeout and clear it in `cleanup()`
+- Add guard against double hangup event processing
+- Use an event handler ref pattern to avoid stale closures (pass `onEvent` setter)
 
-**Starting a call (P2P):**
-1. Insert call record with `call_mode: 'p2p'`, status `'ringing'`
-2. Open Realtime signaling channel
-3. Callee detects incoming call (existing Realtime + polling)
-4. Callee accepts → joins signaling channel
-5. Caller sends SDP offer → Callee sends SDP answer → ICE exchange → connected
+**File: `src/lib/callStore.tsx`**
+- Remove all `as any` casts for `call_mode` (types already support it)
+- Remove `(data as any).call_mode` cast — use `data.call_mode` directly
+- Add guard in `endCall` to prevent double execution
 
-**Switching to persistent (premium):**
-1. User toggles "Stay On Call" → premium check passes
-2. Update `call_mode` to `'persistent'` in DB
-3. Both clients detect via Realtime subscription on `calls` table
-4. Show "Switching to Stay Connected mode..."
-5. Tear down P2P connection
-6. Both clients fetch LiveKit token → connect to LiveKit room
-7. Resume call in persistent mode
-
-### Premium Gating
-- Uses existing `usePremiumStatus()` hook
-- Non-premium users see the toggle but get `PaywallSheet` on tap
-- `callMode` defaults to `'p2p'` — no server cost for free users
-
-### Cleanup
-- P2P: connection ends when either user hangs up (no linger)
-- Persistent: existing linger logic (30s for 1:1, 1hr for group)
-- Both: call record updated to `'ended'` in DB
-
-### Files
-
-| Action | File |
-|--------|------|
-| Create | `src/lib/p2pConnection.ts` |
-| Edit | `src/lib/callStore.tsx` |
-| Edit | `src/components/call/GlobalCallOverlay.tsx` |
-| Edit | `src/components/call/CallButtons.tsx` |
-| Migration | Add `call_mode` column to `calls` table |
+**File: `src/components/call/GlobalCallOverlay.tsx`**
+- Use a ref for the P2P event handler to avoid stale closures
+- Add guards in `handleP2PEvent` to prevent double `endCall()` from both `disconnected` and `remote-participant-left`
+- Clear auto-end timers during mode switch
+- Add small delay after signaling channel ready before sending offer (ensures both sides subscribed)
 
 ### Steps
-1. Run database migration (add `call_mode` column)
-2. Create `p2pConnection.ts` (WebRTC + Supabase Realtime signaling)
-3. Update `callStore.tsx` (dual-mode state, mode switching, P2P start flow)
-4. Update `GlobalCallOverlay.tsx` (P2P rendering, "Stay On Call" toggle, switching UI)
-5. Update `CallButtons.tsx` (default to P2P mode)
+1. Fix P2P signaling race condition (wait for SUBSCRIBED)
+2. Fix double-disconnect and stale closure bugs
+3. Remove unnecessary `as any` casts
+4. Add reconnect timeout cleanup
+5. Add mode-switch timer cleanup
 
