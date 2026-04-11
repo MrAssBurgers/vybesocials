@@ -32,7 +32,7 @@ import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
 import { LocationProvider } from "@/providers/LocationProvider";
 import { useBriefPreFetch } from "@/hooks/useBriefPreFetch";
-
+import { SplashScreen } from "@/components/ui/SplashScreen";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -121,7 +121,7 @@ function ScrollRestoration() {
 const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
 // Track if initial load has completed (persists across navigations)
-
+let hasInitialLoadCompleted = false;
 
 // Background brief pre-fetcher (needs auth context)
 function BriefPreFetchInit() {
