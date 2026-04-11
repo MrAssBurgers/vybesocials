@@ -185,12 +185,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         const { error } = await signIn(formData.email, formData.password);
         if (error) throw error;
         
-        // Handle "Remember Me" - if unchecked, set a flag to clear session on browser close
-        if (!rememberMe) {
-          sessionStorage.setItem('vybe-session-only', 'true');
-        } else {
-          sessionStorage.removeItem('vybe-session-only');
-        }
+        // Always persist sessions so users stay signed in reliably
+        sessionStorage.removeItem('vybe-session-only');
         
         toast.success('Welcome back! ✨');
         

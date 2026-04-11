@@ -23,13 +23,13 @@ export const NAME_COLOR_MAP: Record<string, string> = {
   // Owner exclusive
   'Gold': '#EAB308',
   'Diamond White': '#E2E8F0',
-  'Holographic': 'linear-gradient(90deg, #EC4899, #8B5CF6, #06B6D4, #10B981, #EAB308, #EC4899)',
+  'Holographic': 'linear-gradient(90deg, #EC4899 0%, #8B5CF6 10%, #06B6D4 20%, #10B981 30%, #EAB308 40%, #EC4899 50%, #8B5CF6 60%, #06B6D4 70%, #10B981 80%, #EAB308 90%, #EC4899 100%)',
   // Mod exclusive
   'Shield Silver': '#94A3B8',
   'Justice Blue': '#3B82F6',
   'Guardian Green': '#22C55E',
   // Premium exclusive
-  'Premium Gold': 'linear-gradient(90deg, #92400E, #D97706, #FBBF24, #FEF3C7, #FBBF24, #D97706, #92400E)',
+  'Premium Gold': 'linear-gradient(90deg, #92400E 0%, #D97706 8.333%, #FBBF24 16.666%, #FEF3C7 25%, #FBBF24 33.333%, #D97706 41.666%, #92400E 50%, #D97706 58.333%, #FBBF24 66.666%, #FEF3C7 75%, #FBBF24 83.333%, #D97706 91.666%, #92400E 100%)',
 };
 
 // Colors restricted to specific roles (owner/mod)

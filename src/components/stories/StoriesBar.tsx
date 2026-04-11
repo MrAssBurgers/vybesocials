@@ -43,8 +43,9 @@ export const StoriesBar = memo(function StoriesBar() {
       <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide" data-tutorial="stories">
         {/* Add Story Button / Own Story */}
         <StoryAvatar
-          avatarUrl={isGuest ? undefined : profile?.avatar_url}
-          username={isGuest ? 'Guest' : profile?.username}
+          avatarUrl={isGuest ? undefined : ownStoryGroup?.user.avatar_url ?? profile?.avatar_url}
+          username={isGuest ? 'Guest' : ownStoryGroup?.user.username ?? profile?.username}
+          displayName={isGuest ? null : ownStoryGroup?.user.display_name ?? profile?.display_name ?? null}
           label={isGuest ? 'Add Story' : t('stories.yourStory')}
           hasUnviewed={ownStoryGroup?.hasUnviewed}
           hasStory={!!ownStoryGroup}
@@ -155,7 +156,7 @@ const StoryAvatar = memo(function StoryAvatar({
           isUploading={isUploading}
         >
           <Avatar className="h-full w-full border-[3px] border-background">
-            <AvatarImage src={signedUrl || undefined} className="object-cover" />
+            <AvatarImage src={signedUrl || avatarUrl || undefined} className="object-cover" />
             <AvatarFallback className="bg-muted text-muted-foreground text-lg">
               {username?.charAt(0).toUpperCase()}
             </AvatarFallback>

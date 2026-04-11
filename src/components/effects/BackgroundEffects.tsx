@@ -137,23 +137,23 @@ const AuroraEffect = memo(() => {
       <style>{`
         @keyframes aurora-sweep {
           from { background-position: 0% 50%; }
-          to { background-position: -33.333% 50%; }
+          to { background-position: 100% 50%; }
         }
       `}</style>
       <div
         className="absolute inset-0 opacity-40"
         style={{
-          background: 'linear-gradient(90deg, #06b6d4, #8b5cf6, #ec4899, #10b981, #f59e0b, #06b6d4)',
-          backgroundSize: '300% 100%',
-          animation: 'aurora-sweep 10s linear infinite',
+          background: 'linear-gradient(90deg, #06b6d4 0%, #8b5cf6 10%, #ec4899 20%, #10b981 30%, #f59e0b 40%, #06b6d4 50%, #8b5cf6 60%, #ec4899 70%, #10b981 80%, #f59e0b 90%, #06b6d4 100%)',
+          backgroundSize: '200% 100%',
+          animation: 'aurora-sweep 7s linear infinite',
         }}
       />
       <div
         className="absolute inset-0 opacity-25"
         style={{
-          background: 'linear-gradient(135deg, transparent 20%, #a78bfa 40%, transparent 60%, #34d399 80%, transparent 100%)',
-          backgroundSize: '300% 300%',
-          animation: 'aurora-sweep 14s linear infinite',
+          background: 'linear-gradient(135deg, transparent 0%, #a78bfa 20%, transparent 40%, #34d399 50%, transparent 60%, #a78bfa 80%, transparent 100%)',
+          backgroundSize: '200% 200%',
+          animation: 'aurora-sweep 9s linear infinite',
         }}
       />
     </div>
