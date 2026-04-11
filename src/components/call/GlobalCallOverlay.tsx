@@ -226,6 +226,7 @@ export function GlobalCallOverlay() {
       p2pRef.current.setOnEvent(handleP2PEvent);
     }
   }, [handleP2PEvent]);
+  const connectP2PRef = useRef<((call: CallData) => Promise<void>) | null>(null);
 
   const connectP2P = useCallback(async (call: CallData) => {
     if (!profile?.id) return;
