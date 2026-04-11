@@ -455,6 +455,8 @@ export const Toybox = memo(function Toybox({
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </motion.button>
               ))}
+              {/* AI Safety Filter Toggle */}
+              {safetyFilterNode}
             </div>
           </motion.div>
         ) : (
