@@ -497,7 +497,7 @@ export function GlobalCallOverlay() {
       roomRef.current.disconnect();
     }
     if (p2pRef.current) {
-      p2pRef.current.disconnect();
+      void p2pRef.current.disconnect().catch(() => {});
       p2pRef.current = null;
     }
   }, [state.phase]);
@@ -689,7 +689,11 @@ export function GlobalCallOverlay() {
     }
 
     // Switch to persistent mode
-    await switchMode('persistent');
+    try {
+      await switchMode('persistent');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to switch to Stay On Call mode');
+    }
   }, [state.call, isPremium, switchMode]);
 
   // Accept incoming call
@@ -701,7 +705,11 @@ export function GlobalCallOverlay() {
       toast.error(err.message || 'Microphone permission required');
       return;
     }
-    acceptCall(state.call);
+    try {
+      await acceptCall(state.call);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to accept call');
+    }
   }, [state.call, acceptCall]);
 
   // Format duration
@@ -1139,12 +1147,15 @@ function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onA
   const incomingDisplayAvatar = isGroupCall ? groupAvatar : caller?.avatar_url;
   const incomingDisplayInitial = isGroupCall && groupName ? groupName.charAt(0) : (caller?.display_name?.charAt(0) || caller?.username?.charAt(0));
 
+  const onDeclineRef = useRef(onDecline);
+  onDeclineRef.current = onDecline;
+
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimeLeft(prev => { if (prev <= 1) { onDecline(); return 0; } return prev - 1; });
+      setTimeLeft(prev => { if (prev <= 1) { onDeclineRef.current(); return 0; } return prev - 1; });
     }, 1000);
     return () => clearInterval(interval);
-  }, [onDecline]);
+  }, []);
 
   const handleAccept = () => {
     if (processingRef.current) return;

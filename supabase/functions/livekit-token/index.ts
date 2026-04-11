@@ -60,6 +60,8 @@ Deno.serve(async (req) => {
     }
 
     // Get profile
+    let profileData: { id: string; username: string; display_name: string | null } | null = null;
+
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("id, username, display_name")
@@ -87,11 +89,13 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      Object.assign(profile || {}, p2);
+      profileData = p2;
+    } else {
+      profileData = profile;
     }
 
-    const profileId = profile!.id;
-    const displayName = profile!.display_name || profile!.username || "User";
+    const profileId = profileData.id;
+    const displayName = profileData.display_name || profileData.username || "User";
 
     // Parse body
     const body: TokenRequest = await req.json();
