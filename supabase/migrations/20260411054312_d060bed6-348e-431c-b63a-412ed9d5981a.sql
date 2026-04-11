@@ -1,0 +1,1 @@
+ALTER TABLE public.calls ADD COLUMN call_mode text NOT NULL DEFAULT 'p2p';
