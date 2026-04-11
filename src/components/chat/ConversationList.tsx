@@ -304,11 +304,9 @@ export function ConversationList() {
             <Button size="icon" variant="ghost" onClick={() => setIsGroupDialogOpen(true)} className="h-8 w-8 rounded-full">
               <UsersRound className="h-4 w-4" />
             </Button>
-            <NewChatDialog 
-              open={isNewChatOpen} 
-              onOpenChange={setIsNewChatOpen}
-              onSelectUser={handleQuickAddSelect}
-            />
+            <Button size="icon" variant="ghost" onClick={() => navigate('/messages/new')} className="h-8 w-8 rounded-full">
+              <UserPlus className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
@@ -356,24 +354,6 @@ export function ConversationList() {
 
       {/* Conversation List */}
       <ScrollArea className="flex-1" style={{ overflowX: 'hidden' }}>
-        {/* Quick Add Row - Online Friends (horizontal scroll like Snapchat stories row) */}
-        {!searchQuery && chatFilter === 'all' && onlineFriendsForQuickAdd.length > 0 && (
-          <div className="px-4 pb-2">
-            <QuickAddRow
-              title={`Online · ${onlineCount}`}
-              users={onlineFriendsForQuickAdd.slice(0, 10)}
-              onSelect={handleQuickAddSelect}
-              showOnlineIndicator
-            />
-          </div>
-        )}
-
-        {/* Quick Add Section */}
-        {!searchQuery && chatFilter === 'all' && (
-          <div className="px-3 pb-2">
-            <MutualFriendsQuickAdd onSelect={handleQuickAddSelect} />
-          </div>
-        )}
 
         {/* AI Chat Row */}
         <div className="px-3 pt-1 pb-1">
@@ -461,13 +441,18 @@ export function ConversationList() {
               <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-4" />
               <h3 className="text-base font-semibold mb-1">{t('messages.noConversations')}</h3>
               <p className="text-xs text-muted-foreground mb-4">{t('messages.startChatting')}</p>
-              <Button onClick={() => setIsNewChatOpen(true)} className="rounded-full px-5 h-9 text-sm">
-                <Plus className="h-4 w-4 mr-1.5" />
-                {t('messages.newChat')}
+              <Button onClick={() => navigate('/messages/new')} className="rounded-full px-5 h-9 text-sm">
+                <UserPlus className="h-4 w-4 mr-1.5" />
+                Add Friends
               </Button>
             </div>
           ) : null}
         </div>
+
+        {/* Recommended Friends - Snapchat Quick Add style */}
+        {!searchQuery && chatFilter === 'all' && (
+          <RecommendedFriendsSection />
+        )}
 
         {/* Bottom padding */}
         {!searchQuery && chatFilter === 'all' && (
