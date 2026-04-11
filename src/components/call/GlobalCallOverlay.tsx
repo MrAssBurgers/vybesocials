@@ -145,7 +145,6 @@ export function GlobalCallOverlay() {
 
       case 'disconnected':
         if (!isLeavingRef.current && !p2pEndedRef.current) {
-          // P2P has no linger — if remote hangs up, end call
           if (event.reason === 'remote-hangup') {
             p2pEndedRef.current = true;
             toast.info('Call ended');
@@ -181,21 +180,39 @@ export function GlobalCallOverlay() {
 
       case 'remote-participant-left':
         setHasRemoteParticipant(false);
-        // Don't call endCall here — 'disconnected' with reason 'remote-hangup' handles it
-        // This prevents double endCall firing
         break;
 
       case 'ice-failed':
         setP2pFailCount(prev => {
           const newCount = prev + 1;
-          if (newCount >= 3) {
-            toast.error('Connection unstable. Try "Stay On Call" for a better experience.', { duration: 5000 });
+          if (newCount >= 2) {
+            // Auto-fallback: try to switch to persistent mode if premium
+            console.log('[CallOverlay] ICE failed multiple times, attempting fallback...');
+            toast('Switching to better connection...', { duration: 3000 });
+            switchMode('persistent').catch(() => {
+              toast.error('Connection failed. Please try again.', { duration: 5000 });
+            });
           }
           return newCount;
         });
         break;
+
+      case 'timeout':
+        // Offer retransmission exhausted — try one P2P retry, then fallback
+        console.log('[CallOverlay] P2P offer timeout');
+        toast.error('Connection taking too long. Retrying...', { duration: 3000 });
+        // Auto-retry by reconnecting P2P
+        if (stateRef.current.call && p2pRef.current) {
+          p2pRef.current.disconnect().then(() => {
+            p2pRef.current = null;
+            if (stateRef.current.call) {
+              connectP2P(stateRef.current.call);
+            }
+          });
+        }
+        break;
     }
-  }, [clearJoinTimeout, endCall, setPhase, attachRemoteVideo, attachRemoteAudio]);
+  }, [clearJoinTimeout, endCall, setPhase, attachRemoteVideo, attachRemoteAudio, switchMode, connectP2P]);
 
   // Keep P2P event handler fresh to avoid stale closures
   const handleP2PEventRef = useRef(handleP2PEvent);
