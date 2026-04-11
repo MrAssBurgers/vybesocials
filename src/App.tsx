@@ -32,7 +32,7 @@ import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
 import { LocationProvider } from "@/providers/LocationProvider";
 import { useBriefPreFetch } from "@/hooks/useBriefPreFetch";
-
+import { SplashScreen } from "@/components/ui/SplashScreen";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -121,7 +121,7 @@ function ScrollRestoration() {
 const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
 // Track if initial load has completed (persists across navigations)
-
+let hasInitialLoadCompleted = false;
 
 // Background brief pre-fetcher (needs auth context)
 function BriefPreFetchInit() {
@@ -139,7 +139,8 @@ function BriefPreFetchInit() {
 
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
-  useAppPreloader();
+  const preloadStatus = useAppPreloader();
+  const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
   
   // Auto-update checker
   useAutoUpdate();
@@ -148,11 +149,17 @@ function AppWithPreloader() {
   useRealtimeProfiles();
   usePostsRealtime();
 
+  useEffect(() => {
+    if (preloadStatus.isComplete && showSplash) {
+      setShowSplash(false);
+      hasInitialLoadCompleted = true;
+    }
+  }, [preloadStatus.isComplete, showSplash]);
+
   // When auth resolves after preloader cached guest data, invalidate stale caches
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        // Auth just resolved — invalidate all queries so they refetch with auth context
         queryClient.invalidateQueries();
       }
     });
@@ -161,7 +168,11 @@ function AppWithPreloader() {
 
   return (
     <>
-      <GlobalErrorHandler />
+      <SplashScreen 
+        isVisible={showSplash} 
+        status={preloadStatus.step}
+        progress={preloadStatus.progress}
+      />
       <GlobalErrorHandler />
       <AuthProvider>
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
