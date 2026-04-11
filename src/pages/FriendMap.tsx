@@ -1023,11 +1023,43 @@ function FriendMapInner() {
                     </div>
                     {sharing && <span className="text-green-400 text-xs font-bold">Active</span>}
                   </button>
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+
+                  {/* Per-friend visibility */}
+                  {allFriendsArr.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Hide from map</p>
+                      <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-hide">
+                        {allFriendsArr.map((f) => (
+                          <button
+                            key={f.user_id}
+                            onClick={() => toggleHiddenFriend(f.user_id)}
+                            className={cn(
+                              'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 transition-all',
+                              hiddenFriends.has(f.user_id) ? 'bg-white/5 opacity-50' : 'bg-white/5'
+                            )}
+                          >
+                            <div className="h-8 w-8 rounded-full overflow-hidden bg-white/10 shrink-0">
+                              {f.profile?.avatar_url ? (
+                                <img src={f.profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="flex h-full w-full items-center justify-center text-xs font-bold text-white/60">{initial(friendName(f))}</span>
+                              )}
+                            </div>
+                            <span className="text-xs font-medium text-white/80 flex-1 text-left truncate">{friendName(f)}</span>
+                            <div className={cn(
+                              'h-5 w-9 rounded-full transition-all flex items-center px-0.5',
+                              hiddenFriends.has(f.user_id) ? 'bg-white/20' : 'bg-primary'
+                            )}>
+                              <div className={cn(
+                                'h-4 w-4 rounded-full bg-white transition-transform',
+                                hiddenFriends.has(f.user_id) ? 'translate-x-0' : 'translate-x-4'
+                              )} />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
         {/* ── Bottom panel ─────────────────────────────── */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] pb-[max(env(safe-area-inset-bottom),12px)]">
