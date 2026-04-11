@@ -1087,14 +1087,17 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 disabled={isSending}
                 className={cn(
                   "w-full py-4 rounded-2xl font-bold text-white text-lg flex items-center justify-center gap-2",
-                  "bg-gradient-to-r from-primary via-accent to-primary bg-[length:300%_100%]",
+                  "bg-[length:200%_100%]",
                   "disabled:opacity-50 disabled:cursor-not-allowed",
                   "transition-all duration-300"
                 )}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                animate={!isSending ? { backgroundPosition: ['0% 50%', '-33.333% 50%'] } : {}}
-                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                style={{
+                  backgroundImage: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 25%, hsl(var(--primary)) 50%, hsl(var(--accent)) 75%, hsl(var(--primary)) 100%)',
+                }}
+                animate={!isSending ? { backgroundPosition: ['0% 50%', '100% 50%'] } : {}}
+                transition={{ duration: 2.8, repeat: Infinity, ease: 'linear' }}
               >
                 {isSending ? (
                   <motion.div

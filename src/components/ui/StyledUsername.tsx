@@ -119,13 +119,13 @@ export const StyledUsername = memo(forwardRef<HTMLSpanElement, StyledUsernamePro
           className={className}
           style={{
             backgroundImage: resolvedNameColor,
-            backgroundSize: '300% 100%',
+            backgroundSize: '200% 100%',
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             color: 'transparent',
             display: 'inline-block',
-            animation: 'gradient-shift 4s linear infinite',
+            animation: 'gradient-shift 3.2s linear infinite',
             textShadow: 'none',
           }}
         >
