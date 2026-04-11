@@ -1,46 +1,52 @@
 
 
-## Make AI Nudity Detection Bulletproof
+## Fix 6 Issues: HoverCard z-index, VybeMap Desktop, Background Leak, Rename, Create Menu Label
 
-### Root Cause
+### 1. HoverCard z-index (Profile hover blocked on Home)
+The `HoverCardContent` in `hover-card.tsx` uses `z-50` which is too low -- the desktop sidebar and other elements overlap it.
 
-The detection pipeline has two critical weaknesses:
+**Fix**: Change `z-50` to `z-[9999]` in `src/components/ui/hover-card.tsx` so the popover always renders above everything.
 
-1. **Client-side scanner is a no-op**: `nsfwScanner.ts` `scanImage()` always returns `allowed` -- it does nothing. The entire burden falls on the server-side Gemini call.
+### 2. VybeMap not showing on Desktop
+The map container uses `fixed inset-0 md:absolute md:inset-0`. On desktop inside AppLayout, the `absolute` positioning within the flex layout may cause the Leaflet container to have zero height. The `invalidateSize` calls exist but the initial render timing may miss the layout settle.
 
-2. **Gemini's own safety filters block analysis**: When Gemini receives explicit content, its built-in safety filters can refuse to analyze the image entirely, returning empty/safe results instead of flagging it. The API call doesn't include `safetySettings` to disable Gemini's content blocking for analysis purposes.
+**Fix in `src/pages/FriendMap.tsx`**:
+- Change the map wrapper from `fixed inset-0 md:absolute md:inset-0` to always use `absolute inset-0` since the parent already provides `h-full` via `noPadding` in AppLayout
+- Add additional `invalidateSize` calls with longer delays (1000ms, 2000ms) to catch desktop layout settling
+- Ensure the parent wrapper has explicit `h-full w-full` and `position: relative`
 
-3. **Prompt gaps**: The current prompt doesn't specifically address tricky angles, partial visibility, close-ups, or creative framing designed to evade detection.
+### 3. Profile Background Leaking to Home Page
+In `src/pages/Profile.tsx`, when viewing another user's profile with an equipped theme, the code sets `document.body`'s background via `setBackgroundImage()`. The cleanup tries to read the previous background from a non-existent `#app-background-layer` DOM element, so `previousBgRef.current` stays `undefined` and the restore fails.
 
-### Changes
+**Fix in `src/pages/Profile.tsx`**:
+- Instead of reading from a DOM element, use `useAppBackground().background.imageUrl` to capture the current background URL before overriding
+- On cleanup, call `refreshBackground()` instead of `setBackgroundImage(previousBgRef.current)` -- this re-fetches the user's own active background from the database, which is the authoritative source
 
-**File: `supabase/functions/ai-safety-scan/index.ts`**
+### 4. Unselect People Who See Your Location
+Currently Ghost Mode is all-or-nothing. Add per-friend visibility controls.
 
-1. Add `safetySettings` to the Gemini API call to set all harm categories to `BLOCK_NONE` -- this lets Gemini actually analyze explicit images instead of refusing to look at them:
-```typescript
-safetySettings: [
-  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-]
-```
+**Fix in `src/pages/FriendMap.tsx`**:
+- Add a "hidden friends" list stored in localStorage (`vybe-map-hidden-friends`)
+- In the Ghost Mode sheet, add a "Manage Visibility" section showing a list of friends with toggle switches
+- Filter `friendsArr` to exclude hidden friend IDs before rendering markers
+- Hidden friends won't see the user's location either (filter in the upsert query isn't possible client-side, so add a note that this is display-only for now; server-side would need a new table)
 
-2. Strengthen the nudity detection prompt with specific edge cases:
-   - Unusual angles, close-ups, side views, underboob, sideboob
-   - Hands/arms/objects partially covering nudity
-   - Mirror reflections, blurred backgrounds with nude subjects
-   - "Accidental" nudity, wardrobe malfunctions
-   - Creative cropping designed to show maximum skin while technically "not nude"
+*Simplified approach*: Add toggles in Ghost Mode sheet. Hidden friends' markers are hidden from the map view. Label this as "Hide from map" since true server-side blocking would require a new table.
 
-3. Add a fallback: if Gemini returns empty text (blocked by its own filters), treat it as `score: 0.8` flagged for nudity -- because Gemini refusing to analyze is itself a strong signal the content is explicit.
+### 5. Rename VibeMap → VybeMap
+**Files to update**:
+- `src/components/layout/DesktopLeftSidebar.tsx`: Change `label: 'VibeMap'` → `label: 'VybeMap'`
+- `src/pages/FriendMap.tsx`: Update any "VibeMap" text references
 
-**File: `supabase/functions/rate-sticker-content/index.ts`**
-- Apply the same `safetySettings` and improved prompt to the sticker rating function.
+### 6. Add "VybeMap" Label Under Green Icon in Create Menu
+In `src/components/hub/CreateMenuLayer.tsx`, the green MapPin button (line ~244-249) has no text label.
 
-**Deploy**: Both edge functions after changes.
+**Fix**: Add a small text label "VybeMap" below the icon button, styled as `text-[9px] font-bold text-emerald-400` positioned below the button using a flex-col wrapper.
 
-### Technical Detail
-
-The key fix is `safetySettings: BLOCK_NONE`. Without this, Gemini sees an explicit image, triggers its own safety refusal, returns no useful output, and the code falls back to `{ is_ai: false, confidence: 0 }` -- content passes undetected. With `BLOCK_NONE`, Gemini will analyze the image and return a proper classification.
+### Files Modified
+- `src/components/ui/hover-card.tsx` -- z-index bump
+- `src/pages/FriendMap.tsx` -- desktop map fix, rename, friend visibility toggles
+- `src/pages/Profile.tsx` -- fix background cleanup logic
+- `src/components/layout/DesktopLeftSidebar.tsx` -- rename VibeMap → VybeMap
+- `src/components/hub/CreateMenuLayer.tsx` -- add VybeMap label
 
