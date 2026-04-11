@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User, Car, Footprints, Pause } from 'lucide-react';
+import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User, Car, Footprints, Pause, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/lib/auth';
@@ -12,6 +12,29 @@ import { cn } from '@/lib/utils';
 import { useLocationContext } from '@/providers/LocationProvider';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+
+/* ── Map Error Boundary ─────────────────────────────── */
+
+class MapErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  state = { hasError: false, error: null as Error | null };
+  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error('[MapErrorBoundary]', error.message, info.componentStack); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full bg-background text-foreground gap-4 p-8">
+          <MapPin className="h-12 w-12 text-muted-foreground" />
+          <h2 className="text-lg font-bold">Map couldn't load</h2>
+          <p className="text-sm text-muted-foreground text-center max-w-xs">Something went wrong loading the map. Try refreshing.</p>
+          <button onClick={() => { this.setState({ hasError: false, error: null }); }} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">
+            <RefreshCw className="h-4 w-4" /> Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* ── types ───────────────────────────────────────────── */
 
