@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Popover,
@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useWordReactions } from '@/hooks/useDMSettings';
 import { cn } from '@/lib/utils';
+import { getTopEmojis, recordEmoji } from '@/lib/frequentEmojis';
 
 const QUICK_EMOJIS = ['❤️', '😂', '😮', '👀', '🔥', '💀'];
 
@@ -35,8 +36,11 @@ export function WordReactableText({ messageId, content, className }: WordReactio
     setSelectedWord({ word, start, end });
   }, []);
 
+  const smartEmojis = useMemo(() => getTopEmojis(6), []);
+
   const handleReact = (emoji: string) => {
     if (selectedWord) {
+      recordEmoji(emoji);
       addWordReaction({
         wordStart: selectedWord.start,
         wordEnd: selectedWord.end,
@@ -122,7 +126,7 @@ export function WordReactableText({ messageId, content, className }: WordReactio
                 animate={{ opacity: 1, scale: 1 }}
                 className="flex gap-1"
               >
-                {QUICK_EMOJIS.map((emoji) => (
+                {smartEmojis.map((emoji) => (
                   <motion.button
                     key={emoji}
                     whileHover={{ scale: 1.2 }}
