@@ -866,12 +866,13 @@ export function GlobalCallOverlay() {
       {/* Main Call UI */}
       {isVisible && !isRinging && (
         <div
-          className="fixed inset-0 z-[9999] transition-opacity duration-300"
+          className="fixed inset-0 z-[99999] transition-opacity duration-300"
           style={{
             opacity: isMinimized ? 0 : 1,
             pointerEvents: isMinimized ? 'none' : 'auto',
             visibility: isMinimized ? 'hidden' : 'visible',
-            background: 'linear-gradient(160deg, #0a0a12 0%, #0d0b1a 25%, #12091f 50%, #0e0a1e 75%, #080810 100%)'
+            background: 'linear-gradient(160deg, #0a0a12 0%, #0d0b1a 25%, #12091f 50%, #0e0a1e 75%, #080810 100%)',
+            isolation: 'isolate',
           }}
         >
           {/* Animated ambient blobs */}
