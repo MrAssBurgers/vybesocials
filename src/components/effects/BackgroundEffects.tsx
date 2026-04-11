@@ -136,18 +136,16 @@ const AuroraEffect = memo(() => {
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
       <style>{`
         @keyframes aurora-sweep {
-          0% { background-position: 0% 50%; filter: hue-rotate(0deg); }
-          33% { background-position: 50% 100%; filter: hue-rotate(30deg); }
-          66% { background-position: 100% 50%; filter: hue-rotate(-20deg); }
-          100% { background-position: 0% 50%; filter: hue-rotate(0deg); }
+          from { background-position: 0% 50%; }
+          to { background-position: -100% 50%; }
         }
       `}</style>
       <div
         className="absolute inset-0 opacity-40"
         style={{
-          background: 'linear-gradient(45deg, #06b6d4, #8b5cf6, #ec4899, #10b981, #f59e0b, #06b6d4)',
-          backgroundSize: '400% 400%',
-          animation: 'aurora-sweep 10s ease-in-out infinite',
+          background: 'linear-gradient(90deg, #06b6d4, #8b5cf6, #ec4899, #10b981, #f59e0b, #06b6d4)',
+          backgroundSize: '300% 100%',
+          animation: 'aurora-sweep 10s linear infinite',
         }}
       />
       <div

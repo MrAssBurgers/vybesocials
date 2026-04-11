@@ -1658,12 +1658,8 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 
 /* Keyframe animations */
 @keyframes gradient-shift {
-  0% {
-    background-position: 0% 50%;
-  }
-  100% {
-    background-position: -33.33% 50%;
-  }
+  from { background-position: 0% 50%; }
+  to { background-position: -100% 50%; }
 }
 
 @keyframes shimmer {
@@ -2708,14 +2704,14 @@ img, video {
 }
 
 .friendlink-shimmer {
-  background: linear-gradient(105deg, transparent 40%, hsl(var(--primary) / 0.08) 50%, transparent 60%);
-  background-size: 250% 100%;
-  animation: friendlink-shimmer-sweep 3s ease-in-out infinite;
+  background: linear-gradient(105deg, transparent 30%, hsl(var(--primary) / 0.06) 45%, hsl(var(--primary) / 0.08) 50%, hsl(var(--primary) / 0.06) 55%, transparent 70%);
+  background-size: 300% 100%;
+  animation: friendlink-shimmer-sweep 3s linear infinite;
 }
 
 @keyframes friendlink-shimmer-sweep {
-  0%, 100% { background-position: 200% 0; }
-  50% { background-position: -50% 0; }
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
 }
 
 .friendlink-icon-wrap {
@@ -2785,12 +2781,8 @@ img, video {
 /* gradient-shift defined above — removed duplicate */
 
 @keyframes shimmer-sweep {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(200%);
-  }
+  from { transform: translateX(-150%); }
+  to { transform: translateX(150%); }
 }
 
 .create-button-gradient {
@@ -2972,15 +2964,8 @@ img, video {
    ======================================== */
 
 @keyframes badge-shimmer {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
+  from { background-position: 0% 50%; }
+  to { background-position: -100% 50%; }
 }
 
 @keyframes badge-pulse {
@@ -3002,7 +2987,7 @@ img, video {
 }
 
 .animate-shimmer {
-  background-size: 200% 200%;
+  background-size: 300% 100%;
   animation: badge-shimmer 3s linear infinite;
 }
 
@@ -3238,8 +3223,8 @@ img, video {
 }
 
 @keyframes premium-gold-shimmer {
-  0% { background-position: 0% 50%; }
-  100% { background-position: -33.33% 50%; }
+  from { background-position: 0% 50%; }
+  to { background-position: -100% 50%; }
 }
 
 /* ========================================
@@ -3309,12 +3294,12 @@ img, video {
 
 /* --- Ambient gradient shift (60s cycle) --- */
 .ambient-gradient {
-  animation: ambient-shift 60s ease-in-out infinite;
-  background-size: 200% 200%;
+  animation: ambient-shift 60s linear infinite;
+  background-size: 300% 100%;
 }
 @keyframes ambient-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+  from { background-position: 0% 50%; }
+  to { background-position: -100% 50%; }
 }
 
 /* --- Respect reduced motion --- */
