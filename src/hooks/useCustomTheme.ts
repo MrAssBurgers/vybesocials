@@ -712,76 +712,12 @@ export function useApplyUserTheme() {
   }, [userTheme, applyForMode]);
 }
 
-// Hook to load and apply active background on app start
+/**
+ * useApplyActiveBackground - DEPRECATED
+ * Background is now managed solely by AppBackgroundProvider which applies
+ * directly to document.body. This legacy hook is a no-op to prevent
+ * competing background systems from conflicting.
+ */
 export function useApplyActiveBackground() {
-  useEffect(() => {
-    const loadActiveBackground = async () => {
-      try {
-        const { supabase } = await import('@/integrations/supabase/client');
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        // Get profile id
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('user_id', user.id)
-          .single();
-        
-        if (!profile) return;
-
-        // Get active background
-        const { data: activeBg } = await supabase
-          .from('user_backgrounds')
-          .select('id,image_url')
-          .eq('user_id', profile.id)
-          .eq('is_active', true)
-          .maybeSingle();
-
-        // If none is active (common "broken state"), fall back to the most recent background
-        // and best-effort mark it active so it persists on next launch.
-        let bgToApply: { id: string; image_url: string } | null = activeBg?.image_url ? (activeBg as any) : null;
-        if (!bgToApply) {
-          const { data: latestBg } = await supabase
-            .from('user_backgrounds')
-            .select('id,image_url')
-            .eq('user_id', profile.id)
-            .order('updated_at', { ascending: false })
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (latestBg?.image_url) {
-            bgToApply = latestBg as any;
-            // Best-effort: repair DB state (don't block UI if it fails)
-            try {
-              await supabase.rpc('set_active_background', { p_background_id: latestBg.id });
-            } catch (e) {
-              console.warn('[Background] Failed to set active background (non-blocking):', e);
-            }
-          }
-        }
-
-        const root = document.documentElement;
-        if (bgToApply?.image_url) {
-          // CRITICAL: Set ALL required CSS variables for background to show
-          root.style.setProperty('--bg-image-url', `url(${bgToApply.image_url})`);
-          root.style.setProperty('--bg-image-opacity', '0.85'); // Default opacity
-          root.style.setProperty('--bg-image-blur', '0px'); // Default no blur
-          root.dataset.hasBgImage = 'true';
-          console.log('[Background] Applied background:', bgToApply.image_url);
-        } else {
-          // No background - ensure everything is cleared
-          root.style.removeProperty('--bg-image-url');
-          root.style.removeProperty('--bg-image-opacity');
-          root.style.removeProperty('--bg-image-blur');
-          root.dataset.hasBgImage = 'false';
-        }
-      } catch (error) {
-        console.error('Failed to load active background:', error);
-      }
-    };
-
-    loadActiveBackground();
-  }, []);
+  // No-op: AppBackgroundProvider is the single source of truth for backgrounds
 }

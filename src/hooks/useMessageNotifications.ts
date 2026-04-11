@@ -158,13 +158,17 @@ export function useMessageNotifications() {
             // Store conversation ID for navigation
             const conversationId = newMessage.conversation_id;
             
-            // Show custom notification with mouth zoom animation
+            // Show custom notification with full message payload for hold menu
             showMessageNotification(
               newMessage.sender_id,
               senderName,
               sender?.avatar_url || null,
               messagePreview,
               conversationId,
+              newMessage.id,
+              newMessage.content || null,
+              newMessage.media_url || null,
+              newMessage.media_type || null,
             );
             
             // Show native notification if page hidden or not focused

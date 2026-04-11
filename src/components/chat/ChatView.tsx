@@ -56,6 +56,7 @@ import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 
 import { SwipeToReply } from './SwipeToReply';
 import { MessageActionMenu } from './MessageActionMenu';
+import { DMHoldMenu } from './DMHoldMenu';
 import { ReplyPreview } from './ReplyPreview';
 import { StickerPanel } from './StickerPanel';
 import { useAddSticker } from '@/hooks/useStickers';
@@ -2588,121 +2589,34 @@ const MessageBubble = memo(function MessageBubble({
           )}
         </AnimatePresence>
 
-        {/* Instagram-style dark context menu */}
-        <AnimatePresence>
-        {showContextMenu && (
-          <>
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="fixed inset-0 bg-black/60 z-[99]"
-              onClick={() => { setShowContextMenu(false); menuOpenedRef.current = false; }}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              className="fixed z-[100] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] rounded-2xl bg-[#262626] shadow-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Smart emoji reaction row */}
-              <div className="flex items-center justify-around px-4 py-3 border-b border-white/[0.08]">
-                {smartEmojis.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleReaction(emoji);
-                      setShowContextMenu(false);
-                      menuOpenedRef.current = false;
-                    }}
-                    className={cn(
-                      "text-2xl p-1 hover:scale-125 active:scale-90 transition-transform rounded-full",
-                      userReaction === emoji && "bg-white/10"
-                    )}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-
-              {/* Action rows */}
-              <button
-                onClick={() => { onReply(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                className="w-full px-4 py-3 text-left text-[14px] font-normal text-white/90 active:bg-white/10 flex items-center gap-3 transition-colors"
-              >
-                <Reply className="h-[18px] w-[18px] text-white/60" /> Reply
-              </button>
-              {message.content && (
-                <>
-                  <div className="border-t border-white/[0.08]" />
-                  <button
-                    onClick={copyToClipboard}
-                    className="w-full px-4 py-3 text-left text-[14px] font-normal text-white/90 active:bg-white/10 flex items-center gap-3 transition-colors"
-                  >
-                    <Copy className="h-[18px] w-[18px] text-white/60" /> Copy
-                  </button>
-                </>
-              )}
-              {(isMediaMessage || isVideoMessage) && message.media_url && (
-                <>
-                  <div className="border-t border-white/[0.08]" />
-                  <button
-                    onClick={() => {
-                      handleMediaTap();
-                      setShowContextMenu(false);
-                      menuOpenedRef.current = false;
-                    }}
-                    className="w-full px-4 py-3 text-left text-[14px] font-normal text-white/90 active:bg-white/10 flex items-center gap-3 transition-colors"
-                  >
-                    <Download className="h-[18px] w-[18px] text-white/60" /> Save
-                  </button>
-                </>
-              )}
-              {isMediaMessage && message.media_url && onSaveSticker && (
-                <>
-                  <div className="border-t border-white/[0.08]" />
-                  <button
-                    onClick={() => { onSaveSticker(message.media_url!); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                    className="w-full px-4 py-3 text-left text-[14px] font-normal text-white/90 active:bg-white/10 flex items-center gap-3 transition-colors"
-                  >
-                    <Sparkles className="h-[18px] w-[18px] text-white/60" /> Save Sticker
-                  </button>
-                </>
-              )}
-              {isOwn && message.content && !message.media_url && (
-                <>
-                  <div className="border-t border-white/[0.08]" />
-                  <button
-                    onClick={() => { onEdit?.(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                    className="w-full px-4 py-3 text-left text-[14px] font-normal text-white/90 active:bg-white/10 flex items-center gap-3 transition-colors"
-                  >
-                    <Edit3 className="h-[18px] w-[18px] text-white/60" /> Edit
-                  </button>
-                </>
-              )}
-              <div className="border-t border-white/[0.08]" />
-              {isOwn && (
-                <button
-                  onClick={handleUnsend}
-                  className="w-full px-4 py-3 text-left text-[14px] font-normal text-red-400 active:bg-white/10 flex items-center gap-3 transition-colors"
-                >
-                  <Trash2 className="h-[18px] w-[18px]" /> Unsend
-                </button>
-              )}
-              <button
-                onClick={() => { onDeleteForMe(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                className="w-full px-4 py-3 text-left text-[14px] font-normal text-white/40 active:bg-white/10 flex items-center gap-3 transition-colors"
-              >
-                <EyeOff className="h-[18px] w-[18px]" /> Delete for me
-              </button>
-            </motion.div>
-          </>
-        )}
-        </AnimatePresence>
+        {/* Instagram-style dark context menu (shared component) */}
+        <DMHoldMenu
+          open={showContextMenu}
+          onClose={() => { setShowContextMenu(false); menuOpenedRef.current = false; }}
+          messageContent={message.content}
+          mediaUrl={message.media_url}
+          mediaType={message.media_type}
+          isOwn={isOwn}
+          userReaction={userReaction}
+          onReaction={(emoji) => handleReaction(emoji)}
+          onReply={onReply}
+          onEdit={onEdit}
+          onUnsend={isOwn ? handleUnsend : undefined}
+          onDeleteForMe={onDeleteForMe}
+          onSave={(isMediaMessage || isVideoMessage) && message.media_url ? () => {
+            // Actually download the file instead of opening viewer
+            const url = message.media_url!;
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `vybe-${Date.now()}.${message.media_type === 'video' ? 'mp4' : 'jpg'}`;
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            toast.success('Saving...');
+          } : undefined}
+          onSaveSticker={isMediaMessage && message.media_url && onSaveSticker ? () => onSaveSticker(message.media_url!) : undefined}
+        />
 
         {/* Fullscreen image/video viewer */}
         <AnimatePresence>
