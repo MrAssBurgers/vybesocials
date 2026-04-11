@@ -213,6 +213,8 @@ export function useFollowingPosts() {
 
       const userLikes = likesResult.data?.map(l => l.post_id) || [];
       const userBookmarks = bookmarksResult.data?.map(b => b.post_id) || [];
+      const userReactionMap2: Record<string, string> = {};
+      likesResult.data?.forEach(l => { if (l.reaction_type) userReactionMap2[l.post_id] = l.reaction_type; });
 
       const postsWithCounts = await Promise.all(
         (posts || []).map(async (post) => {
@@ -235,6 +237,7 @@ export function useFollowingPosts() {
             comment_count: commentsCount.count || 0,
             is_liked: userLikes.includes(post.id),
             is_bookmarked: userBookmarks.includes(post.id),
+            reaction_type: userReactionMap2[post.id] || null,
           };
         })
       );
