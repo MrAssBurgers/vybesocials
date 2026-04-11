@@ -551,14 +551,14 @@ function FriendMapInner() {
     let timeoutIds: number[] = [];
 
     const forceContainerSize = (el: HTMLDivElement) => {
-      const parentWidth = el.parentElement?.clientWidth || window.innerWidth;
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+      const parent = el.parentElement;
+      const w = parent?.clientWidth || window.innerWidth;
+      const h = parent?.clientHeight || window.innerHeight;
       el.style.position = 'absolute';
       el.style.inset = '0';
       el.style.display = 'block';
-      el.style.width = `${Math.max(parentWidth, 320)}px`;
-      el.style.height = `${Math.max(viewportHeight, 480)}px`;
-      el.style.minHeight = `${Math.max(viewportHeight, 480)}px`;
+      el.style.width = `${Math.max(w, 320)}px`;
+      el.style.height = `${Math.max(h, 320)}px`;
     };
 
     const safeInvalidateSize = () => {
@@ -782,7 +782,7 @@ function FriendMapInner() {
 
   return (
     <AppLayout hideNav noPadding fullWidth>
-      <div className="relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none' }}>
+      <div className="fixed inset-0 md:absolute md:inset-0 w-full overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none', zIndex: 1 }}>
         <style>{`
           @keyframes pulse-ring{0%{transform:scale(.8);opacity:1}100%{transform:scale(3);opacity:0}}
           @keyframes pulse-glow{0%,100%{box-shadow:0 0 0 0 hsl(217 91% 60%/.4)}50%{box-shadow:0 0 20px 8px hsl(217 91% 60%/.2)}}
@@ -791,7 +791,7 @@ function FriendMapInner() {
           @keyframes ring-pulse{0%,100%{opacity:.7}50%{opacity:1}}
           @keyframes moving-glow{0%,100%{box-shadow:0 0 8px 2px hsl(142 76% 56%/.3)}50%{box-shadow:0 0 20px 6px hsl(142 76% 56%/.15)}}
           .friend-map-marker,.my-location-marker{background:transparent!important;border:none!important}
-          .leaflet-container{height:100%!important;width:100%!important;min-height:100dvh!important;background:hsl(var(--muted));font-family:inherit;display:block!important;visibility:visible!important}
+          .leaflet-container{height:100%!important;width:100%!important;background:hsl(var(--muted));font-family:inherit;display:block!important;visibility:visible!important}
           .leaflet-pane,.leaflet-map-pane,.leaflet-tile-pane,.leaflet-layer,.leaflet-tile{opacity:1!important;visibility:visible!important}
           .leaflet-container img,.leaflet-container .leaflet-tile{max-width:none!important;max-height:none!important}
           .leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
@@ -827,8 +827,8 @@ function FriendMapInner() {
         `}</style>
 
         {/* Map container */}
-        <div ref={mapEl} className="absolute inset-0 block h-full min-h-[100dvh] w-full" style={{ height: '100%', minHeight: '100dvh', width: '100%' }} />
-        <div className="map-vignette" />
+        <div ref={mapEl} className="absolute inset-0 block w-full h-full" />
+        {/* Removed map-vignette overlay that was causing dark layer on desktop */}
 
         {/* ── Top bar ─────────────────────────────────── */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-4 pt-[env(safe-area-inset-top)]">

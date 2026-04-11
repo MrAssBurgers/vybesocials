@@ -326,78 +326,88 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
               </motion.div>
             )}
 
-            {/* Sharing Mode */}
+            {/* Sharing/Scanning Mode - Radar style */}
             {mode === 'sharing' && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="text-center space-y-4"
               >
-                <div className="relative w-32 h-32 mx-auto">
-                  {/* Pulsing rings */}
+                <div className="relative w-40 h-40 mx-auto">
+                  {/* Radar sweep */}
                   <motion.div
-                    className="absolute inset-0 rounded-full bg-primary/20"
-                    animate={{
-                      scale: [1, 1.5, 1],
-                      opacity: [0.5, 0, 0.5],
+                    className="absolute inset-0 rounded-full"
+                    style={{
+                      background: 'conic-gradient(from 0deg, transparent 0%, hsl(var(--primary) / 0.3) 15%, transparent 30%)',
                     }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                      ease: 'easeInOut',
-                    }}
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }}
                   />
-                  <motion.div
-                    className="absolute inset-0 rounded-full bg-accent/20"
-                    animate={{
-                      scale: [1, 1.3, 1],
-                      opacity: [0.6, 0, 0.6],
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                      ease: 'easeInOut',
-                      delay: 0.3,
-                    }}
-                  />
-                  {/* Lightning bolts around the icon */}
-                  {[...Array(4)].map((_, i) => (
+                  {/* Concentric rings */}
+                  {[1, 0.75, 0.5].map((scale, i) => (
                     <motion.div
                       key={i}
-                      className="absolute"
+                      className="absolute rounded-full border border-primary/20"
+                      style={{
+                        inset: `${(1 - scale) * 50}%`,
+                      }}
+                      animate={{ opacity: [0.3, 0.6, 0.3] }}
+                      transition={{ duration: 2, repeat: Infinity, delay: i * 0.3 }}
+                    />
+                  ))}
+                  {/* Pulsing outer ring */}
+                  <motion.div
+                    className="absolute inset-0 rounded-full border-2 border-primary/30"
+                    animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                  {/* Center icon */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <motion.div
+                      className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/30"
+                      animate={{ scale: [1, 1.05, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    >
+                      <Smartphone className="h-8 w-8 text-white" />
+                    </motion.div>
+                  </div>
+                  {/* Scanning dots */}
+                  {[0, 1, 2, 3].map((i) => (
+                    <motion.div
+                      key={`dot-${i}`}
+                      className="absolute w-2 h-2 rounded-full bg-primary"
                       style={{
                         top: '50%',
                         left: '50%',
-                        transform: `rotate(${i * 90}deg) translateY(-50px)`,
                       }}
                       animate={{
+                        x: [0, Math.cos(i * Math.PI / 2) * 55],
+                        y: [0, Math.sin(i * Math.PI / 2) * 55],
                         opacity: [0, 1, 0],
                         scale: [0.5, 1, 0.5],
                       }}
                       transition={{
-                        duration: 1,
+                        duration: 2,
                         repeat: Infinity,
-                        delay: i * 0.25,
+                        delay: i * 0.5,
+                        ease: 'easeOut',
                       }}
-                    >
-                      <Zap className="h-4 w-4 text-primary" />
-                    </motion.div>
+                    />
                   ))}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/30">
-                      <Smartphone className="h-10 w-10 text-white" />
-                    </div>
-                  </div>
                 </div>
 
                 <div>
-                  <p className="font-medium">📡 NFC Scanning Active</p>
+                  <p className="font-semibold text-base">Scanning for friends...</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Hold phones back-to-back (both need app open)
+                    Hold phones back-to-back
                   </p>
-                  <p className="text-xs text-accent mt-2 font-medium">
+                  <motion.p
+                    className="text-xs text-primary mt-2 font-medium"
+                    animate={{ opacity: [0.5, 1, 0.5] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  >
                     ✓ Ready to exchange profiles
-                  </p>
+                  </motion.p>
                 </div>
 
                 <Button variant="outline" className="rounded-xl" onClick={handleClose}>
