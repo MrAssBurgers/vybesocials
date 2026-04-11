@@ -125,7 +125,7 @@ export const StyledUsername = memo(forwardRef<HTMLSpanElement, StyledUsernamePro
             WebkitTextFillColor: 'transparent',
             color: 'transparent',
             display: 'inline-block',
-            animation: 'premium-gold-shimmer 3s linear infinite',
+            animation: 'gradient-shift 4s linear infinite',
             textShadow: 'none',
           }}
         >

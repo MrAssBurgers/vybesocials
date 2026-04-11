@@ -133,12 +133,9 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
                     className="text-center mb-6 pr-10"
                   >
                     <div className="inline-flex items-center gap-2 mb-2">
-                      <motion.div
-                        animate={{ rotate: [0, 10, -10, 0] }}
-                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                      >
+                      <div>
                         <Zap className="w-5 h-5 text-primary" />
-                      </motion.div>
+                      </div>
                       <h2 className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                         Create
                       </h2>
@@ -160,13 +157,11 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
                         style={{ willChange: 'transform, opacity' }}
                       >
                         {/* Icon with gradient background */}
-                        <motion.div 
-                          whileHover={{ rotate: [0, -10, 10, 0] }}
-                          transition={{ duration: 0.4 }}
+                        <div 
                           className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow`}
                         >
                           <item.icon className="h-6 w-6 text-white" />
-                        </motion.div>
+                        </div>
                         
                         {/* Text */}
                         <div className="text-left flex-1">

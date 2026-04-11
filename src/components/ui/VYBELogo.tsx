@@ -144,12 +144,12 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
               text
             )}
             style={{
-              background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--neon-purple, var(--primary))), hsl(var(--accent)))',
-              backgroundSize: '200% 200%',
+              background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--neon-purple, var(--primary))), hsl(var(--accent)), hsl(var(--primary)))',
+              backgroundSize: '300% 100%',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-              animation: animated ? 'gradient-shift 4s ease infinite' : 'none',
+              animation: animated ? 'gradient-shift 4s linear infinite' : 'none',
             }}
           >
             VYBE

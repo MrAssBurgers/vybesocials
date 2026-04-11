@@ -9,25 +9,23 @@ export function RainbowOverlay() {
       className="fixed inset-0 pointer-events-none z-[99]"
       style={{
         background: `linear-gradient(
-          45deg,
-          rgba(255, 0, 0, 0.1) 0%,
-          rgba(255, 127, 0, 0.1) 14%,
-          rgba(255, 255, 0, 0.1) 28%,
-          rgba(0, 255, 0, 0.1) 42%,
-          rgba(0, 0, 255, 0.1) 56%,
-          rgba(75, 0, 130, 0.1) 70%,
-          rgba(143, 0, 255, 0.1) 84%,
-          rgba(255, 0, 0, 0.1) 100%
+          90deg,
+          rgba(255, 0, 0, 0.1),
+          rgba(255, 127, 0, 0.1),
+          rgba(255, 255, 0, 0.1),
+          rgba(0, 255, 0, 0.1),
+          rgba(0, 0, 255, 0.1),
+          rgba(143, 0, 255, 0.1),
+          rgba(255, 0, 0, 0.1)
         )`,
-        backgroundSize: '400% 400%',
-        animation: 'rainbow-shift 2s linear infinite',
+        backgroundSize: '300% 100%',
+        animation: 'rainbow-shift 3s linear infinite',
       }}
     >
       <style>{`
         @keyframes rainbow-shift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
+          from { background-position: 0% 50%; }
+          to { background-position: -100% 50%; }
         }
       `}</style>
     </motion.div>
