@@ -153,9 +153,9 @@ export function AgeSetup({ value, onChange, onAgeCalculated }: AgeSetupProps) {
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-destructive">Age Requirement</p>
+                    <p className="font-semibold text-destructive">Parental Controls Required</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      You must be at least 13 years old to use VYBE. Please come back when you're older!
+                      You're under 13 — parental controls are mandatory. Find a parent or guardian to continue setup and create a 4-digit PIN to manage your account.
                     </p>
                   </div>
                 </div>
