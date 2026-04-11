@@ -379,7 +379,7 @@ function useNominatimSearch(myCoords: [number, number] | null) {
 
 /* ── component ───────────────────────────────────────── */
 
-export default function FriendMap() {
+function FriendMapInner() {
   const { profile } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -1210,5 +1210,13 @@ export default function FriendMap() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+export default function FriendMap() {
+  return (
+    <MapErrorBoundary>
+      <FriendMapInner />
+    </MapErrorBoundary>
   );
 }
