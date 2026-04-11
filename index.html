@@ -5,12 +5,25 @@
     
     <!-- Preconnect to external origins for faster loading -->
     <link rel="preconnect" href="https://cdn.gpteng.co" crossorigin />
-    <link rel="preconnect" href="https://agtcyxjxgkdyoxwxkjth.supabase.co" crossorigin />
+    <link rel="preconnect" href="https://eabvbtkxdbttjpdpbmuw.supabase.co" crossorigin />
+    <link rel="preconnect" href="https://api.revenuecat.com" crossorigin />
     <link rel="dns-prefetch" href="https://cdn.gpteng.co" />
-    <link rel="dns-prefetch" href="https://agtcyxjxgkdyoxwxkjth.supabase.co" />
+    <link rel="dns-prefetch" href="https://eabvbtkxdbttjpdpbmuw.supabase.co" />
+    <link rel="dns-prefetch" href="https://js.stripe.com" />
+    <link rel="dns-prefetch" href="https://api.revenuecat.com" />
 
-    <!-- Google AdSense -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9952523729646293" crossorigin="anonymous"></script>
+    <!-- Google AdSense (deferred to reduce FCP impact) -->
+    <script>
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          var s = document.createElement('script');
+          s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9952523729646293';
+          s.crossOrigin = 'anonymous';
+          s.async = true;
+          document.head.appendChild(s);
+        }, 2000);
+      });
+    </script>
     
     <!-- OneSignal Push Notifications -->
     <script>
@@ -185,7 +198,7 @@
     </style>
 </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="static-splash" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0B0B10;"><div style="text-align:center;"><svg width="64" height="64" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="48" cy="48" r="48" fill="#8B5CF6" opacity="0.15"/><circle cx="48" cy="48" r="32" fill="#8B5CF6" opacity="0.3"/><circle cx="48" cy="48" r="16" fill="#8B5CF6"/></svg><p style="color:#8B5CF6;font-family:system-ui,sans-serif;font-size:14px;margin-top:16px;opacity:0.7;">Loading VYBE...</p></div></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
