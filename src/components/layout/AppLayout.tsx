@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { Navigate } from 'react-router-dom';
 import { usePresence } from '@/hooks/usePresence';
 import { useScrollOptimization } from '@/hooks/useScrollOptimization';
+import { useScreenTimeTracker } from '@/hooks/useScreenTime';
 import { useBreakpoint } from '@/hooks/usePlatform';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,9 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   
   // Track online presence
   usePresence();
+  
+  // Track screen time
+  useScreenTimeTracker();
   
   // Optimize animations during scroll
   useScrollOptimization();

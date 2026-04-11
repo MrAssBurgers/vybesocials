@@ -6688,6 +6688,42 @@ export type Database = {
         }
         Relationships: []
       }
+      parental_controls: {
+        Row: {
+          allowed_features: string[] | null
+          content_filter_level: string
+          created_at: string
+          id: string
+          is_active: boolean
+          max_screen_time_minutes: number | null
+          pin_hash: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allowed_features?: string[] | null
+          content_filter_level?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_screen_time_minutes?: number | null
+          pin_hash: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allowed_features?: string[] | null
+          content_filter_level?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_screen_time_minutes?: number | null
+          pin_hash?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       password_reset_tokens: {
         Row: {
           created_at: string
@@ -7639,6 +7675,36 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
         ]
+      }
+      screen_time_sessions: {
+        Row: {
+          created_at: string
+          duration_seconds: number
+          ended_at: string | null
+          id: string
+          session_date: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number
+          ended_at?: string | null
+          id?: string
+          session_date?: string
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number
+          ended_at?: string | null
+          id?: string
+          session_date?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       screenshot_notifications: {
         Row: {

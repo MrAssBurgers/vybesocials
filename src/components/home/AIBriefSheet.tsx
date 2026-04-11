@@ -329,6 +329,32 @@ function setCachedBrief(data: BriefData) {
   try { if (isValidBrief(data)) localStorage.setItem(BRIEF_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now(), timeSlot: getTimeSlot() })); } catch {}
 }
 
+// Schedule browser notification for next brief update
+function scheduleBriefNotification() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const next = getNextSlotTime();
+  const delay = next.getTime() - Date.now();
+  if (delay <= 0 || delay > 12 * 60 * 60 * 1000) return; // max 12h
+  const timeoutId = setTimeout(() => {
+    try {
+      new Notification('VYBE Daily Brief', {
+        body: 'Your daily brief has been updated! Tap to check it out.',
+        icon: '/lovable-uploads/vybe-icon.png',
+        tag: 'daily-brief',
+      });
+    } catch {}
+  }, delay);
+  // Store timeout so we can clear on unmount
+  (window as any).__vybeBriefTimeout = timeoutId;
+}
+
+function clearBriefNotification() {
+  if ((window as any).__vybeBriefTimeout) {
+    clearTimeout((window as any).__vybeBriefTimeout);
+    delete (window as any).__vybeBriefTimeout;
+  }
+}
+
 // ── Section header ──
 const SectionHeader = memo(function SectionHeader({ icon: Icon, label }: { icon: typeof Bell; label: string }) {
   return (
@@ -451,16 +477,22 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
   useEffect(() => {
     if (open && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
-      // Check if cache is fresh — if so, show instantly without loading
       const cached = getCachedBrief();
       if (cached && !briefData) {
         setBriefData(cached);
       }
-      // Always fetch fresh data in background
       fetchBrief(true);
+      // Request notification permission + schedule
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+      scheduleBriefNotification();
     }
     if (!open) hasFetchedRef.current = false;
-    return () => { if (abortControllerRef.current) abortControllerRef.current.abort(); };
+    return () => {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      clearBriefNotification();
+    };
   }, [open, fetchBrief]);
 
   const handleRefresh = useCallback(() => {
