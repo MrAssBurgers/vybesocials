@@ -36,8 +36,11 @@ export function WordReactableText({ messageId, content, className }: WordReactio
     setSelectedWord({ word, start, end });
   }, []);
 
+  const smartEmojis = useMemo(() => getTopEmojis(6), []);
+
   const handleReact = (emoji: string) => {
     if (selectedWord) {
+      recordEmoji(emoji);
       addWordReaction({
         wordStart: selectedWord.start,
         wordEnd: selectedWord.end,
