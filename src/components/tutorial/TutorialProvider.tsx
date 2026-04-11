@@ -99,7 +99,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('tutorial_completed, tutorial_skipped, onboarding_completed')
         .eq('id', profile.id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('[Tutorial] Error fetching status:', error);
