@@ -525,25 +525,27 @@ export default function FriendMap() {
 
   useEffect(() => {
     if (!mapEl.current || mapRef.current) return;
+    let map: L.Map;
+    try {
+      map = L.map(mapEl.current, {
+        zoomControl: false,
+        attributionControl: false,
+        minZoom: 2,
+        maxZoom: 19,
+        worldCopyJump: true,
+        zoomAnimation: true,
+        markerZoomAnimation: true,
+        inertia: true,
+        inertiaDeceleration: 2000,
+      }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+    } catch (err) {
+      console.error('[FriendMap] Leaflet init failed:', err);
+      return;
+    }
     const safeInvalidateSize = () => {
       if (mapRef.current !== map) return;
-      try {
-        map.invalidateSize();
-      } catch {
-        // Ignore invalidation during teardown.
-      }
+      try { map.invalidateSize(); } catch { /* teardown */ }
     };
-    const map = L.map(mapEl.current, {
-      zoomControl: false,
-      attributionControl: false,
-      minZoom: 2,
-      maxZoom: 19,
-      worldCopyJump: true,
-      zoomAnimation: true,
-      markerZoomAnimation: true,
-      inertia: true,
-      inertiaDeceleration: 2000,
-    }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
     tileRef.current = L.tileLayer(MAP_TILES[mapStyle].url, { maxZoom: 19 }).addTo(map);
     fLayer.current = L.layerGroup().addTo(map);
