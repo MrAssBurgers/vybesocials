@@ -407,6 +407,21 @@ function FriendMapInner() {
   const [ghostOpen, setGhostOpen] = useState(false);
   const [mapStyle, setMapStyle] = useState<MapStyleKey>(getInitialMapStyle);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [hiddenFriends, setHiddenFriends] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(HIDDEN_FRIENDS_KEY);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  const toggleHiddenFriend = useCallback((friendId: string) => {
+    setHiddenFriends(prev => {
+      const next = new Set(prev);
+      if (next.has(friendId)) next.delete(friendId); else next.add(friendId);
+      try { localStorage.setItem(HIDDEN_FRIENDS_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
 
   const safeMyCoords = useMemo(
     () => (myCoords && isValidLatLng(myCoords[0], myCoords[1]) ? myCoords : null),
