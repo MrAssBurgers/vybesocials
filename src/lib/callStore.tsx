@@ -67,7 +67,7 @@ interface CallStoreContextType {
     groupAvatar?: string | null;
     participantIds?: string[];
   }) => Promise<void>;
-  acceptCall: (call: CallData) => void;
+  acceptCall: (call: CallData) => Promise<void>;
   endCall: () => Promise<void>;
   leaveCall: () => void;
   rejoinCall: () => void;
@@ -570,6 +570,9 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           .from('calls')
           .update({ call_mode: currentCall.callMode })
           .eq('id', currentCall.id);
+        // Notify user of failure
+        setState(prev => ({ ...prev, phase: 'connected' }));
+        throw new Error(err?.message || 'Failed to switch to Stay On Call mode');
       }
     } else {
       // Switching to P2P
