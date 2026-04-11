@@ -18,7 +18,6 @@ import { RecentMessageUser } from "@/lib/recentMessageUsers";
 import { useFriendshipStatus, useSendFriendRequest, useFriends, useRespondToFriendRequest, useFriendRequests } from "@/hooks/useFriends";
 import { useSuggestedFriends } from "@/hooks/useFriendsOfFriends";
 import { cn } from "@/lib/utils";
-import { FriendDrop } from "@/components/friends/FriendDrop";
 import { NFCFriendShare } from "@/components/friends/NFCFriendShare";
 
 /* ── Added Me Section ─────────────────────────────── */
