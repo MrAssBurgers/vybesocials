@@ -128,7 +128,6 @@ export function ConversationList() {
   const dismissAccepted = useDismissAcceptedRequest();
   const streakMap = useStreakMap();
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
-  const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [isTrashOpen, setIsTrashOpen] = useState(false);
   const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);
   
