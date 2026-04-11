@@ -1895,12 +1895,17 @@ const MessageInputArea = memo(function MessageInputArea({
 
         {isRecordingVoice ? (
           <VoiceRecorder
-            onRecordingComplete={handleVoiceRecordingComplete}
+            onRecordingComplete={(blob) => {
+              setIsRecordingVoice(false);
+              onLiveRecordingChange?.(false);
+              handleVoiceRecordingComplete(blob);
+            }}
             onCancel={() => {
               setIsRecordingVoice(false);
               onLiveRecordingChange?.(false);
             }}
             isUploading={isUploadingMedia}
+            autoSend
           />
         ) : (
           <div ref={inputContainerRef} className="flex items-center gap-1 sm:gap-2">
@@ -1980,11 +1985,23 @@ const MessageInputArea = memo(function MessageInputArea({
                 <Button 
                   variant="ghost"
                   size="icon"
-                  onClick={() => {
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    (e.target as HTMLElement).setPointerCapture(e.pointerId);
                     setIsRecordingVoice(true);
                     onLiveRecordingChange?.(true);
                   }}
-                  className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full"
+                  onPointerUp={() => {
+                    if (isRecordingVoice && (window as any).__voiceRecorderStop) {
+                      (window as any).__voiceRecorderStop();
+                    }
+                  }}
+                  onPointerCancel={() => {
+                    if (isRecordingVoice && (window as any).__voiceRecorderStop) {
+                      (window as any).__voiceRecorderStop();
+                    }
+                  }}
+                  className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full touch-none"
                 >
                   <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
