@@ -2590,6 +2590,11 @@ const MessageBubble = memo(function MessageBubble({
               mediaType={viewerMedia.type === 'gif' ? 'image' : viewerMedia.type}
               onClose={() => setViewerMedia(null)}
               onReply={() => { onReply(); setViewerMedia(null); }}
+              onReaction={(emoji) => { onReaction(message.id, emoji); setViewerMedia(null); }}
+              onDelete={isOwn ? () => { onUnsendForEveryone(); setViewerMedia(null); } : undefined}
+              senderName={viewerMedia.senderName}
+              timestamp={viewerMedia.timestamp}
+              isOwn={isOwn}
             />
           )}
         </AnimatePresence>
