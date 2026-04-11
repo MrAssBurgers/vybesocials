@@ -4,19 +4,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
  * Resolves the STRIPE_SECRET_KEY by checking:
  * 1. Environment variable (set via Lovable secrets / Supabase dashboard)
  * 2. Fallback: app_secrets database table (set via Owner Settings UI)
- *
- * This ensures keys saved through the Owner Settings UI are available
- * to all edge functions even before a publish cycle syncs env vars.
  */
 export async function getStripeSecretKey(): Promise<string> {
-  // 1. Try environment variable first (fastest, no DB round-trip)
-  // But skip it if it's a restricted key (rk_) since those don't work with Connect
   const envKey = Deno.env.get("STRIPE_SECRET_KEY");
   if (envKey && envKey.length > 0 && !envKey.startsWith("rk_")) {
     return envKey;
   }
 
-  // 2. Fallback: read from app_secrets table
   const adminClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -41,16 +35,12 @@ export async function getStripeSecretKey(): Promise<string> {
   throw new Error("STRIPE_SECRET_KEY is not configured. Add it via Owner Settings → API Keys.");
 }
 
-/**
- * Backwards-compatible alias used by older Stripe functions.
- */
+/** Backwards-compatible alias used by older Stripe functions. */
 export async function resolveStripeKey(): Promise<string> {
   return getStripeSecretKey();
 }
 
-/**
- * Validates that the key format is correct (sk_test_ or sk_live_, not pk_ or rk_).
- */
+/** Validates key format and returns mode info. */
 export function validateStripeKey(key: string): { valid: boolean; mode: string; error?: string } {
   if (key.startsWith("pk_")) {
     return { valid: false, mode: "unknown", error: "Invalid key type: publishable key (pk_*) used instead of secret key (sk_*)" };
@@ -65,4 +55,14 @@ export function validateStripeKey(key: string): { valid: boolean; mode: string; 
     return { valid: true, mode: "live" };
   }
   return { valid: false, mode: "unknown", error: "Key must start with sk_test_ or sk_live_" };
+}
+
+/** Returns whether the current key is in live mode. */
+export async function isLiveMode(): Promise<boolean> {
+  try {
+    const key = await getStripeSecretKey();
+    return key.startsWith("sk_live_");
+  } catch {
+    return false;
+  }
 }
