@@ -126,7 +126,7 @@ export function WordReactableText({ messageId, content, className }: WordReactio
                 animate={{ opacity: 1, scale: 1 }}
                 className="flex gap-1"
               >
-                {QUICK_EMOJIS.map((emoji) => (
+                {smartEmojis.map((emoji) => (
                   <motion.button
                     key={emoji}
                     whileHover={{ scale: 1.2 }}
