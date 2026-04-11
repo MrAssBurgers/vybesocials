@@ -196,7 +196,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
 
   // Show camera view when camera mode is selected
   if (mode === 'camera') {
-    return <Camera onClose={onClose} />;
+    return <Camera onClose={() => setMode('select')} showBackArrow />;
   }
 
   return (

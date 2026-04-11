@@ -66,7 +66,9 @@ function applyBodyBackground(state: BackgroundState) {
   body.style.backgroundSize = 'cover';
   body.style.backgroundPosition = 'center center';
   body.style.backgroundRepeat = 'no-repeat';
-  body.style.backgroundAttachment = 'fixed';
+  // Use 'scroll' on mobile (fixed is broken on iOS/Android) and 'fixed' on desktop
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  body.style.backgroundAttachment = isMobile ? 'scroll' : 'fixed';
   document.documentElement.dataset.hasBgImage = 'true';
   body.classList.add('has-custom-bg');
 
@@ -108,19 +110,52 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
   const refreshBackground = useCallback(async () => {
     const profileId = profile?.id;
     if (!profileId) return;
-    const { data } = await supabase
-      .from('user_backgrounds')
-      .select('image_url')
-      .eq('user_id', profileId)
-      .eq('is_active', true)
-      .maybeSingle();
-    if (data?.image_url) {
-      rawUrlRef.current = data.image_url;
-      await signAndApply(data.image_url);
-      hasLoadedRef.current = true;
-    } else if (!hasLoadedRef.current) {
-      rawUrlRef.current = null;
-      setBackground(prev => ({ ...prev, imageUrl: null }));
+    
+    try {
+      // First try the active background
+      const { data } = await supabase
+        .from('user_backgrounds')
+        .select('id, image_url')
+        .eq('user_id', profileId)
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      if (data?.image_url) {
+        rawUrlRef.current = data.image_url;
+        await signAndApply(data.image_url);
+        hasLoadedRef.current = true;
+        return;
+      }
+      
+      // Fallback: no active background - try the most recent one and repair
+      const { data: latestBg } = await supabase
+        .from('user_backgrounds')
+        .select('id, image_url')
+        .eq('user_id', profileId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (latestBg?.image_url) {
+        rawUrlRef.current = latestBg.image_url;
+        await signAndApply(latestBg.image_url);
+        hasLoadedRef.current = true;
+        // Best-effort repair: mark it active
+        supabase
+          .from('user_backgrounds')
+          .update({ is_active: true })
+          .eq('id', latestBg.id)
+          .then(() => {});
+        return;
+      }
+      
+      // No backgrounds at all
+      if (!hasLoadedRef.current) {
+        rawUrlRef.current = null;
+        setBackground(prev => ({ ...prev, imageUrl: null }));
+      }
+    } catch (err) {
+      console.warn('[AppBackground] Failed to load background:', err);
     }
   }, [profile?.id, signAndApply]);
 

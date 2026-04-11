@@ -12,6 +12,8 @@ import { toast } from 'sonner';
 
 interface CameraProps {
   onClose: () => void;
+  /** Show a back arrow instead of X (e.g. when launched from story creator) */
+  showBackArrow?: boolean;
 }
 
 type CameraState = 'capture' | 'edit' | 'share';
@@ -23,7 +25,7 @@ const CAPTURE_MODES: { id: CaptureMode; label: string }[] = [
   { id: 'story', label: 'STORY' },
 ];
 
-export function Camera({ onClose }: CameraProps) {
+export function Camera({ onClose, showBackArrow = false }: CameraProps) {
   const navigate = useNavigate();
   const [state, setState] = useState<CameraState>('capture');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
@@ -284,7 +286,11 @@ export function Camera({ onClose }: CameraProps) {
       <div className="absolute top-0 left-0 right-0 z-10 safe-area-inset-top">
         <div className="flex items-center justify-between px-4 pt-3 pb-2">
           <button onClick={onClose} className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
-            <X className="h-5 w-5 text-white" strokeWidth={2.5} />
+            {showBackArrow ? (
+              <span className="text-white"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></span>
+            ) : (
+              <X className="h-5 w-5 text-white" strokeWidth={2.5} />
+            )}
           </button>
 
           <AnimatePresence>
