@@ -7,9 +7,9 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { BugBountyOverlay } from '@/components/error/BugBountyOverlay';
 // VYBELogo removed from fallback for instant navigation
 
-// CRITICAL PAGE - Load eagerly for instant first navigation
-import Landing from "@/pages/Landing";
-import AuthCallback from "@/pages/AuthCallback";
+// Lazy-load all pages to reduce unused JavaScript in the initial bundle
+const Landing = lazy(() => import("@/pages/Landing"));
+const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 
 // High-priority but lazy-loaded to reduce main-thread work
 const Home = lazy(() => import("@/pages/Home"));
