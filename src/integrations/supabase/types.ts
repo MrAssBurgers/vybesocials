@@ -1637,6 +1637,7 @@ export type Database = {
       }
       calls: {
         Row: {
+          call_mode: string
           call_type: string
           caller_id: string
           conversation_id: string
@@ -1652,6 +1653,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          call_mode?: string
           call_type: string
           caller_id: string
           conversation_id: string
@@ -1667,6 +1669,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          call_mode?: string
           call_type?: string
           caller_id?: string
           conversation_id?: string

@@ -183,9 +183,10 @@ Deno.serve(async (req) => {
           call_type: callType,
           status: "ringing",
           room_name: roomName,
-          room_url: livekitUrl, // Store LiveKit URL for reference
+          room_url: livekitUrl,
           is_group_call: isGroupCall || (participantIds ? participantIds.length > 1 : false),
           max_participants: participantIds ? participantIds.length + 1 : 2,
+          call_mode: "persistent",
         })
         .select()
         .single();
