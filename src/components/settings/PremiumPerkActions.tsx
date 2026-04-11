@@ -1,9 +1,8 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Crown, Laugh, Mic, Flame, Clock, Sparkles,
   Upload, MessageSquare, Palette, Shield, Lock, Check,
-  ChevronRight, Zap, Star
+  Zap, Star, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
@@ -13,9 +12,9 @@ interface PerkItem {
   id: string;
   icon: React.ElementType;
   label: string;
-  description: string;
+  free: string;
+  premium: string;
   color: string;
-  available: boolean;
 }
 
 const PREMIUM_PERKS: PerkItem[] = [
@@ -23,81 +22,81 @@ const PREMIUM_PERKS: PerkItem[] = [
     id: 'meme-ban',
     icon: Laugh,
     label: 'Meme Ban Powers',
-    description: 'Ban users with custom memes for up to 5 minutes',
+    free: 'Not available',
+    premium: 'Ban users with custom memes (5 min)',
     color: 'from-amber-500 to-orange-600',
-    available: true,
   },
   {
     id: 'voice',
     icon: Mic,
     label: 'Voice Messages',
-    description: 'Record and send voice messages in DMs',
+    free: 'Not available',
+    premium: 'Record & send voice messages in DMs',
     color: 'from-red-500 to-rose-600',
-    available: true,
   },
   {
     id: 'vanish',
     icon: Flame,
     label: 'Vanish Mode',
-    description: 'Send self-destructing messages that disappear',
+    free: 'Not available',
+    premium: 'Self-destructing messages',
     color: 'from-pink-500 to-fuchsia-600',
-    available: true,
   },
   {
     id: 'schedule',
     icon: Clock,
     label: 'Scheduled Messages',
-    description: 'Schedule messages to send later automatically',
+    free: 'Not available',
+    premium: 'Schedule messages to send later',
     color: 'from-cyan-500 to-blue-600',
-    available: true,
   },
   {
     id: 'effects',
     icon: Sparkles,
     label: 'Message Effects',
-    description: 'Add animations and visual effects to messages',
+    free: 'Basic reactions only',
+    premium: 'Animations & visual effects',
     color: 'from-yellow-500 to-amber-600',
-    available: true,
   },
   {
     id: 'uploads',
     icon: Upload,
-    label: '50MB Uploads',
-    description: 'Upload larger files and high-res media',
+    label: 'File Uploads',
+    free: '10MB max',
+    premium: '50MB + high-res media',
     color: 'from-emerald-500 to-green-600',
-    available: true,
   },
   {
     id: 'cosmetics',
     icon: Palette,
-    label: 'Premium Cosmetics',
-    description: 'Exclusive colors, frames, effects & themes',
+    label: 'Cosmetics',
+    free: 'Default themes only',
+    premium: 'Exclusive colors, frames & effects',
     color: 'from-purple-500 to-violet-600',
-    available: true,
   },
   {
     id: 'read-receipts',
     icon: MessageSquare,
-    label: 'Read Receipt Control',
-    description: 'Hide when you read messages from others',
+    label: 'Read Receipts',
+    free: 'Always visible',
+    premium: 'Hide when you read messages',
     color: 'from-blue-500 to-indigo-600',
-    available: true,
   },
   {
     id: 'secret-chats',
     icon: Shield,
     label: 'Secret Chats',
-    description: 'End-to-end encrypted private conversations',
+    free: 'Not available',
+    premium: 'E2E encrypted conversations',
     color: 'from-slate-500 to-zinc-600',
-    available: true,
   },
   {
     id: 'reactions',
     icon: Star,
     label: 'Exclusive Reactions',
-    description: 'Premium-only reaction emojis and animations',
+    free: 'Standard emojis',
+    premium: 'Premium-only reactions & animations',
     color: 'from-orange-500 to-red-600',
-    available: true,
   },
 ];
 
@@ -118,9 +117,9 @@ export function PremiumPerkActions() {
             <Zap className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold text-sm">Premium Powers</h3>
+            <h3 className="font-semibold text-sm">Free vs Premium</h3>
             <p className="text-[10px] text-muted-foreground">
-              {isPremium ? 'All features unlocked' : 'Upgrade to unlock'}
+              {isPremium ? 'All features unlocked' : 'See what you\'re missing'}
             </p>
           </div>
         </div>
@@ -132,55 +131,48 @@ export function PremiumPerkActions() {
         )}
       </div>
 
-      {/* Perks List */}
+      {/* Column headers */}
+      <div className="flex items-center gap-3 px-5 pb-2">
+        <div className="w-9 shrink-0" />
+        <div className="flex-1 min-w-0" />
+        <div className="flex gap-2 shrink-0">
+          <span className="text-[9px] font-bold text-muted-foreground uppercase w-20 text-center">Free</span>
+          <span className="text-[9px] font-bold text-primary uppercase w-20 text-center">Premium</span>
+        </div>
+      </div>
+
+      {/* Perks comparison */}
       <div className="px-2 pb-2">
         {PREMIUM_PERKS.map((perk, i) => {
           const Icon = perk.icon;
-          const isLocked = !isPremium;
           return (
             <motion.div
               key={perk.id}
               initial={{ opacity: 0, x: -6 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.15 + i * 0.03 }}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors",
-                isLocked ? "opacity-50" : "hover:bg-muted/40"
-              )}
+              className="flex items-center gap-3 px-3 py-2 rounded-xl transition-colors hover:bg-muted/40"
             >
               <div className={cn(
-                "h-9 w-9 rounded-xl flex items-center justify-center shrink-0 bg-gradient-to-br",
+                "h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br",
                 perk.color,
-                isLocked && "grayscale"
               )}>
-                <Icon className="h-4 w-4 text-white" />
+                <Icon className="h-3.5 w-3.5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className={cn(
-                    "text-sm font-medium truncate",
-                    isLocked && "text-muted-foreground"
-                  )}>
-                    {perk.label}
-                  </span>
-                  {perk.id === 'meme-ban' && isPremium && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-bold">
-                      MAX 5 MIN
-                    </span>
-                  )}
-                </div>
-                <p className={cn(
-                  "text-[11px] truncate",
-                  isLocked ? "text-muted-foreground/60" : "text-muted-foreground"
-                )}>
-                  {perk.description}
-                </p>
+                <span className="text-xs font-medium truncate block">{perk.label}</span>
               </div>
-              {isLocked ? (
-                <Lock className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-              ) : (
-                <Check className="h-4 w-4 text-primary shrink-0" />
-              )}
+              <div className="flex gap-2 shrink-0">
+                <span className="text-[10px] text-muted-foreground/60 w-20 text-center flex items-center justify-center gap-1">
+                  {perk.free === 'Not available' ? (
+                    <X className="h-3 w-3 text-destructive/50" />
+                  ) : perk.free}
+                </span>
+                <span className="text-[10px] text-primary font-medium w-20 text-center flex items-center justify-center gap-1">
+                  <Check className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{perk.premium.split(' ').slice(0, 3).join(' ')}</span>
+                </span>
+              </div>
             </motion.div>
           );
         })}

@@ -390,7 +390,7 @@ function WidgetAddFAB() {
       {/* Floating + button */}
       <motion.button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-24 right-4 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 flex items-center justify-center"
+        className="fixed bottom-24 left-4 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 flex items-center justify-center"
         whileTap={{ scale: 0.9 }}
         animate={{ rotate: open ? 45 : 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
@@ -406,7 +406,7 @@ function WidgetAddFAB() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-            className="fixed bottom-40 right-4 z-50 w-64 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/30 shadow-2xl p-3 space-y-1"
+            className="fixed bottom-40 left-4 z-50 w-64 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/30 shadow-2xl p-3 space-y-1"
           >
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pb-1">
               Add Widget
