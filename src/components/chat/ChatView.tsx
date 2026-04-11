@@ -2454,7 +2454,7 @@ const MessageBubble = memo(function MessageBubble({
                   <motion.div 
                     className="absolute inset-0 bg-[length:300%_100%]"
                     style={{ backgroundImage: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))' }}
-                    animate={{ backgroundPosition: ['0% 50%', '-100% 50%'] }}
+                    animate={{ backgroundPosition: ['0% 50%', '-33.333% 50%'] }}
                     transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
                   />
                   

@@ -1659,7 +1659,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 /* Keyframe animations */
 @keyframes gradient-shift {
   from { background-position: 0% 50%; }
-  to { background-position: -100% 50%; }
+  to { background-position: -33.333% 50%; }
 }
 
 @keyframes shimmer {
@@ -2710,8 +2710,8 @@ img, video {
 }
 
 @keyframes friendlink-shimmer-sweep {
-  from { background-position: 100% 0; }
-  to { background-position: -100% 0; }
+  from { background-position: 0% 0; }
+  to { background-position: -33.333% 0; }
 }
 
 .friendlink-icon-wrap {
@@ -2965,7 +2965,7 @@ img, video {
 
 @keyframes badge-shimmer {
   from { background-position: 0% 50%; }
-  to { background-position: -100% 50%; }
+  to { background-position: -33.333% 50%; }
 }
 
 @keyframes badge-pulse {
@@ -3180,8 +3180,8 @@ img, video {
   animation: rainbow-bg-scroll 3s linear infinite;
 }
 @keyframes rainbow-bg-scroll {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 300% 50%; }
+  from { background-position: 0% 50%; }
+  to { background-position: -33.333% 50%; }
 }
 .fire-glow {
   animation: fire-glow 1.2s ease-in-out infinite;
@@ -3224,7 +3224,7 @@ img, video {
 
 @keyframes premium-gold-shimmer {
   from { background-position: 0% 50%; }
-  to { background-position: -100% 50%; }
+  to { background-position: -33.333% 50%; }
 }
 
 /* ========================================
@@ -3299,7 +3299,7 @@ img, video {
 }
 @keyframes ambient-shift {
   from { background-position: 0% 50%; }
-  to { background-position: -100% 50%; }
+  to { background-position: -33.333% 50%; }
 }
 
 /* --- Respect reduced motion --- */

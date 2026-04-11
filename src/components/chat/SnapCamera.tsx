@@ -1093,7 +1093,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 )}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                animate={!isSending ? { backgroundPosition: ['0% 50%', '-100% 50%'] } : {}}
+                animate={!isSending ? { backgroundPosition: ['0% 50%', '-33.333% 50%'] } : {}}
                 transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
               >
                 {isSending ? (
