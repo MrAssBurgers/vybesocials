@@ -413,22 +413,29 @@ export function GlobalCallOverlay() {
     let cancelled = false;
 
     const doJoin = async () => {
-      try {
-        await requestCallMediaPermissions(state.call!.callType);
-      } catch (err: any) {
-        toast.error(err.message || 'Microphone permission required');
-        endCall();
-        return;
+      // For P2P: skip requestCallMediaPermissions — P2PConnection.connect() 
+      // calls getUserMedia itself. Double-requesting causes iOS failures.
+      if (state.call!.callMode === 'persistent') {
+        try {
+          await requestCallMediaPermissions(state.call!.callType);
+        } catch (err: any) {
+          toast.error(err.message || 'Microphone permission required');
+          endCall();
+          return;
+        }
       }
       if (cancelled) return;
 
       clearJoinTimeout();
+      // P2P: 15s timeout (offer retransmission handles retries internally)
+      // Persistent: 30s timeout
+      const timeout = state.call!.callMode === 'p2p' ? 15000 : 30000;
       joinTimeoutRef.current = setTimeout(() => {
         if (stateRef.current.phase === 'joining') {
           toast.error('Call failed to connect');
           endCall();
         }
-      }, 30000);
+      }, timeout);
 
       if (state.call!.callMode === 'persistent') {
         await connectToRoom(state.call!);
