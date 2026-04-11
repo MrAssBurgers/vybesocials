@@ -8,11 +8,13 @@ import { BugBountyOverlay } from '@/components/error/BugBountyOverlay';
 // VYBELogo removed from fallback for instant navigation
 
 // CRITICAL PAGE - Load eagerly for instant first navigation
-import Home from "@/pages/Home";
 import Landing from "@/pages/Landing";
-import Onboarding from "@/pages/Onboarding";
 import AuthCallback from "@/pages/AuthCallback";
-import VybeDNA from "@/pages/VybeDNA";
+
+// High-priority but lazy-loaded to reduce main-thread work
+const Home = lazy(() => import("@/pages/Home"));
+const Onboarding = lazy(() => import("@/pages/Onboarding"));
+const VybeDNA = lazy(() => import("@/pages/VybeDNA"));
 
 // High-priority pages - lazy but prefetched early
 const Explore = lazy(() => import("@/pages/Explore"));
@@ -41,7 +43,7 @@ const Community = lazy(() => import("@/pages/Community"));
 const Spaces = lazy(() => import("@/pages/Spaces"));
 const Watch = lazy(() => import("@/pages/Watch"));
 const VideoBrowse = lazy(() => import("@/pages/VideoBrowse"));
-import ClipsViewer from "@/pages/ClipsViewer";
+const ClipsViewer = lazy(() => import("@/pages/ClipsViewer"));
 const Privacy = lazy(() => import("@/pages/Privacy"));
 const Terms = lazy(() => import("@/pages/Terms"));
 const CookiePolicy = lazy(() => import("@/pages/CookiePolicy"));
