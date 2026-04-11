@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, Component, ErrorInfo
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User, Car, Footprints, Pause, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { AppLayout } from '@/components/layout/AppLayout';
+
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -774,8 +774,7 @@ function FriendMapInner() {
   /* ── render ────────────────────────────────────────── */
 
   return (
-    <AppLayout hideNav noPadding fullWidth>
-      <div className="fixed inset-0 md:absolute md:inset-0 w-full overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none', zIndex: 1 }}>
+    <div className="fixed inset-0 w-full h-full overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none', zIndex: 9999 }}>
         <style>{`
           @keyframes pulse-ring{0%{transform:scale(.8);opacity:1}100%{transform:scale(3);opacity:0}}
           @keyframes pulse-glow{0%,100%{box-shadow:0 0 0 0 hsl(217 91% 60%/.4)}50%{box-shadow:0 0 20px 8px hsl(217 91% 60%/.2)}}
@@ -1334,7 +1333,6 @@ function FriendMapInner() {
           </div>
         </div>
       </div>
-    </AppLayout>
   );
 }
 
