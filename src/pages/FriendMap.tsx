@@ -447,12 +447,21 @@ export default function FriendMap() {
     tileRef.current = L.tileLayer(MAP_TILES[mapStyle].url, { maxZoom: 19 }).addTo(map);
     fLayer.current = L.layerGroup().addTo(map);
     mapRef.current = map;
+    // Invalidate size multiple times to handle desktop layout settling
     requestAnimationFrame(() => map.invalidateSize());
+    setTimeout(() => map.invalidateSize(), 100);
+    setTimeout(() => map.invalidateSize(), 500);
+    
+    // Use ResizeObserver to handle layout changes (e.g. sidebar appearing)
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(mapEl.current);
+    const roCleanup = () => ro.disconnect();
 
     map.on('click', () => { setSelId(null); setStylesOpen(false); });
     map.on('zoomend', () => setZoom(map.getZoom()));
 
     return () => {
+      roCleanup();
       fLayer.current?.clearLayers();
       myMk.current?.remove();
       accCircle.current?.remove();
