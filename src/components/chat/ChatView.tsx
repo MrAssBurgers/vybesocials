@@ -1905,15 +1905,18 @@ const MessageInputArea = memo(function MessageInputArea({
           <VoiceRecorder
             onRecordingComplete={(blob) => {
               setIsRecordingVoice(false);
+              setIsVoiceLocked?.(false);
               onLiveRecordingChange?.(false);
               handleVoiceRecordingComplete(blob);
             }}
             onCancel={() => {
               setIsRecordingVoice(false);
+              setIsVoiceLocked?.(false);
               onLiveRecordingChange?.(false);
             }}
             isUploading={isUploadingMedia}
             autoSend
+            locked={isVoiceLocked}
           />
         ) : (
           <div ref={inputContainerRef} className="flex items-center gap-1 sm:gap-2">
