@@ -8,9 +8,11 @@ interface VoiceRecorderProps {
   onRecordingComplete: (blob: Blob) => void;
   onCancel: () => void;
   isUploading?: boolean;
+  /** When true, auto-sends on stop (hold-to-record mode) */
+  autoSend?: boolean;
 }
 
-export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading }: VoiceRecorderProps) {
+export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, autoSend }: VoiceRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -22,6 +24,8 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading }: Vo
   const animationRef = useRef<number>();
   const chunksRef = useRef<Blob[]>([]);
   const intervalRef = useRef<NodeJS.Timeout>();
+  const autoSendRef = useRef(autoSend);
+  autoSendRef.current = autoSend;
 
   const startRecording = useCallback(async () => {
     try {
@@ -50,8 +54,18 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading }: Vo
       
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(blob);
         stream.getTracks().forEach(track => track.stop());
+        
+        if (autoSendRef.current) {
+          // In hold-to-record mode, send immediately if recording was >0.3s
+          if (blob.size > 0) {
+            onRecordingComplete(blob);
+          } else {
+            onCancel();
+          }
+        } else {
+          setAudioBlob(blob);
+        }
       };
       
       mediaRecorder.start(100);
@@ -84,11 +98,12 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading }: Vo
       
     } catch (error) {
       console.error('Failed to start recording:', error);
+      onCancel();
     }
-  }, []);
+  }, [onRecordingComplete, onCancel]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       
@@ -102,7 +117,18 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading }: Vo
         audioContextRef.current.close();
       }
     }
-  }, [isRecording]);
+  }, []);
+
+  /** Called externally by hold-to-record to stop and auto-send */
+  const stopAndSend = useCallback(() => {
+    stopRecording();
+  }, [stopRecording]);
+
+  // Expose stopAndSend for parent component
+  useEffect(() => {
+    (window as any).__voiceRecorderStop = stopAndSend;
+    return () => { delete (window as any).__voiceRecorderStop; };
+  }, [stopAndSend]);
 
   const handleSend = useCallback(() => {
     if (audioBlob) {
@@ -185,41 +211,56 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading }: Vo
         {formatDuration(duration)}
       </motion.span>
 
-      {/* Record/Stop/Send button */}
-      {!audioBlob ? (
-        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-          <Button
-            variant={isRecording ? "destructive" : "default"}
-            size="icon"
-            onClick={isRecording ? stopRecording : startRecording}
-            className="h-10 w-10 rounded-full"
-          >
-            {isRecording ? (
-              <Square className="h-4 w-4" />
-            ) : (
-              <Mic className="h-5 w-5" />
-            )}
-          </Button>
-        </motion.div>
-      ) : (
+      {/* Record/Stop/Send button — hidden in autoSend mode since release handles it */}
+      {!autoSend && (
+        <>
+          {!audioBlob ? (
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <Button
+                variant={isRecording ? "destructive" : "default"}
+                size="icon"
+                onClick={isRecording ? stopRecording : startRecording}
+                className="h-10 w-10 rounded-full"
+              >
+                {isRecording ? (
+                  <Square className="h-4 w-4" />
+                ) : (
+                  <Mic className="h-5 w-5" />
+                )}
+              </Button>
+            </motion.div>
+          ) : (
+            <motion.div 
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              whileHover={{ scale: 1.1 }} 
+              whileTap={{ scale: 0.9 }}
+            >
+              <Button
+                size="icon"
+                onClick={handleSend}
+                disabled={isUploading}
+                className="h-10 w-10 rounded-full"
+              >
+                {isUploading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Send className="h-5 w-5" />
+                )}
+              </Button>
+            </motion.div>
+          )}
+        </>
+      )}
+
+      {/* In autoSend mode, show a hint */}
+      {autoSend && isRecording && (
         <motion.div 
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          whileHover={{ scale: 1.1 }} 
-          whileTap={{ scale: 0.9 }}
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ repeat: Infinity, duration: 1.5 }}
+          className="text-xs text-muted-foreground whitespace-nowrap"
         >
-          <Button
-            size="icon"
-            onClick={handleSend}
-            disabled={isUploading}
-            className="h-10 w-10 rounded-full"
-          >
-            {isUploading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
-          </Button>
+          Release to send
         </motion.div>
       )}
 
