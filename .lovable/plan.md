@@ -1,33 +1,46 @@
 
 
-## Fix: Decouple Long-Press Menu from Swipe-to-Reply + Redesign Menu
+## Plan: Smart Emoji Memory, Recent-Person-First Sharing, and Adaptive Learning
 
-### Problems
-1. **Long-press is wired through SwipeToReply** — the `onLongPress` callback lives inside `SwipeToReply`, so the menu only triggers during swipe gestures. It should be completely independent.
-2. **Menu is too large and centered** — the current full-screen centered overlay with message preview, emoji bar, and large action card is bloated. It should be a compact, clean frosted glass card anchored near the held message.
+### 1. Frequent Reaction Emoji Memory
 
-### Fix: Two changes
+**Problem:** Reaction emojis in the long-press menu are static. They should learn which emojis you use most and reorder automatically.
 
-#### 1. Move long-press detection OUT of SwipeToReply
-
-- **Remove** `onLongPress` prop from `SwipeToReply` entirely — strip all long-press logic (pointer capture handlers, gesture state machine, timers) from that component. SwipeToReply should ONLY handle horizontal swipe-to-reply.
-- **Add long-press directly on MessageBubble** — inside the `MessageBubble` component (around line 2122 in ChatView.tsx), add a simple `onPointerDown`/`onPointerMove`/`onPointerUp` long-press detector on the bubble's root `div` (the one with `data-message-id`). This completely decouples the two gestures.
-- **Update the SwipeToReply usage** at line 1508 — remove the `onLongPress` prop.
-
-#### 2. Redesign the menu — compact, top-left anchored, clean
-
-Replace the current full-screen centered overlay (lines 2548-2679) with:
-- **Backdrop**: Keep the `fixed inset-0 backdrop-blur-md bg-black/40` (lighter blur than current)
-- **Menu card**: A compact frosted glass card (`backdrop-blur-xl bg-black/60 border border-white/10 rounded-xl`) positioned near the top-left of the message bubble using the bubble's bounding rect
-- **No message preview** — remove the giant message snapshot, it's unnecessary
-- **No emoji bar in the overlay** — keep it separate or remove from this menu
-- **Compact action list**: Small text (text-[13px]), tight padding (px-3 py-2.5), icons at 14px — like Snapchat's minimal popup
-- **Max width ~180px**, clean separators
-
-### Files Touched
+**Solution:** Create `src/lib/frequentEmojis.ts` — a localStorage-backed tracker that records each emoji reaction tap. The context menu's emoji row (currently hardcoded `QUICK_EMOJIS` in `WordReactions.tsx` and the inline reactions in `ChatView.tsx`) will read from this store and display the user's top 6 most-used emojis instead of a fixed list. Falls back to defaults until enough data is collected.
 
 | File | Change |
 |------|--------|
-| `src/components/chat/SwipeToReply.tsx` | Remove all long-press logic, keep only swipe-to-reply |
-| `src/components/chat/ChatView.tsx` | Add standalone long-press on MessageBubble div; redesign context menu to compact top-left anchored glass card |
+| `src/lib/frequentEmojis.ts` | **New** — `recordEmoji(emoji)`, `getTopEmojis(count)` with localStorage persistence |
+| `src/components/chat/ChatView.tsx` | Import `getTopEmojis` and use it for the reaction emoji row in the context menu; call `recordEmoji` when a reaction is tapped |
+
+### 2. Recent/Pinned Person First When Sharing Clips/Videos
+
+**Problem:** When sharing a clip or video to DMs, the share sheet doesn't prioritize who you talk to most. It should show pinned conversations first, then most recent, and learn from usage.
+
+**Solution:** Enhance the existing `recentMessageUsers.ts` system. When the share sheet (`CameraShareSheet.tsx`) shows the DM option, add a person picker that queries conversations sorted by: pinned first → most recently messaged. Also create `src/lib/shareRecency.ts` to track which users you share TO most, and blend that with the pinned/recent data.
+
+| File | Change |
+|------|--------|
+| `src/lib/shareRecency.ts` | **New** — `recordShareTo(userId)`, `getShareRankedUsers()` with localStorage |
+| `src/components/camera/CameraShareSheet.tsx` | When "DM" is selected, show a person picker row with avatars sorted by share frequency → pinned → recent |
+
+### 3. Adaptive Learning Integration
+
+**Problem:** The existing `useUserAdaptation.ts` hook already tracks communication style but doesn't feed into emoji or share ranking.
+
+**Solution:** Wire `recordEmoji` calls into the adaptation hook's `learnFromMessage` flow. When a user reacts, the emoji preference updates. When they share, the share target updates. This makes the system continuously learn without any extra user action.
+
+| File | Change |
+|------|--------|
+| `src/hooks/useUserAdaptation.ts` | Add `recordEmojiPreference` and `recordShareTarget` methods that delegate to the new localStorage stores |
+
+### Files Summary
+
+| File | Change |
+|------|--------|
+| `src/lib/frequentEmojis.ts` | **New** — emoji frequency tracker (localStorage) |
+| `src/lib/shareRecency.ts` | **New** — share target recency/frequency tracker (localStorage) |
+| `src/components/chat/ChatView.tsx` | Use frequent emojis in context menu reaction row; record emoji taps |
+| `src/components/camera/CameraShareSheet.tsx` | Add person picker sorted by share frequency + pinned + recent |
+| `src/hooks/useUserAdaptation.ts` | Wire in emoji and share tracking |
 
