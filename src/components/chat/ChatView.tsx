@@ -2570,134 +2570,88 @@ const MessageBubble = memo(function MessageBubble({
           )}
         </AnimatePresence>
 
-        {/* Snapchat-style frosted glass long-press menu */}
+        {/* Compact frosted glass context menu */}
         <AnimatePresence>
         {showContextMenu && (
           <>
-            {/* Full-screen blurred backdrop */}
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="fixed inset-0 backdrop-blur-xl bg-black/50 z-[99]"
+              transition={{ duration: 0.12 }}
+              className="fixed inset-0 backdrop-blur-md bg-black/40 z-[99]"
               onClick={() => { setShowContextMenu(false); menuOpenedRef.current = false; }}
             />
-            {/* Centered overlay content */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-              className="fixed inset-0 z-[100] flex flex-col items-center justify-center px-8 pointer-events-none"
-              onClick={() => { setShowContextMenu(false); menuOpenedRef.current = false; }}
+              initial={{ opacity: 0, scale: 0.9, y: 4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              className="fixed z-[100] w-[170px] rounded-xl backdrop-blur-xl bg-black/70 border border-white/10 shadow-2xl overflow-hidden"
+              style={{
+                top: bubbleRef.current 
+                  ? Math.min(bubbleRef.current.getBoundingClientRect().top, window.innerHeight - 280)
+                  : '40%',
+                left: isOwn 
+                  ? (bubbleRef.current ? Math.max(8, bubbleRef.current.getBoundingClientRect().left - 178) : 8)
+                  : (bubbleRef.current ? Math.min(bubbleRef.current.getBoundingClientRect().right + 8, window.innerWidth - 178) : 8),
+              }}
+              onClick={(e) => e.stopPropagation()}
             >
-              {/* Emoji reaction row — floating pills */}
-              <div 
-                className="flex gap-2 mb-3 pointer-events-auto"
-                onClick={(e) => e.stopPropagation()}
+              <button
+                onClick={() => { onReply(); setShowContextMenu(false); menuOpenedRef.current = false; }}
+                className="w-full px-3 py-2.5 text-left text-[13px] font-medium text-white/90 active:bg-white/15 flex items-center gap-2.5 transition-colors"
               >
-                <div className="flex gap-1.5 px-3 py-2 rounded-full backdrop-blur-2xl bg-white/15 border border-white/20 shadow-2xl">
-                  {QUICK_REACTIONS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleReaction(emoji);
-                        setShowContextMenu(false);
-                        menuOpenedRef.current = false;
-                      }}
-                      className={cn(
-                        "text-2xl p-1 rounded-full hover:scale-125 active:scale-90 transition-all duration-150",
-                        userReaction === emoji && "bg-white/20 ring-2 ring-white/30 scale-110"
-                      )}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Message preview — floating snapshot */}
-              <div 
-                className="max-w-[280px] mb-3 pointer-events-auto rounded-2xl backdrop-blur-2xl bg-white/10 border border-white/15 shadow-2xl p-3 overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {isMediaMessage && message.media_url ? (
-                  <div className="rounded-xl overflow-hidden">
-                    {message.media_type === 'video' ? (
-                      <video src={message.media_url} className="w-full max-h-[200px] object-contain rounded-xl" muted />
-                    ) : (
-                      <img src={message.media_url} alt="" className="w-full max-h-[200px] object-contain rounded-xl" />
-                    )}
-                  </div>
-                ) : message.content ? (
-                  <p className="text-sm text-white/90 line-clamp-4 leading-relaxed">{message.content}</p>
-                ) : null}
-              </div>
-
-              {/* Action menu — frosted glass card */}
-              <div 
-                className="min-w-[220px] max-w-[260px] pointer-events-auto rounded-2xl backdrop-blur-2xl bg-white/10 border border-white/15 shadow-2xl overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  onClick={() => { onReply(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                  className="w-full px-4 py-3 text-left text-sm font-medium text-white/90 hover:bg-white/10 active:bg-white/15 flex items-center gap-3 transition-colors"
-                >
-                  <Reply className="h-4 w-4 text-white/70" /> Reply
-                </button>
-                {message.content && (
-                  <>
-                    <div className="mx-3 border-t border-white/10" />
-                    <button
-                      onClick={copyToClipboard}
-                      className="w-full px-4 py-3 text-left text-sm font-medium text-white/90 hover:bg-white/10 active:bg-white/15 flex items-center gap-3 transition-colors"
-                    >
-                      <Copy className="h-4 w-4 text-white/70" /> Copy text
-                    </button>
-                  </>
-                )}
-                {isMediaMessage && message.media_url && onSaveSticker && (
-                  <>
-                    <div className="mx-3 border-t border-white/10" />
-                    <button
-                      onClick={() => { onSaveSticker(message.media_url!); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                      className="w-full px-4 py-3 text-left text-sm font-medium text-white/90 hover:bg-white/10 active:bg-white/15 flex items-center gap-3 transition-colors"
-                    >
-                      <Sparkles className="h-4 w-4 text-white/70" /> Save to Stickers
-                    </button>
-                  </>
-                )}
-                {isOwn && message.content && !message.media_url && (
-                  <>
-                    <div className="mx-3 border-t border-white/10" />
-                    <button
-                      onClick={() => { onEdit?.(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                      className="w-full px-4 py-3 text-left text-sm font-medium text-white/90 hover:bg-white/10 active:bg-white/15 flex items-center gap-3 transition-colors"
-                    >
-                      <Edit3 className="h-4 w-4 text-white/70" /> Edit
-                    </button>
-                  </>
-                )}
-
-                {/* Destructive section */}
-                <div className="mx-3 border-t border-white/10" />
-                {isOwn && (
+                <Reply className="h-3.5 w-3.5 text-white/60" /> Reply
+              </button>
+              {message.content && (
+                <>
+                  <div className="mx-2.5 border-t border-white/8" />
                   <button
-                    onClick={handleUnsend}
-                    className="w-full px-4 py-3 text-left text-sm font-medium text-red-400 hover:bg-white/10 active:bg-white/15 flex items-center gap-3 transition-colors"
+                    onClick={copyToClipboard}
+                    className="w-full px-3 py-2.5 text-left text-[13px] font-medium text-white/90 active:bg-white/15 flex items-center gap-2.5 transition-colors"
                   >
-                    <Trash2 className="h-4 w-4" /> Unsend
+                    <Copy className="h-3.5 w-3.5 text-white/60" /> Copy
                   </button>
-                )}
+                </>
+              )}
+              {isMediaMessage && message.media_url && onSaveSticker && (
+                <>
+                  <div className="mx-2.5 border-t border-white/8" />
+                  <button
+                    onClick={() => { onSaveSticker(message.media_url!); setShowContextMenu(false); menuOpenedRef.current = false; }}
+                    className="w-full px-3 py-2.5 text-left text-[13px] font-medium text-white/90 active:bg-white/15 flex items-center gap-2.5 transition-colors"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-white/60" /> Save Sticker
+                  </button>
+                </>
+              )}
+              {isOwn && message.content && !message.media_url && (
+                <>
+                  <div className="mx-2.5 border-t border-white/8" />
+                  <button
+                    onClick={() => { onEdit?.(); setShowContextMenu(false); menuOpenedRef.current = false; }}
+                    className="w-full px-3 py-2.5 text-left text-[13px] font-medium text-white/90 active:bg-white/15 flex items-center gap-2.5 transition-colors"
+                  >
+                    <Edit3 className="h-3.5 w-3.5 text-white/60" /> Edit
+                  </button>
+                </>
+              )}
+              <div className="mx-2.5 border-t border-white/8" />
+              {isOwn && (
                 <button
-                  onClick={() => { onDeleteForMe(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                  className="w-full px-4 py-3 text-left text-sm font-medium text-white/50 hover:bg-white/10 active:bg-white/15 flex items-center gap-3 transition-colors"
+                  onClick={handleUnsend}
+                  className="w-full px-3 py-2.5 text-left text-[13px] font-medium text-red-400 active:bg-white/15 flex items-center gap-2.5 transition-colors"
                 >
-                  <EyeOff className="h-4 w-4" /> Delete for me
+                  <Trash2 className="h-3.5 w-3.5" /> Unsend
                 </button>
-              </div>
+              )}
+              <button
+                onClick={() => { onDeleteForMe(); setShowContextMenu(false); menuOpenedRef.current = false; }}
+                className="w-full px-3 py-2.5 text-left text-[13px] font-medium text-white/40 active:bg-white/15 flex items-center gap-2.5 transition-colors"
+              >
+                <EyeOff className="h-3.5 w-3.5" /> Delete for me
+              </button>
             </motion.div>
           </>
         )}
