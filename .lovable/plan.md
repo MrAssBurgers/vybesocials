@@ -1,50 +1,94 @@
 
 
-## Fix Calling, Sticker Saving, and Call UI Issues
+## Fix 6 Issues + AI Safety Filter Toggle System (DMs and Group Chats)
 
-### Issues Found
+### 1. Voice Recorder Lock + Send Button
+Add vertical drag detection on the mic button. When finger drags up >40px during hold, recording enters "locked" mode -- stays recording after finger release. Show a send button and cancel button in locked mode.
 
-**1. Sticker saving fails — RLS mismatch**
-The `user_stickers` table uses `auth.uid()` in its RLS policy (`user_id = auth.uid()`), and the hook correctly uses `profile.user_id` (the auth UUID). However, the previous security migration may have broken the storage signed URL flow for sticker images. The `chat-media` storage bucket policies were hardened, potentially blocking access to images needed for stickers. Additionally, the sticker save itself should work, but the image URLs being saved may be raw storage paths that fail when the signed URL can't be generated.
+**Files**: `ChatView.tsx` (pointer handlers with vertical tracking), `VoiceRecorder.tsx` (locked state, send/cancel UI)
 
-**Action**: Verify the storage SELECT policy allows reading chat-media for conversation members. Add error logging to `useAddSticker` to surface the actual failure. Ensure the `image_url` being saved is a valid storage path.
+### 2. Instant DM Delivery via Broadcast
+Add Supabase Broadcast alongside DB insert so messages arrive sub-100ms. The existing `postgres_changes` listener serves as authoritative backup.
 
-**2. Calling fails every time — P2P timeout**
-The P2P calling flow inserts into the `calls` table using `profile.id` (profiles table UUID) as `caller_id`. The RLS policy checks `caller_id = public.current_profile_id()`, which maps `auth.uid()` to `profiles.id`. This should work. The likely failure point is the P2P signaling — the 15-second join timeout fires before the other user connects. On iPad specifically, `getUserMedia` can fail silently or the Supabase Realtime broadcast channel may not connect properly.
+**Files**: `useInstantSend.ts` (broadcast after insert), `useGlobalRealtimeMessages.ts` (subscribe to broadcast with dedup)
 
-**Action**: 
-- Increase the P2P join timeout from 15s to 30s
-- Add better error handling and toast messages during P2P connection
-- Ensure the P2P `connect()` method doesn't silently fail on iPad Safari
-- Add a retry mechanism before giving up
+### 3. DMHoldMenu -- Frosted Glass + No Cutoff
+Replace solid `bg-[#262626]` with `bg-white/[0.08] backdrop-blur-xl border border-white/[0.12]`. Add `max-h-[70vh] overflow-y-auto` and safe-area padding.
 
-**3. Call connecting UI is cut off and transparent**
-The main call overlay (line 877-886) has a solid dark gradient background, which should work. But the **connecting state** for audio calls shows just an avatar with "Connecting..." text over the gradient — this looks fine. The issue is likely on **iPad** where the overlay height doesn't account for safe areas, and the footer controls get cut off at the bottom.
+**File**: `DMHoldMenu.tsx`
 
-The "transparent background" issue is likely during the `creating` or `joining` phase — the overlay is visible (`isVisible = state.phase !== 'idle'`) but the solid background gradient may not render properly on iPad due to the `isolation: 'isolate'` CSS property or safe area insets.
+### 4. Custom Emoji / Sticker Tap Fix
+Add `pointer-events-none` to img/overlay elements inside `StickerTile` so clicks always hit the button.
 
-**Action**:
-- Add `env(safe-area-inset-top/bottom)` padding to the call overlay
-- Change the background from inline gradient to a frosted glass style with `backdrop-filter: blur(40px)` over a dark base
-- Ensure the footer controls have proper bottom padding for iPad (`pb-[calc(40px+env(safe-area-inset-bottom))]`)
-- Make the connecting state UI more polished with a frosted glass card
+**File**: `StickerPanel.tsx`
 
-### Technical Changes
+### 5. AI Safety Filter Toggle for DMs
+Allow users to request disabling the AI content filter for a specific DM. Both users must agree. Flow:
+- User taps "Disable AI Filter" in Toybox -> inserts a `pending` request
+- Other user sees an in-chat popup to accept or decline
+- If accepted, safety scanning is skipped for that conversation
+- Either user can re-enable anytime
 
-**File: `src/components/call/GlobalCallOverlay.tsx`**
-- Line 878-885: Replace inline gradient background with frosted glass: solid dark base color + `backdrop-filter: blur(40px) saturate(150%)` + safe area insets
-- Line 1147: Update footer padding from `pb-10` to `pb-[calc(2.5rem+env(safe-area-inset-bottom))]`
-- Line 1042-1101: Add `pt-[env(safe-area-inset-top)]` to header area
+**Age restriction**: Users 12 and under cannot disable it (locked). Users 13+ see a warning before disabling.
 
-**File: `src/lib/p2pConnection.ts`**
-- Add better error handling in `connect()` to catch and report `getUserMedia` failures explicitly
-- Add a console log before the timeout fires so we can debug
+### 6. AI Safety Filter Toggle for Group Chats
+Same system extended to groups -- ALL members must accept for the filter to be disabled. If any member declines, filter stays on. The existing `GroupInfoSheet.tsx` toggle becomes the request trigger.
 
-**File: `src/hooks/useStickers.ts`**
-- Add console error logging in the mutation error handler to surface the real failure reason
-- Verify the image URL format before inserting
+### 7. Sticker Content Rating System (NEW)
+When a user saves a sticker, the AI scans the image and labels it with a content rating stored in the `user_stickers` table:
+- `safe` -- visible to everyone
+- `13+` -- blurred for users 12 and under
+- `18+` -- blurred for users under 18, and for anyone with AI filters enabled
 
-**File: `src/components/call/GlobalCallOverlay.tsx` (connecting UI)**
-- Lines 1104-1120: Enhance the connecting overlay with a frosted glass card instead of transparent bg
-- Lines 988-1039: Improve the audio call connecting state with a frosted glass container
+When a rated sticker is sent in a chat where the recipient has AI filters on (or is underage), the message shows a **heavily blurred image** with a label like "This content is 18+ and may contain nudity" and a note to disable AI filters to view it. Users 12 and under can NEVER unblur 18+ content.
+
+### Database Changes
+
+**New table: `conversation_safety_overrides`**
+```sql
+CREATE TABLE conversation_safety_overrides (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE NOT NULL,
+  requested_by UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','declined','cancelled')),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  responded_at TIMESTAMPTZ,
+  UNIQUE(conversation_id, status) -- only one active request at a time
+);
+-- RLS: conversation members only
+```
+
+**New table: `conversation_safety_responses`** (for group chats)
+```sql
+CREATE TABLE conversation_safety_responses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  override_id UUID REFERENCES conversation_safety_overrides(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  response TEXT NOT NULL CHECK (response IN ('accepted','declined')),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(override_id, user_id)
+);
+```
+
+**Alter `user_stickers`**: Add `content_rating TEXT DEFAULT 'safe'` column.
+
+**Edge function**: `rate-sticker-content` -- calls Lovable AI (Gemini Flash) to classify a sticker image as safe/13+/18+ when saved.
+
+### New Files
+- `src/hooks/useConversationSafety.ts` -- manage override requests, check age, subscribe to realtime
+- `src/components/chat/SafetyFilterRequest.tsx` -- in-chat accept/decline popup
+- `src/components/chat/SafetyFilterRequestButton.tsx` -- Toybox option
+- `supabase/functions/rate-sticker-content/index.ts` -- AI sticker rating
+
+### Modified Files
+- `src/components/chat/ChatView.tsx` -- voice lock pointers, broadcast send, show safety request popup, check override before safety gate
+- `src/components/chat/VoiceRecorder.tsx` -- locked mode UI
+- `src/components/chat/DMHoldMenu.tsx` -- frosted glass + safe area
+- `src/components/chat/StickerPanel.tsx` -- pointer-events fix
+- `src/components/chat/Toybox.tsx` -- "Disable AI Filter" option
+- `src/components/chat/GroupInfoSheet.tsx` -- integrate group safety request flow
+- `src/components/chat/ChatMediaBubble.tsx` -- check sticker content rating + recipient age
+- `src/hooks/useStickers.ts` -- trigger rating edge function after save
+- `src/hooks/useInstantSend.ts` -- broadcast after insert
+- `src/hooks/useGlobalRealtimeMessages.ts` -- subscribe to broadcast
 
