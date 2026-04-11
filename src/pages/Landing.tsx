@@ -216,6 +216,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         if (!formData.username.trim()) {
           throw new Error('Username is required');
         }
+        if (formData.password.length < 6) {
+          throw new Error('Password must be at least 6 characters.');
+        }
         if (!agreedToTerms) {
           throw new Error('You must agree to the Terms of Use');
         }
