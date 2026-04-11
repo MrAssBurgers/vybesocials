@@ -151,9 +151,9 @@ const AuroraEffect = memo(() => {
       <div
         className="absolute inset-0 opacity-25"
         style={{
-          background: 'linear-gradient(135deg, transparent 20%, #a78bfa 40%, transparent 60%, #34d399 80%)',
+          background: 'linear-gradient(135deg, transparent 20%, #a78bfa 40%, transparent 60%, #34d399 80%, transparent 100%)',
           backgroundSize: '300% 300%',
-          animation: 'aurora-sweep 14s ease-in-out infinite reverse',
+          animation: 'aurora-sweep 14s linear infinite',
         }}
       />
     </div>
