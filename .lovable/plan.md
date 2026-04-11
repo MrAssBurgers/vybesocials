@@ -1,51 +1,28 @@
 
 
-## Speed Up & Smooth Out the App
+## Fix Seamless Gradient Animations & Verify Camera Back Arrow
 
-### Root Causes Identified
+### Problem
+The gradient animations "reset" visibly because the gradient pattern at `background-position: -100%` doesn't match `0%`. With a mirrored gradient (`A → B → C → B → A`) at `background-size: 200%`, shifting by `-100%` shows a different slice than `0%`, causing a visible "snap".
 
-1. **`backdrop-blur` everywhere** — 167 files use `backdrop-blur`. Every blurred element forces the GPU to re-sample all pixels underneath on every frame. The bottom nav, tab bar, close buttons, toasts, and modals all stack blur layers during scroll and video playback.
+The fix: use `background-size: 300% 100%` with the gradient defined as `A → B → C → A` (ending where it starts). Then animate from `0%` to `-100%` which shifts exactly one "period" of the repeating pattern — seamless loop, no snap, continuous leftward motion.
 
-2. **Too many concurrent CSS animations** — Background effects (particles, stars, aurora, rain, bubbles) run 20-40 animated DOM elements simultaneously with `box-shadow` animations. The `gradient-shift`, `premium-gold-shimmer`, shimmer-sweep, and various pulse/glow keyframes all run constantly even when off-screen.
+### Camera Back Arrow
+Already implemented — `StoryCreator` passes `showBackArrow` to `Camera`, which renders an ArrowLeft SVG. No changes needed here.
 
-3. **`is-scrolling` pointer-events hack** — Lines 2049-2052 disable `pointer-events` on `.post-card` and `article` during scroll. This forces layout recalculation and can cause visible "flash" jank on mobile.
+### Changes
 
-4. **Framer Motion overhead on clips** — Both `ShortCard` (716 lines) and `MobileShortCard` (596 lines) import framer-motion with `AnimatePresence` for every clip in the scroll. Each clip creates multiple `motion.div` elements that run spring animations during snap-scroll.
+**1. `src/index.css`** — Fix `gradient-shift` and `premium-gold-shimmer` keyframes + gradient definitions
 
-5. **Explore page re-renders** — `usePosts()` fetches all posts, then filters client-side into clips/videos. `trendingCreators` and `trendingTags` are recomputed from the full post array on every render cycle.
+- **`.gradient-animated`**: Change gradient to `A → B → C → A` (4 stops, last = first) with `background-size: 300% 100%`. Keyframe shifts from `0% 50%` to `-100% 50%` (one full period).
+- **`.create-button-gradient`**: Same pattern — 4 stops ending on first color, `300% 100%`, shift `-100%`.
+- **`@keyframes gradient-shift`**: `0% { background-position: 0% 50% }` → `100% { background-position: -100% 50% }`
+- **`@keyframes premium-gold-shimmer`**: Same approach with `300%` size and `-100%` shift.
 
-6. **Console error: ModeratorDialogs ref warning** — `ModeratorDialogs` is a function component used inside `ShortCard` that receives a ref but doesn't use `forwardRef`, causing repeated warnings.
-
-### Plan
-
-**1. Replace `backdrop-blur` on high-frequency elements with solid backgrounds**
-- Bottom nav (`BottomNav.tsx`): Replace `backdropFilter: 'blur(24px)'` with a fully opaque `hsl(var(--card))` background. The gradient overlay already provides visual depth.
-- Clips close button (`Explore.tsx` line 313): Replace `backdrop-blur-md` with `bg-black/80` 
-- ExploreTabBar (`Explore.tsx` line 78): Replace `backdrop-blur-xl` with solid `bg-card`
-- Toast system (`index.css` ~line 2855): Remove `backdrop-filter: blur(20px)` from `.toast-pill`
-
-**2. Reduce BackgroundEffects particle counts and remove box-shadow animations**
-- `BackgroundEffects.tsx`: Reduce particles from 20→8, stars from 35→12, rain drops from 40→15, bubbles from 10→5
-- Remove `boxShadow` from particle/star inline styles (box-shadow animation is extremely expensive)
-- Add `contain: strict` to the root background effects container
-
-**3. Remove the pointer-events scroll hack**
-- Delete lines 2047-2052 in `index.css` (`.is-scrolling .post-card, .is-scrolling article { pointer-events: none }`) — this causes more jank than it prevents
-
-**4. Add `content-visibility: auto` to off-screen clips**
-- In both `Shorts.tsx` and `Explore.tsx` clip containers, add `content-visibility: auto` and `contain-intrinsic-size` to clip wrapper divs so the browser skips rendering off-screen clips entirely
-
-**5. Fix ModeratorDialogs ref warning**
-- `ModeratorActionsMenu.tsx`: Wrap `ModeratorDialogs` in `forwardRef`
-
-**6. Add CSS `contain` to post cards for layout isolation**
-- Add `.post-card { contain: layout style paint; }` to index.css so layout changes in one card don't trigger reflow in others
+**2. `src/components/ui/StyledUsername.tsx`** — Update inline shimmer styles
+- Change `backgroundSize` from `200% 100%` to `300% 100%` to match the new keyframe math.
 
 ### Files to modify
-- `src/index.css` — Remove pointer-events hack, add contain rules, remove toast blur, optimize animation selectors
-- `src/components/layout/BottomNav.tsx` — Replace backdrop-blur with opaque background
-- `src/components/effects/BackgroundEffects.tsx` — Reduce particle counts, remove box-shadow animations
-- `src/pages/Explore.tsx` — Replace backdrop-blur on tab bar and close buttons, add content-visibility to clip wrappers
-- `src/pages/Shorts.tsx` — Add content-visibility to clip wrappers
-- `src/components/moderation/ModeratorActionsMenu.tsx` — Wrap ModeratorDialogs in forwardRef
+- `src/index.css`
+- `src/components/ui/StyledUsername.tsx`
 
