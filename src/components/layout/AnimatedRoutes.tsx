@@ -89,7 +89,7 @@ import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
 // Invisible fallback - no spinner, instant feel
 const PageFallback = memo(() => (
-  <div className="min-h-screen bg-background" />
+  <div className="min-h-screen" />
 ));
 
 /**
@@ -105,7 +105,7 @@ export function AnimatedRoutes() {
   usePageTitle();
   
   return (
-    <div className="min-h-screen bg-background" id="main-content">
+    <div className="min-h-screen" id="main-content">
       <Suspense fallback={<PageFallback />}>
         <Routes location={location}>
             {/* Public routes - no authentication required */}

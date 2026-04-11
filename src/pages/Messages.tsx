@@ -13,7 +13,7 @@ export default function Messages() {
   // Only go immersive (fixed overlay) when actively inside a chat on mobile
   const isImmersive = isInChat && !isDesktop;
 
-  // Hide the global background image while on the DM page (mobile/tablet)
+  // Mark DM active for nav styling (no longer hides wallpaper)
   useEffect(() => {
     if (!isDesktop) {
       document.documentElement.setAttribute('data-dm-active', 'true');
@@ -38,8 +38,9 @@ export default function Messages() {
           inset: isImmersive ? 0 : undefined,
           zIndex: isImmersive ? 50 : undefined,
           overflow: 'hidden',
-          backgroundColor: 'hsl(var(--card))',
-          backgroundImage: 'none',
+          backgroundColor: 'hsl(var(--card) / 0.85)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
       >

@@ -28,10 +28,10 @@ import {
   useResetTheme, 
   useGenerateTheme,
   applyThemeTokens,
-  applyBackgroundImage,
   THEME_PRESETS,
   ThemeTokens,
 } from '@/hooks/useCustomTheme';
+import { useAppBackgroundSafe } from '@/components/layout/AppBackground';
 import { useShareTheme } from '@/hooks/useSharedThemes';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { BackgroundCustomizer } from './BackgroundCustomizer';
@@ -96,9 +96,10 @@ export function ThemeCustomizer() {
   // Theme settings
   const [animationSpeed, setAnimationSpeed] = useState<'slow' | 'normal' | 'fast' | 'instant'>('normal');
   const [borderRadius, setBorderRadius] = useState<'small' | 'medium' | 'large'>('medium');
-  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
-  const [backgroundOpacity, setBackgroundOpacity] = useState(30);
-  const [backgroundBlur, setBackgroundBlur] = useState(0);
+
+  // Get background state from AppBackground (single source of truth)
+  const appBackground = useAppBackgroundSafe();
+  const backgroundImage = appBackground?.background.imageUrl || null;
 
   // Load saved theme
   useEffect(() => {
@@ -109,24 +110,18 @@ export function ThemeCustomizer() {
       setSelectedPreset(userTheme.base_preset || 'classic');
       setAnimationSpeed(tokens.animationSpeed || 'normal');
       setBorderRadius(tokens.borderRadius || 'medium');
-      setBackgroundImage(tokens.backgroundImage || null);
-      setBackgroundOpacity(tokens.backgroundOpacity ?? 30);
-      setBackgroundBlur(tokens.backgroundBlur ?? 0);
     }
   }, [userTheme]);
 
-  // Build current theme with all settings
+  // Build current theme with all settings (background is managed by AppBackground, not here)
   const buildTheme = useCallback((): ThemeTokens => {
     const base = currentTheme || THEME_PRESETS[selectedPreset];
     return {
       ...base,
       animationSpeed,
       borderRadius,
-      backgroundImage: backgroundImage || undefined,
-      backgroundOpacity,
-      backgroundBlur,
     };
-  }, [currentTheme, selectedPreset, animationSpeed, borderRadius, backgroundImage, backgroundOpacity, backgroundBlur]);
+  }, [currentTheme, selectedPreset, animationSpeed, borderRadius]);
 
   // Apply theme changes
   const applyChanges = useCallback(() => {
@@ -144,12 +139,12 @@ export function ThemeCustomizer() {
     
     triggerTransition(primary, accent, () => {
       setSelectedPreset(presetKey);
-      setCurrentTheme({ ...preset, animationSpeed, borderRadius, backgroundImage: backgroundImage || undefined, backgroundOpacity, backgroundBlur });
+      setCurrentTheme({ ...preset, animationSpeed, borderRadius });
       setThemeName(PRESET_INFO[presetKey]?.name || presetKey);
-      applyThemeTokens({ ...preset, animationSpeed, borderRadius, backgroundImage: backgroundImage || undefined, backgroundOpacity, backgroundBlur });
+      applyThemeTokens({ ...preset, animationSpeed, borderRadius });
       setHasChanges(true);
     });
-  }, [animationSpeed, borderRadius, backgroundImage, backgroundOpacity, backgroundBlur, triggerTransition]);
+  }, [animationSpeed, borderRadius, triggerTransition]);
 
   // Handle AI generation
   const handleGenerate = useCallback(async () => {
@@ -167,9 +162,6 @@ export function ThemeCustomizer() {
           ...(theme as ThemeTokens),
           animationSpeed,
           borderRadius,
-          backgroundImage: backgroundImage || undefined,
-          backgroundOpacity,
-          backgroundBlur,
         };
 
         const primary = themeWithSettings.colorPrimary || '330 100% 60%';
@@ -187,7 +179,7 @@ export function ThemeCustomizer() {
     } finally {
       setIsGenerating(false);
     }
-  }, [aiPrompt, selectedPreset, animationSpeed, borderRadius, backgroundImage, backgroundOpacity, backgroundBlur, generateTheme, triggerTransition]);
+  }, [aiPrompt, selectedPreset, animationSpeed, borderRadius, generateTheme, triggerTransition]);
 
   // Save theme
   const handleSave = useCallback(async () => {
@@ -210,11 +202,10 @@ export function ThemeCustomizer() {
     setSelectedPreset('classic');
     setAnimationSpeed('normal');
     setBorderRadius('medium');
-    setBackgroundImage(null);
-    setBackgroundOpacity(30);
-    setBackgroundBlur(0);
+    // Clear background via AppBackground
+    appBackground?.setBackgroundImage(null);
     setHasChanges(false);
-  }, [resetTheme]);
+  }, [resetTheme, appBackground]);
 
   // Update settings and apply
   const updateSetting = useCallback(<K extends keyof ThemeTokens>(key: K, value: ThemeTokens[K]) => {
@@ -365,31 +356,22 @@ export function ThemeCustomizer() {
           <div className="flex-1 overflow-y-auto overscroll-contain -webkit-overflow-scrolling-touch pb-safe pb-12">
             <BackgroundCustomizer
               currentBackground={backgroundImage || undefined}
-              backgroundOpacity={backgroundOpacity}
-              backgroundBlur={backgroundBlur}
+              backgroundOpacity={appBackground?.background.opacity ? Math.round(appBackground.background.opacity * 100) : 85}
+              backgroundBlur={appBackground?.background.blur ?? 0}
               onBackgroundChange={(url) => {
-                // ONLY set background - NEVER touch theme colors
-                setBackgroundImage(url);
-                // Use dedicated background function, NOT applyThemeTokens
-                applyBackgroundImage(url, backgroundOpacity, backgroundBlur);
-                // Update local state for tracking
-                setCurrentTheme(prev => ({ ...(prev || THEME_PRESETS[selectedPreset]), backgroundImage: url || undefined }));
+                // Delegate to AppBackground — single source of truth
+                appBackground?.setBackgroundImage(url);
                 setHasChanges(true);
               }}
               onOpacityChange={(opacity) => {
-                setBackgroundOpacity(opacity);
-                // Only update background opacity, not theme tokens
-                applyBackgroundImage(backgroundImage, opacity, backgroundBlur);
+                appBackground?.setBackgroundOpacity(opacity / 100);
                 setHasChanges(true);
               }}
               onBlurChange={(blur) => {
-                setBackgroundBlur(blur);
-                // Only update background blur, not theme tokens
-                applyBackgroundImage(backgroundImage, backgroundOpacity, blur);
+                appBackground?.setBackgroundBlur(blur);
                 setHasChanges(true);
               }}
               onColorsExtracted={(colors) => {
-                // User chose to match colors - apply extracted colors to theme
                 const newTheme: ThemeTokens = {
                   ...(currentTheme || THEME_PRESETS[selectedPreset]),
                   colorPrimary: colors.primary,
@@ -398,7 +380,7 @@ export function ThemeCustomizer() {
                   bgMain: colors.background,
                 };
                 setCurrentTheme(newTheme);
-                applyThemeTokens(newTheme); // This won't touch background since preserveBackground is true by default
+                applyThemeTokens(newTheme);
                 setHasChanges(true);
               }}
             />

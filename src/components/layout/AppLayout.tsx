@@ -48,7 +48,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     // Return children directly with minimal wrapper to prevent visual delay
     // Auth state will resolve almost immediately after initial load
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen">
         {children}
       </div>
     );
