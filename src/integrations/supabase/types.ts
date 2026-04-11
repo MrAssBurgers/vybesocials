@@ -11679,11 +11679,13 @@ export type Database = {
         Returns: {
           avatar_url: string
           bio: string
-          created_at: string
           display_name: string
+          equipped_badge_id: string
+          equipped_name_color: string
           id: string
-          is_private: boolean
+          is_premium: boolean
           is_verified: boolean
+          user_id: string
           username: string
         }[]
       }
