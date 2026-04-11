@@ -1,80 +1,47 @@
 
 
-## Multi-Issue Fix Plan (Prioritized Phases)
+## Fix VybeMap Desktop Black Screen + Set Up Live Payments
 
-This is a very large set of requests. To keep things manageable and shippable, I'm breaking it into 3 phases. This plan covers **Phase 1** (the most impactful/broken items). Phases 2 and 3 can follow after.
+### 1. VybeMap Desktop Black Screen Fix (Definitive)
 
----
-
-### Phase 1: Critical Fixes (This Implementation)
-
-#### 1. Profile HoverCard always visible (not clipped when post is near bottom)
-The `HoverCardContent` uses `side="top"` which hides it above the viewport when posts are low on the page.
-
-**Fix in `UserProfileHoverCard.tsx`**:
-- Add `collisionPadding={16}` and `side="top"` with `avoidCollisions={true}` (Radix default but be explicit)
-- Add `sticky="always"` to keep it in viewport -- Radix will auto-flip to bottom when top is clipped
-
-#### 2. VybeMap desktop -- no map tiles showing
-The Leaflet container likely has zero height on desktop. The map wrapper and AppLayout need explicit height propagation.
+**Root cause analysis**: The black screen happens because:
+- The outer wrapper uses `relative w-full h-full` but also `minHeight: '100vh'` -- when `h-full` resolves to 0 (parent chain issue), only `minHeight` applies, but the map container uses `absolute inset-0` which needs the parent to have actual computed height
+- The `.leaflet-container` CSS forces `position:absolute;inset:0` which can conflict with Leaflet's internal positioning
+- The `#0a0a0a` background shows as the "black screen" when tiles fail to render
 
 **Fix in `FriendMap.tsx`**:
-- Ensure the AppLayout wrapper passes `fullWidth` and the inner div uses `relative h-full w-full` not just `absolute inset-0`
-- Add a `min-h-screen` fallback on the outer container
-- Add explicit `height: 100%` style to the map div for Leaflet
+- Remove the conflicting `.leaflet-container{position:absolute;inset:0}` CSS override -- Leaflet manages its own container positioning
+- Change the outer wrapper to use `fixed inset-0` on both mobile AND desktop (since `hideNav` and `noPadding` are both true, the AppLayout main area just wraps the content -- using fixed bypasses the flex height chain entirely)
+- OR better: keep `absolute inset-0` on the map div but ensure the parent uses `h-screen` instead of `h-full` to avoid depending on parent height resolution
+- Add `will-change: transform` to force GPU compositing on the map container
+- Add a more aggressive invalidateSize retry: use a MutationObserver on the parent in addition to ResizeObserver
+- Add a fallback: if after 3 seconds the map container has 0 height, force-set it to `window.innerHeight`
 
-#### 3. Post reactions (non-thumbs-up emoji not persisting)
-The `handleReaction` in `PostCard.tsx` / `ShortCard.tsx` likely only handles `'like'` type. Other reaction types (😂, 😮, etc.) need to be stored in the `post_reactions` table with the correct `reaction_type`.
+**Specific changes**:
+- Outer div: change from `relative w-full h-full` to `absolute inset-0` (since AppLayout's content area with `noPadding` gives `h-full`)
+- Remove `.leaflet-container{position:absolute;inset:0}` from the inline styles
+- Keep `.leaflet-container{height:100%!important;width:100%!important;background:#0a0a0a}`
+- Add a useEffect that checks `mapEl.current?.offsetHeight` after 1s and if 0, sets explicit pixel height
 
-**Fix**: Trace the `handleReaction` → `toggleReaction` flow in PostCard/ShortCard to ensure all `ReactionType` values are properly inserted/toggled in the database. Each reaction type should influence the algorithm weight differently (e.g., 😂 = humor affinity, ❤️ = appreciation, 🔥 = trending boost).
+### 2. Live Payments via Stripe
 
-#### 4. Local feed -- 25-mile radius filtering + location permission
-Currently `useLocalFeed` just fetches the generic trending feed and client-side sorts by tags. No actual distance filtering.
+Your current Stripe account ("Vybe Social sandbox") is in **test mode**. To accept real payments:
 
-**Fix**:
-- Create a new RPC `get_local_posts` that accepts `p_lat`, `p_lng`, `p_radius_miles` and filters posts by author location (from `user_locations` table) within radius using Haversine formula
-- In `useLocalFeed.ts`, call this RPC instead of `get_posts_with_counts` when location is available
-- Add a location permission prompt component that requests `navigator.geolocation` with a user-friendly UI explaining why location is needed for the Local tab
+1. You need to activate your Stripe account at `dashboard.stripe.com` -- go to Settings → Account details and complete the activation checklist (business info, bank account, identity verification)
+2. Once activated, you'll get a live secret key (`sk_live_...`) -- you'll need to add that as a secret replacing the current test key
+3. You'll also need to create live-mode products/prices (the current `price_1TCQhF...` and `price_1TCp2T...` are test-mode prices)
 
-#### 5. Logout clears custom background
-When a user logs out, the custom background persists on the login screen.
+**I cannot activate your Stripe account programmatically** -- this requires identity verification and bank account setup that only you can do through the Stripe Dashboard.
 
-**Fix in auth logout handler**: Call `document.body.style.backgroundImage = ''` and reset CSS variables on logout.
+**Alternative: Polar** -- Your project has Polar connected. Polar is already in live mode (no sandbox/test mode). I can create VYBE Premium products on Polar and wire up the checkout flow so you can start accepting real payments immediately without needing to activate Stripe. However, Polar is a different payment platform from Stripe.
 
-#### 6. Daily Brief -- cache per time window, show next regeneration time
-Currently regenerates every time the sheet opens.
+**What I'll do in this implementation**:
+- Update the `STRIPE_SECRET_KEY` resolution to validate test vs live mode and warn clearly
+- Add a "Go Live" checklist in the owner settings that shows what's needed
+- Keep the existing Stripe flow but make it live-ready once the user provides a live key
 
-**Fix in `AIBriefSheet.tsx`**:
-- Cache the brief in localStorage with a key like `vybe-daily-brief-{userId}-{timeSlot}` where timeSlot is `morning` (6am-12pm), `afternoon` (12pm-6pm), `evening` (6pm-6am)
-- Only call the AI if the cached brief doesn't match the current time slot
-- Show "Next update at {time}" text at the bottom of the brief
-- Schedule a notification via the existing notification system when the next time slot starts
-
----
-
-### Phase 2 (Next Implementation)
-- VYBE AI Designer perfecting
-- Onboarding designer lag fix (reduce animations, defer heavy renders)
-- VYBE DNA scroll lag (virtualize the list, reduce re-renders)
-- Widget customization with + icon and smooth add animation
-- Platform connections (Apple account linking in Settings)
-
-### Phase 3 (Following Implementation)
-- Birthday system (crown on avatar, cake icon, DM notification like Snapchat)
-- Age-based restriction enforcement with birthday triggers
-- Parental controls (4-digit PIN, mandatory for under-13, content filtering)
-- Screen time tracking system
-- Daily brief push notifications
-
----
-
-### Files Modified (Phase 1)
-- `src/components/ui/UserProfileHoverCard.tsx` -- collision padding for always-visible hover
-- `src/pages/FriendMap.tsx` -- desktop map height fix
-- `src/components/posts/PostCard.tsx` -- multi-reaction persistence
-- `src/components/posts/ShortCard.tsx` -- multi-reaction persistence
-- `src/hooks/useLocalFeed.ts` -- 25-mile radius + location prompt
-- `src/components/home/AIBriefSheet.tsx` -- time-based caching + next update display
-- `src/lib/auth.ts` or logout handler -- clear background on logout
-- New DB migration for `get_local_posts` RPC
+### Files Modified
+- `src/pages/FriendMap.tsx` -- definitive desktop map fix
+- `supabase/functions/_shared/stripe-key.ts` -- live mode validation improvements
+- `supabase/functions/create-premium-checkout/index.ts` -- live-ready price handling
 
