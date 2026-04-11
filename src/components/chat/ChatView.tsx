@@ -1805,6 +1805,7 @@ const MessageInputArea = memo(function MessageInputArea({
   isVoiceLocked,
   setIsVoiceLocked,
   voiceLockStartYRef,
+  safetyFilterNode,
 }: {
   messageText: string;
   viewMode: ViewMode;
