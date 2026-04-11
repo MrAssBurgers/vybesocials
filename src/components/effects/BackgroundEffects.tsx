@@ -6,7 +6,7 @@ interface BackgroundEffectsProps {
 
 const ParticlesEffect = memo(() => {
   const particles = useMemo(() => 
-    Array.from({ length: 20 }, (_, i) => ({
+    Array.from({ length: 8 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
@@ -37,7 +37,7 @@ const ParticlesEffect = memo(() => {
             width: p.size,
             height: p.size,
             background: `radial-gradient(circle, hsl(${p.hue} 90% 65%) 0%, hsl(${(p.hue + 60) % 360} 80% 50%) 100%)`,
-            boxShadow: `0 0 ${p.size * 2}px hsl(${p.hue} 90% 60% / 0.6)`,
+            /* no box-shadow for perf */
             animation: `particle-float ${p.duration}s ease-in-out infinite`,
             animationDelay: `${p.delay}s`,
           }}
@@ -49,7 +49,7 @@ const ParticlesEffect = memo(() => {
 
 const StarsEffect = memo(() => {
   const stars = useMemo(() => 
-    Array.from({ length: 35 }, (_, i) => ({
+    Array.from({ length: 12 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
@@ -78,7 +78,7 @@ const StarsEffect = memo(() => {
             width: s.size,
             height: s.size,
             background: s.color,
-            boxShadow: `0 0 ${s.size * 3}px ${s.color}`,
+            /* no box-shadow for perf */
             animation: `star-twinkle ${s.duration}s ease-in-out infinite`,
             animationDelay: `${s.delay}s`,
           }}
@@ -90,7 +90,7 @@ const StarsEffect = memo(() => {
 
 const BubblesEffect = memo(() => {
   const bubbles = useMemo(() =>
-    Array.from({ length: 10 }, (_, i) => ({
+    Array.from({ length: 5 }, (_, i) => ({
       id: i,
       x: Math.random() * 90 + 5,
       size: Math.random() * 40 + 15,
@@ -164,7 +164,7 @@ const AuroraEffect = memo(() => {
 
 const RainEffect = memo(() => {
   const drops = useMemo(() => 
-    Array.from({ length: 40 }, (_, i) => ({
+    Array.from({ length: 15 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       duration: Math.random() * 0.4 + 0.25,
@@ -191,7 +191,7 @@ const RainEffect = memo(() => {
             top: -30,
             height: d.height,
             background: `linear-gradient(to bottom, hsl(${d.hue} 80% 70% / 0.7), transparent)`,
-            boxShadow: `0 0 3px hsl(${d.hue} 80% 70% / 0.3)`,
+            /* no box-shadow for perf */
             animation: `rain-fall ${d.duration}s linear infinite`,
             animationDelay: `${d.delay}s`,
           }}
@@ -349,7 +349,7 @@ export const BackgroundEffects = memo(function BackgroundEffects({ effect }: Bac
   if (!EffectComponent) return null;
 
   return (
-    <div className="fixed inset-0 z-0 pointer-events-none will-change-auto">
+    <div className="fixed inset-0 z-0 pointer-events-none will-change-auto" style={{ contain: 'strict' }}>
       <EffectComponent />
     </div>
   );

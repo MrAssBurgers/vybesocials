@@ -2043,11 +2043,9 @@ html, body, #root {
   max-width: 100vw;
 }
 
-/* Performance optimizations during scroll - LIGHTER touch for mobile */
-/* Avoid disabling pointer-events globally as it causes jank on mobile */
-.is-scrolling .post-card,
-.is-scrolling article {
-  pointer-events: none;
+/* Post card layout isolation for reflow prevention */
+.post-card {
+  contain: layout style paint;
 }
 
 /* GPU acceleration for scrolling containers - use sparingly */
@@ -2850,8 +2848,6 @@ img, video {
   padding: 0.5rem 0.75rem !important;
   border-radius: 0.75rem !important;
   background: hsl(var(--card)) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
   border: 1px solid hsl(var(--border) / 0.25) !important;
   box-shadow: 0 2px 8px hsl(var(--foreground) / 0.04) !important;
   overflow: hidden !important;

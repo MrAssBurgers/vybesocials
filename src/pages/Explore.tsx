@@ -75,7 +75,7 @@ const ExploreTabBar = memo(function ExploreTabBar({
 }) {
   return (
     <div className="flex justify-center">
-      <div className="inline-flex items-center gap-1 p-1 rounded-full bg-card/85 backdrop-blur-xl border border-border/40 shadow-lg">
+      <div className="inline-flex items-center gap-1 p-1 rounded-full bg-card border border-border/40 shadow-lg">
         <button
           onClick={() => onTabChange('clips')}
           className={cn(
@@ -260,7 +260,7 @@ function FullscreenClipsViewer({
         <Button
           variant="ghost"
           size="icon"
-          className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-background/40 backdrop-blur-md border border-border/20 text-foreground hover:bg-background/60"
+          className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-black/80 border border-border/20 text-foreground hover:bg-black/90"
           onClick={onClose}
         >
           <X className="w-5 h-5" />
@@ -292,6 +292,8 @@ function FullscreenClipsViewer({
                 height: containerHeight,
                 scrollSnapAlign: 'start',
                 scrollSnapStop: 'always',
+                contentVisibility: 'auto',
+                containIntrinsicSize: `0 ${containerHeight}`,
               }}
             >
               <div className="relative h-full w-full max-w-[500px]">
@@ -310,7 +312,7 @@ function FullscreenClipsViewer({
         <Button
           variant="ghost"
           size="icon"
-          className="fixed z-30 w-10 h-10 rounded-full bg-background/40 backdrop-blur-md border border-border/20 text-foreground hover:bg-background/60 left-4"
+          className="fixed z-30 w-10 h-10 rounded-full bg-black/80 border border-border/20 text-foreground hover:bg-black/90 left-4"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}
           onClick={onClose}
         >
