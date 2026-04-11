@@ -211,6 +211,8 @@ export default function ClipsPage() {
                 height: containerHeight,
                 scrollSnapAlign: 'start',
                 scrollSnapStop: 'always',
+                contentVisibility: 'auto',
+                containIntrinsicSize: `0 ${containerHeight}`,
               }}
             >
               {/* Full screen container - responsive max-width for different devices */}
