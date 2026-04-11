@@ -146,11 +146,12 @@ export function GlobalCallOverlay() {
       case 'disconnected':
         if (!isLeavingRef.current && !p2pEndedRef.current) {
           if (event.reason === 'remote-hangup') {
-            // P2P linger: don't end the call immediately, start countdown
-            console.log('[CallOverlay] P2P remote hangup — entering linger mode');
+            // P2P linger: don't end the call immediately, start 3-minute countdown
+            console.log('[CallOverlay] P2P remote hangup — entering linger mode (3 min)');
             setHasRemoteParticipant(false);
             setRemoteUserLeft(true);
-            const LINGER_SECONDS = 30;
+            const LINGER_SECONDS = 180; // 3 minutes
+
             setAutoEndCountdown(LINGER_SECONDS);
 
             if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
@@ -364,7 +365,7 @@ export function GlobalCallOverlay() {
         if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
         if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
       } else {
-        const LINGER_SECONDS = isGroupCall ? 60 * 60 : 30;
+        const LINGER_SECONDS = isGroupCall ? 60 * 60 : 180; // 3 minutes for 1:1
         setAutoEndCountdown(LINGER_SECONDS);
 
         if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
@@ -1033,7 +1034,7 @@ export function GlobalCallOverlay() {
                 )}
                 {isConnected && remoteUserLeft && (
                   <div className="mt-4 text-center">
-                    <p className="text-white/50 text-sm">{displayName} left the call</p>
+                    <p className="text-white/50 text-sm">{displayName} left · They can rejoin</p>
                     <p className="text-white/70 text-lg font-mono mt-1">{Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
                     <p className="text-white/40 text-xs mt-1">They can rejoin</p>
                   </div>

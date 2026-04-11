@@ -102,7 +102,7 @@ export function CallButtons({
           className="bg-green-500 hover:bg-green-600 text-white gap-1.5 active:scale-95 transition-transform touch-manipulation"
         >
           <PhoneCall className="h-4 w-4" />
-          <span className="text-sm font-medium">Join Back</span>
+          <span className="text-sm font-medium">Rejoin</span>
         </Button>
       </div>
     );

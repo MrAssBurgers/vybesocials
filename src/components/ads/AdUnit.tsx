@@ -28,14 +28,23 @@ export const AdUnit = memo(function AdUnit({
   const pushed = useRef(false);
 
   useEffect(() => {
-    // Push the ad once the component mounts
-    if (!pushed.current) {
-      try {
-        ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
-        pushed.current = true;
-      } catch {
-        // AdSense not ready yet
-      }
+    // Push the ad once the component mounts and has non-zero width
+    if (!pushed.current && adRef.current) {
+      const el = adRef.current;
+      const tryPush = () => {
+        if (el.offsetWidth > 0) {
+          try {
+            ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
+            pushed.current = true;
+          } catch {
+            // AdSense not ready yet
+          }
+        } else {
+          // Retry after layout settles
+          requestAnimationFrame(tryPush);
+        }
+      };
+      requestAnimationFrame(tryPush);
     }
   }, []);
 

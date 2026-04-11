@@ -56,11 +56,11 @@ export function useDismissAnnouncement() {
     mutationFn: async (announcementId: string) => {
       const { error } = await supabase
         .from('dismissed_announcements')
-        .insert({
+        .upsert({
           user_id: profile!.id,
           announcement_id: announcementId,
-        });
-      if (error) throw error;
+        }, { onConflict: 'user_id,announcement_id', ignoreDuplicates: true });
+      if (error && error.code !== '23505') throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['announcements'] });

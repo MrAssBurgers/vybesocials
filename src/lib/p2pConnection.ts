@@ -496,7 +496,12 @@ export class P2PConnection {
       }
 
       case 'answer': {
-        console.log('[P2P] Received answer');
+        console.log('[P2P] Received answer, signalingState:', this.pc.signalingState);
+        // Guard: only set remote answer when in 'have-local-offer' state
+        if (this.pc.signalingState !== 'have-local-offer') {
+          console.warn('[P2P] Ignoring answer — wrong signalingState:', this.pc.signalingState);
+          break;
+        }
         this.answerReceived = true;
         this.stopOfferRetransmission();
         await this.pc.setRemoteDescription(new RTCSessionDescription(message.data));
