@@ -576,6 +576,11 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       hsl(var(--background)) 100%
     );
   }
+  /* Light mode also needs wallpaper passthrough */
+  .light body.has-custom-bg,
+  body.light.has-custom-bg {
+    background: none !important;
+  }
 
   /* Safe area inset utilities */
   .safe-area-top {
