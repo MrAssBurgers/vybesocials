@@ -1,57 +1,63 @@
 
 
-## Fix Multiple Issues: Camera Back Button, Google OAuth Onboarding, Connections, Bugs, Map, Music
+## Fix: Custom Background Not Applying
 
-### Issues Identified
+### Root Cause
 
-1. **Story camera has no back button** — When opening camera from story creator, the back arrow shows but needs verification it works. The `showBackArrow` prop is already passed. This is working correctly based on code review — the `Camera` component receives `showBackArrow` and renders a back arrow SVG. No change needed here.
+In `src/index.css` line 517-518:
+```css
+body.has-custom-bg {
+  background: none !important;
+}
+```
 
-2. **Google OAuth new users skip onboarding** — `AuthCallback.tsx` checks `profile.onboarding_completed === false || !profile.username` to route to onboarding. This should work IF a profile row exists. The issue is when a brand-new Google user has NO profile row yet — `profile` will be null/undefined, so the callback just waits forever or goes to `/home`. Need to handle `profile === null` after user is confirmed (no profile row = new user = go to onboarding).
+This CSS rule uses `background: none !important` which is a **shorthand** that resets ALL background properties — including the `background-image` that `applyBodyBackground()` just set via inline styles. The `!important` flag wins over inline styles, so the custom wallpaper is immediately wiped out.
 
-3. **Settings connections only shows Google** — `ConnectionsSection.tsx` only has Google connect/disconnect. Need to add Apple as an additional connection option (the only other supported provider in Lovable Cloud).
+The same issue exists for light mode on lines 580-583.
 
-4. **409 duplicate username on onboarding** — The `handleFinish` and `handleSkip` in `Onboarding.tsx` upsert with `onConflict: 'user_id'`, but the error is on `profiles_username_key`. When two users pick the same username, or when a Google user gets a generated username that collides, it fails. Fix: catch 23505 errors specifically and show a "username taken" message, and generate more unique fallback usernames.
+### Fix
 
-5. **"No SW registration for postMessage"** — This is a harmless console warning from OneSignal/service worker in preview. Already handled by `isPreviewServiceWorkerDisabled()`. No code change needed — this is expected in preview.
+Replace the broad `background: none !important` with targeted resets that only clear the **default gradient** without touching `background-image`:
 
-6. **HTTP 400 from /rest/v1/posts** — Need more context to fix, but likely a missing required field. Will add defensive handling.
+**File: `src/index.css`**
 
-7. **user_levels FK violation** — `useBattlePass.ts` uses `profile.id` (the profiles table PK) instead of `profile.user_id` (the auth UUID). The `user_levels.user_id` column references `auth.users(id)`, so inserting `profile.id` (a different UUID) causes the FK error. Fix: change to `profile.user_id`.
+1. **Line 517-519** — Change `body.has-custom-bg` rule from `background: none !important` to only reset `background-color`:
+```css
+body.has-custom-bg {
+  background-color: transparent !important;
+}
+```
+This clears the dark default background color without nuking the inline `background-image`.
 
-8. **Map not showing on desktop** — The map container uses `absolute inset-0` inside `AppLayout`. On desktop, `AppLayout` likely applies sidebar layout that changes the positioning context. Need to ensure the map container fills the available space correctly.
+2. **Lines 580-583** — Same fix for light mode: change from `background: none !important` to:
+```css
+.light body.has-custom-bg,
+body.light.has-custom-bg {
+  background-color: transparent !important;
+  background-image: none; /* Remove the light gradient, but inline style will override this */
+}
+```
+Wait — we actually need to remove the light-mode gradient (lines 570-578) without removing the inline `background-image`. The solution: the light gradient is set via the CSS `background` shorthand. We need to ensure that when `has-custom-bg` is present, only the gradient is suppressed. Since `applyBodyBackground()` sets `body.style.background = 'none'` first then sets `body.style.backgroundImage`, the inline styles should win — **except** the `!important` flag in CSS beats inline styles.
 
-9. **Music button in camera** — Currently shows "Music coming soon!" toast. Need to wire it to `SoundPicker` component which already exists.
+**Correct approach**: Remove `!important` from the body background rules, or switch to only resetting properties that don't conflict:
 
----
+```css
+body.has-custom-bg {
+  /* Don't use background shorthand — it kills the inline background-image */
+  background-color: transparent !important;
+  background-image: var(--custom-bg-passthrough, unset); /* let inline win */
+}
+```
 
-### Implementation Plan
+Actually simplest: just remove the `body.has-custom-bg` background rule entirely. The `applyBodyBackground()` function already sets `body.style.background = 'none'` before setting `backgroundImage`, which clears the default gradient. The CSS rule is redundant AND destructive.
 
-#### 1. Fix `useBattlePass.ts` — FK violation (Critical)
-Change `profile.id` → `profile.user_id` in all `user_levels` queries and inserts. This is the root cause of the "Key (user_id) is not present in table users" error.
+### Final Plan
 
-#### 2. Fix `AuthCallback.tsx` — Google new user onboarding
-After `user` is confirmed and `authReady` is true, if profile is explicitly null/undefined (not just loading), redirect to `/onboarding`. Add a check: once profile query has resolved (not loading) and profile is null → new user → onboarding.
+**`src/index.css`** — 2 changes:
 
-#### 3. Fix `Onboarding.tsx` — Username collision handling
-- In `handleFinish`: catch error code `23505` and show "Username already taken" toast instead of generic error
-- Generate more unique fallback usernames with random suffix
+1. **Line 517-519**: Remove `background: none !important` from `body.has-custom-bg`. The inline JS already handles clearing the default background. Keep only the `#root` and child transparency rules.
 
-#### 4. Expand `ConnectionsSection.tsx` — Add Apple connection
-Add Apple as a second connection option with connect/disconnect, matching the Google pattern.
+2. **Lines 580-583**: Remove `background: none !important` from the light-mode `has-custom-bg` rule. Same reason — the JS inline style already handles it.
 
-#### 5. Fix `Camera.tsx` — Wire music button to SoundPicker
-Import `SoundPicker`, add state for `showSoundPicker`/`selectedSound`, replace the toast with `setShowSoundPicker(true)`, render `SoundPicker` component.
-
-#### 6. Fix `FriendMap.tsx` — Desktop map visibility
-The map uses `absolute inset-0` which should work, but on desktop the `AppLayout` wrapper might have different sizing. Ensure the map wrapper has explicit `height: 100%` and the parent container fills available space. Add CSS to ensure leaflet container renders properly in the desktop sidebar layout.
-
-### Files to modify
-- `src/hooks/useBattlePass.ts` — Fix `profile.id` → `profile.user_id`
-- `src/pages/AuthCallback.tsx` — Handle null profile for new Google users
-- `src/pages/Onboarding.tsx` — Catch username collision errors
-- `src/components/settings/ConnectionsSection.tsx` — Add Apple connection
-- `src/components/camera/Camera.tsx` — Wire SoundPicker to music button
-- `src/pages/FriendMap.tsx` — Fix desktop map container sizing
-
-No backend/database changes needed.
+This is a 2-line CSS fix. No other files need changes.
 
