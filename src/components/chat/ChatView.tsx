@@ -2119,12 +2119,13 @@ const MessageBubble = memo(function MessageBubble({
   }, [onUnsendForEveryone]);
 
 
-  // Standalone long-press detection (independent of SwipeToReply)
+  // Standalone long-press detection using touch events (bypasses framer-motion drag)
   const bubbleRef = useRef<HTMLDivElement>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'gif' | 'video' } | null>(null);
   const LONG_PRESS_MS = 400;
-  const MOVE_TOLERANCE = 8;
+  const MOVE_TOLERANCE = 10;
 
   const clearLongPress = useCallback(() => {
     if (longPressTimerRef.current) {
@@ -2133,9 +2134,9 @@ const MessageBubble = memo(function MessageBubble({
     }
   }, []);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    if (e.pointerType === 'mouse') return; // mouse uses right-click context menu
-    pointerStartRef.current = { x: e.clientX, y: e.clientY };
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
     longPressTimerRef.current = setTimeout(() => {
       menuOpenedRef.current = true;
       setShowContextMenu(true);
@@ -2143,18 +2144,19 @@ const MessageBubble = memo(function MessageBubble({
     }, LONG_PRESS_MS);
   }, []);
 
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!pointerStartRef.current) return;
-    const dx = Math.abs(e.clientX - pointerStartRef.current.x);
-    const dy = Math.abs(e.clientY - pointerStartRef.current.y);
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartRef.current.y);
     if (dx > MOVE_TOLERANCE || dy > MOVE_TOLERANCE) {
       clearLongPress();
     }
   }, [clearLongPress]);
 
-  const handlePointerUp = useCallback(() => {
+  const handleTouchEnd = useCallback(() => {
     clearLongPress();
-    pointerStartRef.current = null;
+    touchStartRef.current = null;
   }, [clearLongPress]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -2162,6 +2164,13 @@ const MessageBubble = memo(function MessageBubble({
     menuOpenedRef.current = true;
     setShowContextMenu(true);
   }, []);
+
+  const handleMediaTap = useCallback(() => {
+    if (menuOpenedRef.current) return;
+    if (message.media_url && (message.media_type === 'image' || message.media_type === 'gif' || message.media_type === 'video')) {
+      setViewerMedia({ url: message.media_url, type: message.media_type as 'image' | 'gif' | 'video' });
+    }
+  }, [message.media_url, message.media_type]);
 
   // Reset menuOpenedRef when context menu closes
   useEffect(() => {
