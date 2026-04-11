@@ -1,12 +1,15 @@
 /**
- * Global Call Store — LiveKit Edition
+ * Global Call Store — Dual-Mode Edition (P2P + LiveKit)
  * 
  * Single source of truth for call state. Event-driven state machine.
  * States: idle → creating → joining → connected → ending → idle
  *         idle → ringing (incoming) → joining → connected → ending → idle
  * 
- * Room architecture: each conversation has a persistent room (roomName = call-{conversationId}).
- * Users can leave and rejoin the same call. Room is only "ended" when both leave.
+ * Two call modes:
+ * - "p2p" (default, free): Direct WebRTC peer-to-peer, no media server
+ * - "persistent" (premium): LiveKit SFU, persistent rooms, rejoin support
+ * 
+ * Mode switching: controlled reconnect — tear down old, build new.
  */
 
 import React, { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react';
@@ -15,8 +18,9 @@ import { useAuth } from '@/lib/auth';
 import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
 
-export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'error';
+export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
+export type CallMode = 'p2p' | 'persistent';
 
 export interface CallUser {
   id: string;
@@ -31,6 +35,7 @@ export interface CallData {
   livekitUrl: string;
   token: string;
   callType: CallType;
+  callMode: CallMode;
   conversationId: string;
   caller: CallUser;
   receiver: CallUser;
@@ -69,6 +74,7 @@ interface CallStoreContextType {
   setPhase: (phase: CallPhase) => void;
   setError: (error: string | null) => void;
   dismissIncoming: () => void;
+  switchMode: (mode: CallMode) => Promise<void>;
 }
 
 const initialState: CallStoreState = {
@@ -131,7 +137,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     setStateInternal(prev => {
       const next = typeof newState === 'function' ? newState(prev) : newState;
       globalCallState = next;
-      if (import.meta.env.DEV) console.log('[CallStore] State:', next.phase, '| Call:', next.call?.id || 'none');
+      if (import.meta.env.DEV) console.log('[CallStore] State:', next.phase, '| Mode:', next.call?.callMode || 'none', '| Call:', next.call?.id || 'none');
       return next;
     });
   }, []);
@@ -169,19 +175,21 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     const data = callResult.data;
     const conversation = conversationResult.data;
 
-    if (data && data.room_name) {
+    if (data) {
       if (globalCallState.phase !== 'idle' || globalIncomingCall) return;
 
       const isGroupCall = data.is_group_call || conversation?.is_group || false;
       const groupName = conversation?.name || undefined;
       const groupAvatar = conversation?.avatar_url || null;
+      const callMode = ((data as any).call_mode as CallMode) || 'p2p';
 
       const callData: CallData = {
         id: data.id,
         roomName: data.room_name || '',
-        livekitUrl: '', // Will be set when accepting
-        token: '',      // Will be set when accepting
+        livekitUrl: '',
+        token: '',
         callType: data.call_type as CallType,
+        callMode,
         conversationId: data.conversation_id,
         caller: data.caller as CallUser,
         receiver: data.receiver as CallUser,
@@ -261,7 +269,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     };
   }, [profile?.id, processIncomingCall]);
 
-  // Listen for call status changes (remote hangup)
+  // Listen for call status changes (remote hangup) AND call_mode changes (mode switch)
   useEffect(() => {
     const callId = state.call?.id;
     if (!callId) return;
@@ -277,18 +285,37 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           filter: `id=eq.${callId}`,
         },
         (payload) => {
-          const newStatus = (payload.new as any).status;
+          const updated = payload.new as any;
+          const newStatus = updated.status;
+          const newMode = updated.call_mode as CallMode | undefined;
+
           if (newStatus === 'declined' || newStatus === 'missed') {
             callSounds.end();
             setState(initialState);
+          }
+
+          // Detect mode change from remote user
+          if (newMode && state.call && newMode !== state.call.callMode) {
+            if (import.meta.env.DEV) console.log('[CallStore] Remote mode switch detected:', newMode);
+            // Update our local call mode — GlobalCallOverlay will handle the reconnect
+            setState(prev => ({
+              ...prev,
+              phase: 'switching',
+              call: prev.call ? { ...prev.call, callMode: newMode } : null,
+            }));
           }
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [state.call?.id, setState]);
+  }, [state.call?.id, state.call?.callMode, setState]);
 
+  /**
+   * START CALL — default to P2P mode
+   * For P2P: just insert the call record, no edge function needed
+   * The GlobalCallOverlay handles the actual WebRTC connection
+   */
   const startCall = useCallback(async (params: {
     callType: CallType;
     conversationId: string;
@@ -308,31 +335,35 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     callSounds.startRingback();
 
     try {
-      const allParticipants = params.participantIds && params.participantIds.length > 0
-        ? params.participantIds.filter(id => id !== profile.id)
-        : [params.receiverId];
+      const roomName = `call-${params.conversationId}`;
 
-      // Call our livekit-token edge function to create call + get token
-      const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
-        body: {
-          conversationId: params.conversationId,
-          callType: params.callType,
-          receiverId: params.receiverId,
-          isGroupCall: params.isGroupCall,
-          participantIds: allParticipants,
-        },
-      });
+      // Insert call record directly — P2P doesn't need an edge function
+      const { data: callSession, error: callError } = await supabase
+        .from('calls')
+        .insert({
+          conversation_id: params.conversationId,
+          caller_id: profile.id,
+          receiver_id: params.receiverId,
+          call_type: params.callType,
+          status: 'ringing',
+          room_name: roomName,
+          is_group_call: params.isGroupCall || false,
+          call_mode: 'p2p',
+        } as any)
+        .select()
+        .single();
 
-      if (tokenError || !tokenData?.token) {
-        throw new Error(tokenError?.message || tokenData?.error || 'Failed to create call');
+      if (callError || !callSession) {
+        throw new Error(callError?.message || 'Failed to create call');
       }
 
       const callData: CallData = {
-        id: tokenData.callId,
-        roomName: tokenData.roomName,
-        livekitUrl: tokenData.url,
-        token: tokenData.token,
+        id: callSession.id,
+        roomName,
+        livekitUrl: '',
+        token: '',
         callType: params.callType,
+        callMode: 'p2p',
         conversationId: params.conversationId,
         caller: {
           id: profile.id,
@@ -361,40 +392,49 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     }
   }, [profile?.id, profile?.username, profile?.avatar_url, setState]);
 
+  /**
+   * ACCEPT CALL
+   * For P2P: just update status and join signaling channel
+   * For persistent: get LiveKit token
+   */
   const acceptCall = useCallback(async (call: CallData) => {
-    if (import.meta.env.DEV) console.log('[CallStore] Accepting call:', call.id);
+    if (import.meta.env.DEV) console.log('[CallStore] Accepting call:', call.id, 'mode:', call.callMode);
     premiumSounds.stopAllCallSounds();
     setIncomingCall(null);
 
-    // Get a token for the accepting user
     try {
-      const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
-        body: {
-          conversationId: call.conversationId,
-          callType: call.callType,
-          callId: call.id, // Join existing call
-        },
-      });
-
-      if (tokenError || !tokenData?.token) {
-        throw new Error(tokenError?.message || tokenData?.error || 'Failed to get token');
-      }
-
       // Update call status
-      supabase
+      await supabase
         .from('calls')
         .update({ status: 'accepted', started_at: new Date().toISOString() })
-        .eq('id', call.id)
-        .then(() => {});
+        .eq('id', call.id);
 
-      const callData: CallData = {
-        ...call,
-        token: tokenData.token,
-        livekitUrl: tokenData.url,
-        roomName: tokenData.roomName,
-      };
+      if (call.callMode === 'persistent') {
+        // Get LiveKit token for persistent mode
+        const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
+          body: {
+            conversationId: call.conversationId,
+            callType: call.callType,
+            callId: call.id,
+          },
+        });
 
-      setState({ phase: 'joining', call: callData, error: null });
+        if (tokenError || !tokenData?.token) {
+          throw new Error(tokenError?.message || tokenData?.error || 'Failed to get token');
+        }
+
+        const callData: CallData = {
+          ...call,
+          token: tokenData.token,
+          livekitUrl: tokenData.url,
+          roomName: tokenData.roomName,
+        };
+
+        setState({ phase: 'joining', call: callData, error: null });
+      } else {
+        // P2P mode — just set joining, GlobalCallOverlay will handle WebRTC
+        setState({ phase: 'joining', call: { ...call }, error: null });
+      }
     } catch (err: any) {
       console.error('[CallStore] Failed to accept call:', err);
       premiumSounds.stopAllCallSounds();
@@ -427,18 +467,22 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     callSounds.end();
     const currentCall = globalCallState.call;
     if (currentCall) {
+      // Only allow lingering for persistent mode
+      if (currentCall.callMode === 'persistent') {
+        globalLingeringCall = currentCall;
+      }
       setState({ phase: 'idle', call: null, error: null });
-      globalLingeringCall = currentCall;
     }
   }, [setState]);
 
   const rejoinCall = useCallback(async () => {
     const lingeringCall = globalLingeringCall;
     if (!lingeringCall) return;
+    // Only persistent mode supports rejoin
+    if (lingeringCall.callMode !== 'persistent') return;
 
     globalLingeringCall = null;
 
-    // Get a fresh token for the rejoin
     try {
       const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
         body: {
@@ -462,7 +506,75 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       setState({ phase: 'joining', call: callData, error: null });
     } catch (err: any) {
       console.error('[CallStore] Failed to rejoin:', err);
-      globalLingeringCall = lingeringCall; // Restore so user can try again
+      globalLingeringCall = lingeringCall;
+    }
+  }, [setState]);
+
+  /**
+   * SWITCH MODE — controlled reconnect
+   * 1. Update call_mode in DB (triggers Realtime to other client)
+   * 2. Set phase to 'switching'
+   * 3. GlobalCallOverlay detects 'switching' phase and handles the reconnect
+   */
+  const switchMode = useCallback(async (mode: CallMode) => {
+    const currentCall = globalCallState.call;
+    if (!currentCall) return;
+    if (currentCall.callMode === mode) return;
+
+    if (import.meta.env.DEV) console.log('[CallStore] Switching mode to:', mode);
+
+    // Update in DB — this triggers Realtime to the other client
+    await supabase
+      .from('calls')
+      .update({ call_mode: mode } as any)
+      .eq('id', currentCall.id);
+
+    // If switching to persistent, get LiveKit token
+    if (mode === 'persistent') {
+      try {
+        const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
+          body: {
+            conversationId: currentCall.conversationId,
+            callType: currentCall.callType,
+            callId: currentCall.id,
+          },
+        });
+
+        if (tokenError || !tokenData?.token) {
+          throw new Error(tokenError?.message || tokenData?.error || 'Failed to get LiveKit token');
+        }
+
+        setState(prev => ({
+          ...prev,
+          phase: 'switching',
+          call: prev.call ? {
+            ...prev.call,
+            callMode: mode,
+            token: tokenData.token,
+            livekitUrl: tokenData.url,
+            roomName: tokenData.roomName,
+          } : null,
+        }));
+      } catch (err: any) {
+        console.error('[CallStore] Switch to persistent failed:', err);
+        // Revert mode in DB
+        await supabase
+          .from('calls')
+          .update({ call_mode: currentCall.callMode } as any)
+          .eq('id', currentCall.id);
+      }
+    } else {
+      // Switching to P2P
+      setState(prev => ({
+        ...prev,
+        phase: 'switching',
+        call: prev.call ? {
+          ...prev.call,
+          callMode: mode,
+          token: '',
+          livekitUrl: '',
+        } : null,
+      }));
     }
   }, [setState]);
 
@@ -513,6 +625,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       setPhase,
       setError,
       dismissIncoming,
+      switchMode,
     }}>
       {children}
     </CallStoreContext.Provider>
@@ -532,6 +645,7 @@ export function useCallStore(): CallStoreContextType {
       setPhase: () => {},
       setError: () => {},
       dismissIncoming: () => {},
+      switchMode: async () => {},
     };
   }
   return context;
