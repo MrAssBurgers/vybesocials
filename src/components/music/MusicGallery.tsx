@@ -50,7 +50,7 @@ const SAMPLE_TRACKS: Track[] = [
   { track_id: 'sample-12', title: 'Party Starter', artist: 'DJ Spark', genre: 'Dance', duration: 210, preview_url: '', audio_url: '', provider_id: 'sample' },
 ];
 
-
+export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [trackUsage, setTrackUsage] = useState<Record<string, TrackUsage>>({});
   const [loading, setLoading] = useState(true);
