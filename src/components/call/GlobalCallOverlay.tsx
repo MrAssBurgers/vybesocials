@@ -866,12 +866,13 @@ export function GlobalCallOverlay() {
       {/* Main Call UI */}
       {isVisible && !isRinging && (
         <div
-          className="fixed inset-0 z-[9999] transition-opacity duration-300"
+          className="fixed inset-0 z-[99999] transition-opacity duration-300"
           style={{
             opacity: isMinimized ? 0 : 1,
             pointerEvents: isMinimized ? 'none' : 'auto',
             visibility: isMinimized ? 'hidden' : 'visible',
-            background: 'linear-gradient(160deg, #0a0a12 0%, #0d0b1a 25%, #12091f 50%, #0e0a1e 75%, #080810 100%)'
+            background: 'linear-gradient(160deg, #0a0a12 0%, #0d0b1a 25%, #12091f 50%, #0e0a1e 75%, #080810 100%)',
+            isolation: 'isolate',
           }}
         >
           {/* Animated ambient blobs */}
@@ -1203,7 +1204,7 @@ export function GlobalCallOverlay() {
       {/* Incoming call dialog */}
       <AnimatePresence>
         {isRinging && state.call && (
-          <motion.div key={`incoming-${state.call.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10000] flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)' }}>
+          <motion.div key={`incoming-${state.call.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100000] flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)', isolation: 'isolate' }}>
             <IncomingCallDialog call={state.call} onAccept={handleAccept} onDecline={dismissIncoming} />
           </motion.div>
         )}
