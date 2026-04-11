@@ -197,8 +197,21 @@ export function GlobalCallOverlay() {
     }
   }, [clearJoinTimeout, endCall, setPhase, attachRemoteVideo, attachRemoteAudio]);
 
+  // Keep P2P event handler fresh to avoid stale closures
+  const handleP2PEventRef = useRef(handleP2PEvent);
+  useEffect(() => {
+    handleP2PEventRef.current = handleP2PEvent;
+    // Update the handler on an existing P2P connection
+    if (p2pRef.current) {
+      p2pRef.current.setOnEvent(handleP2PEvent);
+    }
+  }, [handleP2PEvent]);
+
   const connectP2P = useCallback(async (call: CallData) => {
     if (!profile?.id) return;
+
+    // Reset double-end guard
+    p2pEndedRef.current = false;
 
     // Disconnect existing P2P connection
     if (p2pRef.current) {
@@ -211,7 +224,7 @@ export function GlobalCallOverlay() {
       userId: profile.id,
       isInitiator: call.isInitiator,
       callType: call.callType,
-      onEvent: handleP2PEvent,
+      onEvent: (evt) => handleP2PEventRef.current(evt),
     });
 
     p2pRef.current = p2p;
@@ -232,7 +245,7 @@ export function GlobalCallOverlay() {
       toast.error('Failed to connect');
       endCall();
     }
-  }, [profile?.id, handleP2PEvent, attachLocalVideo, endCall]);
+  }, [profile?.id, attachLocalVideo, endCall]);
 
   // ── LiveKit Connection (persistent mode) ──────────────────
 
@@ -423,13 +436,18 @@ export function GlobalCallOverlay() {
         isLeavingRef.current = false;
       }
 
-      // Clear video/audio
+      // Clear video/audio and timers
       if (localVideoRef.current) localVideoRef.current.srcObject = null;
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
       if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
       setHasLocalVideo(false);
       setHasRemoteVideo(false);
       setHasRemoteParticipant(false);
+      setRemoteUserLeft(false);
+      setAutoEndCountdown(0);
+      // Clear auto-end timers from persistent mode
+      if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
+      if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
 
       // 2. Small delay for UI
       await new Promise(r => setTimeout(r, 500));
