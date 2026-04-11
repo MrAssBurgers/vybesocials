@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Globe, Sparkles, LayoutGrid, Eye } from 'lucide-react';
+import { Loader2, Globe, Sparkles, LayoutGrid, Eye, Plus } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import { useLocalFeed } from '@/hooks/useLocalFeed';
