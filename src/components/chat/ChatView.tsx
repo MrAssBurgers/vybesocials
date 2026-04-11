@@ -1737,6 +1737,9 @@ export function ChatView() {
           showStickerPanel={showStickerPanel}
           setShowStickerPanel={setShowStickerPanel}
           onSendSticker={async (url) => { await sendMediaMessage(url, 'image'); }}
+          isVoiceLocked={isVoiceLocked}
+          setIsVoiceLocked={setIsVoiceLocked}
+          voiceLockStartYRef={voiceLockStartYRef}
         />
       )}
 
