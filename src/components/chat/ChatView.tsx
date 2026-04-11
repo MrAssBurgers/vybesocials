@@ -2069,7 +2069,7 @@ const MessageBubble = memo(function MessageBubble({
   const [vybeViewed, setVybeViewed] = useState(hasAnyViews);
   const [showVybeViewer, setShowVybeViewer] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
-  const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'gif' | 'video' } | null>(null);
+  const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'gif' | 'video'; senderName?: string; timestamp?: string } | null>(null);
   const isContextMenuOpen = showContextMenu || forceShowContextMenu;
 
   useEffect(() => {
