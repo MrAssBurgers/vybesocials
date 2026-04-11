@@ -241,6 +241,8 @@ export function ChatView() {
   const [viewMode, setViewMode] = useState<ViewMode>('permanent');
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isVoiceLocked, setIsVoiceLocked] = useState(false);
+  const voiceLockStartYRef = useRef<number | null>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ url: string; file: File } | null>(null);
   const uploadingRef = useRef(false); // Prevent double uploads
