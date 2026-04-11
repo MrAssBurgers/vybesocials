@@ -571,7 +571,7 @@ function FriendMapInner() {
     fLayer.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     const rafId = requestAnimationFrame(safeInvalidateSize);
-    const timeoutIds = [window.setTimeout(safeInvalidateSize, 100), window.setTimeout(safeInvalidateSize, 500), window.setTimeout(safeInvalidateSize, 1000), window.setTimeout(safeInvalidateSize, 2000)];
+    const timeoutIds = [window.setTimeout(safeInvalidateSize, 100), window.setTimeout(safeInvalidateSize, 300), window.setTimeout(safeInvalidateSize, 600), window.setTimeout(safeInvalidateSize, 1000), window.setTimeout(safeInvalidateSize, 2000), window.setTimeout(safeInvalidateSize, 3000)];
     // Invalidate size multiple times to handle desktop layout settling
     safeInvalidateSize();
 
@@ -596,6 +596,21 @@ function FriendMapInner() {
       mapRef.current = null;
       tileRef.current = null;
     };
+  }, []);
+
+  /* ── fallback: force height if container collapses ──── */
+  useEffect(() => {
+    const el = mapEl.current;
+    if (!el) return;
+    const fallbackTimer = window.setTimeout(() => {
+      if (el.offsetHeight === 0 || el.offsetHeight < 50) {
+        console.warn('[FriendMap] Map container collapsed, forcing height');
+        el.style.height = `${window.innerHeight}px`;
+        el.style.width = `${window.innerWidth}px`;
+        mapRef.current?.invalidateSize();
+      }
+    }, 1500);
+    return () => window.clearTimeout(fallbackTimer);
   }, []);
 
   /* ── update my marker + accuracy circle ────────────── */
