@@ -14,6 +14,8 @@ import {
   Code2,
   ChevronDown,
   Check,
+  Shield,
+  Clock,
 } from 'lucide-react';
 import { haptics } from '@/lib/haptics';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,7 +33,9 @@ export type SettingsCategory =
   | 'notifications' 
   | 'language' 
   | 'help'
-  | 'developer';
+  | 'developer'
+  | 'parental'
+  | 'screentime';
 
 interface SettingsNavProps {
   activeCategory: SettingsCategory;
@@ -49,6 +53,8 @@ const baseCategories = [
   { id: 'notifications' as const, labelKey: 'settingsNav.notifications', icon: Bell, descKey: 'settingsNav.notificationsDesc' },
   { id: 'language' as const, labelKey: 'settingsNav.language', icon: Globe, descKey: 'settingsNav.languageDesc' },
   { id: 'help' as const, labelKey: 'settingsNav.help', icon: HelpCircle, descKey: 'settingsNav.helpDesc' },
+  { id: 'parental' as const, labelKey: 'Parental Controls', icon: Shield, descKey: 'Manage child safety settings' },
+  { id: 'screentime' as const, labelKey: 'Screen Time', icon: Clock, descKey: 'Track your usage' },
 ];
 
 function useCategories() {
