@@ -119,7 +119,7 @@ export const StyledUsername = memo(forwardRef<HTMLSpanElement, StyledUsernamePro
           className={className}
           style={{
             backgroundImage: resolvedNameColor,
-            backgroundSize: '300% 100%',
+            backgroundSize: '200% 100%',
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
