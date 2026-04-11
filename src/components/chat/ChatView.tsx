@@ -2290,10 +2290,10 @@ const MessageBubble = memo(function MessageBubble({
           data-message-id={message.id}
           onContextMenu={handleContextMenu}
           onDoubleClick={onToggleReactions}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
         >
 
           {/* Image/GIF message (not for shared posts - they use SharedPostBubble) */}
