@@ -286,6 +286,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
       <motion.div 
         className="relative w-full h-full md:w-[400px] md:h-[700px] md:rounded-2xl overflow-hidden bg-black"
         drag="x"
+        dragDirectionLock
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.2}
         onDragEnd={handleDragEnd}
@@ -295,6 +296,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
         onMouseUp={handleTouchEnd}
         onMouseLeave={handleTouchEnd}
         onClick={handleClick}
+        style={{ touchAction: 'none' }}
       >
         {/* Story Content with Slide Animation */}
         <AnimatePresence mode="popLayout" custom={direction}>
