@@ -4,6 +4,10 @@
  * Simple buttons to start audio/video calls using the global call store.
  * Shows a green "Join Back" button when there's a lingering call for this conversation.
  * Supports both 1:1 and group calls.
+ * 
+ * Calls default to P2P mode (free). Premium users can upgrade to
+ * persistent mode via the "Stay On Call" toggle during the call.
+ * "Join Back" only appears for persistent mode calls (P2P has no rejoin).
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -12,7 +16,6 @@ import { Button } from '@/components/ui/button';
 import { useCallStore, CallType, getLingeringCall } from '@/lib/callStore';
 import { toast } from 'sonner';
 import { requestCallMediaPermissions } from '@/lib/mediaPermissions';
-// Note: roomUrl removed from CallData — LiveKit uses livekitUrl + token
 
 interface CallButtonsProps {
   conversationId: string;
@@ -44,8 +47,9 @@ export function CallButtons({
   const startGuardRef = useRef(false);
 
   // Check if there's a lingering call for this conversation
+  // Only persistent mode supports lingering/rejoin
   const lingeringCall = getLingeringCall();
-  const hasLingeringCall = lingeringCall?.conversationId === conversationId;
+  const hasLingeringCall = lingeringCall?.conversationId === conversationId && lingeringCall?.callMode === 'persistent';
 
   const handleStartCall = useCallback(async (callType: CallType) => {
     if (startGuardRef.current) return;
@@ -87,7 +91,7 @@ export function CallButtons({
 
   const isDisabled = state.phase !== 'idle' || isStarting !== null;
 
-  // Show green "Join Back" button when there's a lingering call
+  // Show green "Join Back" button when there's a lingering persistent call
   if (hasLingeringCall) {
     return (
       <div className="flex items-center gap-1">
