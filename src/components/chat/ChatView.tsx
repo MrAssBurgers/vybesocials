@@ -1994,6 +1994,7 @@ const MessageInputArea = memo(function MessageInputArea({
                   onOpenVybeCamera={onOpenSnapCamera}
                   onCreateOffer={onCreateOffer}
                   hasBusinessProfile={hasBusinessProfile}
+                  safetyFilterNode={safetyFilterNode}
                 />
                 {setShowStickerPanel && (
                   <Button 
