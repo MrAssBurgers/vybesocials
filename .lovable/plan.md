@@ -1,55 +1,22 @@
 
 
-## Fix Camera Editor, Music Library, AR Filters & Animation Loop
+## Fix Draggable Overlay Movement in Camera Editor
 
-### Issues identified
-1. **Animation still snaps** — `background-size: 300%` with `background-position: 0% → 100%` shifts by 2 tiles (not a whole number of the 3-tile pattern). Fix: switch to `200%` with a 2-tile gradient (A-B-C-A) so the shift is exactly 1 tile.
-2. **Text input broken in CameraEditor** — The text input has `autoFocus` but the container's `onPointerDown` fires on the input too, stealing focus for drawing mode. Need to stop pointer events from propagating when clicking the input.
-3. **Text bar too opaque** — `bg-black/50` is heavy. Change to `bg-white/10 backdrop-blur-sm` for a lighter, tag-like feel.
-4. **Emojis/stickers can't be moved on desktop** — `DraggableOverlay` only handles touch events, no mouse/pointer support. Add pointer event handlers alongside touch.
-5. **No image overlay support** — Editor only supports text and stickers. Add an Image tool that opens a file picker, adds an image as a draggable/scalable overlay (like Snapchat/Insta).
-6. **Story creator camera has no back button** — `Camera.tsx` receives `showBackArrow` but uses an inline SVG. The StoryCreator passes `showBackArrow` correctly, so this should work. Will verify and ensure the arrow renders properly with the ArrowLeft icon.
-7. **Music library empty** — The `MusicGallery` loads from `licensed_tracks` table which is empty. Add a curated set of sample/placeholder tracks so the library isn't blank. Also add a "Browse Music" section in the SoundPicker.
-8. **AR Filters** — Mark all AR filters as "Coming Soon" with a lock/badge overlay instead of trying to load them.
+### Problem
+The drag interaction in `DraggableOverlay` feels sluggish and offset because every pixel of movement triggers a full React state update + re-render cycle through `onUpdate → setTextOverlays → re-render all overlays`. On mobile this causes visible lag between the finger and the element.
 
-### Plan
+### Fix
+Convert to a **ref-based drag** pattern: move the DOM element directly via `style` during the drag, then commit the final position to React state only on release. This eliminates per-frame re-renders and makes the overlay stick directly under the finger/cursor.
 
-**1. Fix animation loop (src/index.css)**
-- Change `.gradient-animated` and `.create-button-gradient` to `background-size: 200% 100%` with a 4-stop gradient (A-B-C-A).
-- Keep `gradient-shift` keyframe as `0% → 100%` — with 200% bg-size this shifts exactly one tile.
-- Apply same fix to `.rainbow-name`, `.friendlink-shimmer`, `.animate-shimmer`.
+### Changes — single file: `src/components/camera/DraggableOverlay.tsx`
 
-**2. Fix CameraEditor text input & styling (src/components/camera/CameraEditor.tsx)**
-- Add `onPointerDown={e => e.stopPropagation()}` on the text input wrapper so drawing mode doesn't hijack focus.
-- Change text input style to `bg-white/10 backdrop-blur-sm border-white/10` for a lighter tag look.
-- Add `onKeyDown` handler for Enter key to submit text.
+1. **Add a `divRef`** to the overlay `<div>` so we can update its `style.left` / `style.top` / `style.transform` directly during drag.
 
-**3. Add mouse/pointer support to DraggableOverlay (src/components/camera/DraggableOverlay.tsx)**
-- Add `onPointerDown/Move/Up` handlers mirroring the touch logic so overlays work on desktop.
-- Keep touch handlers for mobile pinch-to-zoom/rotate.
+2. **During touch/pointer move**: instead of calling `onUpdate(id, {x, y})`, write directly to `divRef.current.style.left` and `divRef.current.style.top` via `requestAnimationFrame`. Update `currentPos.current` so the ref stays in sync.
 
-**4. Add image overlay support to CameraEditor**
-- Add an Image tool button (ImageIcon) to the mode toolbar.
-- When clicked, open a file picker. Selected image becomes a draggable overlay (reuse DraggableOverlay with an `<img>` child instead of text).
-- Extend `DraggableOverlay` to accept `children` or an `imageUrl` prop for rendering images.
-- Images are draggable, scalable, rotatable just like stickers.
+3. **On touch/pointer end**: call `onUpdate(id, { x, y, scale, rotation })` once with the final position from `currentPos.current`, syncing React state.
 
-**5. Add sample music to MusicGallery (src/components/music/MusicGallery.tsx)**
-- Add a fallback set of ~12 built-in demo tracks (with royalty-free Pixabay preview URLs) when the `licensed_tracks` table is empty.
-- Show them in a "Sample Library" section so the gallery isn't blank.
+4. **For pinch-to-scale/rotate**: also apply `transform` directly to the ref during the gesture, commit on end.
 
-**6. Mark AR filters as Coming Soon (src/components/camera/ARFilterPicker.tsx)**
-- Add a "Coming Soon" badge overlay on all AR filter circles.
-- Disable filter selection, show a toast "AR Filters coming soon!" on tap.
-
-**7. Verify story camera back button**
-- Ensure `Camera.tsx` renders the ArrowLeft icon correctly when `showBackArrow` is true.
-
-### Files to modify
-- `src/index.css` — animation fix
-- `src/components/camera/CameraEditor.tsx` — text input fix, image tool, transparent text bar
-- `src/components/camera/DraggableOverlay.tsx` — pointer support, image overlay support
-- `src/components/music/MusicGallery.tsx` — sample tracks fallback
-- `src/components/camera/ARFilterPicker.tsx` — coming soon overlay
-- `src/components/camera/Camera.tsx` — verify back arrow
+This gives 60 fps drag with zero React overhead during the gesture.
 
