@@ -139,7 +139,8 @@ function BriefPreFetchInit() {
 
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
-  useAppPreloader();
+  const preloadStatus = useAppPreloader();
+  const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
   
   // Auto-update checker
   useAutoUpdate();
@@ -148,11 +149,17 @@ function AppWithPreloader() {
   useRealtimeProfiles();
   usePostsRealtime();
 
+  useEffect(() => {
+    if (preloadStatus.isComplete && showSplash) {
+      setShowSplash(false);
+      hasInitialLoadCompleted = true;
+    }
+  }, [preloadStatus.isComplete, showSplash]);
+
   // When auth resolves after preloader cached guest data, invalidate stale caches
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        // Auth just resolved — invalidate all queries so they refetch with auth context
         queryClient.invalidateQueries();
       }
     });
@@ -161,7 +168,11 @@ function AppWithPreloader() {
 
   return (
     <>
-      <GlobalErrorHandler />
+      <SplashScreen 
+        isVisible={showSplash} 
+        status={preloadStatus.step}
+        progress={preloadStatus.progress}
+      />
       <GlobalErrorHandler />
       <AuthProvider>
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
