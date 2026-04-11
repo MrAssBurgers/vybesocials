@@ -1,58 +1,47 @@
 
 
-## Perfect the Calling System — Deep Fix Plan
+## Keep Persistent Mode Calls Alive Indefinitely
 
-### Issues Found
+### What changes
 
-1. **P2P calls end immediately when one user leaves** — `handleP2PEvent` for `remote-hangup` calls `endCall()` instantly (line 148-152), killing the call for the remaining user. No linger support for P2P mode.
+In persistent (premium "Stay On Call") mode, when the other user leaves a 1:1 call, instead of auto-ending after 30 seconds, the call stays alive **indefinitely** until you manually hang up. The banner will say "{name} left · They can rejoin anytime" with no countdown.
 
-2. **Double media permission request on accept** — `handleAccept` (line 734) calls `requestCallMediaPermissions()` for ALL modes, then P2P's `connect()` calls `getUserMedia` again. Causes glitchy/failed camera on iOS.
-
-3. **Offer retransmission creates NEW SDP offers each time** — `createAndSendOffer()` calls `createOffer()` + `setLocalDescription()` on each retransmit (line 459-463), invalidating prior ICE candidates and causing connection instability.
-
-4. **No audio quality constraints** — `getUserMedia` called with bare `audio: true` (line 110), missing echo cancellation, noise suppression, auto gain control.
-
-5. **Video camera not optimized for FaceTime-style calls** — No resolution/framerate constraints on video. No `facingMode: 'user'` default for front camera. Video can be choppy or low quality.
-
-6. **Remote audio element positioned offscreen** — Some mobile browsers throttle audio from offscreen elements, causing intermittent audio drops.
-
-7. **No signaling keepalive** — Supabase Realtime channel can go stale during long calls, breaking mid-call renegotiation.
-
-8. **Linger banner only shows for persistent mode** — Line 1092 has `currentMode === 'persistent'` check, so P2P users never see the "call still live" banner.
+P2P mode keeps its existing 30-second auto-end behavior unchanged.
 
 ### Plan
 
-**Step 1: Add P2P linger support**
-- When P2P receives `remote-hangup`, instead of calling `endCall()`, set `remoteUserLeft = true` and start a 30-second countdown
-- Show the same "Call still live" banner (remove `currentMode === 'persistent'` guard on line 1092)
-- If countdown expires, end the call. If remote user reconnects, cancel the countdown
-- Change the end button to show "End" during linger (not "Leave")
+**Single file: `src/components/call/GlobalCallOverlay.tsx`**
 
-**Step 2: Fix double media permission for P2P**
-- In `handleAccept` (line 730-744), skip `requestCallMediaPermissions()` when call mode is P2P
-- P2P's `connect()` handles its own `getUserMedia`
+**Change the persistent-mode `ParticipantDisconnected` handler (lines 357-371):**
+- Check if the current mode is `persistent` AND it's a 1:1 call (not group)
+- If so: set `remoteUserLeft = true` but do NOT start any countdown timer or auto-end timeout
+- Group calls in persistent mode keep the existing 1-hour linger timer
+- P2P mode keeps its existing 30-second timer (lines 147-169, unchanged)
 
-**Step 3: Cache and re-send SDP offer (not recreate)**
-- Store the initial offer after `createOffer()` in a `cachedOffer` field
-- On retransmit, re-broadcast the cached offer instead of creating a new one
-- Prevents ICE candidate invalidation and glitchy connections
+**Update the linger banner text (line 1125):**
+- When in persistent mode 1:1: show "Call still live" with "{name} left · They can rejoin anytime" (no countdown)
+- Otherwise show the existing countdown text
 
-**Step 4: Add HD audio constraints**
-- Change `audio: true` to `audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }`
+### Technical details
 
-**Step 5: Add HD video constraints for FaceTime calls**
-- Set `video` constraints: `{ facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }`
-- This ensures front camera is used by default with smooth 720p video
+```
+// Line ~357-371: persistent ParticipantDisconnected handler
+const isGroupCall = stateRef.current.call?.isGroupCall;
+const isPersistent = currentModeRef.current === 'persistent';
 
-**Step 6: Fix remote audio element**
-- Change offscreen positioning from `left: -9999` to `opacity: 0, position: fixed, width: 1px, height: 1px` to prevent mobile browser throttling
+if (isPersistent && !isGroupCall) {
+  // 1:1 persistent: stay alive forever, no timer
+  setRemoteUserLeft(true);
+  setAutoEndCountdown(-1); // sentinel for "no countdown"
+} else {
+  // Group persistent (1hr) or P2P (30s) — existing logic
+  const LINGER_SECONDS = isGroupCall ? 3600 : 30;
+  // ... existing timer code
+}
 
-**Step 7: Add signaling keepalive**
-- Send a periodic no-op `ping` signal every 25 seconds on the P2P channel to keep the Supabase Realtime connection alive during long calls
-- Add a `keepaliveTimer` field and clean it up in `cleanup()`
-
-### Files to Modify
-
-- **`src/lib/p2pConnection.ts`** — Cache offer, HD audio/video constraints, signaling keepalive, expose `sendHangup()` without full cleanup for linger
-- **`src/components/call/GlobalCallOverlay.tsx`** — P2P linger support, fix double media request, fix audio element positioning, remove persistent-only guard on linger banner
+// Line ~1125: banner text
+autoEndCountdown === -1
+  ? `${displayName} left · They can rejoin anytime`
+  : `${displayName} left · Auto-ends in ${formatTime(autoEndCountdown)}`
+```
 
