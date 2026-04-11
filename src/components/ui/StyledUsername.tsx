@@ -176,6 +176,6 @@ export const StyledUsername = memo(forwardRef<HTMLSpanElement, StyledUsernamePro
       {nameToShow}
     </span>
   );
-});
+}));
 
 export default StyledUsername;
