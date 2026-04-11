@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Globe, Sparkles, LayoutGrid, Eye } from 'lucide-react';
+import { Loader2, Globe, Sparkles, LayoutGrid, Eye, Plus } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import { useLocalFeed } from '@/hooks/useLocalFeed';
@@ -358,8 +359,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             loadMoreRef={loadMoreRef}
           />
 
-          {/* Hidden widgets in edit mode */}
-          {customizerOpen && <HiddenWidgetPlaceholders />}
+          {/* Widget add FAB in edit mode */}
+          {customizerOpen && <WidgetAddFAB />}
         </div>
       </HomeEditModeProvider>
 
@@ -376,29 +377,60 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   );
 }
 
-/* ── Shows disabled widgets as tap-to-add placeholders in edit mode ── */
-function HiddenWidgetPlaceholders() {
+/* ── FAB + button for adding widgets in edit mode ── */
+function WidgetAddFAB() {
   const { localWidgets, handleToggle } = useEditMode();
+  const [open, setOpen] = useState(false);
   const hidden = localWidgets.filter(w => !w.enabled);
 
   if (hidden.length === 0) return null;
 
   return (
-    <div className="px-4 pb-3">
-      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Hidden Widgets</p>
-      <div className="flex flex-wrap gap-2">
-        {hidden.map(w => (
-          <button
-            key={w.id}
-            onClick={() => handleToggle(w.id)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-border/50 bg-muted/20 text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+    <>
+      {/* Floating + button */}
+      <motion.button
+        onClick={() => setOpen(!open)}
+        className="fixed bottom-24 right-4 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 flex items-center justify-center"
+        whileTap={{ scale: 0.9 }}
+        animate={{ rotate: open ? 45 : 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+      >
+        <Plus className="h-7 w-7" />
+      </motion.button>
+
+      {/* Widget picker overlay */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            className="fixed bottom-40 right-4 z-50 w-64 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/30 shadow-2xl p-3 space-y-1"
           >
-            <span className="text-sm">{w.icon}</span>
-            <span className="text-xs font-medium">{w.label}</span>
-            <Eye className="h-3 w-3 ml-1 text-primary" />
-          </button>
-        ))}
-      </div>
-    </div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pb-1">
+              Add Widget
+            </p>
+            {hidden.map((w, i) => (
+              <motion.button
+                key={w.id}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.04 }}
+                onClick={() => {
+                  handleToggle(w.id);
+                  if (hidden.length <= 1) setOpen(false);
+                }}
+                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-primary/10 transition-colors text-left"
+              >
+                <span className="text-lg">{w.icon}</span>
+                <span className="text-sm font-medium text-foreground flex-1">{w.label}</span>
+                <Plus className="h-4 w-4 text-primary" />
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

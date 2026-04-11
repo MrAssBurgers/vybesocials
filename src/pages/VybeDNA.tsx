@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, memo, Suspense, lazy } from 'react';
 import { Sparkles, Share2, Check, ArrowLeft, RefreshCw, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -12,15 +11,22 @@ import { DNATraitBars } from '@/components/dna/DNATraitBars';
 import { DNAColorPalette } from '@/components/dna/DNAColorPalette';
 import { DNAInsights } from '@/components/dna/DNAInsights';
 import { DNAPerks } from '@/components/dna/DNAPerks';
-import { DNASimilarUsers } from '@/components/dna/DNASimilarUsers';
-import { DNAChatAssistant } from '@/components/dna/DNAChatAssistant';
 
-const stagger = {
-  initial: { opacity: 0, y: 20 } as const,
-  whileInView: { opacity: 1, y: 0 } as const,
-  viewport: { once: true, margin: '-40px' as any },
-  transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
-};
+// Lazy load heavy components that aren't needed for initial paint
+const DNASimilarUsers = lazy(() => import('@/components/dna/DNASimilarUsers').then(m => ({ default: m.DNASimilarUsers })));
+const DNAChatAssistant = lazy(() => import('@/components/dna/DNAChatAssistant').then(m => ({ default: m.DNAChatAssistant })));
+
+// Simple fade-in section using CSS animation instead of framer-motion whileInView
+const FadeInSection = memo(function FadeInSection({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+  return (
+    <div 
+      className="animate-in fade-in slide-in-from-bottom-4 fill-mode-both"
+      style={{ animationDelay: `${delay}ms`, animationDuration: '400ms' }}
+    >
+      {children}
+    </div>
+  );
+});
 
 export default function VybeDNAPage() {
   const navigate = useNavigate();
@@ -72,23 +78,20 @@ export default function VybeDNAPage() {
           </div>
         ) : dna ? (
           <>
-            {/* DNA Orb */}
-            <motion.div
-              className="pt-4 pb-10"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-            >
-              <DNAOrb dna={dna} />
-            </motion.div>
+            {/* DNA Orb - keep single animation for hero */}
+            <FadeInSection>
+              <div className="pt-4 pb-10">
+                <DNAOrb dna={dna} />
+              </div>
+            </FadeInSection>
 
             {/* Archetype */}
-            <motion.div {...stagger}>
+            <FadeInSection delay={50}>
               <PersonalityArchetype dna={dna} />
-            </motion.div>
+            </FadeInSection>
 
             {/* How it works banner */}
-            <motion.div {...stagger}>
+            <FadeInSection delay={100}>
               <Card className="border-primary/20 bg-primary/5">
                 <CardContent className="py-3 px-4 flex items-start gap-3">
                   <Activity className="w-4 h-4 text-primary mt-0.5 shrink-0" />
@@ -99,60 +102,58 @@ export default function VybeDNAPage() {
                   </p>
                 </CardContent>
               </Card>
-            </motion.div>
+            </FadeInSection>
 
             {/* DNA Perks */}
-            <motion.div {...stagger}>
+            <FadeInSection delay={150}>
               <DNAPerks dna={dna} />
-            </motion.div>
+            </FadeInSection>
 
             {/* Insights grid */}
-            <motion.div {...stagger}>
+            <FadeInSection delay={200}>
               <DNAInsights dna={dna} />
-            </motion.div>
+            </FadeInSection>
 
             {/* Trait bars */}
-            <motion.div {...stagger}>
+            <FadeInSection delay={250}>
               <DNATraitBars dna={dna} />
-            </motion.div>
+            </FadeInSection>
 
             {/* Color palette */}
-            <motion.div {...stagger}>
+            <FadeInSection delay={300}>
               <DNAColorPalette dna={dna} />
-            </motion.div>
+            </FadeInSection>
 
-            {/* Similar DNA users */}
-            <motion.div {...stagger}>
-              <DNASimilarUsers />
-            </motion.div>
+            {/* Similar DNA users - lazy loaded */}
+            <FadeInSection delay={350}>
+              <Suspense fallback={<div className="h-32 flex items-center justify-center"><RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" /></div>}>
+                <DNASimilarUsers />
+              </Suspense>
+            </FadeInSection>
 
             {/* Share action */}
-            <motion.div {...stagger} className="pt-2">
+            <FadeInSection delay={400}>
               <Button className="w-full" onClick={handleShare}>
                 {copied ? <Check className="w-4 h-4 mr-2" /> : <Share2 className="w-4 h-4 mr-2" />}
                 Share My DNA
               </Button>
-            </motion.div>
+            </FadeInSection>
 
-            {/* DNA Chat Assistant */}
-            <motion.div {...stagger}>
-              <DNAChatAssistant dna={dna} />
-            </motion.div>
+            {/* DNA Chat Assistant - lazy loaded */}
+            <FadeInSection delay={450}>
+              <Suspense fallback={null}>
+                <DNAChatAssistant dna={dna} />
+              </Suspense>
+            </FadeInSection>
           </>
         ) : (
-          /* Empty state — DNA hasn't computed yet (new user with no activity) */
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
+          /* Empty state */
+          <div className="animate-in fade-in slide-in-from-bottom-4">
             <Card className="border-border/50">
               <CardContent className="py-16 text-center space-y-6">
-                <motion.div
-                  animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                >
+                <div className="animate-pulse">
                   <Sparkles className="w-20 h-20 mx-auto text-primary/40" />
-                </motion.div>
+                </div>
                 <div className="space-y-2">
                   <h2 className="text-xl font-bold text-foreground">Your DNA Is Forming</h2>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
@@ -165,7 +166,7 @@ export default function VybeDNAPage() {
                 </Button>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         )}
       </div>
     </div>
