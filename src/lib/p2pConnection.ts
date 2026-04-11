@@ -56,8 +56,8 @@ const ICE_SERVERS: RTCIceServer[] = [
 const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_BASE_DELAY = 1000;
 const OFFER_RETRANSMIT_INTERVAL = 2000;
-const MAX_OFFER_RETRANSMITS = 5;
-const READY_SIGNAL_TIMEOUT = 3000;
+const MAX_OFFER_RETRANSMITS = 10;
+const READY_SIGNAL_TIMEOUT = 5000;
 const KEEPALIVE_INTERVAL = 25000; // 25s keepalive ping
 
 // ── P2P Connection Class ───────────────────────────────────────
@@ -125,10 +125,33 @@ export class P2PConnection {
         }
       : false;
 
-    this.localStream = await navigator.mediaDevices.getUserMedia({
-      audio: audioConstraints,
-      video: videoConstraints,
-    });
+    try {
+      this.localStream = await navigator.mediaDevices.getUserMedia({
+        audio: audioConstraints,
+        video: videoConstraints,
+      });
+      console.log('[P2P] Got local media:', this.localStream.getTracks().map(t => `${t.kind}:${t.readyState}`).join(', '));
+    } catch (mediaErr: any) {
+      console.error('[P2P] getUserMedia failed:', mediaErr.name, mediaErr.message);
+      // On Safari/iPad, retry with simpler constraints
+      if (mediaErr.name === 'NotAllowedError' || mediaErr.name === 'NotReadableError') {
+        try {
+          console.log('[P2P] Retrying with simple constraints...');
+          this.localStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: this.callType === 'video',
+          });
+          console.log('[P2P] Retry succeeded with simple constraints');
+        } catch (retryErr: any) {
+          console.error('[P2P] Retry also failed:', retryErr.name, retryErr.message);
+          this.onEvent({ type: 'disconnected', reason: `Media access failed: ${retryErr.message}` });
+          throw retryErr;
+        }
+      } else {
+        this.onEvent({ type: 'disconnected', reason: `Media access failed: ${mediaErr.message}` });
+        throw mediaErr;
+      }
+    }
 
     // 2. Create peer connection
     this.createPeerConnection();

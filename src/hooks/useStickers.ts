@@ -36,6 +36,8 @@ export function useAddSticker() {
   return useMutation({
     mutationFn: async (imageUrl: string) => {
       if (!profile) throw new Error('Not authenticated');
+      if (!imageUrl || typeof imageUrl !== 'string') throw new Error('Invalid image URL');
+      console.log('[Stickers] Saving sticker, user:', profile.user_id, 'url:', imageUrl.substring(0, 80));
       
       // Check for duplicates
       const { data: existing } = await supabase
@@ -62,6 +64,7 @@ export function useAddSticker() {
       toast.success('Added to stickers! 🎨');
     },
     onError: (err: Error) => {
+      console.error('[Stickers] Save failed:', err.message, err);
       if (err.message === 'Already saved') {
         toast('Already in your stickers');
       } else {
