@@ -213,24 +213,58 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
         {formatDuration(duration)}
       </motion.span>
 
-      {/* Record/Stop/Send button — hidden in autoSend mode since release handles it */}
-      {!autoSend && (
+      {/* Record/Stop/Send button — hidden in autoSend mode (unless locked) */}
+      {(!autoSend || locked) && (
         <>
           {!audioBlob ? (
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-              <Button
-                variant={isRecording ? "destructive" : "default"}
-                size="icon"
-                onClick={isRecording ? stopRecording : startRecording}
-                className="h-10 w-10 rounded-full"
-              >
-                {isRecording ? (
-                  <Square className="h-4 w-4" />
-                ) : (
-                  <Mic className="h-5 w-5" />
-                )}
-              </Button>
-            </motion.div>
+            <>
+              {locked && isRecording ? (
+                /* Locked mode: show send and cancel */
+                <div className="flex items-center gap-1.5">
+                  <motion.div whileTap={{ scale: 0.9 }}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleCancel}
+                      className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </motion.div>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    whileTap={{ scale: 0.9 }}
+                  >
+                    <Button
+                      size="icon"
+                      onClick={() => {
+                        stopRecording();
+                        // After stop, onstop will fire and auto-send since autoSendRef is true
+                      }}
+                      className="h-10 w-10 rounded-full"
+                    >
+                      <Send className="h-5 w-5" />
+                    </Button>
+                  </motion.div>
+                </div>
+              ) : (
+                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                  <Button
+                    variant={isRecording ? "destructive" : "default"}
+                    size="icon"
+                    onClick={isRecording ? stopRecording : startRecording}
+                    className="h-10 w-10 rounded-full"
+                  >
+                    {isRecording ? (
+                      <Square className="h-4 w-4" />
+                    ) : (
+                      <Mic className="h-5 w-5" />
+                    )}
+                  </Button>
+                </motion.div>
+              )}
+            </>
           ) : (
             <motion.div 
               initial={{ scale: 0 }}
@@ -255,8 +289,8 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
         </>
       )}
 
-      {/* In autoSend mode, show a hint */}
-      {autoSend && isRecording && (
+      {/* In autoSend mode (not locked), show a hint */}
+      {autoSend && !locked && isRecording && (
         <motion.div 
           animate={{ opacity: [0.5, 1, 0.5] }}
           transition={{ repeat: Infinity, duration: 1.5 }}
