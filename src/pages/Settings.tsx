@@ -19,6 +19,8 @@ import { FeedbackSection } from '@/components/settings/FeedbackSection';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
 import { LanguageSection } from '@/components/settings/LanguageSection';
 import { HelpSection } from '@/components/settings/HelpSection';
+import { ParentalControlsSection } from '@/components/settings/ParentalControlsSection';
+import { ScreenTimeSection } from '@/components/settings/ScreenTimeSection';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -55,6 +57,8 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
       language: 'settingsNav.languageAndRegion',
       help: 'settingsNav.helpAndSupport',
       developer: 'settingsNav.developerOptions',
+      parental: 'Parental Controls',
+      screentime: 'Screen Time',
     };
     return t(titleKeys[activeCategory]);
   };
@@ -81,6 +85,10 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
         return <LanguageSection />;
       case 'help':
         return <HelpSection />;
+      case 'parental':
+        return <ParentalControlsSection />;
+      case 'screentime':
+        return <ScreenTimeSection />;
       case 'developer':
         return (
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
