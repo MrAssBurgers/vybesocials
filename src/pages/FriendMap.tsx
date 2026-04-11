@@ -566,7 +566,7 @@ function FriendMapInner() {
       ? new ResizeObserver(() => {
           const el = mapEl.current;
           if (!el) return;
-          forceContainerSize(el);
+          ensureVisible(el);
           if (!mapRef.current) return;
           safeInvalidateSize();
         })
@@ -576,7 +576,7 @@ function FriendMapInner() {
       const el = mapEl.current;
       if (!el || mapRef.current) return true;
 
-      forceContainerSize(el);
+      ensureVisible(el);
       const rect = el.getBoundingClientRect();
       if (rect.width < 200 || rect.height < 200) return false;
 
@@ -613,7 +613,7 @@ function FriendMapInner() {
 
       timeoutIds = [100, 300, 600, 1000, 1600, 2500].map((ms) =>
         window.setTimeout(() => {
-          forceContainerSize(el);
+          ensureVisible(el);
           safeInvalidateSize();
         }, ms)
       );
@@ -634,7 +634,7 @@ function FriendMapInner() {
     const handleResize = () => {
       const el = mapEl.current;
       if (!el) return;
-      forceContainerSize(el);
+      ensureVisible(el);
       if (!mapRef.current) {
         scheduleInit();
         return;
