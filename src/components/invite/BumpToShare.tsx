@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { QrCode, Camera, X, Check, Zap, Smartphone, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/lib/auth';
 import { getInviteUrl } from '@/hooks/useInvites';
 import { haptics } from '@/lib/haptics';
@@ -491,6 +491,7 @@ export function BumpToShare({ variant = 'button' }: BumpToShareProps) {
         else setIsOpen(open);
       }}>
         <DialogContent className="sm:max-w-md p-0 overflow-hidden [&>button]:hidden bg-background/95 backdrop-blur-xl">
+          <DialogTitle className="sr-only">Share via Bump</DialogTitle>
           <div className="relative">
             {/* Close button */}
             <Button

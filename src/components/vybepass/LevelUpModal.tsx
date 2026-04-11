@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { ArrowUp, Crown, Sparkles, Star, Palette, Type, Gem, Image, Backpack, Check } from 'lucide-react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -39,6 +39,7 @@ export function LevelUpModal({ open, onClose, onGoToLocker, onEquipReward, oldLe
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-md overflow-hidden p-0 border-primary/30">
+        <DialogTitle className="sr-only">Level Up</DialogTitle>
         {/* Hero section */}
         <motion.div
           initial={{ opacity: 0 }}
