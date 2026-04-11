@@ -63,7 +63,9 @@ export const MobileShortCard = memo(function MobileShortCard({
   const [hasError, setHasError] = useState(false);
   const [isMuted, setIsMuted] = useState(globalMuted);
   const [isLiked, setIsLiked] = useState(post.is_liked);
-  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(post.is_liked ? 'like' : null);
+  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(
+    post.is_liked ? ((post as any).reaction_type as ReactionType || 'like') : null
+  );
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [viewCount, setViewCount] = useState(post.view_count || 0);

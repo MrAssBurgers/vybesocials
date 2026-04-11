@@ -22,6 +22,7 @@ export interface Post {
   comment_count: number;
   is_liked: boolean;
   is_bookmarked: boolean;
+  reaction_type?: string | null;
 }
 
 // Optimized page sizes for faster initial load
@@ -51,6 +52,7 @@ function transformPost(row: any): Post & { view_count?: number } {
     comment_count: Number(row.comment_count) || 0,
     is_liked: row.is_liked || false,
     is_bookmarked: row.is_bookmarked || false,
+    reaction_type: row.reaction_type || null,
   };
 }
 
@@ -298,5 +300,6 @@ function transformRankedPost(row: any): Post & { view_count?: number } {
     comment_count: Number(row.comment_count) || 0,
     is_liked: row.is_liked || false,
     is_bookmarked: row.is_bookmarked || false,
+    reaction_type: row.reaction_type || null,
   };
 }

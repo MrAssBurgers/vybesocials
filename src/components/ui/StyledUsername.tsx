@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useDisplayStyle } from '@/hooks/useDisplayStyle';
 import { NAME_COLOR_MAP } from '@/lib/cosmeticConstants';
@@ -51,7 +51,7 @@ interface StyledUsernameProps {
  * On desktop: Uses CSS gradient for premium visual effect
  * On mobile/tablet: Falls back to solid color + drop-shadow (matches WelcomeHeader)
  */
-export const StyledUsername = memo(function StyledUsername({
+export const StyledUsername = memo(forwardRef<HTMLSpanElement, StyledUsernameProps>(function StyledUsername({
   userId,
   username,
   displayName,
@@ -60,7 +60,7 @@ export const StyledUsername = memo(function StyledUsername({
   preferDisplayName = true,
   badgeStyle: preloadedStyle,
   nameColorOverride,
-}: StyledUsernameProps) {
+}, ref) {
   // Generate unique ID early (before conditions)
   const elementId = useMemo(() => `styled-username-${Math.random().toString(36).slice(2, 9)}`, []);
 
@@ -115,6 +115,7 @@ export const StyledUsername = memo(function StyledUsername({
     if (isGrad) {
       return (
         <span
+          ref={ref}
           className={className}
           style={{
             backgroundImage: resolvedNameColor,
@@ -134,6 +135,7 @@ export const StyledUsername = memo(function StyledUsername({
     }
     return (
       <span
+        ref={ref}
         className={className}
         style={{ color: resolvedNameColor, textShadow: `0 0 10px ${resolvedNameColor}40` }}
       >
@@ -144,7 +146,7 @@ export const StyledUsername = memo(function StyledUsername({
 
   // No badge styling OR unsupported/invalid gradient => render plain text (fully opaque)
   if (!gradient || !canUseGradientText) {
-    return <span className={className}>{nameToShow}</span>;
+    return <span ref={ref} className={className}>{nameToShow}</span>;
   }
 
   // Base style for gradient text - MUST have all these properties to prevent background leakage
@@ -170,12 +172,13 @@ export const StyledUsername = memo(function StyledUsername({
 
   return (
     <span
+      ref={ref}
       style={gradientStyle}
       className={cn(className)}
     >
       {nameToShow}
     </span>
   );
-});
+}));
 
 export default StyledUsername;
