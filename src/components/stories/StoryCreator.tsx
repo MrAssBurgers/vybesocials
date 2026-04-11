@@ -215,7 +215,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
           className="text-white"
           disabled={isProcessing}
         >
-          <X className="h-6 w-6" />
+          <ArrowLeft className="h-6 w-6" />
         </Button>
         <h2 className="text-white font-semibold">{t('stories.createStory')}</h2>
         <div className="w-10" />
