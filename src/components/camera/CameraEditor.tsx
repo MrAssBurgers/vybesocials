@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, Type, Smile, Pencil, Check, Undo, Trash2, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -47,11 +47,24 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
   const [currentColor, setCurrentColor] = useState('#ffffff');
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>([]);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
 
-  // Drawing logic — only fires when in draw mode
+  useEffect(() => {
+    if (mode !== 'text') return;
+    const focusTimer = window.setTimeout(() => {
+      textInputRef.current?.focus();
+      textInputRef.current?.select();
+    }, 80);
+
+    return () => window.clearTimeout(focusTimer);
+  }, [mode]);
+
+  const stopTextInteraction = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+  };
+
   const handlePointerDown = (e: React.PointerEvent) => {
     if (mode !== 'draw') return;
     setIsDrawing(true);
@@ -90,9 +103,12 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
     setTextOverlays(prev => [...prev, {
       id: crypto.randomUUID(),
       text: currentText,
-      x: 50, y: 50,
+      x: 50,
+      y: 50,
       color: currentColor,
-      fontSize: 24, scale: 1, rotation: 0,
+      fontSize: 24,
+      scale: 1,
+      rotation: 0,
     }]);
     setCurrentText('');
     setMode('none');
@@ -102,9 +118,12 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
     setTextOverlays(prev => [...prev, {
       id: crypto.randomUUID(),
       text: emoji,
-      x: 50, y: 50,
+      x: 50,
+      y: 50,
       color: '#ffffff',
-      fontSize: 48, scale: 1, rotation: 0,
+      fontSize: 48,
+      scale: 1,
+      rotation: 0,
     }]);
   };
 
@@ -114,9 +133,12 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
       id: crypto.randomUUID(),
       text: '',
       imageUrl: url,
-      x: 50, y: 50,
+      x: 50,
+      y: 50,
       color: '#ffffff',
-      fontSize: 24, scale: 1, rotation: 0,
+      fontSize: 24,
+      scale: 1,
+      rotation: 0,
     }]);
   };
 
@@ -129,7 +151,7 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
     if (file && file.type.startsWith('image/')) {
       addImageOverlay(file);
     }
-    if (e.target) e.target.value = '';
+    e.target.value = '';
   };
 
   const updateOverlay = useCallback((id: string, updates: { x?: number; y?: number; scale?: number; rotation?: number }) => {
@@ -141,7 +163,10 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
   };
 
   const undoDrawing = () => setDrawings(prev => prev.slice(0, -1));
-  const clearAll = () => { setTextOverlays([]); setDrawings([]); };
+  const clearAll = () => {
+    setTextOverlays([]);
+    setDrawings([]);
+  };
 
   const handleSave = () => {
     onSave({ url: mediaUrl, overlays: textOverlays, drawings });
@@ -149,10 +174,8 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
 
   return (
     <div className="fixed inset-0 z-[200] bg-black flex flex-col">
-      {/* Hidden file input for image overlays */}
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
 
-      {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
         <Button variant="ghost" size="icon" onClick={onCancel} className="text-white">
           <X className="h-6 w-6" />
@@ -171,7 +194,6 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
         </div>
       </div>
 
-      {/* Media Preview */}
       <div
         ref={containerRef}
         className="flex-1 relative overflow-hidden"
@@ -186,17 +208,30 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
           <video src={mediaUrl} className="w-full h-full object-contain" style={{ filter: getFilterCSS(filter) }} autoPlay loop muted playsInline />
         )}
 
-        {/* Drawings SVG Overlay */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none">
           {drawings.map(path => (
-            <polyline key={path.id} points={path.points.map(p => `${p.x}%,${p.y}%`).join(' ')} fill="none" stroke={path.color} strokeWidth={path.width} strokeLinecap="round" strokeLinejoin="round" />
+            <polyline
+              key={path.id}
+              points={path.points.map(p => `${p.x}%,${p.y}%`).join(' ')}
+              fill="none"
+              stroke={path.color}
+              strokeWidth={path.width}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           ))}
           {currentPath.length > 1 && (
-            <polyline points={currentPath.map(p => `${p.x}%,${p.y}%`).join(' ')} fill="none" stroke={currentColor} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+            <polyline
+              points={currentPath.map(p => `${p.x}%,${p.y}%`).join(' ')}
+              fill="none"
+              stroke={currentColor}
+              strokeWidth={4}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           )}
         </svg>
 
-        {/* Text / Sticker / Image Overlays */}
         {textOverlays.map(overlay => (
           <DraggableOverlay
             key={overlay.id}
@@ -217,7 +252,6 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
         ))}
       </div>
 
-      {/* Tools Bar */}
       <div className="absolute bottom-24 left-0 right-0 px-4">
         <AnimatePresence mode="wait">
           {mode === 'text' && (
@@ -226,15 +260,28 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
               className="flex gap-2 mb-4"
-              onPointerDown={e => e.stopPropagation()}
+              onPointerDown={stopTextInteraction}
+              onPointerUp={stopTextInteraction}
+              onClick={stopTextInteraction}
+              onTouchStart={stopTextInteraction}
             >
               <Input
+                ref={textInputRef}
                 value={currentText}
                 onChange={(e) => setCurrentText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addText(); }}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') addText();
+                }}
+                onPointerDown={stopTextInteraction}
+                onPointerUp={stopTextInteraction}
+                onClick={stopTextInteraction}
+                onTouchStart={stopTextInteraction}
                 placeholder="Type something..."
-                className="flex-1 bg-white/10 backdrop-blur-sm border-white/10 text-white placeholder:text-white/40 rounded-full px-4"
+                className="flex-1 border-white/10 bg-white/10 text-white placeholder:text-white/40 rounded-full px-4"
                 autoFocus
+                enterKeyHint="done"
+                spellCheck={false}
               />
               <Button onClick={addText} size="icon" className="bg-primary rounded-full">
                 <Check className="h-5 w-5" />
@@ -268,7 +315,10 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
                 <button
                   key={color}
                   onClick={() => setCurrentColor(color)}
-                  className={cn("w-8 h-8 rounded-full border-2 transition-transform", currentColor === color ? "scale-125 border-white" : "border-white/30")}
+                  className={cn(
+                    'w-8 h-8 rounded-full border-2 transition-transform',
+                    currentColor === color ? 'scale-125 border-white' : 'border-white/30'
+                  )}
                   style={{ backgroundColor: color }}
                 />
               ))}
@@ -276,24 +326,37 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
           )}
         </AnimatePresence>
 
-        {/* Mode Buttons */}
         <div className="flex justify-center gap-4">
-          <Button variant={mode === 'text' ? 'default' : 'ghost'} size="icon" onClick={() => setMode(mode === 'text' ? 'none' : 'text')} className={cn("rounded-full", mode !== 'text' && "text-white")}>
+          <Button
+            variant={mode === 'text' ? 'default' : 'ghost'}
+            size="icon"
+            onClick={() => setMode(mode === 'text' ? 'none' : 'text')}
+            className={cn('rounded-full', mode !== 'text' && 'text-white')}
+          >
             <Type className="h-5 w-5" />
           </Button>
-          <Button variant={mode === 'sticker' ? 'default' : 'ghost'} size="icon" onClick={() => setMode(mode === 'sticker' ? 'none' : 'sticker')} className={cn("rounded-full", mode !== 'sticker' && "text-white")}>
+          <Button
+            variant={mode === 'sticker' ? 'default' : 'ghost'}
+            size="icon"
+            onClick={() => setMode(mode === 'sticker' ? 'none' : 'sticker')}
+            className={cn('rounded-full', mode !== 'sticker' && 'text-white')}
+          >
             <Smile className="h-5 w-5" />
           </Button>
           <Button variant="ghost" size="icon" onClick={handleImagePick} className="rounded-full text-white">
             <ImageIcon className="h-5 w-5" />
           </Button>
-          <Button variant={mode === 'draw' ? 'default' : 'ghost'} size="icon" onClick={() => setMode(mode === 'draw' ? 'none' : 'draw')} className={cn("rounded-full", mode !== 'draw' && "text-white")}>
+          <Button
+            variant={mode === 'draw' ? 'default' : 'ghost'}
+            size="icon"
+            onClick={() => setMode(mode === 'draw' ? 'none' : 'draw')}
+            className={cn('rounded-full', mode !== 'draw' && 'text-white')}
+          >
             <Pencil className="h-5 w-5" />
           </Button>
         </div>
       </div>
 
-      {/* Save Button */}
       <div className="absolute bottom-4 left-0 right-0 px-4">
         <Button onClick={handleSave} className="w-full gradient-animated text-white font-semibold py-6 rounded-2xl">
           Continue
