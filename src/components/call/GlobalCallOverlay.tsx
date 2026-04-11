@@ -1,31 +1,45 @@
 /**
- * Global Call Overlay — LiveKit Edition
+ * Global Call Overlay — Dual-Mode Edition (P2P + LiveKit)
  * 
- * Mounted ONCE at app root. Uses LiveKit client SDK for:
- * - Full custom video/audio rendering
- * - Built-in reconnection (network drops, app sleep)
- * - Glassmorphic modern design
- * - Call settings with mic/camera controls
- * - Room-based architecture with rejoin support
+ * Mounted ONCE at app root. Handles two connection modes:
+ * 
+ * P2P Mode (free): Direct WebRTC via P2PConnection class
+ * - Signaling via Supabase Realtime broadcast
+ * - No media server, zero cost
+ * - No rejoin/linger support
+ * 
+ * Persistent Mode (premium "Stay On Call"): LiveKit Room SDK
+ * - Full SFU with built-in reconnection
+ * - Room persistence, rejoin, linger
+ * - "Stay On Call" toggle gated by premium status
+ * 
+ * Mode Switching: controlled reconnect
+ * - Tear down current connection
+ * - Show "Switching to Stay Connected mode..." UI
+ * - Build new connection
+ * - Seamless transition for both participants
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizontal, RefreshCw, Minimize2 } from 'lucide-react';
+import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizontal, RefreshCw, Minimize2, Crown, Zap } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { useCallStore, CallData } from '@/lib/callStore';
+import { useCallStore, CallData, CallMode } from '@/lib/callStore';
 import { requestCallMediaPermissions } from '@/lib/mediaPermissions';
 import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
+import { usePremiumStatus } from '@/hooks/usePremiumStatus';
+import { P2PConnection, P2PEvent } from '@/lib/p2pConnection';
+import { PaywallSheet } from '@/components/premium/PaywallSheet';
 import {
   Room,
   RoomEvent,
   Track,
   RemoteParticipant,
-  RemoteTrackPublication,
   LocalTrackPublication,
   ConnectionState,
   DisconnectReason,
@@ -35,10 +49,13 @@ import { CallSettingsSheet } from './CallSettingsSheet';
 import { MinimizedCallBubble } from './MinimizedCallBubble';
 
 export function GlobalCallOverlay() {
-  const { state, acceptCall, endCall, leaveCall, setPhase, setError, dismissIncoming } = useCallStore();
+  const { state, acceptCall, endCall, leaveCall, setPhase, setError, dismissIncoming, switchMode } = useCallStore();
+  const { profile } = useAuth();
+  const { isPremium } = usePremiumStatus();
   
-  // LiveKit Room ref
-  const roomRef = useRef<Room | null>(null);
+  // Connection refs — only one active at a time
+  const roomRef = useRef<Room | null>(null);          // LiveKit (persistent mode)
+  const p2pRef = useRef<P2PConnection | null>(null);   // P2P mode
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -62,8 +79,10 @@ export function GlobalCallOverlay() {
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [p2pFailCount, setP2pFailCount] = useState(0);
   
-  // Remote user left — linger state
+  // Remote user left — linger state (persistent mode only)
   const [remoteUserLeft, setRemoteUserLeft] = useState(false);
   const [autoEndCountdown, setAutoEndCountdown] = useState(0);
   const autoEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,7 +101,8 @@ export function GlobalCallOverlay() {
     if (joinTimeoutRef.current) { clearTimeout(joinTimeoutRef.current); joinTimeoutRef.current = null; }
   }, []);
 
-  // Attach a remote video track to the video element
+  // ── Track Attachment Helpers ──────────────────────────────
+
   const attachRemoteVideo = useCallback((track: MediaStreamTrack) => {
     const el = remoteVideoRef.current;
     if (!el) return;
@@ -91,7 +111,6 @@ export function GlobalCallOverlay() {
     setHasRemoteVideo(true);
   }, []);
 
-  // Attach a remote audio track
   const attachRemoteAudio = useCallback((track: MediaStreamTrack) => {
     const el = remoteAudioRef.current;
     if (!el) return;
@@ -101,7 +120,6 @@ export function GlobalCallOverlay() {
     el.play().catch(() => {});
   }, []);
 
-  // Attach local video track
   const attachLocalVideo = useCallback((track: MediaStreamTrack) => {
     const el = localVideoRef.current;
     if (!el) return;
@@ -110,40 +128,138 @@ export function GlobalCallOverlay() {
     setHasLocalVideo(true);
   }, []);
 
-  // Create and connect LiveKit Room
+  // ── P2P Connection ────────────────────────────────────────
+
+  const handleP2PEvent = useCallback((event: P2PEvent) => {
+    switch (event.type) {
+      case 'connected':
+        clearJoinTimeout();
+        premiumSounds.stopAllCallSounds();
+        premiumSounds.callConnect();
+        setPhase('connected');
+        setIsReconnecting(false);
+        setP2pFailCount(0);
+        break;
+
+      case 'disconnected':
+        if (!isLeavingRef.current) {
+          // P2P has no linger — if remote hangs up, end call
+          if (event.reason === 'remote-hangup') {
+            toast.info('Call ended');
+            endCall();
+          }
+        }
+        break;
+
+      case 'reconnecting':
+        setIsReconnecting(true);
+        break;
+
+      case 'remote-track':
+        if (event.kind === 'video') {
+          attachRemoteVideo(event.track);
+        } else {
+          attachRemoteAudio(event.track);
+        }
+        break;
+
+      case 'remote-track-removed':
+        if (event.kind === 'video') {
+          setHasRemoteVideo(false);
+          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+        } else {
+          if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+        }
+        break;
+
+      case 'remote-participant-joined':
+        setHasRemoteParticipant(true);
+        break;
+
+      case 'remote-participant-left':
+        setHasRemoteParticipant(false);
+        if (!isLeavingRef.current) {
+          toast.info('Call ended');
+          endCall();
+        }
+        break;
+
+      case 'ice-failed':
+        setP2pFailCount(prev => {
+          const newCount = prev + 1;
+          if (newCount >= 3) {
+            // Suggest switching to persistent mode after 3 failures
+            toast.error('Connection unstable. Try "Stay On Call" for a better experience.', { duration: 5000 });
+          }
+          return newCount;
+        });
+        break;
+    }
+  }, [clearJoinTimeout, endCall, setPhase, attachRemoteVideo, attachRemoteAudio]);
+
+  const connectP2P = useCallback(async (call: CallData) => {
+    if (!profile?.id) return;
+
+    // Disconnect existing P2P connection
+    if (p2pRef.current) {
+      await p2pRef.current.disconnect();
+      p2pRef.current = null;
+    }
+
+    const p2p = new P2PConnection({
+      conversationId: call.conversationId,
+      userId: profile.id,
+      isInitiator: call.isInitiator,
+      callType: call.callType,
+      onEvent: handleP2PEvent,
+    });
+
+    p2pRef.current = p2p;
+
+    try {
+      await p2p.connect();
+
+      // Attach local video if video call
+      const localStream = p2p.getLocalStream();
+      if (localStream && call.callType === 'video') {
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) attachLocalVideo(videoTrack);
+      }
+
+      if (import.meta.env.DEV) console.log('[CallOverlay] P2P connection initiated');
+    } catch (err: any) {
+      console.error('[CallOverlay] P2P connect failed:', err);
+      toast.error('Failed to connect');
+      endCall();
+    }
+  }, [profile?.id, handleP2PEvent, attachLocalVideo, endCall]);
+
+  // ── LiveKit Connection (persistent mode) ──────────────────
+
   const connectToRoom = useCallback(async (call: CallData) => {
     if (roomRef.current) {
-      // If already connected to same room, skip
       if (roomRef.current.name === call.roomName && roomRef.current.state === ConnectionState.Connected) {
-        if (import.meta.env.DEV) console.log('[CallOverlay] Already connected to room');
         return;
       }
-      // Disconnect from previous room
       try { await roomRef.current.disconnect(); } catch {}
     }
 
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
-      videoCaptureDefaults: {
-        resolution: VideoPresets.h720.resolution,
-      },
+      videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
     });
 
     roomRef.current = room;
 
-    // ---- EVENT LISTENERS ----
-
-    // Track subscribed — remote participant's track is ready
-    room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-      if (import.meta.env.DEV) console.log('[CallOverlay] TrackSubscribed:', track.kind, participant.identity);
-      
+    // Track subscribed
+    room.on(RoomEvent.TrackSubscribed, (track) => {
       if (track.kind === Track.Kind.Video) {
-        const mediaTrack = track.mediaStreamTrack;
-        if (mediaTrack) attachRemoteVideo(mediaTrack);
+        const mt = track.mediaStreamTrack;
+        if (mt) attachRemoteVideo(mt);
       } else if (track.kind === Track.Kind.Audio) {
-        const mediaTrack = track.mediaStreamTrack;
-        if (mediaTrack) attachRemoteAudio(mediaTrack);
+        const mt = track.mediaStreamTrack;
+        if (mt) attachRemoteAudio(mt);
       }
     });
 
@@ -156,11 +272,10 @@ export function GlobalCallOverlay() {
       }
     });
 
-    // Local track published
     room.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication) => {
       if (publication.kind === Track.Kind.Video) {
-        const mediaTrack = publication.track?.mediaStreamTrack;
-        if (mediaTrack) attachLocalVideo(mediaTrack);
+        const mt = publication.track?.mediaStreamTrack;
+        if (mt) attachLocalVideo(mt);
       }
     });
 
@@ -171,26 +286,19 @@ export function GlobalCallOverlay() {
       }
     });
 
-    // Participant connected
-    room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
-      if (import.meta.env.DEV) console.log('[CallOverlay] ParticipantConnected:', participant.identity);
+    room.on(RoomEvent.ParticipantConnected, () => {
       setHasRemoteParticipant(true);
-
-      // Cancel auto-end timer
       setRemoteUserLeft(false);
       setAutoEndCountdown(0);
       if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
       if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
     });
 
-    // Participant disconnected
-    room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
-      if (import.meta.env.DEV) console.log('[CallOverlay] ParticipantDisconnected:', participant.identity);
+    room.on(RoomEvent.ParticipantDisconnected, () => {
       setHasRemoteParticipant(false);
       setHasRemoteVideo(false);
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
 
-      // Start linger countdown
       const isGroupCall = stateRef.current.call?.isGroupCall;
       const LINGER_SECONDS = isGroupCall ? 60 * 60 : 30;
       setRemoteUserLeft(true);
@@ -199,112 +307,75 @@ export function GlobalCallOverlay() {
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
       countdownIntervalRef.current = setInterval(() => {
         setAutoEndCountdown(prev => {
-          if (prev <= 1) {
-            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-            return 0;
-          }
+          if (prev <= 1) { if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current); return 0; }
           return prev - 1;
         });
       }, 1000);
 
       if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
-      autoEndTimerRef.current = setTimeout(() => {
-        if (import.meta.env.DEV) console.log(`[CallOverlay] Auto-ending after ${LINGER_SECONDS}s linger`);
-        endCall();
-      }, LINGER_SECONDS * 1000);
+      autoEndTimerRef.current = setTimeout(() => endCall(), LINGER_SECONDS * 1000);
     });
 
-    // Reconnection events — LiveKit handles this automatically
-    room.on(RoomEvent.Reconnecting, () => {
-      if (import.meta.env.DEV) console.log('[CallOverlay] Reconnecting...');
-      setIsReconnecting(true);
-    });
+    room.on(RoomEvent.Reconnecting, () => setIsReconnecting(true));
+    room.on(RoomEvent.Reconnected, () => setIsReconnecting(false));
 
-    room.on(RoomEvent.Reconnected, () => {
-      if (import.meta.env.DEV) console.log('[CallOverlay] Reconnected!');
-      setIsReconnecting(false);
-    });
-
-    // Disconnected
     room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
-      if (import.meta.env.DEV) console.log('[CallOverlay] Disconnected, reason:', reason);
       clearJoinTimeout();
       setIsReconnecting(false);
-
-      // If we're leaving intentionally, don't do anything
       if (isLeavingRef.current) return;
-
-      // If the call is still active in state, it means unexpected disconnect
       if (stateRef.current.phase === 'connected' || stateRef.current.phase === 'joining') {
         toast.error('Call disconnected');
         endCall();
       }
     });
 
-    // Connected
     room.on(RoomEvent.Connected, () => {
-      if (import.meta.env.DEV) console.log('[CallOverlay] Connected to room');
       clearJoinTimeout();
       premiumSounds.stopAllCallSounds();
       premiumSounds.callConnect();
       setPhase('connected');
 
-      // Check for existing participants
       const remotes = Array.from(room.remoteParticipants.values());
       if (remotes.length > 0) {
         setHasRemoteParticipant(true);
-        // Attach existing tracks
         remotes.forEach(p => {
           p.trackPublications.forEach(pub => {
             if (pub.track && pub.isSubscribed) {
-              const mediaTrack = pub.track.mediaStreamTrack;
-              if (pub.kind === Track.Kind.Video && mediaTrack) {
-                attachRemoteVideo(mediaTrack);
-              } else if (pub.kind === Track.Kind.Audio && mediaTrack) {
-                attachRemoteAudio(mediaTrack);
-              }
+              const mt = pub.track.mediaStreamTrack;
+              if (pub.kind === Track.Kind.Video && mt) attachRemoteVideo(mt);
+              else if (pub.kind === Track.Kind.Audio && mt) attachRemoteAudio(mt);
             }
           });
         });
       }
     });
 
-    // ---- CONNECT ----
     try {
-      if (import.meta.env.DEV) console.log('[CallOverlay] Connecting to LiveKit:', call.livekitUrl, 'room:', call.roomName);
-
       await room.connect(call.livekitUrl, call.token);
-
-      // Publish local tracks based on call type
       await room.localParticipant.setMicrophoneEnabled(true);
       if (call.callType === 'video') {
-        try {
-          await room.localParticipant.setCameraEnabled(true);
-        } catch (err: any) {
-          console.warn('[CallOverlay] Camera enable failed:', err);
+        try { await room.localParticipant.setCameraEnabled(true); } catch (err: any) {
           setCameraError(err.message || 'Camera failed');
         }
       }
-
-      if (import.meta.env.DEV) console.log('[CallOverlay] Connected and publishing');
     } catch (err: any) {
-      console.error('[CallOverlay] Connect failed:', err);
+      console.error('[CallOverlay] LiveKit connect failed:', err);
       toast.error('Failed to connect');
       endCall();
     }
   }, [attachRemoteVideo, attachRemoteAudio, attachLocalVideo, clearJoinTimeout, endCall, setPhase]);
 
-  // Join room when phase becomes 'joining'
+  // ── Join/Switch Logic ─────────────────────────────────────
+
+  // Handle joining (phase === 'joining')
   useEffect(() => {
-    if (state.phase !== 'joining' || !state.call?.token || !state.call?.livekitUrl) return;
+    if (state.phase !== 'joining' || !state.call) return;
     if (isLeavingRef.current) return;
 
     premiumSounds.stopAllCallSounds();
-
     let cancelled = false;
 
     const doJoin = async () => {
-      // Request permissions first
       try {
         await requestCallMediaPermissions(state.call!.callType);
       } catch (err: any) {
@@ -312,10 +383,8 @@ export function GlobalCallOverlay() {
         endCall();
         return;
       }
-
       if (cancelled) return;
 
-      // Set 30 second join timeout
       clearJoinTimeout();
       joinTimeoutRef.current = setTimeout(() => {
         if (stateRef.current.phase === 'joining') {
@@ -324,20 +393,94 @@ export function GlobalCallOverlay() {
         }
       }, 30000);
 
-      await connectToRoom(state.call!);
+      if (state.call!.callMode === 'persistent') {
+        await connectToRoom(state.call!);
+      } else {
+        await connectP2P(state.call!);
+      }
     };
 
     doJoin();
-
     return () => { cancelled = true; clearJoinTimeout(); };
-  }, [state.phase, state.call?.token, state.call?.livekitUrl, clearJoinTimeout, endCall, connectToRoom]);
+  }, [state.phase, state.call?.id, state.call?.callMode, clearJoinTimeout, endCall, connectToRoom, connectP2P]);
+
+  // Handle mode switching (phase === 'switching')
+  useEffect(() => {
+    if (state.phase !== 'switching' || !state.call) return;
+
+    const doSwitch = async () => {
+      if (import.meta.env.DEV) console.log('[CallOverlay] Switching to mode:', state.call!.callMode);
+
+      // 1. Tear down current connection
+      if (p2pRef.current) {
+        await p2pRef.current.disconnect();
+        p2pRef.current = null;
+      }
+      if (roomRef.current) {
+        isLeavingRef.current = true;
+        try { await roomRef.current.disconnect(); } catch {}
+        roomRef.current = null;
+        isLeavingRef.current = false;
+      }
+
+      // Clear video/audio
+      if (localVideoRef.current) localVideoRef.current.srcObject = null;
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+      if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+      setHasLocalVideo(false);
+      setHasRemoteVideo(false);
+      setHasRemoteParticipant(false);
+
+      // 2. Small delay for UI
+      await new Promise(r => setTimeout(r, 500));
+
+      // 3. Connect with new mode
+      if (state.call!.callMode === 'persistent') {
+        // Need token — it should already be set by switchMode in callStore
+        if (state.call!.token && state.call!.livekitUrl) {
+          await connectToRoom(state.call!);
+        } else {
+          // Fetch token if not present (e.g. remote-initiated switch)
+          try {
+            const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
+              body: {
+                conversationId: state.call!.conversationId,
+                callType: state.call!.callType,
+                callId: state.call!.id,
+              },
+            });
+            if (tokenError || !tokenData?.token) throw new Error('Failed to get token');
+            
+            const updatedCall = {
+              ...state.call!,
+              token: tokenData.token,
+              livekitUrl: tokenData.url,
+              roomName: tokenData.roomName,
+            };
+            await connectToRoom(updatedCall);
+          } catch (err: any) {
+            console.error('[CallOverlay] Switch to persistent failed:', err);
+            toast.error('Failed to switch mode');
+            endCall();
+          }
+        }
+      } else {
+        await connectP2P(state.call!);
+      }
+    };
+
+    doSwitch();
+  }, [state.phase, state.call?.callMode, connectToRoom, connectP2P, endCall]);
 
   // Force cleanup when state resets to idle
   useEffect(() => {
     if (state.phase !== 'idle') return;
-    const room = roomRef.current;
-    if (room && room.state !== ConnectionState.Disconnected) {
-      room.disconnect();
+    if (roomRef.current && roomRef.current.state !== ConnectionState.Disconnected) {
+      roomRef.current.disconnect();
+    }
+    if (p2pRef.current) {
+      p2pRef.current.disconnect();
+      p2pRef.current = null;
     }
   }, [state.phase]);
 
@@ -351,21 +494,17 @@ export function GlobalCallOverlay() {
   // Visibility change — resume media when returning from background
   useEffect(() => {
     if (state.phase !== 'connected') return;
-    const room = roomRef.current;
-    if (!room) return;
 
     const handleVisibility = async () => {
       if (document.visibilityState === 'visible') {
         await new Promise(r => setTimeout(r, 300));
-        if (room.state === ConnectionState.Connected) {
-          // Ensure audio element is playing
-          if (remoteAudioRef.current?.srcObject) {
-            remoteAudioRef.current.muted = false;
-            remoteAudioRef.current.play().catch(() => {});
-          }
-          if (remoteVideoRef.current?.srcObject) {
-            remoteVideoRef.current.play().catch(() => {});
-          }
+        // Resume audio/video elements
+        if (remoteAudioRef.current?.srcObject) {
+          remoteAudioRef.current.muted = false;
+          remoteAudioRef.current.play().catch(() => {});
+        }
+        if (remoteVideoRef.current?.srcObject) {
+          remoteVideoRef.current.play().catch(() => {});
         }
       }
     };
@@ -385,7 +524,8 @@ export function GlobalCallOverlay() {
     };
   }, [state.phase]);
 
-  // LEAVE CALL — disconnect from room but don't end in DB
+  // ── Control Handlers ──────────────────────────────────────
+
   const handleLeaveCall = useCallback(async () => {
     if (isHangingUp) return;
     setIsHangingUp(true);
@@ -397,9 +537,12 @@ export function GlobalCallOverlay() {
     if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
     if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
 
-    const room = roomRef.current;
-    if (room) {
-      try { await room.disconnect(); } catch {}
+    if (p2pRef.current) {
+      await p2pRef.current.disconnect();
+      p2pRef.current = null;
+    }
+    if (roomRef.current) {
+      try { await roomRef.current.disconnect(); } catch {}
       roomRef.current = null;
     }
 
@@ -408,7 +551,6 @@ export function GlobalCallOverlay() {
     isLeavingRef.current = false;
   }, [isHangingUp, leaveCall]);
 
-  // HANGUP — fully end the call
   const handleHangup = useCallback(async () => {
     if (isHangingUp) return;
     setIsHangingUp(true);
@@ -420,9 +562,12 @@ export function GlobalCallOverlay() {
     if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
     if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
 
-    const room = roomRef.current;
-    if (room) {
-      try { await room.disconnect(); } catch {}
+    if (p2pRef.current) {
+      await p2pRef.current.disconnect();
+      p2pRef.current = null;
+    }
+    if (roomRef.current) {
+      try { await roomRef.current.disconnect(); } catch {}
       roomRef.current = null;
     }
 
@@ -431,78 +576,103 @@ export function GlobalCallOverlay() {
     isLeavingRef.current = false;
   }, [isHangingUp, endCall]);
 
-  // Toggle mute
   const handleToggleMute = useCallback(async () => {
-    const room = roomRef.current;
-    if (!room || state.phase !== 'connected') return;
+    if (state.phase !== 'connected') return;
     const newMuted = !isMuted;
-    await room.localParticipant.setMicrophoneEnabled(!newMuted);
-    setIsMuted(newMuted);
-  }, [isMuted, state.phase]);
 
-  // Toggle video
+    if (state.call?.callMode === 'persistent' && roomRef.current) {
+      await roomRef.current.localParticipant.setMicrophoneEnabled(!newMuted);
+    } else if (p2pRef.current) {
+      p2pRef.current.setMicEnabled(!newMuted);
+    }
+    setIsMuted(newMuted);
+  }, [isMuted, state.phase, state.call?.callMode]);
+
   const handleToggleVideo = useCallback(async () => {
-    const room = roomRef.current;
-    if (!room || state.phase !== 'connected' || state.call?.callType !== 'video') return;
+    if (state.phase !== 'connected' || state.call?.callType !== 'video') return;
     try {
       const newOff = !isVideoOff;
-      await room.localParticipant.setCameraEnabled(!newOff);
+      if (state.call?.callMode === 'persistent' && roomRef.current) {
+        await roomRef.current.localParticipant.setCameraEnabled(!newOff);
+      } else if (p2pRef.current) {
+        await p2pRef.current.setCameraEnabled(!newOff);
+      }
       setIsVideoOff(newOff);
       setCameraError(null);
     } catch (err: any) {
       setCameraError(err.message || 'Failed to toggle camera');
     }
-  }, [state.phase, state.call?.callType, isVideoOff]);
+  }, [state.phase, state.call?.callType, state.call?.callMode, isVideoOff]);
 
-  // Retry video
   const handleRetryVideo = useCallback(async () => {
-    const room = roomRef.current;
-    if (!room) return;
     setCameraError(null);
     try {
-      await room.localParticipant.setCameraEnabled(true);
+      if (state.call?.callMode === 'persistent' && roomRef.current) {
+        await roomRef.current.localParticipant.setCameraEnabled(true);
+      } else if (p2pRef.current) {
+        await p2pRef.current.setCameraEnabled(true);
+      }
       setIsVideoOff(false);
     } catch (err: any) {
       setCameraError(err.message || 'Camera failed');
     }
-  }, []);
+  }, [state.call?.callMode]);
 
   // Device changes
   const handleMicChange = useCallback(async (deviceId: string) => {
-    const room = roomRef.current;
-    if (!room) return;
     try {
-      await room.switchActiveDevice('audioinput', deviceId);
+      if (state.call?.callMode === 'persistent' && roomRef.current) {
+        await roomRef.current.switchActiveDevice('audioinput', deviceId);
+      } else if (p2pRef.current) {
+        await p2pRef.current.switchAudioDevice(deviceId);
+      }
       setCurrentMicId(deviceId);
       toast.success('Microphone changed');
-    } catch (err) {
-      toast.error('Failed to change microphone');
-    }
-  }, []);
+    } catch { toast.error('Failed to change microphone'); }
+  }, [state.call?.callMode]);
 
   const handleCameraChange = useCallback(async (deviceId: string) => {
-    const room = roomRef.current;
-    if (!room) return;
     try {
-      await room.switchActiveDevice('videoinput', deviceId);
+      if (state.call?.callMode === 'persistent' && roomRef.current) {
+        await roomRef.current.switchActiveDevice('videoinput', deviceId);
+      } else if (p2pRef.current) {
+        await p2pRef.current.switchVideoDevice(deviceId);
+      }
       setCurrentCameraId(deviceId);
       toast.success('Camera changed');
-    } catch (err) {
-      toast.error('Failed to change camera');
-    }
-  }, []);
+    } catch { toast.error('Failed to change camera'); }
+  }, [state.call?.callMode]);
 
   const handleSpeakerChange = useCallback(async (deviceId: string) => {
-    const room = roomRef.current;
-    if (!room) return;
     try {
-      await room.switchActiveDevice('audiooutput', deviceId);
+      if (state.call?.callMode === 'persistent' && roomRef.current) {
+        await roomRef.current.switchActiveDevice('audiooutput', deviceId);
+      }
+      // P2P doesn't have speaker switching built-in
       setCurrentSpeakerId(deviceId);
       toast.success('Speaker changed');
-    } catch (err) {
-      toast.error('Failed to change speaker');
+    } catch { toast.error('Failed to change speaker'); }
+  }, [state.call?.callMode]);
+
+  // "Stay On Call" toggle
+  const handleStayOnCallToggle = useCallback(async () => {
+    if (!state.call) return;
+
+    if (state.call.callMode === 'persistent') {
+      // Already in persistent mode — switch back to P2P
+      await switchMode('p2p');
+      return;
     }
-  }, []);
+
+    // Premium check
+    if (!isPremium) {
+      setShowPaywall(true);
+      return;
+    }
+
+    // Switch to persistent mode
+    await switchMode('persistent');
+  }, [state.call, isPremium, switchMode]);
 
   // Accept incoming call
   const handleAccept = useCallback(async () => {
@@ -521,9 +691,7 @@ export function GlobalCallOverlay() {
     const hours = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    if (hours > 0) {
-      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
+    if (hours > 0) return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -536,10 +704,12 @@ export function GlobalCallOverlay() {
   const displayName = isGroupCall && groupName ? groupName : (otherUser?.display_name || otherUser?.username);
   const displayAvatar = isGroupCall ? groupAvatar : otherUser?.avatar_url;
   const displayInitial = isGroupCall && groupName ? groupName.charAt(0) : (otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0));
+  const currentMode = state.call?.callMode || 'p2p';
   
   const isVisible = state.phase !== 'idle';
   const isRinging = state.phase === 'ringing' && !state.call?.isInitiator;
   const isConnected = state.phase === 'connected';
+  const isSwitching = state.phase === 'switching';
   const isConnecting = state.phase === 'creating' || (state.phase === 'joining' && !state.call?.isInitiator);
   const isRingingOut = state.call?.isInitiator && !hasRemoteParticipant && (state.phase === 'joining' || state.phase === 'connected');
 
@@ -561,6 +731,7 @@ export function GlobalCallOverlay() {
       setIsMuted(false);
       setIsVideoOff(false);
       setIsReconnecting(false);
+      setP2pFailCount(0);
       if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
       if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
     }
@@ -578,23 +749,12 @@ export function GlobalCallOverlay() {
     };
   }, [isConnected, isMinimized]);
 
-  const handleHeaderAreaEnter = useCallback(() => {
-    if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current);
-    setShowHeader(true);
-  }, []);
-  const handleHeaderAreaLeave = useCallback(() => {
-    if (isConnected) headerTimeoutRef.current = setTimeout(() => setShowHeader(false), 1500);
-  }, [isConnected]);
-  const handleFooterAreaEnter = useCallback(() => {
-    if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current);
-    setShowFooter(true);
-  }, []);
-  const handleFooterAreaLeave = useCallback(() => {
-    if (isConnected) footerTimeoutRef.current = setTimeout(() => setShowFooter(false), 1500);
-  }, [isConnected]);
+  const handleHeaderAreaEnter = useCallback(() => { if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current); setShowHeader(true); }, []);
+  const handleHeaderAreaLeave = useCallback(() => { if (isConnected) headerTimeoutRef.current = setTimeout(() => setShowHeader(false), 1500); }, [isConnected]);
+  const handleFooterAreaEnter = useCallback(() => { if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current); setShowFooter(true); }, []);
+  const handleFooterAreaLeave = useCallback(() => { if (isConnected) footerTimeoutRef.current = setTimeout(() => setShowFooter(false), 1500); }, [isConnected]);
   const handleScreenTap = useCallback(() => {
-    setShowHeader(true);
-    setShowFooter(true);
+    setShowHeader(true); setShowFooter(true);
     if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current);
     if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current);
     if (isConnected) {
@@ -607,12 +767,7 @@ export function GlobalCallOverlay() {
     <>
       {/* Audio element — always mounted during active call */}
       {isVisible && !isRinging && (
-        <audio 
-          ref={remoteAudioRef} 
-          autoPlay 
-          playsInline
-          style={{ position: 'fixed', left: -9999, top: -9999, width: 1, height: 1 }}
-        />
+        <audio ref={remoteAudioRef} autoPlay playsInline style={{ position: 'fixed', left: -9999, top: -9999, width: 1, height: 1 }} />
       )}
 
       {/* Minimized Call Bubble */}
@@ -640,23 +795,34 @@ export function GlobalCallOverlay() {
             background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(240 10% 8%) 50%, hsl(280 20% 8%) 100%)'
           }}
         >
-          {/* Subtle background */}
-          <div 
-            className="absolute inset-0 overflow-hidden pointer-events-none opacity-20"
-            style={{
-              background: 'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.4) 0%, transparent 50%), radial-gradient(circle at 70% 70%, hsl(var(--accent) / 0.3) 0%, transparent 50%)'
-            }}
-          />
+          <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20" style={{ background: 'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.4) 0%, transparent 50%), radial-gradient(circle at 70% 70%, hsl(var(--accent) / 0.3) 0%, transparent 50%)' }} />
+
+          {/* Mode switching overlay */}
+          <AnimatePresence>
+            {isSwitching && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+              >
+                <div className="text-center">
+                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}>
+                    <Zap className="h-12 w-12 text-primary mx-auto" />
+                  </motion.div>
+                  <p className="mt-4 text-white text-lg font-medium">
+                    {currentMode === 'persistent' ? 'Switching to Stay Connected mode…' : 'Switching to standard mode…'}
+                  </p>
+                  <p className="mt-2 text-white/50 text-sm">Both participants will be reconnected</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Reconnecting banner */}
           <AnimatePresence>
-            {isReconnecting && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="absolute top-4 left-4 right-4 z-50"
-              >
+            {isReconnecting && !isSwitching && (
+              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="absolute top-4 left-4 right-4 z-50">
                 <div className="p-3 rounded-xl backdrop-blur-xl bg-yellow-500/20 border border-yellow-500/30 flex items-center gap-3">
                   <Loader2 className="h-4 w-4 animate-spin text-yellow-400" />
                   <span className="text-yellow-200 text-sm font-medium">Reconnecting...</span>
@@ -668,28 +834,15 @@ export function GlobalCallOverlay() {
           {/* Video Container */}
           {isVideoCall && (
             <>
-              {/* Remote Video — Full Screen */}
               <div className="absolute inset-0" onClick={handleScreenTap}>
-                <video
-                  ref={remoteVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className={cn(
-                    "w-full h-full object-cover transition-opacity duration-200",
-                    hasRemoteVideo ? "opacity-100" : "opacity-0"
-                  )}
-                  style={{ willChange: 'auto', transform: 'translateZ(0)' }}
-                />
+                <video ref={remoteVideoRef} autoPlay playsInline muted className={cn("w-full h-full object-cover transition-opacity duration-200", hasRemoteVideo ? "opacity-100" : "opacity-0")} style={{ willChange: 'auto', transform: 'translateZ(0)' }} />
                 {!hasRemoteVideo && (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="relative text-center">
                       <div className="animate-pulse">
                         <Avatar className="h-40 w-40 ring-4 ring-white/10 shadow-2xl">
                           <AvatarImage src={displayAvatar || undefined} />
-                          <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                            {displayInitial}
-                          </AvatarFallback>
+                          <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
                         </Avatar>
                       </div>
                       {isRingingOut && <p className="mt-6 text-white/60 text-lg font-light animate-pulse">Ringing...</p>}
@@ -698,44 +851,20 @@ export function GlobalCallOverlay() {
                   </div>
                 )}
               </div>
-
-              {/* Local Video — PiP */}
               {hasLocalVideo && !isVideoOff && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 z-30"
-                >
-                  <video
-                    ref={localVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover"
-                    style={{ transform: 'scaleX(-1) translateZ(0)' }}
-                  />
+                <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 z-30">
+                  <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1) translateZ(0)' }} />
                 </motion.div>
               )}
-
-              {/* Camera error */}
               {cameraError && isConnected && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="absolute bottom-32 left-4 right-4 flex justify-center z-20"
-                >
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="absolute bottom-32 left-4 right-4 flex justify-center z-20">
                   <div className="bg-red-500/20 backdrop-blur-lg border border-red-500/30 rounded-xl p-4 flex items-center gap-3 max-w-sm">
                     <div className="flex-1">
                       <p className="text-white text-sm font-medium">Camera Issue</p>
                       <p className="text-white/70 text-xs">{cameraError}</p>
                     </div>
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleRetryVideo}
-                      className="h-10 px-4 rounded-lg bg-white/20 text-white flex items-center gap-2 hover:bg-white/30"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      <span className="text-sm">Retry</span>
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={handleRetryVideo} className="h-10 px-4 rounded-lg bg-white/20 text-white flex items-center gap-2 hover:bg-white/30">
+                      <RefreshCw className="w-4 h-4" /><span className="text-sm">Retry</span>
                     </motion.button>
                   </div>
                 </motion.div>
@@ -750,9 +879,7 @@ export function GlobalCallOverlay() {
                 <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
                   <Avatar className="h-40 w-40 mx-auto ring-4 ring-white/10 shadow-2xl">
                     <AvatarImage src={displayAvatar || undefined} />
-                    <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                      {displayInitial}
-                    </AvatarFallback>
+                    <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
                   </Avatar>
                 </motion.div>
                 <h2 className="mt-6 text-2xl font-bold text-white">{displayName}</h2>
@@ -768,9 +895,7 @@ export function GlobalCallOverlay() {
                 {isConnected && remoteUserLeft && (
                   <div className="mt-4 text-center">
                     <p className="text-white/50 text-sm">{displayName} left the call</p>
-                    <p className="text-white/70 text-lg font-mono mt-1">
-                      {Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}
-                    </p>
+                    <p className="text-white/70 text-lg font-mono mt-1">{Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
                     <p className="text-white/40 text-xs mt-1">They can rejoin</p>
                   </div>
                 )}
@@ -779,17 +904,8 @@ export function GlobalCallOverlay() {
           )}
 
           {/* Header */}
-          <div 
-            className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto"
-            onMouseEnter={handleHeaderAreaEnter}
-            onMouseLeave={handleHeaderAreaLeave}
-          >
-            <motion.div 
-              initial={{ y: -100, opacity: 0 }}
-              animate={{ y: showHeader ? 0 : -100, opacity: showHeader ? 1 : 0 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              className="pointer-events-auto"
-            >
+          <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave}>
+            <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: showHeader ? 0 : -100, opacity: showHeader ? 1 : 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="pointer-events-auto">
               <div className="mx-4 mt-4 p-4 rounded-2xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-2xl">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -798,28 +914,20 @@ export function GlobalCallOverlay() {
                         <AvatarImage src={displayAvatar || undefined} />
                         <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">{displayInitial}</AvatarFallback>
                       </Avatar>
-                      {isConnected && (
-                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black/50" />
-                      )}
+                      {isConnected && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black/50" />}
                     </div>
                     <div>
                       <p className="text-white font-semibold text-lg">{displayName}</p>
                       <div className="flex items-center gap-2">
                         {isConnecting && !isRingingOut && (
                           <motion.div className="flex items-center gap-2 text-white/60" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-                            </span>
+                            <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-primary" /></span>
                             <span className="text-sm">Connecting</span>
                           </motion.div>
                         )}
                         {isRingingOut && (
                           <motion.div className="flex items-center gap-2 text-white/60" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-500 opacity-75" />
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500" />
-                            </span>
+                            <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-500 opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500" /></span>
                             <span className="text-sm">Ringing</span>
                           </motion.div>
                         )}
@@ -827,6 +935,13 @@ export function GlobalCallOverlay() {
                           <div className="flex items-center gap-2">
                             <span className="flex h-2 w-2 rounded-full bg-green-500" />
                             <span className="text-white/70 text-sm font-mono tracking-wide">{formatDuration(callDuration)}</span>
+                            {/* Call mode indicator */}
+                            {currentMode === 'persistent' && (
+                              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/20 border border-primary/30">
+                                <Crown className="h-3 w-3 text-primary" />
+                                <span className="text-[10px] text-primary font-medium">Stay On</span>
+                              </span>
+                            )}
                           </div>
                         )}
                         {isReconnecting && (
@@ -842,12 +957,7 @@ export function GlobalCallOverlay() {
                     <div className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/10">
                       {isVideoCall ? <Video className="h-4 w-4 text-white/70" /> : <Phone className="h-4 w-4 text-white/70" />}
                     </div>
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleMinimize}
-                      className="h-9 w-9 rounded-full bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
-                      title="Minimize call"
-                    >
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={handleMinimize} className="h-9 w-9 rounded-full bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors" title="Minimize call">
                       <Minimize2 className="h-4 w-4 text-white/70" />
                     </motion.button>
                   </div>
@@ -859,12 +969,7 @@ export function GlobalCallOverlay() {
           {/* Connecting overlay for receiver */}
           <AnimatePresence>
             {isConnecting && isVideoCall && !state.call?.isInitiator && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-              >
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                 <div className="text-center">
                   <div className="relative">
                     <motion.div animate={{ scale: [1, 2], opacity: [0.5, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 140, height: 140, margin: 'auto', left: 0, right: 0, top: 0, bottom: 0 }} />
@@ -873,23 +978,16 @@ export function GlobalCallOverlay() {
                       <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
                     </Avatar>
                   </div>
-                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="mt-6 text-white/60 text-lg font-light">
-                    Connecting to {displayName}...
-                  </motion.p>
+                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="mt-6 text-white/60 text-lg font-light">Connecting to {displayName}...</motion.p>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Remote user left banner */}
+          {/* Remote user left banner (persistent mode only) */}
           <AnimatePresence>
-            {remoteUserLeft && isConnected && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="absolute top-32 left-4 right-4 z-50"
-              >
+            {remoteUserLeft && isConnected && currentMode === 'persistent' && (
+              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="absolute top-32 left-4 right-4 z-50">
                 <div className="p-4 rounded-2xl backdrop-blur-xl bg-primary/20 border border-primary/30 shadow-2xl">
                   <div className="flex items-center gap-3">
                     <span className="flex h-3 w-3">
@@ -898,9 +996,7 @@ export function GlobalCallOverlay() {
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-semibold text-sm">Call still live</p>
-                      <p className="text-white/60 text-xs">
-                        {displayName} left · They can rejoin · Auto-ends in {Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}
-                      </p>
+                      <p className="text-white/60 text-xs">{displayName} left · They can rejoin · Auto-ends in {Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
                     </div>
                   </div>
                 </div>
@@ -920,84 +1016,58 @@ export function GlobalCallOverlay() {
             <div className="flex justify-center">
               <div className="inline-flex items-center gap-3 p-3 rounded-2xl backdrop-blur-xl bg-white/10 border border-white/10 shadow-2xl">
                 {/* Settings */}
+                <motion.button whileTap={{ scale: 0.95 }} onClick={() => setSettingsOpen(true)} disabled={!isConnected} className={cn("relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300", "bg-white/10 text-white hover:bg-white/20 border border-white/10", "disabled:opacity-50 disabled:cursor-not-allowed")}>
+                  <SlidersHorizontal className="h-5 w-5" />
+                </motion.button>
+
+                {/* Stay On Call toggle — premium feature */}
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setSettingsOpen(true)}
-                  disabled={!isConnected}
+                  onClick={handleStayOnCallToggle}
+                  disabled={!isConnected || isSwitching}
                   className={cn(
                     "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
-                    "bg-white/10 text-white hover:bg-white/20 border border-white/10",
-                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                    "disabled:opacity-50 disabled:cursor-not-allowed",
+                    currentMode === 'persistent'
+                      ? "bg-gradient-to-br from-primary to-accent text-white shadow-lg ring-2 ring-primary/50"
+                      : "bg-white/10 text-white hover:bg-white/20 border border-white/10"
                   )}
+                  title={currentMode === 'persistent' ? 'Stay On Call (active)' : 'Stay On Call (premium)'}
                 >
-                  <SlidersHorizontal className="h-5 w-5" />
+                  <Crown className="h-5 w-5" />
+                  {!isPremium && currentMode !== 'persistent' && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center">
+                      <span className="text-[8px] font-bold text-black">PRO</span>
+                    </span>
+                  )}
                 </motion.button>
 
                 <div className="w-px h-10 bg-white/20 mx-1" />
 
                 {/* Mute */}
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleToggleMute}
-                  disabled={!isConnected}
-                  className={cn(
-                    "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
-                    "disabled:opacity-50 disabled:cursor-not-allowed",
-                    isMuted ? "bg-white text-black shadow-lg ring-2 ring-primary/50" : "bg-white/10 text-white hover:bg-white/20"
-                  )}
-                >
+                <motion.button whileTap={{ scale: 0.95 }} onClick={handleToggleMute} disabled={!isConnected} className={cn("relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isMuted ? "bg-white text-black shadow-lg ring-2 ring-primary/50" : "bg-white/10 text-white hover:bg-white/20")}>
                   {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
                 </motion.button>
 
                 {/* Video toggle */}
                 {isVideoCall && (
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleToggleVideo}
-                    disabled={!isConnected}
-                    className={cn(
-                      "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
-                      "disabled:opacity-50 disabled:cursor-not-allowed",
-                      isVideoOff ? "bg-white text-black shadow-lg ring-2 ring-accent/50" : "bg-white/10 text-white hover:bg-white/20"
-                    )}
-                  >
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleToggleVideo} disabled={!isConnected} className={cn("relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isVideoOff ? "bg-white text-black shadow-lg ring-2 ring-accent/50" : "bg-white/10 text-white hover:bg-white/20")}>
                     {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
                   </motion.button>
                 )}
 
                 {/* Retry camera */}
                 {isVideoCall && cameraError && (
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleRetryVideo}
-                    className="relative h-14 w-14 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 border border-white/10"
-                  >
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleRetryVideo} className="relative h-14 w-14 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 border border-white/10">
                     <RefreshCw className="h-5 w-5" />
                   </motion.button>
                 )}
 
                 <div className="w-px h-10 bg-white/20 mx-1" />
 
-                {/* Leave */}
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleLeaveCall}
-                  disabled={isHangingUp}
-                  className={cn(
-                    "relative h-14 px-6 rounded-xl flex items-center justify-center gap-2 transition-all duration-300",
-                    "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg",
-                    "hover:from-red-600 hover:to-red-700",
-                    "disabled:opacity-70"
-                  )}
-                >
-                  {isHangingUp ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <>
-                      <PhoneOff className="h-5 w-5" />
-                      <span className="font-medium">Leave</span>
-                    </>
-                  )}
+                {/* Leave / End */}
+                <motion.button whileTap={{ scale: 0.95 }} onClick={currentMode === 'persistent' ? handleLeaveCall : handleHangup} disabled={isHangingUp} className={cn("relative h-14 px-6 rounded-xl flex items-center justify-center gap-2 transition-all duration-300", "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg", "hover:from-red-600 hover:to-red-700", "disabled:opacity-70")}>
+                  {isHangingUp ? <Loader2 className="h-5 w-5 animate-spin" /> : (<><PhoneOff className="h-5 w-5" /><span className="font-medium">{currentMode === 'persistent' ? 'Leave' : 'End'}</span></>)}
                 </motion.button>
               </div>
             </div>
@@ -1008,21 +1078,8 @@ export function GlobalCallOverlay() {
       {/* Incoming call dialog */}
       <AnimatePresence>
         {isRinging && state.call && (
-          <motion.div
-            key={`incoming-${state.call.id}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
-            style={{
-              background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)',
-            }}
-          >
-            <IncomingCallDialog
-              call={state.call}
-              onAccept={handleAccept}
-              onDecline={dismissIncoming}
-            />
+          <motion.div key={`incoming-${state.call.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10000] flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)' }}>
+            <IncomingCallDialog call={state.call} onAccept={handleAccept} onDecline={dismissIncoming} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -1041,11 +1098,15 @@ export function GlobalCallOverlay() {
         isMuted={isMuted}
         isVideoOff={isVideoOff}
       />
+
+      {/* Paywall Sheet for non-premium users */}
+      <PaywallSheet open={showPaywall} onOpenChange={setShowPaywall} />
     </>
   );
 }
 
-// Incoming call dialog
+// ── Incoming Call Dialog ────────────────────────────────────
+
 function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onAccept: () => void; onDecline: () => void }) {
   const [timeLeft, setTimeLeft] = useState(60);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -1084,19 +1145,12 @@ function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onA
 
   return (
     <>
-      {/* Background orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div animate={{ x: [0, 50, 0], y: [0, 30, 0], scale: [1, 1.2, 1] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }} />
         <motion.div animate={{ x: [0, -30, 0], y: [0, -50, 0], scale: [1, 1.3, 1] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }} />
       </div>
       <div className="absolute inset-0 backdrop-blur-3xl" />
-      <motion.div
-        initial={{ scale: 0.8, y: 40 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.8, y: 40 }}
-        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="relative z-10 flex flex-col items-center max-w-sm w-full"
-      >
+      <motion.div initial={{ scale: 0.8, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: 40 }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="relative z-10 flex flex-col items-center max-w-sm w-full">
         <div className="relative mb-8">
           <motion.div animate={{ scale: [1, 1.5], opacity: [0.6, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 144, height: 144, margin: '-8px' }} />
           <motion.div animate={{ scale: [1, 1.4], opacity: [0.4, 0] }} transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-accent/40" style={{ width: 144, height: 144, margin: '-8px' }} />
