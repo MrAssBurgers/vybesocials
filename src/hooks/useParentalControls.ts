@@ -96,12 +96,11 @@ export function useUpdateParentalControls() {
       if (!user) throw new Error('Not authenticated');
       const { data, error } = await supabase
         .from('parental_controls')
-        .upsert({
-          user_id: user.id,
-          ...DEFAULT_PARENTAL_VALUES,
+        .update({
           ...updates,
           updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' })
+        })
+        .eq('user_id', user.id)
         .select()
         .single();
       if (error) throw error;
