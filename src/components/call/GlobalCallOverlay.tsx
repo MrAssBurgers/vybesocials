@@ -880,8 +880,12 @@ export function GlobalCallOverlay() {
             opacity: isMinimized ? 0 : 1,
             pointerEvents: isMinimized ? 'none' : 'auto',
             visibility: isMinimized ? 'hidden' : 'visible',
-            background: 'linear-gradient(160deg, #0a0a12 0%, #0d0b1a 25%, #12091f 50%, #0e0a1e 75%, #080810 100%)',
+            background: 'rgba(8, 8, 16, 0.85)',
+            backdropFilter: 'blur(40px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(40px) saturate(150%)',
             isolation: 'isolate',
+            paddingTop: 'env(safe-area-inset-top)',
+            paddingBottom: 'env(safe-area-inset-bottom)',
           }}
         >
           {/* Animated ambient blobs */}
@@ -1039,7 +1043,7 @@ export function GlobalCallOverlay() {
           )}
 
           {/* Header */}
-          <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave}>
+          <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" style={{ paddingTop: 'env(safe-area-inset-top)' }} onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave}>
             <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: showHeader ? 0 : -100, opacity: showHeader ? 1 : 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="pointer-events-auto">
               <div className="mx-4 mt-4 p-4 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
                 <div className="flex items-center justify-between">
@@ -1104,8 +1108,8 @@ export function GlobalCallOverlay() {
           {/* Connecting overlay for receiver */}
           <AnimatePresence>
             {isConnecting && isVideoCall && !state.call?.isInitiator && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                <div className="text-center">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(8, 8, 16, 0.8)', backdropFilter: 'blur(40px) saturate(150%)', WebkitBackdropFilter: 'blur(40px) saturate(150%)' }}>
+                <div className="text-center p-8 rounded-3xl backdrop-blur-2xl bg-white/[0.06] border border-white/[0.1] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
                   <div className="relative">
                     <motion.div animate={{ scale: [1, 2], opacity: [0.5, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 140, height: 140, margin: 'auto', left: 0, right: 0, top: 0, bottom: 0 }} />
                     <Avatar className="h-32 w-32 mx-auto ring-4 ring-primary/20 shadow-2xl">
@@ -1144,7 +1148,8 @@ export function GlobalCallOverlay() {
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: showFooter ? 0 : 100, opacity: showFooter ? 1 : 0 }}
             transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="absolute bottom-0 left-0 right-0 pb-10 pointer-events-auto"
+            className="absolute bottom-0 left-0 right-0 pointer-events-auto"
+            style={{ paddingBottom: 'calc(2.5rem + env(safe-area-inset-bottom))' }}
             onMouseEnter={handleFooterAreaEnter}
             onMouseLeave={handleFooterAreaLeave}
           >
