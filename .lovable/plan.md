@@ -1,63 +1,66 @@
 
-Fix the global animation system so all persistent color/motion effects loop cleanly with no snap-back, no hard seam line, and no left-right “ping-pong.”
+Goal
 
-What I found
-- The snap is coming from multiple leftover animation systems, not just one keyframe.
-- `src/index.css` still has several ping-pong or restart-prone loops (`gradient-shift`, `premium-gold-shimmer`, `badge-shimmer`, `ambient-shift`, `friendlink-shimmer-sweep`, `shimmer-sweep`).
-- A few important components still bypass the shared CSS and run their own looping math:
-  - `src/components/ui/StyledUsername.tsx`
-  - `src/components/ui/VYBELogo.tsx`
-  - `src/components/chat/SnapCamera.tsx`
-  - `src/components/chat/ChatView.tsx`
-  - `src/components/easter-eggs/RainbowOverlay.tsx`
-  - `src/components/effects/BackgroundEffects.tsx`
-- The create button also has a separate moving highlight beam in `src/components/layout/BottomNav.tsx`, which is likely the “solid line” you’re seeing.
-- Some decorative icon motions still use back-and-forth wiggles in `src/components/hub/CreateMenu.tsx`, which makes the app feel less clean.
+Make every continuous color animation behave like a conveyor belt: always moving left, never bouncing, never visibly cutting back to frame 1.
+
+What’s causing the snap
+
+- The shared keyframes in `src/index.css` still move `300%`-wide gradients from `0%` to `-100%`. That lands on a different slice of the strip, so the browser has to jump when the loop restarts.
+- Several animated gradients are not loop-safe yet because the color sequence itself does not tile cleanly. The biggest ones are the animated name gradients in `src/lib/cosmeticConstants.ts`, plus the inline logo/chat/camera/overlay gradients.
+- A few high-visibility surfaces bypass shared CSS and animate `backgroundPosition` directly with Framer Motion (`SnapCamera.tsx`, `ChatView.tsx`, `ClipSkeleton.tsx`). Those still have their own restart math.
+- The narrow white beam in `src/components/layout/BottomNav.tsx` is also reading like a hard seam line.
 
 Plan
-1. Rebuild the shared looping gradient system in `src/index.css`
-- Standardize all continuous color motion to one direction only: leftward.
-- Replace ping-pong/reverse loops with seamless wraparound loops.
-- Use consistent horizontal gradient patterns and matching background-size/position math.
-- Remove easing on persistent color motion so it stays constant and fluid.
-- Soften gradient stop spacing so colors blend into each other instead of forming a stripe.
 
-2. Remove or soften the hard sweep/scan-line overlays
-- `src/components/layout/BottomNav.tsx`: remove or heavily soften the extra shimmer beam over the create button.
-- `src/index.css`: update beam-style effects such as `shimmer-sweep`, `badge-shine`, and `friendlink-shimmer-sweep` so they don’t read like a hard line cutting across the UI.
-- Also soften loading shimmers where needed so they feel blended instead of stripy.
+1. Rebuild the shared seamless-loop rules in `src/index.css`
+- Standardize persistent decorative motion to one-way, linear, leftward movement.
+- Replace restart-prone keyframes (`gradient-shift`, `badge-shimmer`, `premium-gold-shimmer`, `ambient-shift`, `friendlink-shimmer-sweep`, `rainbow-bg-scroll`, and any active ping-pong border flow) with loop-safe tile math: duplicate the gradient segment and animate only one repeat interval so the last frame matches the first.
+- Soften stop spacing so colors bleed together instead of forming a stripe.
 
-3. Sync all component-level gradient animations to the same loop behavior
-- `src/components/ui/StyledUsername.tsx`: match the shared seamless loop exactly.
-- `src/components/ui/VYBELogo.tsx`: replace the current diagonal/eased loop with the same leftward seamless motion.
-- `src/components/chat/SnapCamera.tsx` and `src/components/chat/ChatView.tsx`: remove `0 → 100 → 0` background-position loops and switch to one-way loops.
-- `src/components/easter-eggs/RainbowOverlay.tsx` and `src/components/effects/BackgroundEffects.tsx`: replace visible reversal/reset patterns with the same continuous flow.
+2. Make the gradient data itself loop-safe
+- Update animated gradient definitions in `src/lib/cosmeticConstants.ts` so `Holographic` and `Premium Gold` wrap cleanly.
+- Align any duplicated preview map in `src/components/vybepass/VybePassSheet.tsx` so previews and live text use the same gradient recipe.
+- In `src/components/ui/StyledUsername.tsx` and `src/components/ui/VYBELogo.tsx`, make animated text use the same seamless horizontal strip instead of ad-hoc gradient strings.
 
-4. Clean up the “bouncy” decorative motions
-- `src/components/hub/CreateMenu.tsx`: replace wiggle/rotate-back-and-forth decorative motion with subtler movement or hover-only one-shot motion.
-- Do a pass on other high-visibility decorative loops so persistent motion feels premium instead of twitchy.
+3. Remove component-level restart math and unify on the shared loop
+- `src/components/chat/SnapCamera.tsx`
+- `src/components/chat/ChatView.tsx`
+- `src/components/clips/ClipSkeleton.tsx`
+- `src/components/easter-eggs/RainbowOverlay.tsx`
+- `src/components/effects/BackgroundEffects.tsx`
 
-5. Verify the main surfaces after implementation
-- Check `/home`, the create button/menu, animated usernames, logo, camera send button, chat gradient card, and ambient overlays.
-- Confirm:
-  - no visible seam line
-  - no snap to the start
-  - no left-right bounce
-  - no choppy restart
-  - motion feels soft, blended, and continuous on desktop and mobile
+For these, replace local `backgroundPosition` array loops and reverse/eased background sweeps with the same seamless one-way loop system from CSS. The aurora second layer will stop reversing, and the camera/chat/loading surfaces will stop jumping at the loop point.
 
-Files likely to update
+4. Clean up the hard seam on the create button
+- In `src/components/layout/BottomNav.tsx`, remove the narrow white scan-line or replace it with a wider, much softer wash so the button looks blended instead of sliced by a bright line.
+
+5. Verify the places where the snap is most visible
+- `/home` animated usernames and create button
+- logo text
+- camera send button
+- chat gradient card
+- rainbow/aurora overlays
+- loading shimmers
+
+Success means:
+- no visible snap to frame 1
+- no hard seam line crossing the surface
+- no left-right ping-pong
+- motion keeps drifting left until it naturally cycles into the same visual state
+
+Files I expect to update
 - `src/index.css`
-- `src/components/layout/BottomNav.tsx`
+- `src/lib/cosmeticConstants.ts`
 - `src/components/ui/StyledUsername.tsx`
 - `src/components/ui/VYBELogo.tsx`
 - `src/components/chat/SnapCamera.tsx`
 - `src/components/chat/ChatView.tsx`
+- `src/components/clips/ClipSkeleton.tsx`
 - `src/components/easter-eggs/RainbowOverlay.tsx`
 - `src/components/effects/BackgroundEffects.tsx`
-- `src/components/hub/CreateMenu.tsx`
-- `src/components/clips/ClipSkeleton.tsx`
+- `src/components/layout/BottomNav.tsx`
+- optionally `src/components/vybepass/VybePassSheet.tsx` if I need to remove the duplicated non-loop-safe preview gradient
 
 Technical note
-- The main fix is consistency: same direction, same loop math, same timing, same gradient structure everywhere.
-- Right now the app mixes seamless loops, ping-pong loops, and hard shimmer beams. I’ll normalize all persistent decorative motion so it behaves like one polished system.
+
+The real fix is not just “make it slower” or “more linear.” The fix is making every loop end on the exact same visual slice it started on. Right now some animations travel across a non-repeating strip, so the restart is guaranteed. I’ll convert them to a true repeating cycle so they keep moving and only return to the beginning when the beginning already looks identical to the current frame.
