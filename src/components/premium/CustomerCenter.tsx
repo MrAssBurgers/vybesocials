@@ -87,7 +87,7 @@ export function CustomerCenter({ open, onOpenChange }: CustomerCenterProps) {
       icon: Mail,
       label: 'Contact Support',
       desc: 'Get help with billing or subscription issues',
-      action: () => window.open('mailto:support@vybehub.app?subject=Subscription%20Help', '_blank'),
+      action: () => window.open('mailto:vybesocial.info@gmail.com?subject=Subscription%20Help', '_blank'),
     },
     {
       icon: HelpCircle,

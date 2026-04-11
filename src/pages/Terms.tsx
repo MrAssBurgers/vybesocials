@@ -3,7 +3,7 @@ import { FileText, ArrowLeft, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
 
-const CONTACT_EMAIL = 'legal@vybeapp.com';
+const CONTACT_EMAIL = 'vybesocial.info@gmail.com';
 const EFFECTIVE_DATE = 'February 16, 2026';
 const TOS_VERSION = '2.0';
 
