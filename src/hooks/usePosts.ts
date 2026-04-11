@@ -97,7 +97,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
 
       if (profile) {
         const [likesResult, bookmarksResult] = await Promise.all([
-          supabase.from('likes').select('post_id').eq('user_id', profile.id),
+          supabase.from('likes').select('post_id, reaction_type').eq('user_id', profile.id),
           supabase.from('bookmarks').select('post_id').eq('user_id', profile.id),
         ]);
 
@@ -204,7 +204,7 @@ export function useFollowingPosts() {
 
       // Get likes and bookmarks
       const [likesResult, bookmarksResult] = await Promise.all([
-        supabase.from('likes').select('post_id').eq('user_id', profile.id),
+        supabase.from('likes').select('post_id, reaction_type').eq('user_id', profile.id),
         supabase.from('bookmarks').select('post_id').eq('user_id', profile.id),
       ]);
 

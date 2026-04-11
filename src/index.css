@@ -1660,19 +1660,10 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 /* Keyframe animations */
 @keyframes gradient-shift {
   0% {
-    background-position: 0% 0%;
-  }
-  25% {
-    background-position: 50% 100%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  75% {
-    background-position: 50% 0%;
+    background-position: 0% 50%;
   }
   100% {
-    background-position: 0% 0%;
+    background-position: 100% 50%;
   }
 }
 
@@ -2794,17 +2785,7 @@ img, video {
    VYBE-style gradient animation
    ======================================== */
 
-@keyframes gradient-shift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
+/* gradient-shift defined above — removed duplicate */
 
 @keyframes shimmer-sweep {
   0% {
@@ -3263,10 +3244,7 @@ img, video {
 
 @keyframes premium-gold-shimmer {
   0% { background-position: 0% 50%; }
-  25% { background-position: 50% 50%; }
-  50% { background-position: 100% 50%; }
-  75% { background-position: 50% 50%; }
-  100% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
 }
 
 /* ========================================

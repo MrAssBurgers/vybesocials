@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useDisplayStyle } from '@/hooks/useDisplayStyle';
 import { NAME_COLOR_MAP } from '@/lib/cosmeticConstants';
@@ -51,7 +51,7 @@ interface StyledUsernameProps {
  * On desktop: Uses CSS gradient for premium visual effect
  * On mobile/tablet: Falls back to solid color + drop-shadow (matches WelcomeHeader)
  */
-export const StyledUsername = memo(function StyledUsername({
+export const StyledUsername = memo(forwardRef<HTMLSpanElement, StyledUsernameProps>(function StyledUsername({
   userId,
   username,
   displayName,
@@ -60,7 +60,7 @@ export const StyledUsername = memo(function StyledUsername({
   preferDisplayName = true,
   badgeStyle: preloadedStyle,
   nameColorOverride,
-}: StyledUsernameProps) {
+}, ref) {
   // Generate unique ID early (before conditions)
   const elementId = useMemo(() => `styled-username-${Math.random().toString(36).slice(2, 9)}`, []);
 
