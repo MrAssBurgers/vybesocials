@@ -1,62 +1,66 @@
 
+Goal: make the user’s selected custom image actually replace the app background everywhere, instead of being hidden by the current UI.
 
-## Fix DM Gesture System — Instagram-Perfect Hold, Swipe, and Tap
+What I found:
+- The app has 2 competing background systems:
+  1. `AppBackgroundProvider` applies the real background to `document.body`
+  2. `ThemeCustomizer` / `useCustomTheme.ts` still use legacy `backgroundImage` theme tokens and `applyBackgroundImage(...)`
+- The real background is being painted over by opaque app wrappers:
+  - `src/components/layout/AnimatedRoutes.tsx` uses `min-h-screen bg-background`
+  - `src/components/layout/AppLayout.tsx` loading shell uses `bg-background`
+  - many route shells use solid `bg-background`
+- Messages explicitly disables the wallpaper:
+  - `src/pages/Messages.tsx` sets `data-dm-active`
+  - `src/index.css` then forces `background-image: none !important`
+  - the DM container also sets `backgroundImage: 'none'`
+- `AppBackground.tsx` exposes opacity/blur state, but the CSS layer that should visually apply those values is incomplete, so that part is unreliable too.
 
-### Root Cause
+Implementation plan:
+1. Make `AppBackgroundProvider` the only source of truth for the actual image
+- Keep image rendering in `src/components/layout/AppBackground.tsx`
+- Stop using the legacy theme-token path as a rendering mechanism for custom wallpapers
+- In `ThemeCustomizer` / `BackgroundCustomizer`, use the app background context + active background data for live preview/state, instead of relying on `theme_tokens.backgroundImage`
 
-Framer Motion's `drag="x"` on `SwipeToReply` fires `onDragStart` immediately on any pointer movement, which calls `clearLongPress()` — killing the hold timer before it can fire. The gestures are fighting each other because drag detection activates before the hold has a chance to complete.
+2. Unmask the global wallpaper
+- Remove or conditionally neutralize the solid `bg-background` wrappers that sit on top of the body background:
+  - `src/components/layout/AnimatedRoutes.tsx`
+  - `src/components/layout/AppLayout.tsx`
+- Add a clean “background-aware” shell rule in `src/index.css` so top-level layout surfaces become transparent when a custom background is active, while inner cards/sheets can still stay readable
 
-### Solution: Gesture State Machine with Mutual Exclusion
+3. Stop DMs from killing the wallpaper
+- Remove the forced wallpaper suppression in:
+  - `src/pages/Messages.tsx`
+  - `src/index.css` (`html[data-dm-active="true"] body { background-image: none !important; }`)
+- Keep DM readability by using chat-level surfaces/overlays instead of disabling the global background entirely
 
-Replace the current overlapping gesture approach with a clean state machine: `idle → holding | swiping`. Once one wins, the other is locked out.
+4. Remove the split-brain settings behavior
+- Update `src/components/settings/ThemeCustomizer.tsx`
+- Update `src/components/settings/BackgroundCustomizer.tsx`
+- Update `src/hooks/useCustomTheme.ts`
+So the settings screen reflects the real active background from the background library/provider, not stale theme-token background state
 
-### Changes
+5. Finish the visual layer cleanly
+- Either:
+  - wire opacity/blur to a real CSS-backed background layer, or
+  - temporarily simplify/remove those controls if they cannot be made reliable in this pass
+- I’ll keep the final result clean: no dead sliders, no fake “applied” state
 
-**`src/components/chat/SwipeToReply.tsx`** — Complete rewrite of gesture logic:
-- Remove `drag="x"` from the motion.div entirely. Use manual `onPointerDown/Move/Up` for everything.
-- Implement a gesture state ref: `idle`, `holding`, `swiping`
-- On pointer down: start 300ms hold timer
-- On pointer move: if movement > 10px, cancel hold timer and enter `swiping` state. If in `holding` state, ignore movement.
-- On 300ms timer fire: enter `holding` state, call `onLongPress()`, vibrate, lock out swiping
-- Swipe only activates after horizontal drag > 40px dead zone
-- Use `animate(x, ...)` manually for the swipe translation instead of Framer drag
-- Add `whileTap`-style scale feedback: when pointer is down and not yet swiping, scale message to 0.96 via a motion value
-- On pointer up: if in swiping state and past threshold, trigger reply. Reset everything.
+Files to update:
+- `src/components/layout/AppBackground.tsx`
+- `src/components/layout/AnimatedRoutes.tsx`
+- `src/components/layout/AppLayout.tsx`
+- `src/pages/Messages.tsx`
+- `src/index.css`
+- `src/components/settings/ThemeCustomizer.tsx`
+- `src/components/settings/BackgroundCustomizer.tsx`
+- `src/hooks/useCustomTheme.ts`
 
-**`src/components/chat/DMHoldMenu.tsx`** — Animation polish:
-- Change spring config to `stiffness: 260, damping: 22` per spec
-- Add backdrop blur (`backdrop-blur-sm`) for the dim overlay
-- Menu animates from the message position (scale from 0.8 → 1, opacity 0 → 1)
+Acceptance criteria:
+- Upload/select a custom background and it immediately replaces the app background
+- Refresh the app and the same background still shows
+- Open Messages and the custom background still remains visible
+- Settings shows the correct currently active background
+- No more cases where theme changes or DM route logic silently remove the wallpaper
+- The result looks intentional and clean, not like a transparent/buggy overlay hack
 
-**`src/components/chat/ChatView.tsx`** — Minor wiring:
-- Ensure `handleMediaTap` only fires on clean taps (no swipe, no hold)
-- The `onClick` on media div should check a `gestureConsumedRef` from SwipeToReply to avoid opening viewer after a hold/swipe
-
-### Gesture Flow Summary
-
-```text
-pointer down
-  ├─ start 300ms timer
-  ├─ scale → 0.96 (visual feedback)
-  │
-  ├─ move > 10px? → cancel timer, enter SWIPING
-  │   ├─ drag > 40px → show reply indicator
-  │   └─ release past 50px → trigger reply
-  │
-  └─ 300ms elapsed, < 10px movement → enter HOLDING
-      ├─ fire onLongPress() + vibrate
-      ├─ show DMHoldMenu with spring(260, 22)
-      └─ swipe locked out
-  
-pointer up (no state entered) → tap passthrough to children
-```
-
-### Files Modified
-| File | Change |
-|------|--------|
-| `src/components/chat/SwipeToReply.tsx` | Rewrite: manual pointer tracking, gesture state machine, no `drag="x"` |
-| `src/components/chat/DMHoldMenu.tsx` | Spring config update (260/22), backdrop blur |
-| `src/components/chat/ChatView.tsx` | Guard media tap against consumed gestures |
-
-No backend or database changes.
-
+No backend/database changes are needed for this fix; this is a frontend architecture and CSS cleanup issue.
