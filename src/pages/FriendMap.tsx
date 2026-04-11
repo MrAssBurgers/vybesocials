@@ -1333,7 +1333,6 @@ function FriendMapInner() {
           </div>
         </div>
       </div>
-    </div>
   );
 }
 
