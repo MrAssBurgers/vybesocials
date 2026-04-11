@@ -2298,24 +2298,28 @@ const MessageBubble = memo(function MessageBubble({
 
           {/* Image/GIF message (not for shared posts - they use SharedPostBubble) */}
           {isMediaMessage && !isSharedPost && (
-            <ChatMediaBubble
-              mediaUrl={message.media_url!}
-              mediaType={message.media_type as 'image' | 'gif'}
-              isFlagged={(message as any).is_flagged}
-              isOwn={isOwn}
-              content={message.content}
-            />
+            <div onClick={handleMediaTap} className="cursor-pointer">
+              <ChatMediaBubble
+                mediaUrl={message.media_url!}
+                mediaType={message.media_type as 'image' | 'gif'}
+                isFlagged={(message as any).is_flagged}
+                isOwn={isOwn}
+                content={message.content}
+              />
+            </div>
           )}
 
           {/* Video message - regular DM video (not shared posts) */}
           {isVideoMessage && !isSharedPost && (
-            <ChatMediaBubble
-              mediaUrl={message.media_url!}
-              mediaType="video"
-              isFlagged={(message as any).is_flagged}
-              isOwn={isOwn}
-              content={message.content}
-            />
+            <div onClick={handleMediaTap} className="cursor-pointer">
+              <ChatMediaBubble
+                mediaUrl={message.media_url!}
+                mediaType="video"
+                isFlagged={(message as any).is_flagged}
+                isOwn={isOwn}
+                content={message.content}
+              />
+            </div>
           )}
 
           {/* VYBE message - Snapchat style tap to view (view once) */}
@@ -2583,7 +2587,7 @@ const MessageBubble = memo(function MessageBubble({
           )}
         </AnimatePresence>
 
-        {/* Compact frosted glass context menu */}
+        {/* Instagram-style dark context menu */}
         <AnimatePresence>
         {showContextMenu && (
           <>
@@ -2591,84 +2595,126 @@ const MessageBubble = memo(function MessageBubble({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.12 }}
-              className="fixed inset-0 backdrop-blur-md bg-black/40 z-[99]"
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 bg-black/60 z-[99]"
               onClick={() => { setShowContextMenu(false); menuOpenedRef.current = false; }}
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              className="fixed z-[100] w-[170px] rounded-xl backdrop-blur-xl bg-black/70 border border-white/10 shadow-2xl overflow-hidden"
-              style={{
-                top: bubbleRef.current 
-                  ? Math.min(bubbleRef.current.getBoundingClientRect().top, window.innerHeight - 280)
-                  : '40%',
-                left: isOwn 
-                  ? (bubbleRef.current ? Math.max(8, bubbleRef.current.getBoundingClientRect().left - 178) : 8)
-                  : (bubbleRef.current ? Math.min(bubbleRef.current.getBoundingClientRect().right + 8, window.innerWidth - 178) : 8),
-              }}
+              className="fixed z-[100] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] rounded-2xl bg-[#262626] shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Smart emoji reaction row */}
+              <div className="flex items-center justify-around px-4 py-3 border-b border-white/[0.08]">
+                {smartEmojis.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReaction(emoji);
+                      setShowContextMenu(false);
+                      menuOpenedRef.current = false;
+                    }}
+                    className={cn(
+                      "text-2xl p-1 hover:scale-125 active:scale-90 transition-transform rounded-full",
+                      userReaction === emoji && "bg-white/10"
+                    )}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              {/* Action rows */}
               <button
                 onClick={() => { onReply(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                className="w-full px-3 py-2.5 text-left text-[13px] font-medium text-white/90 active:bg-white/15 flex items-center gap-2.5 transition-colors"
+                className="w-full px-4 py-3 text-left text-[14px] font-normal text-white/90 active:bg-white/10 flex items-center gap-3 transition-colors"
               >
-                <Reply className="h-3.5 w-3.5 text-white/60" /> Reply
+                <Reply className="h-[18px] w-[18px] text-white/60" /> Reply
               </button>
               {message.content && (
                 <>
-                  <div className="mx-2.5 border-t border-white/8" />
+                  <div className="border-t border-white/[0.08]" />
                   <button
                     onClick={copyToClipboard}
-                    className="w-full px-3 py-2.5 text-left text-[13px] font-medium text-white/90 active:bg-white/15 flex items-center gap-2.5 transition-colors"
+                    className="w-full px-4 py-3 text-left text-[14px] font-normal text-white/90 active:bg-white/10 flex items-center gap-3 transition-colors"
                   >
-                    <Copy className="h-3.5 w-3.5 text-white/60" /> Copy
+                    <Copy className="h-[18px] w-[18px] text-white/60" /> Copy
+                  </button>
+                </>
+              )}
+              {(isMediaMessage || isVideoMessage) && message.media_url && (
+                <>
+                  <div className="border-t border-white/[0.08]" />
+                  <button
+                    onClick={() => {
+                      handleMediaTap();
+                      setShowContextMenu(false);
+                      menuOpenedRef.current = false;
+                    }}
+                    className="w-full px-4 py-3 text-left text-[14px] font-normal text-white/90 active:bg-white/10 flex items-center gap-3 transition-colors"
+                  >
+                    <Download className="h-[18px] w-[18px] text-white/60" /> Save
                   </button>
                 </>
               )}
               {isMediaMessage && message.media_url && onSaveSticker && (
                 <>
-                  <div className="mx-2.5 border-t border-white/8" />
+                  <div className="border-t border-white/[0.08]" />
                   <button
                     onClick={() => { onSaveSticker(message.media_url!); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                    className="w-full px-3 py-2.5 text-left text-[13px] font-medium text-white/90 active:bg-white/15 flex items-center gap-2.5 transition-colors"
+                    className="w-full px-4 py-3 text-left text-[14px] font-normal text-white/90 active:bg-white/10 flex items-center gap-3 transition-colors"
                   >
-                    <Sparkles className="h-3.5 w-3.5 text-white/60" /> Save Sticker
+                    <Sparkles className="h-[18px] w-[18px] text-white/60" /> Save Sticker
                   </button>
                 </>
               )}
               {isOwn && message.content && !message.media_url && (
                 <>
-                  <div className="mx-2.5 border-t border-white/8" />
+                  <div className="border-t border-white/[0.08]" />
                   <button
                     onClick={() => { onEdit?.(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                    className="w-full px-3 py-2.5 text-left text-[13px] font-medium text-white/90 active:bg-white/15 flex items-center gap-2.5 transition-colors"
+                    className="w-full px-4 py-3 text-left text-[14px] font-normal text-white/90 active:bg-white/10 flex items-center gap-3 transition-colors"
                   >
-                    <Edit3 className="h-3.5 w-3.5 text-white/60" /> Edit
+                    <Edit3 className="h-[18px] w-[18px] text-white/60" /> Edit
                   </button>
                 </>
               )}
-              <div className="mx-2.5 border-t border-white/8" />
+              <div className="border-t border-white/[0.08]" />
               {isOwn && (
                 <button
                   onClick={handleUnsend}
-                  className="w-full px-3 py-2.5 text-left text-[13px] font-medium text-red-400 active:bg-white/15 flex items-center gap-2.5 transition-colors"
+                  className="w-full px-4 py-3 text-left text-[14px] font-normal text-red-400 active:bg-white/10 flex items-center gap-3 transition-colors"
                 >
-                  <Trash2 className="h-3.5 w-3.5" /> Unsend
+                  <Trash2 className="h-[18px] w-[18px]" /> Unsend
                 </button>
               )}
               <button
                 onClick={() => { onDeleteForMe(); setShowContextMenu(false); menuOpenedRef.current = false; }}
-                className="w-full px-3 py-2.5 text-left text-[13px] font-medium text-white/40 active:bg-white/15 flex items-center gap-2.5 transition-colors"
+                className="w-full px-4 py-3 text-left text-[14px] font-normal text-white/40 active:bg-white/10 flex items-center gap-3 transition-colors"
               >
-                <EyeOff className="h-3.5 w-3.5" /> Delete for me
+                <EyeOff className="h-[18px] w-[18px]" /> Delete for me
               </button>
             </motion.div>
           </>
         )}
         </AnimatePresence>
+
+        {/* Fullscreen image/video viewer */}
+        <AnimatePresence>
+          {viewerMedia && (
+            <ImageViewer
+              mediaUrl={viewerMedia.url}
+              mediaType={viewerMedia.type === 'gif' ? 'image' : viewerMedia.type}
+              onClose={() => setViewerMedia(null)}
+              onReply={() => { onReply(); setViewerMedia(null); }}
+            />
+          )}
+        </AnimatePresence>
+
         {/* Edited indicator */}
         {message.is_edited && (
           <span className="text-[9px] text-muted-foreground/50 italic ml-1">(edited)</span>
