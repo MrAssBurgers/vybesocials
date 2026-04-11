@@ -674,6 +674,19 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
                     </Button>
                   </div>
                 )}
+
+                {/* Next update indicator */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="flex items-center justify-center gap-1.5 pt-2 pb-4"
+                >
+                  <RefreshCw className="h-3 w-3 text-muted-foreground/30" />
+                  <span className="text-[10px] text-muted-foreground/40">
+                    Next auto-update at {formatNextUpdate()}
+                  </span>
+                </motion.div>
               </div>
             ) : (
               <GeneratingScreen />
