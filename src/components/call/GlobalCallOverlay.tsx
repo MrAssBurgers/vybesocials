@@ -355,20 +355,29 @@ export function GlobalCallOverlay() {
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
 
       const isGroupCall = stateRef.current.call?.isGroupCall;
-      const LINGER_SECONDS = isGroupCall ? 60 * 60 : 30;
+      const isPersistent1v1 = currentModeRef.current === 'persistent' && !isGroupCall;
       setRemoteUserLeft(true);
-      setAutoEndCountdown(LINGER_SECONDS);
 
-      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = setInterval(() => {
-        setAutoEndCountdown(prev => {
-          if (prev <= 1) { if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current); return 0; }
-          return prev - 1;
-        });
-      }, 1000);
+      if (isPersistent1v1) {
+        // 1:1 persistent mode: stay alive indefinitely, no timer
+        setAutoEndCountdown(-1);
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+        if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
+      } else {
+        const LINGER_SECONDS = isGroupCall ? 60 * 60 : 30;
+        setAutoEndCountdown(LINGER_SECONDS);
 
-      if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
-      autoEndTimerRef.current = setTimeout(() => endCall(), LINGER_SECONDS * 1000);
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = setInterval(() => {
+          setAutoEndCountdown(prev => {
+            if (prev <= 1) { if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current); return 0; }
+            return prev - 1;
+          });
+        }, 1000);
+
+        if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
+        autoEndTimerRef.current = setTimeout(() => endCall(), LINGER_SECONDS * 1000);
+      }
     });
 
     room.on(RoomEvent.Reconnecting, () => setIsReconnecting(true));
@@ -1122,7 +1131,7 @@ export function GlobalCallOverlay() {
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-semibold text-sm">Call still live</p>
-                      <p className="text-white/60 text-xs">{displayName} left · They can rejoin · Auto-ends in {Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
+                      <p className="text-white/60 text-xs">{autoEndCountdown === -1 ? `${displayName} left · They can rejoin anytime` : `${displayName} left · They can rejoin · Auto-ends in ${Math.floor(autoEndCountdown / 60)}:${(autoEndCountdown % 60).toString().padStart(2, '0')}`}</p>
                     </div>
                   </div>
                 </div>
