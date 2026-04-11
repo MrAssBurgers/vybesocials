@@ -38,8 +38,8 @@ export function SwipeToReply({
 
   const replyOpacity = useTransform(x, [0, 20, SWIPE_DEAD_ZONE, SWIPE_THRESHOLD], [0, 0, 0.5, 1]);
   const replyScale = useTransform(x, [0, 20, SWIPE_THRESHOLD], [0, 0.5, 1]);
-  const replyX = useTransform(x, [0, SWIPE_THRESHOLD], [-20, 8]);
-  const replyRotate = useTransform(x, [0, SWIPE_THRESHOLD, MAX_SWIPE], [-45, 0, 10]);
+  const replyX = useTransform(x, [0, SWIPE_THRESHOLD], isOwn ? [20, -8] : [-20, 8]);
+  const replyRotate = useTransform(x, [0, SWIPE_THRESHOLD, MAX_SWIPE], isOwn ? [45, 0, -10] : [-45, 0, 10]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -65,7 +65,8 @@ export function SwipeToReply({
   }, [x, scale, clearTimer]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (disabled || e.pointerType === 'mouse') return;
+    if (disabled) return;
+    if (e.button !== 0) return;
 
     e.currentTarget.setPointerCapture(e.pointerId);
     startRef.current = { x: e.clientX, y: e.clientY };
@@ -109,12 +110,18 @@ export function SwipeToReply({
 
     if (stateRef.current !== 'swiping') return;
 
-    const clampedX = Math.max(0, Math.min(dx, MAX_SWIPE));
+    const directionalDx = isOwn ? -dx : dx;
+    if (directionalDx < 0) {
+      x.set(0);
+      return;
+    }
+
+    const clampedX = Math.max(0, Math.min(directionalDx, MAX_SWIPE));
     const finalX = clampedX > SWIPE_THRESHOLD
       ? SWIPE_THRESHOLD + (clampedX - SWIPE_THRESHOLD) * 0.3
       : clampedX;
 
-    x.set(finalX);
+    x.set(isOwn ? -finalX : finalX);
 
     if (finalX >= SWIPE_THRESHOLD && !replyTriggeredRef.current) {
       replyTriggeredRef.current = true;
@@ -122,7 +129,7 @@ export function SwipeToReply({
     } else if (finalX < SWIPE_THRESHOLD * 0.8) {
       replyTriggeredRef.current = false;
     }
-  }, [x, scale, clearTimer, resetAll, armClickSuppression]);
+  }, [x, scale, clearTimer, resetAll, armClickSuppression, isOwn]);
 
   const handlePointerUp = useCallback(() => {
     if (!startRef.current) return;
@@ -132,7 +139,7 @@ export function SwipeToReply({
       armClickSuppression();
     }
 
-    if (state === 'swiping' && x.get() >= SWIPE_THRESHOLD) {
+    if (state === 'swiping' && Math.abs(x.get()) >= SWIPE_THRESHOLD) {
       onReply();
       if ('vibrate' in navigator) navigator.vibrate([8, 50, 8]);
     }
@@ -158,8 +165,8 @@ export function SwipeToReply({
     <div className="relative overflow-visible touch-pan-y">
       <motion.div
         className={cn(
-          'absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-10',
-          isOwn && 'left-auto right-0 translate-x-2'
+          'absolute top-1/2 -translate-y-1/2 pointer-events-none z-10',
+          isOwn ? 'right-0' : 'left-0'
         )}
         style={{
           opacity: replyOpacity,
