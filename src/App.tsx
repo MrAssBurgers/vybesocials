@@ -121,7 +121,7 @@ function ScrollRestoration() {
 const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
 // Track if initial load has completed (persists across navigations)
-let hasInitialLoadCompleted = false;
+
 
 // Background brief pre-fetcher (needs auth context)
 function BriefPreFetchInit() {
