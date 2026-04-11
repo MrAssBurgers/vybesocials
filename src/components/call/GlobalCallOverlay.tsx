@@ -146,9 +146,27 @@ export function GlobalCallOverlay() {
       case 'disconnected':
         if (!isLeavingRef.current && !p2pEndedRef.current) {
           if (event.reason === 'remote-hangup') {
-            p2pEndedRef.current = true;
-            toast.info('Call ended');
-            endCall();
+            // P2P linger: don't end the call immediately, start countdown
+            console.log('[CallOverlay] P2P remote hangup — entering linger mode');
+            setHasRemoteParticipant(false);
+            setRemoteUserLeft(true);
+            const LINGER_SECONDS = 30;
+            setAutoEndCountdown(LINGER_SECONDS);
+
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = setInterval(() => {
+              setAutoEndCountdown(prev => {
+                if (prev <= 1) { if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current); return 0; }
+                return prev - 1;
+              });
+            }, 1000);
+
+            if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
+            autoEndTimerRef.current = setTimeout(() => {
+              p2pEndedRef.current = true;
+              toast.info('Call ended');
+              endCall();
+            }, LINGER_SECONDS * 1000);
           }
         }
         break;
@@ -730,11 +748,15 @@ export function GlobalCallOverlay() {
   // Accept incoming call
   const handleAccept = useCallback(async () => {
     if (!state.call) return;
-    try {
-      await requestCallMediaPermissions(state.call.callType);
-    } catch (err: any) {
-      toast.error(err.message || 'Microphone permission required');
-      return;
+    // For P2P mode, skip requestCallMediaPermissions — P2PConnection.connect()
+    // calls getUserMedia itself. Double-requesting causes iOS camera failures.
+    if (state.call.callMode !== 'p2p') {
+      try {
+        await requestCallMediaPermissions(state.call.callType);
+      } catch (err: any) {
+        toast.error(err.message || 'Microphone permission required');
+        return;
+      }
     }
     try {
       await acceptCall(state.call);
@@ -824,7 +846,7 @@ export function GlobalCallOverlay() {
     <>
       {/* Audio element — always mounted during active call */}
       {isVisible && !isRinging && (
-        <audio ref={remoteAudioRef} autoPlay playsInline style={{ position: 'fixed', left: -9999, top: -9999, width: 1, height: 1 }} />
+        <audio ref={remoteAudioRef} autoPlay playsInline style={{ position: 'fixed', top: 0, left: 0, width: 1, height: 1, opacity: 0 }} />
       )}
 
       {/* Minimized Call Bubble */}
@@ -1087,9 +1109,9 @@ export function GlobalCallOverlay() {
             )}
           </AnimatePresence>
 
-          {/* Remote user left banner (persistent mode only) */}
+          {/* Remote user left banner (all modes) */}
           <AnimatePresence>
-            {remoteUserLeft && isConnected && currentMode === 'persistent' && (
+            {remoteUserLeft && isConnected && (
               <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="absolute top-32 left-4 right-4 z-50">
                 <div className="p-4 rounded-2xl backdrop-blur-xl bg-primary/20 border border-primary/30 shadow-2xl">
                   <div className="flex items-center gap-3">
