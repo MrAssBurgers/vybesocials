@@ -1754,6 +1754,16 @@ export function ChatView() {
           isVoiceLocked={isVoiceLocked}
           setIsVoiceLocked={setIsVoiceLocked}
           voiceLockStartYRef={voiceLockStartYRef}
+          safetyFilterNode={
+            <SafetyFilterRequestButton
+              isSafetyDisabled={conversationSafety.isSafetyDisabled}
+              hasPendingRequest={conversationSafety.hasPendingRequest}
+              isUnder13={conversationSafety.isUnder13}
+              isRequester={conversationSafety.isRequester}
+              onRequestDisable={() => conversationSafety.requestDisable.mutate()}
+              onReEnable={() => conversationSafety.reEnable.mutate()}
+            />
+          }
         />
       )}
 
