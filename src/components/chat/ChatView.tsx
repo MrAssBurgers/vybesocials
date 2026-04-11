@@ -246,6 +246,7 @@ export function ChatView() {
   const uploadingRef = useRef(false); // Prevent double uploads
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
+  const [showContextMenuMessageId, setShowContextMenuMessageId] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   // DM Feature Sheet states
@@ -2064,14 +2065,13 @@ const MessageBubble = memo(function MessageBubble({
   onCloseContextMenu?: () => void;
 }) {
   const [isViewed, setIsViewed] = useState(false);
-  // For VYBE snaps: check if ANY view exists (server truth)
   const hasAnyViews = message.views && message.views.length > 0;
   const [vybeViewed, setVybeViewed] = useState(hasAnyViews);
   const [showVybeViewer, setShowVybeViewer] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
-  const menuOpenedRef = useRef(false);
-  
-  // Sync local state with server truth when message updates (realtime)
+  const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'gif' | 'video' } | null>(null);
+  const isContextMenuOpen = showContextMenu || forceShowContextMenu;
+
   useEffect(() => {
     if (hasAnyViews && !showVybeViewer) {
       setVybeViewed(true);
@@ -2092,26 +2092,22 @@ const MessageBubble = memo(function MessageBubble({
 
   const hasBeenViewed = message.views && message.views.length > 0;
   
-  // Deduplicate reactions - one per user, show unique emojis only
   const uniqueReactions = useMemo(() => {
     const reactions = message.reactions || [];
     const userReactionMap = new Map<string, string>();
     
-    // Keep only the latest reaction per user
     reactions.forEach(r => {
       userReactionMap.set(r.user_id, r.emoji);
     });
     
-    // Get unique emojis with counts
     const emojiCounts = new Map<string, number>();
     userReactionMap.forEach(emoji => {
       emojiCounts.set(emoji, (emojiCounts.get(emoji) || 0) + 1);
     });
     
-    return Array.from(emojiCounts.entries()).slice(0, 3); // Max 3 unique emojis shown
+    return Array.from(emojiCounts.entries()).slice(0, 3);
   }, [message.reactions]);
 
-  // Check if current user already reacted
   const userReaction = useMemo(() => {
     if (!profileId) return null;
     return message.reactions?.find(r => r.user_id === profileId)?.emoji || null;
@@ -2119,86 +2115,33 @@ const MessageBubble = memo(function MessageBubble({
 
   const smartEmojis = useMemo(() => getTopEmojis(6), []);
 
+  const closeContextMenu = useCallback(() => {
+    setShowContextMenu(false);
+    onCloseContextMenu?.();
+  }, [onCloseContextMenu]);
+
   const handleReaction = useCallback((emoji: string) => {
     recordEmoji(emoji);
     onReaction(message.id, emoji);
     onToggleReactions();
-  }, [message.id, onReaction, onToggleReactions]);
+    closeContextMenu();
+  }, [message.id, onReaction, onToggleReactions, closeContextMenu]);
 
   const handleUnsend = useCallback(() => {
     onUnsendForEveryone();
-    setShowContextMenu(false);
-  }, [onUnsendForEveryone]);
-
-
-  // Standalone long-press detection using touch events (bypasses framer-motion drag)
-  const bubbleRef = useRef<HTMLDivElement>(null);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'gif' | 'video' } | null>(null);
-  const LONG_PRESS_MS = 400;
-  const MOVE_TOLERANCE = 10;
-
-  const clearLongPress = useCallback(() => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  }, []);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-    longPressTimerRef.current = setTimeout(() => {
-      menuOpenedRef.current = true;
-      setShowContextMenu(true);
-      if ('vibrate' in navigator) navigator.vibrate(10);
-    }, LONG_PRESS_MS);
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchStartRef.current) return;
-    const touch = e.touches[0];
-    const dx = Math.abs(touch.clientX - touchStartRef.current.x);
-    const dy = Math.abs(touch.clientY - touchStartRef.current.y);
-    if (dx > MOVE_TOLERANCE || dy > MOVE_TOLERANCE) {
-      clearLongPress();
-    }
-  }, [clearLongPress]);
-
-  const handleTouchEnd = useCallback(() => {
-    clearLongPress();
-    touchStartRef.current = null;
-  }, [clearLongPress]);
+    closeContextMenu();
+  }, [onUnsendForEveryone, closeContextMenu]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    menuOpenedRef.current = true;
     setShowContextMenu(true);
   }, []);
 
   const handleMediaTap = useCallback(() => {
-    if (menuOpenedRef.current) return;
     if (message.media_url && (message.media_type === 'image' || message.media_type === 'gif' || message.media_type === 'video')) {
       setViewerMedia({ url: message.media_url, type: message.media_type as 'image' | 'gif' | 'video' });
     }
   }, [message.media_url, message.media_type]);
-
-  // Reset menuOpenedRef when context menu closes
-  useEffect(() => {
-    if (!showContextMenu) {
-      menuOpenedRef.current = false;
-    }
-  }, [showContextMenu]);
-
-  const copyToClipboard = useCallback(() => {
-    if (message.content) {
-      navigator.clipboard.writeText(message.content);
-      toast.success('Copied to clipboard');
-    }
-    setShowContextMenu(false);
-    menuOpenedRef.current = false;
-  }, [message.content]);
 
   // Check if this is an audio message for proper sizing
   const isAudioMessage = message.media_url && message.media_type === 'audio';
@@ -2298,14 +2241,9 @@ const MessageBubble = memo(function MessageBubble({
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
             repliedMessage && 'rounded-t-[14px]'
           )}
-          ref={bubbleRef}
           data-message-id={message.id}
           onContextMenu={handleContextMenu}
           onDoubleClick={onToggleReactions}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchEnd}
         >
 
           {/* Image/GIF message (not for shared posts - they use SharedPostBubble) */}
@@ -2601,8 +2539,8 @@ const MessageBubble = memo(function MessageBubble({
 
         {/* Instagram-style dark context menu (shared component) */}
         <DMHoldMenu
-          open={showContextMenu}
-          onClose={() => { setShowContextMenu(false); menuOpenedRef.current = false; }}
+          open={isContextMenuOpen}
+          onClose={closeContextMenu}
           messageContent={message.content}
           mediaUrl={message.media_url}
           mediaType={message.media_type}
@@ -2612,18 +2550,28 @@ const MessageBubble = memo(function MessageBubble({
           onReply={onReply}
           onEdit={onEdit}
           onUnsend={isOwn ? handleUnsend : undefined}
-          onDeleteForMe={onDeleteForMe}
-          onSave={(isMediaMessage || isVideoMessage) && message.media_url ? () => {
-            // Actually download the file instead of opening viewer
-            const url = message.media_url!;
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `vybe-${Date.now()}.${message.media_type === 'video' ? 'mp4' : 'jpg'}`;
-            a.target = '_blank';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            toast.success('Saving...');
+          onDeleteForMe={() => {
+            onDeleteForMe();
+            closeContextMenu();
+          }}
+          onSave={(isMediaMessage || isVideoMessage) && message.media_url ? async () => {
+            try {
+              const { getSignedUrl, needsSigning } = await import('@/lib/signedUrlCache');
+              const resolvedUrl = needsSigning(message.media_url!) ? await getSignedUrl(message.media_url!) : message.media_url!;
+              const response = await fetch(resolvedUrl);
+              const blob = await response.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `vybe-${Date.now()}.${message.media_type === 'video' ? 'mp4' : 'jpg'}`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+              toast.success('Saved to device');
+            } catch {
+              toast.error('Failed to save');
+            }
           } : undefined}
           onSaveSticker={isMediaMessage && message.media_url && onSaveSticker ? () => onSaveSticker(message.media_url!) : undefined}
         />
@@ -2658,6 +2606,7 @@ const MessageBubble = memo(function MessageBubble({
     prevProps.showAvatar === nextProps.showAvatar &&
     prevProps.showReactions === nextProps.showReactions &&
     prevProps.profileId === nextProps.profileId &&
+    prevProps.forceShowContextMenu === nextProps.forceShowContextMenu &&
     JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions) &&
     JSON.stringify(prevProps.message.views) === JSON.stringify(nextProps.message.views)
   );
