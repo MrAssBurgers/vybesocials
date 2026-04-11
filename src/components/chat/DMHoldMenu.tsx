@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Reply, Copy, Download, Sparkles, Edit3, Trash2, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { getTopEmojis, recordEmoji } from '@/lib/frequentEmojis';
+import { getTopEmojis } from '@/lib/frequentEmojis';
 
 export interface DMHoldMenuProps {
   open: boolean;
@@ -51,7 +51,6 @@ export const DMHoldMenu = memo(function DMHoldMenu({
   const isVideoMessage = mediaUrl && mediaType === 'video';
 
   const handleReaction = useCallback((emoji: string) => {
-    recordEmoji(emoji);
     onReaction(emoji);
     onClose();
   }, [onReaction, onClose]);
