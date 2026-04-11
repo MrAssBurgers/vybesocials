@@ -1060,6 +1060,11 @@ function FriendMapInner() {
                       </div>
                     </div>
                   )}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         {/* ── Bottom panel ─────────────────────────────── */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] pb-[max(env(safe-area-inset-bottom),12px)]">
