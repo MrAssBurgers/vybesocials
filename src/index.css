@@ -78,11 +78,7 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   to { transform: translateX(200%); }
 }
 
-/* When DMs are active on mobile/tablet, hide custom background and force solid card color */
-html[data-dm-active="true"] body {
-  background-image: none !important;
-  background-color: hsl(var(--card)) !important;
-}
+/* DM active state — wallpaper stays visible; nav gets a solid surface for readability */
 html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-depth {
   background: hsl(var(--card)) !important;
   backdrop-filter: none !important;

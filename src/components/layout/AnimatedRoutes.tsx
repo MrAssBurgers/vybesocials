@@ -105,7 +105,7 @@ export function AnimatedRoutes() {
   usePageTitle();
   
   return (
-    <div className="min-h-screen bg-background" id="main-content">
+    <div className="min-h-screen" id="main-content">
       <Suspense fallback={<PageFallback />}>
         <Routes location={location}>
             {/* Public routes - no authentication required */}
