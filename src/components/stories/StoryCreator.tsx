@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera as CameraIcon, Image as ImageIcon, Star, Send, Loader2, AlertCircle, RotateCcw, BarChart3 } from 'lucide-react';
+import { ArrowLeft, X, Camera as CameraIcon, Image as ImageIcon, Star, Send, Loader2, AlertCircle, RotateCcw, BarChart3 } from 'lucide-react';
 import { StoryPollEditor, PollData } from './StoryPollEditor';
 import { useCreateStory } from '@/hooks/useStories';
 import { supabase } from '@/integrations/supabase/client';
@@ -215,7 +215,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
           className="text-white"
           disabled={isProcessing}
         >
-          <X className="h-6 w-6" />
+          <ArrowLeft className="h-6 w-6" />
         </Button>
         <h2 className="text-white font-semibold">{t('stories.createStory')}</h2>
         <div className="w-10" />
