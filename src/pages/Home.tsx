@@ -358,8 +358,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             loadMoreRef={loadMoreRef}
           />
 
-          {/* Hidden widgets in edit mode */}
-          {customizerOpen && <HiddenWidgetPlaceholders />}
+          {/* Widget add FAB in edit mode */}
+          {customizerOpen && <WidgetAddFAB />}
         </div>
       </HomeEditModeProvider>
 

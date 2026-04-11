@@ -336,18 +336,9 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
 
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-hidden">
-      {/* Animated background */}
-      <div className="absolute inset-0 overflow-hidden">
-        <motion.div
-          animate={{ 
-            scale: [1, 1.2, 1],
-            rotate: [0, 180, 360],
-          }}
-          transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-          className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] opacity-30"
-        >
-          <div className="w-full h-full bg-gradient-conic from-primary via-accent to-primary rounded-full blur-3xl" />
-        </motion.div>
+      {/* Simplified background - static gradient instead of heavy rotating animation */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] opacity-20 bg-gradient-conic from-primary via-accent to-primary rounded-full blur-3xl" />
       </div>
 
       <AnimatePresence mode="wait">
