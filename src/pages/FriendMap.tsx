@@ -550,15 +550,8 @@ function FriendMapInner() {
     let retryRaf: number | null = null;
     let timeoutIds: number[] = [];
 
-    const forceContainerSize = (el: HTMLDivElement) => {
-      const parent = el.parentElement;
-      const w = parent?.clientWidth || window.innerWidth;
-      const h = parent?.clientHeight || window.innerHeight;
-      el.style.position = 'absolute';
-      el.style.inset = '0';
+    const ensureVisible = (el: HTMLDivElement) => {
       el.style.display = 'block';
-      el.style.width = `${Math.max(w, 320)}px`;
-      el.style.height = `${Math.max(h, 320)}px`;
     };
 
     const safeInvalidateSize = () => {
