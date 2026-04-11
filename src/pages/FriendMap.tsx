@@ -461,6 +461,7 @@ export default function FriendMap() {
     map.on('zoomend', () => setZoom(map.getZoom()));
 
     return () => {
+      roCleanup();
       fLayer.current?.clearLayers();
       myMk.current?.remove();
       accCircle.current?.remove();
