@@ -1993,29 +1993,53 @@ const MessageInputArea = memo(function MessageInputArea({
                     <Sticker className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
                 )}
-                <Button 
-                  variant="ghost"
-                  size="icon"
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-                    setIsRecordingVoice(true);
-                    onLiveRecordingChange?.(true);
-                  }}
-                  onPointerUp={() => {
-                    if (isRecordingVoice && (window as any).__voiceRecorderStop) {
-                      (window as any).__voiceRecorderStop();
-                    }
-                  }}
-                  onPointerCancel={() => {
-                    if (isRecordingVoice && (window as any).__voiceRecorderStop) {
-                      (window as any).__voiceRecorderStop();
-                    }
-                  }}
-                  className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full touch-none"
-                >
-                  <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
-                </Button>
+                {/* Lock indicator above mic button */}
+                <div className="relative">
+                  {isRecordingVoice && !isVoiceLocked && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="absolute -top-10 left-1/2 -translate-x-1/2 flex flex-col items-center"
+                    >
+                      <Lock className="h-4 w-4 text-muted-foreground animate-bounce" />
+                    </motion.div>
+                  )}
+                  <Button 
+                    variant="ghost"
+                    size="icon"
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                      if (voiceLockStartYRef) voiceLockStartYRef.current = e.clientY;
+                      setIsRecordingVoice(true);
+                      setIsVoiceLocked?.(false);
+                      onLiveRecordingChange?.(true);
+                    }}
+                    onPointerMove={(e) => {
+                      if (!isRecordingVoice || isVoiceLocked || !voiceLockStartYRef?.current) return;
+                      const dy = voiceLockStartYRef.current - e.clientY;
+                      if (dy > 40) {
+                        setIsVoiceLocked?.(true);
+                        voiceLockStartYRef.current = null;
+                      }
+                    }}
+                    onPointerUp={() => {
+                      if (isVoiceLocked) return; // locked mode, don't auto-send
+                      if (isRecordingVoice && (window as any).__voiceRecorderStop) {
+                        (window as any).__voiceRecorderStop();
+                      }
+                    }}
+                    onPointerCancel={() => {
+                      if (isVoiceLocked) return;
+                      if (isRecordingVoice && (window as any).__voiceRecorderStop) {
+                        (window as any).__voiceRecorderStop();
+                      }
+                    }}
+                    className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full touch-none"
+                  >
+                    <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </Button>
+                </div>
               </div>
             ) : (
               <Button 
