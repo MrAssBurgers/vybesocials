@@ -1,5 +1,5 @@
 import { useRef, useCallback, ReactNode } from 'react';
-import { motion, useMotionValue, useTransform, PanInfo, animate } from 'framer-motion';
+import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
 import { Reply } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -11,162 +11,153 @@ interface SwipeToReplyProps {
   disabled?: boolean;
 }
 
+const HOLD_MS = 300;
+const HOLD_CANCEL_PX = 10;
+const SWIPE_DEAD_ZONE = 40;
 const SWIPE_THRESHOLD = 50;
 const MAX_SWIPE = 70;
-const DRAG_DEAD_ZONE = 15;
-const LONG_PRESS_MS = 400;
-const LONG_PRESS_CANCEL_DISTANCE = 5;
+
+type GestureState = 'idle' | 'holding' | 'swiping';
 
 /**
- * SwipeToReply owns gesture separation:
- * - swipe => reply only
- * - hold => long-press menu only
- * - tap => passed through to children
+ * Gesture state machine:
+ *   idle → holding  (300ms timer, < 10px movement)
+ *   idle → swiping  (> 10px horizontal movement before timer fires)
+ * Once a state is entered the other is locked out.
+ * Tap (pointerUp while idle) passes through to children.
  */
-export function SwipeToReply({ 
-  children, 
+export function SwipeToReply({
+  children,
   onReply,
   onLongPress,
   isOwn = false,
-  disabled = false
+  disabled = false,
 }: SwipeToReplyProps) {
-  const hasTriggeredRef = useRef(false);
-  const dragActivatedRef = useRef(false);
-  const suppressClickRef = useRef(false);
-  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stateRef = useRef<GestureState>('idle');
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const replyTriggeredRef = useRef(false);
 
   const x = useMotionValue(0);
+  const scale = useMotionValue(1);
 
-  const replyOpacity = useTransform(x, [0, 15, 25, SWIPE_THRESHOLD], [0, 0, 0.5, 1]);
-  const replyScale = useTransform(x, [0, 15, SWIPE_THRESHOLD], [0, 0.5, 1]);
+  // Reply indicator transforms
+  const replyOpacity = useTransform(x, [0, 20, SWIPE_DEAD_ZONE, SWIPE_THRESHOLD], [0, 0, 0.5, 1]);
+  const replyScale = useTransform(x, [0, 20, SWIPE_THRESHOLD], [0, 0.5, 1]);
   const replyX = useTransform(x, [0, SWIPE_THRESHOLD], [-20, 8]);
   const replyRotate = useTransform(x, [0, SWIPE_THRESHOLD, MAX_SWIPE], [-45, 0, 10]);
 
-  const clearLongPress = useCallback(() => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
   }, []);
 
-  const armClickSuppression = useCallback(() => {
-    suppressClickRef.current = true;
-    window.setTimeout(() => {
-      suppressClickRef.current = false;
-    }, 250);
-  }, []);
+  const resetAll = useCallback(() => {
+    stateRef.current = 'idle';
+    startRef.current = null;
+    replyTriggeredRef.current = false;
+    clearTimer();
+    animate(x, 0, { type: 'spring', stiffness: 500, damping: 35, mass: 0.8 });
+    animate(scale, 1, { type: 'spring', stiffness: 400, damping: 25 });
+  }, [x, scale, clearTimer]);
 
-  const handlePointerDownCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (disabled) return;
+    // Only handle touch
     if (e.pointerType === 'mouse') return;
 
-    pressStartRef.current = { x: e.clientX, y: e.clientY };
-    clearLongPress();
-    longPressTimerRef.current = setTimeout(() => {
-      clearLongPress();
-      armClickSuppression();
-      onLongPress?.();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    startRef.current = { x: e.clientX, y: e.clientY };
+    stateRef.current = 'idle';
+    replyTriggeredRef.current = false;
+
+    // Visual press feedback
+    animate(scale, 0.96, { type: 'spring', stiffness: 400, damping: 25 });
+
+    // Start hold timer
+    clearTimer();
+    timerRef.current = setTimeout(() => {
+      if (stateRef.current !== 'idle') return; // already swiping
+      stateRef.current = 'holding';
+      animate(scale, 0.96, { duration: 0 }); // keep scale
       if ('vibrate' in navigator) navigator.vibrate(10);
-    }, LONG_PRESS_MS);
-  }, [disabled, clearLongPress, armClickSuppression, onLongPress]);
+      onLongPress?.();
+    }, HOLD_MS);
+  }, [disabled, clearTimer, onLongPress, scale]);
 
-  const handlePointerMoveCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!pressStartRef.current) return;
-    const dx = Math.abs(e.clientX - pressStartRef.current.x);
-    const dy = Math.abs(e.clientY - pressStartRef.current.y);
-    if (dx > LONG_PRESS_CANCEL_DISTANCE || dy > LONG_PRESS_CANCEL_DISTANCE) {
-      clearLongPress();
-    }
-  }, [clearLongPress]);
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!startRef.current) return;
+    const state = stateRef.current;
 
-  const handlePointerUpCapture = useCallback(() => {
-    clearLongPress();
-    pressStartRef.current = null;
-  }, [clearLongPress]);
+    const dx = e.clientX - startRef.current.x;
+    const dy = e.clientY - startRef.current.y;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
 
-  const handlePointerCancelCapture = useCallback(() => {
-    clearLongPress();
-    pressStartRef.current = null;
-  }, [clearLongPress]);
+    // If holding, ignore all movement
+    if (state === 'holding') return;
 
-  const handleClickCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!suppressClickRef.current) return;
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  const handleDragStart = useCallback(() => {
-    dragActivatedRef.current = false;
-    clearLongPress();
-  }, [clearLongPress]);
-
-  const handleDrag = useCallback((
-    _event: MouseEvent | TouchEvent | PointerEvent,
-    info: PanInfo
-  ) => {
-    if (disabled) return;
-
-    const rawX = info.offset.x;
-
-    if (Math.abs(rawX) > LONG_PRESS_CANCEL_DISTANCE) {
-      clearLongPress();
-    }
-
-    if (!dragActivatedRef.current) {
-      if (rawX < DRAG_DEAD_ZONE) {
-        x.set(0);
+    // Check if movement exceeds cancel threshold
+    if (state === 'idle' && (absDx > HOLD_CANCEL_PX || absDy > HOLD_CANCEL_PX)) {
+      clearTimer();
+      // If mostly vertical, don't enter swiping — let scroll happen
+      if (absDy > absDx) {
+        resetAll();
         return;
       }
-      dragActivatedRef.current = true;
+      stateRef.current = 'swiping';
+      animate(scale, 1, { type: 'spring', stiffness: 400, damping: 25 });
     }
 
-    const clampedX = Math.max(0, Math.min(rawX, MAX_SWIPE));
-    const resistance = clampedX > SWIPE_THRESHOLD ? 0.3 : 1;
-    const finalX = clampedX > SWIPE_THRESHOLD 
-      ? SWIPE_THRESHOLD + (clampedX - SWIPE_THRESHOLD) * resistance
-      : clampedX;
+    if (stateRef.current === 'swiping') {
+      // Only allow right swipe
+      const clampedX = Math.max(0, Math.min(dx, MAX_SWIPE));
+      const resistance = clampedX > SWIPE_THRESHOLD ? 0.3 : 1;
+      const finalX = clampedX > SWIPE_THRESHOLD
+        ? SWIPE_THRESHOLD + (clampedX - SWIPE_THRESHOLD) * resistance
+        : clampedX;
 
-    x.set(finalX);
+      x.set(finalX);
 
-    if (finalX >= SWIPE_THRESHOLD && !hasTriggeredRef.current) {
-      hasTriggeredRef.current = true;
-      if ('vibrate' in navigator) navigator.vibrate(10);
-    } else if (finalX < SWIPE_THRESHOLD * 0.8) {
-      hasTriggeredRef.current = false;
+      if (finalX >= SWIPE_THRESHOLD && !replyTriggeredRef.current) {
+        replyTriggeredRef.current = true;
+        if ('vibrate' in navigator) navigator.vibrate(10);
+      } else if (finalX < SWIPE_THRESHOLD * 0.8) {
+        replyTriggeredRef.current = false;
+      }
     }
-  }, [disabled, x, clearLongPress]);
+  }, [x, scale, clearTimer, resetAll]);
 
-  const handleDragEnd = useCallback(() => {
-    const currentX = x.get();
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!startRef.current) return;
 
-    if (currentX >= SWIPE_THRESHOLD) {
-      armClickSuppression();
+    const state = stateRef.current;
+
+    if (state === 'swiping' && x.get() >= SWIPE_THRESHOLD) {
       onReply();
       if ('vibrate' in navigator) navigator.vibrate([8, 50, 8]);
     }
 
-    animate(x, 0, {
-      type: 'spring',
-      stiffness: 500,
-      damping: 35,
-      mass: 0.8,
-    });
+    // If state is still idle (no hold fired, no swipe), it's a tap — let it through naturally
+    resetAll();
+  }, [x, onReply, resetAll]);
 
-    hasTriggeredRef.current = false;
-    pressStartRef.current = null;
-    clearLongPress();
-  }, [onReply, x, armClickSuppression, clearLongPress]);
+  const handlePointerCancel = useCallback(() => {
+    resetAll();
+  }, [resetAll]);
 
   if (disabled) {
     return <>{children}</>;
   }
 
   return (
-    <div className="relative overflow-visible">
+    <div className="relative overflow-visible touch-pan-y">
+      {/* Reply indicator */}
       <motion.div
         className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-10"
-        style={{ 
+        style={{
           opacity: replyOpacity,
           scale: replyScale,
           x: replyX,
@@ -181,25 +172,17 @@ export function SwipeToReply({
         </div>
       </motion.div>
 
+      {/* Message content */}
       <motion.div
-        drag="x"
-        dragDirectionLock
-        dragConstraints={{ left: 0, right: MAX_SWIPE }}
-        dragElastic={0.1}
-        onDragStart={handleDragStart}
-        onDrag={handleDrag}
-        onDragEnd={handleDragEnd}
-        onPointerDownCapture={handlePointerDownCapture}
-        onPointerMoveCapture={handlePointerMoveCapture}
-        onPointerUpCapture={handlePointerUpCapture}
-        onPointerCancelCapture={handlePointerCancelCapture}
-        onClickCapture={handleClickCapture}
-        style={{ x }}
-        className="touch-pan-y cursor-grab active:cursor-grabbing"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        style={{ x, scale }}
+        className="touch-pan-y"
       >
         {children}
       </motion.div>
     </div>
   );
 }
-
