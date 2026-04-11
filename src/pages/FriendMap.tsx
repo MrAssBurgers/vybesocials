@@ -79,6 +79,7 @@ const MY_LOCATION_ZOOM = 16;
 const UPSERT_INTERVAL_MS = 15_000;
 const SHARING_PREF_KEY = 'vybe-map-sharing';
 const MAP_STYLE_KEY = 'vybe-map-style';
+const HIDDEN_FRIENDS_KEY = 'vybe-map-hidden-friends';
 
 const MAP_TILES: Record<string, { url: string; label: string; icon: string }> = {
   satellite: {
