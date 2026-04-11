@@ -84,7 +84,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     const s = getActualStep();
     switch (s) {
       case 1: return usernameValid; // Username
-      case 2: return dateOfBirth !== null && (userAge === undefined || userAge >= 13); // Age
+      case 2: return dateOfBirth !== null && (userAge === undefined || userAge >= 0); // Age (all ages allowed, under-13 gets parental controls)
       case 3: return interests.length >= 3; // Interests
       case 4: return profileData.firstName.length > 0 && profileData.lastName.length > 0; // Profile
       case 5: return legalAccepted; // Legal
