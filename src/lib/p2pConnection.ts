@@ -358,7 +358,7 @@ export class P2PConnection {
         if (import.meta.env.DEV) console.log('[P2P] Remote hangup received');
         this.hasRemoteParticipant = false;
         this.onEvent({ type: 'remote-participant-left' });
-        this.onEvent({ type: 'disconnected'; reason: 'remote-hangup' });
+        this.onEvent({ type: 'disconnected', reason: 'remote-hangup' });
         break;
       }
 
