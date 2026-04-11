@@ -94,6 +94,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
       // Get likes and bookmarks for current user
       let userLikes: string[] = [];
       let userBookmarks: string[] = [];
+      let userReactionMap: Record<string, string> = {};
 
       if (profile) {
         const [likesResult, bookmarksResult] = await Promise.all([
@@ -103,6 +104,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
 
         userLikes = likesResult.data?.map(l => l.post_id) || [];
         userBookmarks = bookmarksResult.data?.map(b => b.post_id) || [];
+        likesResult.data?.forEach(l => { if (l.reaction_type) userReactionMap[l.post_id] = l.reaction_type; });
       }
 
       // Get counts for each post
@@ -127,6 +129,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
             comment_count: commentsCount.count || 0,
             is_liked: userLikes.includes(post.id),
             is_bookmarked: userBookmarks.includes(post.id),
+            reaction_type: userReactionMap[post.id] || null,
           };
         })
       );
