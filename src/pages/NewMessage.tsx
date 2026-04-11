@@ -18,7 +18,6 @@ import { RecentMessageUser } from "@/lib/recentMessageUsers";
 import { useFriendshipStatus, useSendFriendRequest, useFriends, useRespondToFriendRequest, useFriendRequests } from "@/hooks/useFriends";
 import { useSuggestedFriends } from "@/hooks/useFriendsOfFriends";
 import { cn } from "@/lib/utils";
-import { FriendDrop } from "@/components/friends/FriendDrop";
 import { NFCFriendShare } from "@/components/friends/NFCFriendShare";
 
 /* ── Added Me Section ─────────────────────────────── */
@@ -336,14 +335,13 @@ export default function NewMessage() {
           <div className="flex-1">
             <h1 className="text-lg font-semibold">Add Friends</h1>
           </div>
-          <FriendDrop variant="icon" />
+          <NFCFriendShare variant="icon" />
           <NFCFriendShare variant="icon" />
         </header>
 
         <div className="flex-1 overflow-y-auto">
           <div className="p-4 space-y-4">
-            {/* FriendDrop Banner */}
-            <FriendDrop variant="banner" />
+            {/* NFC Friend Share */}
 
             {/* Added Me Section */}
             <AddedMeSection />

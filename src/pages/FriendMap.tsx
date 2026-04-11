@@ -550,15 +550,8 @@ function FriendMapInner() {
     let retryRaf: number | null = null;
     let timeoutIds: number[] = [];
 
-    const forceContainerSize = (el: HTMLDivElement) => {
-      const parent = el.parentElement;
-      const w = parent?.clientWidth || window.innerWidth;
-      const h = parent?.clientHeight || window.innerHeight;
-      el.style.position = 'absolute';
-      el.style.inset = '0';
+    const ensureVisible = (el: HTMLDivElement) => {
       el.style.display = 'block';
-      el.style.width = `${Math.max(w, 320)}px`;
-      el.style.height = `${Math.max(h, 320)}px`;
     };
 
     const safeInvalidateSize = () => {
@@ -573,7 +566,7 @@ function FriendMapInner() {
       ? new ResizeObserver(() => {
           const el = mapEl.current;
           if (!el) return;
-          forceContainerSize(el);
+          ensureVisible(el);
           if (!mapRef.current) return;
           safeInvalidateSize();
         })
@@ -583,7 +576,7 @@ function FriendMapInner() {
       const el = mapEl.current;
       if (!el || mapRef.current) return true;
 
-      forceContainerSize(el);
+      ensureVisible(el);
       const rect = el.getBoundingClientRect();
       if (rect.width < 200 || rect.height < 200) return false;
 
@@ -620,7 +613,7 @@ function FriendMapInner() {
 
       timeoutIds = [100, 300, 600, 1000, 1600, 2500].map((ms) =>
         window.setTimeout(() => {
-          forceContainerSize(el);
+          ensureVisible(el);
           safeInvalidateSize();
         }, ms)
       );
@@ -641,7 +634,7 @@ function FriendMapInner() {
     const handleResize = () => {
       const el = mapEl.current;
       if (!el) return;
-      forceContainerSize(el);
+      ensureVisible(el);
       if (!mapRef.current) {
         scheduleInit();
         return;
@@ -821,7 +814,7 @@ function FriendMapInner() {
           .vme-p{position:absolute;inset:4px;border-radius:9999px;background:hsl(217 91% 60%/.15);animation:pulse-ring 2.5s ease-out infinite .5s}
           .vme-d{position:relative;z-index:1;height:18px;width:18px;border-radius:9999px;border:3px solid hsl(var(--background));background:hsl(217 91% 60%);box-shadow:0 0 12px 4px hsl(217 91% 60%/.35);animation:pulse-glow 2s ease-in-out infinite}
           
-          .map-vignette{pointer-events:none;position:absolute;inset:0;z-index:500;background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.3) 100%)}
+          
           .scrollbar-hide::-webkit-scrollbar{display:none}
           .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
         `}</style>
