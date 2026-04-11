@@ -10,9 +10,11 @@ interface VoiceRecorderProps {
   isUploading?: boolean;
   /** When true, auto-sends on stop (hold-to-record mode) */
   autoSend?: boolean;
+  /** When true, recording is locked (user dragged up) - shows send/cancel buttons */
+  locked?: boolean;
 }
 
-export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, autoSend }: VoiceRecorderProps) {
+export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, autoSend, locked }: VoiceRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
