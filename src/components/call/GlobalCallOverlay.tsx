@@ -145,7 +145,6 @@ export function GlobalCallOverlay() {
 
       case 'disconnected':
         if (!isLeavingRef.current && !p2pEndedRef.current) {
-          // P2P has no linger — if remote hangs up, end call
           if (event.reason === 'remote-hangup') {
             p2pEndedRef.current = true;
             toast.info('Call ended');
@@ -181,21 +180,42 @@ export function GlobalCallOverlay() {
 
       case 'remote-participant-left':
         setHasRemoteParticipant(false);
-        // Don't call endCall here — 'disconnected' with reason 'remote-hangup' handles it
-        // This prevents double endCall firing
         break;
 
       case 'ice-failed':
         setP2pFailCount(prev => {
           const newCount = prev + 1;
-          if (newCount >= 3) {
-            toast.error('Connection unstable. Try "Stay On Call" for a better experience.', { duration: 5000 });
+          if (newCount >= 2) {
+            console.log('[CallOverlay] ICE failed multiple times, attempting fallback...');
+            toast('Switching to better connection...', { duration: 3000 });
+            // Use a timeout to avoid calling switchMode during render
+            setTimeout(() => {
+              switchMode('persistent').catch(() => {
+                toast.error('Connection failed. Please try again.', { duration: 5000 });
+              });
+            }, 0);
           }
           return newCount;
         });
         break;
+
+      case 'timeout':
+        console.log('[CallOverlay] P2P offer timeout — retrying');
+        toast.error('Connection taking too long. Retrying...', { duration: 3000 });
+        // Retry P2P via a deferred call
+        setTimeout(() => {
+          if (stateRef.current.call && p2pRef.current) {
+            p2pRef.current.disconnect().then(() => {
+              p2pRef.current = null;
+              if (stateRef.current.call) {
+                connectP2PRef.current?.(stateRef.current.call);
+              }
+            });
+          }
+        }, 0);
+        break;
     }
-  }, [clearJoinTimeout, endCall, setPhase, attachRemoteVideo, attachRemoteAudio]);
+  }, [clearJoinTimeout, endCall, setPhase, attachRemoteVideo, attachRemoteAudio, switchMode]);
 
   // Keep P2P event handler fresh to avoid stale closures
   const handleP2PEventRef = useRef(handleP2PEvent);
@@ -206,6 +226,7 @@ export function GlobalCallOverlay() {
       p2pRef.current.setOnEvent(handleP2PEvent);
     }
   }, [handleP2PEvent]);
+  const connectP2PRef = useRef<((call: CallData) => Promise<void>) | null>(null);
 
   const connectP2P = useCallback(async (call: CallData) => {
     if (!profile?.id) return;
@@ -246,6 +267,9 @@ export function GlobalCallOverlay() {
       endCall();
     }
   }, [profile?.id, attachLocalVideo, endCall]);
+
+  // Keep connectP2PRef fresh for deferred calls from event handler
+  useEffect(() => { connectP2PRef.current = connectP2P; }, [connectP2P]);
 
   // ── LiveKit Connection (persistent mode) ──────────────────
 
@@ -389,22 +413,29 @@ export function GlobalCallOverlay() {
     let cancelled = false;
 
     const doJoin = async () => {
-      try {
-        await requestCallMediaPermissions(state.call!.callType);
-      } catch (err: any) {
-        toast.error(err.message || 'Microphone permission required');
-        endCall();
-        return;
+      // For P2P: skip requestCallMediaPermissions — P2PConnection.connect() 
+      // calls getUserMedia itself. Double-requesting causes iOS failures.
+      if (state.call!.callMode === 'persistent') {
+        try {
+          await requestCallMediaPermissions(state.call!.callType);
+        } catch (err: any) {
+          toast.error(err.message || 'Microphone permission required');
+          endCall();
+          return;
+        }
       }
       if (cancelled) return;
 
       clearJoinTimeout();
+      // P2P: 15s timeout (offer retransmission handles retries internally)
+      // Persistent: 30s timeout
+      const timeout = state.call!.callMode === 'p2p' ? 15000 : 30000;
       joinTimeoutRef.current = setTimeout(() => {
         if (stateRef.current.phase === 'joining') {
           toast.error('Call failed to connect');
           endCall();
         }
-      }, 30000);
+      }, timeout);
 
       if (state.call!.callMode === 'persistent') {
         await connectToRoom(state.call!);
