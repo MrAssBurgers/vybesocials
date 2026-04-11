@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { recordEmoji } from '@/lib/frequentEmojis';
+import { recordShareTo } from '@/lib/shareRecency';
 
 /**
  * User Adaptation Profile - Learns and stores user preferences
