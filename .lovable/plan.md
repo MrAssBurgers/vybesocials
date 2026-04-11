@@ -1,67 +1,58 @@
 
 
-## Fix Call Connection Reliability
+## Perfect the Calling System — Deep Fix Plan
 
-The P2P WebRTC calling system has several issues causing connection failures. Here's the root cause analysis and fix plan.
+### Issues Found
 
-### Root Causes Identified
+1. **P2P calls end immediately when one user leaves** — `handleP2PEvent` for `remote-hangup` calls `endCall()` instantly (line 148-152), killing the call for the remaining user. No linger support for P2P mode.
 
-1. **Race condition: Initiator sends offer before receiver is ready.** The caller inserts a DB record, immediately transitions to `joining`, and fires the P2P connection with only an 800ms static delay. The receiver must: detect the incoming call (via Realtime + polling), accept it, get media permissions, subscribe to the signaling channel, AND reach `SUBSCRIBED` — all before the offer arrives. If the offer is missed, the call hangs until the 30s timeout.
+2. **Double media permission request on accept** — `handleAccept` (line 734) calls `requestCallMediaPermissions()` for ALL modes, then P2P's `connect()` calls `getUserMedia` again. Causes glitchy/failed camera on iOS.
 
-2. **Media permissions requested twice.** `requestCallMediaPermissions` acquires and releases a stream, then `P2PConnection.connect()` acquires another stream. On iOS, this can cause the second `getUserMedia` to fail or delay significantly.
+3. **Offer retransmission creates NEW SDP offers each time** — `createAndSendOffer()` calls `createOffer()` + `setLocalDescription()` on each retransmit (line 459-463), invalidating prior ICE candidates and causing connection instability.
 
-3. **No retry/re-offer mechanism.** If the initial offer is missed (broadcast is fire-and-forget), there's no mechanism to re-send it. The call just sits in "Connecting..." until it times out at 30 seconds.
+4. **No audio quality constraints** — `getUserMedia` called with bare `audio: true` (line 110), missing echo cancellation, noise suppression, auto gain control.
 
-4. **Free TURN servers are unreliable.** The `openrelay.metered.ca` and `expressturn.com` credentials are public/shared and frequently go offline. When STUN fails (symmetric NAT), these TURN servers may also fail, leaving no path.
+5. **Video camera not optimized for FaceTime-style calls** — No resolution/framerate constraints on video. No `facingMode: 'user'` default for front camera. Video can be choppy or low quality.
 
-5. **No auto-fallback.** When P2P fails, the user gets a toast error and the call ends. There's no automatic retry or fallback to persistent mode.
+6. **Remote audio element positioned offscreen** — Some mobile browsers throttle audio from offscreen elements, causing intermittent audio drops.
+
+7. **No signaling keepalive** — Supabase Realtime channel can go stale during long calls, breaking mid-call renegotiation.
+
+8. **Linger banner only shows for persistent mode** — Line 1092 has `currentMode === 'persistent'` check, so P2P users never see the "call still live" banner.
 
 ### Plan
 
-**Step 1: Implement offer retransmission with ready-signal handshake**
-- Instead of a blind 800ms delay, have the responder broadcast a `ready` signal once their signaling channel reaches `SUBSCRIBED`
-- The initiator waits for this `ready` signal before sending the offer
-- Add a fallback: if no `ready` signal within 3 seconds, send the offer anyway (backwards compat)
-- Add periodic offer re-send (every 2 seconds, up to 5 times) until an answer is received
+**Step 1: Add P2P linger support**
+- When P2P receives `remote-hangup`, instead of calling `endCall()`, set `remoteUserLeft = true` and start a 30-second countdown
+- Show the same "Call still live" banner (remove `currentMode === 'persistent'` guard on line 1092)
+- If countdown expires, end the call. If remote user reconnects, cancel the countdown
+- Change the end button to show "End" during linger (not "Leave")
 
-**Step 2: Remove double media acquisition**
-- Remove the `requestCallMediaPermissions` call in `GlobalCallOverlay`'s join effect for P2P mode, since `P2PConnection.connect()` already calls `getUserMedia`
-- This eliminates the iOS race condition where the second `getUserMedia` fails
+**Step 2: Fix double media permission for P2P**
+- In `handleAccept` (line 730-744), skip `requestCallMediaPermissions()` when call mode is P2P
+- P2P's `connect()` handles its own `getUserMedia`
 
-**Step 3: Add reliable TURN servers via Metered.ca free tier**
-- Replace the dead public TURN credentials with Google's additional STUN servers and a more reliable free TURN option
-- Add `turn:global.relay.metered.ca:443?transport=tcp` which works through most firewalls
+**Step 3: Cache and re-send SDP offer (not recreate)**
+- Store the initial offer after `createOffer()` in a `cachedOffer` field
+- On retransmit, re-broadcast the cached offer instead of creating a new one
+- Prevents ICE candidate invalidation and glitchy connections
 
-**Step 4: Implement auto-fallback to persistent mode**
-- After 2 ICE failures or a 15-second connection timeout in P2P mode, automatically attempt to switch to persistent (LiveKit) mode
-- Show a brief "Switching to better connection..." toast
-- Only fallback if the user has premium; otherwise show a "Connection failed, try again" with a retry button
+**Step 4: Add HD audio constraints**
+- Change `audio: true` to `audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }`
 
-**Step 5: Reduce join timeout and add retry**
-- Reduce the join timeout from 30s to 15s for P2P
-- On timeout, auto-retry the P2P connection once before giving up
-- Add an explicit "Retry" button in the UI when connection fails instead of immediately ending the call
+**Step 5: Add HD video constraints for FaceTime calls**
+- Set `video` constraints: `{ facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }`
+- This ensures front camera is used by default with smooth 720p video
 
-### Technical Details
+**Step 6: Fix remote audio element**
+- Change offscreen positioning from `left: -9999` to `opacity: 0, position: fixed, width: 1px, height: 1px` to prevent mobile browser throttling
 
-**Files to modify:**
-- `src/lib/p2pConnection.ts` — Add `ready` signal, offer retransmission loop, update ICE servers
-- `src/components/call/GlobalCallOverlay.tsx` — Remove double media request for P2P, add auto-fallback logic, add retry UI
-- `src/lib/callStore.tsx` — Add `retryCall` action, handle fallback state
+**Step 7: Add signaling keepalive**
+- Send a periodic no-op `ping` signal every 25 seconds on the P2P channel to keep the Supabase Realtime connection alive during long calls
+- Add a `keepaliveTimer` field and clean it up in `cleanup()`
 
-**New signaling flow:**
-```text
-Caller                          Receiver
-  |-- insert call record -------->|
-  |                                |-- detect call (Realtime/poll)
-  |                                |-- accept call
-  |                                |-- getUserMedia
-  |                                |-- subscribe signaling channel
-  |                                |-- SUBSCRIBED
-  |<---- "ready" signal -----------|
-  |-- SDP offer ------------------>|
-  |<---- SDP answer ---------------|
-  |<-> ICE candidates <----------->|
-  |          CONNECTED             |
-```
+### Files to Modify
+
+- **`src/lib/p2pConnection.ts`** — Cache offer, HD audio/video constraints, signaling keepalive, expose `sendHangup()` without full cleanup for linger
+- **`src/components/call/GlobalCallOverlay.tsx`** — P2P linger support, fix double media request, fix audio element positioning, remove persistent-only guard on linger banner
 
