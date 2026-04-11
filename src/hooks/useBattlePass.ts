@@ -57,14 +57,14 @@ export function useUserLevel() {
   const { profile } = useAuth();
 
   return useQuery({
-    queryKey: ['user-level', profile?.id],
+    queryKey: ['user-level', profile?.user_id],
     queryFn: async () => {
       if (!profile) return null;
       
       const { data, error } = await supabase
         .from('user_levels')
         .select('*')
-        .eq('user_id', profile.id)
+        .eq('user_id', profile.user_id)
         .maybeSingle();
       
       if (error) throw error;
@@ -73,7 +73,7 @@ export function useUserLevel() {
       if (!data) {
         const { data: newData, error: insertError } = await supabase
           .from('user_levels')
-          .insert({ user_id: profile.id })
+          .insert({ user_id: profile.user_id })
           .select()
           .single();
         

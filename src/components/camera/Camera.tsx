@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils';
 import { CameraFilterCarousel, PRESET_FILTERS, getFilterCSS } from './CameraFilterCarousel';
 import { CameraEditor } from './CameraEditor';
 import { CameraShareSheet } from './CameraShareSheet';
+import { SoundPicker } from '@/components/sounds/SoundPicker';
+import { Sound } from '@/hooks/useSounds';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
 import { toast } from 'sonner';
@@ -41,6 +43,8 @@ export function Camera({ onClose, showBackArrow = false }: CameraProps) {
   const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
   const [gridEnabled, setGridEnabled] = useState(false);
   const [brightness, setBrightness] = useState(100);
+  const [showSoundPicker, setShowSoundPicker] = useState(false);
+  const [selectedSound, setSelectedSound] = useState<Sound | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -345,7 +349,10 @@ export function Camera({ onClose, showBackArrow = false }: CameraProps) {
         >
           <Sun className="h-5 w-5 text-white" />
         </button>
-        <button className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform" onClick={() => toast.info('Music coming soon!')}>
+        <button 
+          className={cn("w-11 h-11 rounded-full backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform", selectedSound ? "bg-primary/40" : "bg-black/30")}
+          onClick={() => { triggerHaptic('light'); setShowSoundPicker(true); }}
+        >
           <Music className="h-5 w-5 text-white" />
         </button>
       </div>
@@ -480,6 +487,14 @@ export function Camera({ onClose, showBackArrow = false }: CameraProps) {
           </div>
         </div>
       </div>
+
+      {/* Sound Picker */}
+      <SoundPicker
+        open={showSoundPicker}
+        onClose={() => setShowSoundPicker(false)}
+        onSelectSound={(sound) => setSelectedSound(sound)}
+        selectedSoundId={selectedSound?.sound_id}
+      />
     </div>
   );
 }

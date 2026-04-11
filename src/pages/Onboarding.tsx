@@ -151,7 +151,14 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           onConflict: 'user_id',
         });
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === '23505' && error.message?.includes('profiles_username_key')) {
+          toast.error('That username is already taken. Please go back and choose another.');
+          setLoading(false);
+          return;
+        }
+        throw error;
+      }
 
       if (legalAccepted) {
         await supabase.from('legal_acceptances').upsert([
@@ -198,9 +205,10 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     setLoading(true);
     haptics.tap();
     try {
+      const randomSuffix = Math.random().toString(36).substring(2, 7);
       const finalUsername = needsUsername && username 
         ? username.toLowerCase() 
-        : profile?.username || `user_${user.id.substring(0, 8)}`;
+        : profile?.username || `user_${user.id.substring(0, 6)}_${randomSuffix}`;
 
       const { error } = await supabase
         .from('profiles')
@@ -213,8 +221,12 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         });
 
       if (error) {
-        console.error('Skip save error:', error);
-        toast.error('Could not save profile. Please try again.');
+        if (error.code === '23505' && error.message?.includes('profiles_username_key')) {
+          toast.error('Username conflict — please pick a custom username.');
+        } else {
+          console.error('Skip save error:', error);
+          toast.error('Could not save profile. Please try again.');
+        }
         return;
       }
 
