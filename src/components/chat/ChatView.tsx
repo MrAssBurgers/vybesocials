@@ -113,6 +113,7 @@ import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useUserBusiness } from '@/hooks/useBusinessOffers';
 import { CreateOfferDialog } from '@/components/business/CreateOfferDialog';
 import { ChatMediaBubble, SignedAudioUrl } from './ChatMediaBubble';
+import { ImageViewer } from './ImageViewer';
 import { useSafetySettings } from '@/hooks/useSafetySettings';
 import { getTopEmojis, recordEmoji } from '@/lib/frequentEmojis';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
