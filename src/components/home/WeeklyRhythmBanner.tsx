@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, forwardRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Flame, Zap, TrendingUp } from 'lucide-react';
 import { useRhythmData } from '@/hooks/useActivityStats';
@@ -7,7 +7,7 @@ import { useRhythmData } from '@/hooks/useActivityStats';
  * Rotating "Now" banner with real data — top XP gainers, challenges, trending tags.
  * Updates every 6s with smooth crossfade.
  */
-export function WeeklyRhythmBanner() {
+export const WeeklyRhythmBanner = forwardRef<HTMLDivElement>((_, ref) => {
   const { data } = useRhythmData();
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -67,7 +67,7 @@ export function WeeklyRhythmBanner() {
   const current = cards[currentIndex % cards.length];
 
   return (
-    <div className="mx-4 mb-2">
+    <div ref={ref} className="mx-4 mb-2">
       <div className="relative h-9 overflow-hidden rounded-lg border border-border/40 bg-card/40 backdrop-blur-sm px-3">
         <AnimatePresence mode="wait">
           <motion.div
@@ -90,4 +90,6 @@ export function WeeklyRhythmBanner() {
       </div>
     </div>
   );
-}
+});
+
+WeeklyRhythmBanner.displayName = 'WeeklyRhythmBanner';
