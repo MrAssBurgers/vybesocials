@@ -122,10 +122,11 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setTracks(data || []);
+      const dbTracks = data || [];
+      setTracks(dbTracks.length > 0 ? dbTracks : SAMPLE_TRACKS);
     } catch (error) {
       console.error('Error loading tracks:', error);
-      toast.error('Failed to load music tracks');
+      setTracks(SAMPLE_TRACKS);
     } finally {
       setLoading(false);
     }
