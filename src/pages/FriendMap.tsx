@@ -396,6 +396,7 @@ export default function FriendMap() {
   const accCircle = useRef<L.Circle | null>(null);
   const tileRef = useRef<L.TileLayer | null>(null);
   const framed = useRef(false);
+  const clusterMarkerRefs = useRef<L.Marker[]>([]);
   const friendMarkers = useRef<Map<string, L.Marker>>(new Map());
 
   // State
