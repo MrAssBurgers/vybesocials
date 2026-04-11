@@ -23,7 +23,7 @@ export const NAME_COLOR_MAP: Record<string, string> = {
   // Owner exclusive
   'Gold': '#EAB308',
   'Diamond White': '#E2E8F0',
-  'Holographic': 'linear-gradient(90deg, #EC4899, #8B5CF6, #06B6D4, #10B981, #EAB308)',
+  'Holographic': 'linear-gradient(90deg, #EC4899, #8B5CF6, #06B6D4, #10B981, #EAB308, #EC4899)',
   // Mod exclusive
   'Shield Silver': '#94A3B8',
   'Justice Blue': '#3B82F6',
