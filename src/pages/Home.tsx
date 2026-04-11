@@ -290,8 +290,10 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
   return (
     <AppLayout>
-      {/* Auto FriendDrop - bump phones to add friends */}
-      <AutoFriendDrop />
+      {/* Lazy-loaded deferred components */}
+      <Suspense fallback={null}>
+        <AutoFriendDrop />
+      </Suspense>
       
       {/* Pull to refresh indicator */}
       <PullToRefreshIndicator 
@@ -309,7 +311,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
           }}
         >
           {/* Announcement Modal */}
-          <AnnouncementModal />
+          <Suspense fallback={null}>
+            <AnnouncementModal />
+          </Suspense>
           {/* Global Events Banner */}
           <GlobalEventBanner />
 
@@ -360,10 +364,14 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       </HomeEditModeProvider>
 
       {/* AI Command Bar */}
-      <VYBECommandBar />
+      <Suspense fallback={null}>
+        <VYBECommandBar />
+      </Suspense>
       
       {/* Weekly Recap */}
-      <WeeklyRecapModal />
+      <Suspense fallback={null}>
+        <WeeklyRecapModal />
+      </Suspense>
     </AppLayout>
   );
 }
