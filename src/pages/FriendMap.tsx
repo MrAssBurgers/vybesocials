@@ -709,7 +709,7 @@ function FriendMapInner() {
 
   return (
     <AppLayout hideNav noPadding fullWidth>
-      <div className="relative w-full h-full overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none', minHeight: '100vh' }}>
+      <div className="fixed inset-0 overflow-hidden bg-background md:absolute" style={{ touchAction: 'none', overscrollBehavior: 'none', willChange: 'transform' }}>
         <style>{`
           @keyframes pulse-ring{0%{transform:scale(.8);opacity:1}100%{transform:scale(3);opacity:0}}
           @keyframes pulse-glow{0%,100%{box-shadow:0 0 0 0 hsl(217 91% 60%/.4)}50%{box-shadow:0 0 20px 8px hsl(217 91% 60%/.2)}}
@@ -718,7 +718,7 @@ function FriendMapInner() {
           @keyframes ring-pulse{0%,100%{opacity:.7}50%{opacity:1}}
           @keyframes moving-glow{0%,100%{box-shadow:0 0 8px 2px hsl(142 76% 56%/.3)}50%{box-shadow:0 0 20px 6px hsl(142 76% 56%/.15)}}
           .friend-map-marker,.my-location-marker{background:transparent!important;border:none!important}
-          .leaflet-container{height:100%!important;width:100%!important;background:#0a0a0a;font-family:inherit;position:absolute;inset:0}
+          .leaflet-container{height:100%!important;width:100%!important;background:#0a0a0a;font-family:inherit}
           .leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
           
           .vfm{position:relative;display:flex;height:52px;width:52px;align-items:center;justify-content:center;overflow:visible;border-radius:9999px;background:hsl(var(--card));box-shadow:0 8px 32px -8px rgba(0,0,0,.6);animation:bounce-in .5s cubic-bezier(.34,1.56,.64,1) both;transition:transform .3s ease}
