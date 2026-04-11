@@ -1,12 +1,15 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { X, Film, Clock, MessageCircle, Download, Send, Users } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Film, Clock, MessageCircle, Download, Send, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useContentSafety } from '@/hooks/useContentSafety';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
+import { getRecentMessageUsers, RecentMessageUser } from '@/lib/recentMessageUsers';
+import { getShareRankedUserIds, recordShareTo } from '@/lib/shareRecency';
 
 interface CameraShareSheetProps {
   mediaUrl: string;
@@ -27,8 +30,27 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
   const [vybeCheckFailed, setVybeCheckFailed] = useState(false);
   const [scanMessage, setScanMessage] = useState('');
   const [scanCategories, setScanCategories] = useState<string[]>([]);
+  const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const { toast } = useToast();
   const contentSafety = useContentSafety();
+
+  // Get ranked people for DM sharing
+  const rankedPeople = useMemo(() => {
+    const recent = getRecentMessageUsers();
+    const shareRanked = getShareRankedUserIds();
+    
+    // Sort recent users by share frequency ranking
+    const sorted = [...recent].sort((a, b) => {
+      const aIdx = shareRanked.indexOf(a.id);
+      const bIdx = shareRanked.indexOf(b.id);
+      // Users in share ranking come first, ordered by rank
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return 0;
+    });
+    return sorted;
+  }, []);
 
   const toggleDestination = (dest: ShareDestination) => {
     setSelectedDestinations(prev => 
@@ -38,26 +60,31 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
     );
   };
 
+  const toggleRecipient = (userId: string) => {
+    setSelectedRecipients(prev =>
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
   const handleShare = async () => {
     if (selectedDestinations.length === 0) {
-      toast({
-        title: "Select a destination",
-        description: "Choose where you want to share this",
-        variant: "destructive",
-      });
+      toast({ title: "Select a destination", description: "Choose where you want to share this", variant: "destructive" });
+      return;
+    }
+
+    if (selectedDestinations.includes('dm') && selectedRecipients.length === 0) {
+      toast({ title: "Select recipients", description: "Choose who to send this to", variant: "destructive" });
       return;
     }
 
     setIsSharing(true);
 
-    // Run AI safety scan before sharing
     if (mediaFile) {
-      let scanResult;
-      if (mediaType === 'video') {
-        scanResult = await contentSafety.scanVideo(mediaFile);
-      } else {
-        scanResult = await contentSafety.scanImage(mediaFile);
-      }
+      const scanResult = mediaType === 'video'
+        ? await contentSafety.scanVideo(mediaFile)
+        : await contentSafety.scanImage(mediaFile);
 
       if (scanResult.result === 'blocked') {
         setIsSharing(false);
@@ -68,8 +95,10 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
       }
     }
 
-    // Simulate sharing - in real app, this would upload and share
     await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // Record share targets for learning
+    selectedRecipients.forEach(id => recordShareTo(id));
 
     const destinations = selectedDestinations.map(d => {
       switch(d) {
@@ -81,11 +110,7 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
       }
     });
 
-    toast({
-      title: "Shared successfully!",
-      description: `Posted to ${destinations.join(', ')}`,
-    });
-
+    toast({ title: "Shared successfully!", description: `Posted to ${destinations.join(', ')}` });
     setIsSharing(false);
     onComplete();
   };
@@ -176,6 +201,57 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
             )}
           </motion.button>
         ))}
+
+        {/* DM Person Picker - shows when DM is selected */}
+        <AnimatePresence>
+          {selectedDestinations.includes('dm') && rankedPeople.length > 0 && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <p className="text-xs text-white/40 mb-2 mt-1">Send to:</p>
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+                {rankedPeople.map((person) => {
+                  const isSelected = selectedRecipients.includes(person.id);
+                  return (
+                    <button
+                      key={person.id}
+                      onClick={() => toggleRecipient(person.id)}
+                      className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
+                    >
+                      <div className="relative">
+                        <Avatar className={cn(
+                          "h-12 w-12 border-2 transition-colors",
+                          isSelected ? "border-primary" : "border-transparent"
+                        )}>
+                          <AvatarImage src={person.avatar_url || undefined} />
+                          <AvatarFallback className="bg-white/10 text-white text-xs">
+                            {(person.display_name || person.username)?.[0]?.toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        {isSelected && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center"
+                          >
+                            <Check className="h-3 w-3 text-white" />
+                          </motion.div>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-white/70 truncate w-full text-center">
+                        {person.display_name || person.username}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Share Button */}
