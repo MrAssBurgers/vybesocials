@@ -85,7 +85,8 @@ import {
   Play,
   Copy,
   Pencil,
-  Sticker
+  Sticker,
+  Download
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
