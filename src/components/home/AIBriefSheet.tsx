@@ -477,16 +477,22 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
   useEffect(() => {
     if (open && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
-      // Check if cache is fresh — if so, show instantly without loading
       const cached = getCachedBrief();
       if (cached && !briefData) {
         setBriefData(cached);
       }
-      // Always fetch fresh data in background
       fetchBrief(true);
+      // Request notification permission + schedule
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+      scheduleBriefNotification();
     }
     if (!open) hasFetchedRef.current = false;
-    return () => { if (abortControllerRef.current) abortControllerRef.current.abort(); };
+    return () => {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      clearBriefNotification();
+    };
   }, [open, fetchBrief]);
 
   const handleRefresh = useCallback(() => {
