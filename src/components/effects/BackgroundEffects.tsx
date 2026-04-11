@@ -137,7 +137,7 @@ const AuroraEffect = memo(() => {
       <style>{`
         @keyframes aurora-sweep {
           from { background-position: 0% 50%; }
-          to { background-position: -100% 50%; }
+          to { background-position: -33.333% 50%; }
         }
       `}</style>
       <div
