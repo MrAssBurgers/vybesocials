@@ -428,6 +428,10 @@ function FriendMapInner() {
     [myCoords]
   );
   const friendsArr = useMemo(
+    () => (Array.isArray(friends) ? friends.filter((friend) => isValidLatLng(friend.latitude, friend.longitude) && !hiddenFriends.has(friend.user_id)) : []),
+    [friends, hiddenFriends]
+  );
+  const allFriendsArr = useMemo(
     () => (Array.isArray(friends) ? friends.filter((friend) => isValidLatLng(friend.latitude, friend.longitude)) : []),
     [friends]
   );
