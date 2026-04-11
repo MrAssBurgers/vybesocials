@@ -551,7 +551,7 @@ function FriendMapInner() {
     fLayer.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     const rafId = requestAnimationFrame(safeInvalidateSize);
-    const timeoutIds = [window.setTimeout(safeInvalidateSize, 100), window.setTimeout(safeInvalidateSize, 500)];
+    const timeoutIds = [window.setTimeout(safeInvalidateSize, 100), window.setTimeout(safeInvalidateSize, 500), window.setTimeout(safeInvalidateSize, 1000), window.setTimeout(safeInvalidateSize, 2000)];
     // Invalidate size multiple times to handle desktop layout settling
     safeInvalidateSize();
 
