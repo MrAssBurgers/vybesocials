@@ -15,7 +15,7 @@ import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable/index';
 import { VYBELogo } from '@/components/ui/VYBELogo';
-import { IntroFlow, hasSeenIntro } from '@/components/intro/IntroFlow';
+
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
@@ -54,7 +54,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [isLogin, setIsLogin] = useState(() => modeParam === 'login' || searchParams.get('signup') !== 'true');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showIntro, setShowIntro] = useState<boolean | null>(null); // null = still checking
+  
   // Detect OAuth return: either hash tokens present OR we set a pending flag before redirect.
   // On mobile Safari with Lovable Cloud OAuth, tokens arrive via setSession (not hash),
   // so we must also check the sessionStorage flag.
@@ -73,44 +73,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     username: '',
   });
 
-  // Check intro status on mount - resolve as fast as possible
-  // For guests: localStorage check is synchronous → no flicker
-  // For logged-in users: wait for authProfile to avoid race conditions
-  useEffect(() => {
-    // If mode=login, skip intro completely
-    if (modeParam === 'login') {
-      setShowIntro(false);
-      setIsLogin(true);
-      return;
-    }
-    
-    // Fast path: if localStorage says intro is done, skip immediately (no waiting for auth)
-    if (hasSeenIntro()) {
-      setShowIntro(false);
-      return;
-    }
-    
-    // CRITICAL: Don't make auth-dependent decisions until auth is fully initialized
-    if (!authReady) {
-      return; // Keep showIntro as null (loading state)
-    }
-    
-    // If user is logged in, use authProfile from context (avoids iPad Safari race condition)
-    if (user) {
-      if (authProfile) {
-        if ((authProfile as any).onboarding_completed === true || (authProfile as any).intro_completed === true) {
-          setShowIntro(false);
-          return;
-        }
-      } else {
-        // Profile still loading, keep showIntro as null (loading state)
-        return;
-      }
-    }
-    
-    // Not logged in and localStorage says intro not completed — show intro
-    setShowIntro(true);
-  }, [modeParam, user?.id, authProfile, authReady]);
 
   // Safety: if OAuth pending flag is set but session never establishes,
   // clear the flag after 5s OR when the user navigates back (page regains focus)
@@ -278,23 +240,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     }
   };
 
-  const handleIntroComplete = () => {
-    triggerTransition('280 70% 50%', '330 80% 60%', () => {
-      setShowIntro(false);
-      setIsLogin(false); // Start on signup mode
-    });
-  };
-
-  const handleIntroSkip = () => {
-    triggerTransition('280 70% 50%', '330 80% 60%', () => {
-      setShowIntro(false);
-    });
-  };
-
-  // Show intro flow for first-time visitors (null = still checking, true = show intro)
   // If returning from OAuth redirect, hold on a loading screen while session is established.
-  // This prevents the login form from flashing on mobile Safari.
-  if (isOAuthReturn || showIntro === null) {
+  if (isOAuthReturn) {
     return (
       <motion.div
         initial={{ opacity: 0 }}
@@ -310,15 +257,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             transition={{ delay: 0.2 }}
             className="text-sm text-muted-foreground"
           >
-            {isOAuthReturn ? 'Signing you in…' : 'Loading VYBE…'}
+            Signing you in…
           </motion.p>
         </div>
       </motion.div>
     );
-  }
-  
-  if (showIntro) {
-    return <IntroFlow onComplete={handleIntroComplete} onSkip={handleIntroSkip} />;
   }
 
   return (
