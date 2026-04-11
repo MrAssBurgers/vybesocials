@@ -387,10 +387,12 @@ function WidgetAddFAB() {
 
   return (
     <>
-      {/* Floating + button */}
       <motion.button
-        onClick={() => setOpen(!open)}
-        className="fixed bottom-24 left-4 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 flex items-center justify-center"
+        onClick={() => {
+          window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+          setOpen(!open);
+        }}
+        className="fixed left-4 bottom-24 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 lg:left-64 lg:top-24 lg:bottom-auto"
         whileTap={{ scale: 0.9 }}
         animate={{ rotate: open ? 45 : 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
@@ -398,7 +400,6 @@ function WidgetAddFAB() {
         <Plus className="h-7 w-7" />
       </motion.button>
 
-      {/* Widget picker overlay */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -406,9 +407,9 @@ function WidgetAddFAB() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-            className="fixed bottom-40 left-4 z-50 w-64 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/30 shadow-2xl p-3 space-y-1"
+            className="fixed left-4 bottom-40 z-50 w-64 rounded-2xl border border-border/30 bg-card/95 p-3 space-y-1 shadow-2xl backdrop-blur-xl lg:left-64 lg:top-40 lg:bottom-auto"
           >
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pb-1">
+            <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Add Widget
             </p>
             {hidden.map((w, i) => (
@@ -421,10 +422,10 @@ function WidgetAddFAB() {
                   handleToggle(w.id);
                   if (hidden.length <= 1) setOpen(false);
                 }}
-                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-primary/10 transition-colors text-left"
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-primary/10"
               >
                 <span className="text-lg">{w.icon}</span>
-                <span className="text-sm font-medium text-foreground flex-1">{w.label}</span>
+                <span className="flex-1 text-sm font-medium text-foreground">{w.label}</span>
                 <Plus className="h-4 w-4 text-primary" />
               </motion.button>
             ))}

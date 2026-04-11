@@ -544,73 +544,131 @@ function FriendMapInner() {
   /* ── leaflet lifecycle ─────────────────────────────── */
 
   useEffect(() => {
-    if (!mapEl.current || mapRef.current) return;
-    let map: L.Map;
-    try {
-      map = L.map(mapEl.current, {
-        zoomControl: false,
-        attributionControl: false,
-        minZoom: 2,
-        maxZoom: 19,
-        worldCopyJump: true,
-        zoomAnimation: true,
-        markerZoomAnimation: true,
-        inertia: true,
-        inertiaDeceleration: 2000,
-      }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
-    } catch (err) {
-      console.error('[FriendMap] Leaflet init failed:', err);
-      return;
-    }
-    const safeInvalidateSize = () => {
-      if (mapRef.current !== map) return;
-      try { map.invalidateSize(); } catch { /* teardown */ }
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+
+    let retryTimer: number | null = null;
+    let retryRaf: number | null = null;
+    let timeoutIds: number[] = [];
+
+    const forceContainerSize = (el: HTMLDivElement) => {
+      const parentWidth = el.parentElement?.clientWidth || window.innerWidth;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+      el.style.position = 'absolute';
+      el.style.inset = '0';
+      el.style.display = 'block';
+      el.style.width = `${Math.max(parentWidth, 320)}px`;
+      el.style.height = `${Math.max(viewportHeight, 480)}px`;
+      el.style.minHeight = `${Math.max(viewportHeight, 480)}px`;
     };
 
-    tileRef.current = L.tileLayer(MAP_TILES[mapStyle].url, { maxZoom: 19 }).addTo(map);
-    fLayer.current = L.layerGroup().addTo(map);
-    mapRef.current = map;
-    const rafId = requestAnimationFrame(safeInvalidateSize);
-    const timeoutIds = [window.setTimeout(safeInvalidateSize, 100), window.setTimeout(safeInvalidateSize, 300), window.setTimeout(safeInvalidateSize, 600), window.setTimeout(safeInvalidateSize, 1000), window.setTimeout(safeInvalidateSize, 2000), window.setTimeout(safeInvalidateSize, 3000)];
-    // Invalidate size multiple times to handle desktop layout settling
-    safeInvalidateSize();
+    const safeInvalidateSize = () => {
+      try {
+        mapRef.current?.invalidateSize();
+      } catch {
+        // Ignore teardown races
+      }
+    };
 
-    // Use ResizeObserver to handle layout changes (e.g. sidebar appearing)
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(safeInvalidateSize) : null;
-    ro?.observe(mapEl.current);
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => {
+          const el = mapEl.current;
+          if (!el) return;
+          forceContainerSize(el);
+          if (!mapRef.current) return;
+          safeInvalidateSize();
+        })
+      : null;
 
-    map.on('click', () => { setSelId(null); setStylesOpen(false); });
-    map.on('zoomend', () => setZoom(map.getZoom()));
+    const initMap = () => {
+      const el = mapEl.current;
+      if (!el || mapRef.current) return true;
+
+      forceContainerSize(el);
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 200 || rect.height < 200) return false;
+
+      let map: L.Map;
+      try {
+        map = L.map(el, {
+          zoomControl: false,
+          attributionControl: false,
+          minZoom: 2,
+          maxZoom: 19,
+          worldCopyJump: true,
+          zoomAnimation: true,
+          markerZoomAnimation: true,
+          inertia: true,
+          inertiaDeceleration: 2000,
+        }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+      } catch (err) {
+        console.error('[FriendMap] Leaflet init failed:', err);
+        return false;
+      }
+
+      tileRef.current = L.tileLayer(MAP_TILES[mapStyle].url, { maxZoom: 19, crossOrigin: true }).addTo(map);
+      fLayer.current = L.layerGroup().addTo(map);
+      mapRef.current = map;
+
+      resizeObserver?.observe(el);
+
+      map.on('click', () => { setSelId(null); setStylesOpen(false); });
+      map.on('zoomend', () => setZoom(map.getZoom()));
+      map.whenReady(() => {
+        safeInvalidateSize();
+        retryRaf = requestAnimationFrame(safeInvalidateSize);
+      });
+
+      timeoutIds = [100, 300, 600, 1000, 1600, 2500].map((ms) =>
+        window.setTimeout(() => {
+          forceContainerSize(el);
+          safeInvalidateSize();
+        }, ms)
+      );
+
+      return true;
+    };
+
+    const scheduleInit = () => {
+      if (mapRef.current) return;
+      if (retryTimer) window.clearTimeout(retryTimer);
+      retryTimer = window.setTimeout(() => {
+        if (!initMap()) scheduleInit();
+      }, 80);
+    };
+
+    if (!initMap()) scheduleInit();
+
+    const handleResize = () => {
+      const el = mapEl.current;
+      if (!el) return;
+      forceContainerSize(el);
+      if (!mapRef.current) {
+        scheduleInit();
+        return;
+      }
+      safeInvalidateSize();
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
 
     return () => {
-      cancelAnimationFrame(rafId);
+      if (retryTimer) window.clearTimeout(retryTimer);
+      if (retryRaf) cancelAnimationFrame(retryRaf);
       timeoutIds.forEach((id) => window.clearTimeout(id));
-      ro?.disconnect();
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
       fLayer.current?.clearLayers();
       myMk.current?.remove();
       accCircle.current?.remove();
-      map.remove();
+      mapRef.current?.remove();
       fLayer.current = null;
       myMk.current = null;
       accCircle.current = null;
       mapRef.current = null;
       tileRef.current = null;
     };
-  }, []);
-
-  /* ── fallback: force height if container collapses ──── */
-  useEffect(() => {
-    const el = mapEl.current;
-    if (!el) return;
-    const fallbackTimer = window.setTimeout(() => {
-      if (el.offsetHeight === 0 || el.offsetHeight < 50) {
-        console.warn('[FriendMap] Map container collapsed, forcing height');
-        el.style.height = `${window.innerHeight}px`;
-        el.style.width = `${window.innerWidth}px`;
-        mapRef.current?.invalidateSize();
-      }
-    }, 1500);
-    return () => window.clearTimeout(fallbackTimer);
   }, []);
 
   /* ── update my marker + accuracy circle ────────────── */
@@ -724,7 +782,7 @@ function FriendMapInner() {
 
   return (
     <AppLayout hideNav noPadding fullWidth>
-      <div className="fixed inset-0 overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none', willChange: 'transform', zIndex: 10 }}>
+      <div className="relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none' }}>
         <style>{`
           @keyframes pulse-ring{0%{transform:scale(.8);opacity:1}100%{transform:scale(3);opacity:0}}
           @keyframes pulse-glow{0%,100%{box-shadow:0 0 0 0 hsl(217 91% 60%/.4)}50%{box-shadow:0 0 20px 8px hsl(217 91% 60%/.2)}}
@@ -733,7 +791,9 @@ function FriendMapInner() {
           @keyframes ring-pulse{0%,100%{opacity:.7}50%{opacity:1}}
           @keyframes moving-glow{0%,100%{box-shadow:0 0 8px 2px hsl(142 76% 56%/.3)}50%{box-shadow:0 0 20px 6px hsl(142 76% 56%/.15)}}
           .friend-map-marker,.my-location-marker{background:transparent!important;border:none!important}
-          .leaflet-container{height:100%!important;width:100%!important;background:#0a0a0a;font-family:inherit}
+          .leaflet-container{height:100%!important;width:100%!important;min-height:100dvh!important;background:hsl(var(--muted));font-family:inherit;display:block!important;visibility:visible!important}
+          .leaflet-pane,.leaflet-map-pane,.leaflet-tile-pane,.leaflet-layer,.leaflet-tile{opacity:1!important;visibility:visible!important}
+          .leaflet-container img,.leaflet-container .leaflet-tile{max-width:none!important;max-height:none!important}
           .leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
           
           .vfm{position:relative;display:flex;height:52px;width:52px;align-items:center;justify-content:center;overflow:visible;border-radius:9999px;background:hsl(var(--card));box-shadow:0 8px 32px -8px rgba(0,0,0,.6);animation:bounce-in .5s cubic-bezier(.34,1.56,.64,1) both;transition:transform .3s ease}
@@ -767,7 +827,7 @@ function FriendMapInner() {
         `}</style>
 
         {/* Map container */}
-        <div ref={mapEl} className="absolute inset-0" style={{ height: '100%', width: '100%' }} />
+        <div ref={mapEl} className="absolute inset-0 block h-full min-h-[100dvh] w-full" style={{ height: '100%', minHeight: '100dvh', width: '100%' }} />
         <div className="map-vignette" />
 
         {/* ── Top bar ─────────────────────────────────── */}
