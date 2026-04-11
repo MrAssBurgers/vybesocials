@@ -515,7 +515,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   
   /* When a custom background is active, remove body gradient and make all layout layers transparent */
   body.has-custom-bg {
-    background: none !important;
+    background-color: transparent !important;
   }
   body.has-custom-bg #root {
     background: transparent !important;
@@ -579,7 +579,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   /* Light mode also needs wallpaper passthrough */
   .light body.has-custom-bg,
   body.light.has-custom-bg {
-    background: none !important;
+    background-color: transparent !important;
   }
 
   /* Safe area inset utilities */
