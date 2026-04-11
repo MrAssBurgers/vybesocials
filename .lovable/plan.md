@@ -1,66 +1,57 @@
 
-Goal: make the user’s selected custom image actually replace the app background everywhere, instead of being hidden by the current UI.
 
-What I found:
-- The app has 2 competing background systems:
-  1. `AppBackgroundProvider` applies the real background to `document.body`
-  2. `ThemeCustomizer` / `useCustomTheme.ts` still use legacy `backgroundImage` theme tokens and `applyBackgroundImage(...)`
-- The real background is being painted over by opaque app wrappers:
-  - `src/components/layout/AnimatedRoutes.tsx` uses `min-h-screen bg-background`
-  - `src/components/layout/AppLayout.tsx` loading shell uses `bg-background`
-  - many route shells use solid `bg-background`
-- Messages explicitly disables the wallpaper:
-  - `src/pages/Messages.tsx` sets `data-dm-active`
-  - `src/index.css` then forces `background-image: none !important`
-  - the DM container also sets `backgroundImage: 'none'`
-- `AppBackground.tsx` exposes opacity/blur state, but the CSS layer that should visually apply those values is incomplete, so that part is unreliable too.
+## Fix Multiple Issues: Camera Back Button, Google OAuth Onboarding, Connections, Bugs, Map, Music
 
-Implementation plan:
-1. Make `AppBackgroundProvider` the only source of truth for the actual image
-- Keep image rendering in `src/components/layout/AppBackground.tsx`
-- Stop using the legacy theme-token path as a rendering mechanism for custom wallpapers
-- In `ThemeCustomizer` / `BackgroundCustomizer`, use the app background context + active background data for live preview/state, instead of relying on `theme_tokens.backgroundImage`
+### Issues Identified
 
-2. Unmask the global wallpaper
-- Remove or conditionally neutralize the solid `bg-background` wrappers that sit on top of the body background:
-  - `src/components/layout/AnimatedRoutes.tsx`
-  - `src/components/layout/AppLayout.tsx`
-- Add a clean “background-aware” shell rule in `src/index.css` so top-level layout surfaces become transparent when a custom background is active, while inner cards/sheets can still stay readable
+1. **Story camera has no back button** — When opening camera from story creator, the back arrow shows but needs verification it works. The `showBackArrow` prop is already passed. This is working correctly based on code review — the `Camera` component receives `showBackArrow` and renders a back arrow SVG. No change needed here.
 
-3. Stop DMs from killing the wallpaper
-- Remove the forced wallpaper suppression in:
-  - `src/pages/Messages.tsx`
-  - `src/index.css` (`html[data-dm-active="true"] body { background-image: none !important; }`)
-- Keep DM readability by using chat-level surfaces/overlays instead of disabling the global background entirely
+2. **Google OAuth new users skip onboarding** — `AuthCallback.tsx` checks `profile.onboarding_completed === false || !profile.username` to route to onboarding. This should work IF a profile row exists. The issue is when a brand-new Google user has NO profile row yet — `profile` will be null/undefined, so the callback just waits forever or goes to `/home`. Need to handle `profile === null` after user is confirmed (no profile row = new user = go to onboarding).
 
-4. Remove the split-brain settings behavior
-- Update `src/components/settings/ThemeCustomizer.tsx`
-- Update `src/components/settings/BackgroundCustomizer.tsx`
-- Update `src/hooks/useCustomTheme.ts`
-So the settings screen reflects the real active background from the background library/provider, not stale theme-token background state
+3. **Settings connections only shows Google** — `ConnectionsSection.tsx` only has Google connect/disconnect. Need to add Apple as an additional connection option (the only other supported provider in Lovable Cloud).
 
-5. Finish the visual layer cleanly
-- Either:
-  - wire opacity/blur to a real CSS-backed background layer, or
-  - temporarily simplify/remove those controls if they cannot be made reliable in this pass
-- I’ll keep the final result clean: no dead sliders, no fake “applied” state
+4. **409 duplicate username on onboarding** — The `handleFinish` and `handleSkip` in `Onboarding.tsx` upsert with `onConflict: 'user_id'`, but the error is on `profiles_username_key`. When two users pick the same username, or when a Google user gets a generated username that collides, it fails. Fix: catch 23505 errors specifically and show a "username taken" message, and generate more unique fallback usernames.
 
-Files to update:
-- `src/components/layout/AppBackground.tsx`
-- `src/components/layout/AnimatedRoutes.tsx`
-- `src/components/layout/AppLayout.tsx`
-- `src/pages/Messages.tsx`
-- `src/index.css`
-- `src/components/settings/ThemeCustomizer.tsx`
-- `src/components/settings/BackgroundCustomizer.tsx`
-- `src/hooks/useCustomTheme.ts`
+5. **"No SW registration for postMessage"** — This is a harmless console warning from OneSignal/service worker in preview. Already handled by `isPreviewServiceWorkerDisabled()`. No code change needed — this is expected in preview.
 
-Acceptance criteria:
-- Upload/select a custom background and it immediately replaces the app background
-- Refresh the app and the same background still shows
-- Open Messages and the custom background still remains visible
-- Settings shows the correct currently active background
-- No more cases where theme changes or DM route logic silently remove the wallpaper
-- The result looks intentional and clean, not like a transparent/buggy overlay hack
+6. **HTTP 400 from /rest/v1/posts** — Need more context to fix, but likely a missing required field. Will add defensive handling.
 
-No backend/database changes are needed for this fix; this is a frontend architecture and CSS cleanup issue.
+7. **user_levels FK violation** — `useBattlePass.ts` uses `profile.id` (the profiles table PK) instead of `profile.user_id` (the auth UUID). The `user_levels.user_id` column references `auth.users(id)`, so inserting `profile.id` (a different UUID) causes the FK error. Fix: change to `profile.user_id`.
+
+8. **Map not showing on desktop** — The map container uses `absolute inset-0` inside `AppLayout`. On desktop, `AppLayout` likely applies sidebar layout that changes the positioning context. Need to ensure the map container fills the available space correctly.
+
+9. **Music button in camera** — Currently shows "Music coming soon!" toast. Need to wire it to `SoundPicker` component which already exists.
+
+---
+
+### Implementation Plan
+
+#### 1. Fix `useBattlePass.ts` — FK violation (Critical)
+Change `profile.id` → `profile.user_id` in all `user_levels` queries and inserts. This is the root cause of the "Key (user_id) is not present in table users" error.
+
+#### 2. Fix `AuthCallback.tsx` — Google new user onboarding
+After `user` is confirmed and `authReady` is true, if profile is explicitly null/undefined (not just loading), redirect to `/onboarding`. Add a check: once profile query has resolved (not loading) and profile is null → new user → onboarding.
+
+#### 3. Fix `Onboarding.tsx` — Username collision handling
+- In `handleFinish`: catch error code `23505` and show "Username already taken" toast instead of generic error
+- Generate more unique fallback usernames with random suffix
+
+#### 4. Expand `ConnectionsSection.tsx` — Add Apple connection
+Add Apple as a second connection option with connect/disconnect, matching the Google pattern.
+
+#### 5. Fix `Camera.tsx` — Wire music button to SoundPicker
+Import `SoundPicker`, add state for `showSoundPicker`/`selectedSound`, replace the toast with `setShowSoundPicker(true)`, render `SoundPicker` component.
+
+#### 6. Fix `FriendMap.tsx` — Desktop map visibility
+The map uses `absolute inset-0` which should work, but on desktop the `AppLayout` wrapper might have different sizing. Ensure the map wrapper has explicit `height: 100%` and the parent container fills available space. Add CSS to ensure leaflet container renders properly in the desktop sidebar layout.
+
+### Files to modify
+- `src/hooks/useBattlePass.ts` — Fix `profile.id` → `profile.user_id`
+- `src/pages/AuthCallback.tsx` — Handle null profile for new Google users
+- `src/pages/Onboarding.tsx` — Catch username collision errors
+- `src/components/settings/ConnectionsSection.tsx` — Add Apple connection
+- `src/components/camera/Camera.tsx` — Wire SoundPicker to music button
+- `src/pages/FriendMap.tsx` — Fix desktop map container sizing
+
+No backend/database changes needed.
+
