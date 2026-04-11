@@ -1629,6 +1629,19 @@ export function ChatView() {
             />
           )}
 
+          {/* Safety filter request popup */}
+          {conversationSafety.hasPendingRequest && !conversationSafety.isRequester && !conversationSafety.hasCurrentUserResponded && otherMember && (
+            <SafetyFilterRequest
+              visible
+              requesterName={otherMember.display_name || otherMember.username || 'User'}
+              isGroupChat={isGroupChat}
+              isUnder13={conversationSafety.isUnder13}
+              onAccept={() => conversationSafety.respondToRequest.mutate('accepted')}
+              onDecline={() => conversationSafety.respondToRequest.mutate('declined')}
+              isLoading={conversationSafety.respondToRequest.isPending}
+            />
+          )}
+
           <div ref={messagesEndRef} className="h-1" />
         </div>
       </div>
