@@ -2138,10 +2138,11 @@ const MessageBubble = memo(function MessageBubble({
   }, []);
 
   const handleMediaTap = useCallback(() => {
+    if (isContextMenuOpen) return;
     if (message.media_url && (message.media_type === 'image' || message.media_type === 'gif' || message.media_type === 'video')) {
       setViewerMedia({ url: message.media_url, type: message.media_type as 'image' | 'gif' | 'video' });
     }
-  }, [message.media_url, message.media_type]);
+  }, [isContextMenuOpen, message.media_url, message.media_type]);
 
   // Check if this is an audio message for proper sizing
   const isAudioMessage = message.media_url && message.media_type === 'audio';
