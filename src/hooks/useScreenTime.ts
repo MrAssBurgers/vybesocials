@@ -26,14 +26,14 @@ export function useScreenTimeTracker() {
 
   const updateSession = useCallback(async () => {
     if (!sessionIdRef.current) return;
-    await supabase.rpc('increment_screen_time' as any, { session_id: sessionIdRef.current, seconds: 60 }).catch(() => {
-      // Fallback: direct update
-      supabase
+    try {
+      await supabase
         .from('screen_time_sessions')
         .update({ duration_seconds: 60, ended_at: new Date().toISOString() })
-        .eq('id', sessionIdRef.current!)
-        .then(() => {});
-    });
+        .eq('id', sessionIdRef.current!);
+    } catch {
+      // Silently fail
+    }
   }, []);
 
   useEffect(() => {
