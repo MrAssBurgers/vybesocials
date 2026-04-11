@@ -280,9 +280,32 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
   );
 });
 
-// Cache
+// Time-slotted cache: morning (6am-12pm), afternoon (12pm-6pm), evening (6pm-6am)
+function getTimeSlot(): 'morning' | 'afternoon' | 'evening' {
+  const hour = new Date().getHours();
+  if (hour >= 6 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 18) return 'afternoon';
+  return 'evening';
+}
+
+function getNextSlotTime(): Date {
+  const now = new Date();
+  const hour = now.getHours();
+  const next = new Date(now);
+  next.setMinutes(0, 0, 0);
+  if (hour < 6) next.setHours(6);
+  else if (hour < 12) next.setHours(12);
+  else if (hour < 18) next.setHours(18);
+  else { next.setDate(next.getDate() + 1); next.setHours(6); }
+  return next;
+}
+
+function formatNextUpdate(): string {
+  const next = getNextSlotTime();
+  return next.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 const BRIEF_CACHE_KEY = 'vybe_ai_brief_cache';
-const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
 
 function isValidBrief(data: unknown): data is BriefData {
   if (!data || typeof data !== 'object') return false;
@@ -293,15 +316,17 @@ function getCachedBrief(): BriefData | null {
   try {
     const cached = localStorage.getItem(BRIEF_CACHE_KEY);
     if (!cached) return null;
-    const { data, timestamp } = JSON.parse(cached);
-    if (Date.now() - timestamp < CACHE_TTL && isValidBrief(data)) return data;
+    const { data, timestamp, timeSlot } = JSON.parse(cached);
+    const currentSlot = getTimeSlot();
+    // Valid if same time slot
+    if (timeSlot === currentSlot && isValidBrief(data)) return data;
     localStorage.removeItem(BRIEF_CACHE_KEY);
     return null;
   } catch { localStorage.removeItem(BRIEF_CACHE_KEY); return null; }
 }
 
 function setCachedBrief(data: BriefData) {
-  try { if (isValidBrief(data)) localStorage.setItem(BRIEF_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() })); } catch {}
+  try { if (isValidBrief(data)) localStorage.setItem(BRIEF_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now(), timeSlot: getTimeSlot() })); } catch {}
 }
 
 // ── Section header ──

@@ -1,11 +1,13 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Post } from '@/hooks/useInfinitePosts';
+import { toast } from 'sonner';
 
 const PAGE_SIZE = 15;
 const STALE_TIME = 5 * 60 * 1000;
+const RADIUS_MILES = 25;
 
 function transformPost(row: any): Post {
   return {
@@ -32,22 +34,9 @@ function transformPost(row: any): Post {
 export function useUserLocation() {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [permissionState, setPermissionState] = useState<PermissionState | null>(null);
 
-  useEffect(() => {
-    // Check localStorage cache first
-    const cached = localStorage.getItem('vybe-user-location');
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        const age = Date.now() - (parsed.timestamp || 0);
-        // Use cached location if less than 30 minutes old
-        if (age < 30 * 60 * 1000) {
-          setLocation({ lat: parsed.lat, lng: parsed.lng });
-          return;
-        }
-      } catch {}
-    }
-
+  const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setError('Geolocation not supported');
       return;
@@ -59,17 +48,49 @@ export function useUserLocation() {
         setLocation(loc);
         localStorage.setItem('vybe-user-location', JSON.stringify({ ...loc, timestamp: Date.now() }));
       },
-      (err) => setError(err.message),
+      (err) => {
+        setError(err.message);
+        if (err.code === err.PERMISSION_DENIED) {
+          toast.error('Location access is needed for the Local feed. Please enable it in your browser settings.');
+        }
+      },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 15 * 60 * 1000 }
     );
   }, []);
 
-  return { location, error };
+  useEffect(() => {
+    // Check permission state
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        setPermissionState(result.state);
+        result.addEventListener('change', () => setPermissionState(result.state));
+      }).catch(() => {});
+    }
+
+    // Check localStorage cache first
+    const cached = localStorage.getItem('vybe-user-location');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        const age = Date.now() - (parsed.timestamp || 0);
+        if (age < 30 * 60 * 1000) {
+          setLocation({ lat: parsed.lat, lng: parsed.lng });
+          // Still request fresh location in background
+          requestLocation();
+          return;
+        }
+      } catch {}
+    }
+
+    requestLocation();
+  }, [requestLocation]);
+
+  return { location, error, permissionState, requestLocation };
 }
 
 /**
- * Local feed - shows posts from nearby users or with local tags
- * Falls back to trending if no location or no local content
+ * Local feed - shows posts from users within 25 miles
+ * Falls back to trending if no location available
  */
 export function useLocalFeed() {
   const { profile } = useAuth();
@@ -80,32 +101,32 @@ export function useLocalFeed() {
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       const offset = pageParam * PAGE_SIZE;
 
-      // Use trending feed as base, client will filter/boost local content
-      const { data, error } = await supabase.rpc('get_posts_with_counts', {
-        p_type: null,
-        p_author_id: null,
-        p_user_id: profile?.id || null,
-        p_offset: offset,
-        p_limit: PAGE_SIZE,
-      });
-
-      if (error) throw error;
-      const posts = (data || []).map(transformPost);
-
-      // Boost posts with location-related tags
+      // If we have location, use the local posts RPC
       if (location) {
-        const localTags = new Set(['local', 'nearby', 'community', 'neighborhood', 'city']);
-        posts.sort((a, b) => {
-          const aLocal = a.tags.some(t => localTags.has(t.toLowerCase())) ? 1 : 0;
-          const bLocal = b.tags.some(t => localTags.has(t.toLowerCase())) ? 1 : 0;
-          return bLocal - aLocal;
-        });
+        const { data, error } = await supabase.rpc('get_local_posts', {
+          p_lat: location.lat,
+          p_lng: location.lng,
+          p_radius_miles: RADIUS_MILES,
+          p_user_id: profile?.id || null,
+          p_offset: offset,
+          p_limit: PAGE_SIZE,
+        } as any);
+
+        if (error) {
+          console.error('[LocalFeed] get_local_posts error, falling back:', error);
+          // Fall back to generic feed
+          return fetchFallbackFeed(offset, profile?.id);
+        }
+
+        const posts = (data || []).map(transformPost);
+        return {
+          posts,
+          nextPage: posts.length >= PAGE_SIZE ? pageParam + 1 : null,
+        };
       }
 
-      return {
-        posts,
-        nextPage: posts.length >= PAGE_SIZE ? pageParam + 1 : null,
-      };
+      // No location available, fall back to generic feed
+      return fetchFallbackFeed(offset, profile?.id);
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
@@ -113,4 +134,21 @@ export function useLocalFeed() {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
+}
+
+async function fetchFallbackFeed(offset: number, userId?: string): Promise<{ posts: Post[]; nextPage: number | null }> {
+  const { data, error } = await supabase.rpc('get_posts_with_counts', {
+    p_type: null,
+    p_author_id: null,
+    p_user_id: userId || null,
+    p_offset: offset,
+    p_limit: PAGE_SIZE,
+  });
+
+  if (error) throw error;
+  const posts = (data || []).map(transformPost);
+  return {
+    posts,
+    nextPage: posts.length >= PAGE_SIZE ? (offset / PAGE_SIZE) + 1 : null,
+  };
 }
