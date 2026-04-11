@@ -1,105 +1,122 @@
 
 
-## Plan: Replace Daily.co Calling System with LiveKit
+## Plan: Dual-Mode Calling System (P2P + LiveKit)
 
 ### Summary
-Replace the entire Daily.co-powered calling system with a LiveKit-based WebRTC system. This involves a new edge function for token generation, new frontend components using the LiveKit SDK, and reuse of the existing `calls` database table with minor schema additions.
+Add a free peer-to-peer WebRTC calling mode as the default, keeping the existing LiveKit system as a premium "Stay On Call" feature. P2P signaling will use Supabase Realtime channels (no new backend needed). Mode switching triggers a controlled reconnect.
+
+### Architecture
+
+```text
+┌──────────────────────────────────────────────────┐
+│                   Call Store                      │
+│  callMode: "p2p" | "persistent"                  │
+│                                                   │
+│  P2P Mode (free)          Persistent Mode (pro)   │
+│  ┌─────────────┐          ┌──────────────────┐   │
+│  │ RTCPeer     │          │ LiveKit Room     │   │
+│  │ Connection  │          │ (existing code)  │   │
+│  │             │          │                  │   │
+│  │ Signaling:  │          │ Token from       │   │
+│  │ Supabase    │          │ livekit-token    │   │
+│  │ Realtime    │          │ edge function    │   │
+│  └─────────────┘          └──────────────────┘   │
+└──────────────────────────────────────────────────┘
+```
 
 ### What Changes
 
 **1. Database Migration**
-- Add `room_id` column to `calls` table (the conversationId-based persistent room identifier)
-- Add `active_participants` integer column (track how many users are in the room)
-- Keep existing columns (room_url, room_name, status, etc.) but repurpose them for LiveKit
+- Add `call_mode` column (`text`, default `'p2p'`) to `calls` table
+- Used to coordinate mode between both clients via Realtime subscription
 
-**2. New Secret Required**
-- `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` — user must provide these from their LiveKit Cloud dashboard
-- `LIVEKIT_URL` — the LiveKit server WebSocket URL (e.g. `wss://your-app.livekit.cloud`)
+**2. New File: `src/lib/p2pConnection.ts`**
+- Encapsulates `RTCPeerConnection` lifecycle
+- Uses Google STUN servers (`stun:stun.l.google.com:19302`)
+- Signaling via Supabase Realtime broadcast channel (`p2p-signal:{conversationId}`)
+- Exchanges SDP offers/answers and ICE candidates
+- Handles: connect, disconnect, mute, camera toggle, device switch
+- Reconnect on ICE failure with exponential backoff
+- Exports a clean interface: `createP2PCall()`, `joinP2PCall()`, `disconnectP2P()`
 
-**3. New Edge Function: `livekit-token`**
-- Replaces both `create-call-room` and `get-call-token`
-- Generates a LiveKit access token using `livekit-server-sdk` (npm package available in Deno)
-- Token includes: roomId (= conversationId), userId (= profile.id), display name, publish + subscribe permissions
-- Creates/updates the `calls` record in the database
-- Validates user is a member of the conversation
+**3. Update: `src/lib/callStore.tsx`**
+- Add `callMode: 'p2p' | 'persistent'` to `CallData` and state
+- Default `startCall` to `'p2p'` mode — no edge function call needed, just insert call record and open Realtime signaling channel
+- Add `switchMode(mode)` function:
+  - Updates `call_mode` in DB (triggers Realtime to other client)
+  - Both clients detect change, show "Switching..." UI
+  - Tear down current connection (P2P or LiveKit)
+  - If switching to `persistent`: fetch LiveKit token, connect to room
+  - If switching to `p2p`: create new peer connection via signaling
+- Keep all existing LiveKit logic intact for persistent mode
+- Add `fallbackToPersistent()` — auto-suggest upgrade if P2P fails
 
-**4. Delete Edge Functions**
-- `create-call-room` (Daily.co room creation)
-- `get-call-token` (Daily.co token generation)
+**4. Update: `src/components/call/GlobalCallOverlay.tsx`**
+- Dual-mode rendering: use P2P connection OR LiveKit Room based on `callMode`
+- Add P2P track attachment (local/remote video/audio via `RTCPeerConnection` tracks)
+- Add "Switching to Stay Connected mode..." transitional UI state
+- Add "Stay On Call" toggle in call controls:
+  - Shows Crown/premium badge
+  - Checks `usePremiumStatus()` before enabling
+  - If not premium: open `PaywallSheet`
+  - If premium: call `switchMode('persistent')`
+- P2P reconnect UI: "Reconnecting..." on ICE restart
+- Fallback prompt: if P2P fails after 3 attempts, suggest persistent mode
 
-**5. Remove npm Dependency**
-- Uninstall `@daily-co/daily-js`
-- Install `livekit-client` (~50KB, much lighter than Daily)
+**5. Update: `src/components/call/CallButtons.tsx`**
+- Minor: pass `callMode: 'p2p'` as default when starting calls
+- "Join Back" button only shows for persistent mode (P2P has no rejoin)
 
-**6. Rewrite `src/lib/callStore.tsx`**
-- Same state machine: idle → creating → joining → connected → ending → idle
-- Same incoming call detection via Supabase Realtime + polling fallback
-- `startCall` now calls the `livekit-token` edge function instead of `create-call-room`
-- Room identifier = conversationId (persistent per DM)
-- `rejoinCall` uses same roomId to reconnect
-- Linger/leave logic preserved (leave without ending room)
+**6. Edge Function: `supabase/functions/livekit-token/index.ts`**
+- No changes needed — already handles token generation for persistent mode
 
-**7. Rewrite `src/components/call/GlobalCallOverlay.tsx`**
-- Replace `DailyIframe.createCallObject()` with LiveKit `Room` + `connect()`
-- Use LiveKit's `RoomEvent` listeners (TrackSubscribed, TrackUnsubscribed, ParticipantConnected, ParticipantDisconnected, Reconnecting, Reconnected, Disconnected)
-- Built-in reconnection: LiveKit handles network drops, app sleep, and reconnection automatically
-- Same UI structure: full-screen overlay, mute/unmute, camera on/off, camera switch, minimize bubble
-- Same call sounds integration (callSounds, premiumSounds)
-- Same iOS autoplay handling
+**7. P2P Signaling Flow (via Supabase Realtime)**
+- Channel: `p2p-signal:{conversationId}`
+- Events: `offer`, `answer`, `ice-candidate`, `hangup`, `mode-switch`
+- No new edge function required — Realtime broadcast handles it client-side
 
-**8. Update `src/components/call/CallButtons.tsx`**
-- Minimal changes — same interface, just calls the updated callStore
+### Call Flow
 
-**9. Keep Unchanged**
-- `CallSettingsSheet.tsx` — adapt device enumeration to use LiveKit's `Room.getLocalDevices()`
-- `MinimizedCallBubble.tsx` — no changes needed (pure UI)
-- `callSounds.ts`, `premiumSounds.ts` — no changes
-- `mediaPermissions.ts` — still used for pre-call permission checks
-- Database RLS policies — still valid
-- Incoming call detection (Realtime + polling) — same pattern
+**Starting a call (P2P):**
+1. Insert call record with `call_mode: 'p2p'`, status `'ringing'`
+2. Open Realtime signaling channel
+3. Callee detects incoming call (existing Realtime + polling)
+4. Callee accepts → joins signaling channel
+5. Caller sends SDP offer → Callee sends SDP answer → ICE exchange → connected
 
-### Technical Architecture
+**Switching to persistent (premium):**
+1. User toggles "Stay On Call" → premium check passes
+2. Update `call_mode` to `'persistent'` in DB
+3. Both clients detect via Realtime subscription on `calls` table
+4. Show "Switching to Stay Connected mode..."
+5. Tear down P2P connection
+6. Both clients fetch LiveKit token → connect to LiveKit room
+7. Resume call in persistent mode
 
-```text
-┌─────────────┐     POST /livekit-token      ┌──────────────────┐
-│  Frontend   │ ──────────────────────────►   │  Edge Function   │
-│  (React)    │                               │  livekit-token   │
-│             │  ◄─── { token, url, callId }  │                  │
-│  livekit-   │                               │  - Auth check    │
-│  client SDK │                               │  - Generate JWT  │
-│             │     WebSocket (wss://)        │  - Upsert call   │
-│             │ ──────────────────────────►   │                  │
-│             │        LiveKit Cloud          └──────────────────┘
-└─────────────┘
-```
+### Premium Gating
+- Uses existing `usePremiumStatus()` hook
+- Non-premium users see the toggle but get `PaywallSheet` on tap
+- `callMode` defaults to `'p2p'` — no server cost for free users
 
-### Reconnection Strategy
-- LiveKit SDK has built-in reconnection (exponential backoff, ICE restart)
-- On `RoomEvent.Reconnecting` → show "Reconnecting..." UI
-- On `RoomEvent.Reconnected` → restore normal UI
-- On `RoomEvent.Disconnected` → if room still active in DB, show "Rejoin" button
-- On app foreground (visibilitychange) → check if room is still active, auto-rejoin
+### Cleanup
+- P2P: connection ends when either user hangs up (no linger)
+- Persistent: existing linger logic (30s for 1:1, 1hr for group)
+- Both: call record updated to `'ended'` in DB
 
-### Room Lifecycle
-- Room is "active" as long as ≥1 participant is connected
-- When both leave → edge function or client marks call as `ended`
-- LiveKit rooms auto-close when empty (configurable `empty_timeout` on server)
+### Files
 
-### Cleanup of Old System
-- Remove `@daily-co/daily-js` from package.json
-- Delete `supabase/functions/create-call-room/`
-- Delete `supabase/functions/get-call-token/`
-- Remove Daily-specific code from `useCameraPreload` hook (if any)
+| Action | File |
+|--------|------|
+| Create | `src/lib/p2pConnection.ts` |
+| Edit | `src/lib/callStore.tsx` |
+| Edit | `src/components/call/GlobalCallOverlay.tsx` |
+| Edit | `src/components/call/CallButtons.tsx` |
+| Migration | Add `call_mode` column to `calls` table |
 
 ### Steps
-1. Add LiveKit secrets (`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_URL`)
-2. Install `livekit-client` dependency
-3. Create `livekit-token` edge function
-4. Run database migration (add columns to calls table)
-5. Rewrite `callStore.tsx` for LiveKit flow
-6. Rewrite `GlobalCallOverlay.tsx` with LiveKit Room SDK
-7. Update `CallSettingsSheet.tsx` device enumeration
-8. Update `CallButtons.tsx` (minor)
-9. Remove Daily.co dependency and old edge functions
-10. Test end-to-end
+1. Run database migration (add `call_mode` column)
+2. Create `p2pConnection.ts` (WebRTC + Supabase Realtime signaling)
+3. Update `callStore.tsx` (dual-mode state, mode switching, P2P start flow)
+4. Update `GlobalCallOverlay.tsx` (P2P rendering, "Stay On Call" toggle, switching UI)
+5. Update `CallButtons.tsx` (default to P2P mode)
 
