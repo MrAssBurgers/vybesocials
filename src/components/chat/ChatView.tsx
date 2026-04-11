@@ -1508,8 +1508,12 @@ export function ChatView() {
                     </span>
                   </div>
                 )}
-                {/* Swipe to reply wrapper */}
-                <SwipeToReply onReply={() => handleReply(message)} isOwn={isOwn}>
+                {/* Swipe = reply only, hold = menu only, tap = bubble/media behavior */}
+                <SwipeToReply
+                  onReply={() => handleReply(message)}
+                  onLongPress={() => setShowContextMenuMessageId(message.id)}
+                  isOwn={isOwn}
+                >
                   <MessageBubble
                     message={message}
                     isOwn={isOwn}
@@ -1538,6 +1542,8 @@ export function ChatView() {
                     isEmojiOnly={isEmojiOnly}
                     onNavigateToPost={(postId) => navigate(`/clips/${postId}`, { state: { from: 'messages', conversationId } })}
                     onScrollToMessage={scrollToMessage}
+                    forceShowContextMenu={showContextMenuMessageId === message.id}
+                    onCloseContextMenu={() => setShowContextMenuMessageId(null)}
                   />
                 </SwipeToReply>
               </div>
@@ -2031,6 +2037,8 @@ const MessageBubble = memo(function MessageBubble({
   onNavigateToPost,
   onScrollToMessage,
   onSaveSticker,
+  forceShowContextMenu = false,
+  onCloseContextMenu,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -2052,6 +2060,8 @@ const MessageBubble = memo(function MessageBubble({
   isEmojiOnly?: boolean;
   onNavigateToPost?: (postId: string) => void;
   onScrollToMessage?: (messageId: string) => void;
+  forceShowContextMenu?: boolean;
+  onCloseContextMenu?: () => void;
 }) {
   const [isViewed, setIsViewed] = useState(false);
   // For VYBE snaps: check if ANY view exists (server truth)
