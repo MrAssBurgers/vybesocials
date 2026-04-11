@@ -40,13 +40,26 @@ interface SignalMessage {
   data: any;
 }
 
-// ── STUN Configuration ─────────────────────────────────────────
+// ── ICE Configuration (STUN + TURN) ────────────────────────────
 
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'stun:stun3.l.google.com:19302' },
+  // Free TURN relay servers for NAT traversal fallback
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:443?transport=tcp',
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:relay1.expressturn.com:443',
+    username: 'efPXGFATV8MWCURCOO',
+    credential: 'SkwNxdXIIcMHF7vN',
+  },
 ];
 
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -116,8 +129,8 @@ export class P2PConnection {
 
     // 5. If initiator, wait a beat for the responder's channel to be ready, then send offer
     if (this.isInitiator) {
-      // Small delay ensures the responder has subscribed to the channel
-      await new Promise(r => setTimeout(r, 300));
+      // Wait for the responder's signaling channel to be ready
+      await new Promise(r => setTimeout(r, 800));
       await this.createAndSendOffer();
     }
   }
@@ -216,7 +229,11 @@ export class P2PConnection {
   // ── Private Methods ────────────────────────────────────────
 
   private createPeerConnection(): void {
-    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    this.pc = new RTCPeerConnection({
+      iceServers: ICE_SERVERS,
+      iceTransportPolicy: 'all',
+      iceCandidatePoolSize: 4,
+    });
 
     // ICE candidate — send to remote via signaling
     this.pc.onicecandidate = (event) => {
