@@ -40,6 +40,13 @@ interface SearchResult {
   lon: string;
 }
 
+interface PublicProfileSummary {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
 /* ── constants ───────────────────────────────────────── */
 
 const DEFAULT_CENTER: [number, number] = [39.8283, -98.5795];
@@ -72,6 +79,29 @@ const MAP_TILES: Record<string, { url: string; label: string; icon: string }> = 
     icon: '🗺️',
   },
 };
+
+type MapStyleKey = keyof typeof MAP_TILES;
+
+function isMapStyleKey(value: string | null): value is MapStyleKey {
+  return !!value && Object.prototype.hasOwnProperty.call(MAP_TILES, value);
+}
+
+function getInitialMapStyle(): MapStyleKey {
+  try {
+    const storedStyle = localStorage.getItem(MAP_STYLE_KEY);
+    return isMapStyleKey(storedStyle) ? storedStyle : 'satellite';
+  } catch {
+    return 'satellite';
+  }
+}
+
+function isFiniteCoordinate(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isValidLatLng(lat: unknown, lng: unknown): lat is number {
+  return isFiniteCoordinate(lat) && isFiniteCoordinate(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+}
 
 /* ── helpers ─────────────────────────────────────────── */
 
@@ -217,13 +247,39 @@ function useFriendLocations(friendIds: string[]) {
     staleTime: 10_000,
     queryFn: async (): Promise<LocationRecord[]> => {
       if (!friendIds.length) return [];
-      const { data, error } = await supabase
+      const { data: locationRows, error } = await supabase
         .from('user_locations')
-        .select('id, user_id, latitude, longitude, accuracy, label, updated_at, expires_at, sharing_enabled, status, speed, profile:profiles(username, display_name, avatar_url)')
+        .select('id, user_id, latitude, longitude, accuracy, label, updated_at, expires_at, sharing_enabled, status, speed')
         .in('user_id', friendIds)
         .eq('sharing_enabled', true);
       if (error) throw error;
-      return (data || []) as unknown as LocationRecord[];
+
+      const validLocations = (locationRows || []).filter((row) => isValidLatLng(row.latitude, row.longitude));
+      if (!validLocations.length) return [];
+
+      const profileIds = Array.from(new Set(validLocations.map((row) => row.user_id)));
+      const { data: profileRows } = await supabase
+        .from('public_profiles')
+        .select('id, username, display_name, avatar_url')
+        .in('id', profileIds);
+
+      const profilesById = new Map(
+        ((profileRows || []) as PublicProfileSummary[]).map((profile) => [profile.id, profile])
+      );
+
+      return validLocations.map((row) => {
+        const profile = profilesById.get(row.user_id);
+        return {
+          ...row,
+          profile: profile
+            ? {
+                username: profile.username,
+                display_name: profile.display_name,
+                avatar_url: profile.avatar_url,
+              }
+            : null,
+        };
+      }) as LocationRecord[];
     },
   });
 }
@@ -324,20 +380,27 @@ export default function FriendMap() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [stylesOpen, setStylesOpen] = useState(false);
   const [ghostOpen, setGhostOpen] = useState(false);
-  const [mapStyle, setMapStyle] = useState(() => localStorage.getItem(MAP_STYLE_KEY) || 'satellite');
+  const [mapStyle, setMapStyle] = useState<MapStyleKey>(getInitialMapStyle);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
 
-  const friendsArr = useMemo(() => Array.isArray(friends) ? friends : [], [friends]);
+  const safeMyCoords = useMemo(
+    () => (myCoords && isValidLatLng(myCoords[0], myCoords[1]) ? myCoords : null),
+    [myCoords]
+  );
+  const friendsArr = useMemo(
+    () => (Array.isArray(friends) ? friends.filter((friend) => isValidLatLng(friend.latitude, friend.longitude)) : []),
+    [friends]
+  );
   const sel = useMemo(() => friendsArr.find((f) => f.user_id === selId) || null, [friendsArr, selId]);
 
   const sortedFriends = useMemo(() => {
-    if (!myCoords) return friendsArr;
+    if (!safeMyCoords) return friendsArr;
     return [...friendsArr].sort((a, b) => {
-      const da = distanceBetween(myCoords, [a.latitude, a.longitude]);
-      const db = distanceBetween(myCoords, [b.latitude, b.longitude]);
+      const da = distanceBetween(safeMyCoords, [a.latitude, a.longitude]);
+      const db = distanceBetween(safeMyCoords, [b.latitude, b.longitude]);
       return da - db;
     });
-  }, [friendsArr, myCoords]);
+  }, [friendsArr, safeMyCoords]);
 
   // Simple clustering: group friends within ~0.005 degrees at low zoom
   const clusteredMarkers = useMemo(() => {
@@ -367,7 +430,7 @@ export default function FriendMap() {
     return { singles, clusters };
   }, [friendsArr, zoom]);
 
-  const { query: searchQuery, results: searchResults, nearby: nearbyPlaces, loading: searchLoading, search: doSearch, clear: clearSearch } = useNominatimSearch(myCoords);
+  const { query: searchQuery, results: searchResults, nearby: nearbyPlaces, loading: searchLoading, search: doSearch, clear: clearSearch } = useNominatimSearch(safeMyCoords);
 
   /* ── location tracking is handled by LocationProvider ── */
 
@@ -399,20 +462,26 @@ export default function FriendMap() {
   }, [sharing, setSharing]);
 
   const focus = useCallback((f: LocationRecord) => {
+    if (!isValidLatLng(f.latitude, f.longitude)) return;
     setSelId(f.user_id);
     mapRef.current?.flyTo([f.latitude, f.longitude], FRIEND_FOCUS_ZOOM, { duration: 1.2 });
     triggerHaptic('light');
   }, []);
 
   const recenter = useCallback(() => {
-    if (!myCoords) return;
-    mapRef.current?.flyTo(myCoords, MY_LOCATION_ZOOM, { duration: 1 });
+    if (!safeMyCoords) return;
+    mapRef.current?.flyTo(safeMyCoords, MY_LOCATION_ZOOM, { duration: 1 });
     triggerHaptic('light');
-  }, [myCoords]);
+  }, [safeMyCoords]);
 
   const changeMapStyle = useCallback((style: string) => {
+    if (!isMapStyleKey(style)) return;
     setMapStyle(style);
-    localStorage.setItem(MAP_STYLE_KEY, style);
+    try {
+      localStorage.setItem(MAP_STYLE_KEY, style);
+    } catch {
+      // Ignore storage failures and keep the in-memory style.
+    }
     if (tileRef.current && mapRef.current) {
       tileRef.current.remove();
       tileRef.current = L.tileLayer(MAP_TILES[style].url, { maxZoom: 19 }).addTo(mapRef.current);
@@ -432,6 +501,14 @@ export default function FriendMap() {
 
   useEffect(() => {
     if (!mapEl.current || mapRef.current) return;
+    const safeInvalidateSize = () => {
+      if (mapRef.current !== map) return;
+      try {
+        map.invalidateSize();
+      } catch {
+        // Ignore invalidation during teardown.
+      }
+    };
     const map = L.map(mapEl.current, {
       zoomControl: false,
       attributionControl: false,
@@ -447,21 +524,22 @@ export default function FriendMap() {
     tileRef.current = L.tileLayer(MAP_TILES[mapStyle].url, { maxZoom: 19 }).addTo(map);
     fLayer.current = L.layerGroup().addTo(map);
     mapRef.current = map;
+    const rafId = requestAnimationFrame(safeInvalidateSize);
+    const timeoutIds = [window.setTimeout(safeInvalidateSize, 100), window.setTimeout(safeInvalidateSize, 500)];
     // Invalidate size multiple times to handle desktop layout settling
-    requestAnimationFrame(() => map.invalidateSize());
-    setTimeout(() => map.invalidateSize(), 100);
-    setTimeout(() => map.invalidateSize(), 500);
-    
+    safeInvalidateSize();
+
     // Use ResizeObserver to handle layout changes (e.g. sidebar appearing)
-    const ro = new ResizeObserver(() => map.invalidateSize());
-    ro.observe(mapEl.current);
-    const roCleanup = () => ro.disconnect();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(safeInvalidateSize) : null;
+    ro?.observe(mapEl.current);
 
     map.on('click', () => { setSelId(null); setStylesOpen(false); });
     map.on('zoomend', () => setZoom(map.getZoom()));
 
     return () => {
-      roCleanup();
+      cancelAnimationFrame(rafId);
+      timeoutIds.forEach((id) => window.clearTimeout(id));
+      ro?.disconnect();
       fLayer.current?.clearLayers();
       myMk.current?.remove();
       accCircle.current?.remove();
@@ -479,14 +557,14 @@ export default function FriendMap() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (!myCoords) {
+    if (!safeMyCoords) {
       myMk.current?.remove(); myMk.current = null;
       accCircle.current?.remove(); accCircle.current = null;
       return;
     }
     if (accuracy && accuracy < 500) {
       if (!accCircle.current) {
-        accCircle.current = L.circle(myCoords, {
+        accCircle.current = L.circle(safeMyCoords, {
           radius: accuracy,
           fillColor: 'hsl(217, 91%, 60%)',
           fillOpacity: 0.08,
@@ -497,20 +575,20 @@ export default function FriendMap() {
           interactive: false,
         }).addTo(map);
       } else {
-        accCircle.current.setLatLng(myCoords);
+        accCircle.current.setLatLng(safeMyCoords);
         accCircle.current.setRadius(accuracy);
       }
     }
     if (!myMk.current) {
-      myMk.current = L.marker(myCoords, { icon: myIcon(), zIndexOffset: 1000, interactive: false }).addTo(map);
+      myMk.current = L.marker(safeMyCoords, { icon: myIcon(), zIndexOffset: 1000, interactive: false }).addTo(map);
     } else {
       // Smooth animation for own marker (Apple Maps style)
       const old = myMk.current.getLatLng();
-      if (old.lat !== myCoords[0] || old.lng !== myCoords[1]) {
-        animateMarker(myMk.current, old, L.latLng(myCoords[0], myCoords[1]));
+      if (old.lat !== safeMyCoords[0] || old.lng !== safeMyCoords[1]) {
+        animateMarker(myMk.current, old, L.latLng(safeMyCoords[0], safeMyCoords[1]));
       }
     }
-  }, [myCoords, accuracy]);
+  }, [safeMyCoords, accuracy]);
 
   /* ── friend markers (smooth animation) ──────────────── */
 
@@ -571,12 +649,12 @@ export default function FriendMap() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || framed.current) return;
-    const pts: [number, number][] = [...friendsArr.map((f) => [f.latitude, f.longitude] as [number, number]), ...(myCoords ? [myCoords] : [])];
+    const pts: [number, number][] = [...friendsArr.map((f) => [f.latitude, f.longitude] as [number, number]), ...(safeMyCoords ? [safeMyCoords] : [])];
     if (!pts.length) return;
     framed.current = true;
-    if (pts.length === 1) { map.flyTo(pts[0], myCoords ? MY_LOCATION_ZOOM : 12, { duration: 1.2 }); return; }
+    if (pts.length === 1) { map.flyTo(pts[0], safeMyCoords ? MY_LOCATION_ZOOM : 12, { duration: 1.2 }); return; }
     map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 14, animate: true });
-  }, [myCoords, friendsArr]);
+  }, [safeMyCoords, friendsArr]);
 
   /* ── render ────────────────────────────────────────── */
 
@@ -676,7 +754,7 @@ export default function FriendMap() {
 
             <motion.button
               onClick={recenter}
-              disabled={!myCoords}
+                disabled={!safeMyCoords}
               whileTap={{ scale: 0.9 }}
               className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xl disabled:opacity-30"
             >
@@ -775,7 +853,7 @@ export default function FriendMap() {
                 <div className="border-t border-white/10">
                   <p className="px-3 pt-2.5 pb-1 text-[10px] font-semibold text-white/30 uppercase tracking-wider">Nearby</p>
                   {nearbyPlaces.map((r, i) => {
-                    const dist = myCoords ? distanceBetween(myCoords, [parseFloat(r.lat), parseFloat(r.lon)]).toFixed(1) : null;
+                    const dist = safeMyCoords ? distanceBetween(safeMyCoords, [parseFloat(r.lat), parseFloat(r.lon)]).toFixed(1) : null;
                     return (
                       <div key={`${r.lat}-${r.lon}`} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-white/5 transition-colors">
                         <button
@@ -912,7 +990,7 @@ export default function FriendMap() {
                 const activity = getActivityFromSpeed(sel.speed);
                 const mph = speedToMph(sel.speed);
                 const isLive = (Date.now() - new Date(sel.updated_at).getTime()) < 300_000;
-                const dist = myCoords ? distanceBetween(myCoords, [sel.latitude, sel.longitude]).toFixed(1) : null;
+                const dist = safeMyCoords ? distanceBetween(safeMyCoords, [sel.latitude, sel.longitude]).toFixed(1) : null;
                 return (
                 <motion.div
                   initial={{ opacity: 0, y: 24, scale: 0.95 }}
