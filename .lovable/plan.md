@@ -1,50 +1,50 @@
 
 
-## Plan: Bug Fixes and Polish for Dual-Mode Calling System
+## Plan: Final Polish — Bug-Free Dual-Mode Calling System
 
 ### Issues Found
 
-1. **Unnecessary `as any` type casts** — `call_mode` exists in the generated types, but the code uses `as any` in 3 places (insert/update). These should be removed for type safety.
+After a deep scan of all calling system files, the build logs (clean — no errors), the edge function, and the database linter, here are the remaining issues:
 
-2. **Race condition in P2P signaling** — The signaling channel `subscribe()` doesn't wait for `SUBSCRIBED` status before sending the offer. The initiator could send the offer before the channel is ready, causing it to be lost.
+**1. Type mismatch: `acceptCall` signature says `void` but implementation is `async`**
+In `callStore.tsx`, the interface declares `acceptCall: (call: CallData) => void` but the implementation is `async`. This means callers (like `handleAccept` in `GlobalCallOverlay`) don't await the result, so errors during acceptance (e.g. failed LiveKit token fetch) silently reject.
 
-3. **P2P callee never sends offer back** — When the callee accepts, both sides set up signaling, but only the initiator creates an offer. If the callee's signaling channel subscribes before the initiator's, the offer may be missed because broadcast `self: false` means no replay of past messages.
+**2. Missing error feedback on `switchMode` failure**
+In `callStore.tsx` line 566-573, if switching to persistent mode fails (bad token), the DB mode is reverted but no toast or error state is shown to the user.
 
-4. **Missing `acceptCall` for P2P incoming calls** — When accepting a P2P call, the callee doesn't get a LiveKit token (correct), but the call status update and signaling setup has a timing gap — the DB update happens before the signaling channel is ready.
+**3. Missing error feedback on `handleStayOnCallToggle`**
+In `GlobalCallOverlay.tsx`, `switchMode` is called without `try/catch`, so if it fails the user gets no feedback.
 
-5. **Double event firing on P2P disconnect** — When `remote-participant-left` fires, `endCall()` is called. But `disconnected` with `reason: 'remote-hangup'` also calls `endCall()`, potentially triggering it twice.
+**4. `p2pRef.current.disconnect()` not awaited on idle cleanup**
+In `GlobalCallOverlay.tsx` line 500, the async `disconnect()` is called without `await`, potentially causing cleanup race conditions.
 
-6. **Memory leak in P2P reconnect** — `attemptReconnect` uses `setTimeout` but doesn't store/clear the timeout on cleanup, so reconnect attempts continue after `disconnect()`.
+**5. Edge function creates duplicate call records**
+The `livekit-token` edge function (line 177-202) creates a NEW call record when called without `callId`. But `switchMode` in `callStore.tsx` already passes `callId`, so this path is only hit if someone calls the function directly without `callId` — not a user-facing bug but worth noting.
 
-7. **Stale closure in handleP2PEvent** — `endCall` is captured in the callback but the P2PConnection instance holds the initial closure. If endCall changes, the P2P event handler uses the stale reference.
+**6. `profile` possibly `null` in `Object.assign` (edge function line 90)**
+If the first profile query returned `null` (not just error), `Object.assign(profile || {}, p2)` assigns to a new empty object that isn't used. `profile!` on line 93 would then throw. This is an edge case but should use proper reassignment.
 
-8. **Missing cleanup of auto-end timers on mode switch** — When switching modes, auto-end timers and countdowns from persistent mode are not cleared.
-
-9. **Signaling channel not waited on** — `setupSignaling()` calls `.subscribe()` but doesn't wait for it to reach `SUBSCRIBED` state, leading to lost signals.
+**7. Incoming call auto-decline timer doesn't clear on unmount properly**
+In `IncomingCallDialog`, `onDecline` is in the `useEffect` dependency for the timer but isn't wrapped in a ref — if `onDecline` changes identity, the interval restarts.
 
 ### Changes
 
-**File: `src/lib/p2pConnection.ts`**
-- Add a `Promise` wrapper around signaling channel subscription to wait for `SUBSCRIBED` status before proceeding
-- Store reconnect timeout and clear it in `cleanup()`
-- Add guard against double hangup event processing
-- Use an event handler ref pattern to avoid stale closures (pass `onEvent` setter)
-
 **File: `src/lib/callStore.tsx`**
-- Remove all `as any` casts for `call_mode` (types already support it)
-- Remove `(data as any).call_mode` cast — use `data.call_mode` directly
-- Add guard in `endCall` to prevent double execution
+- Fix `acceptCall` interface type to `Promise<void>`
+- Add toast error on `switchMode` persistent failure
+- Wrap `switchMode` body in try/catch with user feedback
 
 **File: `src/components/call/GlobalCallOverlay.tsx`**
-- Use a ref for the P2P event handler to avoid stale closures
-- Add guards in `handleP2PEvent` to prevent double `endCall()` from both `disconnected` and `remote-participant-left`
-- Clear auto-end timers during mode switch
-- Add small delay after signaling channel ready before sending offer (ensures both sides subscribed)
+- Wrap `handleStayOnCallToggle`'s `switchMode` call in try/catch with toast
+- Await `p2pRef.current.disconnect()` in idle cleanup effect
+- Use a ref for `onDecline` in `IncomingCallDialog` to prevent timer restart
+
+**File: `supabase/functions/livekit-token/index.ts`**
+- Fix the `profile` reassignment to use a `let` variable properly
 
 ### Steps
-1. Fix P2P signaling race condition (wait for SUBSCRIBED)
-2. Fix double-disconnect and stale closure bugs
-3. Remove unnecessary `as any` casts
-4. Add reconnect timeout cleanup
-5. Add mode-switch timer cleanup
+1. Fix type signature and add error handling in callStore
+2. Add try/catch and await fixes in GlobalCallOverlay
+3. Fix profile reassignment in edge function
+4. Stabilize IncomingCallDialog timer
 
