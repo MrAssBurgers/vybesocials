@@ -229,7 +229,11 @@ export class P2PConnection {
   // ── Private Methods ────────────────────────────────────────
 
   private createPeerConnection(): void {
-    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    this.pc = new RTCPeerConnection({
+      iceServers: ICE_SERVERS,
+      iceTransportPolicy: 'all',
+      iceCandidatePoolSize: 4,
+    });
 
     // ICE candidate — send to remote via signaling
     this.pc.onicecandidate = (event) => {
