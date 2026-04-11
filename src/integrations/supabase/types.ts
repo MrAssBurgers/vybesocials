@@ -6874,9 +6874,11 @@ export type Database = {
           is_private: boolean | null
           is_verified: boolean | null
           language: string | null
+          last_login_date: string | null
           last_name: string | null
           link_url: string | null
           location: string | null
+          login_streak: number | null
           music_personality: string | null
           onboarding_completed: boolean | null
           phone_number: string | null
@@ -6917,9 +6919,11 @@ export type Database = {
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
+          last_login_date?: string | null
           last_name?: string | null
           link_url?: string | null
           location?: string | null
+          login_streak?: number | null
           music_personality?: string | null
           onboarding_completed?: boolean | null
           phone_number?: string | null
@@ -6960,9 +6964,11 @@ export type Database = {
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
+          last_login_date?: string | null
           last_name?: string | null
           link_url?: string | null
           location?: string | null
+          login_streak?: number | null
           music_personality?: string | null
           onboarding_completed?: boolean | null
           phone_number?: string | null
