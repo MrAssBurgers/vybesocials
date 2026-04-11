@@ -1792,6 +1792,9 @@ const MessageInputArea = memo(function MessageInputArea({
   showStickerPanel,
   setShowStickerPanel,
   onSendSticker,
+  isVoiceLocked,
+  setIsVoiceLocked,
+  voiceLockStartYRef,
 }: {
   messageText: string;
   viewMode: ViewMode;
@@ -1831,6 +1834,9 @@ const MessageInputArea = memo(function MessageInputArea({
   showStickerPanel?: boolean;
   setShowStickerPanel?: (open: boolean) => void;
   onSendSticker?: (imageUrl: string) => void;
+  isVoiceLocked?: boolean;
+  setIsVoiceLocked?: (locked: boolean) => void;
+  voiceLockStartYRef?: React.MutableRefObject<number | null>;
 }) {
   return (
     <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30 relative">
