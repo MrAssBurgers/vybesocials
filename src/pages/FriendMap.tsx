@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User, Car, Footprints, Pause } from 'lucide-react';
+import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User, Car, Footprints, Pause, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/lib/auth';
@@ -12,6 +12,29 @@ import { cn } from '@/lib/utils';
 import { useLocationContext } from '@/providers/LocationProvider';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+
+/* ── Map Error Boundary ─────────────────────────────── */
+
+class MapErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  state = { hasError: false, error: null as Error | null };
+  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error('[MapErrorBoundary]', error.message, info.componentStack); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full bg-background text-foreground gap-4 p-8">
+          <MapPin className="h-12 w-12 text-muted-foreground" />
+          <h2 className="text-lg font-bold">Map couldn't load</h2>
+          <p className="text-sm text-muted-foreground text-center max-w-xs">Something went wrong loading the map. Try refreshing.</p>
+          <button onClick={() => { this.setState({ hasError: false, error: null }); }} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">
+            <RefreshCw className="h-4 w-4" /> Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* ── types ───────────────────────────────────────────── */
 
@@ -356,7 +379,7 @@ function useNominatimSearch(myCoords: [number, number] | null) {
 
 /* ── component ───────────────────────────────────────── */
 
-export default function FriendMap() {
+function FriendMapInner() {
   const { profile } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -373,6 +396,7 @@ export default function FriendMap() {
   const accCircle = useRef<L.Circle | null>(null);
   const tileRef = useRef<L.TileLayer | null>(null);
   const framed = useRef(false);
+  const clusterMarkerRefs = useRef<L.Marker[]>([]);
   const friendMarkers = useRef<Map<string, L.Marker>>(new Map());
 
   // State
@@ -501,25 +525,27 @@ export default function FriendMap() {
 
   useEffect(() => {
     if (!mapEl.current || mapRef.current) return;
+    let map: L.Map;
+    try {
+      map = L.map(mapEl.current, {
+        zoomControl: false,
+        attributionControl: false,
+        minZoom: 2,
+        maxZoom: 19,
+        worldCopyJump: true,
+        zoomAnimation: true,
+        markerZoomAnimation: true,
+        inertia: true,
+        inertiaDeceleration: 2000,
+      }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+    } catch (err) {
+      console.error('[FriendMap] Leaflet init failed:', err);
+      return;
+    }
     const safeInvalidateSize = () => {
       if (mapRef.current !== map) return;
-      try {
-        map.invalidateSize();
-      } catch {
-        // Ignore invalidation during teardown.
-      }
+      try { map.invalidateSize(); } catch { /* teardown */ }
     };
-    const map = L.map(mapEl.current, {
-      zoomControl: false,
-      attributionControl: false,
-      minZoom: 2,
-      maxZoom: 19,
-      worldCopyJump: true,
-      zoomAnimation: true,
-      markerZoomAnimation: true,
-      inertia: true,
-      inertiaDeceleration: 2000,
-    }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
     tileRef.current = L.tileLayer(MAP_TILES[mapStyle].url, { maxZoom: 19 }).addTo(map);
     fLayer.current = L.layerGroup().addTo(map);
@@ -596,6 +622,10 @@ export default function FriendMap() {
     const layer = fLayer.current;
     if (!layer) return;
 
+    // Clean up old cluster markers first
+    clusterMarkerRefs.current.forEach((m) => { try { layer.removeLayer(m); } catch {} });
+    clusterMarkerRefs.current = [];
+
     // Track which markers are still present
     const currentIds = new Set<string>();
 
@@ -606,7 +636,6 @@ export default function FriendMap() {
       const existing = friendMarkers.current.get(f.user_id);
 
       if (existing) {
-        // Smooth transition: animate from old position to new
         const oldPos = existing.getLatLng();
         if (oldPos.lat !== newPos.lat || oldPos.lng !== newPos.lng) {
           animateMarker(existing, oldPos, newPos);
@@ -620,19 +649,19 @@ export default function FriendMap() {
       }
     });
 
-    // Render clusters (these recreate each time)
-    // Remove markers that are now in clusters
+    // Render clusters
     clusteredMarkers.clusters.forEach((c) => {
       c.members.forEach(m => {
         const existing = friendMarkers.current.get(m.user_id);
         if (existing) { layer.removeLayer(existing); friendMarkers.current.delete(m.user_id); }
       });
       const avatars = c.members.map((m) => m.profile?.avatar_url || '').filter(Boolean);
-      L.marker(c.center, { icon: clusterIcon(c.members.length, avatars), keyboard: false })
+      const clusterMk = L.marker(c.center, { icon: clusterIcon(c.members.length, avatars), keyboard: false })
         .on('click', () => {
           mapRef.current?.flyTo(c.center, Math.min((zoom || 10) + 3, 16), { duration: 1 });
         })
         .addTo(layer);
+      clusterMarkerRefs.current.push(clusterMk);
     });
 
     // Remove markers for friends no longer present
@@ -1181,5 +1210,13 @@ export default function FriendMap() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+export default function FriendMap() {
+  return (
+    <MapErrorBoundary>
+      <FriendMapInner />
+    </MapErrorBoundary>
   );
 }
