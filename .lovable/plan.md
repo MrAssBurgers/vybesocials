@@ -1,47 +1,65 @@
 
 
-## Fix VybeMap Desktop Black Screen + Set Up Live Payments
+## Plan: Snapchat-style Add Friends, NFC Scanning UI, Recommended Friends, and VybeMap Fix
 
-### 1. VybeMap Desktop Black Screen Fix (Definitive)
+### 1. Remove Quick Add from DMs area
 
-**Root cause analysis**: The black screen happens because:
-- The outer wrapper uses `relative w-full h-full` but also `minHeight: '100vh'` -- when `h-full` resolves to 0 (parent chain issue), only `minHeight` applies, but the map container uses `absolute inset-0` which needs the parent to have actual computed height
-- The `.leaflet-container` CSS forces `position:absolute;inset:0` which can conflict with Leaflet's internal positioning
-- The `#0a0a0a` background shows as the "black screen" when tiles fail to render
+**File: `src/components/chat/ConversationList.tsx`**
+- Remove the `QuickAddRow` component rendering (lines 372-382 — "Online" horizontal row)
+- Remove the `MutualFriendsQuickAdd` component rendering (lines 384-389)
+- Remove related imports (`QuickAddRow`, `MutualFriendsQuickAdd`)
+- Keep the `onlineFriendsForQuickAdd` logic only if needed elsewhere; otherwise clean up
 
-**Fix in `FriendMap.tsx`**:
-- Remove the conflicting `.leaflet-container{position:absolute;inset:0}` CSS override -- Leaflet manages its own container positioning
-- Change the outer wrapper to use `fixed inset-0` on both mobile AND desktop (since `hideNav` and `noPadding` are both true, the AppLayout main area just wraps the content -- using fixed bypasses the flex height chain entirely)
-- OR better: keep `absolute inset-0` on the map div but ensure the parent uses `h-screen` instead of `h-full` to avoid depending on parent height resolution
-- Add `will-change: transform` to force GPU compositing on the map container
-- Add a more aggressive invalidateSize retry: use a MutationObserver on the parent in addition to ResizeObserver
-- Add a fallback: if after 3 seconds the map container has 0 height, force-set it to `window.innerHeight`
+### 2. Add Snapchat-style Add Friends button in Chat header
 
-**Specific changes**:
-- Outer div: change from `relative w-full h-full` to `absolute inset-0` (since AppLayout's content area with `noPadding` gives `h-full`)
-- Remove `.leaflet-container{position:absolute;inset:0}` from the inline styles
-- Keep `.leaflet-container{height:100%!important;width:100%!important;background:#0a0a0a}`
-- Add a useEffect that checks `mapEl.current?.offsetHeight` after 1s and if 0, sets explicit pixel height
+**File: `src/components/chat/ConversationList.tsx`**
+- Replace the current `NewChatDialog` (Plus icon that opens a dialog) with a dedicated **UserPlus icon button** in the header actions area (line 307-325) that navigates to `/messages/new` (the Add Friends page)
+- Remove the `NewChatDialog` component entirely from this file since it's redundant with the Add Friends page
 
-### 2. Live Payments via Stripe
+### 3. Revamp Add Friends page with Snapchat-like UI
 
-Your current Stripe account ("Vybe Social sandbox") is in **test mode**. To accept real payments:
+**File: `src/pages/NewMessage.tsx`**
+- Add an **"Added Me"** section at the top showing incoming friend requests (reuse `useFriendRequests` hook) with Accept/X buttons — matching the Snapchat screenshot layout
+- Add a **"View X More"** button when there are many incoming requests
+- Add an **"Invite your friends!"** banner with share functionality
+- Keep the existing search bar and search results below
+- Add a **"Find Friends"** section below with suggested users from `useSuggestedUsers` (already exists in `MutualFriendsQuickAdd`) showing "+ Add" and "X" dismiss buttons
+- Include NFC and VybeDrop buttons in the header (already present)
 
-1. You need to activate your Stripe account at `dashboard.stripe.com` -- go to Settings → Account details and complete the activation checklist (business info, bank account, identity verification)
-2. Once activated, you'll get a live secret key (`sk_live_...`) -- you'll need to add that as a secret replacing the current test key
-3. You'll also need to create live-mode products/prices (the current `price_1TCQhF...` and `price_1TCp2T...` are test-mode prices)
+### 4. Add Recommended Friends section under DMs
 
-**I cannot activate your Stripe account programmatically** -- this requires identity verification and bank account setup that only you can do through the Stripe Dashboard.
+**File: `src/components/chat/ConversationList.tsx`**
+- After the conversation list items, add a "Recommended" or "Quick Add" horizontal section (like Snapchat's second screenshot) showing suggested friends based on mutuals
+- Use the existing `useSuggestedUsers` hook or `useSuggestedFriends` from `useFriendsOfFriends`
+- Each card shows avatar, name, mutual count, "+ Add" button, and "X" dismiss
+- This replaces the old Quick Add that was removed from the top
 
-**Alternative: Polar** -- Your project has Polar connected. Polar is already in live mode (no sandbox/test mode). I can create VYBE Premium products on Polar and wire up the checkout flow so you can start accepting real payments immediately without needing to activate Stripe. However, Polar is a different payment platform from Stripe.
+### 5. NFC Scanning UI enhancement
 
-**What I'll do in this implementation**:
-- Update the `STRIPE_SECRET_KEY` resolution to validate test vs live mode and warn clearly
-- Add a "Go Live" checklist in the owner settings that shows what's needed
-- Keep the existing Stripe flow but make it live-ready once the user provides a live key
+**File: `src/components/friends/NFCFriendShare.tsx`**
+- The scanning UI already exists (the `mode === 'sharing'` state shows pulsing rings and "NFC Scanning Active" text)
+- Enhance it to match a more polished scanning experience: add a radar/sonar-style sweep animation
+- When a device is found, the existing swap animation (`NFCSwapAnimation`) already triggers and auto-adds the friend — this matches VybeDrop behavior
+- No functional changes needed, just visual polish on the scanning state
 
-### Files Modified
-- `src/pages/FriendMap.tsx` -- definitive desktop map fix
-- `supabase/functions/_shared/stripe-key.ts` -- live mode validation improvements
-- `supabase/functions/create-premium-checkout/index.ts` -- live-ready price handling
+### 6. Fix VybeMap desktop black screen (definitive)
+
+**File: `src/pages/FriendMap.tsx`**
+
+Root cause analysis: On desktop, the AppLayout wraps content in a flex layout. The `<main>` has `h-screen overflow-hidden`, and the inner `<div>` has `h-full`. The FriendMap's outer div uses `relative h-[100dvh]` which should work, but the `forceContainerSize` function overrides with `position: absolute; inset: 0` AND explicitly sets pixel width/height — this can conflict with the Leaflet container's own CSS that also sets `min-height: 100dvh!important`.
+
+Fix approach:
+- Remove `forceContainerSize` — it's fighting with CSS classes
+- Change the map container div to use `absolute inset-0` without the `h-full min-h-[100dvh]` overrides
+- Simplify the Leaflet container CSS to just `height:100%!important;width:100%!important;background:hsl(var(--muted))`
+- Remove the `min-height:100dvh!important` from `.leaflet-container` CSS (this causes the container to be taller than its parent on desktop where sidebar reduces available height)
+- In `initMap`, just check `el.offsetWidth > 0 && el.offsetHeight > 0` instead of force-setting sizes
+- Keep the `ResizeObserver` for `invalidateSize` calls but remove the dimension overrides
+- Remove `map-vignette` overlay (the dark radial gradient) as it contributes to the "black layer" appearance, or make it much more subtle
+
+### Files to modify
+1. `src/components/chat/ConversationList.tsx` — Remove Quick Add sections, change NewChatDialog to simple nav button, add Recommended section at bottom of DMs
+2. `src/pages/NewMessage.tsx` — Add Snapchat-style "Added Me" section with incoming requests, invite banner, and Find Friends section  
+3. `src/components/friends/NFCFriendShare.tsx` — Polish scanning UI with radar animation
+4. `src/pages/FriendMap.tsx` — Fix desktop black screen by simplifying container sizing and removing conflicting CSS
 
