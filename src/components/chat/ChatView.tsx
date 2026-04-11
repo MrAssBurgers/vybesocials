@@ -114,6 +114,7 @@ import { useUserBusiness } from '@/hooks/useBusinessOffers';
 import { CreateOfferDialog } from '@/components/business/CreateOfferDialog';
 import { ChatMediaBubble, SignedAudioUrl } from './ChatMediaBubble';
 import { useSafetySettings } from '@/hooks/useSafetySettings';
+import { getTopEmojis, recordEmoji } from '@/lib/frequentEmojis';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
 // Theme color mapping - now includes both bubble and text classes
@@ -2103,8 +2104,10 @@ const MessageBubble = memo(function MessageBubble({
     return message.reactions?.find(r => r.user_id === profileId)?.emoji || null;
   }, [message.reactions, profileId]);
 
+  const smartEmojis = useMemo(() => getTopEmojis(6), []);
+
   const handleReaction = useCallback((emoji: string) => {
-    // Replace reaction if user already reacted
+    recordEmoji(emoji);
     onReaction(message.id, emoji);
     onToggleReactions();
   }, [message.id, onReaction, onToggleReactions]);
@@ -2551,7 +2554,7 @@ const MessageBubble = memo(function MessageBubble({
                 isOwn ? "right-0" : "left-0"
               )}
             >
-              {QUICK_REACTIONS.map((emoji) => (
+              {smartEmojis.map((emoji) => (
                 <button
                   key={emoji}
                   onClick={(e) => {

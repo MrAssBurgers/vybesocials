@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useWordReactions } from '@/hooks/useDMSettings';
 import { cn } from '@/lib/utils';
+import { getTopEmojis, recordEmoji } from '@/lib/frequentEmojis';
 
 const QUICK_EMOJIS = ['❤️', '😂', '😮', '👀', '🔥', '💀'];
 
