@@ -1,12 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link2, X, Loader2, Mail, Check } from 'lucide-react';
+import { Link2, Mail, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
-import { getUserFriendlyError } from '@/lib/errorUtils';
 import { supabase } from '@/integrations/supabase/client';
-import { haptics } from '@/lib/haptics';
 
 export function ConnectionsSection() {
   const { user } = useAuth();
@@ -14,7 +10,6 @@ export function ConnectionsSection() {
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const [appleLinked, setAppleLinked] = useState(false);
   const [appleEmail, setAppleEmail] = useState<string | null>(null);
-  const [loading, setLoading] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
@@ -42,45 +37,6 @@ export function ConnectionsSection() {
     checkLinks();
   }, []);
 
-  const handleConnect = async (provider: 'google' | 'apple') => {
-    haptics.tap();
-    setLoading(provider);
-    try {
-      const { error } = await supabase.auth.linkIdentity({
-        provider,
-        options: { redirectTo: `${window.location.origin}/settings` },
-      });
-      if (error) throw error;
-    } catch (error: any) {
-      toast.error(getUserFriendlyError(error));
-      setLoading(null);
-    }
-  };
-
-  const handleDisconnect = async (provider: 'google' | 'apple') => {
-    haptics.tap();
-    setLoading(provider);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const identity = user.identities?.find(i => i.provider === provider);
-      if (identity) {
-        const { error } = await supabase.auth.unlinkIdentity(identity);
-        if (error) throw error;
-
-        if (provider === 'google') { setGoogleLinked(false); setGoogleEmail(null); }
-        if (provider === 'apple') { setAppleLinked(false); setAppleEmail(null); }
-        haptics.success();
-        toast.success(`${provider === 'google' ? 'Google' : 'Apple'} account disconnected`);
-      }
-    } catch (error: any) {
-      toast.error(getUserFriendlyError(error));
-    } finally {
-      setLoading(null);
-    }
-  };
-
   const renderProvider = (
     provider: 'google' | 'apple',
     linked: boolean,
@@ -99,24 +55,15 @@ export function ConnectionsSection() {
             {checking ? (
               <p className="text-xs text-muted-foreground">Checking...</p>
             ) : linked ? (
-              <p className="text-xs text-muted-foreground truncate">{email || 'Connected'}</p>
+              <div className="flex items-center gap-1">
+                <p className="text-xs text-muted-foreground truncate">{email || 'Connected'}</p>
+                <Check className="w-3 h-3 text-green-500 flex-shrink-0" />
+              </div>
             ) : (
               <p className="text-xs text-muted-foreground">Not connected</p>
             )}
           </div>
         </div>
-        {!checking && (
-          linked ? (
-            <Button variant="outline" size="sm" onClick={() => handleDisconnect(provider)} disabled={loading === provider} className="flex-shrink-0">
-              {loading === provider ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4 mr-1" />}
-              Disconnect
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => handleConnect(provider)} disabled={loading === provider} className="flex-shrink-0">
-              {loading === provider ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Connect'}
-            </Button>
-          )
-        )}
       </div>
     </div>
   );
