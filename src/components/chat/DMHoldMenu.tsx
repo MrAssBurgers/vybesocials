@@ -3,7 +3,7 @@
  * Used by both DM bubbles and notification toasts on long-press.
  */
 
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Reply, Copy, Download, Sparkles, Edit3, Trash2, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,13 +13,11 @@ import { getTopEmojis } from '@/lib/frequentEmojis';
 export interface DMHoldMenuProps {
   open: boolean;
   onClose: () => void;
-  // Message data
   messageContent?: string | null;
   mediaUrl?: string | null;
   mediaType?: string | null;
   isOwn: boolean;
   userReaction?: string | null;
-  // Actions
   onReaction: (emoji: string) => void;
   onReply: () => void;
   onEdit?: () => void;
@@ -28,6 +26,8 @@ export interface DMHoldMenuProps {
   onSave?: () => void;
   onSaveSticker?: () => void;
 }
+
+const INITIAL_BACKDROP_GUARD_MS = 260;
 
 export const DMHoldMenu = memo(function DMHoldMenu({
   open,
@@ -46,6 +46,21 @@ export const DMHoldMenu = memo(function DMHoldMenu({
   onSaveSticker,
 }: DMHoldMenuProps) {
   const smartEmojis = useMemo(() => getTopEmojis(6), []);
+  const ignoreBackdropRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) {
+      ignoreBackdropRef.current = false;
+      return;
+    }
+
+    ignoreBackdropRef.current = true;
+    const timeout = window.setTimeout(() => {
+      ignoreBackdropRef.current = false;
+    }, INITIAL_BACKDROP_GUARD_MS);
+
+    return () => window.clearTimeout(timeout);
+  }, [open]);
 
   const isMediaMessage = mediaUrl && (mediaType === 'image' || mediaType === 'gif');
   const isVideoMessage = mediaUrl && mediaType === 'video';
@@ -68,6 +83,11 @@ export const DMHoldMenu = memo(function DMHoldMenu({
     onClose();
   }, [onClose]);
 
+  const handleBackdropClick = useCallback(() => {
+    if (ignoreBackdropRef.current) return;
+    onClose();
+  }, [onClose]);
+
   return (
     <AnimatePresence>
       {open && (
@@ -78,7 +98,7 @@ export const DMHoldMenu = memo(function DMHoldMenu({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99]"
-            onClick={onClose}
+            onClick={handleBackdropClick}
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
@@ -88,15 +108,14 @@ export const DMHoldMenu = memo(function DMHoldMenu({
             className="fixed z-[100] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] rounded-2xl bg-[#262626] shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Smart emoji reaction row */}
             <div className="flex items-center justify-around px-4 py-3 border-b border-white/[0.08]">
               {smartEmojis.map((emoji) => (
                 <button
                   key={emoji}
                   onClick={(e) => { e.stopPropagation(); handleReaction(emoji); }}
                   className={cn(
-                    "text-2xl p-1 hover:scale-125 active:scale-90 transition-transform rounded-full",
-                    userReaction === emoji && "bg-white/10"
+                    'text-2xl p-1 hover:scale-125 active:scale-90 transition-transform rounded-full',
+                    userReaction === emoji && 'bg-white/10'
                   )}
                 >
                   {emoji}
@@ -104,7 +123,6 @@ export const DMHoldMenu = memo(function DMHoldMenu({
               ))}
             </div>
 
-            {/* Action rows */}
             <MenuRow icon={Reply} label="Reply" onClick={() => handleAction(onReply)} />
 
             {messageContent && (
@@ -160,8 +178,8 @@ function MenuRow({ icon: Icon, label, onClick, destructive, muted }: {
     <button
       onClick={onClick}
       className={cn(
-        "w-full px-4 py-3 text-left text-[14px] font-normal active:bg-white/10 flex items-center gap-3 transition-colors",
-        destructive ? "text-red-400" : muted ? "text-white/40" : "text-white/90"
+        'w-full px-4 py-3 text-left text-[14px] font-normal active:bg-white/10 flex items-center gap-3 transition-colors',
+        destructive ? 'text-red-400' : muted ? 'text-white/40' : 'text-white/90'
       )}
     >
       <Icon className="h-[18px] w-[18px]" />
