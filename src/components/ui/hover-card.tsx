@@ -10,11 +10,15 @@ const HoverCardTrigger = HoverCardPrimitive.Trigger;
 const HoverCardContent = React.forwardRef<
   React.ElementRef<typeof HoverCardPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof HoverCardPrimitive.Content>
->(({ className, align = "center", sideOffset = 4, ...props }, ref) => (
+>(({ className, align = "center", sideOffset = 4, side = "top", ...props }, ref) => (
   <HoverCardPrimitive.Content
     ref={ref}
     align={align}
+    side={side}
     sideOffset={sideOffset}
+    avoidCollisions
+    collisionPadding={16}
+    sticky="always"
     className={cn(
       "z-[9999] w-64 rounded-xl liquid-glass p-4 text-popover-foreground shadow-xl outline-none",
       className,
