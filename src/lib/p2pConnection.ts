@@ -1,12 +1,13 @@
 /**
- * P2P WebRTC Connection Module — v2 (Reliable)
+ * P2P WebRTC Connection Module — v3 (Reliable + HD + Linger)
  * 
- * Key improvements over v1:
- * - Ready-signal handshake: responder broadcasts 'ready' when subscribed,
- *   initiator waits for it before sending offer (eliminates race condition)
- * - Offer retransmission: re-sends offer every 2s until answer received (up to 5x)
- * - Reliable TURN: uses global.relay.metered.ca free tier
- * - Emits 'ice-failed' with attempt count for auto-fallback
+ * Key improvements:
+ * - Ready-signal handshake: responder broadcasts 'ready' when subscribed
+ * - Cached SDP offer: retransmits the same offer instead of recreating
+ * - HD audio constraints: echoCancellation, noiseSuppression, autoGainControl
+ * - HD video constraints: 720p, 30fps, front camera default
+ * - Signaling keepalive: 25s ping to prevent Realtime channel staleness
+ * - Hangup-only mode: send hangup without cleanup (for linger support)
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -28,7 +29,7 @@ export type P2PEvent =
 export type P2PEventHandler = (event: P2PEvent) => void;
 
 interface SignalMessage {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'hangup' | 'renegotiate' | 'ready';
+  type: 'offer' | 'answer' | 'ice-candidate' | 'hangup' | 'renegotiate' | 'ready' | 'ping';
   senderId: string;
   data: any;
 }
@@ -40,7 +41,6 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
-  // Free TURN relay (global.relay.metered.ca free-tier — more reliable than openrelay)
   {
     urls: [
       'turn:global.relay.metered.ca:80',
@@ -57,7 +57,8 @@ const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_BASE_DELAY = 1000;
 const OFFER_RETRANSMIT_INTERVAL = 2000;
 const MAX_OFFER_RETRANSMITS = 5;
-const READY_SIGNAL_TIMEOUT = 3000; // Fallback: send offer anyway after 3s
+const READY_SIGNAL_TIMEOUT = 3000;
+const KEEPALIVE_INTERVAL = 25000; // 25s keepalive ping
 
 // ── P2P Connection Class ───────────────────────────────────────
 
@@ -81,6 +82,8 @@ export class P2PConnection {
   private answerReceived = false;
   private offerRetransmitTimer: ReturnType<typeof setInterval> | null = null;
   private readyTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  private cachedOffer: RTCSessionDescriptionInit | null = null;
 
   constructor(params: {
     conversationId: string;
@@ -105,10 +108,26 @@ export class P2PConnection {
   async connect(): Promise<void> {
     console.log('[P2P] Connecting as', this.isInitiator ? 'initiator' : 'responder');
 
-    // 1. Get local media
+    // 1. Get local media with HD constraints
+    const audioConstraints: MediaTrackConstraints = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      channelCount: 1,
+    };
+
+    const videoConstraints: MediaTrackConstraints | boolean = this.callType === 'video'
+      ? {
+          facingMode: 'user',
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 },
+          frameRate: { ideal: 30, max: 30 },
+        }
+      : false;
+
     this.localStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: this.callType === 'video',
+      audio: audioConstraints,
+      video: videoConstraints,
     });
 
     // 2. Create peer connection
@@ -122,18 +141,26 @@ export class P2PConnection {
     // 4. Setup signaling channel — waits for SUBSCRIBED
     await this.setupSignaling();
 
-    // 5. Role-based handshake
+    // 5. Start keepalive
+    this.startKeepalive();
+
+    // 6. Role-based handshake
     if (this.isInitiator) {
-      // Wait for 'ready' signal from responder, with fallback timeout
       console.log('[P2P] Initiator: waiting for ready signal...');
       await this.waitForReadySignal();
-      await this.createAndSendOffer();
+      await this.createAndCacheOffer();
+      this.sendCachedOffer();
       this.startOfferRetransmission();
     } else {
-      // Responder: broadcast 'ready' immediately after subscribing
       console.log('[P2P] Responder: sending ready signal');
       this.sendSignal({ type: 'ready', senderId: this.userId, data: {} });
     }
+  }
+
+  /** Send hangup signal without cleaning up local resources (for linger support) */
+  sendHangupOnly(): void {
+    console.log('[P2P] Sending hangup signal (linger mode — keeping local resources)');
+    this.sendSignal({ type: 'hangup', senderId: this.userId, data: {} });
   }
 
   async disconnect(): Promise<void> {
@@ -158,7 +185,14 @@ export class P2PConnection {
     if (enabled) {
       const videoTracks = this.localStream.getVideoTracks();
       if (videoTracks.length === 0) {
-        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const videoStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 },
+            frameRate: { ideal: 30, max: 30 },
+          },
+        });
         const videoTrack = videoStream.getVideoTracks()[0];
         this.localStream.addTrack(videoTrack);
         this.pc.addTrack(videoTrack, this.localStream);
@@ -178,7 +212,7 @@ export class P2PConnection {
   async switchAudioDevice(deviceId: string): Promise<void> {
     if (!this.localStream || !this.pc) return;
     const newStream = await navigator.mediaDevices.getUserMedia({
-      audio: { deviceId: { exact: deviceId } },
+      audio: { deviceId: { exact: deviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
     const newTrack = newStream.getAudioTracks()[0];
     const oldTrack = this.localStream.getAudioTracks()[0];
@@ -194,7 +228,12 @@ export class P2PConnection {
   async switchVideoDevice(deviceId: string): Promise<void> {
     if (!this.localStream || !this.pc) return;
     const newStream = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: { exact: deviceId } },
+      video: {
+        deviceId: { exact: deviceId },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30 },
+      },
     });
     const newTrack = newStream.getVideoTracks()[0];
     const oldTrack = this.localStream.getVideoTracks()[0];
@@ -212,8 +251,6 @@ export class P2PConnection {
   /** Wait for the responder to send a 'ready' signal, with timeout fallback */
   private waitForReadySignal(): Promise<void> {
     return new Promise((resolve) => {
-      // If we already got the ready signal (via handleSignalMessage), resolve
-      // We use a flag set in handleSignalMessage
       if ((this as any)._readyReceived) {
         resolve();
         return;
@@ -221,7 +258,6 @@ export class P2PConnection {
       
       (this as any)._readyResolve = resolve;
       
-      // Fallback: if no ready signal within timeout, proceed anyway
       this.readyTimeoutId = setTimeout(() => {
         console.log('[P2P] Ready signal timeout — sending offer anyway');
         (this as any)._readyResolve = null;
@@ -230,10 +266,25 @@ export class P2PConnection {
     });
   }
 
-  /** Start periodic offer retransmission until answer is received */
+  /** Create and cache the SDP offer (called once) */
+  private async createAndCacheOffer(): Promise<void> {
+    if (!this.pc) return;
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+    this.cachedOffer = offer;
+    console.log('[P2P] Offer created and cached');
+  }
+
+  /** Send the cached offer (no SDP recreation) */
+  private sendCachedOffer(): void {
+    if (!this.cachedOffer) return;
+    this.sendSignal({ type: 'offer', senderId: this.userId, data: this.cachedOffer });
+  }
+
+  /** Start periodic retransmission of the cached offer */
   private startOfferRetransmission(): void {
     let retransmitCount = 0;
-    this.offerRetransmitTimer = setInterval(async () => {
+    this.offerRetransmitTimer = setInterval(() => {
       if (this.answerReceived || this.isDisconnecting || !this.pc) {
         this.stopOfferRetransmission();
         return;
@@ -245,8 +296,8 @@ export class P2PConnection {
         this.onEvent({ type: 'timeout' });
         return;
       }
-      console.log(`[P2P] Retransmitting offer (${retransmitCount}/${MAX_OFFER_RETRANSMITS})`);
-      await this.createAndSendOffer();
+      console.log(`[P2P] Retransmitting cached offer (${retransmitCount}/${MAX_OFFER_RETRANSMITS})`);
+      this.sendCachedOffer();
     }, OFFER_RETRANSMIT_INTERVAL);
   }
 
@@ -254,6 +305,22 @@ export class P2PConnection {
     if (this.offerRetransmitTimer) {
       clearInterval(this.offerRetransmitTimer);
       this.offerRetransmitTimer = null;
+    }
+  }
+
+  /** Start keepalive pings to prevent Realtime channel from going stale */
+  private startKeepalive(): void {
+    this.keepaliveTimer = setInterval(() => {
+      if (this.signalingChannel && !this.isDisconnecting) {
+        this.sendSignal({ type: 'ping', senderId: this.userId, data: {} });
+      }
+    }, KEEPALIVE_INTERVAL);
+  }
+
+  private stopKeepalive(): void {
+    if (this.keepaliveTimer) {
+      clearInterval(this.keepaliveTimer);
+      this.keepaliveTimer = null;
     }
   }
 
@@ -365,10 +432,12 @@ export class P2PConnection {
   }
 
   private async handleSignalMessage(message: SignalMessage): Promise<void> {
+    // Ignore keepalive pings
+    if (message.type === 'ping') return;
+
     if (message.type === 'ready') {
       console.log('[P2P] Received ready signal from responder');
       (this as any)._readyReceived = true;
-      // Resolve the waitForReadySignal promise if it's waiting
       if ((this as any)._readyResolve) {
         if (this.readyTimeoutId) {
           clearTimeout(this.readyTimeoutId);
@@ -386,7 +455,6 @@ export class P2PConnection {
     switch (message.type) {
       case 'offer': {
         console.log('[P2P] Received offer');
-        // If we already have a remote description, handle re-offers gracefully
         if (this.hasRemoteDescription) {
           await this.pc.setRemoteDescription(new RTCSessionDescription(message.data));
           const answer = await this.pc.createAnswer();
@@ -456,13 +524,6 @@ export class P2PConnection {
     this.iceCandidateQueue = [];
   }
 
-  private async createAndSendOffer(): Promise<void> {
-    if (!this.pc) return;
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
-    this.sendSignal({ type: 'offer', senderId: this.userId, data: offer });
-  }
-
   private sendSignal(message: SignalMessage): void {
     if (!this.signalingChannel) return;
     this.signalingChannel.send({
@@ -475,7 +536,10 @@ export class P2PConnection {
   private async renegotiate(): Promise<void> {
     if (!this.pc || !this.isInitiator) return;
     this.sendSignal({ type: 'renegotiate', senderId: this.userId, data: {} });
-    await this.createAndSendOffer();
+    // For renegotiation we DO need a new offer (not the cached one)
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+    this.sendSignal({ type: 'offer', senderId: this.userId, data: offer });
   }
 
   private attemptReconnect(): void {
@@ -517,6 +581,7 @@ export class P2PConnection {
       this.readyTimeoutId = null;
     }
     this.stopOfferRetransmission();
+    this.stopKeepalive();
 
     if (this.localStream) {
       this.localStream.getTracks().forEach(t => t.stop());
@@ -544,6 +609,7 @@ export class P2PConnection {
     this.reconnectAttempts = 0;
     this.hangupProcessed = false;
     this.answerReceived = false;
+    this.cachedOffer = null;
     (this as any)._readyReceived = false;
     (this as any)._readyResolve = null;
   }
