@@ -11713,6 +11713,7 @@ export type Database = {
           like_count: number
           media_url: string
           media_urls: string[]
+          reaction_type: string
           tags: string[]
           thumbnail_url: string
           type: string
@@ -11758,6 +11759,7 @@ export type Database = {
           like_count: number
           media_url: string
           media_urls: string[]
+          reaction_type: string
           tags: string[]
           thumbnail_url: string
           type: string
@@ -11840,6 +11842,7 @@ export type Database = {
           like_count: number
           media_url: string
           media_urls: string[]
+          reaction_type: string
           tags: string[]
           thumbnail_url: string
           type: string
