@@ -268,6 +268,9 @@ export function GlobalCallOverlay() {
     }
   }, [profile?.id, attachLocalVideo, endCall]);
 
+  // Keep connectP2PRef fresh for deferred calls from event handler
+  useEffect(() => { connectP2PRef.current = connectP2P; }, [connectP2P]);
+
   // ── LiveKit Connection (persistent mode) ──────────────────
 
   const connectToRoom = useCallback(async (call: CallData) => {
