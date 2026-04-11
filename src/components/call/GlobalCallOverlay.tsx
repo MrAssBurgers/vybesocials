@@ -1,1183 +1,553 @@
 /**
- * Global Call Overlay
+ * Global Call Overlay — LiveKit Edition
  * 
- * Mounted ONCE at app root. Uses Daily Call Object (custom UI) for:
+ * Mounted ONCE at app root. Uses LiveKit client SDK for:
  * - Full custom video/audio rendering
- * - No prebuilt Daily UI (no green Join button, no Goodbye screen)
+ * - Built-in reconnection (network drops, app sleep)
  * - Glassmorphic modern design
  * - Call settings with mic/camera controls
- * - INSTANT camera loading like FaceTime
+ * - Room-based architecture with rejoin support
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizontal, RefreshCw, Play, Minimize2 } from 'lucide-react';
+import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizontal, RefreshCw, Minimize2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useCallStore, CallData } from '@/lib/callStore';
-import { requestCallMediaPermissions, isAndroid, nextAnimationFrame } from '@/lib/mediaPermissions';
+import { requestCallMediaPermissions } from '@/lib/mediaPermissions';
 import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { supabase } from '@/integrations/supabase/client';
-import DailyIframe, { DailyCall, DailyParticipant } from '@daily-co/daily-js';
+import {
+  Room,
+  RoomEvent,
+  Track,
+  RemoteParticipant,
+  RemoteTrackPublication,
+  LocalTrackPublication,
+  ConnectionState,
+  DisconnectReason,
+  VideoPresets,
+} from 'livekit-client';
 import { CallSettingsSheet } from './CallSettingsSheet';
 import { MinimizedCallBubble } from './MinimizedCallBubble';
-import { useCameraPreload, stopPreloadedCamera, getPreloadedStream } from '@/hooks/useCameraPreload';
 
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, leaveCall, setPhase, setError, dismissIncoming } = useCallStore();
   
-  // Daily call object ref - persists across re-renders
-  const dailyRef = useRef<DailyCall | null>(null);
-  
+  // LiveKit Room ref
+  const roomRef = useRef<Room | null>(null);
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Track component mount to detect unexpected unmounts - only log in dev mode
-  useEffect(() => {
-    if (import.meta.env.DEV) {
-      console.log('[CallOverlay] Component MOUNTED');
-    }
-    return () => {
-      if (import.meta.env.DEV) {
-        console.log('[CallOverlay] Component UNMOUNTING');
-      }
-    };
-  }, []);
-  
-  // Video/Audio refs for attaching streams
+  // Video/Audio refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
-  // Prevent constant stream re-attaches (these cause flashing + jank in video calls)
-  const attachedTrackIdsRef = useRef<{ localVideo?: string; remoteVideo?: string; remoteAudio?: string }>({});
-
-  const elementHasTrack = useCallback((el: HTMLMediaElement, trackId: string) => {
-    const stream = el.srcObject as MediaStream | null;
-    return !!stream?.getTracks?.().some((t) => t.id === trackId);
-  }, []);
-
-  const attachRemoteAudioTrack = useCallback((track: MediaStreamTrack) => {
-    const audioEl = remoteAudioRef.current;
-    if (!audioEl) return;
-
-    // If the exact track is already attached, just ensure it plays
-    if (attachedTrackIdsRef.current.remoteAudio === track.id && elementHasTrack(audioEl, track.id)) {
-      audioEl.muted = false;
-      audioEl.volume = 1;
-      audioEl.play().catch(() => {});
-      return;
-    }
-
-    // If DOM already has the track, sync our ref and ensure playback
-    if (elementHasTrack(audioEl, track.id)) {
-      attachedTrackIdsRef.current.remoteAudio = track.id;
-      audioEl.muted = false;
-      audioEl.volume = 1;
-      audioEl.play().catch(() => {});
-      return;
-    }
-
-    try {
-      audioEl.srcObject = new MediaStream([track]);
-      attachedTrackIdsRef.current.remoteAudio = track.id;
-      audioEl.muted = false;
-      audioEl.volume = 1;
-      audioEl.play().catch(() => {});
-    } catch (err) {
-      console.error('[CallOverlay] Failed to attach remote audio track:', err);
-    }
-  }, [elementHasTrack]);
   // Local UI state
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isHangingUp, setIsHangingUp] = useState(false);
-  const [remoteParticipant, setRemoteParticipant] = useState<DailyParticipant | null>(null);
   const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
   const [hasLocalVideo, setHasLocalVideo] = useState(false);
+  const [hasRemoteParticipant, setHasRemoteParticipant] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [currentMicId, setCurrentMicId] = useState<string | undefined>();
   const [currentCameraId, setCurrentCameraId] = useState<string | undefined>();
   const [currentSpeakerId, setCurrentSpeakerId] = useState<string | undefined>();
-  
-  // iOS/iPad autoplay handling - need user tap to start video
-  const [needsUserInteraction, setNeedsUserInteraction] = useState(false);
-  const [isRetryingVideo, setIsRetryingVideo] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  
-  // Minimize state - keeps call active but shows a floating bubble
   const [isMinimized, setIsMinimized] = useState(false);
   
-  // Remote user left - call lingers for 1 hour
+  // Remote user left — linger state
   const [remoteUserLeft, setRemoteUserLeft] = useState(false);
-  const remoteUserLeftRef = useRef(false); // Ref mirror for use in Daily event closures
-  const [autoEndCountdown, setAutoEndCountdown] = useState(0); // seconds remaining
+  const [autoEndCountdown, setAutoEndCountdown] = useState(0);
   const autoEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  
-  // Keep ref in sync with state for use in Daily event closures
-  useEffect(() => { remoteUserLeftRef.current = remoteUserLeft; }, [remoteUserLeft]);
-  
-  // Header visibility state - auto-hide, show on hover
+
+  // Header/footer auto-hide
   const [showHeader, setShowHeader] = useState(true);
-  const headerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  // Footer visibility state - auto-hide like header
   const [showFooter, setShowFooter] = useState(true);
+  const headerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const footerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  // INSTANT CAMERA: Preload camera for video calls - start as soon as call begins
-  const isVideoCall = state.call?.callType === 'video';
-  const isActiveCall = state.phase !== 'idle';
-  const shouldPreloadCamera = isVideoCall && isActiveCall;
-  
-  // Use camera preload for instant video display
-  const { stream: preloadedStream, isReady: cameraReady, attachToVideo } = useCameraPreload(shouldPreloadCamera);
-  
-  // Ref for preloaded video element
-  const preloadVideoRef = useRef<HTMLVideoElement>(null);
-  
-  // Attach preloaded stream to video element when ready
-  useEffect(() => {
-    if (preloadVideoRef.current && preloadedStream && cameraReady) {
-      preloadVideoRef.current.srcObject = preloadedStream;
-      preloadVideoRef.current.play().catch(() => {});
-      if (import.meta.env.DEV) console.log('[CallOverlay] Preloaded camera attached to video element');
-    }
-  }, [preloadedStream, cameraReady]);
 
-  // Track call data for stale closure prevention
   const stateRef = useRef(state);
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+  useEffect(() => { stateRef.current = state; }, [state]);
 
-  // Clear join timeout helper
   const clearJoinTimeout = useCallback(() => {
-    if (joinTimeoutRef.current) {
-      clearTimeout(joinTimeoutRef.current);
-      joinTimeoutRef.current = null;
-    }
+    if (joinTimeoutRef.current) { clearTimeout(joinTimeoutRef.current); joinTimeoutRef.current = null; }
   }, []);
 
-  // Detect iOS/iPad for autoplay handling
-  const isIOSorIPad = useCallback(() => {
-    if (typeof navigator === 'undefined') return false;
-    const ua = navigator.userAgent;
-    return /iPad|iPhone|iPod/.test(ua) || 
-           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // Attach a remote video track to the video element
+  const attachRemoteVideo = useCallback((track: MediaStreamTrack) => {
+    const el = remoteVideoRef.current;
+    if (!el) return;
+    el.srcObject = new MediaStream([track]);
+    el.play().catch(() => {});
+    setHasRemoteVideo(true);
   }, []);
 
-  // Force enable video tracks - single attempt only
-  const forceEnableVideoTracks = useCallback(async (daily: DailyCall) => {
-    if (!daily) return;
-    
-    const callType = stateRef.current.call?.callType;
-    if (import.meta.env.DEV) console.log('[CallOverlay] forceEnableVideoTracks called, callType:', callType);
-    
-    try {
-      // Always enable audio first
-      await daily.setLocalAudio(true);
-      if (import.meta.env.DEV) console.log('[CallOverlay] Audio enabled');
-      
-      if (callType === 'video') {
-        // Force camera on - single attempt
-        if (import.meta.env.DEV) console.log('[CallOverlay] Enabling camera...');
-        await daily.setLocalVideo(true);
-        
-        // Quick verification (no retry, just log)
-        const local = daily.participants()?.local;
-        if (import.meta.env.DEV) console.log('[CallOverlay] Camera enabled, state:', local?.video);
-      } else {
-        await daily.setLocalVideo(false);
-      }
-    } catch (err: any) {
-      console.error('[CallOverlay] forceEnableVideoTracks error:', err);
-      setCameraError(err.message || 'Failed to enable camera');
-    }
+  // Attach a remote audio track
+  const attachRemoteAudio = useCallback((track: MediaStreamTrack) => {
+    const el = remoteAudioRef.current;
+    if (!el) return;
+    el.srcObject = new MediaStream([track]);
+    el.muted = false;
+    el.volume = 1;
+    el.play().catch(() => {});
   }, []);
 
-  // Retry video - user-triggered (single attempt only)
-  const handleRetryVideo = useCallback(async () => {
-    const daily = dailyRef.current;
-    if (!daily || isRetryingVideo) return;
-    
-    setIsRetryingVideo(true);
-    setCameraError(null);
-    
-    try {
-      if (import.meta.env.DEV) console.log('[CallOverlay] User-triggered video retry');
-      await daily.setLocalVideo(true);
-      
-      // Check result once
-      const local = daily.participants()?.local;
-      if (local?.video) {
-        if (import.meta.env.DEV) console.log('[CallOverlay] Video retry succeeded');
-        setIsVideoOff(false);
-      } else {
-        setCameraError('Camera not available. Check permissions.');
-      }
-    } catch (err: any) {
-      console.error('[CallOverlay] Video retry failed:', err);
-      setCameraError(err.message || 'Retry failed');
-    } finally {
-      setIsRetryingVideo(false);
-    }
-  }, [isRetryingVideo]);
+  // Attach local video track
+  const attachLocalVideo = useCallback((track: MediaStreamTrack) => {
+    const el = localVideoRef.current;
+    if (!el) return;
+    el.srcObject = new MediaStream([track]);
+    el.play().catch(() => {});
+    setHasLocalVideo(true);
+  }, []);
 
-  // iOS tap-to-start handler
-  const handleTapToStart = useCallback(async () => {
-    const daily = dailyRef.current;
-    if (!daily) return;
-    
-    if (import.meta.env.DEV) console.log('[CallOverlay] iOS tap-to-start triggered');
-    setNeedsUserInteraction(false);
-    
-    try {
-      // Re-enable video after user interaction
-      await forceEnableVideoTracks(daily);
-      
-      // Try to play remote video
-      if (remoteVideoRef.current) {
-        await remoteVideoRef.current.play().catch(() => {});
-      }
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.muted = false;
-        await remoteAudioRef.current.play().catch(() => {});
-      }
-    } catch (err) {
-      console.error('[CallOverlay] Tap-to-start error:', err);
-    }
-  }, [forceEnableVideoTracks]);
-
-  // Attach video track to element (guarded to avoid flashing from frequent re-attaches)
-  const attachTrack = useCallback((track: MediaStreamTrack, videoEl: HTMLVideoElement) => {
-    try {
-      const key =
-        videoEl === localVideoRef.current
-          ? 'localVideo'
-          : videoEl === remoteVideoRef.current
-            ? 'remoteVideo'
-            : undefined;
-
-      // If the track is already attached, just ensure playback
-      if (key) {
-        if (attachedTrackIdsRef.current[key] === track.id && elementHasTrack(videoEl, track.id)) {
-          videoEl.play().catch(() => {});
-          return;
-        }
-        if (elementHasTrack(videoEl, track.id)) {
-          attachedTrackIdsRef.current[key] = track.id;
-          videoEl.play().catch(() => {});
-          return;
-        }
-      } else if (elementHasTrack(videoEl, track.id)) {
-        videoEl.play().catch(() => {});
+  // Create and connect LiveKit Room
+  const connectToRoom = useCallback(async (call: CallData) => {
+    if (roomRef.current) {
+      // If already connected to same room, skip
+      if (roomRef.current.name === call.roomName && roomRef.current.state === ConnectionState.Connected) {
+        if (import.meta.env.DEV) console.log('[CallOverlay] Already connected to room');
         return;
       }
-
-      // Attach once
-      videoEl.srcObject = new MediaStream([track]);
-      if (key) attachedTrackIdsRef.current[key] = track.id;
-      videoEl.play().catch(() => {});
-    } catch (err) {
-      console.error('[CallOverlay] Failed to attach track:', err);
+      // Disconnect from previous room
+      try { await roomRef.current.disconnect(); } catch {}
     }
-  }, [elementHasTrack]);
 
-  // Create Daily call object lazily when needed
-  const getOrCreateDaily = useCallback((): DailyCall => {
-    if (dailyRef.current) return dailyRef.current;
-
-    const callType = stateRef.current.call?.callType || 'audio';
-    const isVideo = callType === 'video';
-    
-    if (import.meta.env.DEV) console.log('[CallOverlay] Creating Daily Call Object, type:', callType);
-    
-    const daily = DailyIframe.createCallObject({
-      subscribeToTracksAutomatically: true,
-      // MOBILE FIX: Only request video source for video calls
-      // Requesting camera on audio calls causes unnecessary permission prompts on mobile
-      audioSource: true,
-      videoSource: isVideo,
+    const room = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+      videoCaptureDefaults: {
+        resolution: VideoPresets.h720.resolution,
+      },
     });
 
-    dailyRef.current = daily;
+    roomRef.current = room;
 
-    // Attach event listeners ONCE
-    daily.on('joining-meeting', () => {
-      if (import.meta.env.DEV) console.log('[CallOverlay] 📞 joining-meeting event');
-    });
+    // ---- EVENT LISTENERS ----
 
-    daily.on('joined-meeting', async () => {
-      if (import.meta.env.DEV) console.log('[CallOverlay] ✅ joined-meeting event');
-      clearJoinTimeout();
+    // Track subscribed — remote participant's track is ready
+    room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      if (import.meta.env.DEV) console.log('[CallOverlay] TrackSubscribed:', track.kind, participant.identity);
       
-      // CRITICAL: Stop ALL sounds immediately on join to prevent ringing during call
-      premiumSounds.stopAllCallSounds();
-      
-      if (stateRef.current.phase !== 'joining') {
-        if (import.meta.env.DEV) console.log('[CallOverlay] Ignoring joined-meeting (not in joining phase)');
-        return;
+      if (track.kind === Track.Kind.Video) {
+        const mediaTrack = track.mediaStreamTrack;
+        if (mediaTrack) attachRemoteVideo(mediaTrack);
+      } else if (track.kind === Track.Kind.Audio) {
+        const mediaTrack = track.mediaStreamTrack;
+        if (mediaTrack) attachRemoteAudio(mediaTrack);
       }
+    });
 
-      // CRITICAL: Force enable all media tracks immediately after joining
-      await forceEnableVideoTracks(daily);
+    room.on(RoomEvent.TrackUnsubscribed, (track) => {
+      if (track.kind === Track.Kind.Video) {
+        setHasRemoteVideo(false);
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+      } else if (track.kind === Track.Kind.Audio) {
+        if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+      }
+    });
 
-      // CRITICAL: Force-unmute remote audio element after joining (browser autoplay policy workaround)
-      setTimeout(() => {
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.muted = false;
-          remoteAudioRef.current.volume = 1;
-          if (import.meta.env.DEV) console.log('[CallOverlay] Force-unmuted remote audio element');
-        }
-      }, 100);
+    // Local track published
+    room.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication) => {
+      if (publication.kind === Track.Kind.Video) {
+        const mediaTrack = publication.track?.mediaStreamTrack;
+        if (mediaTrack) attachLocalVideo(mediaTrack);
+      }
+    });
 
-      // iOS/iPad: Check if we need user interaction for autoplay
-      const isIOS = isIOSorIPad();
-      if (isIOS && stateRef.current.call?.callType === 'video') {
-        if (import.meta.env.DEV) console.log('[CallOverlay] iOS detected - may need user tap for video');
-        // Check if video actually started
-        setTimeout(() => {
-          const local = daily.participants()?.local;
-          if (!local?.video && stateRef.current.call?.callType === 'video') {
-            if (import.meta.env.DEV) console.log('[CallOverlay] iOS video not started - showing tap overlay');
-            setNeedsUserInteraction(true);
+    room.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication) => {
+      if (publication.kind === Track.Kind.Video) {
+        setHasLocalVideo(false);
+        if (localVideoRef.current) localVideoRef.current.srcObject = null;
+      }
+    });
+
+    // Participant connected
+    room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+      if (import.meta.env.DEV) console.log('[CallOverlay] ParticipantConnected:', participant.identity);
+      setHasRemoteParticipant(true);
+
+      // Cancel auto-end timer
+      setRemoteUserLeft(false);
+      setAutoEndCountdown(0);
+      if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
+      if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
+    });
+
+    // Participant disconnected
+    room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+      if (import.meta.env.DEV) console.log('[CallOverlay] ParticipantDisconnected:', participant.identity);
+      setHasRemoteParticipant(false);
+      setHasRemoteVideo(false);
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+
+      // Start linger countdown
+      const isGroupCall = stateRef.current.call?.isGroupCall;
+      const LINGER_SECONDS = isGroupCall ? 60 * 60 : 30;
+      setRemoteUserLeft(true);
+      setAutoEndCountdown(LINGER_SECONDS);
+
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = setInterval(() => {
+        setAutoEndCountdown(prev => {
+          if (prev <= 1) {
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+            return 0;
           }
-        }, 1000);
-      }
+          return prev - 1;
+        });
+      }, 1000);
 
-      // Play connect sound (no ringing should be playing at this point)
+      if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
+      autoEndTimerRef.current = setTimeout(() => {
+        if (import.meta.env.DEV) console.log(`[CallOverlay] Auto-ending after ${LINGER_SECONDS}s linger`);
+        endCall();
+      }, LINGER_SECONDS * 1000);
+    });
+
+    // Reconnection events — LiveKit handles this automatically
+    room.on(RoomEvent.Reconnecting, () => {
+      if (import.meta.env.DEV) console.log('[CallOverlay] Reconnecting...');
+      setIsReconnecting(true);
+    });
+
+    room.on(RoomEvent.Reconnected, () => {
+      if (import.meta.env.DEV) console.log('[CallOverlay] Reconnected!');
+      setIsReconnecting(false);
+    });
+
+    // Disconnected
+    room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
+      if (import.meta.env.DEV) console.log('[CallOverlay] Disconnected, reason:', reason);
+      clearJoinTimeout();
+      setIsReconnecting(false);
+
+      // If we're leaving intentionally, don't do anything
+      if (isLeavingRef.current) return;
+
+      // If the call is still active in state, it means unexpected disconnect
+      if (stateRef.current.phase === 'connected' || stateRef.current.phase === 'joining') {
+        toast.error('Call disconnected');
+        endCall();
+      }
+    });
+
+    // Connected
+    room.on(RoomEvent.Connected, () => {
+      if (import.meta.env.DEV) console.log('[CallOverlay] Connected to room');
+      clearJoinTimeout();
+      premiumSounds.stopAllCallSounds();
       premiumSounds.callConnect();
       setPhase('connected');
-    });
 
-    daily.on('left-meeting', () => {
-      if (import.meta.env.DEV) console.log('[CallOverlay] 👋 left-meeting event');
-      clearJoinTimeout();
-      isLeavingRef.current = false;
-      // Only reset video state if we're NOT in linger mode
-      // During linger, we want to keep the call UI alive
-      setRemoteParticipant(null);
-      setHasRemoteVideo(false);
-      setHasLocalVideo(false);
-    });
-
-    daily.on('error', (event: any) => {
-      console.error('[CallOverlay] ❌ error event:', event);
-      clearJoinTimeout();
-      
-      const msg = event?.errorMsg || event?.error?.msg || 'Call error';
-      
-      // If remote user already left (linger mode), don't kill the call on Daily errors
-      // The room closing after remote leaves is expected — just stay in linger
-      if (remoteUserLeftRef.current) {
-        if (import.meta.env.DEV) console.log('[CallOverlay] Ignoring Daily error during linger mode:', msg);
-        return;
-      }
-      
-      toast.error(msg);
-      setError(msg);
-      endCall();
-    });
-
-    // Helper to attach remote participant video - GUARDED to prevent flickering
-    const attachRemoteParticipantVideo = (p: DailyParticipant, videoEl: HTMLVideoElement | null) => {
-      if (!p || !videoEl) return;
-
-      const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
-      const trackState = p.tracks?.video?.state;
-      const isPlayable = trackState === 'playable' || trackState === 'loading';
-      const canRenderVideo = !!videoTrack && isPlayable;
-
-      if (canRenderVideo) {
-        // Use guarded attach to prevent flickering from repeated re-attachments
-        attachTrack(videoTrack, videoEl);
-        setHasRemoteVideo(true);
-      }
-    };
-
-    // Track participants
-    daily.on('participant-joined', (event: any) => {
-      if (import.meta.env.DEV) console.log('[CallOverlay] 👤 participant-joined:', event?.participant?.session_id);
-      if (event?.participant && !event.participant.local) {
-        setRemoteParticipant(event.participant);
-        attachRemoteParticipantVideo(event.participant, remoteVideoRef.current);
-        
-        // Cancel auto-end timer if remote user rejoined
-        setRemoteUserLeft(false);
-        setAutoEndCountdown(0);
-        if (autoEndTimerRef.current) {
-          clearTimeout(autoEndTimerRef.current);
-          autoEndTimerRef.current = null;
-        }
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-          countdownIntervalRef.current = null;
-        }
-      }
-    });
-
-    daily.on('participant-left', (event: any) => {
-      if (import.meta.env.DEV) console.log('[CallOverlay] 👤 participant-left:', event?.participant?.session_id);
-      if (event?.participant && !event.participant.local) {
-        setRemoteParticipant(null);
-        setHasRemoteVideo(false);
-        attachedTrackIdsRef.current.remoteVideo = undefined;
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = null;
-        }
-        
-        // Auto-end for 1:1 calls after 30 seconds (not 1 hour)
-        const isGroupCall = stateRef.current.call?.isGroupCall;
-        const LINGER_SECONDS = isGroupCall ? 60 * 60 : 30; // 30s for 1:1, 1hr for group
-        setRemoteUserLeft(true);
-        setAutoEndCountdown(LINGER_SECONDS);
-        
-        // Start countdown
-        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = setInterval(() => {
-          setAutoEndCountdown(prev => {
-            if (prev <= 1) {
-              if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
-        
-        // Auto-hangup after linger period
-        if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
-        autoEndTimerRef.current = setTimeout(() => {
-          if (import.meta.env.DEV) console.log(`[CallOverlay] Auto-ending call after ${LINGER_SECONDS}s linger`);
-          endCall();
-        }, LINGER_SECONDS * 1000);
-      }
-    });
-
-    daily.on('participant-updated', (event: any) => {
-      if (!event?.participant) return;
-      
-      const p = event.participant;
-      if (p.local) {
-        const hasVideo = p.video && (p.tracks?.video?.state === 'playable' || p.tracks?.video?.state === 'loading');
-        const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
-        setHasLocalVideo(hasVideo && !!videoTrack);
-        
-        if (hasVideo && videoTrack && localVideoRef.current) {
-          attachTrack(videoTrack, localVideoRef.current);
-        }
-      } else {
-        setRemoteParticipant(p);
-        attachRemoteParticipantVideo(p, remoteVideoRef.current);
-      }
-    });
-
-    // Track started - attach video AND audio
-    daily.on('track-started', (event: any) => {
-      if (!event?.participant || !event?.track) return;
-      
-      const { participant, track } = event;
-      if (import.meta.env.DEV) console.log('[CallOverlay] 🎬 track-started:', participant.local ? 'local' : 'remote', track.kind);
-      
-      if (track.kind === 'video') {
-        if (participant.local && localVideoRef.current) {
-          attachTrack(track, localVideoRef.current);
-          setHasLocalVideo(true);
-        } else if (!participant.local && remoteVideoRef.current) {
-          attachTrack(track, remoteVideoRef.current);
-          setHasRemoteVideo(true);
-        }
-      } else if (track.kind === 'audio' && !participant.local) {
-        // Attach remote audio track to audio element - CRITICAL for hearing remote user
-        if (import.meta.env.DEV) console.log('[CallOverlay] 🔊 Attaching remote audio track');
-        
-        // Wait for audio ref to be available (may fire before component fully mounted)
-        const attachAudio = () => {
-          const audioEl = remoteAudioRef.current;
-          if (!audioEl) {
-            if (import.meta.env.DEV) console.log('[CallOverlay] Audio ref not ready, retrying...');
-            setTimeout(attachAudio, 100);
-            return;
-          }
-          
-          try {
-            const stream = new MediaStream([track]);
-            audioEl.srcObject = stream;
-            audioEl.muted = false;
-            audioEl.volume = 1;
-            
-            // Force play with retry logic
-            const playWithRetry = async (attempts = 3) => {
-              try {
-                await audioEl.play();
-                if (import.meta.env.DEV) console.log('[CallOverlay] ✅ Remote audio playing successfully');
-              } catch (err: any) {
-                if (import.meta.env.DEV) console.warn('[CallOverlay] Audio play failed, attempt remaining:', attempts - 1, err);
-                if (attempts > 1) {
-                  setTimeout(() => playWithRetry(attempts - 1), 200);
-                }
+      // Check for existing participants
+      const remotes = Array.from(room.remoteParticipants.values());
+      if (remotes.length > 0) {
+        setHasRemoteParticipant(true);
+        // Attach existing tracks
+        remotes.forEach(p => {
+          p.trackPublications.forEach(pub => {
+            if (pub.track && pub.isSubscribed) {
+              const mediaTrack = pub.track.mediaStreamTrack;
+              if (pub.kind === Track.Kind.Video && mediaTrack) {
+                attachRemoteVideo(mediaTrack);
+              } else if (pub.kind === Track.Kind.Audio && mediaTrack) {
+                attachRemoteAudio(mediaTrack);
               }
-            };
-            
-            playWithRetry();
-          } catch (err) {
-            console.error('[CallOverlay] Failed to attach audio track:', err);
-          }
-        };
-        
-        attachAudio();
+            }
+          });
+        });
       }
     });
 
-    daily.on('track-stopped', (event: any) => {
-      if (!event?.participant || !event?.track) return;
-      
-      const { participant, track } = event;
-      if (import.meta.env.DEV) console.log('[CallOverlay] 🎬 track-stopped:', participant.local ? 'local' : 'remote', track.kind);
-      
-      if (track.kind === 'video') {
-        if (participant.local) {
-          setHasLocalVideo(false);
-          if (localVideoRef.current) localVideoRef.current.srcObject = null;
-        } else {
-          setHasRemoteVideo(false);
-          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    // ---- CONNECT ----
+    try {
+      if (import.meta.env.DEV) console.log('[CallOverlay] Connecting to LiveKit:', call.livekitUrl, 'room:', call.roomName);
+
+      await room.connect(call.livekitUrl, call.token);
+
+      // Publish local tracks based on call type
+      await room.localParticipant.setMicrophoneEnabled(true);
+      if (call.callType === 'video') {
+        try {
+          await room.localParticipant.setCameraEnabled(true);
+        } catch (err: any) {
+          console.warn('[CallOverlay] Camera enable failed:', err);
+          setCameraError(err.message || 'Camera failed');
         }
-      } else if (track.kind === 'audio' && !participant.local && remoteAudioRef.current) {
-        if (import.meta.env.DEV) console.log('[CallOverlay] 🔇 Remote audio track stopped');
-        remoteAudioRef.current.srcObject = null;
       }
-    });
 
-    return daily;
-  }, [clearJoinTimeout, setPhase, setError, endCall, attachTrack, forceEnableVideoTracks, isIOSorIPad]);
-
-  // Pre-create Daily call object for instant availability when call starts
-  useEffect(() => {
-    if (state.phase === 'creating' || state.phase === 'ringing') {
-      // Pre-create Daily object so it's ready when we need to join
-      getOrCreateDaily();
+      if (import.meta.env.DEV) console.log('[CallOverlay] Connected and publishing');
+    } catch (err: any) {
+      console.error('[CallOverlay] Connect failed:', err);
+      toast.error('Failed to connect');
+      endCall();
     }
-  }, [state.phase, getOrCreateDaily]);
+  }, [attachRemoteVideo, attachRemoteAudio, attachLocalVideo, clearJoinTimeout, endCall, setPhase]);
+
   // Join room when phase becomes 'joining'
   useEffect(() => {
-    if (state.phase !== 'joining' || !state.call?.roomUrl || !state.call?.roomName) return;
+    if (state.phase !== 'joining' || !state.call?.token || !state.call?.livekitUrl) return;
     if (isLeavingRef.current) return;
 
-    // CRITICAL: Stop any lingering sounds when entering joining phase
     premiumSounds.stopAllCallSounds();
 
     let cancelled = false;
 
     const doJoin = async () => {
-      // Daily object should already be pre-created, but ensure it exists
-      const daily = getOrCreateDaily();
-      
-      if (import.meta.env.DEV) console.log('[CallOverlay] Starting FAST join flow for:', state.call?.roomUrl);
-      const joinStart = Date.now();
-
-      // INSTANT: Skip permission request if we already have them (speeds up by ~500ms)
-      // Also fetch token in parallel - don't wait for permissions first
-      const tokenPromise = supabase.functions.invoke('get-call-token', {
-        body: {
-          roomName: state.call!.roomName,
-          callId: state.call!.id,
-        },
-      });
-
-      // Request permissions only if needed (may already be granted)
-      let permissionOk = true;
+      // Request permissions first
       try {
         await requestCallMediaPermissions(state.call!.callType);
-        if (import.meta.env.DEV) console.log('[CallOverlay] Permissions OK (' + (Date.now() - joinStart) + 'ms)');
       } catch (err: any) {
-        console.error('[CallOverlay] Permission denied:', err);
         toast.error(err.message || 'Microphone permission required');
-        permissionOk = false;
         endCall();
         return;
       }
 
-      // Wait for token (should be ready by now since we started it in parallel)
-      const { data: tokenData, error: tokenError } = await tokenPromise;
-      
-      if (tokenError || !tokenData?.token) {
-        const msg = tokenError?.message || tokenData?.error || 'No token returned';
-        console.error('[CallOverlay] Token error:', msg);
-        toast.error('Failed to connect');
-        endCall();
-        return;
-      }
-
-      const token = tokenData.token;
-      if (import.meta.env.DEV) console.log('[CallOverlay] Token received (' + (Date.now() - joinStart) + 'ms)');
-
       if (cancelled) return;
 
-      // Quick check for previous room (usually not needed)
-      const meetingState = daily.meetingState();
-      if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
-        if (import.meta.env.DEV) console.log('[CallOverlay] Leaving previous room');
-        await daily.leave();
-      }
-
-      if (cancelled) return;
-
-      // Set 30 second timeout for join (generous to handle slow networks)
+      // Set 30 second join timeout
       clearJoinTimeout();
       joinTimeoutRef.current = setTimeout(() => {
-        // Only timeout if still in joining phase - don't interrupt connected calls
         if (stateRef.current.phase === 'joining') {
-          console.error('[CallOverlay] Join timeout after 30s');
           toast.error('Call failed to connect');
           endCall();
         }
       }, 30000);
 
-      // Join the room with HIGH QUALITY settings
-      try {
-        if (import.meta.env.DEV) console.log('[CallOverlay] Calling daily.join() (' + (Date.now() - joinStart) + 'ms)');
-        
-        // Join with the room URL and token
-        await daily.join({ 
-          url: state.call!.roomUrl, 
-          token,
-        });
-        
-        // After joining, configure high-quality send settings
-        try {
-          await daily.updateSendSettings({
-            video: {
-              maxQuality: 'high', // 720p quality
-            },
-          });
-          if (import.meta.env.DEV) console.log('[CallOverlay] ✅ High quality video enabled');
-        } catch (settingsErr) {
-          if (import.meta.env.DEV) console.warn('[CallOverlay] Could not set high quality:', settingsErr);
-        }
-        
-        if (import.meta.env.DEV) console.log('[CallOverlay] ✅ Joined! Total time: ' + (Date.now() - joinStart) + 'ms');
-      } catch (err: any) {
-        console.error('[CallOverlay] Join failed:', err);
-        clearJoinTimeout();
-        toast.error('Failed to connect');
-        endCall();
-      }
+      await connectToRoom(state.call!);
     };
 
     doJoin();
 
-    return () => {
-      cancelled = true;
-      clearJoinTimeout();
-    };
-  }, [state.phase, state.call?.roomUrl, state.call?.roomName, state.call?.id, state.call?.callType, clearJoinTimeout, endCall, setError, getOrCreateDaily]);
+    return () => { cancelled = true; clearJoinTimeout(); };
+  }, [state.phase, state.call?.token, state.call?.livekitUrl, clearJoinTimeout, endCall, connectToRoom]);
 
-  // If the call gets reset remotely while Daily is still joining/joined, force-leave the meeting
-  // (prevents "instant crash" feel where UI disappears but the iframe is still in a meeting state).
+  // Force cleanup when state resets to idle
   useEffect(() => {
     if (state.phase !== 'idle') return;
-    const daily = dailyRef.current;
-    if (!daily) return;
-
-    try {
-      const meetingState = daily.meetingState();
-      if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
-        console.log('[CallOverlay] State reset to idle while in meeting; forcing daily.leave()');
-        clearJoinTimeout();
-        daily.leave();
-      }
-    } catch {
-      // ignore
+    const room = roomRef.current;
+    if (room && room.state !== ConnectionState.Disconnected) {
+      room.disconnect();
     }
-  }, [state.phase, clearJoinTimeout]);
+  }, [state.phase]);
 
   // Call duration timer
   useEffect(() => {
-    if (state.phase !== 'connected') {
-      setCallDuration(0);
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setCallDuration(prev => prev + 1);
-    }, 1000);
-
+    if (state.phase !== 'connected') { setCallDuration(0); return; }
+    const interval = setInterval(() => setCallDuration(prev => prev + 1), 1000);
     return () => clearInterval(interval);
   }, [state.phase]);
 
-  // CRITICAL: Poll for remote participants after connection (GUARDED - no flickering)
-  // This ensures we catch remote video even if events fire before refs are ready
+  // Visibility change — resume media when returning from background
   useEffect(() => {
     if (state.phase !== 'connected') return;
+    const room = roomRef.current;
+    if (!room) return;
 
-    const daily = dailyRef.current;
-    if (!daily) return;
-
-    let pollCount = 0;
-    const maxPolls = 5; // Only 5 polls - after that rely on events
-
-    const checkRemoteParticipants = () => {
-      try {
-        const participants = daily.participants();
-
-        Object.values(participants).forEach((p: any) => {
-          if (!p.local) {
-            setRemoteParticipant(p);
-
-            // Video: STRICT guard - never re-attach same track
-            const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
-            const trackState = p.tracks?.video?.state;
-            const isPlayable = trackState === 'playable' || trackState === 'loading';
-
-            if (videoTrack && isPlayable && remoteVideoRef.current) {
-              // ONLY attach if track ID is different
-              if (attachedTrackIdsRef.current.remoteVideo !== videoTrack.id) {
-                console.log('[CallOverlay] Poll: Attaching new remote video track');
-                attachedTrackIdsRef.current.remoteVideo = videoTrack.id;
-                remoteVideoRef.current.srcObject = new MediaStream([videoTrack]);
-                remoteVideoRef.current.play().catch(() => {});
-                setHasRemoteVideo(true);
-              }
-              // If same track, do NOT touch srcObject at all - just ensure playing
-              else if (remoteVideoRef.current.paused) {
-                remoteVideoRef.current.play().catch(() => {});
-              }
-            }
-
-            // Audio: STRICT guard
-            const audioTrack = p.tracks?.audio?.persistentTrack || p.tracks?.audio?.track;
-            const audioState = p.tracks?.audio?.state;
-            const isAudioPlayable = audioState === 'playable' || audioState === 'loading';
-
-            if (p.audio && audioTrack && isAudioPlayable && remoteAudioRef.current) {
-              if (attachedTrackIdsRef.current.remoteAudio !== audioTrack.id) {
-                attachRemoteAudioTrack(audioTrack);
-              } else if (remoteAudioRef.current.paused) {
-                remoteAudioRef.current.muted = false;
-                remoteAudioRef.current.volume = 1;
-                remoteAudioRef.current.play().catch(() => {});
-              }
-            }
-          }
-        });
-      } catch (err) {
-        console.error('[CallOverlay] Poll error:', err);
-      }
-
-      pollCount++;
-    };
-
-    // Immediate check once
-    checkRemoteParticipants();
-
-    // Poll every 3 seconds (very infrequent - rely on events primarily)
-    const pollInterval = setInterval(() => {
-      if (pollCount >= maxPolls) {
-        clearInterval(pollInterval);
-        return;
-      }
-      checkRemoteParticipants();
-    }, 3000);
-
-    return () => clearInterval(pollInterval);
-  }, [state.phase, attachRemoteAudioTrack]);
-
-  // Re-enable video tracks when returning from background/minimized state
-  useEffect(() => {
-    if (state.phase !== 'connected') return;
-    
-    const daily = dailyRef.current;
-    if (!daily) return;
-
-    const handleVisibilityChange = async () => {
-      // When tab becomes visible again, ensure call is still active
+    const handleVisibility = async () => {
       if (document.visibilityState === 'visible') {
-        console.log('[CallOverlay] Tab became visible, resuming call...');
-        
-        // Small delay to let the browser settle
         await new Promise(r => setTimeout(r, 300));
-        
-        const meetingState = daily.meetingState();
-        console.log('[CallOverlay] Meeting state on visibility:', meetingState);
-        
-        // If we're still in a meeting, just resume media
-        if (meetingState === 'joined-meeting') {
-          // Re-enable video if it was on before (only for video calls)
-          if (state.call?.callType === 'video' && !isVideoOff) {
-            try {
-              await daily.setLocalVideo(true);
-              console.log('[CallOverlay] Video re-enabled after visibility change');
-            } catch (err) {
-              console.warn('[CallOverlay] Failed to re-enable video:', err);
-            }
-          }
-          
-          // Ensure audio is still enabled
-          try {
-            await daily.setLocalAudio(true);
-          } catch (err) {
-            console.warn('[CallOverlay] Failed to re-enable audio:', err);
-          }
-
-          // Try to resume remote video/audio playback
-          if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
-            remoteVideoRef.current.play().catch(() => {});
-          }
-          if (remoteAudioRef.current && remoteAudioRef.current.srcObject) {
+        if (room.state === ConnectionState.Connected) {
+          // Ensure audio element is playing
+          if (remoteAudioRef.current?.srcObject) {
             remoteAudioRef.current.muted = false;
             remoteAudioRef.current.play().catch(() => {});
           }
-        }
-      } else {
-        // Tab is hidden - DON'T end the call, but log it
-        console.log('[CallOverlay] Tab hidden, call continues in background');
-        // Ensure audio stays active in background
-        if (remoteAudioRef.current && remoteAudioRef.current.srcObject) {
-          remoteAudioRef.current.muted = false;
-          remoteAudioRef.current.play().catch(() => {});
+          if (remoteVideoRef.current?.srcObject) {
+            remoteVideoRef.current.play().catch(() => {});
+          }
         }
       }
     };
 
-    // Prevent page unload from ending call - just warn user
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (state.phase === 'connected' || state.phase === 'joining') {
         e.preventDefault();
         e.returnValue = 'You have an active call. Are you sure you want to leave?';
-        return e.returnValue;
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('beforeunload', handleBeforeUnload);
-    
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [state.phase, state.call?.callType, isVideoOff]);
+  }, [state.phase]);
 
-  // LEAVE CALL - leaves Daily locally but keeps the call alive for rejoin
+  // LEAVE CALL — disconnect from room but don't end in DB
   const handleLeaveCall = useCallback(async () => {
     if (isHangingUp) return;
     setIsHangingUp(true);
-    console.log('[CallOverlay] Leave pressed (not ending call)');
-
-    clearJoinTimeout();
     isLeavingRef.current = true;
 
-    // Stop preloaded camera
-    stopPreloadedCamera();
-    
-    // Reset UI states
     setCameraError(null);
-    setNeedsUserInteraction(false);
     setRemoteUserLeft(false);
     setAutoEndCountdown(0);
     if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
     if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
 
-    // Leave Daily room with 5-second timeout failsafe
-    const daily = dailyRef.current;
-    if (daily) {
-      const leavePromise = (async () => {
-        try {
-          const meetingState = daily.meetingState();
-          if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
-            console.log('[CallOverlay] Calling daily.leave()');
-            await daily.leave();
-            console.log('[CallOverlay] daily.leave() completed');
-          }
-        } catch (err) {
-          console.error('[CallOverlay] Error leaving:', err);
-        }
-      })();
-      
-      const timeoutPromise = new Promise<void>((resolve) => {
-        setTimeout(() => {
-          console.warn('[CallOverlay] Leave timeout - forcing cleanup');
-          resolve();
-        }, 5000);
-      });
-      
-      await Promise.race([leavePromise, timeoutPromise]);
+    const room = roomRef.current;
+    if (room) {
+      try { await room.disconnect(); } catch {}
+      roomRef.current = null;
     }
 
-    // Force cleanup of Daily object
-    if (dailyRef.current) {
-      try { dailyRef.current.destroy(); } catch {}
-      dailyRef.current = null;
-    }
-    attachedTrackIdsRef.current = {};
-
-    await new Promise<void>((resolve) => setTimeout(resolve, 200));
-    
-    // Leave locally without ending in DB
     leaveCall();
     setIsHangingUp(false);
     isLeavingRef.current = false;
-  }, [isHangingUp, clearJoinTimeout, leaveCall]);
+  }, [isHangingUp, leaveCall]);
 
-  // HANGUP - fully ends the call (kept for error/cleanup scenarios)
+  // HANGUP — fully end the call
   const handleHangup = useCallback(async () => {
     if (isHangingUp) return;
     setIsHangingUp(true);
-    console.log('[CallOverlay] Hangup pressed');
-
-    clearJoinTimeout();
     isLeavingRef.current = true;
 
-    // Stop preloaded camera
-    stopPreloadedCamera();
-    
-    // Reset UI states
     setCameraError(null);
-    setNeedsUserInteraction(false);
     setRemoteUserLeft(false);
     setAutoEndCountdown(0);
     if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
     if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
 
-    // Call daily.leave() with 5-second timeout failsafe
-    const daily = dailyRef.current;
-    if (daily) {
-      const leavePromise = (async () => {
-        try {
-          const meetingState = daily.meetingState();
-          if (meetingState === 'joined-meeting' || meetingState === 'joining-meeting') {
-            console.log('[CallOverlay] Calling daily.leave()');
-            await daily.leave();
-            console.log('[CallOverlay] daily.leave() completed');
-          }
-        } catch (err) {
-          console.error('[CallOverlay] Error leaving:', err);
-        }
-      })();
-      
-      // Force timeout after 5 seconds - hangup MUST always work
-      const timeoutPromise = new Promise<void>((resolve) => {
-        setTimeout(() => {
-          console.warn('[CallOverlay] Hangup timeout - forcing cleanup');
-          resolve();
-        }, 5000);
-      });
-      
-      await Promise.race([leavePromise, timeoutPromise]);
+    const room = roomRef.current;
+    if (room) {
+      try { await room.disconnect(); } catch {}
+      roomRef.current = null;
     }
 
-    // Force cleanup 
-    await new Promise<void>((resolve) => setTimeout(resolve, 200));
-    
     await endCall();
     setIsHangingUp(false);
     isLeavingRef.current = false;
-  }, [isHangingUp, clearJoinTimeout, endCall]);
+  }, [isHangingUp, endCall]);
 
   // Toggle mute
-  const handleToggleMute = useCallback(() => {
-    const daily = dailyRef.current;
-    if (!daily || state.phase !== 'connected') return;
-    
+  const handleToggleMute = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room || state.phase !== 'connected') return;
     const newMuted = !isMuted;
-    daily.setLocalAudio(!newMuted);
+    await room.localParticipant.setMicrophoneEnabled(!newMuted);
     setIsMuted(newMuted);
   }, [isMuted, state.phase]);
 
-  // Toggle video - sync with actual Daily state
+  // Toggle video
   const handleToggleVideo = useCallback(async () => {
-    const daily = dailyRef.current;
-    if (!daily || state.phase !== 'connected' || state.call?.callType !== 'video') return;
-    
-    // Check actual current state from Daily
-    const local = daily.participants()?.local;
-    const currentlyHasVideo = local?.video === true;
-    
-    console.log('[CallOverlay] Toggle video, current state:', currentlyHasVideo);
-    
+    const room = roomRef.current;
+    if (!room || state.phase !== 'connected' || state.call?.callType !== 'video') return;
     try {
-      if (currentlyHasVideo) {
-        await daily.setLocalVideo(false);
-        setIsVideoOff(true);
-        setCameraError(null);
-      } else {
-        // Turning video ON - may need to retry
-        await daily.setLocalVideo(true);
-        
-        // Verify it worked
-        setTimeout(() => {
-          const p = daily.participants()?.local;
-          if (p?.video) {
-            setIsVideoOff(false);
-            setCameraError(null);
-          } else {
-            setCameraError('Camera failed to enable');
-          }
-        }, 500);
-      }
+      const newOff = !isVideoOff;
+      await room.localParticipant.setCameraEnabled(!newOff);
+      setIsVideoOff(newOff);
+      setCameraError(null);
     } catch (err: any) {
-      console.error('[CallOverlay] Toggle video error:', err);
       setCameraError(err.message || 'Failed to toggle camera');
     }
-  }, [state.phase, state.call?.callType]);
+  }, [state.phase, state.call?.callType, isVideoOff]);
 
-  // Handle device changes from settings
-  const handleMicChange = useCallback((deviceId: string) => {
-    const daily = dailyRef.current;
-    if (!daily) return;
-    
-    daily.setInputDevicesAsync({ audioDeviceId: deviceId }).then(() => {
+  // Retry video
+  const handleRetryVideo = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return;
+    setCameraError(null);
+    try {
+      await room.localParticipant.setCameraEnabled(true);
+      setIsVideoOff(false);
+    } catch (err: any) {
+      setCameraError(err.message || 'Camera failed');
+    }
+  }, []);
+
+  // Device changes
+  const handleMicChange = useCallback(async (deviceId: string) => {
+    const room = roomRef.current;
+    if (!room) return;
+    try {
+      await room.switchActiveDevice('audioinput', deviceId);
       setCurrentMicId(deviceId);
       toast.success('Microphone changed');
-    }).catch((err) => {
-      console.error('Failed to change mic:', err);
+    } catch (err) {
       toast.error('Failed to change microphone');
-    });
+    }
   }, []);
 
-  const handleCameraChange = useCallback((deviceId: string) => {
-    const daily = dailyRef.current;
-    if (!daily) return;
-    
-    daily.setInputDevicesAsync({ videoDeviceId: deviceId }).then(() => {
+  const handleCameraChange = useCallback(async (deviceId: string) => {
+    const room = roomRef.current;
+    if (!room) return;
+    try {
+      await room.switchActiveDevice('videoinput', deviceId);
       setCurrentCameraId(deviceId);
       toast.success('Camera changed');
-    }).catch((err) => {
-      console.error('Failed to change camera:', err);
+    } catch (err) {
       toast.error('Failed to change camera');
-    });
+    }
   }, []);
 
-  const handleSpeakerChange = useCallback((deviceId: string) => {
-    const daily = dailyRef.current;
-    if (!daily) return;
-    
-    daily.setOutputDeviceAsync({ outputDeviceId: deviceId }).then(() => {
+  const handleSpeakerChange = useCallback(async (deviceId: string) => {
+    const room = roomRef.current;
+    if (!room) return;
+    try {
+      await room.switchActiveDevice('audiooutput', deviceId);
       setCurrentSpeakerId(deviceId);
       toast.success('Speaker changed');
-    }).catch((err) => {
-      console.error('Failed to change speaker:', err);
+    } catch (err) {
       toast.error('Failed to change speaker');
-    });
+    }
   }, []);
 
   // Accept incoming call
   const handleAccept = useCallback(async () => {
     if (!state.call) return;
-    
-    // Request permissions first
     try {
       await requestCallMediaPermissions(state.call.callType);
     } catch (err: any) {
       toast.error(err.message || 'Microphone permission required');
       return;
     }
-
     acceptCall(state.call);
   }, [state.call, acceptCall]);
 
   // Format duration
   const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Get other user or group info
+  // Display info
+  const isVideoCall = state.call?.callType === 'video';
   const otherUser = state.call?.isInitiator ? state.call.receiver : state.call?.caller;
   const isGroupCall = state.call?.isGroupCall;
   const groupName = state.call?.groupName;
   const groupAvatar = state.call?.groupAvatar;
-  
-  // Display name: group name for group calls, or user's name for 1:1
-  const displayName = isGroupCall && groupName 
-    ? groupName 
-    : (otherUser?.display_name || otherUser?.username);
-  
-  // Display avatar: group avatar or other user's avatar
+  const displayName = isGroupCall && groupName ? groupName : (otherUser?.display_name || otherUser?.username);
   const displayAvatar = isGroupCall ? groupAvatar : otherUser?.avatar_url;
-  
-  // Get initials for avatar fallback
-  const displayInitial = isGroupCall && groupName 
-    ? groupName.charAt(0) 
-    : (otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0));
+  const displayInitial = isGroupCall && groupName ? groupName.charAt(0) : (otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0));
   
   const isVisible = state.phase !== 'idle';
-  // CRITICAL: isRinging should only be true for the RECEIVER (not initiator)
-  // The receiver sees the accept/decline UI, the caller sees the call UI with "Ringing..." text
   const isRinging = state.phase === 'ringing' && !state.call?.isInitiator;
   const isConnected = state.phase === 'connected';
-  // isConnecting: only for creating phase (very brief) or joining if NOT the initiator
-  // The initiator should see "Ringing..." not "Connecting..."
   const isConnecting = state.phase === 'creating' || (state.phase === 'joining' && !state.call?.isInitiator);
-  // We're "ringing out" when initiator is waiting for the other person to answer
-  // This happens during joining/connected phase before remoteParticipant joins
-  const isRingingOut = state.call?.isInitiator && !remoteParticipant && (state.phase === 'joining' || state.phase === 'connected');
-  
-  // Show preloaded camera while Daily hasn't started yet (instant video like FaceTime)
-  // Show it as soon as we have the stream, even before Daily is connected
-  const showPreloadedLocalVideo = isVideoCall && cameraReady && preloadedStream && !hasLocalVideo && !isVideoOff;
-  
-  // Always show local video in video calls (either preloaded or Daily-managed)
-  const showLocalVideoContainer = isVideoCall && (hasLocalVideo || showPreloadedLocalVideo) && !isVideoOff;
+  const isRingingOut = state.call?.isInitiator && !hasRemoteParticipant && (state.phase === 'joining' || state.phase === 'connected');
 
-  // Handle minimize/expand
-  const handleMinimize = useCallback(() => {
-    setIsMinimized(true);
-  }, []);
+  // Minimize/expand
+  const handleMinimize = useCallback(() => setIsMinimized(true), []);
+  const handleExpand = useCallback(() => setIsMinimized(false), []);
 
-  const handleExpand = useCallback(async () => {
-    setIsMinimized(false);
-    
-    const daily = dailyRef.current;
-    if (!daily || state.call?.callType !== 'video') return;
-    
-    // Give React time to render the video elements
-    await new Promise(r => setTimeout(r, 100));
-    
-    try {
-      const participants = daily.participants();
-      const local = participants?.local;
-      
-      // Resume local video playback (no re-attach, just play)
-      if (local && localVideoRef.current) {
-        const videoTrack = local.tracks?.video?.persistentTrack || local.tracks?.video?.track;
-        if (videoTrack && local.video) {
-          // Use guarded attach
-          attachTrack(videoTrack, localVideoRef.current);
-          setHasLocalVideo(true);
-        }
-      }
-      
-      // Resume remote video playback (guarded)
-      Object.values(participants).forEach((p: any) => {
-        if (!p.local && remoteVideoRef.current) {
-          const videoTrack = p.tracks?.video?.persistentTrack || p.tracks?.video?.track;
-          const trackState = p.tracks?.video?.state;
-          const isPlayable = trackState === 'playable' || trackState === 'loading';
-          
-          if (videoTrack && isPlayable) {
-            attachTrack(videoTrack, remoteVideoRef.current);
-            setHasRemoteVideo(true);
-          }
-        }
-      });
-      
-      // Ensure audio is playing
-      if (remoteAudioRef.current && remoteAudioRef.current.srcObject) {
-        remoteAudioRef.current.muted = false;
-        remoteAudioRef.current.play().catch(() => {});
-      }
-    } catch (err) {
-      console.error('[CallOverlay] Error resuming playback after expand:', err);
-    }
-  }, [state.call?.callType, attachTrack]);
-
-  // Reset minimize state when call ends
+  // Reset on call end
   useEffect(() => {
     if (state.phase === 'idle') {
       setIsMinimized(false);
@@ -1185,73 +555,48 @@ export function GlobalCallOverlay() {
       setShowFooter(true);
       setRemoteUserLeft(false);
       setAutoEndCountdown(0);
+      setHasRemoteParticipant(false);
+      setHasRemoteVideo(false);
+      setHasLocalVideo(false);
+      setIsMuted(false);
+      setIsVideoOff(false);
+      setIsReconnecting(false);
       if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
       if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
     }
   }, [state.phase]);
 
-  // Auto-hide header and footer after 3 seconds when connected
+  // Auto-hide header/footer
   useEffect(() => {
     if (isConnected && !isMinimized) {
-      headerTimeoutRef.current = setTimeout(() => {
-        setShowHeader(false);
-      }, 3000);
-      footerTimeoutRef.current = setTimeout(() => {
-        setShowFooter(false);
-      }, 3000);
+      headerTimeoutRef.current = setTimeout(() => setShowHeader(false), 3000);
+      footerTimeoutRef.current = setTimeout(() => setShowFooter(false), 3000);
     }
-    
     return () => {
-      if (headerTimeoutRef.current) {
-        clearTimeout(headerTimeoutRef.current);
-      }
-      if (footerTimeoutRef.current) {
-        clearTimeout(footerTimeoutRef.current);
-      }
+      if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current);
+      if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current);
     };
   }, [isConnected, isMinimized]);
 
-  // Header hover handlers
   const handleHeaderAreaEnter = useCallback(() => {
-    if (headerTimeoutRef.current) {
-      clearTimeout(headerTimeoutRef.current);
-    }
+    if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current);
     setShowHeader(true);
   }, []);
-
   const handleHeaderAreaLeave = useCallback(() => {
-    if (isConnected) {
-      headerTimeoutRef.current = setTimeout(() => {
-        setShowHeader(false);
-      }, 1500);
-    }
+    if (isConnected) headerTimeoutRef.current = setTimeout(() => setShowHeader(false), 1500);
   }, [isConnected]);
-
-  // Footer hover handlers
   const handleFooterAreaEnter = useCallback(() => {
-    if (footerTimeoutRef.current) {
-      clearTimeout(footerTimeoutRef.current);
-    }
+    if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current);
     setShowFooter(true);
   }, []);
-
   const handleFooterAreaLeave = useCallback(() => {
-    if (isConnected) {
-      footerTimeoutRef.current = setTimeout(() => {
-        setShowFooter(false);
-      }, 1500);
-    }
+    if (isConnected) footerTimeoutRef.current = setTimeout(() => setShowFooter(false), 1500);
   }, [isConnected]);
-
-  // Show both when screen is tapped
   const handleScreenTap = useCallback(() => {
     setShowHeader(true);
     setShowFooter(true);
-    
-    // Reset timers
     if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current);
     if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current);
-    
     if (isConnected) {
       headerTimeoutRef.current = setTimeout(() => setShowHeader(false), 3000);
       footerTimeoutRef.current = setTimeout(() => setShowFooter(false), 3000);
@@ -1260,8 +605,7 @@ export function GlobalCallOverlay() {
 
   return (
     <>
-      {/* CRITICAL: Always keep audio element mounted during active call - even when minimized
-          This is separate from the video elements to ensure audio NEVER stops */}
+      {/* Audio element — always mounted during active call */}
       {isVisible && !isRinging && (
         <audio 
           ref={remoteAudioRef} 
@@ -1271,7 +615,7 @@ export function GlobalCallOverlay() {
         />
       )}
 
-      {/* Minimized Call Bubble - shown when call is minimized */}
+      {/* Minimized Call Bubble */}
       <AnimatePresence>
         {isVisible && !isRinging && isMinimized && (
           <MinimizedCallBubble
@@ -1285,8 +629,7 @@ export function GlobalCallOverlay() {
         )}
       </AnimatePresence>
 
-      {/* Main Call UI - ALWAYS rendered when visible (not ringing), just hidden when minimized
-          This ensures video elements stay mounted and call continues */}
+      {/* Main Call UI */}
       {isVisible && !isRinging && (
         <div
           className="fixed inset-0 z-[9999] transition-opacity duration-300"
@@ -1297,547 +640,370 @@ export function GlobalCallOverlay() {
             background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(240 10% 8%) 50%, hsl(280 20% 8%) 100%)'
           }}
         >
-            {/* Subtle static gradient background - no heavy animations for smooth video */}
-            <div 
-              className="absolute inset-0 overflow-hidden pointer-events-none opacity-20"
-              style={{
-                background: 'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.4) 0%, transparent 50%), radial-gradient(circle at 70% 70%, hsl(var(--accent) / 0.3) 0%, transparent 50%)'
-              }}
-            />
+          {/* Subtle background */}
+          <div 
+            className="absolute inset-0 overflow-hidden pointer-events-none opacity-20"
+            style={{
+              background: 'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.4) 0%, transparent 50%), radial-gradient(circle at 70% 70%, hsl(var(--accent) / 0.3) 0%, transparent 50%)'
+            }}
+          />
 
-            {/* Audio element is now rendered outside this block to stay mounted when minimized */}
-
-            {/* Video Container - tap to show controls */}
-            {isVideoCall && (
-              <>
-                {/* Remote Video - Full Screen with GPU acceleration */}
-                <div 
-                  className="absolute inset-0" 
-                  style={{ willChange: 'contents' }}
-                  onClick={handleScreenTap}
-                >
-                  {/* Always render the video element so tracks can attach even before we have state */}
-                  <video
-                    ref={remoteVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className={cn(
-                      "w-full h-full object-cover transition-opacity duration-200",
-                      hasRemoteVideo ? "opacity-100" : "opacity-0"
-                    )}
-                    style={{ 
-                      willChange: 'auto',
-                      transform: 'translateZ(0)', // Force GPU layer
-                    }}
-                  />
-
-                  {/* Placeholder when remote video isn't available yet */}
-                  {!hasRemoteVideo && (
-                    <div className="absolute inset-0 w-full h-full flex items-center justify-center">
-                      {/* Remote avatar placeholder - minimal animation for performance */}
-                      <div className="relative">
-                        <div className="animate-pulse">
-                          <Avatar className="h-40 w-40 ring-4 ring-white/10 shadow-2xl">
-                            <AvatarImage src={displayAvatar || undefined} />
-                            <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                              {displayInitial}
-                            </AvatarFallback>
-                          </Avatar>
-                        </div>
-                        {isRingingOut && (
-                          <p className="mt-6 text-white/60 text-lg font-light text-center animate-pulse">
-                            Ringing...
-                          </p>
-                        )}
-                        {!isConnected && !isRingingOut && (
-                          <p className="mt-6 text-white/60 text-lg font-light text-center animate-pulse">
-                            Waiting for video...
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* iOS/iPad Tap to Start Video Overlay */}
-                <AnimatePresence>
-                  {needsUserInteraction && isConnected && (
-                    <div
-                      className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-30"
-                      onClick={handleTapToStart}
-                    >
-                      <div className="flex flex-col items-center gap-4 p-8">
-                        <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary animate-pulse">
-                          <Play className="w-10 h-10 text-primary" />
-                        </div>
-                        <p className="text-white text-lg font-medium">Tap to start video</p>
-                        <p className="text-white/60 text-sm text-center max-w-xs">
-                          Your device requires a tap to enable video playback
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </AnimatePresence>
-
-                {/* Local Video - Picture-in-Picture (INSTANT - shows preloaded camera immediately) */}
-                {showLocalVideoContainer && (
-                  <div
-                    className="absolute top-24 right-4 w-36 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 bg-black flex items-center justify-center"
-                    style={{ willChange: 'auto', transform: 'translateZ(0)' }}
-                  >
-                    {/* Show preloaded stream while Daily camera initializes - INSTANT like FaceTime */}
-                    {showPreloadedLocalVideo && (
-                      <video
-                        ref={preloadVideoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-full object-contain absolute inset-0 z-10"
-                        style={{ transform: 'scaleX(-1) translateZ(0)' }}
-                      />
-                    )}
-                    {/* Daily-managed local video (takes over once ready) */}
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className={cn(
-                        "w-full h-full object-contain absolute inset-0 transition-opacity duration-150",
-                        hasLocalVideo ? "z-20 opacity-100" : "opacity-0"
-                      )}
-                      style={{ transform: 'scaleX(-1) translateZ(0)' }}
-                    />
-                  </div>
-                )}
-
-                {/* Camera Off Indicator (when local video is disabled) */}
-                {!showLocalVideoContainer && isConnected && !isVideoOff && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 bg-black/80 flex flex-col items-center justify-center"
-                  >
-                    <VideoOff className="w-8 h-8 text-white/50 mb-2" />
-                    <p className="text-white/50 text-xs">Camera Off</p>
-                    {cameraError && (
-                      <p className="text-red-400 text-xs text-center px-2 mt-1">{cameraError}</p>
-                    )}
-                  </motion.div>
-                )}
-
-                {/* Camera Error / Retry Button */}
-                {cameraError && isConnected && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="absolute bottom-32 left-4 right-4 flex justify-center z-20"
-                  >
-                    <div className="bg-red-500/20 backdrop-blur-lg border border-red-500/30 rounded-xl p-4 flex items-center gap-3 max-w-sm">
-                      <div className="flex-1">
-                        <p className="text-white text-sm font-medium">Camera Issue</p>
-                        <p className="text-white/70 text-xs">{cameraError}</p>
-                      </div>
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleRetryVideo}
-                        disabled={isRetryingVideo}
-                        className="h-10 px-4 rounded-lg bg-white/20 text-white flex items-center gap-2 hover:bg-white/30 disabled:opacity-50"
-                      >
-                        {isRetryingVideo ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <>
-                            <RefreshCw className="w-4 h-4" />
-                            <span className="text-sm">Retry</span>
-                          </>
-                        )}
-                      </motion.button>
-                    </div>
-                  </motion.div>
-                )}
-              </>
-            )}
-
-            {/* Audio Call - Show Avatar */}
-            {!isVideoCall && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <motion.div
-                    animate={{ scale: [1, 1.05, 1] }}
-                    transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-                  >
-                    <Avatar className="h-40 w-40 mx-auto ring-4 ring-white/10 shadow-2xl">
-                      <AvatarImage src={displayAvatar || undefined} />
-                      <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                        {displayInitial}
-                      </AvatarFallback>
-                    </Avatar>
-                  </motion.div>
-                  
-                  <h2 className="mt-6 text-2xl font-bold text-white">
-                    {displayName}
-                  </h2>
-                  
-                  {isConnecting && (
-                    <motion.p
-                      animate={{ opacity: [0.5, 1, 0.5] }}
-                      transition={{ repeat: Infinity, duration: 2 }}
-                      className="mt-2 text-white/60 text-lg"
-                    >
-                      Connecting...
-                    </motion.p>
-                  )}
-                  
-                  {isRingingOut && (
-                    <motion.p
-                      animate={{ opacity: [0.5, 1, 0.5] }}
-                      transition={{ repeat: Infinity, duration: 1.5 }}
-                      className="mt-2 text-white/60 text-lg"
-                    >
-                      Ringing...
-                    </motion.p>
-                  )}
-                  
-                   {isConnected && !isRingingOut && !remoteUserLeft && (
-                    <p className="mt-2 text-white/70 text-lg font-mono">
-                      {formatDuration(callDuration)}
-                    </p>
-                  )}
-                  
-                  {isConnected && remoteUserLeft && (
-                    <div className="mt-4 text-center">
-                      <p className="text-white/50 text-sm">{displayName} left the call</p>
-                      <p className="text-white/70 text-lg font-mono mt-1">
-                        {Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}
-                      </p>
-                      <p className="text-white/40 text-xs mt-1">They can rejoin</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Header Hover Zone - invisible trigger area at top */}
-            <div 
-              className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto"
-              onMouseEnter={handleHeaderAreaEnter}
-              onMouseLeave={handleHeaderAreaLeave}
-            >
-              {/* Glassmorphic Header - slides down on hover */}
-              <motion.div 
-                initial={{ y: -100, opacity: 0 }}
-                animate={{ 
-                  y: showHeader ? 0 : -100, 
-                  opacity: showHeader ? 1 : 0 
-                }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-                className="pointer-events-auto"
+          {/* Reconnecting banner */}
+          <AnimatePresence>
+            {isReconnecting && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="absolute top-4 left-4 right-4 z-50"
               >
-                <div className="mx-4 mt-4 p-4 rounded-2xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-2xl">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="relative">
-                        <Avatar className="h-12 w-12 ring-2 ring-white/20 shadow-lg">
+                <div className="p-3 rounded-xl backdrop-blur-xl bg-yellow-500/20 border border-yellow-500/30 flex items-center gap-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-yellow-400" />
+                  <span className="text-yellow-200 text-sm font-medium">Reconnecting...</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Video Container */}
+          {isVideoCall && (
+            <>
+              {/* Remote Video — Full Screen */}
+              <div className="absolute inset-0" onClick={handleScreenTap}>
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={cn(
+                    "w-full h-full object-cover transition-opacity duration-200",
+                    hasRemoteVideo ? "opacity-100" : "opacity-0"
+                  )}
+                  style={{ willChange: 'auto', transform: 'translateZ(0)' }}
+                />
+                {!hasRemoteVideo && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="relative text-center">
+                      <div className="animate-pulse">
+                        <Avatar className="h-40 w-40 ring-4 ring-white/10 shadow-2xl">
                           <AvatarImage src={displayAvatar || undefined} />
-                          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">
+                          <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
                             {displayInitial}
                           </AvatarFallback>
                         </Avatar>
-                        {isConnected && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black/50"
-                          />
-                        )}
                       </div>
-                      <div>
-                        <p className="text-white font-semibold text-lg">
-                          {displayName}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          {isConnecting && !isRingingOut && (
-                            <motion.div 
-                              className="flex items-center gap-2 text-white/60"
-                              animate={{ opacity: [0.5, 1, 0.5] }}
-                              transition={{ repeat: Infinity, duration: 1.5 }}
-                            >
-                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-                              </span>
-                              <span className="text-sm">Connecting</span>
-                            </motion.div>
-                          )}
-                          {isRingingOut && (
-                            <motion.div 
-                              className="flex items-center gap-2 text-white/60"
-                              animate={{ opacity: [0.5, 1, 0.5] }}
-                              transition={{ repeat: Infinity, duration: 1.5 }}
-                            >
-                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-500 opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500" />
-                              </span>
-                              <span className="text-sm">Ringing</span>
-                            </motion.div>
-                          )}
-                          {isConnected && !isRingingOut && (
-                            <div className="flex items-center gap-2">
-                              <span className="flex h-2 w-2 rounded-full bg-green-500" />
-                              <span className="text-white/70 text-sm font-mono tracking-wide">
-                                {formatDuration(callDuration)}
-                              </span>
-                            </div>
-                          )}
-                          {state.phase === 'error' && (
-                            <span className="text-red-400 text-sm">{state.error}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Call type badge and minimize button */}
-                    <div className="flex items-center gap-2">
-                      <div className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/10">
-                        {isVideoCall ? (
-                          <Video className="h-4 w-4 text-white/70" />
-                        ) : (
-                          <Phone className="h-4 w-4 text-white/70" />
-                        )}
-                      </div>
-                      
-                      {/* Minimize button */}
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleMinimize}
-                        className="h-9 w-9 rounded-full bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
-                        title="Minimize call"
-                      >
-                        <Minimize2 className="h-4 w-4 text-white/70" />
-                      </motion.button>
+                      {isRingingOut && <p className="mt-6 text-white/60 text-lg font-light animate-pulse">Ringing...</p>}
+                      {!isConnected && !isRingingOut && <p className="mt-6 text-white/60 text-lg font-light animate-pulse">Waiting for video...</p>}
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            </div>
+                )}
+              </div>
 
-            {/* Connecting overlay - only for receiver, not initiator */}
-            <AnimatePresence>
-              {isConnecting && isVideoCall && !state.call?.isInitiator && (
+              {/* Local Video — PiP */}
+              {hasLocalVideo && !isVideoOff && (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 z-30"
                 >
-                  <div className="text-center">
-                    {/* Animated rings */}
-                    <div className="relative">
-                      <motion.div
-                        animate={{ scale: [1, 2], opacity: [0.5, 0] }}
-                        transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
-                        className="absolute inset-0 rounded-full border-2 border-primary/50"
-                        style={{ width: 140, height: 140, margin: 'auto', left: 0, right: 0, top: 0, bottom: 0 }}
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.8], opacity: [0.4, 0] }}
-                        transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "easeOut" }}
-                        className="absolute inset-0 rounded-full border-2 border-accent/40"
-                        style={{ width: 140, height: 140, margin: 'auto', left: 0, right: 0, top: 0, bottom: 0 }}
-                      />
-                      
-                      <Avatar className="h-32 w-32 mx-auto ring-4 ring-primary/20 shadow-2xl">
-                        <AvatarImage src={displayAvatar || undefined} />
-                        <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                          {displayInitial}
-                        </AvatarFallback>
-                      </Avatar>
-                    </div>
-                    
-                    <motion.p
-                      animate={{ opacity: [0.5, 1, 0.5] }}
-                      transition={{ repeat: Infinity, duration: 2 }}
-                      className="mt-6 text-white/60 text-lg font-light"
-                    >
-                      Connecting to {displayName}...
-                    </motion.p>
-                  </div>
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                    style={{ transform: 'scaleX(-1) translateZ(0)' }}
+                  />
                 </motion.div>
               )}
-            </AnimatePresence>
 
-            {/* Remote user left - Call still live banner */}
-            <AnimatePresence>
-              {remoteUserLeft && isConnected && (
+              {/* Camera error */}
+              {cameraError && isConnected && (
                 <motion.div
-                  initial={{ opacity: 0, y: -20 }}
+                  initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="absolute top-32 left-4 right-4 z-50"
+                  className="absolute bottom-32 left-4 right-4 flex justify-center z-20"
                 >
-                  <div className="p-4 rounded-2xl backdrop-blur-xl bg-primary/20 border border-primary/30 shadow-2xl">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <span className="flex h-3 w-3">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                          <span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-semibold text-sm">Call still live</p>
-                        <p className="text-white/60 text-xs">
-                          {displayName} left · They can rejoin · Auto-ends in {Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}
-                        </p>
-                      </div>
+                  <div className="bg-red-500/20 backdrop-blur-lg border border-red-500/30 rounded-xl p-4 flex items-center gap-3 max-w-sm">
+                    <div className="flex-1">
+                      <p className="text-white text-sm font-medium">Camera Issue</p>
+                      <p className="text-white/70 text-xs">{cameraError}</p>
                     </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <motion.div
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ 
-                y: showFooter ? 0 : 100, 
-                opacity: showFooter ? 1 : 0 
-              }}
-              transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="absolute bottom-0 left-0 right-0 pb-10 pointer-events-auto"
-              onMouseEnter={handleFooterAreaEnter}
-              onMouseLeave={handleFooterAreaLeave}
-            >
-              <div className="flex justify-center">
-                <div className="inline-flex items-center gap-3 p-3 rounded-2xl backdrop-blur-xl bg-white/10 border border-white/10 shadow-2xl">
-                  {/* Settings Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setSettingsOpen(true)}
-                    disabled={!isConnected}
-                    className={cn(
-                      "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
-                      "bg-white/10 text-white hover:bg-white/20 border border-white/10",
-                      "disabled:opacity-50 disabled:cursor-not-allowed"
-                    )}
-                  >
-                    <SlidersHorizontal className="h-5 w-5" />
-                  </motion.button>
-
-                  {/* Divider */}
-                  <div className="w-px h-10 bg-white/20 mx-1" />
-
-                  {/* Mute Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleToggleMute}
-                    disabled={!isConnected}
-                    className={cn(
-                      "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
-                      "disabled:opacity-50 disabled:cursor-not-allowed",
-                      isMuted 
-                        ? "bg-white text-black shadow-lg ring-2 ring-primary/50" 
-                        : "bg-white/10 text-white hover:bg-white/20"
-                    )}
-                  >
-                    {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-                    {/* Active indicator glow */}
-                    {!isMuted && isConnected && (
-                      <motion.div
-                        className="absolute inset-0 rounded-xl pointer-events-none"
-                        style={{ boxShadow: '0 0 15px hsl(var(--primary) / 0.3)' }}
-                        animate={{ opacity: [0.3, 0.6, 0.3] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      />
-                    )}
-                  </motion.button>
-
-                  {/* Video Toggle */}
-                  {isVideoCall && (
                     <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleToggleVideo}
-                      disabled={!isConnected}
-                      className={cn(
-                        "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
-                        "disabled:opacity-50 disabled:cursor-not-allowed",
-                        isVideoOff || (!hasLocalVideo && !showPreloadedLocalVideo)
-                          ? "bg-white text-black shadow-lg ring-2 ring-accent/50" 
-                          : "bg-white/10 text-white hover:bg-white/20"
-                      )}
-                    >
-                      {(isVideoOff || (!hasLocalVideo && !showPreloadedLocalVideo)) ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
-                      {/* Active indicator glow for video */}
-                      {!isVideoOff && hasLocalVideo && isConnected && (
-                        <motion.div
-                          className="absolute inset-0 rounded-xl pointer-events-none"
-                          style={{ boxShadow: '0 0 15px hsl(var(--accent) / 0.3)' }}
-                          animate={{ opacity: [0.3, 0.6, 0.3] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                        />
-                      )}
-                    </motion.button>
-                  )}
-
-                  {/* Retry Video Button - shown when camera has error */}
-                  {isVideoCall && cameraError && isConnected && (
-                    <motion.button
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={handleRetryVideo}
-                      disabled={isRetryingVideo}
-                      className={cn(
-                        "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
-                        "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30",
-                        "disabled:opacity-50 disabled:cursor-not-allowed"
-                      )}
+                      className="h-10 px-4 rounded-lg bg-white/20 text-white flex items-center gap-2 hover:bg-white/30"
                     >
-                      {isRetryingVideo ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-5 w-5" />
-                      )}
+                      <RefreshCw className="w-4 h-4" />
+                      <span className="text-sm">Retry</span>
                     </motion.button>
-                  )}
+                  </div>
+                </motion.div>
+              )}
+            </>
+          )}
 
-                  {/* Divider */}
-                  <div className="w-px h-10 bg-white/20 mx-1" />
+          {/* Audio Call — Avatar */}
+          {!isVideoCall && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center">
+                <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
+                  <Avatar className="h-40 w-40 mx-auto ring-4 ring-white/10 shadow-2xl">
+                    <AvatarImage src={displayAvatar || undefined} />
+                    <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
+                      {displayInitial}
+                    </AvatarFallback>
+                  </Avatar>
+                </motion.div>
+                <h2 className="mt-6 text-2xl font-bold text-white">{displayName}</h2>
+                {isConnecting && (
+                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="mt-2 text-white/60 text-lg">Connecting...</motion.p>
+                )}
+                {isRingingOut && (
+                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }} className="mt-2 text-white/60 text-lg">Ringing...</motion.p>
+                )}
+                {isConnected && !isRingingOut && !remoteUserLeft && (
+                  <p className="mt-2 text-white/70 text-lg font-mono">{formatDuration(callDuration)}</p>
+                )}
+                {isConnected && remoteUserLeft && (
+                  <div className="mt-4 text-center">
+                    <p className="text-white/50 text-sm">{displayName} left the call</p>
+                    <p className="text-white/70 text-lg font-mono mt-1">
+                      {Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}
+                    </p>
+                    <p className="text-white/40 text-xs mt-1">They can rejoin</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
-                  {/* Leave Call Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleLeaveCall}
-                    disabled={isHangingUp}
-                    className={cn(
-                      "relative h-14 px-6 rounded-xl flex items-center justify-center gap-2 transition-all duration-300",
-                      "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg",
-                      "hover:from-red-600 hover:to-red-700",
-                      "disabled:opacity-70"
-                    )}
-                  >
-                    {isHangingUp ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <>
-                        <PhoneOff className="h-5 w-5" />
-                        <span className="font-medium">Leave</span>
-                      </>
-                    )}
-                  </motion.button>
+          {/* Header */}
+          <div 
+            className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto"
+            onMouseEnter={handleHeaderAreaEnter}
+            onMouseLeave={handleHeaderAreaLeave}
+          >
+            <motion.div 
+              initial={{ y: -100, opacity: 0 }}
+              animate={{ y: showHeader ? 0 : -100, opacity: showHeader ? 1 : 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="pointer-events-auto"
+            >
+              <div className="mx-4 mt-4 p-4 rounded-2xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-2xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <Avatar className="h-12 w-12 ring-2 ring-white/20 shadow-lg">
+                        <AvatarImage src={displayAvatar || undefined} />
+                        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">{displayInitial}</AvatarFallback>
+                      </Avatar>
+                      {isConnected && (
+                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black/50" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-white font-semibold text-lg">{displayName}</p>
+                      <div className="flex items-center gap-2">
+                        {isConnecting && !isRingingOut && (
+                          <motion.div className="flex items-center gap-2 text-white/60" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                            </span>
+                            <span className="text-sm">Connecting</span>
+                          </motion.div>
+                        )}
+                        {isRingingOut && (
+                          <motion.div className="flex items-center gap-2 text-white/60" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-500 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500" />
+                            </span>
+                            <span className="text-sm">Ringing</span>
+                          </motion.div>
+                        )}
+                        {isConnected && !isRingingOut && (
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-2 w-2 rounded-full bg-green-500" />
+                            <span className="text-white/70 text-sm font-mono tracking-wide">{formatDuration(callDuration)}</span>
+                          </div>
+                        )}
+                        {isReconnecting && (
+                          <div className="flex items-center gap-2 text-yellow-400">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <span className="text-sm">Reconnecting</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/10">
+                      {isVideoCall ? <Video className="h-4 w-4 text-white/70" /> : <Phone className="h-4 w-4 text-white/70" />}
+                    </div>
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleMinimize}
+                      className="h-9 w-9 rounded-full bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                      title="Minimize call"
+                    >
+                      <Minimize2 className="h-4 w-4 text-white/70" />
+                    </motion.button>
+                  </div>
                 </div>
               </div>
             </motion.div>
           </div>
-        )}
+
+          {/* Connecting overlay for receiver */}
+          <AnimatePresence>
+            {isConnecting && isVideoCall && !state.call?.isInitiator && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+              >
+                <div className="text-center">
+                  <div className="relative">
+                    <motion.div animate={{ scale: [1, 2], opacity: [0.5, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 140, height: 140, margin: 'auto', left: 0, right: 0, top: 0, bottom: 0 }} />
+                    <Avatar className="h-32 w-32 mx-auto ring-4 ring-primary/20 shadow-2xl">
+                      <AvatarImage src={displayAvatar || undefined} />
+                      <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
+                    </Avatar>
+                  </div>
+                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="mt-6 text-white/60 text-lg font-light">
+                    Connecting to {displayName}...
+                  </motion.p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Remote user left banner */}
+          <AnimatePresence>
+            {remoteUserLeft && isConnected && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="absolute top-32 left-4 right-4 z-50"
+              >
+                <div className="p-4 rounded-2xl backdrop-blur-xl bg-primary/20 border border-primary/30 shadow-2xl">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-semibold text-sm">Call still live</p>
+                      <p className="text-white/60 text-xs">
+                        {displayName} left · They can rejoin · Auto-ends in {Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Footer controls */}
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: showFooter ? 0 : 100, opacity: showFooter ? 1 : 0 }}
+            transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="absolute bottom-0 left-0 right-0 pb-10 pointer-events-auto"
+            onMouseEnter={handleFooterAreaEnter}
+            onMouseLeave={handleFooterAreaLeave}
+          >
+            <div className="flex justify-center">
+              <div className="inline-flex items-center gap-3 p-3 rounded-2xl backdrop-blur-xl bg-white/10 border border-white/10 shadow-2xl">
+                {/* Settings */}
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setSettingsOpen(true)}
+                  disabled={!isConnected}
+                  className={cn(
+                    "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
+                    "bg-white/10 text-white hover:bg-white/20 border border-white/10",
+                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                  )}
+                >
+                  <SlidersHorizontal className="h-5 w-5" />
+                </motion.button>
+
+                <div className="w-px h-10 bg-white/20 mx-1" />
+
+                {/* Mute */}
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleToggleMute}
+                  disabled={!isConnected}
+                  className={cn(
+                    "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
+                    "disabled:opacity-50 disabled:cursor-not-allowed",
+                    isMuted ? "bg-white text-black shadow-lg ring-2 ring-primary/50" : "bg-white/10 text-white hover:bg-white/20"
+                  )}
+                >
+                  {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+                </motion.button>
+
+                {/* Video toggle */}
+                {isVideoCall && (
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleToggleVideo}
+                    disabled={!isConnected}
+                    className={cn(
+                      "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
+                      "disabled:opacity-50 disabled:cursor-not-allowed",
+                      isVideoOff ? "bg-white text-black shadow-lg ring-2 ring-accent/50" : "bg-white/10 text-white hover:bg-white/20"
+                    )}
+                  >
+                    {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                  </motion.button>
+                )}
+
+                {/* Retry camera */}
+                {isVideoCall && cameraError && (
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleRetryVideo}
+                    className="relative h-14 w-14 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 border border-white/10"
+                  >
+                    <RefreshCw className="h-5 w-5" />
+                  </motion.button>
+                )}
+
+                <div className="w-px h-10 bg-white/20 mx-1" />
+
+                {/* Leave */}
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleLeaveCall}
+                  disabled={isHangingUp}
+                  className={cn(
+                    "relative h-14 px-6 rounded-xl flex items-center justify-center gap-2 transition-all duration-300",
+                    "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg",
+                    "hover:from-red-600 hover:to-red-700",
+                    "disabled:opacity-70"
+                  )}
+                >
+                  {isHangingUp ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <>
+                      <PhoneOff className="h-5 w-5" />
+                      <span className="font-medium">Leave</span>
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Incoming call dialog */}
       <AnimatePresence>
@@ -1849,8 +1015,7 @@ export function GlobalCallOverlay() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
             style={{
-              background:
-                'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)',
+              background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)',
             }}
           >
             <IncomingCallDialog
@@ -1862,7 +1027,7 @@ export function GlobalCallOverlay() {
         )}
       </AnimatePresence>
 
-      {/* Call Settings Sheet */}
+      {/* Settings Sheet */}
       <CallSettingsSheet
         isOpen={settingsOpen}
         onOpenChange={setSettingsOpen}
@@ -1880,58 +1045,25 @@ export function GlobalCallOverlay() {
   );
 }
 
-// Incoming call dialog component with instant camera preview
-function IncomingCallDialog({
-  call,
-  onAccept,
-  onDecline,
-}: {
-  call: CallData;
-  onAccept: () => void;
-  onDecline: () => void;
-}) {
+// Incoming call dialog
+function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onAccept: () => void; onDecline: () => void }) {
   const [timeLeft, setTimeLeft] = useState(60);
   const [isProcessing, setIsProcessing] = useState(false);
   const processingRef = useRef(false);
-  const cameraPreviewRef = useRef<HTMLVideoElement>(null);
-  
+
   const isVideoCall = call.callType === 'video';
   const caller = call.caller;
   const isGroupCall = call.isGroupCall;
   const groupName = call.groupName;
   const groupAvatar = call.groupAvatar;
-  
-  // For incoming calls: show group name if group call, otherwise caller info
-  const incomingDisplayName = isGroupCall && groupName 
-    ? groupName 
-    : (caller?.display_name || caller?.username);
+  const incomingDisplayName = isGroupCall && groupName ? groupName : (caller?.display_name || caller?.username);
   const incomingDisplayAvatar = isGroupCall ? groupAvatar : caller?.avatar_url;
-  const incomingDisplayInitial = isGroupCall && groupName 
-    ? groupName.charAt(0) 
-    : (caller?.display_name?.charAt(0) || caller?.username?.charAt(0));
-  
-  // Preload camera for video calls - shows your face immediately
-  const { stream: preloadedStream, isReady: cameraReady } = useCameraPreload(isVideoCall);
-  
-  // Attach preloaded stream to preview video
-  useEffect(() => {
-    if (cameraPreviewRef.current && preloadedStream && cameraReady) {
-      cameraPreviewRef.current.srcObject = preloadedStream;
-      cameraPreviewRef.current.play().catch(console.error);
-    }
-  }, [preloadedStream, cameraReady]);
+  const incomingDisplayInitial = isGroupCall && groupName ? groupName.charAt(0) : (caller?.display_name?.charAt(0) || caller?.username?.charAt(0));
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          onDecline();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setTimeLeft(prev => { if (prev <= 1) { onDecline(); return 0; } return prev - 1; });
     }, 1000);
-
     return () => clearInterval(interval);
   }, [onDecline]);
 
@@ -1952,47 +1084,12 @@ function IncomingCallDialog({
 
   return (
     <>
-      {/* Your camera preview in background for video calls - FaceTime style */}
-      {isVideoCall && cameraReady && preloadedStream && (
-        <div className="absolute inset-0 overflow-hidden">
-          <video
-            ref={cameraPreviewRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover opacity-30"
-            style={{ transform: 'scaleX(-1)' }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
-        </div>
-      )}
-      
-      {/* Animated background orbs */}
+      {/* Background orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div
-          animate={{
-            x: [0, 50, 0],
-            y: [0, 30, 0],
-            scale: [1, 1.2, 1],
-          }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20"
-          style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }}
-        />
-        <motion.div
-          animate={{
-            x: [0, -30, 0],
-            y: [0, -50, 0],
-            scale: [1, 1.3, 1],
-          }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20"
-          style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }}
-        />
+        <motion.div animate={{ x: [0, 50, 0], y: [0, 30, 0], scale: [1, 1.2, 1] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }} />
+        <motion.div animate={{ x: [0, -30, 0], y: [0, -50, 0], scale: [1, 1.3, 1] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }} />
       </div>
-
-      {!isVideoCall && <div className="absolute inset-0 backdrop-blur-3xl" />}
-
+      <div className="absolute inset-0 backdrop-blur-3xl" />
       <motion.div
         initial={{ scale: 0.8, y: 40 }}
         animate={{ scale: 1, y: 0 }}
@@ -2000,106 +1097,44 @@ function IncomingCallDialog({
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
         className="relative z-10 flex flex-col items-center max-w-sm w-full"
       >
-        {/* Avatar with animated rings */}
         <div className="relative mb-8">
-          {/* Pulsing rings */}
-          <motion.div
-            animate={{ scale: [1, 1.5], opacity: [0.6, 0] }}
-            transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
-            className="absolute inset-0 rounded-full border-2 border-primary/50"
-            style={{ width: 144, height: 144, margin: '-8px' }}
-          />
-          <motion.div
-            animate={{ scale: [1, 1.4], opacity: [0.4, 0] }}
-            transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "easeOut" }}
-            className="absolute inset-0 rounded-full border-2 border-accent/40"
-            style={{ width: 144, height: 144, margin: '-8px' }}
-          />
-          
-          <motion.div
-            animate={{ scale: [1, 1.02, 1] }}
-            transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-          >
+          <motion.div animate={{ scale: [1, 1.5], opacity: [0.6, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 144, height: 144, margin: '-8px' }} />
+          <motion.div animate={{ scale: [1, 1.4], opacity: [0.4, 0] }} transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-accent/40" style={{ width: 144, height: 144, margin: '-8px' }} />
+          <motion.div animate={{ scale: [1, 1.02, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
             <Avatar className="h-32 w-32 ring-4 ring-white/10 shadow-2xl">
               <AvatarImage src={incomingDisplayAvatar || undefined} />
-              <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
-                {incomingDisplayInitial}
-              </AvatarFallback>
+              <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{incomingDisplayInitial}</AvatarFallback>
             </Avatar>
           </motion.div>
-          
-          {/* Call type badge */}
-          <motion.div
-            initial={{ scale: 0, y: 10 }}
-            animate={{ scale: 1, y: 0 }}
-            transition={{ delay: 0.2, type: "spring" }}
-            className="absolute -bottom-3 left-1/2 -translate-x-1/2"
-          >
+          <motion.div initial={{ scale: 0, y: 10 }} animate={{ scale: 1, y: 0 }} transition={{ delay: 0.2, type: "spring" }} className="absolute -bottom-3 left-1/2 -translate-x-1/2">
             <div className="px-4 py-1.5 rounded-full bg-gradient-to-r from-primary to-accent flex items-center gap-1.5 shadow-lg">
               {isVideoCall ? <Video className="h-4 w-4 text-white" /> : <Phone className="h-4 w-4 text-white" />}
               <span className="text-xs font-semibold text-white">
-                {isGroupCall 
-                  ? (isVideoCall ? 'Group FaceTime' : 'Group Call')
-                  : (isVideoCall ? 'FaceTime' : 'Audio Call')
-                }
+                {isGroupCall ? (isVideoCall ? 'Group FaceTime' : 'Group Call') : (isVideoCall ? 'FaceTime' : 'Audio Call')}
               </span>
             </div>
           </motion.div>
         </div>
-
-        {/* Caller info */}
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-white mb-2">
-            {incomingDisplayName}
-          </h2>
-          <motion.p
-            className="text-white/60 text-lg"
-            animate={{ opacity: [0.4, 0.8, 0.4] }}
-            transition={{ repeat: Infinity, duration: 2 }}
-          >
-            {isGroupCall 
-              ? `${caller?.display_name || caller?.username} is calling...`
-              : 'is calling you...'
-            }
+          <h2 className="text-3xl font-bold text-white mb-2">{incomingDisplayName}</h2>
+          <motion.p className="text-white/60 text-lg" animate={{ opacity: [0.4, 0.8, 0.4] }} transition={{ repeat: Infinity, duration: 2 }}>
+            {isGroupCall ? `${caller?.display_name || caller?.username} is calling...` : 'is calling you...'}
           </motion.p>
         </div>
-
-        {/* Action buttons */}
         <div className="flex items-center justify-center gap-8 w-full mb-8">
-          {/* Decline button */}
           <div className="flex flex-col items-center gap-3">
-            <button
-              onClick={handleDecline}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                handleDecline();
-              }}
-              disabled={isProcessing}
-              className="h-16 w-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg flex items-center justify-center hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90"
-            >
+            <button onClick={handleDecline} onTouchEnd={(e) => { e.preventDefault(); handleDecline(); }} disabled={isProcessing} className="h-16 w-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg flex items-center justify-center hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90">
               <PhoneOff className="h-7 w-7" />
             </button>
             <span className="text-white/50 text-sm font-medium">Decline</span>
           </div>
-
-          {/* Accept button */}
           <div className="flex flex-col items-center gap-3">
-            <button
-              onClick={handleAccept}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                handleAccept();
-              }}
-              disabled={isProcessing}
-              className="h-16 w-16 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg flex items-center justify-center hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90 animate-pulse"
-            >
+            <button onClick={handleAccept} onTouchEnd={(e) => { e.preventDefault(); handleAccept(); }} disabled={isProcessing} className="h-16 w-16 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg flex items-center justify-center hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90 animate-pulse">
               {isVideoCall ? <Video className="h-7 w-7" /> : <Phone className="h-7 w-7" />}
             </button>
             <span className="text-white/50 text-sm font-medium">Accept</span>
           </div>
         </div>
-
-        {/* Timer */}
         <div className="flex items-center gap-2 text-white/30 text-sm">
           <div className="w-1.5 h-1.5 rounded-full bg-white/30 animate-pulse" />
           <span>Auto-declining in {timeLeft}s</span>

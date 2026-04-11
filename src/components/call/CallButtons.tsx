@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useCallStore, CallType, getLingeringCall } from '@/lib/callStore';
 import { toast } from 'sonner';
 import { requestCallMediaPermissions } from '@/lib/mediaPermissions';
+// Note: roomUrl removed from CallData — LiveKit uses livekitUrl + token
 
 interface CallButtonsProps {
   conversationId: string;
@@ -80,8 +81,8 @@ export function CallButtons({
     }
   }, [state.phase, startCall, conversationId, receiverId, receiverUsername, receiverDisplayName, receiverAvatarUrl, isGroupCall, groupName, groupAvatar, participantIds]);
 
-  const handleRejoin = useCallback(() => {
-    rejoinCall();
+  const handleRejoin = useCallback(async () => {
+    await rejoinCall();
   }, [rejoinCall]);
 
   const isDisabled = state.phase !== 'idle' || isStarting !== null;
