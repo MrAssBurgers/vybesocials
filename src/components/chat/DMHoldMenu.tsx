@@ -4,6 +4,7 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Reply, Copy, Download, Sparkles, Edit3, Trash2, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -88,7 +89,9 @@ export const DMHoldMenu = memo(function DMHoldMenu({
     onClose();
   }, [onClose]);
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -97,7 +100,7 @@ export const DMHoldMenu = memo(function DMHoldMenu({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99]"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[990]"
             onClick={handleBackdropClick}
           />
           <motion.div
@@ -105,7 +108,7 @@ export const DMHoldMenu = memo(function DMHoldMenu({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="fixed z-[100] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] rounded-2xl bg-[#262626] shadow-2xl overflow-hidden"
+            className="fixed z-[991] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] rounded-2xl bg-[#262626] shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-around px-4 py-3 border-b border-white/[0.08]">
@@ -163,7 +166,8 @@ export const DMHoldMenu = memo(function DMHoldMenu({
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 });
 
