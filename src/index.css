@@ -1330,7 +1330,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       hsl(var(--gradient-start)) 100%
     );
     background-size: 200% 100%;
-    animation: gradient-shift 3.2s linear infinite;
+    animation: gradient-shift 2.6s linear infinite;
     border-radius: inherit;
   }
 
@@ -2707,14 +2707,14 @@ img, video {
 }
 
 .friendlink-shimmer {
-  background: linear-gradient(105deg, transparent 30%, hsl(var(--primary) / 0.06) 45%, hsl(var(--primary) / 0.08) 50%, hsl(var(--primary) / 0.06) 55%, transparent 70%);
-  background-size: 300% 100%;
-  animation: friendlink-shimmer-sweep 3s linear infinite;
+  background: linear-gradient(105deg, transparent 15%, hsl(var(--primary) / 0.06) 30%, hsl(var(--primary) / 0.08) 35%, hsl(var(--primary) / 0.06) 40%, transparent 55%, transparent 65%, hsl(var(--primary) / 0.06) 80%, hsl(var(--primary) / 0.08) 85%, hsl(var(--primary) / 0.06) 90%, transparent 100%);
+  background-size: 200% 100%;
+  animation: friendlink-shimmer-sweep 2.4s linear infinite;
 }
 
 @keyframes friendlink-shimmer-sweep {
   from { background-position: 0% 0; }
-  to { background-position: -33.333% 0; }
+  to { background-position: 100% 0; }
 }
 
 .friendlink-icon-wrap {
@@ -2798,7 +2798,7 @@ img, video {
     hsl(var(--primary)) 100%
   );
   background-size: 200% 100%;
-  animation: gradient-shift 2.8s linear infinite;
+  animation: gradient-shift 2.2s linear infinite;
   box-shadow: 
     0 4px 24px hsl(var(--primary) / 0.5),
     0 0 40px hsl(var(--accent) / 0.2),
@@ -2991,8 +2991,8 @@ img, video {
 }
 
 .animate-shimmer {
-  background-size: 300% 100%;
-  animation: badge-shimmer 3s linear infinite;
+  background-size: 200% 100%;
+  animation: badge-shimmer 2.4s linear infinite;
 }
 
 .animate-badge-pulse {
@@ -3176,7 +3176,7 @@ img, video {
   animation: sparkle-name 1.8s ease-in-out infinite;
 }
 .rainbow-name {
-  animation: rainbow-bg-scroll 2.8s linear infinite;
+  animation: rainbow-bg-scroll 2.2s linear infinite;
   background: linear-gradient(90deg, #EC4899 0%, #8B5CF6 10%, #06B6D4 20%, #10B981 30%, #EAB308 40%, #EC4899 50%, #8B5CF6 60%, #06B6D4 70%, #10B981 80%, #EAB308 90%, #EC4899 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -3298,11 +3298,11 @@ img, video {
 /* --- Ambient gradient shift (60s cycle) --- */
 .ambient-gradient {
   animation: ambient-shift 60s linear infinite;
-  background-size: 300% 100%;
+  background-size: 200% 100%;
 }
 @keyframes ambient-shift {
   from { background-position: 0% 50%; }
-  to { background-position: -33.333% 50%; }
+  to { background-position: 100% 50%; }
 }
 
 /* --- Respect reduced motion --- */
