@@ -6891,6 +6891,7 @@ export type Database = {
           tracking_consent: string | null
           tutorial_completed: boolean | null
           tutorial_skipped: boolean | null
+          updated_at: string | null
           user_id: string | null
           username: string
         }
@@ -6936,6 +6937,7 @@ export type Database = {
           tracking_consent?: string | null
           tutorial_completed?: boolean | null
           tutorial_skipped?: boolean | null
+          updated_at?: string | null
           user_id?: string | null
           username: string
         }
@@ -6981,6 +6983,7 @@ export type Database = {
           tracking_consent?: string | null
           tutorial_completed?: boolean | null
           tutorial_skipped?: boolean | null
+          updated_at?: string | null
           user_id?: string | null
           username?: string
         }

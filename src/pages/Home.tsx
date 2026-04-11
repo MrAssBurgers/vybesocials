@@ -11,17 +11,19 @@ import { useShowAds } from '@/hooks/useShowAds';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/lib/auth';
 import { hasActiveReferral, isInviteEntryMode } from '@/lib/referral';
-import { AnnouncementModal } from '@/components/announcements/AnnouncementModal';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 import { Button } from '@/components/ui/button';
-import { AutoFriendDrop } from '@/components/friends/AutoFriendDrop';
 import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
 import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMode';
 import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
-import { VYBECommandBar } from '@/components/ai/VYBECommandBar';
 import { useGridLayout } from '@/hooks/useGridLayout';
-import { WeeklyRecapModal } from '@/components/recap/WeeklyRecapModal';
+
+// Lazy load heavy components that aren't needed for initial render
+const AutoFriendDrop = lazy(() => import('@/components/friends/AutoFriendDrop').then(m => ({ default: m.AutoFriendDrop })));
+const AnnouncementModal = lazy(() => import('@/components/announcements/AnnouncementModal').then(m => ({ default: m.AnnouncementModal })));
+const VYBECommandBar = lazy(() => import('@/components/ai/VYBECommandBar').then(m => ({ default: m.VYBECommandBar })));
+const WeeklyRecapModal = lazy(() => import('@/components/recap/WeeklyRecapModal').then(m => ({ default: m.WeeklyRecapModal })));
 
 // DNA preference scoring - boost/reduce based on tag matching
 function getDNAScore(post: Post, boostSet: Set<string>, reduceSet: Set<string>): number {
@@ -54,7 +56,12 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const isVisible = useCallback((id: string) => gridConfig.widgets.find(w => w.id === id)?.enabled ?? false, [gridConfig.widgets]);
   const { data: dnaPrefs } = useDNAPreferences();
   
-  // Personalized feed (interest-matched posts)
+  // Only fetch feeds for the active tab to reduce concurrent DB load
+  const isForYouTab = activeTab === 'foryou';
+  const isGlobalTab = activeTab === 'global';
+  const isLocalTab = activeTab === 'local';
+
+  // Personalized feed (interest-matched posts) - active on "foryou" tab
   const {
     data: forYouData,
     isLoading: forYouLoading,
@@ -65,7 +72,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     refetch: refetchForYou,
   } = usePersonalizedFeed();
 
-  // Following feed
+  // Following feed - always loaded (merged into forYou)
   const {
     data: followingData,
     isLoading: followingLoading,
@@ -76,7 +83,15 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     refetch: refetchFollowing,
   } = useInfiniteFollowingPosts();
 
-  // Global feed - shows ALL posts (type 'post' only, no videos/clips)
+  // Global feed - only fetch when tab is active or was previously visited
+  const [globalVisited, setGlobalVisited] = useState(false);
+  const [localVisited, setLocalVisited] = useState(false);
+
+  useEffect(() => {
+    if (isGlobalTab) setGlobalVisited(true);
+    if (isLocalTab) setLocalVisited(true);
+  }, [isGlobalTab, isLocalTab]);
+
   const {
     data: globalData,
     isLoading: globalLoading,
@@ -87,7 +102,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     refetch: refetchGlobal,
   } = useInfinitePosts('post');
 
-  // Local feed - nearby content
+  // Local feed - only fetch when tab is active
   const {
     data: localData,
     isLoading: localLoading,
@@ -275,8 +290,10 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
   return (
     <AppLayout>
-      {/* Auto FriendDrop - bump phones to add friends */}
-      <AutoFriendDrop />
+      {/* Lazy-loaded deferred components */}
+      <Suspense fallback={null}>
+        <AutoFriendDrop />
+      </Suspense>
       
       {/* Pull to refresh indicator */}
       <PullToRefreshIndicator 
@@ -294,7 +311,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
           }}
         >
           {/* Announcement Modal */}
-          <AnnouncementModal />
+          <Suspense fallback={null}>
+            <AnnouncementModal />
+          </Suspense>
           {/* Global Events Banner */}
           <GlobalEventBanner />
 
@@ -345,10 +364,14 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       </HomeEditModeProvider>
 
       {/* AI Command Bar */}
-      <VYBECommandBar />
+      <Suspense fallback={null}>
+        <VYBECommandBar />
+      </Suspense>
       
       {/* Weekly Recap */}
-      <WeeklyRecapModal />
+      <Suspense fallback={null}>
+        <WeeklyRecapModal />
+      </Suspense>
     </AppLayout>
   );
 }

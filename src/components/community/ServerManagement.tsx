@@ -17,6 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -191,6 +192,7 @@ export const ServerManagement = memo(function ServerManagement({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl w-[95vw] h-[85vh] p-0 gap-0 overflow-hidden rounded-2xl border-border/50 bg-background [&>button]:hidden">
+        <DialogTitle className="sr-only">Server Settings</DialogTitle>
         <div className="flex h-full">
           {/* Sidebar Navigation - hidden on mobile, use hamburger */}
           <div className="hidden md:flex flex-col w-56 bg-muted/30 border-r border-border/50 shrink-0">
