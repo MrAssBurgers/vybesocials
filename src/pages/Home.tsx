@@ -11,17 +11,19 @@ import { useShowAds } from '@/hooks/useShowAds';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/lib/auth';
 import { hasActiveReferral, isInviteEntryMode } from '@/lib/referral';
-import { AnnouncementModal } from '@/components/announcements/AnnouncementModal';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 import { Button } from '@/components/ui/button';
-import { AutoFriendDrop } from '@/components/friends/AutoFriendDrop';
 import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
 import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMode';
 import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
-import { VYBECommandBar } from '@/components/ai/VYBECommandBar';
 import { useGridLayout } from '@/hooks/useGridLayout';
-import { WeeklyRecapModal } from '@/components/recap/WeeklyRecapModal';
+
+// Lazy load heavy components that aren't needed for initial render
+const AutoFriendDrop = lazy(() => import('@/components/friends/AutoFriendDrop').then(m => ({ default: m.AutoFriendDrop })));
+const AnnouncementModal = lazy(() => import('@/components/announcements/AnnouncementModal').then(m => ({ default: m.AnnouncementModal })));
+const VYBECommandBar = lazy(() => import('@/components/ai/VYBECommandBar').then(m => ({ default: m.VYBECommandBar })));
+const WeeklyRecapModal = lazy(() => import('@/components/recap/WeeklyRecapModal').then(m => ({ default: m.WeeklyRecapModal })));
 
 // DNA preference scoring - boost/reduce based on tag matching
 function getDNAScore(post: Post, boostSet: Set<string>, reduceSet: Set<string>): number {
