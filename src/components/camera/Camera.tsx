@@ -487,6 +487,14 @@ export function Camera({ onClose, showBackArrow = false }: CameraProps) {
           </div>
         </div>
       </div>
+
+      {/* Sound Picker */}
+      <SoundPicker
+        open={showSoundPicker}
+        onClose={() => setShowSoundPicker(false)}
+        onSelectSound={(sound) => setSelectedSound(sound)}
+        selectedSoundId={selectedSound?.sound_id}
+      />
     </div>
   );
 }
