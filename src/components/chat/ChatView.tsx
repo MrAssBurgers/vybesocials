@@ -2115,19 +2115,43 @@ const MessageBubble = memo(function MessageBubble({
   }, [onUnsendForEveryone]);
 
 
-  // Long press handled via custom event from SwipeToReply
+  // Standalone long-press detection (independent of SwipeToReply)
   const bubbleRef = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    const el = bubbleRef.current;
-    if (!el) return;
-    const handler = () => {
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const LONG_PRESS_MS = 400;
+  const MOVE_TOLERANCE = 8;
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse') return; // mouse uses right-click context menu
+    pointerStartRef.current = { x: e.clientX, y: e.clientY };
+    longPressTimerRef.current = setTimeout(() => {
       menuOpenedRef.current = true;
       setShowContextMenu(true);
-    };
-    el.addEventListener('longpress', handler);
-    return () => el.removeEventListener('longpress', handler);
+      if ('vibrate' in navigator) navigator.vibrate(10);
+    }, LONG_PRESS_MS);
   }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!pointerStartRef.current) return;
+    const dx = Math.abs(e.clientX - pointerStartRef.current.x);
+    const dy = Math.abs(e.clientY - pointerStartRef.current.y);
+    if (dx > MOVE_TOLERANCE || dy > MOVE_TOLERANCE) {
+      clearLongPress();
+    }
+  }, [clearLongPress]);
+
+  const handlePointerUp = useCallback(() => {
+    clearLongPress();
+    pointerStartRef.current = null;
+  }, [clearLongPress]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -2253,6 +2277,10 @@ const MessageBubble = memo(function MessageBubble({
           data-message-id={message.id}
           onContextMenu={handleContextMenu}
           onDoubleClick={onToggleReactions}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
         >
 
           {/* Image/GIF message (not for shared posts - they use SharedPostBubble) */}
