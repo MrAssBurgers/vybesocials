@@ -814,7 +814,7 @@ function FriendMapInner() {
           .vme-p{position:absolute;inset:4px;border-radius:9999px;background:hsl(217 91% 60%/.15);animation:pulse-ring 2.5s ease-out infinite .5s}
           .vme-d{position:relative;z-index:1;height:18px;width:18px;border-radius:9999px;border:3px solid hsl(var(--background));background:hsl(217 91% 60%);box-shadow:0 0 12px 4px hsl(217 91% 60%/.35);animation:pulse-glow 2s ease-in-out infinite}
           
-          .map-vignette{pointer-events:none;position:absolute;inset:0;z-index:500;background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.3) 100%)}
+          
           .scrollbar-hide::-webkit-scrollbar{display:none}
           .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
         `}</style>
