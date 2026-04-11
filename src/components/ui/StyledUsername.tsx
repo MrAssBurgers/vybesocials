@@ -115,6 +115,7 @@ export const StyledUsername = memo(forwardRef<HTMLSpanElement, StyledUsernamePro
     if (isGrad) {
       return (
         <span
+          ref={ref}
           className={className}
           style={{
             backgroundImage: resolvedNameColor,
@@ -134,6 +135,7 @@ export const StyledUsername = memo(forwardRef<HTMLSpanElement, StyledUsernamePro
     }
     return (
       <span
+        ref={ref}
         className={className}
         style={{ color: resolvedNameColor, textShadow: `0 0 10px ${resolvedNameColor}40` }}
       >
@@ -144,7 +146,7 @@ export const StyledUsername = memo(forwardRef<HTMLSpanElement, StyledUsernamePro
 
   // No badge styling OR unsupported/invalid gradient => render plain text (fully opaque)
   if (!gradient || !canUseGradientText) {
-    return <span className={className}>{nameToShow}</span>;
+    return <span ref={ref} className={className}>{nameToShow}</span>;
   }
 
   // Base style for gradient text - MUST have all these properties to prevent background leakage
