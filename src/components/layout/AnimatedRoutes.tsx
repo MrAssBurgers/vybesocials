@@ -89,7 +89,7 @@ import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
 // Invisible fallback - no spinner, instant feel
 const PageFallback = memo(() => (
-  <div className="min-h-screen bg-background" />
+  <div className="min-h-screen" />
 ));
 
 /**
