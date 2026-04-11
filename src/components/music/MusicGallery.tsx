@@ -35,7 +35,22 @@ interface MusicGalleryProps {
   onClose: () => void;
 }
 
-export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
+const SAMPLE_TRACKS: Track[] = [
+  { track_id: 'sample-1', title: 'Chill Lofi Beat', artist: 'LoFi Dreamer', genre: 'Lo-Fi', duration: 142, preview_url: '', audio_url: '', provider_id: 'sample' },
+  { track_id: 'sample-2', title: 'Summer Vibes', artist: 'Sunny Beats', genre: 'Pop', duration: 186, preview_url: '', audio_url: '', provider_id: 'sample' },
+  { track_id: 'sample-3', title: 'Midnight Drive', artist: 'Neon Pulse', genre: 'Synthwave', duration: 214, preview_url: '', audio_url: '', provider_id: 'sample' },
+  { track_id: 'sample-4', title: 'Golden Hour', artist: 'Sunset Collective', genre: 'Indie', duration: 198, preview_url: '', audio_url: '', provider_id: 'sample' },
+  { track_id: 'sample-5', title: 'Bass Drop', artist: 'Heavy Hitter', genre: 'EDM', duration: 165, preview_url: '', audio_url: '', provider_id: 'sample' },
+  { track_id: 'sample-6', title: 'Smooth Jazz Cafe', artist: 'Jazz Trio', genre: 'Jazz', duration: 230, preview_url: '', audio_url: '', provider_id: 'sample' },
+  { track_id: 'sample-7', title: 'Trap Kingdom', artist: 'BeatMaker', genre: 'Hip Hop', duration: 176, preview_url: '', audio_url: '', provider_id: 'sample' },
+  { track_id: 'sample-8', title: 'Acoustic Morning', artist: 'String Theory', genre: 'Acoustic', duration: 204, preview_url: '', audio_url: '', provider_id: 'sample' },
+  { track_id: 'sample-9', title: 'Neon Nights', artist: 'Cyberdream', genre: 'Synthwave', duration: 192, preview_url: '', audio_url: '', provider_id: 'sample' },
+  { track_id: 'sample-10', title: 'Feel Good Funk', artist: 'Groove Machine', genre: 'Funk', duration: 188, preview_url: '', audio_url: '', provider_id: 'sample' },
+  { track_id: 'sample-11', title: 'Rainy Day', artist: 'Ambient Cloud', genre: 'Ambient', duration: 248, preview_url: '', audio_url: '', provider_id: 'sample' },
+  { track_id: 'sample-12', title: 'Party Starter', artist: 'DJ Spark', genre: 'Dance', duration: 210, preview_url: '', audio_url: '', provider_id: 'sample' },
+];
+
+
   const [tracks, setTracks] = useState<Track[]>([]);
   const [trackUsage, setTrackUsage] = useState<Record<string, TrackUsage>>({});
   const [loading, setLoading] = useState(true);
