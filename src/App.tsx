@@ -139,10 +139,7 @@ function BriefPreFetchInit() {
 
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
-  const preloadStatus = useAppPreloader();
-  // Only show splash on truly initial load, not on navigation
-  const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
-  const prevAuthReadyRef = useRef<boolean | null>(null);
+  useAppPreloader();
   
   // Auto-update checker
   useAutoUpdate();
@@ -150,15 +147,6 @@ function AppWithPreloader() {
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
   usePostsRealtime();
-  // useBriefPreFetch is initialized inside AuthProvider via BriefPreFetchInit
-  // useInitEncryption moved to DeferredAuthHooks (inside AuthProvider)
-
-  useEffect(() => {
-    if (preloadStatus.isComplete && showSplash) {
-      setShowSplash(false);
-      hasInitialLoadCompleted = true;
-    }
-  }, [preloadStatus.isComplete, showSplash]);
 
   // When auth resolves after preloader cached guest data, invalidate stale caches
   useEffect(() => {
