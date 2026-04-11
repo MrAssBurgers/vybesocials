@@ -40,12 +40,12 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a content safety classifier. Analyze the image and return ONLY one of these ratings:
-- "safe" - appropriate for all ages
-- "13+" - contains mild suggestive content, mild violence, or mature themes
-- "18+" - contains nudity, explicit sexual content, graphic violence, or drug use
+            content: `You are a strict content safety classifier. Analyze the image for nudity, sexual content, violence, and mature themes. You MUST catch ALL nudity from ANY angle — underboob, sideboob, close-ups, partial coverage by hands/objects, mirror reflections, sheer clothing, creative cropping. When in doubt, rate higher.
+- "safe" - appropriate for all ages, no nudity or suggestive content
+- "13+" - contains mild suggestive content, mild violence, or mature themes (includes provocative poses, revealing clothing)
+- "18+" - contains ANY nudity (full, partial, implied, any angle), explicit sexual content, graphic violence, or drug use
 
-Return ONLY the rating string, nothing else.`,
+A false positive is FAR better than letting explicit content through. Return ONLY the rating string.`,
           },
           {
             role: "user",
