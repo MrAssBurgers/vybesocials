@@ -649,7 +649,7 @@ export function useCallStore(): CallStoreContextType {
     return {
       state: { phase: 'idle', call: null, error: null },
       startCall: async () => {},
-      acceptCall: () => {},
+      acceptCall: async () => {},
       endCall: async () => {},
       leaveCall: () => {},
       rejoinCall: () => {},
