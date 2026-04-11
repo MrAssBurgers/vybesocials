@@ -1505,10 +1505,7 @@ export function ChatView() {
                   </div>
                 )}
                 {/* Swipe to reply wrapper */}
-                <SwipeToReply onReply={() => handleReply(message)} isOwn={isOwn} onLongPress={() => {
-                    const bubble = document.querySelector(`[data-message-id="${message.id}"]`);
-                    if (bubble) bubble.dispatchEvent(new CustomEvent('longpress'));
-                  }}>
+                <SwipeToReply onReply={() => handleReply(message)} isOwn={isOwn}>
                   <MessageBubble
                     message={message}
                     isOwn={isOwn}
