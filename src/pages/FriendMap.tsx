@@ -620,6 +620,10 @@ export default function FriendMap() {
     const layer = fLayer.current;
     if (!layer) return;
 
+    // Clean up old cluster markers first
+    clusterMarkerRefs.current.forEach((m) => { try { layer.removeLayer(m); } catch {} });
+    clusterMarkerRefs.current = [];
+
     // Track which markers are still present
     const currentIds = new Set<string>();
 
@@ -630,7 +634,6 @@ export default function FriendMap() {
       const existing = friendMarkers.current.get(f.user_id);
 
       if (existing) {
-        // Smooth transition: animate from old position to new
         const oldPos = existing.getLatLng();
         if (oldPos.lat !== newPos.lat || oldPos.lng !== newPos.lng) {
           animateMarker(existing, oldPos, newPos);
@@ -644,19 +647,19 @@ export default function FriendMap() {
       }
     });
 
-    // Render clusters (these recreate each time)
-    // Remove markers that are now in clusters
+    // Render clusters
     clusteredMarkers.clusters.forEach((c) => {
       c.members.forEach(m => {
         const existing = friendMarkers.current.get(m.user_id);
         if (existing) { layer.removeLayer(existing); friendMarkers.current.delete(m.user_id); }
       });
       const avatars = c.members.map((m) => m.profile?.avatar_url || '').filter(Boolean);
-      L.marker(c.center, { icon: clusterIcon(c.members.length, avatars), keyboard: false })
+      const clusterMk = L.marker(c.center, { icon: clusterIcon(c.members.length, avatars), keyboard: false })
         .on('click', () => {
           mapRef.current?.flyTo(c.center, Math.min((zoom || 10) + 3, 16), { duration: 1 });
         })
         .addTo(layer);
+      clusterMarkerRefs.current.push(clusterMk);
     });
 
     // Remove markers for friends no longer present
