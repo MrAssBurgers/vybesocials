@@ -1,52 +1,80 @@
 
 
-## Fix 6 Issues: HoverCard z-index, VybeMap Desktop, Background Leak, Rename, Create Menu Label
+## Multi-Issue Fix Plan (Prioritized Phases)
 
-### 1. HoverCard z-index (Profile hover blocked on Home)
-The `HoverCardContent` in `hover-card.tsx` uses `z-50` which is too low -- the desktop sidebar and other elements overlap it.
+This is a very large set of requests. To keep things manageable and shippable, I'm breaking it into 3 phases. This plan covers **Phase 1** (the most impactful/broken items). Phases 2 and 3 can follow after.
 
-**Fix**: Change `z-50` to `z-[9999]` in `src/components/ui/hover-card.tsx` so the popover always renders above everything.
+---
 
-### 2. VybeMap not showing on Desktop
-The map container uses `fixed inset-0 md:absolute md:inset-0`. On desktop inside AppLayout, the `absolute` positioning within the flex layout may cause the Leaflet container to have zero height. The `invalidateSize` calls exist but the initial render timing may miss the layout settle.
+### Phase 1: Critical Fixes (This Implementation)
 
-**Fix in `src/pages/FriendMap.tsx`**:
-- Change the map wrapper from `fixed inset-0 md:absolute md:inset-0` to always use `absolute inset-0` since the parent already provides `h-full` via `noPadding` in AppLayout
-- Add additional `invalidateSize` calls with longer delays (1000ms, 2000ms) to catch desktop layout settling
-- Ensure the parent wrapper has explicit `h-full w-full` and `position: relative`
+#### 1. Profile HoverCard always visible (not clipped when post is near bottom)
+The `HoverCardContent` uses `side="top"` which hides it above the viewport when posts are low on the page.
 
-### 3. Profile Background Leaking to Home Page
-In `src/pages/Profile.tsx`, when viewing another user's profile with an equipped theme, the code sets `document.body`'s background via `setBackgroundImage()`. The cleanup tries to read the previous background from a non-existent `#app-background-layer` DOM element, so `previousBgRef.current` stays `undefined` and the restore fails.
+**Fix in `UserProfileHoverCard.tsx`**:
+- Add `collisionPadding={16}` and `side="top"` with `avoidCollisions={true}` (Radix default but be explicit)
+- Add `sticky="always"` to keep it in viewport -- Radix will auto-flip to bottom when top is clipped
 
-**Fix in `src/pages/Profile.tsx`**:
-- Instead of reading from a DOM element, use `useAppBackground().background.imageUrl` to capture the current background URL before overriding
-- On cleanup, call `refreshBackground()` instead of `setBackgroundImage(previousBgRef.current)` -- this re-fetches the user's own active background from the database, which is the authoritative source
+#### 2. VybeMap desktop -- no map tiles showing
+The Leaflet container likely has zero height on desktop. The map wrapper and AppLayout need explicit height propagation.
 
-### 4. Unselect People Who See Your Location
-Currently Ghost Mode is all-or-nothing. Add per-friend visibility controls.
+**Fix in `FriendMap.tsx`**:
+- Ensure the AppLayout wrapper passes `fullWidth` and the inner div uses `relative h-full w-full` not just `absolute inset-0`
+- Add a `min-h-screen` fallback on the outer container
+- Add explicit `height: 100%` style to the map div for Leaflet
 
-**Fix in `src/pages/FriendMap.tsx`**:
-- Add a "hidden friends" list stored in localStorage (`vybe-map-hidden-friends`)
-- In the Ghost Mode sheet, add a "Manage Visibility" section showing a list of friends with toggle switches
-- Filter `friendsArr` to exclude hidden friend IDs before rendering markers
-- Hidden friends won't see the user's location either (filter in the upsert query isn't possible client-side, so add a note that this is display-only for now; server-side would need a new table)
+#### 3. Post reactions (non-thumbs-up emoji not persisting)
+The `handleReaction` in `PostCard.tsx` / `ShortCard.tsx` likely only handles `'like'` type. Other reaction types (😂, 😮, etc.) need to be stored in the `post_reactions` table with the correct `reaction_type`.
 
-*Simplified approach*: Add toggles in Ghost Mode sheet. Hidden friends' markers are hidden from the map view. Label this as "Hide from map" since true server-side blocking would require a new table.
+**Fix**: Trace the `handleReaction` → `toggleReaction` flow in PostCard/ShortCard to ensure all `ReactionType` values are properly inserted/toggled in the database. Each reaction type should influence the algorithm weight differently (e.g., 😂 = humor affinity, ❤️ = appreciation, 🔥 = trending boost).
 
-### 5. Rename VibeMap → VybeMap
-**Files to update**:
-- `src/components/layout/DesktopLeftSidebar.tsx`: Change `label: 'VibeMap'` → `label: 'VybeMap'`
-- `src/pages/FriendMap.tsx`: Update any "VibeMap" text references
+#### 4. Local feed -- 25-mile radius filtering + location permission
+Currently `useLocalFeed` just fetches the generic trending feed and client-side sorts by tags. No actual distance filtering.
 
-### 6. Add "VybeMap" Label Under Green Icon in Create Menu
-In `src/components/hub/CreateMenuLayer.tsx`, the green MapPin button (line ~244-249) has no text label.
+**Fix**:
+- Create a new RPC `get_local_posts` that accepts `p_lat`, `p_lng`, `p_radius_miles` and filters posts by author location (from `user_locations` table) within radius using Haversine formula
+- In `useLocalFeed.ts`, call this RPC instead of `get_posts_with_counts` when location is available
+- Add a location permission prompt component that requests `navigator.geolocation` with a user-friendly UI explaining why location is needed for the Local tab
 
-**Fix**: Add a small text label "VybeMap" below the icon button, styled as `text-[9px] font-bold text-emerald-400` positioned below the button using a flex-col wrapper.
+#### 5. Logout clears custom background
+When a user logs out, the custom background persists on the login screen.
 
-### Files Modified
-- `src/components/ui/hover-card.tsx` -- z-index bump
-- `src/pages/FriendMap.tsx` -- desktop map fix, rename, friend visibility toggles
-- `src/pages/Profile.tsx` -- fix background cleanup logic
-- `src/components/layout/DesktopLeftSidebar.tsx` -- rename VibeMap → VybeMap
-- `src/components/hub/CreateMenuLayer.tsx` -- add VybeMap label
+**Fix in auth logout handler**: Call `document.body.style.backgroundImage = ''` and reset CSS variables on logout.
+
+#### 6. Daily Brief -- cache per time window, show next regeneration time
+Currently regenerates every time the sheet opens.
+
+**Fix in `AIBriefSheet.tsx`**:
+- Cache the brief in localStorage with a key like `vybe-daily-brief-{userId}-{timeSlot}` where timeSlot is `morning` (6am-12pm), `afternoon` (12pm-6pm), `evening` (6pm-6am)
+- Only call the AI if the cached brief doesn't match the current time slot
+- Show "Next update at {time}" text at the bottom of the brief
+- Schedule a notification via the existing notification system when the next time slot starts
+
+---
+
+### Phase 2 (Next Implementation)
+- VYBE AI Designer perfecting
+- Onboarding designer lag fix (reduce animations, defer heavy renders)
+- VYBE DNA scroll lag (virtualize the list, reduce re-renders)
+- Widget customization with + icon and smooth add animation
+- Platform connections (Apple account linking in Settings)
+
+### Phase 3 (Following Implementation)
+- Birthday system (crown on avatar, cake icon, DM notification like Snapchat)
+- Age-based restriction enforcement with birthday triggers
+- Parental controls (4-digit PIN, mandatory for under-13, content filtering)
+- Screen time tracking system
+- Daily brief push notifications
+
+---
+
+### Files Modified (Phase 1)
+- `src/components/ui/UserProfileHoverCard.tsx` -- collision padding for always-visible hover
+- `src/pages/FriendMap.tsx` -- desktop map height fix
+- `src/components/posts/PostCard.tsx` -- multi-reaction persistence
+- `src/components/posts/ShortCard.tsx` -- multi-reaction persistence
+- `src/hooks/useLocalFeed.ts` -- 25-mile radius + location prompt
+- `src/components/home/AIBriefSheet.tsx` -- time-based caching + next update display
+- `src/lib/auth.ts` or logout handler -- clear background on logout
+- New DB migration for `get_local_posts` RPC
 
