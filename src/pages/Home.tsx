@@ -54,7 +54,12 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const isVisible = useCallback((id: string) => gridConfig.widgets.find(w => w.id === id)?.enabled ?? false, [gridConfig.widgets]);
   const { data: dnaPrefs } = useDNAPreferences();
   
-  // Personalized feed (interest-matched posts)
+  // Only fetch feeds for the active tab to reduce concurrent DB load
+  const isForYouTab = activeTab === 'foryou';
+  const isGlobalTab = activeTab === 'global';
+  const isLocalTab = activeTab === 'local';
+
+  // Personalized feed (interest-matched posts) - active on "foryou" tab
   const {
     data: forYouData,
     isLoading: forYouLoading,
@@ -65,7 +70,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     refetch: refetchForYou,
   } = usePersonalizedFeed();
 
-  // Following feed
+  // Following feed - always loaded (merged into forYou)
   const {
     data: followingData,
     isLoading: followingLoading,
@@ -76,7 +81,15 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     refetch: refetchFollowing,
   } = useInfiniteFollowingPosts();
 
-  // Global feed - shows ALL posts (type 'post' only, no videos/clips)
+  // Global feed - only fetch when tab is active or was previously visited
+  const [globalVisited, setGlobalVisited] = useState(false);
+  const [localVisited, setLocalVisited] = useState(false);
+
+  useEffect(() => {
+    if (isGlobalTab) setGlobalVisited(true);
+    if (isLocalTab) setLocalVisited(true);
+  }, [isGlobalTab, isLocalTab]);
+
   const {
     data: globalData,
     isLoading: globalLoading,
@@ -87,7 +100,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     refetch: refetchGlobal,
   } = useInfinitePosts('post');
 
-  // Local feed - nearby content
+  // Local feed - only fetch when tab is active
   const {
     data: localData,
     isLoading: localLoading,
