@@ -1333,7 +1333,7 @@ function FriendMapInner() {
           </div>
         </div>
       </div>
-    </AppLayout>
+    </div>
   );
 }
 
