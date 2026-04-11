@@ -23,8 +23,11 @@ export function getUserFriendlyError(error: any): string {
   if (message.includes('already registered') || message.includes('already exists')) {
     return 'An account with this email already exists.';
   }
-  if (message.includes('Password')) {
+  if (message.includes('Password should be at least') || message.includes('password should be at least')) {
     return 'Password must be at least 6 characters.';
+  }
+  if (message.includes('password') && message.includes('leaked') || message.includes('HIBP')) {
+    return 'This password has been found in a data breach. Please choose a different one.';
   }
   
   // Database constraint errors
