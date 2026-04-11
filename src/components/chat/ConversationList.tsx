@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
+import { motion, useMotionValue, useTransform, PanInfo, AnimatePresence } from 'framer-motion';
 import { useCreateConversation, Conversation } from '@/hooks/useMessages';
 import { useDMConversations, useMarkConversationRead } from '@/hooks/useDMConversations';
 import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
@@ -19,7 +19,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -27,8 +26,6 @@ import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, B
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 
 import { toast } from 'sonner';
-import { QuickAddRow } from './QuickAddRow';
-import { MutualFriendsQuickAdd } from './MutualFriendsQuickAdd';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { ConversationOptionsSheet } from './ConversationOptionsSheet';
 import { TrashBin } from './TrashBin';
@@ -42,10 +39,11 @@ import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useUsersRoles } from '@/hooks/useUserRoleById';
 import { AvatarRing } from '@/components/ui/AvatarRing';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { NFCFriendShare } from '@/components/friends/NFCFriendShare';
 import { useBatchUserStatuses } from '@/hooks/useUserStatus';
 import { StatusPicker } from '@/components/status/StatusPicker';
 import { compactTime } from '@/lib/compactTime';
+import { useSuggestedFriends } from '@/hooks/useFriendsOfFriends';
+import { useSendFriendRequest } from '@/hooks/useFriends';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
