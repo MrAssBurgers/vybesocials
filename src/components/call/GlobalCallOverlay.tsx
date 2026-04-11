@@ -978,7 +978,7 @@ export function GlobalCallOverlay() {
           {/* Header */}
           <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave}>
             <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: showHeader ? 0 : -100, opacity: showHeader ? 1 : 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="pointer-events-auto">
-              <div className="mx-4 mt-4 p-4 rounded-2xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-2xl">
+              <div className="mx-4 mt-4 p-4 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="relative">
