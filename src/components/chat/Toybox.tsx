@@ -59,6 +59,8 @@ interface ToyboxProps {
   onOpenVybeCamera?: () => void;
   onCreateOffer?: () => void;
   hasBusinessProfile?: boolean;
+  // AI safety filter props
+  safetyFilterNode?: React.ReactNode;
 }
 
 const STICKERS = ['😀', '😂', '🥰', '😎', '🔥', '💯', '🎉', '❤️', '👍', '🙌', '💪', '✨'];
@@ -91,6 +93,7 @@ export const Toybox = memo(function Toybox({
   onOpenVybeCamera,
   onCreateOffer,
   hasBusinessProfile,
+  safetyFilterNode,
 }: ToyboxProps) {
   const { data: userRole } = useUserRole();
   const { isPremium } = usePremiumStatus();
@@ -452,6 +455,8 @@ export const Toybox = memo(function Toybox({
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </motion.button>
               ))}
+              {/* AI Safety Filter Toggle */}
+              {safetyFilterNode}
             </div>
           </motion.div>
         ) : (

@@ -117,6 +117,9 @@ import { CreateOfferDialog } from '@/components/business/CreateOfferDialog';
 import { ChatMediaBubble, SignedAudioUrl } from './ChatMediaBubble';
 import { ImageViewer } from './ImageViewer';
 import { useSafetySettings } from '@/hooks/useSafetySettings';
+import { useConversationSafety } from '@/hooks/useConversationSafety';
+import { SafetyFilterRequest } from './SafetyFilterRequest';
+import { SafetyFilterRequestButton } from './SafetyFilterRequestButton';
 import { getTopEmojis, recordEmoji } from '@/lib/frequentEmojis';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
@@ -203,6 +206,7 @@ export function ChatView() {
   const { suggestions: smartReplies, generateReplies, clearSuggestions } = useAISmartReplies();
   
   const { settings } = useDMSettings(conversationId);
+  const conversationSafety = useConversationSafety(conversationId);
 
   // Compute the latest time the other user read any of our messages
   const lastReadAt = useMemo(() => {
@@ -241,6 +245,8 @@ export function ChatView() {
   const [viewMode, setViewMode] = useState<ViewMode>('permanent');
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isVoiceLocked, setIsVoiceLocked] = useState(false);
+  const voiceLockStartYRef = useRef<number | null>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ url: string; file: File } | null>(null);
   const uploadingRef = useRef(false); // Prevent double uploads
@@ -1623,6 +1629,19 @@ export function ChatView() {
             />
           )}
 
+          {/* Safety filter request popup */}
+          {conversationSafety.hasPendingRequest && !conversationSafety.isRequester && !conversationSafety.hasCurrentUserResponded && otherMember && (
+            <SafetyFilterRequest
+              visible
+              requesterName={otherMember.display_name || otherMember.username || 'User'}
+              isGroupChat={isGroupChat}
+              isUnder13={conversationSafety.isUnder13}
+              onAccept={() => conversationSafety.respondToRequest.mutate('accepted')}
+              onDecline={() => conversationSafety.respondToRequest.mutate('declined')}
+              isLoading={conversationSafety.respondToRequest.isPending}
+            />
+          )}
+
           <div ref={messagesEndRef} className="h-1" />
         </div>
       </div>
@@ -1690,6 +1709,19 @@ export function ChatView() {
             showStickerPanel={showStickerPanel}
             setShowStickerPanel={setShowStickerPanel}
             onSendSticker={async (url) => { await sendMediaMessage(url, 'image'); }}
+            isVoiceLocked={isVoiceLocked}
+            setIsVoiceLocked={setIsVoiceLocked}
+            voiceLockStartYRef={voiceLockStartYRef}
+            safetyFilterNode={
+              <SafetyFilterRequestButton
+                isSafetyDisabled={conversationSafety.isSafetyDisabled}
+                hasPendingRequest={conversationSafety.hasPendingRequest}
+                isUnder13={conversationSafety.isUnder13}
+                isRequester={conversationSafety.isRequester}
+                onRequestDisable={() => conversationSafety.requestDisable.mutate()}
+                onReEnable={() => conversationSafety.reEnable.mutate()}
+              />
+            }
           />
         </DMSafetyGate>
       ) : (
@@ -1732,6 +1764,19 @@ export function ChatView() {
           showStickerPanel={showStickerPanel}
           setShowStickerPanel={setShowStickerPanel}
           onSendSticker={async (url) => { await sendMediaMessage(url, 'image'); }}
+          isVoiceLocked={isVoiceLocked}
+          setIsVoiceLocked={setIsVoiceLocked}
+          voiceLockStartYRef={voiceLockStartYRef}
+          safetyFilterNode={
+            <SafetyFilterRequestButton
+              isSafetyDisabled={conversationSafety.isSafetyDisabled}
+              hasPendingRequest={conversationSafety.hasPendingRequest}
+              isUnder13={conversationSafety.isUnder13}
+              isRequester={conversationSafety.isRequester}
+              onRequestDisable={() => conversationSafety.requestDisable.mutate()}
+              onReEnable={() => conversationSafety.reEnable.mutate()}
+            />
+          }
         />
       )}
 
@@ -1790,6 +1835,10 @@ const MessageInputArea = memo(function MessageInputArea({
   showStickerPanel,
   setShowStickerPanel,
   onSendSticker,
+  isVoiceLocked,
+  setIsVoiceLocked,
+  voiceLockStartYRef,
+  safetyFilterNode,
 }: {
   messageText: string;
   viewMode: ViewMode;
@@ -1829,6 +1878,10 @@ const MessageInputArea = memo(function MessageInputArea({
   showStickerPanel?: boolean;
   setShowStickerPanel?: (open: boolean) => void;
   onSendSticker?: (imageUrl: string) => void;
+  isVoiceLocked?: boolean;
+  setIsVoiceLocked?: (locked: boolean) => void;
+  voiceLockStartYRef?: React.MutableRefObject<number | null>;
+  safetyFilterNode?: React.ReactNode;
 }) {
   return (
     <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30 relative">
@@ -1897,15 +1950,18 @@ const MessageInputArea = memo(function MessageInputArea({
           <VoiceRecorder
             onRecordingComplete={(blob) => {
               setIsRecordingVoice(false);
+              setIsVoiceLocked?.(false);
               onLiveRecordingChange?.(false);
               handleVoiceRecordingComplete(blob);
             }}
             onCancel={() => {
               setIsRecordingVoice(false);
+              setIsVoiceLocked?.(false);
               onLiveRecordingChange?.(false);
             }}
             isUploading={isUploadingMedia}
             autoSend
+            locked={isVoiceLocked}
           />
         ) : (
           <div ref={inputContainerRef} className="flex items-center gap-1 sm:gap-2">
@@ -1971,6 +2027,7 @@ const MessageInputArea = memo(function MessageInputArea({
                   onOpenVybeCamera={onOpenSnapCamera}
                   onCreateOffer={onCreateOffer}
                   hasBusinessProfile={hasBusinessProfile}
+                  safetyFilterNode={safetyFilterNode}
                 />
                 {setShowStickerPanel && (
                   <Button 
@@ -1982,29 +2039,53 @@ const MessageInputArea = memo(function MessageInputArea({
                     <Sticker className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
                 )}
-                <Button 
-                  variant="ghost"
-                  size="icon"
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-                    setIsRecordingVoice(true);
-                    onLiveRecordingChange?.(true);
-                  }}
-                  onPointerUp={() => {
-                    if (isRecordingVoice && (window as any).__voiceRecorderStop) {
-                      (window as any).__voiceRecorderStop();
-                    }
-                  }}
-                  onPointerCancel={() => {
-                    if (isRecordingVoice && (window as any).__voiceRecorderStop) {
-                      (window as any).__voiceRecorderStop();
-                    }
-                  }}
-                  className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full touch-none"
-                >
-                  <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
-                </Button>
+                {/* Lock indicator above mic button */}
+                <div className="relative">
+                  {isRecordingVoice && !isVoiceLocked && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="absolute -top-10 left-1/2 -translate-x-1/2 flex flex-col items-center"
+                    >
+                      <Lock className="h-4 w-4 text-muted-foreground animate-bounce" />
+                    </motion.div>
+                  )}
+                  <Button 
+                    variant="ghost"
+                    size="icon"
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                      if (voiceLockStartYRef) voiceLockStartYRef.current = e.clientY;
+                      setIsRecordingVoice(true);
+                      setIsVoiceLocked?.(false);
+                      onLiveRecordingChange?.(true);
+                    }}
+                    onPointerMove={(e) => {
+                      if (!isRecordingVoice || isVoiceLocked || !voiceLockStartYRef?.current) return;
+                      const dy = voiceLockStartYRef.current - e.clientY;
+                      if (dy > 40) {
+                        setIsVoiceLocked?.(true);
+                        voiceLockStartYRef.current = null;
+                      }
+                    }}
+                    onPointerUp={() => {
+                      if (isVoiceLocked) return; // locked mode, don't auto-send
+                      if (isRecordingVoice && (window as any).__voiceRecorderStop) {
+                        (window as any).__voiceRecorderStop();
+                      }
+                    }}
+                    onPointerCancel={() => {
+                      if (isVoiceLocked) return;
+                      if (isRecordingVoice && (window as any).__voiceRecorderStop) {
+                        (window as any).__voiceRecorderStop();
+                      }
+                    }}
+                    className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full touch-none"
+                  >
+                    <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </Button>
+                </div>
               </div>
             ) : (
               <Button 

@@ -314,6 +314,49 @@ export function useGlobalRealtimeMessages() {
     channelRef.current = channel;
   }, [profile?.id, queryClient]);
 
+  // Broadcast listener for instant delivery on the currently viewed conversation
+  const broadcastChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  useEffect(() => {
+    if (!profile?.id || !currentConversationId) {
+      if (broadcastChannelRef.current) {
+        supabase.removeChannel(broadcastChannelRef.current);
+        broadcastChannelRef.current = null;
+      }
+      return;
+    }
+
+    const convoId = currentConversationId;
+    const bc = supabase
+      .channel(`dm-broadcast:${convoId}`)
+      .on('broadcast', { event: 'new-message' }, (payload: any) => {
+        const msg = payload.payload?.message;
+        if (!msg || msg.sender_id === profile.id) return; // skip own messages
+        if (isMessageProcessed(msg.id)) return;
+        markMessageProcessed(msg.id);
+
+        // Add to chat immediately
+        queryClient.setQueryData<any[]>(['messages', convoId], (old) => {
+          if (!old) return [msg];
+          if (old.some(m => m.id === msg.id)) return old;
+          return [...old, msg];
+        });
+
+        // Play sound if tab not visible
+        if (document.visibilityState !== 'visible') {
+          callSounds.message();
+        }
+      })
+      .subscribe();
+
+    broadcastChannelRef.current = bc;
+
+    return () => {
+      supabase.removeChannel(bc);
+      broadcastChannelRef.current = null;
+    };
+  }, [profile?.id, queryClient]);
+
   useEffect(() => {
     setupChannel();
 
@@ -325,6 +368,10 @@ export function useGlobalRealtimeMessages() {
         if (import.meta.env.DEV) console.log('[GlobalRT] Cleaning up global channel');
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
+      }
+      if (broadcastChannelRef.current) {
+        supabase.removeChannel(broadcastChannelRef.current);
+        broadcastChannelRef.current = null;
       }
     };
   }, [setupChannel]);

@@ -204,6 +204,13 @@ export function useInstantSend(conversationId: string | undefined) {
       const messageWithViewMode = { ...data, view_mode: data.view_mode as ViewMode, views: [], reactions: [] };
       confirmMessage(tempId, messageWithViewMode);
 
+      // Broadcast for instant delivery to receiver
+      try {
+        const bc = supabase.channel(`dm-broadcast:${conversationId}`);
+        await bc.send({ type: 'broadcast', event: 'new-message', payload: { message: messageWithViewMode } });
+        supabase.removeChannel(bc);
+      } catch { /* best-effort */ }
+
       // Update conversation timestamp
       await supabase
         .from('conversations')
@@ -272,6 +279,13 @@ export function useInstantSend(conversationId: string | undefined) {
 
       const messageWithViewMode = { ...data, view_mode: data.view_mode as ViewMode, views: [], reactions: [] };
       confirmMessage(tempId, messageWithViewMode);
+
+      // Broadcast for instant delivery
+      try {
+        const bc = supabase.channel(`dm-broadcast:${conversationId}`);
+        await bc.send({ type: 'broadcast', event: 'new-message', payload: { message: messageWithViewMode } });
+        supabase.removeChannel(bc);
+      } catch { /* best-effort */ }
 
       await supabase
         .from('conversations')

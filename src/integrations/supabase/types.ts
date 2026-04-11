@@ -3031,6 +3031,129 @@ export type Database = {
           },
         ]
       }
+      conversation_safety_overrides: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          requested_by: string
+          responded_at: string | null
+          status: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          requested_by: string
+          responded_at?: string | null
+          status?: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          requested_by?: string
+          responded_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_safety_overrides_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_safety_overrides_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "conversation_safety_overrides_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_safety_overrides_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_safety_overrides_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
+      conversation_safety_responses: {
+        Row: {
+          created_at: string
+          id: string
+          override_id: string
+          response: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          override_id: string
+          response: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          override_id?: string
+          response?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_safety_responses_override_id_fkey"
+            columns: ["override_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_safety_overrides"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_safety_responses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "conversation_safety_responses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_safety_responses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_safety_responses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           avatar_url: string | null
@@ -10226,18 +10349,21 @@ export type Database = {
       }
       user_stickers: {
         Row: {
+          content_rating: string
           created_at: string | null
           id: string
           image_url: string
           user_id: string
         }
         Insert: {
+          content_rating?: string
           created_at?: string | null
           id?: string
           image_url: string
           user_id: string
         }
         Update: {
+          content_rating?: string
           created_at?: string | null
           id?: string
           image_url?: string

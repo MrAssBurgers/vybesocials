@@ -57,6 +57,14 @@ export function useAddSticker() {
         .select()
         .single();
       if (error) throw error;
+      
+      // Trigger AI content rating in background
+      if (data?.id) {
+        supabase.functions.invoke('rate-sticker-content', {
+          body: { imageUrl, stickerId: data.id },
+        }).catch(err => console.warn('[Stickers] Rating failed:', err));
+      }
+      
       return data;
     },
     onSuccess: () => {

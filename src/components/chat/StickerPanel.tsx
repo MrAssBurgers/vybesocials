@@ -50,7 +50,7 @@ const StickerTile = memo(function StickerTile({
         <img
           src={signedUrl}
           alt="Sticker"
-          className="w-full h-full object-contain p-1.5"
+          className="w-full h-full object-contain p-1.5 pointer-events-none"
           loading="lazy"
           crossOrigin="anonymous"
           referrerPolicy="no-referrer"
@@ -65,7 +65,7 @@ const StickerTile = memo(function StickerTile({
       )}
 
       {deleteMode && (
-        <div className="absolute top-1 right-1">
+        <div className="absolute top-1 right-1 pointer-events-none">
           {selected ? (
             <CheckCircle2 className="h-5 w-5 text-destructive drop-shadow" />
           ) : (
