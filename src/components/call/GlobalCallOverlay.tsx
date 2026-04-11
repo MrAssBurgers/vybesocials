@@ -1204,7 +1204,7 @@ export function GlobalCallOverlay() {
       {/* Incoming call dialog */}
       <AnimatePresence>
         {isRinging && state.call && (
-          <motion.div key={`incoming-${state.call.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10000] flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)' }}>
+          <motion.div key={`incoming-${state.call.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100000] flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)', isolation: 'isolate' }}>
             <IncomingCallDialog call={state.call} onAccept={handleAccept} onDecline={dismissIncoming} />
           </motion.div>
         )}
