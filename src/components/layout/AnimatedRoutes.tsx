@@ -74,7 +74,7 @@ const ReactionStreaks = lazy(() => import("@/pages/ReactionStreaks"));
 const VYBERoulette = lazy(() => import("@/pages/VYBERoulette"));
 const VYBESpaces = lazy(() => import("@/pages/VYBESpaces"));
 const SpaceRoom = lazy(() => import("@/pages/SpaceRoom"));
-// VybeDNA is eagerly loaded above for instant navigation
+// VybeDNA is lazy-loaded above
 const TokenWallet = lazy(() => import("@/pages/TokenWallet"));
 const FriendMap = lazy(() => import("@/pages/FriendMap"));
 const TokenMarketplace = lazy(() => import("@/pages/TokenMarketplace"));
