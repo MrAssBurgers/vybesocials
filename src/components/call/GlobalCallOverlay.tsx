@@ -1086,7 +1086,7 @@ export function GlobalCallOverlay() {
             onMouseLeave={handleFooterAreaLeave}
           >
             <div className="flex justify-center">
-              <div className="inline-flex items-center gap-3 p-3 rounded-2xl backdrop-blur-xl bg-white/10 border border-white/10 shadow-2xl">
+              <div className="inline-flex items-center gap-3 p-3 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
                 {/* Settings */}
                 <motion.button whileTap={{ scale: 0.95 }} onClick={() => setSettingsOpen(true)} disabled={!isConnected} className={cn("relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300", "bg-white/10 text-white hover:bg-white/20 border border-white/10", "disabled:opacity-50 disabled:cursor-not-allowed")}>
                   <SlidersHorizontal className="h-5 w-5" />
