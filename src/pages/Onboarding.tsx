@@ -18,6 +18,8 @@ import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 
+const EASE_OUT_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
+
 // Invite mode stage type - must match InviteRedeem state machine
 type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
 
@@ -327,31 +329,31 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const currentLabel = stepLabels[Math.min(step - 1, stepLabels.length - 1)] || '';
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
-      {/* Animated background */}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
+      className="h-screen bg-background flex flex-col overflow-hidden"
+    >
+      {/* GPU-friendly ambient background — opacity-only keyframes */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div 
-          className="absolute -top-1/4 -left-1/4 w-3/4 h-3/4 rounded-full blur-3xl opacity-30"
+        <div
+          className="absolute -top-1/4 -left-1/4 w-3/4 h-3/4 rounded-full"
           style={{
-            background: 'radial-gradient(circle, hsl(var(--primary) / 0.6) 0%, transparent 70%)',
-            animation: 'onboarding-float 20s ease-in-out infinite',
+            background: 'radial-gradient(circle, hsl(var(--primary) / 0.5) 0%, transparent 70%)',
+            filter: 'blur(60px)',
+            animation: 'ob-glow-a 8s ease-in-out infinite alternate',
           }}
         />
-        <div 
-          className="absolute -bottom-1/4 -right-1/4 w-3/4 h-3/4 rounded-full blur-3xl opacity-25"
+        <div
+          className="absolute -bottom-1/4 -right-1/4 w-3/4 h-3/4 rounded-full"
           style={{
-            background: 'radial-gradient(circle, hsl(var(--accent) / 0.5) 0%, transparent 70%)',
-            animation: 'onboarding-float 25s ease-in-out infinite reverse',
+            background: 'radial-gradient(circle, hsl(var(--accent) / 0.4) 0%, transparent 70%)',
+            filter: 'blur(60px)',
+            animation: 'ob-glow-b 10s ease-in-out infinite alternate',
           }}
         />
-        <style>{`
-          @keyframes onboarding-float {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            25% { transform: translate(5%, 10%) scale(1.05); }
-            50% { transform: translate(-5%, 5%) scale(0.95); }
-            75% { transform: translate(10%, -5%) scale(1.02); }
-          }
-        `}</style>
+        <style>{`@keyframes ob-glow-a{0%{opacity:.22}100%{opacity:.32}}@keyframes ob-glow-b{0%{opacity:.15}100%{opacity:.25}}`}</style>
       </div>
 
       {/* Header */}
@@ -366,15 +368,14 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       <div className="relative z-10 px-4 py-2 flex-shrink-0">
         <div className="flex items-center justify-center gap-2 mb-1.5">
           {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-            <div
+            <motion.div
               key={i}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                i + 1 === step
-                  ? 'w-8 bg-primary'
-                  : i + 1 < step
-                  ? 'w-4 bg-primary/50'
-                  : 'w-4 bg-muted'
-              }`}
+              className="h-1.5 rounded-full"
+              animate={{
+                width: i + 1 === step ? 32 : 16,
+                backgroundColor: i + 1 === step ? 'hsl(var(--primary))' : i + 1 < step ? 'hsl(var(--primary) / 0.5)' : 'hsl(var(--muted))',
+              }}
+              transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
             />
           ))}
         </div>
@@ -390,10 +391,10 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
             <AnimatePresence mode="wait">
               <motion.div
                 key={step}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.25 }}
+                initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
               >
                 {renderStep()}
               </motion.div>
@@ -402,8 +403,12 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 p-3 sm:p-4 border-t border-border bg-background/80 backdrop-blur-sm">
+      <motion.footer
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.2, duration: 0.4, ease: EASE_OUT_EXPO }}
+        className="relative z-10 p-3 sm:p-4 border-t border-border bg-background/80 backdrop-blur-sm"
+      >
         <div className="max-w-lg mx-auto flex items-center justify-between gap-3">
           <Button
             variant="outline"
@@ -435,7 +440,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
             </Button>
           )}
         </div>
-      </footer>
-    </div>
+      </motion.footer>
+    </motion.div>
   );
 }
