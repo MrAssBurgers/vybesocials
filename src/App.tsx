@@ -13,7 +13,7 @@ import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
 import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
 import { CallStoreProvider } from "@/lib/callStore";
-import { SplashScreen } from "@/components/ui/SplashScreen";
+
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
@@ -121,7 +121,7 @@ function ScrollRestoration() {
 const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
 // Track if initial load has completed (persists across navigations)
-let hasInitialLoadCompleted = false;
+
 
 // Background brief pre-fetcher (needs auth context)
 function BriefPreFetchInit() {
@@ -139,10 +139,7 @@ function BriefPreFetchInit() {
 
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
-  const preloadStatus = useAppPreloader();
-  // Only show splash on truly initial load, not on navigation
-  const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
-  const prevAuthReadyRef = useRef<boolean | null>(null);
+  useAppPreloader();
   
   // Auto-update checker
   useAutoUpdate();
@@ -150,15 +147,6 @@ function AppWithPreloader() {
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
   usePostsRealtime();
-  // useBriefPreFetch is initialized inside AuthProvider via BriefPreFetchInit
-  // useInitEncryption moved to DeferredAuthHooks (inside AuthProvider)
-
-  useEffect(() => {
-    if (preloadStatus.isComplete && showSplash) {
-      setShowSplash(false);
-      hasInitialLoadCompleted = true;
-    }
-  }, [preloadStatus.isComplete, showSplash]);
 
   // When auth resolves after preloader cached guest data, invalidate stale caches
   useEffect(() => {
@@ -173,11 +161,7 @@ function AppWithPreloader() {
 
   return (
     <>
-      <SplashScreen 
-        isVisible={showSplash} 
-        status={preloadStatus.step}
-        progress={preloadStatus.progress}
-      />
+      <GlobalErrorHandler />
       <GlobalErrorHandler />
       <AuthProvider>
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
