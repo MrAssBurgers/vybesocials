@@ -8,13 +8,19 @@ export interface ParentalControls {
   pin_hash: string;
   is_active: boolean;
   content_filter_level: string;
-  max_screen_time_minutes: number;
-  allowed_features: string[];
+  max_screen_time_minutes: number | null;
+  allowed_features: string[] | null;
   created_at: string;
   updated_at: string;
 }
 
-// Simple hash for 4-digit PIN (not cryptographic, but adequate for client-side parental lock)
+const DEFAULT_PARENTAL_VALUES = {
+  is_active: true,
+  content_filter_level: 'protected',
+  max_screen_time_minutes: 120,
+  allowed_features: ['messaging', 'feed', 'profile'],
+};
+
 export function hashPin(pin: string): string {
   let hash = 0;
   const str = `vybe_pin_${pin}_salt`;
@@ -39,7 +45,13 @@ export function useParentalControls() {
         .eq('user_id', user.id)
         .maybeSingle();
       if (error) throw error;
-      return data as ParentalControls | null;
+      if (!data) return null;
+      return {
+        ...DEFAULT_PARENTAL_VALUES,
+        ...data,
+        max_screen_time_minutes: data.max_screen_time_minutes ?? DEFAULT_PARENTAL_VALUES.max_screen_time_minutes,
+        allowed_features: data.allowed_features ?? DEFAULT_PARENTAL_VALUES.allowed_features,
+      } as ParentalControls;
     },
     enabled: !!user,
   });
@@ -58,18 +70,19 @@ export function useSetupParentalControls() {
           user_id: user.id,
           pin_hash: hashPin(pin),
           is_active: true,
-          content_filter_level: settings?.content_filter_level || 'protected',
-          max_screen_time_minutes: settings?.max_screen_time_minutes || 120,
-          allowed_features: settings?.allowed_features || ['messaging', 'feed', 'profile'],
+          content_filter_level: settings?.content_filter_level || DEFAULT_PARENTAL_VALUES.content_filter_level,
+          max_screen_time_minutes: settings?.max_screen_time_minutes ?? DEFAULT_PARENTAL_VALUES.max_screen_time_minutes,
+          allowed_features: settings?.allowed_features || DEFAULT_PARENTAL_VALUES.allowed_features,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' })
         .select()
         .single();
       if (error) throw error;
-      return data;
+      return data as ParentalControls;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['parental-controls'] });
+    onSuccess: (data) => {
+      queryClient.setQueryData(['parental-controls', user?.id], data);
+      queryClient.invalidateQueries({ queryKey: ['parental-controls', user?.id] });
     },
   });
 }
@@ -83,15 +96,20 @@ export function useUpdateParentalControls() {
       if (!user) throw new Error('Not authenticated');
       const { data, error } = await supabase
         .from('parental_controls')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('user_id', user.id)
+        .upsert({
+          user_id: user.id,
+          ...DEFAULT_PARENTAL_VALUES,
+          ...updates,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' })
         .select()
         .single();
       if (error) throw error;
-      return data;
+      return data as ParentalControls;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['parental-controls'] });
+    onSuccess: (data) => {
+      queryClient.setQueryData(['parental-controls', user?.id], data);
+      queryClient.invalidateQueries({ queryKey: ['parental-controls', user?.id] });
     },
   });
 }
