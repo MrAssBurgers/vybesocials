@@ -206,6 +206,7 @@ export function ChatView() {
   const { suggestions: smartReplies, generateReplies, clearSuggestions } = useAISmartReplies();
   
   const { settings } = useDMSettings(conversationId);
+  const conversationSafety = useConversationSafety(conversationId);
 
   // Compute the latest time the other user read any of our messages
   const lastReadAt = useMemo(() => {
