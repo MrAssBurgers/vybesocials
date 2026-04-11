@@ -11669,6 +11669,35 @@ export type Database = {
         }[]
       }
       get_like_count: { Args: { p_post_id: string }; Returns: number }
+      get_local_posts: {
+        Args: {
+          p_lat: number
+          p_limit?: number
+          p_lng: number
+          p_offset?: number
+          p_radius_miles?: number
+          p_user_id?: string
+        }
+        Returns: {
+          author_avatar_url: string
+          author_id: string
+          author_username: string
+          caption: string
+          comment_count: number
+          created_at: string
+          id: string
+          is_bookmarked: boolean
+          is_liked: boolean
+          is_pinned: boolean
+          like_count: number
+          media_url: string
+          media_urls: string[]
+          tags: string[]
+          thumbnail_url: string
+          type: string
+          view_count: number
+        }[]
+      }
       get_login_streak_status:
         | { Args: never; Returns: Json }
         | { Args: { p_timezone?: string }; Returns: Json }
