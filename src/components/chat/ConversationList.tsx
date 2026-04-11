@@ -127,7 +127,7 @@ export function ConversationList() {
   const { data: acceptedRequests } = useAcceptedFriendRequests();
   const dismissAccepted = useDismissAcceptedRequest();
   const streakMap = useStreakMap();
-  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [isTrashOpen, setIsTrashOpen] = useState(false);
   const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);

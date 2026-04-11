@@ -551,14 +551,11 @@ function FriendMapInner() {
     let timeoutIds: number[] = [];
 
     const forceContainerSize = (el: HTMLDivElement) => {
-      const parentWidth = el.parentElement?.clientWidth || window.innerWidth;
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
       el.style.position = 'absolute';
       el.style.inset = '0';
       el.style.display = 'block';
-      el.style.width = `${Math.max(parentWidth, 320)}px`;
-      el.style.height = `${Math.max(viewportHeight, 480)}px`;
-      el.style.minHeight = `${Math.max(viewportHeight, 480)}px`;
+      el.style.width = '100%';
+      el.style.height = '100%';
     };
 
     const safeInvalidateSize = () => {
@@ -791,7 +788,7 @@ function FriendMapInner() {
           @keyframes ring-pulse{0%,100%{opacity:.7}50%{opacity:1}}
           @keyframes moving-glow{0%,100%{box-shadow:0 0 8px 2px hsl(142 76% 56%/.3)}50%{box-shadow:0 0 20px 6px hsl(142 76% 56%/.15)}}
           .friend-map-marker,.my-location-marker{background:transparent!important;border:none!important}
-          .leaflet-container{height:100%!important;width:100%!important;min-height:100dvh!important;background:hsl(var(--muted));font-family:inherit;display:block!important;visibility:visible!important}
+          .leaflet-container{height:100%!important;width:100%!important;background:hsl(var(--muted));font-family:inherit;display:block!important;visibility:visible!important}
           .leaflet-pane,.leaflet-map-pane,.leaflet-tile-pane,.leaflet-layer,.leaflet-tile{opacity:1!important;visibility:visible!important}
           .leaflet-container img,.leaflet-container .leaflet-tile{max-width:none!important;max-height:none!important}
           .leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
@@ -827,8 +824,8 @@ function FriendMapInner() {
         `}</style>
 
         {/* Map container */}
-        <div ref={mapEl} className="absolute inset-0 block h-full min-h-[100dvh] w-full" style={{ height: '100%', minHeight: '100dvh', width: '100%' }} />
-        <div className="map-vignette" />
+        <div ref={mapEl} className="absolute inset-0 block w-full h-full" />
+        {/* Removed map-vignette overlay that was causing dark layer on desktop */}
 
         {/* ── Top bar ─────────────────────────────────── */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-4 pt-[env(safe-area-inset-top)]">
