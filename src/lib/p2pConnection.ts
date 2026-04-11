@@ -9,6 +9,12 @@
  * - Signaling channel: broadcasts SDP offers/answers and ICE candidates
  * - Reconnection: exponential backoff on ICE failure
  * - Clean interface: create, join, disconnect, toggle media
+ * 
+ * Bug-fix notes:
+ * - Signaling channel waits for SUBSCRIBED before proceeding
+ * - Reconnect timeout tracked and cleared on cleanup
+ * - Double-hangup guard prevents duplicate endCall
+ * - Event handler can be updated via setOnEvent to avoid stale closures
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -59,8 +65,10 @@ export class P2PConnection {
   private callType: 'audio' | 'video';
   private onEvent: P2PEventHandler;
   private reconnectAttempts = 0;
+  private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private isDisconnecting = false;
   private hasRemoteParticipant = false;
+  private hangupProcessed = false; // Guard against double hangup
   private iceCandidateQueue: RTCIceCandidateInit[] = [];
   private hasRemoteDescription = false;
 
@@ -80,6 +88,11 @@ export class P2PConnection {
 
   // ── Public API ─────────────────────────────────────────────
 
+  /** Update the event handler (avoids stale closures) */
+  setOnEvent(handler: P2PEventHandler): void {
+    this.onEvent = handler;
+  }
+
   /** Start the connection (caller creates offer, callee waits for offer) */
   async connect(): Promise<void> {
     if (import.meta.env.DEV) console.log('[P2P] Connecting as', this.isInitiator ? 'initiator' : 'responder');
@@ -98,11 +111,13 @@ export class P2PConnection {
       this.pc!.addTrack(track, this.localStream!);
     });
 
-    // 4. Setup signaling channel
+    // 4. Setup signaling channel — WAITS for SUBSCRIBED status
     await this.setupSignaling();
 
-    // 5. If initiator, create and send offer
+    // 5. If initiator, wait a beat for the responder's channel to be ready, then send offer
     if (this.isInitiator) {
+      // Small delay ensures the responder has subscribed to the channel
+      await new Promise(r => setTimeout(r, 300));
       await this.createAndSendOffer();
     }
   }
@@ -138,16 +153,12 @@ export class P2PConnection {
       // If no video track, acquire one and add it
       const videoTracks = this.localStream.getVideoTracks();
       if (videoTracks.length === 0) {
-        try {
-          const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-          const videoTrack = videoStream.getVideoTracks()[0];
-          this.localStream.addTrack(videoTrack);
-          this.pc.addTrack(videoTrack, this.localStream);
-          // Renegotiate since we added a track
-          await this.renegotiate();
-        } catch (err) {
-          throw err;
-        }
+        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const videoTrack = videoStream.getVideoTracks()[0];
+        this.localStream.addTrack(videoTrack);
+        this.pc.addTrack(videoTrack, this.localStream);
+        // Renegotiate since we added a track
+        await this.renegotiate();
       } else {
         videoTracks.forEach(t => { t.enabled = true; });
       }
@@ -269,7 +280,7 @@ export class P2PConnection {
           break;
 
         case 'closed':
-          if (!this.isDisconnecting) {
+          if (!this.isDisconnecting && !this.hangupProcessed) {
             if (this.hasRemoteParticipant) {
               this.hasRemoteParticipant = false;
               this.onEvent({ type: 'remote-participant-left' });
@@ -291,24 +302,31 @@ export class P2PConnection {
     };
   }
 
-  /** Setup Supabase Realtime signaling channel */
-  private async setupSignaling(): Promise<void> {
-    const channelName = `p2p-signal:${this.conversationId}`;
+  /** Setup Supabase Realtime signaling channel — returns Promise that resolves on SUBSCRIBED */
+  private setupSignaling(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const channelName = `p2p-signal:${this.conversationId}`;
 
-    this.signalingChannel = supabase.channel(channelName, {
-      config: { broadcast: { self: false } },
-    });
-
-    this.signalingChannel
-      .on('broadcast', { event: 'signal' }, async (payload) => {
-        const message = payload.payload as SignalMessage;
-        // Ignore our own messages
-        if (message.senderId === this.userId) return;
-        await this.handleSignalMessage(message);
-      })
-      .subscribe((status) => {
-        if (import.meta.env.DEV) console.log('[P2P] Signaling channel status:', status);
+      this.signalingChannel = supabase.channel(channelName, {
+        config: { broadcast: { self: false } },
       });
+
+      this.signalingChannel
+        .on('broadcast', { event: 'signal' }, async (payload) => {
+          const message = payload.payload as SignalMessage;
+          // Ignore our own messages
+          if (message.senderId === this.userId) return;
+          await this.handleSignalMessage(message);
+        })
+        .subscribe((status) => {
+          if (import.meta.env.DEV) console.log('[P2P] Signaling channel status:', status);
+          if (status === 'SUBSCRIBED') {
+            resolve();
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            reject(new Error(`Signaling channel failed: ${status}`));
+          }
+        });
+    });
   }
 
   /** Handle incoming signaling messages */
@@ -355,6 +373,10 @@ export class P2PConnection {
       }
 
       case 'hangup': {
+        // Guard against double hangup processing
+        if (this.hangupProcessed) return;
+        this.hangupProcessed = true;
+
         if (import.meta.env.DEV) console.log('[P2P] Remote hangup received');
         this.hasRemoteParticipant = false;
         this.onEvent({ type: 'remote-participant-left' });
@@ -416,7 +438,7 @@ export class P2PConnection {
   }
 
   /** Attempt reconnection with exponential backoff */
-  private async attemptReconnect(): Promise<void> {
+  private attemptReconnect(): void {
     if (this.isDisconnecting) return;
     if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       if (import.meta.env.DEV) console.log('[P2P] Max reconnect attempts reached');
@@ -430,28 +452,36 @@ export class P2PConnection {
     if (import.meta.env.DEV) console.log(`[P2P] Reconnect attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
     this.onEvent({ type: 'reconnecting', attempt: this.reconnectAttempts });
 
-    await new Promise(r => setTimeout(r, delay));
+    // Store timeout so we can clear it on cleanup
+    this.reconnectTimeoutId = setTimeout(async () => {
+      this.reconnectTimeoutId = null;
+      if (this.isDisconnecting) return;
 
-    if (this.isDisconnecting) return;
-
-    // ICE restart
-    try {
-      if (this.pc && this.isInitiator) {
-        const offer = await this.pc.createOffer({ iceRestart: true });
-        await this.pc.setLocalDescription(offer);
-        this.sendSignal({
-          type: 'offer',
-          senderId: this.userId,
-          data: offer,
-        });
+      // ICE restart
+      try {
+        if (this.pc && this.isInitiator) {
+          const offer = await this.pc.createOffer({ iceRestart: true });
+          await this.pc.setLocalDescription(offer);
+          this.sendSignal({
+            type: 'offer',
+            senderId: this.userId,
+            data: offer,
+          });
+        }
+      } catch (err) {
+        if (import.meta.env.DEV) console.error('[P2P] Reconnect failed:', err);
       }
-    } catch (err) {
-      if (import.meta.env.DEV) console.error('[P2P] Reconnect failed:', err);
-    }
+    }, delay);
   }
 
   /** Clean up all resources */
   private cleanup(): void {
+    // Clear reconnect timeout to prevent memory leak
+    if (this.reconnectTimeoutId) {
+      clearTimeout(this.reconnectTimeoutId);
+      this.reconnectTimeoutId = null;
+    }
+
     // Stop local tracks
     if (this.localStream) {
       this.localStream.getTracks().forEach(t => t.stop());
@@ -479,5 +509,6 @@ export class P2PConnection {
     this.hasRemoteDescription = false;
     this.iceCandidateQueue = [];
     this.reconnectAttempts = 0;
+    this.hangupProcessed = false;
   }
 }
