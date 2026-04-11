@@ -146,7 +146,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 
   /* Exempt cosmetic effect animations from iOS kill-switch */
   .platform-ios .sparkle-name { animation: sparkle-name 2s ease-in-out infinite !important; }
-  .platform-ios .rainbow-name { animation: rainbow-shift 3s linear infinite !important; }
+  .platform-ios .rainbow-name { animation: rainbow-bg-scroll 4.5s linear infinite !important; }
   .platform-ios .fire-glow { animation: fire-glow 1.5s ease-in-out infinite !important; }
   .platform-ios .cosmic-name { animation: cosmic-glow 3s ease-in-out infinite !important; }
   .platform-ios .glitch-name { animation: glitch-text 0.8s steps(4) infinite !important; }
@@ -3299,7 +3299,7 @@ img, video {
 }
 @keyframes ambient-shift {
   from { background-position: 0% 50%; }
-  to { background-position: 100% 50%; }
+  to { background-position: -100% 50%; }
 }
 
 /* --- Respect reduced motion --- */
