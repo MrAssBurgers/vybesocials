@@ -172,6 +172,7 @@ export const StyledUsername = memo(forwardRef<HTMLSpanElement, StyledUsernamePro
 
   return (
     <span
+      ref={ref}
       style={gradientStyle}
       className={cn(className)}
     >
