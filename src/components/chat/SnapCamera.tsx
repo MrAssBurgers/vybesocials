@@ -1087,7 +1087,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 disabled={isSending}
                 className={cn(
                   "w-full py-4 rounded-2xl font-bold text-white text-lg flex items-center justify-center gap-2",
-                  "bg-[length:300%_100%]",
+                  "bg-gradient-to-r from-primary via-accent to-primary bg-[length:300%_100%]",
                   "disabled:opacity-50 disabled:cursor-not-allowed",
                   "transition-all duration-300"
                 )}
