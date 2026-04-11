@@ -774,8 +774,8 @@ function FriendMapInner() {
   /* ── render ────────────────────────────────────────── */
 
   return (
-    <AppLayout hideNav noPadding fullWidth>
-      <div className="fixed inset-0 md:absolute md:inset-0 w-full overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none', zIndex: 1 }}>
+    <AppLayout hideNav noPadding fullWidth hideRightSidebar>
+      <div className="fixed inset-0 w-full h-full overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none', zIndex: 50 }}>
         <style>{`
           @keyframes pulse-ring{0%{transform:scale(.8);opacity:1}100%{transform:scale(3);opacity:0}}
           @keyframes pulse-glow{0%,100%{box-shadow:0 0 0 0 hsl(217 91% 60%/.4)}50%{box-shadow:0 0 20px 8px hsl(217 91% 60%/.2)}}
