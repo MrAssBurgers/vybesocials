@@ -1847,6 +1847,7 @@ const MessageInputArea = memo(function MessageInputArea({
   isVoiceLocked?: boolean;
   setIsVoiceLocked?: (locked: boolean) => void;
   voiceLockStartYRef?: React.MutableRefObject<number | null>;
+  safetyFilterNode?: React.ReactNode;
 }) {
   return (
     <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30 relative">
