@@ -513,12 +513,29 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
      transparent so the body background shows through.
      ============================================= */
   
-  /* When a custom background is active, remove body gradient and make #root transparent */
+  /* When a custom background is active, remove body gradient and make all layout layers transparent */
   body.has-custom-bg {
     background: none !important;
   }
   body.has-custom-bg #root {
     background: transparent !important;
+    background-color: transparent !important;
+  }
+  /* Make the AnimatedRoutes wrapper and AppLayout shells transparent */
+  body.has-custom-bg #main-content {
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+  body.has-custom-bg #root > div,
+  body.has-custom-bg #root > div > div {
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+  /* Override .bg-background on all layout-level containers so the wallpaper shows through */
+  body.has-custom-bg .min-h-screen {
+    background-color: transparent !important;
+  }
+  body.has-custom-bg [data-app-scroll-container] {
     background-color: transparent !important;
   }
   
@@ -558,6 +575,11 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       hsl(var(--light-bg-mid, 330 30% 97%)) 50%,
       hsl(var(--background)) 100%
     );
+  }
+  /* Light mode also needs wallpaper passthrough */
+  .light body.has-custom-bg,
+  body.light.has-custom-bg {
+    background: none !important;
   }
 
   /* Safe area inset utilities */
