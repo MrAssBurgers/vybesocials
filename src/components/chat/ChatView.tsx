@@ -2069,7 +2069,7 @@ const MessageBubble = memo(function MessageBubble({
   const [vybeViewed, setVybeViewed] = useState(hasAnyViews);
   const [showVybeViewer, setShowVybeViewer] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
-  const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'gif' | 'video' } | null>(null);
+  const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'gif' | 'video'; senderName?: string; timestamp?: string } | null>(null);
   const isContextMenuOpen = showContextMenu || forceShowContextMenu;
 
   useEffect(() => {
@@ -2140,9 +2140,14 @@ const MessageBubble = memo(function MessageBubble({
   const handleMediaTap = useCallback(() => {
     if (isContextMenuOpen) return;
     if (message.media_url && (message.media_type === 'image' || message.media_type === 'gif' || message.media_type === 'video')) {
-      setViewerMedia({ url: message.media_url, type: message.media_type as 'image' | 'gif' | 'video' });
+      setViewerMedia({
+        url: message.media_url,
+        type: message.media_type as 'image' | 'gif' | 'video',
+        senderName: isOwn ? 'You' : (sender?.username || undefined),
+        timestamp: message.created_at,
+      });
     }
-  }, [isContextMenuOpen, message.media_url, message.media_type]);
+  }, [isContextMenuOpen, message.media_url, message.media_type, message.created_at, isOwn, sender?.username]);
 
   // Check if this is an audio message for proper sizing
   const isAudioMessage = message.media_url && message.media_type === 'audio';
@@ -2585,6 +2590,11 @@ const MessageBubble = memo(function MessageBubble({
               mediaType={viewerMedia.type === 'gif' ? 'image' : viewerMedia.type}
               onClose={() => setViewerMedia(null)}
               onReply={() => { onReply(); setViewerMedia(null); }}
+              onReaction={(emoji) => { onReaction(message.id, emoji); setViewerMedia(null); }}
+              onDelete={isOwn ? () => { onUnsendForEveryone(); setViewerMedia(null); } : undefined}
+              senderName={viewerMedia.senderName}
+              timestamp={viewerMedia.timestamp}
+              isOwn={isOwn}
             />
           )}
         </AnimatePresence>
