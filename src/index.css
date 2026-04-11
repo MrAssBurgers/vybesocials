@@ -1662,7 +1662,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     background-position: 0% 50%;
   }
   100% {
-    background-position: -100% 50%;
+    background-position: -33.33% 50%;
   }
 }
 
