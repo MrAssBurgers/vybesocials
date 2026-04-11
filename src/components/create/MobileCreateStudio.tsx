@@ -329,7 +329,15 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
     const selected = Array.from(e.target.files || []);
     if (selected.length === 0) return;
 
-    if (mode === 'multi') {
+    // Auto-switch to multi/carousel mode when multiple images selected
+    if (selected.length > 1 && mode !== 'multi') {
+      setMode('multi');
+      const items = selected.slice(0, 10);
+      const urls = items.map(f => URL.createObjectURL(f));
+      setCapturedFiles(items);
+      setCapturedPreviews(urls);
+      setPhase('compose');
+    } else if (mode === 'multi') {
       const remaining = 10 - capturedFiles.length;
       const items = selected.slice(0, remaining);
       const urls = items.map(f => URL.createObjectURL(f));
@@ -396,7 +404,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   return (
     <div className="fixed inset-0 z-[200] bg-black flex flex-col">
       <canvas ref={canvasRef} className="hidden" />
-      <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple={mode === 'multi'} onChange={handleGalleryPick} className="hidden" />
+      <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={handleGalleryPick} className="hidden" />
 
       {/* Camera viewfinder with pinch-to-zoom */}
       <div
