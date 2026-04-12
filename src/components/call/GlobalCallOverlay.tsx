@@ -994,50 +994,49 @@ export function GlobalCallOverlay() {
 
           {/* Audio Call — Avatar */}
           {!isVideoCall && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
+            <div className="absolute inset-0 flex items-center justify-center" onClick={handleScreenTap} onTouchEnd={handleScreenTap}>
+              <div className="text-center px-4">
                 {/* Outer glow rings */}
                 <div className="relative inline-block">
                   <motion.div
                     animate={{ scale: [1, 1.6], opacity: [0.3, 0] }}
                     transition={{ repeat: Infinity, duration: 3, ease: "easeOut" }}
                     className="absolute inset-0 rounded-full border border-primary/40"
-                    style={{ width: 176, height: 176, margin: '-8px' }}
+                    style={{ width: 144, height: 144, margin: '-8px' }}
                   />
                   <motion.div
                     animate={{ scale: [1, 1.4], opacity: [0.2, 0] }}
                     transition={{ repeat: Infinity, duration: 3, delay: 0.8, ease: "easeOut" }}
                     className="absolute inset-0 rounded-full border border-accent/30"
-                    style={{ width: 176, height: 176, margin: '-8px' }}
+                    style={{ width: 144, height: 144, margin: '-8px' }}
                   />
-                  {/* Glowing backdrop behind avatar */}
                   <motion.div
                     animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.6, 0.4] }}
                     transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
                     className="absolute inset-0 rounded-full blur-2xl"
-                    style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(280 80% 60% / 0.3))', width: 160, height: 160 }}
+                    style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(280 80% 60% / 0.3))', width: 128, height: 128 }}
                   />
                   <motion.div animate={{ scale: [1, 1.03, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
-                    <Avatar className="h-40 w-40 mx-auto ring-4 ring-white/10 shadow-2xl relative z-10">
+                    <Avatar className="h-32 w-32 sm:h-40 sm:w-40 mx-auto ring-4 ring-white/10 shadow-2xl relative z-10">
                       <AvatarImage src={displayAvatar || undefined} />
-                      <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
+                      <AvatarFallback className="text-4xl sm:text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
                     </Avatar>
                   </motion.div>
                 </div>
-                <h2 className="mt-6 text-2xl font-bold text-white tracking-tight">{displayName}</h2>
+                <h2 className="mt-4 sm:mt-6 text-xl sm:text-2xl font-bold text-white tracking-tight">{displayName}</h2>
                 {isConnecting && (
-                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="mt-2 text-white/60 text-lg">Connecting...</motion.p>
+                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="mt-2 text-white/60 text-base sm:text-lg">Connecting...</motion.p>
                 )}
                 {isRingingOut && (
-                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }} className="mt-2 text-white/60 text-lg">Ringing...</motion.p>
+                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }} className="mt-2 text-white/60 text-base sm:text-lg">Ringing...</motion.p>
                 )}
                 {isConnected && !isRingingOut && !remoteUserLeft && (
-                  <p className="mt-2 text-white/70 text-lg font-mono">{formatDuration(callDuration)}</p>
+                  <p className="mt-2 text-white/70 text-base sm:text-lg font-mono">{formatDuration(callDuration)}</p>
                 )}
                 {isConnected && remoteUserLeft && (
-                  <div className="mt-4 text-center">
-                    <p className="text-white/50 text-sm">{displayName} left · They can rejoin</p>
-                    <p className="text-white/70 text-lg font-mono mt-1">{Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
+                  <div className="mt-3 sm:mt-4 text-center">
+                    <p className="text-white/50 text-xs sm:text-sm">{displayName} left · They can rejoin</p>
+                    <p className="text-white/70 text-base sm:text-lg font-mono mt-1">{Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
                     <p className="text-white/40 text-xs mt-1">They can rejoin</p>
                   </div>
                 )}
