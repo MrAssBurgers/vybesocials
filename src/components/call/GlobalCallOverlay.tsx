@@ -1152,15 +1152,16 @@ export function GlobalCallOverlay() {
             animate={{ y: showFooter ? 0 : 100, opacity: showFooter ? 1 : 0 }}
             transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
             className="absolute bottom-0 left-0 right-0 pointer-events-auto"
-            style={{ paddingBottom: 'calc(2.5rem + env(safe-area-inset-bottom))' }}
+            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
             onMouseEnter={handleFooterAreaEnter}
             onMouseLeave={handleFooterAreaLeave}
+            onTouchStart={handleFooterAreaEnter}
           >
-            <div className="flex justify-center">
-              <div className="inline-flex items-center gap-3 p-3 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+            <div className="flex justify-center px-3">
+              <div className="inline-flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)] max-w-full overflow-x-auto">
                 {/* Settings */}
-                <motion.button whileTap={{ scale: 0.95 }} onClick={() => setSettingsOpen(true)} disabled={!isConnected} className={cn("relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300", "bg-white/10 text-white hover:bg-white/20 border border-white/10", "disabled:opacity-50 disabled:cursor-not-allowed")}>
-                  <SlidersHorizontal className="h-5 w-5" />
+                <motion.button whileTap={{ scale: 0.95 }} onClick={() => setSettingsOpen(true)} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-300", "bg-white/10 text-white hover:bg-white/20 border border-white/10", "disabled:opacity-50 disabled:cursor-not-allowed")}>
+                  <SlidersHorizontal className="h-4 w-4 sm:h-5 sm:w-5" />
                 </motion.button>
 
                 {/* Stay On Call toggle — premium feature */}
@@ -1169,7 +1170,7 @@ export function GlobalCallOverlay() {
                   onClick={handleStayOnCallToggle}
                   disabled={!isConnected || isSwitching}
                   className={cn(
-                    "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
+                    "relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-300",
                     "disabled:opacity-50 disabled:cursor-not-allowed",
                     currentMode === 'persistent'
                       ? "bg-gradient-to-br from-primary to-accent text-white shadow-lg ring-2 ring-primary/50"
@@ -1177,40 +1178,40 @@ export function GlobalCallOverlay() {
                   )}
                   title={currentMode === 'persistent' ? 'Stay On Call (active)' : 'Stay On Call (premium)'}
                 >
-                  <Crown className="h-5 w-5" />
+                  <Crown className="h-4 w-4 sm:h-5 sm:w-5" />
                   {!isPremium && currentMode !== 'persistent' && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center">
-                      <span className="text-[8px] font-bold text-black">PRO</span>
+                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-yellow-500 flex items-center justify-center">
+                      <span className="text-[7px] sm:text-[8px] font-bold text-black">PRO</span>
                     </span>
                   )}
                 </motion.button>
 
-                <div className="w-px h-10 bg-white/20 mx-1" />
+                <div className="w-px h-8 sm:h-10 bg-white/20 flex-shrink-0" />
 
                 {/* Mute */}
-                <motion.button whileTap={{ scale: 0.95 }} onClick={handleToggleMute} disabled={!isConnected} className={cn("relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isMuted ? "bg-white text-black shadow-lg ring-2 ring-primary/50" : "bg-white/10 text-white hover:bg-white/20")}>
-                  {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+                <motion.button whileTap={{ scale: 0.95 }} onClick={handleToggleMute} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isMuted ? "bg-white text-black shadow-lg ring-2 ring-primary/50" : "bg-white/10 text-white hover:bg-white/20")}>
+                  {isMuted ? <MicOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Mic className="h-5 w-5 sm:h-6 sm:w-6" />}
                 </motion.button>
 
                 {/* Video toggle */}
                 {isVideoCall && (
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleToggleVideo} disabled={!isConnected} className={cn("relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isVideoOff ? "bg-white text-black shadow-lg ring-2 ring-accent/50" : "bg-white/10 text-white hover:bg-white/20")}>
-                    {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleToggleVideo} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isVideoOff ? "bg-white text-black shadow-lg ring-2 ring-accent/50" : "bg-white/10 text-white hover:bg-white/20")}>
+                    {isVideoOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
                   </motion.button>
                 )}
 
                 {/* Retry camera */}
                 {isVideoCall && cameraError && (
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleRetryVideo} className="relative h-14 w-14 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 border border-white/10">
-                    <RefreshCw className="h-5 w-5" />
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleRetryVideo} className="relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center bg-white/10 text-white hover:bg-white/20 border border-white/10">
+                    <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5" />
                   </motion.button>
                 )}
 
-                <div className="w-px h-10 bg-white/20 mx-1" />
+                <div className="w-px h-8 sm:h-10 bg-white/20 flex-shrink-0" />
 
                 {/* Leave / End */}
-                <motion.button whileTap={{ scale: 0.95 }} onClick={currentMode === 'persistent' ? handleLeaveCall : handleHangup} disabled={isHangingUp} className={cn("relative h-14 px-6 rounded-xl flex items-center justify-center gap-2 transition-all duration-300", "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg", "hover:from-red-600 hover:to-red-700", "disabled:opacity-70")}>
-                  {isHangingUp ? <Loader2 className="h-5 w-5 animate-spin" /> : (<><PhoneOff className="h-5 w-5" /><span className="font-medium">{currentMode === 'persistent' ? 'Leave' : 'End'}</span></>)}
+                <motion.button whileTap={{ scale: 0.95 }} onClick={currentMode === 'persistent' ? handleLeaveCall : handleHangup} disabled={isHangingUp} className={cn("relative h-11 sm:h-14 px-4 sm:px-6 rounded-xl flex-shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 transition-all duration-300", "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg", "hover:from-red-600 hover:to-red-700", "disabled:opacity-70")}>
+                  {isHangingUp ? <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" /> : (<><PhoneOff className="h-4 w-4 sm:h-5 sm:w-5" /><span className="font-medium text-sm sm:text-base">{currentMode === 'persistent' ? 'Leave' : 'End'}</span></>)}
                 </motion.button>
               </div>
             </div>
