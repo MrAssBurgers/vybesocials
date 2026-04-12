@@ -1416,7 +1416,7 @@ export function ChatView() {
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'contain',
           touchAction: 'pan-y',
-          contain: 'strict',
+          contain: 'layout style',
         }}
       >
         {/* Messages container - extra bottom padding on mobile for bottom nav */}
