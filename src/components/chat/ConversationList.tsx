@@ -43,6 +43,7 @@ import { useBatchUserStatuses } from '@/hooks/useUserStatus';
 import { StatusPicker } from '@/components/status/StatusPicker';
 import { compactTime } from '@/lib/compactTime';
 import { useSuggestedFriends } from '@/hooks/useFriendsOfFriends';
+import { NotesRow } from './NotesRow';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
