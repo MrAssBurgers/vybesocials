@@ -77,20 +77,14 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const themeImg = equippedTheme ? THEME_IMAGES[equippedTheme] : null;
-    if (!themeImg) return;
-
-    // Preload then apply
-    const img = new Image();
-    img.onload = () => {
-      setBackgroundImage(themeImg);
-    };
-    img.src = themeImg;
-
-    return () => {
-      // Restore the user's own background from the database
-      refreshBackground();
-    };
-  }, [equippedTheme, setBackgroundImage]);
+    if (themeImg) {
+      const img = new Image();
+      img.onload = () => setBackgroundImage(themeImg);
+      img.src = themeImg;
+    }
+    // Always restore on unmount, regardless of whether theme was applied
+    return () => { refreshBackground(); };
+  }, [equippedTheme, setBackgroundImage, refreshBackground]);
 
   const isOwnProfile = !!currentProfile && !!profile && currentProfile.id === profile.id;
 
