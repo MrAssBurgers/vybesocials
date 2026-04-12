@@ -319,7 +319,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
         )}
       </AnimatePresence>
 
-      {/* ─── TOP BAR ─── */}
+      {/* ─── TOP BAR ─── Snapchat style */}
       <div className="absolute top-0 left-0 right-0 z-10 safe-area-inset-top">
         <div className="flex items-center justify-between px-4 pt-3 pb-2">
           <button onClick={onClose} className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
@@ -346,29 +346,65 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
             )}
           </AnimatePresence>
 
-          <button onClick={() => setFlash(!flash)} className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
-            {flash ? <Zap className="h-4.5 w-4.5 text-yellow-400" fill="currentColor" /> : <ZapOff className="h-4.5 w-4.5 text-white" />}
-          </button>
+          <div className="flex gap-1.5">
+            <button onClick={toggleCamera} className="w-9 h-9 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
+              <RefreshCw className="h-4 w-4 text-white" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ─── RIGHT SIDE TOOLS ─── */}
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2.5">
-        <button onClick={toggleCamera} className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
-          <RefreshCw className="h-5 w-5 text-white" />
+      {/* ─── RIGHT SIDE TOOLS ─── Snapchat style with labels */}
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3">
+        <button onClick={() => setFlash(!flash)} className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform">
+          <div className={cn(
+            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+            flash ? "bg-yellow-400/30" : "bg-black/40"
+          )}>
+            {flash ? <Zap className="h-4.5 w-4.5 text-yellow-400" fill="currentColor" /> : <ZapOff className="h-4.5 w-4.5 text-white" />}
+          </div>
+          <span className="text-[9px] text-white/70 font-medium">Flash</span>
         </button>
-        <button onClick={cycleTimer} className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform relative">
-          <Timer className="h-5 w-5 text-white" />
-          {timerSeconds > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 text-[8px] font-bold bg-primary text-primary-foreground w-4 h-4 rounded-full flex items-center justify-center">{timerSeconds}</span>
-          )}
-        </button>
+        
         <button 
-          onClick={() => { triggerHaptic('light'); setGridEnabled(!gridEnabled); }} 
-          className={cn("w-11 h-11 rounded-full backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform", gridEnabled ? "bg-white/30" : "bg-black/30")}
+          className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+          onClick={() => { triggerHaptic('light'); setShowSoundPicker(true); }}
         >
-          <Grid3X3 className="h-5 w-5 text-white" />
+          <div className={cn(
+            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+            selectedSound ? "bg-primary/40" : "bg-black/40"
+          )}>
+            <Music className="h-4.5 w-4.5 text-white" />
+          </div>
+          <span className="text-[9px] text-white/70 font-medium">Sounds</span>
         </button>
+
+        <button 
+          onClick={cycleTimer}
+          className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+        >
+          <div className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center backdrop-blur-sm relative">
+            <Timer className="h-4.5 w-4.5 text-white" />
+            {timerSeconds > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 text-[8px] font-bold bg-primary text-primary-foreground w-3.5 h-3.5 rounded-full flex items-center justify-center">{timerSeconds}</span>
+            )}
+          </div>
+          <span className="text-[9px] text-white/70 font-medium">Timer</span>
+        </button>
+        
+        <button 
+          onClick={() => { triggerHaptic('light'); setGridEnabled(!gridEnabled); }}
+          className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+        >
+          <div className={cn(
+            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+            gridEnabled ? "bg-white/30" : "bg-black/40"
+          )}>
+            <Grid3X3 className="h-4.5 w-4.5 text-white" />
+          </div>
+          <span className="text-[9px] text-white/70 font-medium">Grid</span>
+        </button>
+
         <button 
           onClick={() => {
             triggerHaptic('light');
@@ -378,15 +414,12 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
               return next;
             });
           }} 
-          className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform"
+          className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
         >
-          <Sun className="h-5 w-5 text-white" />
-        </button>
-        <button 
-          className={cn("w-11 h-11 rounded-full backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform", selectedSound ? "bg-primary/40" : "bg-black/30")}
-          onClick={() => { triggerHaptic('light'); setShowSoundPicker(true); }}
-        >
-          <Music className="h-5 w-5 text-white" />
+          <div className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center backdrop-blur-sm">
+            <Sun className="h-4.5 w-4.5 text-white" />
+          </div>
+          <span className="text-[9px] text-white/70 font-medium">HDR</span>
         </button>
       </div>
 

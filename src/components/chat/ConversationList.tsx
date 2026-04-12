@@ -43,6 +43,7 @@ import { useBatchUserStatuses } from '@/hooks/useUserStatus';
 import { StatusPicker } from '@/components/status/StatusPicker';
 import { compactTime } from '@/lib/compactTime';
 import { useSuggestedFriends } from '@/hooks/useFriendsOfFriends';
+import { NotesRow } from './NotesRow';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
@@ -354,6 +355,9 @@ export function ConversationList() {
       {/* Conversation List */}
       <ScrollArea className="flex-1" style={{ overflowX: 'hidden' }}>
 
+        {/* Notes Row - Instagram/Snapchat style */}
+        <NotesRow />
+
         {/* AI Chat Row */}
         <div className="px-3 pt-1 pb-1">
           <AutisyAIChatRow />
@@ -571,7 +575,7 @@ const ConversationContent = memo(function ConversationContent({
             </div>
           </div>
         ) : (
-          <button onClick={handleAvatarClick} className="block">
+          <button onClick={handleAvatarClick} className="block relative">
             <div className={`relative ${hasStory ? 'p-0.5' : ''}`}>
               {hasStory && (
                 <div className={`absolute inset-0 rounded-full ${storyGroup?.hasUnviewed ? 'bg-gradient-to-tr from-primary via-primary/80 to-primary/60' : 'bg-muted-foreground/30'}`} />
@@ -581,7 +585,7 @@ const ConversationContent = memo(function ConversationContent({
                 <AvatarFallback className="text-base">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
               </Avatar>
             </div>
-            <OnlineIndicator isOnline={isOnline} size="sm" className="-bottom-0.5 -right-0.5" />
+            <OnlineIndicator isOnline={isOnline} size="sm" className="absolute -bottom-0.5 -right-0.5" />
           </button>
         )}
         {isPinned && (
