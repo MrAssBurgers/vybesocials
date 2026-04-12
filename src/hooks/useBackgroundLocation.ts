@@ -42,6 +42,7 @@ export function useBackgroundLocation(userId?: string): LocationState {
     lastUpsert.current = now;
     const hour = new Date().getHours();
     const status = autoStatus(spd, hour);
+    const expiresAt = new Date(now + 60 * 60 * 1000).toISOString(); // 1 hour from now
     await supabase
       .from('user_locations')
       .upsert({
@@ -52,6 +53,7 @@ export function useBackgroundLocation(userId?: string): LocationState {
         sharing_enabled: true,
         status,
         speed: spd,
+        expires_at: expiresAt,
       } as any, { onConflict: 'user_id' });
   }, [userId, sharing]);
 
