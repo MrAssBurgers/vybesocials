@@ -232,7 +232,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
   const handleCaptureEnd = () => {
     if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
     if (isRecording) stopRecording();
-    else if (captureMode === 'photo' && timerSeconds === 0) takePhoto();
+    else if (captureMode === 'photo' && timerSeconds === 0 && !isSwiping) takePhoto();
   };
 
   const handleFilterSwipe = (direction: number) => {
