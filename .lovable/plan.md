@@ -1,65 +1,45 @@
 
 
-## Fix Camera Speed, Toybox Photos on iOS, and Revamp VybeMap to Match Snap Maps
+## Snapchat-Style Camera UI Revamp, DM Notes Feature, and Online Green Dots
 
-### 1. Instant Camera Connection (`src/components/camera/VybeSnapCamera.tsx`)
+### What we're building
 
-**Problem**: `startCamera` always stops any preloaded stream and requests a brand new one, causing a visible delay.
+1. **Revamp both camera UIs to match the Snapchat reference screenshot** — right-side vertical tool strip with labels (Flash, Sounds, HD Mode), user avatar top-left, search icon, add friend/scan icons top-right, a collapsible chevron, bottom filter carousel with category tabs (Moments, Favorites, For You, Aesthetic), Memories button, and AI lens button.
 
-**Fix**: Reuse the preloaded stream when facing mode and audio settings match, only requesting a new stream when switching cameras. Remove the `stopCameraStream()` call at line 82 and instead check if the existing stream's track settings match. Also remove the `setCameraReady(false)` on open (line 160) so the UI doesn't flash a loading state unnecessarily.
+2. **Add Instagram/Snapchat-style Notes above the DM conversation list** — horizontally scrollable row of circular avatars with speech bubble "notes" above them. First item is "Your note" (current user), followed by friends' notes. Users can tap their own to set/edit a note, and see others' notes displayed as rounded speech bubbles above their avatar.
 
-### 2. Toybox Photo Picker Broken on iPhone (`src/components/chat/Toybox.tsx`)
+3. **Green online dot on avatars in the DM conversation list** — already partially implemented via `OnlineIndicator`, but needs to be consistently shown on the bottom-right of every user's profile picture in the conversation list when they're online.
 
-**Problem**: On iOS Safari, programmatic `.click()` on a hidden `<input type="file">` inside a Drawer can be blocked because the gesture context is lost when the drawer animation completes. The file inputs are rendered inside the Drawer content, but the click is triggered via a button's `onClick` which may lose the user-gesture chain on iOS.
+### Technical Details
 
-**Fix**: 
-- Move the hidden `<input type="file">` elements **outside** the Drawer/Popover wrapper so they exist in the main DOM at all times
-- Ensure the `onClick` handler calls `imageInputRef.current?.click()` synchronously (no async, no setTimeout)
-- Add `capture` attribute option for iOS camera access: `accept="image/*"` without `capture` allows photo library
+**1. Camera UI Revamp (`src/components/camera/Camera.tsx` + `src/components/camera/VybeSnapCamera.tsx`)**
 
-### 3. Revamp VybeMap to Match Snap Maps (`src/pages/FriendMap.tsx`)
+Both camera components will be updated to match the Snapchat layout from the reference:
 
-Looking at the reference screenshots, the Snap Maps UI has these key elements our map is missing:
+- **Top bar**: User avatar (top-left), search icon next to it, add-friend and camera-flip icons (top-right). Remove centered "VYBE" branding pill from VybeSnap.
+- **Right side vertical strip**: Replace the current scattered controls with a vertical column on the right side showing icon + label pairs: Flash, Sounds, HD Mode, plus a chevron-down to collapse/expand extra tools.
+- **Bottom area**: Add a "Memories" button (left of capture), an AI lens circle (between Memories and capture), keep capture button centered, add recent contacts/lenses strip to the right of capture. Add horizontal scrollable category tabs below: Moments, Favorites, For You, Aesthetic, etc.
+- **Remove**: The current "Flash On/Off" pill button from VybeSnapCamera bottom, the separate flash/sound/switch buttons from VybeSnapCamera header.
 
-**Top area (matching screenshot 3)**:
-- User's own avatar (top-left) with a star/streak badge
-- Location name + weather info (top-right): "Argyle, 72°F" with weather icon
-- Filter chip row: Memories, Trending, Visited, Popular
+**2. Notes Feature (new component + database table)**
 
-**Search panel (matching screenshot 1)**:
-- Bottom sheet / pull-up panel with "Search for places" input
-- Filter chips: Trending, Memories, Visited, Popular
-- "Friends" section listing friends with their current location labels and time ago
-- Each friend row shows: avatar, display name, location text (e.g. "Driving in Trophy Club"), time ago
-- "View More" link at bottom
+- **New table `user_notes`**: `id uuid PK`, `user_id uuid REFERENCES auth.users NOT NULL`, `content text NOT NULL`, `created_at timestamptz DEFAULT now()`, `expires_at timestamptz DEFAULT now() + interval '24 hours'`. RLS: authenticated users can read notes from their friends, and CRUD their own.
+- **New component `src/components/chat/NotesRow.tsx`**: Horizontal scroll row rendered above the conversation list in `ConversationList.tsx`. Shows current user's avatar first ("Your note" / tap to add), then friends with active notes. Each note displays as a rounded dark speech bubble above the avatar, exactly like the Instagram reference.
+- **New hook `src/hooks/useNotes.ts`**: Fetch current user's note + friends' notes (join with friendships table), create/update/delete own note.
 
-**Location Settings (matching screenshot 2)**:
-- Ghost Mode toggle with avatar
-- "Who Can See My Location" section with radio options: My Friends, My Friends Except..., Only These Friends...
-- Already partially implemented in our Ghost Mode sheet — needs expansion
+**3. Online Green Dot Consistency**
 
-**Changes to implement**:
+The `OnlineIndicator` component is already used in `ConversationContent` at line 584, but it's placed inside the avatar button wrapper. Verify it renders correctly with `className="-bottom-0.5 -right-0.5"` on the outer relative container. For group chats, no dot is shown (correct). The implementation already handles this — just need to confirm the `relative` positioning context is correct on the parent div (line 557 has `relative`), so this should already work. Will audit and fix if the dot isn't visible due to overflow clipping.
 
-a. **Add weather + location header**: Fetch weather from a free API (or use browser geolocation reverse geocode) to show city name and temperature at top-right, with user's avatar at top-left
-
-b. **Add filter chip row**: Below the top bar, add horizontal scrollable chips for Memories, Trending, Visited, Popular (decorative for now, can be wired up later)
-
-c. **Revamp search into a pull-up bottom sheet**: Replace the current top overlay search with a Snap-style bottom sheet that shows:
-   - Search input at top
-   - Filter chips
-   - "Friends" section with list of all friends showing their current location label and time since update
-   - Tapping a friend in the list flies to them on the map
-
-d. **Expand Ghost Mode sheet**: Add "Who Can See My Location" section with the three radio options (My Friends / My Friends Except... / Only These Friends...) matching the Snapchat settings UI
-
-e. **Default map style to dark**: Snap Maps uses a dark style by default — change the default from 'satellite' to 'dark'
-
-f. **Friend marker style**: Already has avatar markers with rings — keep but ensure the label shows the friend's first name below (already does)
-
-g. **Bottom friend avatar strip**: Already exists — keep as-is, matches Snap's bottom row
+### Files to create
+- `src/components/chat/NotesRow.tsx` — Notes horizontal scroll component
+- `src/hooks/useNotes.ts` — Notes data hook
 
 ### Files to modify
-- `src/components/camera/VybeSnapCamera.tsx` — reuse preloaded stream for instant camera
-- `src/components/chat/Toybox.tsx` — move file inputs outside Drawer for iOS compatibility
-- `src/pages/FriendMap.tsx` — major revamp: weather header, filter chips, bottom sheet search with friend list, expanded ghost mode settings, dark default style
+- `src/components/camera/Camera.tsx` — Snapchat-style layout with right-side tools, bottom filter tabs
+- `src/components/camera/VybeSnapCamera.tsx` — Same Snapchat-style layout
+- `src/components/chat/ConversationList.tsx` — Add NotesRow above conversation list, verify online dots
+
+### Database migration
+- Create `user_notes` table with RLS policies for authenticated access
 
