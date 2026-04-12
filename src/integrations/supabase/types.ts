@@ -10004,6 +10004,7 @@ export type Database = {
           content: string
           created_at: string
           expires_at: string
+          gif_url: string | null
           id: string
           user_id: string
         }
@@ -10011,6 +10012,7 @@ export type Database = {
           content: string
           created_at?: string
           expires_at?: string
+          gif_url?: string | null
           id?: string
           user_id: string
         }
@@ -10018,6 +10020,7 @@ export type Database = {
           content?: string
           created_at?: string
           expires_at?: string
+          gif_url?: string | null
           id?: string
           user_id?: string
         }
@@ -11765,6 +11768,7 @@ export type Database = {
           content: string
           created_at: string
           expires_at: string
+          gif_url: string
           id: string
           user_id: string
         }[]
