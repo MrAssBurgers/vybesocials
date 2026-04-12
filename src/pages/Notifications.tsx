@@ -531,7 +531,7 @@ function GroupedNotificationRow({ group, index, isRead, isLast }: {
     >
       <div className="flex items-center gap-3">
         {/* Stacked avatars */}
-        <div className="relative shrink-0" style={{ width: actorCount > 1 ? 48 : 44, height: 44 }}>
+        <div className="relative shrink-0" style={{ width: actorCount > 1 ? 52 : 48, height: 48 }}>
           <Avatar className="h-11 w-11 absolute top-0 left-0">
             <AvatarImage src={firstActor.avatar_url || undefined} />
             <AvatarFallback className="bg-muted text-foreground text-sm font-semibold">
