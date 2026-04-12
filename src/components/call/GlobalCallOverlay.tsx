@@ -1295,46 +1295,46 @@ function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onA
         <motion.div animate={{ x: [0, -30, 0], y: [0, -50, 0], scale: [1, 1.3, 1] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }} />
       </div>
       <div className="absolute inset-0 backdrop-blur-3xl" />
-      <motion.div initial={{ scale: 0.8, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: 40 }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="relative z-10 flex flex-col items-center max-w-sm w-full">
-        <div className="relative mb-8">
-          <motion.div animate={{ scale: [1, 1.5], opacity: [0.6, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 144, height: 144, margin: '-8px' }} />
-          <motion.div animate={{ scale: [1, 1.4], opacity: [0.4, 0] }} transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-accent/40" style={{ width: 144, height: 144, margin: '-8px' }} />
+      <motion.div initial={{ scale: 0.8, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: 40 }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="relative z-10 flex flex-col items-center max-w-sm w-full px-4">
+        <div className="relative mb-6 sm:mb-8">
+          <motion.div animate={{ scale: [1, 1.5], opacity: [0.6, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 120, height: 120, margin: '-8px' }} />
+          <motion.div animate={{ scale: [1, 1.4], opacity: [0.4, 0] }} transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-accent/40" style={{ width: 120, height: 120, margin: '-8px' }} />
           <motion.div animate={{ scale: [1, 1.02, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
-            <Avatar className="h-32 w-32 ring-4 ring-white/10 shadow-2xl">
+            <Avatar className="h-24 w-24 sm:h-32 sm:w-32 ring-4 ring-white/10 shadow-2xl">
               <AvatarImage src={incomingDisplayAvatar || undefined} />
-              <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{incomingDisplayInitial}</AvatarFallback>
+              <AvatarFallback className="text-3xl sm:text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{incomingDisplayInitial}</AvatarFallback>
             </Avatar>
           </motion.div>
           <motion.div initial={{ scale: 0, y: 10 }} animate={{ scale: 1, y: 0 }} transition={{ delay: 0.2, type: "spring" }} className="absolute -bottom-3 left-1/2 -translate-x-1/2">
-            <div className="px-4 py-1.5 rounded-full bg-gradient-to-r from-primary to-accent flex items-center gap-1.5 shadow-lg">
-              {isVideoCall ? <Video className="h-4 w-4 text-white" /> : <Phone className="h-4 w-4 text-white" />}
-              <span className="text-xs font-semibold text-white">
+            <div className="px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-gradient-to-r from-primary to-accent flex items-center gap-1.5 shadow-lg">
+              {isVideoCall ? <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" /> : <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />}
+              <span className="text-[10px] sm:text-xs font-semibold text-white">
                 {isGroupCall ? (isVideoCall ? 'Group FaceTime' : 'Group Call') : (isVideoCall ? 'FaceTime' : 'Audio Call')}
               </span>
             </div>
           </motion.div>
         </div>
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-white mb-2">{incomingDisplayName}</h2>
-          <motion.p className="text-white/60 text-lg" animate={{ opacity: [0.4, 0.8, 0.4] }} transition={{ repeat: Infinity, duration: 2 }}>
+        <div className="text-center mb-8 sm:mb-10">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">{incomingDisplayName}</h2>
+          <motion.p className="text-white/60 text-base sm:text-lg" animate={{ opacity: [0.4, 0.8, 0.4] }} transition={{ repeat: Infinity, duration: 2 }}>
             {isGroupCall ? `${caller?.display_name || caller?.username} is calling...` : 'is calling you...'}
           </motion.p>
         </div>
-        <div className="flex items-center justify-center gap-8 w-full mb-8">
-          <div className="flex flex-col items-center gap-3">
-            <button onClick={handleDecline} onTouchEnd={(e) => { e.preventDefault(); handleDecline(); }} disabled={isProcessing} className="h-16 w-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg flex items-center justify-center hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90">
-              <PhoneOff className="h-7 w-7" />
+        <div className="flex items-center justify-center gap-6 sm:gap-8 w-full mb-6 sm:mb-8">
+          <div className="flex flex-col items-center gap-2 sm:gap-3">
+            <button onClick={handleDecline} onTouchEnd={(e) => { e.preventDefault(); handleDecline(); }} disabled={isProcessing} className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg flex items-center justify-center hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90">
+              <PhoneOff className="h-6 w-6 sm:h-7 sm:w-7" />
             </button>
-            <span className="text-white/50 text-sm font-medium">Decline</span>
+            <span className="text-white/50 text-xs sm:text-sm font-medium">Decline</span>
           </div>
-          <div className="flex flex-col items-center gap-3">
-            <button onClick={handleAccept} onTouchEnd={(e) => { e.preventDefault(); handleAccept(); }} disabled={isProcessing} className="h-16 w-16 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg flex items-center justify-center hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90 animate-pulse">
-              {isVideoCall ? <Video className="h-7 w-7" /> : <Phone className="h-7 w-7" />}
+          <div className="flex flex-col items-center gap-2 sm:gap-3">
+            <button onClick={handleAccept} onTouchEnd={(e) => { e.preventDefault(); handleAccept(); }} disabled={isProcessing} className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg flex items-center justify-center hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90 animate-pulse">
+              {isVideoCall ? <Video className="h-6 w-6 sm:h-7 sm:w-7" /> : <Phone className="h-6 w-6 sm:h-7 sm:w-7" />}
             </button>
-            <span className="text-white/50 text-sm font-medium">Accept</span>
+            <span className="text-white/50 text-xs sm:text-sm font-medium">Accept</span>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-white/30 text-sm">
+        <div className="flex items-center gap-2 text-white/30 text-xs sm:text-sm">
           <div className="w-1.5 h-1.5 rounded-full bg-white/30 animate-pulse" />
           <span>Auto-declining in {timeLeft}s</span>
         </div>
