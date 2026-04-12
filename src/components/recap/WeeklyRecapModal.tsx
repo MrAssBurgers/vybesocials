@@ -57,7 +57,7 @@ export function WeeklyRecapModal() {
     try {
       // Get user's posts from this week first
       const postsRes = await (supabase.from('posts') as any).select('id, caption', { count: 'exact' })
-        .eq('user_id', user.id).gte('created_at', weekAgoStr);
+        .eq('author_id', user.id).gte('created_at', weekAgoStr);
 
       const postIds = (postsRes.data || []).map(p => p.id);
 

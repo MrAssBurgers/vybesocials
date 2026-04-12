@@ -12,6 +12,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { stopCameraStream } from '@/hooks/useCameraPreload';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -107,6 +108,10 @@ export class P2PConnection {
 
   async connect(): Promise<void> {
     console.log('[P2P] Connecting as', this.isInitiator ? 'initiator' : 'responder');
+
+    // 0. Release any existing camera stream (e.g. from VybeSnapCamera) to avoid NotReadableError on mobile
+    stopCameraStream();
+    await new Promise(r => setTimeout(r, 150));
 
     // 1. Get local media with HD constraints
     const audioConstraints: MediaTrackConstraints = {
@@ -477,12 +482,20 @@ export class P2PConnection {
 
     switch (message.type) {
       case 'offer': {
-        console.log('[P2P] Received offer');
+        console.log('[P2P] Received offer, signalingState:', this.pc.signalingState);
         if (this.hasRemoteDescription) {
-          await this.pc.setRemoteDescription(new RTCSessionDescription(message.data));
-          const answer = await this.pc.createAnswer();
-          await this.pc.setLocalDescription(answer);
-          this.sendSignal({ type: 'answer', senderId: this.userId, data: answer });
+          // Guard: only re-negotiate if not already stable with no pending ops
+          if (this.pc.signalingState === 'stable') {
+            console.log('[P2P] Re-negotiation offer in stable state');
+          }
+          try {
+            await this.pc.setRemoteDescription(new RTCSessionDescription(message.data));
+            const answer = await this.pc.createAnswer();
+            await this.pc.setLocalDescription(answer);
+            this.sendSignal({ type: 'answer', senderId: this.userId, data: answer });
+          } catch (err) {
+            console.warn('[P2P] Failed to handle re-offer:', err);
+          }
           return;
         }
         await this.pc.setRemoteDescription(new RTCSessionDescription(message.data));

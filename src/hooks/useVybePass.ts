@@ -67,17 +67,37 @@ export function useUserLevel() {
       if (error) throw error;
       
       if (!data) {
-        const { data: newData, error: insertError } = await supabase
-          .from('user_levels')
-          .insert({ user_id: profile.user_id })
-          .select()
-          .single();
-        
-        if (insertError) throw insertError;
-        return {
-          ...newData,
-          unclaimed_rewards: (Array.isArray(newData.unclaimed_rewards) ? newData.unclaimed_rewards : []) as unknown as VybePassReward[],
-        } as UserLevel;
+        try {
+          const { data: newData, error: insertError } = await supabase
+            .from('user_levels')
+            .insert({ user_id: profile.user_id })
+            .select()
+            .single();
+          
+          if (insertError) {
+            console.warn('[VybePass] user_levels insert failed (may already exist):', insertError.message);
+            // Retry select in case of race condition
+            const { data: retryData } = await supabase
+              .from('user_levels')
+              .select('*')
+              .eq('user_id', profile.user_id)
+              .maybeSingle();
+            if (retryData) {
+              return {
+                ...retryData,
+                unclaimed_rewards: (Array.isArray(retryData.unclaimed_rewards) ? retryData.unclaimed_rewards : []) as unknown as VybePassReward[],
+              } as UserLevel;
+            }
+            return null;
+          }
+          return {
+            ...newData,
+            unclaimed_rewards: (Array.isArray(newData.unclaimed_rewards) ? newData.unclaimed_rewards : []) as unknown as VybePassReward[],
+          } as UserLevel;
+        } catch (e) {
+          console.warn('[VybePass] user_levels creation failed:', e);
+          return null;
+        }
       }
       
       return {
