@@ -97,6 +97,19 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
     };
   }, [startCamera]);
 
+  // Toggle torch when flash changes (for rear camera)
+  useEffect(() => {
+    if (!streamRef.current || facingMode === 'user') return;
+    const videoTrack = streamRef.current.getVideoTracks()[0];
+    if (!videoTrack) return;
+    try {
+      const capabilities = videoTrack.getCapabilities?.() as MediaTrackCapabilities & { torch?: boolean };
+      if (capabilities?.torch) {
+        videoTrack.applyConstraints({ advanced: [{ torch: flash } as any] } as any).catch(() => {});
+      }
+    } catch {}
+  }, [flash, facingMode]);
+
   const toggleCamera = () => {
     triggerHaptic('light');
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
