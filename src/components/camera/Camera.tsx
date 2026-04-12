@@ -277,7 +277,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
   }
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black flex flex-col select-none" style={{ touchAction: 'none' }}>
+    <div className="fixed inset-0 z-[200] bg-black flex flex-col select-none overflow-hidden" style={{ touchAction: 'pan-y' }}>
       {/* Full-bleed viewfinder */}
       <div
         className="absolute inset-0"
@@ -286,14 +286,20 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
           if ((e.target as HTMLElement).closest('button')) return;
           const touch = e.touches[0];
           const startX = touch.clientX;
+          const startY = touch.clientY;
+          let locked: 'none' | 'horizontal' | 'vertical' = 'none';
           setIsSwiping(false);
           const handleTouchMove = (moveE: TouchEvent) => {
-            const diff = Math.abs(moveE.touches[0].clientX - startX);
-            if (diff > 20) setIsSwiping(true);
+            const dx = Math.abs(moveE.touches[0].clientX - startX);
+            const dy = Math.abs(moveE.touches[0].clientY - startY);
+            if (locked === 'none' && (dx > 10 || dy > 10)) {
+              locked = dx > dy ? 'horizontal' : 'vertical';
+            }
+            if (locked === 'horizontal' && dx > 20) setIsSwiping(true);
           };
           const handleTouchEnd = (endE: TouchEvent) => {
             const diff = endE.changedTouches[0].clientX - startX;
-            if (Math.abs(diff) > 50) {
+            if (locked === 'horizontal' && Math.abs(diff) > 50) {
               handleFilterSwipe(diff > 0 ? -1 : 1);
             }
             setIsSwiping(false);
