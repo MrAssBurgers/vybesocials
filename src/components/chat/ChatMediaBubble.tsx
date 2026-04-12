@@ -115,11 +115,11 @@ export function ChatMediaBubble({
           src={cacheBustedUrl}
           alt={mediaType === 'gif' ? "GIF" : "Shared image"}
           className={cn(
-            "rounded-xl max-w-full max-h-52 sm:max-h-64 object-cover transition-all select-none",
+            "rounded-xl w-auto max-w-full max-h-52 sm:max-h-64 object-cover transition-all select-none",
             shouldBlur && "blur-2xl",
             !loaded && "opacity-0 absolute"
           )}
-          style={{ WebkitTouchCallout: 'none' }}
+          style={{ WebkitTouchCallout: 'none', minWidth: 80 }}
           loading="lazy"
           draggable={false}
           onContextMenu={(e) => e.preventDefault()}
