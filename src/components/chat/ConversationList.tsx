@@ -354,6 +354,9 @@ export function ConversationList() {
       {/* Conversation List */}
       <ScrollArea className="flex-1" style={{ overflowX: 'hidden' }}>
 
+        {/* Notes Row - Instagram/Snapchat style */}
+        <NotesRow />
+
         {/* AI Chat Row */}
         <div className="px-3 pt-1 pb-1">
           <AutisyAIChatRow />

@@ -666,69 +666,64 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         )}
       </div>
       
-      {/* Header controls */}
-      <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between safe-area-inset-top bg-gradient-to-b from-black/60 to-transparent">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={handleClose} 
-          className="text-white bg-black/40 rounded-full backdrop-blur-sm hover:bg-black/60"
-        >
-          <X className="h-6 w-6" />
-        </Button>
-        
-        <motion.div 
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-primary/40 to-accent/40 backdrop-blur-md border border-white/30"
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 500 }}
-        >
-          <VybeMiniIcon size={18} showSparkles />
-          <span className="text-sm text-white font-bold tracking-wide">VYBE</span>
-        </motion.div>
-        
-        <div className="flex gap-2">
+      {/* Header controls - Snapchat style */}
+      <div className="absolute top-0 left-0 right-0 z-10 safe-area-inset-top bg-gradient-to-b from-black/60 to-transparent">
+        <div className="flex items-center justify-between px-4 pt-3 pb-2">
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className="text-white bg-black/40 rounded-full backdrop-blur-sm hover:bg-black/60"
+            onClick={handleClose} 
+            className="text-white bg-black/40 rounded-full backdrop-blur-sm hover:bg-black/60 h-10 w-10"
           >
-            {soundEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+            <X className="h-5 w-5" strokeWidth={2.5} />
           </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleSwitchCamera}
-            className="text-white bg-black/40 rounded-full backdrop-blur-sm hover:bg-black/60"
-          >
-            <SwitchCamera className="h-5 w-5" />
-          </Button>
+          
+          <div className="flex gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleSwitchCamera}
+              className="text-white bg-black/40 rounded-full backdrop-blur-sm hover:bg-black/60 h-9 w-9"
+            >
+              <SwitchCamera className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
+
+      {/* Right side vertical tools - Snapchat style */}
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3">
+        <button
+          onClick={() => setFlashEnabled(!flashEnabled)}
+          className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+        >
+          <div className={cn(
+            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+            flashEnabled ? "bg-yellow-400/30" : "bg-black/40"
+          )}>
+            {flashEnabled ? <Zap className="h-4.5 w-4.5 text-yellow-400" fill="currentColor" /> : <ZapOff className="h-4.5 w-4.5 text-white" />}
+          </div>
+          <span className="text-[9px] text-white/70 font-medium">Flash</span>
+        </button>
+
+        <button
+          onClick={() => setSoundEnabled(!soundEnabled)}
+          className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+        >
+          <div className={cn(
+            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+            soundEnabled ? "bg-white/20" : "bg-black/40"
+          )}>
+            {soundEnabled ? <Volume2 className="h-4.5 w-4.5 text-white" /> : <VolumeX className="h-4.5 w-4.5 text-white/60" />}
+          </div>
+          <span className="text-[9px] text-white/70 font-medium">Sounds</span>
+        </button>
+      </div>
       
-      {/* Bottom controls */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 pb-10 safe-area-inset-bottom bg-gradient-to-t from-black/80 to-transparent">
-        {/* Flash toggle */}
-        <div className="flex justify-center mb-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setFlashEnabled(!flashEnabled)}
-            className={cn(
-              "rounded-full px-4",
-              flashEnabled 
-                ? "bg-yellow-400/20 text-yellow-400" 
-                : "bg-black/40 text-white/70"
-            )}
-          >
-            {flashEnabled ? <Zap className="h-4 w-4 mr-2" /> : <ZapOff className="h-4 w-4 mr-2" />}
-            {flashEnabled ? 'Flash On' : 'Flash Off'}
-          </Button>
-        </div>
-        
-        {/* Capture button */}
-        <div className="flex justify-center">
+      {/* Bottom controls - Snapchat style */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 safe-area-inset-bottom bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+        {/* Capture row */}
+        <div className="flex items-center justify-center px-6 pb-4 pt-2">
           <VybeRecordButton
             isRecording={isRecording}
             progress={recordingProgress}
@@ -740,10 +735,10 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         
         {/* Hint */}
         <motion.p 
-          className="text-center text-white/60 text-sm mt-4"
+          className="text-center text-white/50 text-[11px] pb-4 font-medium"
           animate={{ opacity: isRecording ? 0 : 1 }}
         >
-          Tap for photo • Hold for video
+          Tap for photo · Hold for video
         </motion.p>
       </div>
     </motion.div>
