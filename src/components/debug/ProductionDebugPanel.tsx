@@ -481,7 +481,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         className={cn(
           "fixed top-0 right-0 bottom-0 z-[100] w-full sm:w-[440px]",
-          "bg-background border-l border-border",
+          "bg-card border-l border-border backdrop-blur-xl",
           "flex flex-col shadow-2xl"
         )}
       >

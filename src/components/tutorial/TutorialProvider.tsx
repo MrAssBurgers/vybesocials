@@ -122,12 +122,23 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         if (onboardingCompleted && !completed && !isManualOpen && !hasTriggeredRef.current) {
           hasTriggeredRef.current = true;
           console.log('[Tutorial] Auto-triggering tutorial for first-time user');
-          // Delay to let UI fully render after navigation - reduced for faster UX
+          // Delay to let UI fully render after navigation
           setTimeout(() => {
-            setIsOpen(true);
-            setIsLoading(false);
-            console.log('[Tutorial] Tutorial opened');
-          }, 800);
+            // Guard: only open if the first step's target element exists in DOM
+            const firstStep = getStepsForLayout(layoutMode)[0];
+            const targetEl = firstStep ? document.querySelector(firstStep.targetSelector) : null;
+            if (!targetEl) {
+              console.log('[Tutorial] First step target not found, retrying in 1s');
+              setTimeout(() => {
+                setIsOpen(true);
+                setIsLoading(false);
+              }, 1000);
+            } else {
+              setIsOpen(true);
+              setIsLoading(false);
+              console.log('[Tutorial] Tutorial opened');
+            }
+          }, 1500);
         }
       }
     } catch (error) {

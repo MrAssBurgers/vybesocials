@@ -1,7 +1,9 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, X, Loader2, Send, Smile, Pencil, Check } from 'lucide-react';
+import { ReactionPicker } from '@/components/reactions/ReactionPicker';
+import { ReactionType } from '@/lib/reactions';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { useUserRole } from '@/hooks/useModeration';
@@ -241,6 +243,7 @@ export default function PostDetailPage() {
   const [commentGifUrl, setCommentGifUrl] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
+  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(null);
   const [likeCount, setLikeCount] = useState(0);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [reportReason, setReportReason] = useState('');
@@ -288,16 +291,19 @@ export default function PostDetailPage() {
       let userLiked = false;
       let userBookmarked = false;
 
+      let userReactionType: ReactionType | null = null;
       if (profile) {
         const [likeCheck, bookmarkCheck] = await Promise.all([
-          supabase.from('likes').select('id').eq('user_id', profile.id).eq('post_id', id!).maybeSingle(),
+          supabase.from('likes').select('id, reaction_type').eq('user_id', profile.id).eq('post_id', id!).maybeSingle(),
           supabase.from('bookmarks').select('id').eq('user_id', profile.id).eq('post_id', id!).maybeSingle(),
         ]);
         userLiked = !!likeCheck.data;
+        userReactionType = likeCheck.data ? ((likeCheck.data as any).reaction_type as ReactionType || 'like') : null;
         userBookmarked = !!bookmarkCheck.data;
       }
 
       setIsLiked(userLiked);
+      setCurrentReaction(userReactionType);
       setIsBookmarked(userBookmarked);
       setLikeCount(likesResult.count || 0);
 
@@ -334,15 +340,26 @@ export default function PostDetailPage() {
     }
   };
 
-  const handleLike = async () => {
+  const handleReaction = useCallback(async (reactionType: ReactionType | null) => {
     if (!profile || !post) return;
-    const newIsLiked = !isLiked;
+
+    const wasLiked = currentReaction !== null;
+    const newIsLiked = reactionType !== null;
+    
+    setCurrentReaction(reactionType);
     setIsLiked(newIsLiked);
-    setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
+    setLikeCount(prev => {
+      if (wasLiked && !newIsLiked) return prev - 1;
+      if (!wasLiked && newIsLiked) return prev + 1;
+      return prev;
+    });
 
     if (newIsLiked) {
-      await supabase.from('likes').upsert({ user_id: profile.id, post_id: post.id }, { onConflict: 'user_id,post_id', ignoreDuplicates: true });
-      if (post.author.id !== profile.id) {
+      await supabase.from('likes').upsert(
+        { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
+        { onConflict: 'user_id,post_id', ignoreDuplicates: false }
+      );
+      if (!wasLiked && post.author.id !== profile.id) {
         await supabase.from('notifications').insert({
           user_id: post.author.id, type: 'like', actor_id: profile.id, post_id: post.id,
         });
@@ -350,7 +367,7 @@ export default function PostDetailPage() {
     } else {
       await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
     }
-  };
+  }, [profile, currentReaction, post]);
 
   const handleBookmark = async () => {
     if (!profile || !post) return;
@@ -607,24 +624,11 @@ export default function PostDetailPage() {
             <div className="px-4 pt-3 pb-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1">
-                  <motion.button
-                    whileTap={{ scale: 0.75 }}
-                    onClick={handleLike}
-                    className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
-                  >
-                    <motion.div
-                      animate={isLiked ? { scale: [1, 1.4, 1] } : {}}
-                      transition={{ duration: 0.35, ease: 'easeOut' }}
-                    >
-                      <Heart
-                        className={cn(
-                          'h-7 w-7 transition-colors',
-                          isLiked ? 'fill-primary text-primary' : 'text-foreground'
-                        )}
-                        strokeWidth={isLiked ? 0 : 2}
-                      />
-                    </motion.div>
-                  </motion.button>
+                  <ReactionPicker
+                    currentReaction={currentReaction}
+                    onReact={handleReaction}
+                    likeCount={likeCount}
+                  />
 
                   <motion.button
                     whileTap={{ scale: 0.75 }}

@@ -259,7 +259,13 @@ export const TutorialOverlay = memo(function TutorialOverlay({
       await new Promise(resolve => setTimeout(resolve, 300));
     }
 
-    const target = document.querySelector(currentStepData.targetSelector);
+    // Poll for target element up to 2 seconds
+    let target: Element | null = null;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      target = document.querySelector(currentStepData.targetSelector);
+      if (target) break;
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
     
     if (target) {
       // Only scroll if element is completely off-screen
@@ -267,7 +273,6 @@ export const TutorialOverlay = memo(function TutorialOverlay({
       
       const rect = target.getBoundingClientRect();
       const padding = 6;
-      const borderRadius = Math.min(12, rect.height / 2, rect.width / 2);
       
       setSpotlight({
         top: rect.top - padding,
@@ -283,7 +288,6 @@ export const TutorialOverlay = memo(function TutorialOverlay({
       setElementFound(false);
       const tooltipWidth = Math.min(320, window.innerWidth - 32);
       const tooltipHeight = 320;
-      const isMobileOrTablet = layoutMode === 'mobile' || layoutMode === 'tablet';
       const centerX = Math.max(16, (window.innerWidth - tooltipWidth) / 2);
       const centerY = Math.max(80, (window.innerHeight - tooltipHeight) / 2);
       
