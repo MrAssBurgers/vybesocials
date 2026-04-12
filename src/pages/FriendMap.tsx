@@ -1265,6 +1265,58 @@ function FriendMapInner() {
                     </motion.button>
                   );
                 })}
+                {/* Show non-sharing friends in the strip too */}
+                {allFriendProfiles
+                  .filter(p => !sortedFriends.find(f => f.user_id === p.id))
+                  .map((p, i) => (
+                    <motion.button
+                      key={p.id}
+                      onClick={() => navigate(`/u/${p.username}`)}
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: (sortedFriends.length + i) * 0.05, type: 'spring', damping: 20 }}
+                      className="flex shrink-0 flex-col items-center gap-1 opacity-50"
+                    >
+                      <div className="relative h-14 w-14 rounded-full p-[3px] bg-white/10">
+                        <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-black/80">
+                          {p.avatar_url ? (
+                            <img src={p.avatar_url} alt={p.display_name || p.username || ''} className="h-full w-full object-cover" loading="lazy" />
+                          ) : (
+                            <span className="text-sm font-bold text-white/40">{initial(p.display_name || p.username || '?')}</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="max-w-[56px] truncate text-[10px] font-medium text-white/40 text-center">
+                        {(p.display_name || p.username || '?').split(' ')[0]}
+                      </span>
+                    </motion.button>
+                  ))}
+              </div>
+            ) : allFriendProfiles.length > 0 ? (
+              <div className="pointer-events-auto -mx-1 flex gap-3 overflow-x-auto px-1 py-1 scrollbar-hide">
+                {allFriendProfiles.map((p, i) => (
+                  <motion.button
+                    key={p.id}
+                    onClick={() => navigate(`/u/${p.username}`)}
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.05, type: 'spring', damping: 20 }}
+                    className="flex shrink-0 flex-col items-center gap-1 opacity-50"
+                  >
+                    <div className="relative h-14 w-14 rounded-full p-[3px] bg-white/10">
+                      <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-black/80">
+                        {p.avatar_url ? (
+                          <img src={p.avatar_url} alt={p.display_name || p.username || ''} className="h-full w-full object-cover" loading="lazy" />
+                        ) : (
+                          <span className="text-sm font-bold text-white/40">{initial(p.display_name || p.username || '?')}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="max-w-[56px] truncate text-[10px] font-medium text-white/40 text-center">
+                      {(p.display_name || p.username || '?').split(' ')[0]}
+                    </span>
+                  </motion.button>
+                ))}
               </div>
             ) : !searchSheetOpen && (
               <motion.div
@@ -1272,8 +1324,8 @@ function FriendMapInner() {
                 animate={{ opacity: 1, y: 0 }}
                 className="pointer-events-auto rounded-2xl bg-black/40 px-4 py-3 text-center backdrop-blur-xl border border-white/5"
               >
-                <p className="text-sm font-semibold text-white/70">No friends sharing right now</p>
-                <p className="text-[11px] text-white/40 mt-0.5">When friends go live, they'll appear here</p>
+                <p className="text-sm font-semibold text-white/70">Add friends to see them on the map</p>
+                <p className="text-[11px] text-white/40 mt-0.5">Friends sharing their location will appear here</p>
               </motion.div>
             )}
 
@@ -1431,7 +1483,6 @@ function FriendMapInner() {
                           <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-2">Not Sharing</p>
                           {allFriendProfiles
                             .filter(p => !sortedFriends.find(f => f.user_id === p.id))
-                            .slice(0, 5)
                             .map((p) => (
                               <div
                                 key={p.id}

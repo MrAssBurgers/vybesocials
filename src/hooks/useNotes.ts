@@ -6,6 +6,7 @@ export interface UserNote {
   id: string;
   user_id: string;
   content: string;
+  gif_url?: string | null;
   created_at: string;
   expires_at: string;
   profile?: {
@@ -67,12 +68,6 @@ export function useFriendsNotes() {
 
       if (!friendProfiles || friendProfiles.length === 0) return [];
 
-      const authUserIds = friendProfiles
-        .map(p => (p as any).user_id)
-        .filter(Boolean) as string[];
-
-      if (authUserIds.length === 0) return [];
-
       // Get active notes via secure RPC (bypasses owner-only RLS)
       const { data: notes, error } = await supabase
         .rpc('get_friends_notes');
@@ -104,7 +99,7 @@ export function useSetNote() {
   const userId = session?.user?.id;
 
   return useMutation({
-    mutationFn: async (content: string) => {
+    mutationFn: async ({ content, gifUrl }: { content: string; gifUrl?: string }) => {
       if (!userId) throw new Error('Not authenticated');
 
       const { data, error } = await supabase
@@ -113,6 +108,7 @@ export function useSetNote() {
           {
             user_id: userId,
             content,
+            gif_url: gifUrl || null,
             expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
           },
           { onConflict: 'user_id' }
