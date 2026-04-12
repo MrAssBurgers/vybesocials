@@ -1,82 +1,50 @@
 
 
-## Fix Map "No People Found", Note Bubble Visibility + GIF Support, and VybeSnap Camera Revamp
+## Fix Calls and Other Critical Errors
 
-### Problem Summary
+### Issues Identified
 
-1. **Map shows "No people found"** — Friends don't have rows in `user_locations` because they haven't toggled sharing on their devices. The map should handle this gracefully by showing friends who are online but not sharing, and improving the empty state messaging.
+1. **Calls fail with `NotReadableError: Could not start video source`** — The P2P connection requests `getUserMedia` for video, but the VybeSnapCamera may still be holding the camera. On iPhone, only one process can hold the camera at a time. The call flow never releases the existing camera stream before trying to acquire a new one.
 
-2. **Note bubble is clipped/hidden** — The speech bubble sits at `-top-7` with the parent having `overflow-x-auto` on the container, which clips the bubble. Needs higher z-index and overflow-visible fix.
+2. **`posts.user_id does not exist` (HTTP 400)** — Two files query `posts` using a non-existent `user_id` column:
+   - `src/pages/Search.tsx` line 55: `profiles!user_id` join hint (should be `profiles!author_id`)
+   - `src/components/recap/WeeklyRecapModal.tsx` line 60: `.eq('user_id', user.id)` (should be `.eq('author_id', user.id)`)
 
-3. **Can't add GIFs to notes** — Currently notes are plain text only. Need to add a GIF picker (using Tenor/GIPHY API) so users can attach a GIF URL to their note.
+3. **`Failed to set remote answer sdp: Called in wrong state: stable`** — The answer handler at line 501 already guards against this, but the offer handler at line 481 does a `setRemoteDescription` even when `hasRemoteDescription` is true, which can race with an existing stable state. Need to check `signalingState` before re-applying an offer.
 
-4. **VybeSnap camera needs full Snapchat feature parity** — Missing: lens carousel, AR filter placeholders, multi-snap timeline, music/sound attachment, timer, grid overlay, HDR toggle, night mode, selfie flash (screen flash for front cam), gallery/memories shortcut, friend quick-send row, and category tabs (Moments, Favorites, For You).
+4. **Conversations 403 RLS** — `src/hooks/useFriends.ts` line 256 does a direct `.insert()` into `conversations` instead of using the `create_dm_conversation` RPC. The RPC is SECURITY DEFINER and handles this correctly. Replace the direct insert with the RPC call.
 
----
+5. **`user_levels` 403 RLS** — The insert at `src/hooks/useVybePass.ts` line 72 and `src/hooks/useBattlePass.ts` line 76 tries to insert when no row exists. This may fail if the user session isn't fully established yet. Add an `enabled` guard and catch gracefully.
+
+6. **`DialogContent requires DialogTitle`** — Missing `DialogTitle` in some dialog component (accessibility warning).
 
 ### Plan
 
-#### 1. Fix Map Empty State
-**File: `src/pages/FriendMap.tsx`**
-- Change `useFriendLocations` to also show friends who are NOT sharing but ARE online — display them in the bottom sheet friend list with a "Not sharing" label and grayed-out state
-- Query all friend profiles regardless of location status, then LEFT JOIN with `user_locations`
-- Show friends without location data in the list as "Location off" instead of hiding them entirely
-- Remove or soften the "No people found" toast — only show it if user has zero friends at all
+#### File: `src/lib/p2pConnection.ts`
+- In `connect()`, before calling `getUserMedia`, import and call `stopCameraStream()` from `useCameraPreload` to release any held camera
+- In the offer handler (line 481), add a `signalingState` check before calling `setRemoteDescription` on re-offers to avoid the "stable" state error
 
-#### 2. Fix Note Bubble Visibility + GIF Support
-**File: `src/components/chat/NotesRow.tsx`**
-- Add `overflow-visible` to the parent container and `z-index` to the bubble so it renders above surrounding elements
-- Increase `max-w` from `80px` to `120px` so longer notes don't truncate too aggressively
-- Add a GIF preview: if note content starts with `https://` and is a GIF URL, render an `<img>` inside the bubble instead of text
-- In the edit dialog, add a "GIF" button that opens a simple GIF search (using Tenor API via an edge function or the free GIPHY endpoint)
+#### File: `src/pages/Search.tsx`
+- Line 55: Change `profiles!user_id` to `profiles!author_id` in the select join hint
 
-**File: `src/hooks/useNotes.ts`**
-- Increase max content length from 60 to 200 chars to accommodate GIF URLs
-- Add a `gif_url` field concept — store GIF URL in the content field with a prefix like `gif:URL` or just allow URL detection
+#### File: `src/components/recap/WeeklyRecapModal.tsx`
+- Line 60: Change `.eq('user_id', user.id)` to `.eq('author_id', user.id)`
 
-**Database migration**: Add an optional `gif_url` column to `user_notes` so we can store the GIF separately from text content.
+#### File: `src/hooks/useFriends.ts`
+- Replace the direct `conversations` insert (lines 256-263) + `conversation_members` insert (lines 269-272) with a call to `supabase.rpc('create_dm_conversation', { other_profile_id: receiverId })`
 
-#### 3. VybeSnap Camera Full Redesign
-**File: `src/components/camera/VybeSnapCamera.tsx`** — Major rewrite to include:
+#### File: `src/hooks/useVybePass.ts` and `src/hooks/useBattlePass.ts`
+- Wrap the `user_levels` insert in a try-catch so a 403 doesn't crash the flow; log and continue gracefully
 
-**Top bar (Snapchat-style)**:
-- User avatar (top-left, links to profile)
-- Search icon
-- Add Friend icon + Flash toggle + Camera flip (top-right)
-
-**Right-side vertical tool strip** (already partially done, expand):
-- Flash (with torch)
-- Timer (0s, 3s, 10s cycle)
-- Grid overlay toggle
-- HDR toggle (decorative)
-- Night mode toggle (boosts brightness filter)
-- Selfie flash (white screen flash for front camera)
-
-**Bottom area**:
-- Gallery/Memories thumbnail (bottom-left) — opens device photo picker
-- Capture button (center) — tap photo, hold video
-- Camera flip shortcut (bottom-right, optional if already in top)
-- Horizontal scrollable lens/filter carousel — show circular lens icons (face effects as "Coming Soon", color filters functional)
-- Category tabs row: Trending, For You, Favorites, Moments
-
-**Multi-snap support** (already exists via segments — make visible):
-- Segment indicator bar at top (already done)
-- Add "Send All" vs individual segment management
-
-**Music attachment**:
-- Add music note icon that opens the existing `SoundPicker`
-- Selected song name shown as a pill
-
-**Post-capture quick send row**:
-- After capture → editor, show a row of recent friends to quick-send to (reuse recent message users utility)
+#### File: `src/lib/mediaPermissions.ts`
+- In `requestCallMediaPermissions`, import and call `stopCameraStream()` before requesting any media to ensure the camera is free
 
 ### Files to modify
-- `src/pages/FriendMap.tsx` — fix empty state, show all friends in bottom sheet
-- `src/components/chat/NotesRow.tsx` — fix bubble z-index/overflow, add GIF display, add GIF picker in edit dialog
-- `src/hooks/useNotes.ts` — support gif_url field
-- `src/components/camera/VybeSnapCamera.tsx` — full Snapchat-style redesign with all features
-
-### Database migration
-- Add `gif_url TEXT` column to `user_notes` table
-- Update RLS and `get_friends_notes` RPC to include `gif_url`
+- `src/lib/p2pConnection.ts` — release camera before call, fix offer re-negotiation
+- `src/lib/mediaPermissions.ts` — stop existing camera before permission check
+- `src/pages/Search.tsx` — fix `user_id` → `author_id`
+- `src/components/recap/WeeklyRecapModal.tsx` — fix `user_id` → `author_id`
+- `src/hooks/useFriends.ts` — use `create_dm_conversation` RPC
+- `src/hooks/useVybePass.ts` — graceful user_levels insert
+- `src/hooks/useBattlePass.ts` — graceful user_levels insert
 
