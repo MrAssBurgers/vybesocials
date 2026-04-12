@@ -275,20 +275,7 @@ export const Toybox = memo(function Toybox({
 
   const ToyboxContent = (
     <div className="p-4 max-h-[70vh] overflow-y-auto">
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleImageChange}
-        className="hidden"
-      />
-      <input
-        ref={videoInputRef}
-        type="file"
-        accept="video/*"
-        onChange={handleVideoChange}
-        className="hidden"
-      />
+      {/* File inputs moved outside Drawer/Popover for iOS compatibility */}
 
       <AnimatePresence mode="wait">
         {showGifPicker ? (
