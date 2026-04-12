@@ -373,6 +373,15 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
+        onClick={(e) => {
+          // Tap-to-text: open frosted glass text input when tapping the media area
+          if (mode === 'none' && !isDrawing && textOverlays.length === 0 && !selectedOverlayId) {
+            e.stopPropagation();
+            setMode('text');
+            setIsTextInputOpen(true);
+            haptics.impact();
+          }
+        }}
       >
         {mediaType === 'photo' ? (
           <img 

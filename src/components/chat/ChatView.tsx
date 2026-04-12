@@ -2093,6 +2093,18 @@ const MessageInputArea = memo(function MessageInputArea({
                 )}
               </Button>
             )}
+
+            {/* Camera button - far right */}
+            {onOpenSnapCamera && (
+              <Button 
+                variant="ghost"
+                size="icon"
+                onClick={onOpenSnapCamera}
+                className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10 text-primary hover:bg-primary/10 rounded-full"
+              >
+                <Camera className="h-5 w-5 sm:h-6 sm:w-6" />
+              </Button>
+            )}
           </div>
         )}
 
