@@ -11759,6 +11759,16 @@ export type Database = {
           username: string
         }[]
       }
+      get_friends_notes: {
+        Args: never
+        Returns: {
+          content: string
+          created_at: string
+          expires_at: string
+          id: string
+          user_id: string
+        }[]
+      }
       get_like_count: { Args: { p_post_id: string }; Returns: number }
       get_local_posts: {
         Args: {
