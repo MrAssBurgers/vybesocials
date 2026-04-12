@@ -1416,7 +1416,7 @@ export function ChatView() {
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'contain',
           touchAction: 'pan-y',
-          contain: 'strict',
+          contain: 'layout style',
         }}
       >
         {/* Messages container - extra bottom padding on mobile for bottom nav */}
@@ -2336,7 +2336,7 @@ const MessageBubble = memo(function MessageBubble({
           </div>
         <div
           className={cn(
-            'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0',
+            'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0 w-fit',
             isEmojiOnly 
               ? 'px-3 py-2'
               : isMediaMessage

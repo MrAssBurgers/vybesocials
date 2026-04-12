@@ -41,7 +41,6 @@ export default function Messages() {
           backgroundColor: 'hsl(var(--card) / 0.85)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
       >
         {/* Conversation list - hidden on mobile when in chat */}
