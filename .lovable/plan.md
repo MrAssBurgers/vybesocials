@@ -1,22 +1,36 @@
 
 
-## Fix Draggable Overlay Movement in Camera Editor
+## Fix Story Bugs, Remove Excess Toasts, Duplicate NFC, Quick Add in DMs, and Login
 
-### Problem
-The drag interaction in `DraggableOverlay` feels sluggish and offset because every pixel of movement triggers a full React state update + re-render cycle through `onUpdate → setTextOverlays → re-render all overlays`. On mobile this causes visible lag between the finger and the element.
+### Changes
 
-### Fix
-Convert to a **ref-based drag** pattern: move the DOM element directly via `style` during the drag, then commit the final position to React state only on release. This eliminates per-frame re-renders and makes the overlay stick directly under the finger/cursor.
+**1. Remove duplicate NFC button (`src/pages/NewMessage.tsx`)**
+Delete line 339 — the second `<NFCFriendShare variant="icon" />`.
 
-### Changes — single file: `src/components/camera/DraggableOverlay.tsx`
+**2. Fix Google OAuth login (`src/pages/Landing.tsx`)**
+Change `redirect_uri` from `window.location.origin` to `${window.location.origin}/auth/callback` so the OAuth callback is handled correctly.
 
-1. **Add a `divRef`** to the overlay `<div>` so we can update its `style.left` / `style.top` / `style.transform` directly during drag.
+**3. Fix Camera → Story integration (`src/components/stories/StoryCreator.tsx` + `src/components/camera/Camera.tsx`)**
+- Add an `onCapture` prop to `Camera` — when provided, bypasses the share sheet and returns the captured media (file + URL + type) directly to the caller.
+- In `StoryCreator`, pass `onCapture` to `Camera` so captured media flows into `selectedFile` / `preview` / `mediaInfo` and the user lands on the story preview screen.
 
-2. **During touch/pointer move**: instead of calling `onUpdate(id, {x, y})`, write directly to `divRef.current.style.left` and `divRef.current.style.top` via `requestAnimationFrame`. Update `currentPos.current` so the ref stays in sync.
+**4. Remove excessive toast notifications**
+- `src/hooks/useDailyLogin.ts` — Remove the `toast.success` calls for XP granted on daily login (lines 60-63).
+- `src/hooks/useLoginStreak.ts` — Remove the `toast.warning` for streak expiring soon (lines 91-95).
+- `src/components/vybepass/RewardNotificationProvider.tsx` — Remove `toast.info`, `toast.success`, and `toast.error` inside the `onEquipReward` handler (the modal itself is sufficient feedback).
+- `src/components/friends/NFCFriendShare.tsx` — Remove `toast.success` for "Added as friend" and "Friend request sent" (keep error toasts since those are important).
 
-3. **On touch/pointer end**: call `onUpdate(id, { x, y, scale, rotation })` once with the final position from `currentPos.current`, syncing React state.
+**5. Add Snapchat-style Quick Add to DM list (`src/components/chat/ConversationList.tsx`)**
+- At the bottom of the conversation list (after `RecommendedFriendsSection`), add a horizontal scrolling "Quick Add" row with Snapchat-style cards: avatar on top, name below, blue "Add" button — matching the existing `MutualFriendsQuickAdd` component style but displayed horizontally beneath conversations.
 
-4. **For pinch-to-scale/rotate**: also apply `transform` directly to the ref during the gesture, commit on end.
-
-This gives 60 fps drag with zero React overhead during the gesture.
+### Files to modify
+- `src/pages/NewMessage.tsx` — remove duplicate NFC
+- `src/pages/Landing.tsx` — fix OAuth redirect
+- `src/components/camera/Camera.tsx` — add `onCapture` prop
+- `src/components/stories/StoryCreator.tsx` — wire camera capture to story preview
+- `src/hooks/useDailyLogin.ts` — remove toast
+- `src/hooks/useLoginStreak.ts` — remove toast
+- `src/components/vybepass/RewardNotificationProvider.tsx` — remove toasts
+- `src/components/friends/NFCFriendShare.tsx` — remove success toasts
+- `src/components/chat/ConversationList.tsx` — add Quick Add section
 
