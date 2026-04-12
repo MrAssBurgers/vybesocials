@@ -50,17 +50,8 @@ export function useDailyLoginChallenge() {
         const result = data as { success: boolean; already_logged?: boolean; xp_granted?: number; streak?: number; multiplier?: number } | null;
         
         if (result?.success && !result?.already_logged && result?.xp_granted) {
-          const streak = result.streak || 1;
-          const multiplier = result.multiplier || 1;
-          
           // Also reward VYBE tokens for daily login
           rewardDailyLogin();
-          
-          if (streak > 1) {
-            toast.success(`+${result.xp_granted} XP (${multiplier}x streak bonus) 🔥 Day ${streak}!`, { duration: 4000 });
-          } else {
-            toast.success(`+${result.xp_granted} XP for logging in today! 🔥`, { duration: 3000 });
-          }
         }
       } catch (error) {
         if (import.meta.env.DEV) {

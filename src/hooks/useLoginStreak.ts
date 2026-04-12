@@ -86,15 +86,6 @@ export function useLoginStreak() {
       
       if (lastReminder !== today) {
         localStorage.setItem(STREAK_REMINDER_KEY, today);
-        
-        // Schedule notification
-        toast.warning(
-          `🔥 Your ${streakStatus.streak}-day streak expires soon!`,
-          {
-            description: `Log in within ${Math.ceil(hoursRemaining)} hours to keep it going!`,
-            duration: 8000,
-          }
-        );
       }
     }
   }, [streakStatus?.hours_remaining, streakStatus?.streak]);

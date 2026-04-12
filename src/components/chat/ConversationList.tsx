@@ -1016,7 +1016,6 @@ const RecommendedFriendsSection = memo(function RecommendedFriendsSection() {
     setAdded(prev => new Set([...prev, userId]));
     sendRequest.mutate(userId, {
       onSuccess: () => {
-        toast.success('Friend request sent!');
         setTimeout(() => setDismissed(prev => new Set([...prev, userId])), 800);
       },
       onError: () => setAdded(prev => { const n = new Set(prev); n.delete(userId); return n; }),

@@ -113,7 +113,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
       console.log('[NFCShare] Auto-adding friend:', receivedUser.username);
       await sendRequest.mutateAsync(receivedUser.id);
       haptics.success();
-      toast.success(`Added @${receivedUser.username} as a friend!`);
+      // success handled by UI state
     } catch (error) {
       console.error('[NFCShare] Auto-add failed:', error);
       // Don't show error toast - the animation will still complete
@@ -191,7 +191,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
     try {
       await sendRequest.mutateAsync(receivedUser.id);
       haptics.success();
-      toast.success(`Friend request sent to @${receivedUser.username}!`);
+      // success handled by UI state
       handleClose();
     } catch (error) {
       haptics.error();
