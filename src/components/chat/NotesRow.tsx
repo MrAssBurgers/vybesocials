@@ -97,7 +97,7 @@ export const NotesRow = memo(function NotesRow() {
   const renderNoteBubble = (content: string, noteGifUrl?: string | null, maxW = 'max-w-[120px]') => {
     if (noteGifUrl) {
       return (
-        <div className={`absolute -top-9 left-1/2 -translate-x-1/2 z-[50]`}>
+        <div className="absolute -top-9 left-1/2 -translate-x-1/2 z-[2]">
           <div className="bg-foreground/90 rounded-xl overflow-hidden shadow-lg" style={{ width: 56, height: 56 }}>
             <img src={noteGifUrl} alt="" className="w-full h-full object-cover" />
           </div>
@@ -106,7 +106,7 @@ export const NotesRow = memo(function NotesRow() {
       );
     }
     return (
-      <div className={`absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap ${maxW} z-[50]`}>
+      <div className={`absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap ${maxW} z-[2]`}>
         <div className={`bg-foreground/90 text-background text-[10px] px-2 py-0.5 rounded-full font-medium truncate ${maxW}`}>
           {content}
         </div>
@@ -117,7 +117,7 @@ export const NotesRow = memo(function NotesRow() {
 
   return (
     <>
-      <div className="px-3 pt-8 pb-2 overflow-x-auto overflow-y-visible no-scrollbar" style={{ overflow: 'visible', overflowX: 'auto' }}>
+      <div className="relative z-0 px-3 pt-10 pb-2 overflow-x-auto no-scrollbar" style={{ overflowY: 'clip' }}>
         <div className="flex gap-4 min-w-max" style={{ overflow: 'visible' }}>
           {/* Current user's note */}
           <button onClick={handleOpenEdit} className="flex flex-col items-center w-16 flex-shrink-0" style={{ overflow: 'visible' }}>
