@@ -1,31 +1,48 @@
 
 
-## Rename AI to VYBE-AI & Add Image Upload to AI Chat
+## Fix Post Creation, Reposition DM Icons, Flash Torch, Tap-to-Text in VybeSnap Editor
 
-### Changes
+### Issues Found
 
-**1. Rename AI default name from "Morgan" to "VYBE-AI"**
-- `src/pages/AIChat.tsx` — change all default name references from `'Morgan'` to `'VYBE-AI'` (lines 67, 74, 151, 521-526)
-- `src/hooks/useAIProfile.ts` — change `DEFAULT_AI_PROFILE.name` from `'Morgan'` to `'VYBE-AI'`
-- `src/components/ai/AIChatAssistant.tsx` — update the old "Brock" assistant name/personality to `'VYBE-AI'`
-- `src/components/dna/DNAChatAssistant.tsx` — if it references "Morgan", update there too
+1. **"Failed to create post"** — The network logs show the user's requests use only the anon key (no authenticated JWT). The RLS policy on `posts` requires `auth.uid()` to match via the profiles table. The `useCreatePost` hook checks `if (!profile) throw new Error('Not authenticated')` but the user may be logged in with a stale session or the profile query isn't resolving. The insert uses `as any` cast which may also silently drop required fields. Need to add better error logging and ensure the auth check surfaces the real error (likely RLS violation due to missing/stale auth session).
 
-**2. Add image upload button to AI chat input bar (`src/pages/AIChat.tsx`)**
-- Add an image picker button (camera/image icon) next to the location and send buttons in the input area
-- When tapped, open a file picker accepting `image/*`
-- Show a small preview thumbnail above the input bar when an image is selected, with an X to remove it
-- On send, convert the image to base64 (resized to max 1024px for efficiency) and include it in the request body as `image_base64` + `mime_type`
-- Update the `Message` type to optionally hold `imageUrl?: string` so uploaded images render in chat bubbles
-- Render user-sent images as inline `<img>` above the text in the user's chat bubble
+2. **Swap VybeSnap camera icon to far right, Toybox to far left** — In `MessageInputArea` (inside `ChatView.tsx` lines 1967-2031), the camera button is on the left and Toybox is on the right. Need to swap: move Toybox to the left of the text input and camera button to the right (after the send/mic area).
 
-**3. Update edge function to accept and forward images (`supabase/functions/ai-chat/index.ts`)**
-- Parse `image_base64` and `mime_type` from request body
-- When present, construct the last user message as a multimodal content array (text + image_url with data URI) per the Lovable AI Gateway format
-- The model (`google/gemini-3-flash-preview`) supports multimodal input natively
+3. **Flash should use phone's actual torch** — Currently both `Camera.tsx` and `VybeSnapCamera.tsx` only show a white screen overlay for flash. Neither uses the `ImageCapture` API or `applyConstraints({ advanced: [{ torch: true }] })` to activate the real hardware flashlight. Need to add torch activation via the video track's `applyConstraints`.
+
+4. **Tap screen after photo to open frosted glass text input** — In `VybeSnapEditor`, the text tool requires tapping the `Type` button. The user wants tapping anywhere on the captured photo to open the frosted-glass text input (matching the Story creator's feel). Add an `onClick` handler on the media container that opens text mode when no other mode is active.
+
+5. **Consistent frosted glass styling** — Ensure `VybeSnapEditor`'s text input uses the same `bg-white/10 backdrop-blur-xl` frosted glass styling consistently (it already does, just needs the tap-to-open behavior).
+
+### Plan
+
+**1. Fix post creation auth error (`src/hooks/usePosts.ts`)**
+- Add `console.error` logging in the `onError` handler to surface the actual error message
+- Log `profile` state before insert to catch null profile issues
+- Remove `as any` cast on the insert object and type it properly
+- Add a check: if `!profile?.id` or `!profile?.user_id`, show a toast telling the user to log in again
+
+**2. Swap icon positions in DM input (`src/components/chat/ChatView.tsx`)**
+- In `MessageInputArea` (~line 1967-2031): move the VybeSnap camera button from before the text input to after the send/mic buttons (far right)
+- Move the Toybox component from after the text input to before it (far left)
+
+**3. Add real torch/flashlight support (`src/components/camera/VybeSnapCamera.tsx` + `src/components/camera/Camera.tsx`)**
+- When `flashEnabled` is toggled on, call `stream.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: true }] })` to activate the phone's hardware flashlight
+- When toggled off, set `torch: false`
+- Keep the white overlay as a fallback for front-facing cameras (which don't have torch)
+- Add the same logic to `Camera.tsx`'s flash toggle
+
+**4. Tap-to-text in VybeSnapEditor (`src/components/camera/VybeSnapEditor.tsx`)**
+- Add an `onClick` handler on the media container div (line ~369) that opens text mode when `mode === 'none'` and `!isDrawing`
+- When tapped: set `mode` to `'text'`, set `isTextInputOpen` to `true`, auto-focus the textarea
+
+**5. Ensure smooth, glitch-free experience**
+- In `VybeSnapEditor`, the drag handler already uses framer-motion's `onDrag` which triggers React state updates per frame. Since the editor is simpler than the story creator's `DraggableOverlay`, this is acceptable, but ensure `dragMomentum={false}` is set (it already is).
 
 ### Files to modify
-- `src/pages/AIChat.tsx` — image upload UI, rename defaults
-- `src/hooks/useAIProfile.ts` — rename default
-- `src/components/ai/AIChatAssistant.tsx` — rename default
-- `supabase/functions/ai-chat/index.ts` — accept image in request, forward as multimodal message
+- `src/hooks/usePosts.ts` — better error handling and auth check
+- `src/components/chat/ChatView.tsx` — swap camera and toybox positions in `MessageInputArea`
+- `src/components/camera/VybeSnapCamera.tsx` — add torch API for real flash
+- `src/components/camera/Camera.tsx` — add torch API for real flash  
+- `src/components/camera/VybeSnapEditor.tsx` — tap-to-text on media area
 
