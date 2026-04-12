@@ -131,7 +131,20 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         console.error('[VybeSnapCamera] Camera error:', error);
       }
     }
-  }, [facingMode, soundEnabled, zoomLevel]);
+  }, [facingMode, soundEnabled, zoomLevel, flashEnabled]);
+
+  // Toggle torch when flash setting changes (for rear camera)
+  useEffect(() => {
+    if (!streamRef.current || facingMode === 'user') return;
+    const videoTrack = streamRef.current.getVideoTracks()[0];
+    if (!videoTrack) return;
+    try {
+      const capabilities = videoTrack.getCapabilities?.() as MediaTrackCapabilities & { torch?: boolean };
+      if (capabilities?.torch) {
+        videoTrack.applyConstraints({ advanced: [{ torch: flashEnabled } as any] } as any).catch(() => {});
+      }
+    } catch {}
+  }, [flashEnabled, facingMode]);
 
   // Stop camera
   const stopCamera = useCallback(() => {
