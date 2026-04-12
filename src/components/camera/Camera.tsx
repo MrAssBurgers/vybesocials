@@ -47,6 +47,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
   const [brightness, setBrightness] = useState(100);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
   const [selectedSound, setSelectedSound] = useState<Sound | null>(null);
+  const [isSwiping, setIsSwiping] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -231,7 +232,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
   const handleCaptureEnd = () => {
     if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
     if (isRecording) stopRecording();
-    else if (captureMode === 'photo' && timerSeconds === 0) takePhoto();
+    else if (captureMode === 'photo' && timerSeconds === 0 && !isSwiping) takePhoto();
   };
 
   const handleFilterSwipe = (direction: number) => {
@@ -259,31 +260,47 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
 
   if (state === 'edit' && capturedMedia) {
     return <CameraEditor mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} filter={currentFilter} onSave={() => {
-      // If onCapture is provided, bypass share sheet and return media directly
       if (onCapture && capturedMedia.file) {
         onCapture({ file: capturedMedia.file, url: capturedMedia.url, type: capturedMedia.type });
         return;
       }
       setState('share');
-    }} onCancel={() => { setCapturedMedia(null); setState('capture'); }} />;
+    }} onCancel={() => { 
+      setCapturedMedia(null); 
+      setState('capture');
+      // Restart camera after returning from editor
+      setTimeout(() => startCamera(), 100);
+    }} />;
   }
   if (state === 'share' && capturedMedia) {
     return <CameraShareSheet mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} mediaFile={capturedMedia.file} onClose={() => setState('edit')} onComplete={onClose} />;
   }
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black flex flex-col select-none">
+    <div className="fixed inset-0 z-[200] bg-black flex flex-col select-none" style={{ touchAction: 'none' }}>
       {/* Full-bleed viewfinder */}
       <div
         className="absolute inset-0"
         onTouchStart={(e) => {
+          // Only handle swipes on the viewfinder itself, not on buttons
+          if ((e.target as HTMLElement).closest('button')) return;
           const touch = e.touches[0];
           const startX = touch.clientX;
+          setIsSwiping(false);
+          const handleTouchMove = (moveE: TouchEvent) => {
+            const diff = Math.abs(moveE.touches[0].clientX - startX);
+            if (diff > 20) setIsSwiping(true);
+          };
           const handleTouchEnd = (endE: TouchEvent) => {
             const diff = endE.changedTouches[0].clientX - startX;
-            if (Math.abs(diff) > 50) handleFilterSwipe(diff > 0 ? -1 : 1);
+            if (Math.abs(diff) > 50) {
+              handleFilterSwipe(diff > 0 ? -1 : 1);
+            }
+            setIsSwiping(false);
+            document.removeEventListener('touchmove', handleTouchMove);
             document.removeEventListener('touchend', handleTouchEnd);
           };
+          document.addEventListener('touchmove', handleTouchMove, { passive: true });
           document.addEventListener('touchend', handleTouchEnd);
         }}
       >
@@ -487,6 +504,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
                   "w-[72px] h-[72px] rounded-full border-[4px] flex items-center justify-center",
                   isRecording ? "border-destructive/60" : "border-white"
                 )}
+                style={{ touchAction: 'manipulation' }}
                 whileTap={{ scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               >
