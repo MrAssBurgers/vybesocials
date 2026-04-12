@@ -1965,16 +1965,39 @@ const MessageInputArea = memo(function MessageInputArea({
           />
         ) : (
           <div ref={inputContainerRef} className="flex items-center gap-1 sm:gap-2">
-            {/* Camera button - Snapchat style, prominent on the left */}
-            {onOpenSnapCamera && (
-              <Button 
-                variant="ghost"
-                size="icon"
-                onClick={onOpenSnapCamera}
-                className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10 text-primary hover:bg-primary/10 rounded-full"
-              >
-                <Camera className="h-5 w-5 sm:h-6 sm:w-6" />
-              </Button>
+            {/* Toybox - far left */}
+            {!messageText.trim() && (
+              <Toybox
+                onImageSelect={async (file) => {
+                  const dt = new DataTransfer();
+                  dt.items.add(file);
+                  handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
+                }}
+                onVideoSelect={(file) => {
+                  handleVideoSelect(file);
+                }}
+                onGifSelect={async (gifUrl) => {
+                  await sendMediaMessage(gifUrl, 'gif');
+                }}
+                onVoiceStart={() => {
+                  setIsRecordingVoice(true);
+                  onLiveRecordingChange?.(true);
+                }}
+                onEmojiSelect={(emoji) => {
+                  handleInputChange(messageText + emoji);
+                  inputRef.current?.focus();
+                }}
+                isUploading={isUploadingMedia}
+                onOpenVanishThreads={onOpenVanishThreads}
+                onOpenMemoryPins={onOpenMemoryPins}
+                onOpenScheduleMessage={onOpenScheduleMessage}
+                onOpenDMSettings={onOpenDMSettings}
+                onOpenAdminPanel={onOpenAdminPanel}
+                onOpenVybeCamera={onOpenSnapCamera}
+                onCreateOffer={onCreateOffer}
+                hasBusinessProfile={hasBusinessProfile}
+                safetyFilterNode={safetyFilterNode}
+              />
             )}
 
             <div className="flex-1 relative">
@@ -1998,37 +2021,6 @@ const MessageInputArea = memo(function MessageInputArea({
 
             {!messageText.trim() ? (
               <div className="flex items-center gap-0.5">
-                <Toybox
-                  onImageSelect={async (file) => {
-                    const dt = new DataTransfer();
-                    dt.items.add(file);
-                    handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
-                  }}
-                  onVideoSelect={(file) => {
-                    handleVideoSelect(file);
-                  }}
-                  onGifSelect={async (gifUrl) => {
-                    await sendMediaMessage(gifUrl, 'gif');
-                  }}
-                  onVoiceStart={() => {
-                    setIsRecordingVoice(true);
-                    onLiveRecordingChange?.(true);
-                  }}
-                  onEmojiSelect={(emoji) => {
-                    handleInputChange(messageText + emoji);
-                    inputRef.current?.focus();
-                  }}
-                  isUploading={isUploadingMedia}
-                  onOpenVanishThreads={onOpenVanishThreads}
-                  onOpenMemoryPins={onOpenMemoryPins}
-                  onOpenScheduleMessage={onOpenScheduleMessage}
-                  onOpenDMSettings={onOpenDMSettings}
-                  onOpenAdminPanel={onOpenAdminPanel}
-                  onOpenVybeCamera={onOpenSnapCamera}
-                  onCreateOffer={onCreateOffer}
-                  hasBusinessProfile={hasBusinessProfile}
-                  safetyFilterNode={safetyFilterNode}
-                />
                 {setShowStickerPanel && (
                   <Button 
                     variant="ghost"
@@ -2099,6 +2091,18 @@ const MessageInputArea = memo(function MessageInputArea({
                 ) : (
                   <Send className="h-4 w-4 sm:h-5 sm:w-5" />
                 )}
+              </Button>
+            )}
+
+            {/* Camera button - far right */}
+            {onOpenSnapCamera && (
+              <Button 
+                variant="ghost"
+                size="icon"
+                onClick={onOpenSnapCamera}
+                className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10 text-primary hover:bg-primary/10 rounded-full"
+              >
+                <Camera className="h-5 w-5 sm:h-6 sm:w-6" />
               </Button>
             )}
           </div>

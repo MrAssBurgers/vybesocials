@@ -72,10 +72,21 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
       });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
+
+      // Apply torch for rear camera
+      if (flash && facingMode === 'environment') {
+        const videoTrack = stream.getVideoTracks()[0];
+        try {
+          const capabilities = videoTrack.getCapabilities?.() as MediaTrackCapabilities & { torch?: boolean };
+          if (capabilities?.torch) {
+            await videoTrack.applyConstraints({ advanced: [{ torch: true } as any] } as any);
+          }
+        } catch {}
+      }
     } catch (err) {
       console.error('Failed to start camera:', err);
     }
-  }, [facingMode]);
+  }, [facingMode, flash]);
 
   useEffect(() => {
     startCamera();
@@ -85,6 +96,19 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
       if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
     };
   }, [startCamera]);
+
+  // Toggle torch when flash changes (for rear camera)
+  useEffect(() => {
+    if (!streamRef.current || facingMode === 'user') return;
+    const videoTrack = streamRef.current.getVideoTracks()[0];
+    if (!videoTrack) return;
+    try {
+      const capabilities = videoTrack.getCapabilities?.() as MediaTrackCapabilities & { torch?: boolean };
+      if (capabilities?.torch) {
+        videoTrack.applyConstraints({ advanced: [{ torch: flash } as any] } as any).catch(() => {});
+      }
+    } catch {}
+  }, [flash, facingMode]);
 
   const toggleCamera = () => {
     triggerHaptic('light');

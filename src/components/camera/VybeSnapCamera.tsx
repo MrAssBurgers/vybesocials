@@ -107,15 +107,19 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         videoRef.current.play().catch(() => {});
       }
       
-      // Apply zoom if supported
+      // Apply zoom and torch if supported
       const videoTrack = stream.getVideoTracks()[0];
       try {
-        const capabilities = videoTrack.getCapabilities?.() as MediaTrackCapabilities & { zoom?: { min: number; max: number } };
+        const capabilities = videoTrack.getCapabilities?.() as MediaTrackCapabilities & { zoom?: { min: number; max: number }; torch?: boolean };
         if (capabilities?.zoom) {
           await videoTrack.applyConstraints({ advanced: [{ zoom: zoomLevel } as any] } as any);
         }
+        // Apply torch state for rear camera
+        if (capabilities?.torch && flashEnabled && facingMode === 'environment') {
+          await videoTrack.applyConstraints({ advanced: [{ torch: true } as any] } as any);
+        }
       } catch {
-        // Zoom not supported
+        // Zoom/torch not supported
       }
     } catch (error: any) {
       if (error?.name === 'NotAllowedError') {
@@ -127,7 +131,20 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         console.error('[VybeSnapCamera] Camera error:', error);
       }
     }
-  }, [facingMode, soundEnabled, zoomLevel]);
+  }, [facingMode, soundEnabled, zoomLevel, flashEnabled]);
+
+  // Toggle torch when flash setting changes (for rear camera)
+  useEffect(() => {
+    if (!streamRef.current || facingMode === 'user') return;
+    const videoTrack = streamRef.current.getVideoTracks()[0];
+    if (!videoTrack) return;
+    try {
+      const capabilities = videoTrack.getCapabilities?.() as MediaTrackCapabilities & { torch?: boolean };
+      if (capabilities?.torch) {
+        videoTrack.applyConstraints({ advanced: [{ torch: flashEnabled } as any] } as any).catch(() => {});
+      }
+    } catch {}
+  }, [flashEnabled, facingMode]);
 
   // Stop camera
   const stopCamera = useCallback(() => {
