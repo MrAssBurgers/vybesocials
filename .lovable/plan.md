@@ -1,36 +1,31 @@
 
 
-## Fix Story Bugs, Remove Excess Toasts, Duplicate NFC, Quick Add in DMs, and Login
+## Rename AI to VYBE-AI & Add Image Upload to AI Chat
 
 ### Changes
 
-**1. Remove duplicate NFC button (`src/pages/NewMessage.tsx`)**
-Delete line 339 — the second `<NFCFriendShare variant="icon" />`.
+**1. Rename AI default name from "Morgan" to "VYBE-AI"**
+- `src/pages/AIChat.tsx` — change all default name references from `'Morgan'` to `'VYBE-AI'` (lines 67, 74, 151, 521-526)
+- `src/hooks/useAIProfile.ts` — change `DEFAULT_AI_PROFILE.name` from `'Morgan'` to `'VYBE-AI'`
+- `src/components/ai/AIChatAssistant.tsx` — update the old "Brock" assistant name/personality to `'VYBE-AI'`
+- `src/components/dna/DNAChatAssistant.tsx` — if it references "Morgan", update there too
 
-**2. Fix Google OAuth login (`src/pages/Landing.tsx`)**
-Change `redirect_uri` from `window.location.origin` to `${window.location.origin}/auth/callback` so the OAuth callback is handled correctly.
+**2. Add image upload button to AI chat input bar (`src/pages/AIChat.tsx`)**
+- Add an image picker button (camera/image icon) next to the location and send buttons in the input area
+- When tapped, open a file picker accepting `image/*`
+- Show a small preview thumbnail above the input bar when an image is selected, with an X to remove it
+- On send, convert the image to base64 (resized to max 1024px for efficiency) and include it in the request body as `image_base64` + `mime_type`
+- Update the `Message` type to optionally hold `imageUrl?: string` so uploaded images render in chat bubbles
+- Render user-sent images as inline `<img>` above the text in the user's chat bubble
 
-**3. Fix Camera → Story integration (`src/components/stories/StoryCreator.tsx` + `src/components/camera/Camera.tsx`)**
-- Add an `onCapture` prop to `Camera` — when provided, bypasses the share sheet and returns the captured media (file + URL + type) directly to the caller.
-- In `StoryCreator`, pass `onCapture` to `Camera` so captured media flows into `selectedFile` / `preview` / `mediaInfo` and the user lands on the story preview screen.
-
-**4. Remove excessive toast notifications**
-- `src/hooks/useDailyLogin.ts` — Remove the `toast.success` calls for XP granted on daily login (lines 60-63).
-- `src/hooks/useLoginStreak.ts` — Remove the `toast.warning` for streak expiring soon (lines 91-95).
-- `src/components/vybepass/RewardNotificationProvider.tsx` — Remove `toast.info`, `toast.success`, and `toast.error` inside the `onEquipReward` handler (the modal itself is sufficient feedback).
-- `src/components/friends/NFCFriendShare.tsx` — Remove `toast.success` for "Added as friend" and "Friend request sent" (keep error toasts since those are important).
-
-**5. Add Snapchat-style Quick Add to DM list (`src/components/chat/ConversationList.tsx`)**
-- At the bottom of the conversation list (after `RecommendedFriendsSection`), add a horizontal scrolling "Quick Add" row with Snapchat-style cards: avatar on top, name below, blue "Add" button — matching the existing `MutualFriendsQuickAdd` component style but displayed horizontally beneath conversations.
+**3. Update edge function to accept and forward images (`supabase/functions/ai-chat/index.ts`)**
+- Parse `image_base64` and `mime_type` from request body
+- When present, construct the last user message as a multimodal content array (text + image_url with data URI) per the Lovable AI Gateway format
+- The model (`google/gemini-3-flash-preview`) supports multimodal input natively
 
 ### Files to modify
-- `src/pages/NewMessage.tsx` — remove duplicate NFC
-- `src/pages/Landing.tsx` — fix OAuth redirect
-- `src/components/camera/Camera.tsx` — add `onCapture` prop
-- `src/components/stories/StoryCreator.tsx` — wire camera capture to story preview
-- `src/hooks/useDailyLogin.ts` — remove toast
-- `src/hooks/useLoginStreak.ts` — remove toast
-- `src/components/vybepass/RewardNotificationProvider.tsx` — remove toasts
-- `src/components/friends/NFCFriendShare.tsx` — remove success toasts
-- `src/components/chat/ConversationList.tsx` — add Quick Add section
+- `src/pages/AIChat.tsx` — image upload UI, rename defaults
+- `src/hooks/useAIProfile.ts` — rename default
+- `src/components/ai/AIChatAssistant.tsx` — rename default
+- `supabase/functions/ai-chat/index.ts` — accept image in request, forward as multimodal message
 
