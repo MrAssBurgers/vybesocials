@@ -280,7 +280,11 @@ export function useCreatePost() {
       thumbnailFile?: File;
       thumbnailDataUrl?: string;
     }) => {
-      if (!profile) throw new Error('Not authenticated');
+      if (!profile?.id || !profile?.user_id) {
+        console.error('[usePosts] Cannot create post: profile missing or incomplete', { id: profile?.id, user_id: profile?.user_id });
+        toast.error('Please sign in again to create a post.');
+        throw new Error('Not authenticated');
+      }
 
       // Client-side rate limit: 5 posts per minute
       const { RATE_LIMITS } = await import('@/lib/rateLimit');
@@ -444,8 +448,9 @@ export function useCreatePost() {
       toast.success('Post created successfully!');
     },
     onError: (error) => {
-      if (!error.message.includes('blocked content')) {
-        toast.error('Failed to create post');
+      console.error('[usePosts] Create post error:', error.message, error);
+      if (!error.message.includes('blocked content') && !error.message.includes('Rate limited')) {
+        toast.error('Failed to create post. Please sign out and back in, then try again.');
       }
     },
   });
