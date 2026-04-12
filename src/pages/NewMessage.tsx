@@ -336,7 +336,6 @@ export default function NewMessage() {
             <h1 className="text-lg font-semibold">Add Friends</h1>
           </div>
           <NFCFriendShare variant="icon" />
-          <NFCFriendShare variant="icon" />
         </header>
 
         <div className="flex-1 overflow-y-auto">

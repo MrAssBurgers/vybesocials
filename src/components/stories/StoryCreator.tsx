@@ -196,7 +196,24 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
 
   // Show camera view when camera mode is selected
   if (mode === 'camera') {
-    return <Camera onClose={() => setMode('select')} showBackArrow />;
+    return (
+      <Camera 
+        onClose={() => setMode('select')} 
+        showBackArrow 
+        onCapture={(media) => {
+          const isVideo = media.type === 'video';
+          setSelectedFile(media.file);
+          setPreview(media.url);
+          setMediaInfo({
+            aspectRatio: 0.5625,
+            duration: null,
+            isVideo,
+          });
+          setUploadState('idle');
+          setMode('select');
+        }}
+      />
+    );
   }
 
   return (

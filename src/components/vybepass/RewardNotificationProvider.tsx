@@ -119,15 +119,13 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
         onGoToLocker={() => navigate('/profile?tab=locker')}
         onEquipReward={async (reward) => {
           if (!reward.reward_id) {
-            toast.info('Head to your Locker to equip this!');
             navigate('/profile?tab=locker');
             return;
           }
           try {
             await equipItem.mutateAsync({ type: reward.reward_type as any, value: reward.reward_id });
-            toast.success(`Equipped ${reward.reward_name}!`);
           } catch {
-            toast.error('Could not equip — try from your Locker');
+            // silently fail - user can equip from locker
           }
         }}
         oldLevel={levelUpData?.oldLevel || 1}

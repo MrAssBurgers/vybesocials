@@ -16,6 +16,8 @@ interface CameraProps {
   onClose: () => void;
   /** Show a back arrow instead of X (e.g. when launched from story creator) */
   showBackArrow?: boolean;
+  /** When provided, bypasses share sheet and returns captured media directly */
+  onCapture?: (media: { file: File; url: string; type: 'photo' | 'video' }) => void;
 }
 
 type CameraState = 'capture' | 'edit' | 'share';
@@ -27,7 +29,7 @@ const CAPTURE_MODES: { id: CaptureMode; label: string }[] = [
   { id: 'story', label: 'STORY' },
 ];
 
-export function Camera({ onClose, showBackArrow = false }: CameraProps) {
+export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProps) {
   const navigate = useNavigate();
   const [state, setState] = useState<CameraState>('capture');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
@@ -232,7 +234,14 @@ export function Camera({ onClose, showBackArrow = false }: CameraProps) {
   const combinedFilter = `${getFilterCSS(currentFilter) || 'none'} brightness(${brightness / 100})`;
 
   if (state === 'edit' && capturedMedia) {
-    return <CameraEditor mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} filter={currentFilter} onSave={() => setState('share')} onCancel={() => { setCapturedMedia(null); setState('capture'); }} />;
+    return <CameraEditor mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} filter={currentFilter} onSave={() => {
+      // If onCapture is provided, bypass share sheet and return media directly
+      if (onCapture && capturedMedia.file) {
+        onCapture({ file: capturedMedia.file, url: capturedMedia.url, type: capturedMedia.type });
+        return;
+      }
+      setState('share');
+    }} onCancel={() => { setCapturedMedia(null); setState('capture'); }} />;
   }
   if (state === 'share' && capturedMedia) {
     return <CameraShareSheet mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} mediaFile={capturedMedia.file} onClose={() => setState('edit')} onComplete={onClose} />;
