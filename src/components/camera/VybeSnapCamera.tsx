@@ -74,11 +74,37 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         }
       }
 
-      // Check if there's already a preloaded stream from the gesture
+      // Check if there's already a preloaded stream we can reuse
       const preloaded = getActiveStream();
       if (preloaded) {
-        console.log('[VybeSnapCamera] Using preloaded stream from gesture');
-        // Stop preloaded stream and get a fresh one with correct settings
+        const videoTrack = preloaded.getVideoTracks()[0];
+        const settings = videoTrack?.getSettings?.();
+        const currentFacing = settings?.facingMode || 'user';
+        const hasAudio = preloaded.getAudioTracks().length > 0;
+        
+        // Reuse if facing mode and audio match
+        if (currentFacing === facingMode && hasAudio === soundEnabled) {
+          console.log('[VybeSnapCamera] Reusing preloaded stream instantly');
+          streamRef.current = preloaded;
+          setPermissionDenied(false);
+          setCameraReady(true);
+          if (videoRef.current) {
+            videoRef.current.srcObject = preloaded;
+            videoRef.current.play().catch(() => {});
+          }
+          // Apply zoom/torch
+          try {
+            const capabilities = videoTrack.getCapabilities?.() as any;
+            if (capabilities?.zoom) {
+              await videoTrack.applyConstraints({ advanced: [{ zoom: zoomLevel } as any] } as any);
+            }
+            if (capabilities?.torch && flashEnabled && facingMode === 'environment') {
+              await videoTrack.applyConstraints({ advanced: [{ torch: true } as any] } as any);
+            }
+          } catch {}
+          return;
+        }
+        // Different settings needed, stop preloaded
         stopCameraStream();
       }
 
@@ -157,7 +183,10 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
   // Auto-start camera when modal opens
   useEffect(() => {
     if (isOpen) {
-      setCameraReady(false);
+      // Don't reset cameraReady if we already have a stream (instant reuse)
+      if (!getActiveStream() && !streamRef.current) {
+        setCameraReady(false);
+      }
       startCamera();
     }
     if (!isOpen) {
