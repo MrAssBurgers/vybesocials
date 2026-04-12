@@ -838,11 +838,7 @@ export function GlobalCallOverlay() {
     };
   }, [isConnected, isMinimized]);
 
-  const handleHeaderAreaEnter = useCallback(() => { if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current); setShowHeader(true); }, []);
-  const handleHeaderAreaLeave = useCallback(() => { if (isConnected) headerTimeoutRef.current = setTimeout(() => setShowHeader(false), 1500); }, [isConnected]);
-  const handleFooterAreaEnter = useCallback(() => { if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current); setShowFooter(true); }, []);
-  const handleFooterAreaLeave = useCallback(() => { if (isConnected) footerTimeoutRef.current = setTimeout(() => setShowFooter(false), 1500); }, [isConnected]);
-  const handleScreenTap = useCallback(() => {
+  const showControlsTemporarily = useCallback(() => {
     setShowHeader(true); setShowFooter(true);
     if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current);
     if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current);
@@ -851,6 +847,12 @@ export function GlobalCallOverlay() {
       footerTimeoutRef.current = setTimeout(() => setShowFooter(false), 3000);
     }
   }, [isConnected]);
+
+  const handleHeaderAreaEnter = useCallback(() => { if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current); setShowHeader(true); }, []);
+  const handleHeaderAreaLeave = useCallback(() => { if (isConnected) headerTimeoutRef.current = setTimeout(() => setShowHeader(false), 1500); }, [isConnected]);
+  const handleFooterAreaEnter = useCallback(() => { if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current); setShowFooter(true); }, []);
+  const handleFooterAreaLeave = useCallback(() => { if (isConnected) footerTimeoutRef.current = setTimeout(() => setShowFooter(false), 1500); }, [isConnected]);
+  const handleScreenTap = useCallback(() => { showControlsTemporarily(); }, [showControlsTemporarily]);
 
   return (
     <>
