@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useTokenReward } from '@/hooks/useVybeTokens';
 import { useTokenReward } from '@/hooks/useVybeTokens';
 
 /**
