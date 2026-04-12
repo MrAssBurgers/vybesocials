@@ -275,7 +275,8 @@ function useFriendLocations(friendIds: string[]) {
         .from('user_locations')
         .select('id, user_id, latitude, longitude, accuracy, label, updated_at, expires_at, sharing_enabled, status, speed')
         .in('user_id', friendIds)
-        .eq('sharing_enabled', true);
+        .eq('sharing_enabled', true)
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
       if (error) throw error;
 
       const validLocations = (locationRows || []).filter((row) => isValidLatLng(row.latitude, row.longitude));
