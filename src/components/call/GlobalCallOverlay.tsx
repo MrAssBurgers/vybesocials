@@ -838,11 +838,7 @@ export function GlobalCallOverlay() {
     };
   }, [isConnected, isMinimized]);
 
-  const handleHeaderAreaEnter = useCallback(() => { if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current); setShowHeader(true); }, []);
-  const handleHeaderAreaLeave = useCallback(() => { if (isConnected) headerTimeoutRef.current = setTimeout(() => setShowHeader(false), 1500); }, [isConnected]);
-  const handleFooterAreaEnter = useCallback(() => { if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current); setShowFooter(true); }, []);
-  const handleFooterAreaLeave = useCallback(() => { if (isConnected) footerTimeoutRef.current = setTimeout(() => setShowFooter(false), 1500); }, [isConnected]);
-  const handleScreenTap = useCallback(() => {
+  const showControlsTemporarily = useCallback(() => {
     setShowHeader(true); setShowFooter(true);
     if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current);
     if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current);
@@ -851,6 +847,12 @@ export function GlobalCallOverlay() {
       footerTimeoutRef.current = setTimeout(() => setShowFooter(false), 3000);
     }
   }, [isConnected]);
+
+  const handleHeaderAreaEnter = useCallback(() => { if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current); setShowHeader(true); }, []);
+  const handleHeaderAreaLeave = useCallback(() => { if (isConnected) headerTimeoutRef.current = setTimeout(() => setShowHeader(false), 1500); }, [isConnected]);
+  const handleFooterAreaEnter = useCallback(() => { if (footerTimeoutRef.current) clearTimeout(footerTimeoutRef.current); setShowFooter(true); }, []);
+  const handleFooterAreaLeave = useCallback(() => { if (isConnected) footerTimeoutRef.current = setTimeout(() => setShowFooter(false), 1500); }, [isConnected]);
+  const handleScreenTap = useCallback(() => { showControlsTemporarily(); }, [showControlsTemporarily]);
 
   return (
     <>
@@ -952,25 +954,25 @@ export function GlobalCallOverlay() {
           {/* Video Container */}
           {isVideoCall && (
             <>
-              <div className="absolute inset-0" onClick={handleScreenTap}>
+              <div className="absolute inset-0" onClick={handleScreenTap} onTouchEnd={handleScreenTap}>
                 <video ref={remoteVideoRef} autoPlay playsInline muted className={cn("w-full h-full object-cover transition-opacity duration-200", hasRemoteVideo ? "opacity-100" : "opacity-0")} style={{ willChange: 'auto', transform: 'translateZ(0)' }} />
                 {!hasRemoteVideo && (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="relative text-center">
                       <div className="animate-pulse">
-                        <Avatar className="h-40 w-40 ring-4 ring-white/10 shadow-2xl">
+                        <Avatar className="h-28 w-28 sm:h-40 sm:w-40 ring-4 ring-white/10 shadow-2xl">
                           <AvatarImage src={displayAvatar || undefined} />
-                          <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
+                          <AvatarFallback className="text-4xl sm:text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
                         </Avatar>
                       </div>
-                      {isRingingOut && <p className="mt-6 text-white/60 text-lg font-light animate-pulse">Ringing...</p>}
-                      {!isConnected && !isRingingOut && <p className="mt-6 text-white/60 text-lg font-light animate-pulse">Waiting for video...</p>}
+                      {isRingingOut && <p className="mt-4 sm:mt-6 text-white/60 text-base sm:text-lg font-light animate-pulse">Ringing...</p>}
+                      {!isConnected && !isRingingOut && <p className="mt-4 sm:mt-6 text-white/60 text-base sm:text-lg font-light animate-pulse">Waiting for video...</p>}
                     </div>
                   </div>
                 )}
               </div>
               {hasLocalVideo && !isVideoOff && (
-                <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="absolute top-24 right-4 w-32 h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 z-30">
+                <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="absolute top-20 sm:top-24 right-3 sm:right-4 w-24 h-36 sm:w-32 sm:h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 z-30">
                   <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1) translateZ(0)' }} />
                 </motion.div>
               )}
@@ -992,50 +994,49 @@ export function GlobalCallOverlay() {
 
           {/* Audio Call — Avatar */}
           {!isVideoCall && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
+            <div className="absolute inset-0 flex items-center justify-center" onClick={handleScreenTap} onTouchEnd={handleScreenTap}>
+              <div className="text-center px-4">
                 {/* Outer glow rings */}
                 <div className="relative inline-block">
                   <motion.div
                     animate={{ scale: [1, 1.6], opacity: [0.3, 0] }}
                     transition={{ repeat: Infinity, duration: 3, ease: "easeOut" }}
                     className="absolute inset-0 rounded-full border border-primary/40"
-                    style={{ width: 176, height: 176, margin: '-8px' }}
+                    style={{ width: 144, height: 144, margin: '-8px' }}
                   />
                   <motion.div
                     animate={{ scale: [1, 1.4], opacity: [0.2, 0] }}
                     transition={{ repeat: Infinity, duration: 3, delay: 0.8, ease: "easeOut" }}
                     className="absolute inset-0 rounded-full border border-accent/30"
-                    style={{ width: 176, height: 176, margin: '-8px' }}
+                    style={{ width: 144, height: 144, margin: '-8px' }}
                   />
-                  {/* Glowing backdrop behind avatar */}
                   <motion.div
                     animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.6, 0.4] }}
                     transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
                     className="absolute inset-0 rounded-full blur-2xl"
-                    style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(280 80% 60% / 0.3))', width: 160, height: 160 }}
+                    style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(280 80% 60% / 0.3))', width: 128, height: 128 }}
                   />
                   <motion.div animate={{ scale: [1, 1.03, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
-                    <Avatar className="h-40 w-40 mx-auto ring-4 ring-white/10 shadow-2xl relative z-10">
+                    <Avatar className="h-32 w-32 sm:h-40 sm:w-40 mx-auto ring-4 ring-white/10 shadow-2xl relative z-10">
                       <AvatarImage src={displayAvatar || undefined} />
-                      <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
+                      <AvatarFallback className="text-4xl sm:text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
                     </Avatar>
                   </motion.div>
                 </div>
-                <h2 className="mt-6 text-2xl font-bold text-white tracking-tight">{displayName}</h2>
+                <h2 className="mt-4 sm:mt-6 text-xl sm:text-2xl font-bold text-white tracking-tight">{displayName}</h2>
                 {isConnecting && (
-                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="mt-2 text-white/60 text-lg">Connecting...</motion.p>
+                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="mt-2 text-white/60 text-base sm:text-lg">Connecting...</motion.p>
                 )}
                 {isRingingOut && (
-                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }} className="mt-2 text-white/60 text-lg">Ringing...</motion.p>
+                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }} className="mt-2 text-white/60 text-base sm:text-lg">Ringing...</motion.p>
                 )}
                 {isConnected && !isRingingOut && !remoteUserLeft && (
-                  <p className="mt-2 text-white/70 text-lg font-mono">{formatDuration(callDuration)}</p>
+                  <p className="mt-2 text-white/70 text-base sm:text-lg font-mono">{formatDuration(callDuration)}</p>
                 )}
                 {isConnected && remoteUserLeft && (
-                  <div className="mt-4 text-center">
-                    <p className="text-white/50 text-sm">{displayName} left · They can rejoin</p>
-                    <p className="text-white/70 text-lg font-mono mt-1">{Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
+                  <div className="mt-3 sm:mt-4 text-center">
+                    <p className="text-white/50 text-xs sm:text-sm">{displayName} left · They can rejoin</p>
+                    <p className="text-white/70 text-base sm:text-lg font-mono mt-1">{Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
                     <p className="text-white/40 text-xs mt-1">They can rejoin</p>
                   </div>
                 )}
@@ -1044,61 +1045,60 @@ export function GlobalCallOverlay() {
           )}
 
           {/* Header */}
-          <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" style={{ paddingTop: 'env(safe-area-inset-top)' }} onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave}>
+          <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" style={{ paddingTop: 'env(safe-area-inset-top)' }} onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave} onTouchStart={showControlsTemporarily}>
             <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: showHeader ? 0 : -100, opacity: showHeader ? 1 : 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="pointer-events-auto">
-              <div className="mx-4 mt-4 p-4 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <Avatar className="h-12 w-12 ring-2 ring-white/20 shadow-lg">
+              <div className="mx-3 sm:mx-4 mt-3 sm:mt-4 p-3 sm:p-4 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1">
+                    <div className="relative flex-shrink-0">
+                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12 ring-2 ring-white/20 shadow-lg">
                         <AvatarImage src={displayAvatar || undefined} />
-                        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">{displayInitial}</AvatarFallback>
+                        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold text-sm sm:text-base">{displayInitial}</AvatarFallback>
                       </Avatar>
-                      {isConnected && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black/50" />}
+                      {isConnected && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute -bottom-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded-full border-2 border-black/50" />}
                     </div>
-                    <div>
-                      <p className="text-white font-semibold text-lg">{displayName}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-white font-semibold text-base sm:text-lg truncate">{displayName}</p>
                       <div className="flex items-center gap-2">
                         {isConnecting && !isRingingOut && (
-                          <motion.div className="flex items-center gap-2 text-white/60" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+                          <motion.div className="flex items-center gap-1.5 text-white/60" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
                             <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-primary" /></span>
-                            <span className="text-sm">Connecting</span>
+                            <span className="text-xs sm:text-sm">Connecting</span>
                           </motion.div>
                         )}
                         {isRingingOut && (
-                          <motion.div className="flex items-center gap-2 text-white/60" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+                          <motion.div className="flex items-center gap-1.5 text-white/60" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
                             <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-500 opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500" /></span>
-                            <span className="text-sm">Ringing</span>
+                            <span className="text-xs sm:text-sm">Ringing</span>
                           </motion.div>
                         )}
                         {isConnected && !isRingingOut && (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                             <span className="flex h-2 w-2 rounded-full bg-green-500" />
-                            <span className="text-white/70 text-sm font-mono tracking-wide">{formatDuration(callDuration)}</span>
-                            {/* Call mode indicator */}
+                            <span className="text-white/70 text-xs sm:text-sm font-mono tracking-wide">{formatDuration(callDuration)}</span>
                             {currentMode === 'persistent' && (
                               <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/20 border border-primary/30">
-                                <Crown className="h-3 w-3 text-primary" />
-                                <span className="text-[10px] text-primary font-medium">Stay On</span>
+                                <Crown className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-primary" />
+                                <span className="text-[9px] sm:text-[10px] text-primary font-medium">Stay On</span>
                               </span>
                             )}
                           </div>
                         )}
                         {isReconnecting && (
-                          <div className="flex items-center gap-2 text-yellow-400">
+                          <div className="flex items-center gap-1.5 text-yellow-400">
                             <Loader2 className="h-3 w-3 animate-spin" />
-                            <span className="text-sm">Reconnecting</span>
+                            <span className="text-xs sm:text-sm">Reconnecting</span>
                           </div>
                         )}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/10">
-                      {isVideoCall ? <Video className="h-4 w-4 text-white/70" /> : <Phone className="h-4 w-4 text-white/70" />}
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                    <div className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/10">
+                      {isVideoCall ? <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white/70" /> : <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white/70" />}
                     </div>
-                    <motion.button whileTap={{ scale: 0.95 }} onClick={handleMinimize} className="h-9 w-9 rounded-full bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors" title="Minimize call">
-                      <Minimize2 className="h-4 w-4 text-white/70" />
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={handleMinimize} className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors" title="Minimize call">
+                      <Minimize2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white/70" />
                     </motion.button>
                   </div>
                 </div>
@@ -1150,15 +1150,16 @@ export function GlobalCallOverlay() {
             animate={{ y: showFooter ? 0 : 100, opacity: showFooter ? 1 : 0 }}
             transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
             className="absolute bottom-0 left-0 right-0 pointer-events-auto"
-            style={{ paddingBottom: 'calc(2.5rem + env(safe-area-inset-bottom))' }}
+            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
             onMouseEnter={handleFooterAreaEnter}
             onMouseLeave={handleFooterAreaLeave}
+            onTouchStart={handleFooterAreaEnter}
           >
-            <div className="flex justify-center">
-              <div className="inline-flex items-center gap-3 p-3 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+            <div className="flex justify-center px-3">
+              <div className="inline-flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)] max-w-full overflow-x-auto">
                 {/* Settings */}
-                <motion.button whileTap={{ scale: 0.95 }} onClick={() => setSettingsOpen(true)} disabled={!isConnected} className={cn("relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300", "bg-white/10 text-white hover:bg-white/20 border border-white/10", "disabled:opacity-50 disabled:cursor-not-allowed")}>
-                  <SlidersHorizontal className="h-5 w-5" />
+                <motion.button whileTap={{ scale: 0.95 }} onClick={() => setSettingsOpen(true)} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-300", "bg-white/10 text-white hover:bg-white/20 border border-white/10", "disabled:opacity-50 disabled:cursor-not-allowed")}>
+                  <SlidersHorizontal className="h-4 w-4 sm:h-5 sm:w-5" />
                 </motion.button>
 
                 {/* Stay On Call toggle — premium feature */}
@@ -1167,7 +1168,7 @@ export function GlobalCallOverlay() {
                   onClick={handleStayOnCallToggle}
                   disabled={!isConnected || isSwitching}
                   className={cn(
-                    "relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300",
+                    "relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-300",
                     "disabled:opacity-50 disabled:cursor-not-allowed",
                     currentMode === 'persistent'
                       ? "bg-gradient-to-br from-primary to-accent text-white shadow-lg ring-2 ring-primary/50"
@@ -1175,40 +1176,40 @@ export function GlobalCallOverlay() {
                   )}
                   title={currentMode === 'persistent' ? 'Stay On Call (active)' : 'Stay On Call (premium)'}
                 >
-                  <Crown className="h-5 w-5" />
+                  <Crown className="h-4 w-4 sm:h-5 sm:w-5" />
                   {!isPremium && currentMode !== 'persistent' && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center">
-                      <span className="text-[8px] font-bold text-black">PRO</span>
+                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-yellow-500 flex items-center justify-center">
+                      <span className="text-[7px] sm:text-[8px] font-bold text-black">PRO</span>
                     </span>
                   )}
                 </motion.button>
 
-                <div className="w-px h-10 bg-white/20 mx-1" />
+                <div className="w-px h-8 sm:h-10 bg-white/20 flex-shrink-0" />
 
                 {/* Mute */}
-                <motion.button whileTap={{ scale: 0.95 }} onClick={handleToggleMute} disabled={!isConnected} className={cn("relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isMuted ? "bg-white text-black shadow-lg ring-2 ring-primary/50" : "bg-white/10 text-white hover:bg-white/20")}>
-                  {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+                <motion.button whileTap={{ scale: 0.95 }} onClick={handleToggleMute} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isMuted ? "bg-white text-black shadow-lg ring-2 ring-primary/50" : "bg-white/10 text-white hover:bg-white/20")}>
+                  {isMuted ? <MicOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Mic className="h-5 w-5 sm:h-6 sm:w-6" />}
                 </motion.button>
 
                 {/* Video toggle */}
                 {isVideoCall && (
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleToggleVideo} disabled={!isConnected} className={cn("relative h-14 w-14 rounded-xl flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isVideoOff ? "bg-white text-black shadow-lg ring-2 ring-accent/50" : "bg-white/10 text-white hover:bg-white/20")}>
-                    {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleToggleVideo} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isVideoOff ? "bg-white text-black shadow-lg ring-2 ring-accent/50" : "bg-white/10 text-white hover:bg-white/20")}>
+                    {isVideoOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
                   </motion.button>
                 )}
 
                 {/* Retry camera */}
                 {isVideoCall && cameraError && (
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleRetryVideo} className="relative h-14 w-14 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 border border-white/10">
-                    <RefreshCw className="h-5 w-5" />
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleRetryVideo} className="relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center bg-white/10 text-white hover:bg-white/20 border border-white/10">
+                    <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5" />
                   </motion.button>
                 )}
 
-                <div className="w-px h-10 bg-white/20 mx-1" />
+                <div className="w-px h-8 sm:h-10 bg-white/20 flex-shrink-0" />
 
                 {/* Leave / End */}
-                <motion.button whileTap={{ scale: 0.95 }} onClick={currentMode === 'persistent' ? handleLeaveCall : handleHangup} disabled={isHangingUp} className={cn("relative h-14 px-6 rounded-xl flex items-center justify-center gap-2 transition-all duration-300", "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg", "hover:from-red-600 hover:to-red-700", "disabled:opacity-70")}>
-                  {isHangingUp ? <Loader2 className="h-5 w-5 animate-spin" /> : (<><PhoneOff className="h-5 w-5" /><span className="font-medium">{currentMode === 'persistent' ? 'Leave' : 'End'}</span></>)}
+                <motion.button whileTap={{ scale: 0.95 }} onClick={currentMode === 'persistent' ? handleLeaveCall : handleHangup} disabled={isHangingUp} className={cn("relative h-11 sm:h-14 px-4 sm:px-6 rounded-xl flex-shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 transition-all duration-300", "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg", "hover:from-red-600 hover:to-red-700", "disabled:opacity-70")}>
+                  {isHangingUp ? <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" /> : (<><PhoneOff className="h-4 w-4 sm:h-5 sm:w-5" /><span className="font-medium text-sm sm:text-base">{currentMode === 'persistent' ? 'Leave' : 'End'}</span></>)}
                 </motion.button>
               </div>
             </div>
@@ -1294,46 +1295,46 @@ function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onA
         <motion.div animate={{ x: [0, -30, 0], y: [0, -50, 0], scale: [1, 1.3, 1] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }} />
       </div>
       <div className="absolute inset-0 backdrop-blur-3xl" />
-      <motion.div initial={{ scale: 0.8, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: 40 }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="relative z-10 flex flex-col items-center max-w-sm w-full">
-        <div className="relative mb-8">
-          <motion.div animate={{ scale: [1, 1.5], opacity: [0.6, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 144, height: 144, margin: '-8px' }} />
-          <motion.div animate={{ scale: [1, 1.4], opacity: [0.4, 0] }} transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-accent/40" style={{ width: 144, height: 144, margin: '-8px' }} />
+      <motion.div initial={{ scale: 0.8, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: 40 }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="relative z-10 flex flex-col items-center max-w-sm w-full px-4">
+        <div className="relative mb-6 sm:mb-8">
+          <motion.div animate={{ scale: [1, 1.5], opacity: [0.6, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 120, height: 120, margin: '-8px' }} />
+          <motion.div animate={{ scale: [1, 1.4], opacity: [0.4, 0] }} transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-accent/40" style={{ width: 120, height: 120, margin: '-8px' }} />
           <motion.div animate={{ scale: [1, 1.02, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
-            <Avatar className="h-32 w-32 ring-4 ring-white/10 shadow-2xl">
+            <Avatar className="h-24 w-24 sm:h-32 sm:w-32 ring-4 ring-white/10 shadow-2xl">
               <AvatarImage src={incomingDisplayAvatar || undefined} />
-              <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{incomingDisplayInitial}</AvatarFallback>
+              <AvatarFallback className="text-3xl sm:text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{incomingDisplayInitial}</AvatarFallback>
             </Avatar>
           </motion.div>
           <motion.div initial={{ scale: 0, y: 10 }} animate={{ scale: 1, y: 0 }} transition={{ delay: 0.2, type: "spring" }} className="absolute -bottom-3 left-1/2 -translate-x-1/2">
-            <div className="px-4 py-1.5 rounded-full bg-gradient-to-r from-primary to-accent flex items-center gap-1.5 shadow-lg">
-              {isVideoCall ? <Video className="h-4 w-4 text-white" /> : <Phone className="h-4 w-4 text-white" />}
-              <span className="text-xs font-semibold text-white">
+            <div className="px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-gradient-to-r from-primary to-accent flex items-center gap-1.5 shadow-lg">
+              {isVideoCall ? <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" /> : <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />}
+              <span className="text-[10px] sm:text-xs font-semibold text-white">
                 {isGroupCall ? (isVideoCall ? 'Group FaceTime' : 'Group Call') : (isVideoCall ? 'FaceTime' : 'Audio Call')}
               </span>
             </div>
           </motion.div>
         </div>
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-white mb-2">{incomingDisplayName}</h2>
-          <motion.p className="text-white/60 text-lg" animate={{ opacity: [0.4, 0.8, 0.4] }} transition={{ repeat: Infinity, duration: 2 }}>
+        <div className="text-center mb-8 sm:mb-10">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">{incomingDisplayName}</h2>
+          <motion.p className="text-white/60 text-base sm:text-lg" animate={{ opacity: [0.4, 0.8, 0.4] }} transition={{ repeat: Infinity, duration: 2 }}>
             {isGroupCall ? `${caller?.display_name || caller?.username} is calling...` : 'is calling you...'}
           </motion.p>
         </div>
-        <div className="flex items-center justify-center gap-8 w-full mb-8">
-          <div className="flex flex-col items-center gap-3">
-            <button onClick={handleDecline} onTouchEnd={(e) => { e.preventDefault(); handleDecline(); }} disabled={isProcessing} className="h-16 w-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg flex items-center justify-center hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90">
-              <PhoneOff className="h-7 w-7" />
+        <div className="flex items-center justify-center gap-6 sm:gap-8 w-full mb-6 sm:mb-8">
+          <div className="flex flex-col items-center gap-2 sm:gap-3">
+            <button onClick={handleDecline} onTouchEnd={(e) => { e.preventDefault(); handleDecline(); }} disabled={isProcessing} className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg flex items-center justify-center hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90">
+              <PhoneOff className="h-6 w-6 sm:h-7 sm:w-7" />
             </button>
-            <span className="text-white/50 text-sm font-medium">Decline</span>
+            <span className="text-white/50 text-xs sm:text-sm font-medium">Decline</span>
           </div>
-          <div className="flex flex-col items-center gap-3">
-            <button onClick={handleAccept} onTouchEnd={(e) => { e.preventDefault(); handleAccept(); }} disabled={isProcessing} className="h-16 w-16 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg flex items-center justify-center hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90 animate-pulse">
-              {isVideoCall ? <Video className="h-7 w-7" /> : <Phone className="h-7 w-7" />}
+          <div className="flex flex-col items-center gap-2 sm:gap-3">
+            <button onClick={handleAccept} onTouchEnd={(e) => { e.preventDefault(); handleAccept(); }} disabled={isProcessing} className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg flex items-center justify-center hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90 animate-pulse">
+              {isVideoCall ? <Video className="h-6 w-6 sm:h-7 sm:w-7" /> : <Phone className="h-6 w-6 sm:h-7 sm:w-7" />}
             </button>
-            <span className="text-white/50 text-sm font-medium">Accept</span>
+            <span className="text-white/50 text-xs sm:text-sm font-medium">Accept</span>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-white/30 text-sm">
+        <div className="flex items-center gap-2 text-white/30 text-xs sm:text-sm">
           <div className="w-1.5 h-1.5 rounded-full bg-white/30 animate-pulse" />
           <span>Auto-declining in {timeLeft}s</span>
         </div>
