@@ -1,50 +1,92 @@
 
 
-## Fix Calls and Other Critical Errors
+## Fix Critical Bugs: Posts, Reactions, Tutorial, Notes, Admin Panel, and More
 
-### Issues Identified
+### Root Cause Analysis
 
-1. **Calls fail with `NotReadableError: Could not start video source`** — The P2P connection requests `getUserMedia` for video, but the VybeSnapCamera may still be holding the camera. On iPhone, only one process can hold the camera at a time. The call flow never releases the existing camera stream before trying to acquire a new one.
+**1. Can't post / Can't like (FK violation on `user_levels`)**
+The core issue: `add_user_xp()` function inserts `p_user_id` directly into `user_levels.user_id`, which has a foreign key to `auth.users(id)`. But triggers pass **profile IDs** (not auth IDs):
+- `grant_xp_on_post_created` passes `NEW.author_id` (profile ID from `posts`)
+- `auto_grant_engagement_xp` passes `NEW.user_id` (profile ID from `likes`, `comments`, `bookmarks`)
 
-2. **`posts.user_id does not exist` (HTTP 400)** — Two files query `posts` using a non-existent `user_id` column:
-   - `src/pages/Search.tsx` line 55: `profiles!user_id` join hint (should be `profiles!author_id`)
-   - `src/components/recap/WeeklyRecapModal.tsx` line 60: `.eq('user_id', user.id)` (should be `.eq('author_id', user.id)`)
+This causes every post creation and every like/bookmark to fail with FK violation.
 
-3. **`Failed to set remote answer sdp: Called in wrong state: stable`** — The answer handler at line 501 already guards against this, but the offer handler at line 481 does a `setRemoteDescription` even when `hasRemoteDescription` is true, which can race with an existing stable state. Need to check `signalingState` before re-applying an offer.
+**2. Emoji reactions don't persist on refresh**
+The `PostCard`/`ShortCard` components correctly upsert reactions with `reaction_type`, and `usePosts` fetches `reaction_type` from `likes`. But the likes insert itself fails (see #1 above), so the reaction is never actually saved. Fixing #1 fixes this.
 
-4. **Conversations 403 RLS** — `src/hooks/useFriends.ts` line 256 does a direct `.insert()` into `conversations` instead of using the `create_dm_conversation` RPC. The RPC is SECURITY DEFINER and handles this correctly. Replace the direct insert with the RPC call.
+**3. PostDetail page has basic Heart-only likes (no emoji reactions)**
+`PostDetail.tsx` uses a simple `handleLike` that doesn't pass `reaction_type` and doesn't support the emoji reaction picker that `PostCard` and `ShortCard` have.
 
-5. **`user_levels` 403 RLS** — The insert at `src/hooks/useVybePass.ts` line 72 and `src/hooks/useBattlePass.ts` line 76 tries to insert when no row exists. This may fail if the user session isn't fully established yet. Add an `enabled` guard and catch gracefully.
+**4. Tutorial glitch (step 1 appears/disappears, can't click)**
+The tutorial overlay appears but the spotlight element detection races — the overlay renders, finds no element initially (DOM not settled), briefly shows then repositions. The `isNavigating` state flickers. Fix: add a minimum delay before showing the overlay and ensure the first step element is always findable on `/home`.
 
-6. **`DialogContent requires DialogTitle`** — Missing `DialogTitle` in some dialog component (accessibility warning).
+**5. Note GIF bubble bleeding through**
+The GIF bubble at `z-[50]` can show through other UI elements. The `overflow-visible` on the scroll container allows the bubble to visually bleed over adjacent content. Need to constrain z-index and clip within the notes section boundary.
+
+**6. Admin DevTools panel transparent/ugly**
+`ProductionDebugPanel.tsx` uses `bg-background` which may be transparent on some themes. Fix: use explicit opaque background `bg-card` or add a backdrop.
+
+**7. AI Designer button blocking post button**
+The floating AI sparkles button overlaps with the post composer's bottom area. Fix: hide the FAB when the upload/composer page is active.
 
 ### Plan
 
-#### File: `src/lib/p2pConnection.ts`
-- In `connect()`, before calling `getUserMedia`, import and call `stopCameraStream()` from `useCameraPreload` to release any held camera
-- In the offer handler (line 481), add a `signalingState` check before calling `setRemoteDescription` on re-offers to avoid the "stable" state error
+#### Database Migration (critical — fixes posts + likes + reactions)
+Fix `add_user_xp` to translate profile_id → auth_id before inserting into `user_levels`:
 
-#### File: `src/pages/Search.tsx`
-- Line 55: Change `profiles!user_id` to `profiles!author_id` in the select join hint
+```sql
+CREATE OR REPLACE FUNCTION public.add_user_xp(p_user_id uuid, p_xp integer)
+RETURNS jsonb ...
+AS $$
+DECLARE
+  v_auth_id uuid;
+  v_result jsonb;
+BEGIN
+  -- Translate: if p_user_id is a profile ID, look up the auth user_id
+  SELECT user_id INTO v_auth_id FROM public.profiles WHERE id = p_user_id;
+  IF v_auth_id IS NULL THEN
+    -- Maybe it's already an auth ID
+    v_auth_id := p_user_id;
+  END IF;
 
-#### File: `src/components/recap/WeeklyRecapModal.tsx`
-- Line 60: Change `.eq('user_id', user.id)` to `.eq('author_id', user.id)`
+  INSERT INTO public.user_levels (user_id, total_xp, current_level)
+  VALUES (v_auth_id, p_xp, 1)
+  ON CONFLICT (user_id)
+  DO UPDATE SET total_xp = user_levels.total_xp + p_xp, updated_at = now();
 
-#### File: `src/hooks/useFriends.ts`
-- Replace the direct `conversations` insert (lines 256-263) + `conversation_members` insert (lines 269-272) with a call to `supabase.rpc('create_dm_conversation', { other_profile_id: receiverId })`
+  SELECT jsonb_build_object('success', true, 'xp_added', p_xp) INTO v_result;
+  RETURN v_result;
+END;
+$$;
+```
 
-#### File: `src/hooks/useVybePass.ts` and `src/hooks/useBattlePass.ts`
-- Wrap the `user_levels` insert in a try-catch so a 403 doesn't crash the flow; log and continue gracefully
+#### File: `src/pages/PostDetail.tsx`
+- Add emoji reaction support to match `PostCard` — import `ReactionPicker`, add long-press/hold on heart to show picker, upsert with `reaction_type`, display the correct emoji instead of just Heart
 
-#### File: `src/lib/mediaPermissions.ts`
-- In `requestCallMediaPermissions`, import and call `stopCameraStream()` before requesting any media to ensure the camera is free
+#### File: `src/components/tutorial/TutorialProvider.tsx`
+- Increase the initial trigger delay from 800ms to 1500ms so the DOM is fully settled
+- Add a guard: only open if the target element for step 0 actually exists in the DOM
+
+#### File: `src/components/tutorial/TutorialOverlay.tsx`
+- On step mount, wait for the target element with a polling retry (up to 2s) before showing the tooltip, so it doesn't flash in/out
+
+#### File: `src/components/chat/NotesRow.tsx`
+- Fix GIF bubble z-index bleeding: wrap the entire notes section in `relative z-10` and ensure bubbles use `z-20` (relative to parent), not `z-[50]` (global)
+- Prevent bubble from overlapping content above: add `pt-10` padding to the container to give bubbles vertical room
+
+#### File: `src/components/debug/ProductionDebugPanel.tsx`
+- Change `bg-background` to `bg-card` and add explicit opacity `bg-opacity-100` or use a solid fallback like `backdrop-blur-xl bg-black/95`
+
+#### File: `src/pages/Upload.tsx` or relevant layout
+- Hide the floating AI assistant button when the upload/create flow is active (check for existing FAB component and add conditional rendering)
 
 ### Files to modify
-- `src/lib/p2pConnection.ts` — release camera before call, fix offer re-negotiation
-- `src/lib/mediaPermissions.ts` — stop existing camera before permission check
-- `src/pages/Search.tsx` — fix `user_id` → `author_id`
-- `src/components/recap/WeeklyRecapModal.tsx` — fix `user_id` → `author_id`
-- `src/hooks/useFriends.ts` — use `create_dm_conversation` RPC
-- `src/hooks/useVybePass.ts` — graceful user_levels insert
-- `src/hooks/useBattlePass.ts` — graceful user_levels insert
+- `src/pages/PostDetail.tsx` — add emoji reactions
+- `src/components/tutorial/TutorialProvider.tsx` — fix flash timing
+- `src/components/tutorial/TutorialOverlay.tsx` — wait for DOM element
+- `src/components/chat/NotesRow.tsx` — fix GIF bubble bleed
+- `src/components/debug/ProductionDebugPanel.tsx` — opaque background
+
+### Database migration
+- Fix `add_user_xp` to translate profile_id → auth_id (fixes posts, likes, reactions)
 
