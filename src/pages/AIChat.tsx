@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Send, Loader2, MoreVertical, Sparkles, Settings, RotateCcw, Check,
-  Dna, MapPin, BotMessageSquare, Shield
+  Dna, MapPin, BotMessageSquare, Shield, ImagePlus, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ type Message = {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  imageUrl?: string;
 };
 
 const STORAGE_KEY = 'vybe_ai_chat_messages_v2';
@@ -59,25 +60,54 @@ const QUICK_PROMPTS = [
   '💻 Help me code something',
 ];
 
+// Resize image to max dimension and return base64
+async function imageToBase64(file: File, maxSize = 1024): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        if (width > maxSize || height > maxSize) {
+          if (width > height) { height = Math.round(height * maxSize / width); width = maxSize; }
+          else { width = Math.round(width * maxSize / height); height = maxSize; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        const dataUrl = canvas.toDataURL(mimeType, 0.85);
+        const base64 = dataUrl.split(',')[1];
+        resolve({ base64, mimeType });
+      };
+      img.onerror = reject;
+      img.src = reader.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function AIChat() {
   const navigate = useNavigate();
   const streamingContentRef = useRef('');
   
-  // Simple settings — no model picker, no API key nonsense
-  const [aiName, setAiName] = useState(() => loadSetting(AI_NAME_KEY, 'Morgan'));
+  const [aiName, setAiName] = useState(() => loadSetting(AI_NAME_KEY, 'VYBE-AI'));
   const [aiPersonality, setAiPersonality] = useState(() => loadSetting(AI_PERSONALITY_KEY, 'A friendly, helpful AI assistant who is approachable, supportive, and genuinely interested in helping.'));
   const [feedDNA, setFeedDNA] = useState(() => loadSetting(AI_DNA_KEY, 'true') === 'true');
   
   const [messages, setMessages] = useState<Message[]>(() => {
     const loaded = loadMessages();
     if (loaded.length === 0) {
-      return [{ role: 'assistant', content: `Hey! I'm ${loadSetting(AI_NAME_KEY, 'Morgan')} — your AI on VYBE. I can help with anything from content ideas to coding questions. What's on your mind? ✨`, timestamp: new Date() }];
+      return [{ role: 'assistant', content: `Hey! I'm ${loadSetting(AI_NAME_KEY, 'VYBE-AI')} — your AI on VYBE. I can help with anything from content ideas to coding questions. What's on your mind? ✨`, timestamp: new Date() }];
     }
     return loaded;
   });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [streamingText, setStreamingText] = useState(''); // live streaming text for the current response
+  const [streamingText, setStreamingText] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editName, setEditName] = useState(aiName);
   const [editPersonality, setEditPersonality] = useState(aiPersonality);
@@ -86,16 +116,20 @@ export default function AIChat() {
   });
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
   const [showGPSDialog, setShowGPSDialog] = useState(false);
+  
+  // Image upload state
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { saveMessages(messages); }, [messages]);
-  // Auto-scroll on streaming text changes too
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages, streamingText]);
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  // Re-acquire location on mount if user previously had it enabled
   useEffect(() => {
     if (locationEnabled && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -111,7 +145,6 @@ export default function AIChat() {
           }
         },
         () => {
-          // Permission revoked since last session
           setLocationEnabled(false);
           localStorage.setItem('vybe_ai_location', 'false');
         },
@@ -148,7 +181,7 @@ export default function AIChat() {
   }, []);
 
   const handleSaveSettings = useCallback(() => {
-    const name = editName.trim() || 'Morgan';
+    const name = editName.trim() || 'VYBE-AI';
     const personality = editPersonality.trim() || 'A friendly, helpful AI assistant.';
     setAiName(name);
     setAiPersonality(personality);
@@ -163,13 +196,55 @@ export default function AIChat() {
     localStorage.setItem(AI_DNA_KEY, String(val));
   }, []);
 
+  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image too large (max 10MB)');
+      return;
+    }
+    setSelectedImage(file);
+    const url = URL.createObjectURL(file);
+    setImagePreview(url);
+  }, []);
+
+  const clearImage = useCallback(() => {
+    setSelectedImage(null);
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  }, [imagePreview]);
+
   const sendMessage = useCallback(async (text?: string) => {
     const msgText = (text || input).trim();
-    if (!msgText || isLoading) return;
+    if ((!msgText && !selectedImage) || isLoading) return;
 
-    const userMessage: Message = { role: 'user', content: msgText, timestamp: new Date() };
+    // Build image data if present
+    let imageBase64: string | null = null;
+    let imageMimeType: string | null = null;
+    let localImageUrl: string | null = null;
+    
+    if (selectedImage) {
+      try {
+        const result = await imageToBase64(selectedImage);
+        imageBase64 = result.base64;
+        imageMimeType = result.mimeType;
+        localImageUrl = imagePreview;
+      } catch {
+        toast.error('Failed to process image');
+        return;
+      }
+    }
+
+    const userMessage: Message = { 
+      role: 'user', 
+      content: msgText || '📷 [Image]', 
+      timestamp: new Date(),
+      imageUrl: localImageUrl || undefined,
+    };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    clearImage();
     setIsLoading(true);
 
     let assistantContent = '';
@@ -177,20 +252,23 @@ export default function AIChat() {
 
     try {
       const headers = await getFunctionAuthHeaders();
+      const body: any = {
+        messages: messages.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: msgText || 'What is in this image?' }]),
+        aiName,
+        aiPersonality,
+        model: 'gemini-flash',
+        feedDNA,
+        location: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, city: userLocation.city } : null,
+      };
+      
+      if (imageBase64 && imageMimeType) {
+        body.image_base64 = imageBase64;
+        body.image_mime_type = imageMimeType;
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            messages: messages.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: msgText }]),
-            aiName,
-            aiPersonality,
-            model: 'gemini-flash',
-            feedDNA,
-            location: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, city: userLocation.city } : null,
-          }),
-        }
+        { method: 'POST', headers, body: JSON.stringify(body) }
       );
 
       if (!response.ok) {
@@ -203,7 +281,6 @@ export default function AIChat() {
       const decoder = new TextDecoder();
       if (!reader) throw new Error('No reader');
 
-      // Show empty assistant bubble with typing dots
       setStreamingText('');
 
       let buffer = '';
@@ -228,14 +305,12 @@ export default function AIChat() {
             if (content) {
               assistantContent += content;
               streamingContentRef.current = assistantContent;
-              // Update streaming text directly — lightweight, only re-renders the bubble
               setStreamingText(assistantContent);
             }
           } catch { buffer = line + '\n' + buffer; break; }
         }
       }
       
-      // Process any remaining buffer
       if (buffer.trim()) {
         for (const raw of buffer.split('\n')) {
           if (!raw || raw.startsWith(':') || raw.trim() === '') continue;
@@ -254,7 +329,6 @@ export default function AIChat() {
         }
       }
 
-      // Finalize: commit the completed message to the messages array
       setMessages(prev => [...prev, { role: 'assistant', content: assistantContent, timestamp: new Date() }]);
       setStreamingText('');
       streamingContentRef.current = '';
@@ -266,7 +340,7 @@ export default function AIChat() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation]);
+  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation, selectedImage, imagePreview, clearImage]);
 
   const clearChat = useCallback(() => {
     setMessages([{ role: 'assistant', content: `Fresh start! I'm ${aiName}, ready when you are ✨`, timestamp: new Date() }]);
@@ -342,11 +416,19 @@ export default function AIChat() {
                     ? 'bg-primary text-primary-foreground rounded-tr-md'
                     : 'bg-muted/60 rounded-tl-md border border-border/30'
                 )}>
+                  {/* Render image if present */}
+                  {message.imageUrl && (
+                    <img 
+                      src={message.imageUrl} 
+                      alt="Uploaded" 
+                      className="rounded-lg mb-1.5 max-w-full max-h-48 object-cover"
+                    />
+                  )}
                   {message.role === 'assistant' ? (
                     <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-1 [&_p:last-child]:mb-0 [&_pre]:text-xs [&_code]:text-xs">
                       <ReactMarkdown>{message.content}</ReactMarkdown>
                     </div>
-                  ) : message.content}
+                  ) : (message.content !== '📷 [Image]' ? message.content : null)}
                 </div>
                 <span className={cn(
                   "text-[9px] text-muted-foreground/60 mt-0.5 px-1",
@@ -358,7 +440,7 @@ export default function AIChat() {
             </motion.div>
           ))}
 
-          {/* Live streaming bubble — separate from committed messages */}
+          {/* Live streaming bubble */}
           {isLoading && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -414,6 +496,31 @@ export default function AIChat() {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Image preview */}
+        <AnimatePresence>
+          {imagePreview && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="px-3 border-t border-border/30 bg-card overflow-hidden"
+            >
+              <div className="py-2 flex items-center gap-2">
+                <div className="relative">
+                  <img src={imagePreview} alt="Selected" className="h-14 w-14 rounded-lg object-cover border border-border/40" />
+                  <button
+                    onClick={clearImage}
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+                <span className="text-xs text-muted-foreground">Image attached</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Input */}
         <div className="px-3 py-2.5 border-t border-border/40 bg-card shrink-0">
           <div className="flex items-center gap-1 mb-1.5 px-1">
@@ -434,6 +541,22 @@ export default function AIChat() {
             </button>
           </div>
           <div className="flex items-center gap-1.5">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageSelect}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-full shrink-0 text-muted-foreground"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isLoading}
+            >
+              <ImagePlus className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -453,7 +576,7 @@ export default function AIChat() {
             />
             <Button
               onClick={() => sendMessage()}
-              disabled={!input.trim() || isLoading}
+              disabled={(!input.trim() && !selectedImage) || isLoading}
               size="icon"
               className="h-9 w-9 rounded-full shrink-0"
             >
@@ -463,7 +586,7 @@ export default function AIChat() {
         </div>
       </div>
 
-      {/* Settings Sheet - simplified */}
+      {/* Settings Sheet */}
       <Sheet open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
         <SheetContent side="bottom" className="h-[70vh] rounded-t-3xl">
           <SheetHeader className="text-left">
@@ -474,19 +597,16 @@ export default function AIChat() {
           </SheetHeader>
           
           <div className="mt-4 space-y-5 overflow-y-auto max-h-[calc(70vh-8rem)]">
-            {/* Name */}
             <div className="space-y-1.5">
               <Label htmlFor="ai-name" className="text-xs font-medium">AI Name</Label>
-              <Input id="ai-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Morgan" maxLength={20} className="h-9" />
+              <Input id="ai-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="VYBE-AI" maxLength={20} className="h-9" />
             </div>
 
-            {/* Personality */}
             <div className="space-y-1.5">
               <Label htmlFor="ai-personality" className="text-xs font-medium">Personality</Label>
               <Textarea id="ai-personality" value={editPersonality} onChange={(e) => setEditPersonality(e.target.value)} placeholder="Describe how your AI should behave..." rows={3} maxLength={500} className="text-sm" />
             </div>
 
-            {/* DNA Feed */}
             <div className="flex items-center justify-between p-3 rounded-xl border border-border/40">
               <div className="flex items-center gap-2.5">
                 <Dna className="h-5 w-5 text-accent" />
@@ -498,7 +618,6 @@ export default function AIChat() {
               <Switch checked={feedDNA} onCheckedChange={toggleDNA} />
             </div>
 
-            {/* GPS */}
             <div className="flex items-center justify-between p-3 rounded-xl border border-border/40">
               <div className="flex items-center gap-2.5">
                 <MapPin className="h-5 w-5 text-primary" />
@@ -512,17 +631,16 @@ export default function AIChat() {
               <Switch checked={locationEnabled} onCheckedChange={(val) => val ? requestGPSPermission() : setLocationEnabled(false)} />
             </div>
 
-            {/* Actions */}
             <div className="flex flex-col gap-2 pt-2">
               <Button onClick={handleSaveSettings} className="w-full">
                 <Check className="h-4 w-4 mr-2" /> Save Changes
               </Button>
               <Button variant="outline" onClick={() => {
-                setEditName('Morgan');
+                setEditName('VYBE-AI');
                 setEditPersonality('A friendly, helpful AI assistant who is approachable, supportive, and genuinely interested in helping.');
-                setAiName('Morgan');
+                setAiName('VYBE-AI');
                 setAiPersonality('A friendly, helpful AI assistant who is approachable, supportive, and genuinely interested in helping.');
-                localStorage.setItem(AI_NAME_KEY, 'Morgan');
+                localStorage.setItem(AI_NAME_KEY, 'VYBE-AI');
                 localStorage.setItem(AI_PERSONALITY_KEY, 'A friendly, helpful AI assistant who is approachable, supportive, and genuinely interested in helping.');
                 toast.success('Reset to default');
               }} className="w-full">
