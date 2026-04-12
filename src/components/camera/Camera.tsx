@@ -260,13 +260,17 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
 
   if (state === 'edit' && capturedMedia) {
     return <CameraEditor mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} filter={currentFilter} onSave={() => {
-      // If onCapture is provided, bypass share sheet and return media directly
       if (onCapture && capturedMedia.file) {
         onCapture({ file: capturedMedia.file, url: capturedMedia.url, type: capturedMedia.type });
         return;
       }
       setState('share');
-    }} onCancel={() => { setCapturedMedia(null); setState('capture'); }} />;
+    }} onCancel={() => { 
+      setCapturedMedia(null); 
+      setState('capture');
+      // Restart camera after returning from editor
+      setTimeout(() => startCamera(), 100);
+    }} />;
   }
   if (state === 'share' && capturedMedia) {
     return <CameraShareSheet mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} mediaFile={capturedMedia.file} onClose={() => setState('edit')} onComplete={onClose} />;
@@ -500,6 +504,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
                   "w-[72px] h-[72px] rounded-full border-[4px] flex items-center justify-center",
                   isRecording ? "border-destructive/60" : "border-white"
                 )}
+                style={{ touchAction: 'manipulation' }}
                 whileTap={{ scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               >
