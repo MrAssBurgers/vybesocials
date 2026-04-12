@@ -275,20 +275,7 @@ export const Toybox = memo(function Toybox({
 
   const ToyboxContent = (
     <div className="p-4 max-h-[70vh] overflow-y-auto">
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleImageChange}
-        className="hidden"
-      />
-      <input
-        ref={videoInputRef}
-        type="file"
-        accept="video/*"
-        onChange={handleVideoChange}
-        className="hidden"
-      />
+      {/* File inputs moved outside Drawer/Popover for iOS compatibility */}
 
       <AnimatePresence mode="wait">
         {showGifPicker ? (
@@ -515,11 +502,62 @@ export const Toybox = memo(function Toybox({
     </div>
   );
 
+  // Hidden file inputs OUTSIDE Drawer/Popover for iOS Safari compatibility
+  const fileInputs = (
+    <>
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageChange}
+        className="hidden"
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/*"
+        onChange={handleVideoChange}
+        className="hidden"
+      />
+    </>
+  );
+
   // Use Drawer on mobile, Popover on desktop
   if (isMobile) {
     return (
-      <Drawer open={isOpen} onOpenChange={setIsOpen}>
-        <DrawerTrigger asChild>
+      <>
+        {fileInputs}
+        <Drawer open={isOpen} onOpenChange={setIsOpen}>
+          <DrawerTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={disabled || isUploading}
+              className="flex-shrink-0 border-primary/50 hover:bg-primary/10 hover:border-primary"
+            >
+              <motion.div
+                animate={isOpen ? { rotate: 45 } : { rotate: 0 }}
+                transition={{ duration: 0.2 }}
+                className="relative"
+              >
+                <Plus className="h-5 w-5 text-primary" />
+              </motion.div>
+            </Button>
+          </DrawerTrigger>
+          <DrawerContent>
+            <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-muted mb-4 mt-2" />
+            {ToyboxContent}
+          </DrawerContent>
+        </Drawer>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {fileInputs}
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
           <Button
             variant="outline"
             size="icon"
@@ -534,41 +572,16 @@ export const Toybox = memo(function Toybox({
               <Plus className="h-5 w-5 text-primary" />
             </motion.div>
           </Button>
-        </DrawerTrigger>
-        <DrawerContent>
-          <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-muted mb-4 mt-2" />
-          {ToyboxContent}
-        </DrawerContent>
-      </Drawer>
-    );
-  }
-
-  return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          disabled={disabled || isUploading}
-          className="flex-shrink-0 border-primary/50 hover:bg-primary/10 hover:border-primary"
+        </PopoverTrigger>
+        <PopoverContent 
+          side="top" 
+          align="start" 
+          className="w-80 p-0"
+          sideOffset={8}
         >
-          <motion.div
-            animate={isOpen ? { rotate: 45 } : { rotate: 0 }}
-            transition={{ duration: 0.2 }}
-            className="relative"
-          >
-            <Plus className="h-5 w-5 text-primary" />
-          </motion.div>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent 
-        side="top" 
-        align="start" 
-        className="w-80 p-0"
-        sideOffset={8}
-      >
-        {ToyboxContent}
-      </PopoverContent>
-    </Popover>
+          {ToyboxContent}
+        </PopoverContent>
+      </Popover>
+    </>
   );
 });

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Component, ErrorInfo, ReactNode } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User, Car, Footprints, Pause, RefreshCw } from 'lucide-react';
+import { motion, AnimatePresence, PanInfo } from 'framer-motion';
+import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User, Car, Footprints, Pause, RefreshCw, Cloud, Sun, CloudRain, Snowflake, Eye, EyeOff, ChevronUp, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/lib/auth';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { useLocationContext } from '@/providers/LocationProvider';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -70,27 +71,34 @@ interface PublicProfileSummary {
   avatar_url: string | null;
 }
 
+interface WeatherData {
+  temp: number;
+  description: string;
+  icon: string;
+  city: string;
+}
+
 /* ── constants ───────────────────────────────────────── */
 
 const DEFAULT_CENTER: [number, number] = [39.8283, -98.5795];
 const DEFAULT_ZOOM = 4;
 const FRIEND_FOCUS_ZOOM = 16;
 const MY_LOCATION_ZOOM = 16;
-const UPSERT_INTERVAL_MS = 15_000;
 const SHARING_PREF_KEY = 'vybe-map-sharing';
 const MAP_STYLE_KEY = 'vybe-map-style';
 const HIDDEN_FRIENDS_KEY = 'vybe-map-hidden-friends';
+const VISIBILITY_PREF_KEY = 'vybe-map-visibility';
 
 const MAP_TILES: Record<string, { url: string; label: string; icon: string }> = {
-  satellite: {
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    label: 'Satellite',
-    icon: '🛰️',
-  },
   dark: {
     url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
     label: 'Dark',
     icon: '🌑',
+  },
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    label: 'Satellite',
+    icon: '🛰️',
   },
   terrain: {
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
@@ -106,6 +114,8 @@ const MAP_TILES: Record<string, { url: string; label: string; icon: string }> = 
 
 type MapStyleKey = keyof typeof MAP_TILES;
 
+const FILTER_CHIPS = ['Friends', 'Trending', 'Memories', 'Popular'];
+
 function isMapStyleKey(value: string | null): value is MapStyleKey {
   return !!value && Object.prototype.hasOwnProperty.call(MAP_TILES, value);
 }
@@ -113,9 +123,9 @@ function isMapStyleKey(value: string | null): value is MapStyleKey {
 function getInitialMapStyle(): MapStyleKey {
   try {
     const storedStyle = localStorage.getItem(MAP_STYLE_KEY);
-    return isMapStyleKey(storedStyle) ? storedStyle : 'satellite';
+    return isMapStyleKey(storedStyle) ? storedStyle : 'dark';
   } catch {
-    return 'satellite';
+    return 'dark';
   }
 }
 
@@ -129,15 +139,12 @@ function isValidLatLng(lat: unknown, lng: unknown): lat is number {
 
 /* ── helpers ─────────────────────────────────────────── */
 
-/** Smoothly animate a Leaflet marker between two positions (Apple Maps style) */
 function animateMarker(marker: L.Marker, from: L.LatLng, to: L.LatLng, duration = 800) {
   const start = performance.now();
   const fromLat = from.lat, fromLng = from.lng;
   const dLat = to.lat - fromLat, dLng = to.lng - fromLng;
-  
   function step(now: number) {
     const t = Math.min((now - start) / duration, 1);
-    // ease-out cubic
     const ease = 1 - Math.pow(1 - t, 3);
     marker.setLatLng([fromLat + dLat * ease, fromLng + dLng * ease]);
     if (t < 1) requestAnimationFrame(step);
@@ -164,9 +171,9 @@ function esc(v: string) {
 function timeSince(dateStr: string) {
   const ms = Date.now() - new Date(dateStr).getTime();
   if (ms < 60_000) return 'now';
-  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
-  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
-  return `${Math.floor(ms / 86_400_000)}d`;
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+  return `${Math.floor(ms / 86_400_000)}d ago`;
 }
 
 function distanceBetween(a: [number, number], b: [number, number]) {
@@ -175,14 +182,6 @@ function distanceBetween(a: [number, number], b: [number, number]) {
   const dLon = (b[1] - a[1]) * Math.PI / 180;
   const x = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * Math.PI / 180) * Math.cos(b[0] * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-}
-
-function autoStatus(speed: number | null, hour: number): string | null {
-  if (speed && speed > 25) return '✈️ Traveling';
-  if (speed && speed > 2) return '🚗 Driving';
-  if (speed && speed > 0.5) return '🚶 Walking';
-  if (hour >= 0 && hour < 6) return '😴 Sleeping';
-  return null;
 }
 
 function getActivityFromSpeed(speed?: number | null): { label: string; icon: string; color: string } {
@@ -195,6 +194,14 @@ function getActivityFromSpeed(speed?: number | null): { label: string; icon: str
 function speedToMph(speed?: number | null): string | null {
   if (!speed || speed < 0.3) return null;
   return `${Math.round(speed * 2.237)} mph`;
+}
+
+function getLocationLabel(loc: LocationRecord): string {
+  if (loc.status) return loc.status;
+  const activity = getActivityFromSpeed(loc.speed);
+  if (activity.label !== 'Stationary') return activity.label;
+  if (loc.label) return loc.label;
+  return 'Sharing location';
 }
 
 function friendIcon(f: LocationRecord, selected: boolean) {
@@ -297,11 +304,7 @@ function useFriendLocations(friendIds: string[]) {
         return {
           ...row,
           profile: profile
-            ? {
-                username: profile.username,
-                display_name: profile.display_name,
-                avatar_url: profile.avatar_url,
-              }
+            ? { username: profile.username, display_name: profile.display_name, avatar_url: profile.avatar_url }
             : null,
         };
       }) as LocationRecord[];
@@ -309,42 +312,66 @@ function useFriendLocations(friendIds: string[]) {
   });
 }
 
+/* ── weather hook ────────────────────────────────────── */
+
+function useWeather(coords: [number, number] | null) {
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  
+  useEffect(() => {
+    if (!coords) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Use Open-Meteo (free, no API key needed)
+        const res = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${coords[0]}&longitude=${coords[1]}&current=temperature_2m,weather_code&temperature_unit=fahrenheit`
+        );
+        const data = await res.json();
+        if (cancelled) return;
+        
+        const temp = Math.round(data.current?.temperature_2m || 0);
+        const code = data.current?.weather_code || 0;
+        
+        // Reverse geocode for city name
+        let city = '';
+        try {
+          const geoRes = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords[0]}&lon=${coords[1]}&zoom=10`
+          );
+          const geoData = await geoRes.json();
+          if (!cancelled) {
+            city = geoData.address?.city || geoData.address?.town || geoData.address?.village || geoData.address?.county || '';
+          }
+        } catch {}
+        
+        // Map weather code to icon
+        let icon = '☀️';
+        let description = 'Clear';
+        if (code >= 1 && code <= 3) { icon = '⛅'; description = 'Partly Cloudy'; }
+        else if (code >= 45 && code <= 48) { icon = '🌫️'; description = 'Foggy'; }
+        else if (code >= 51 && code <= 67) { icon = '🌧️'; description = 'Rain'; }
+        else if (code >= 71 && code <= 77) { icon = '🌨️'; description = 'Snow'; }
+        else if (code >= 80 && code <= 82) { icon = '🌦️'; description = 'Showers'; }
+        else if (code >= 95) { icon = '⛈️'; description = 'Thunderstorm'; }
+        
+        if (!cancelled) {
+          setWeather({ temp, description, icon, city });
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [coords?.[0], coords?.[1]]);
+  
+  return weather;
+}
+
 /* ── search hook ─────────────────────────────────────── */
 
 function useNominatimSearch(myCoords: [number, number] | null) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
-  const [nearby, setNearby] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout>>();
-  const nearbyLoaded = useRef(false);
-
-  // Load nearby places when coords become available
-  useEffect(() => {
-    if (!myCoords || nearbyLoaded.current) return;
-    nearbyLoaded.current = true;
-    (async () => {
-      const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
-      const categories = ['restaurant', 'cafe', 'gas station', 'grocery', 'pharmacy'];
-      const all: any[] = [];
-      for (const cat of categories) {
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&limit=2&q=${encodeURIComponent(cat)}&viewbox=${myCoords[1] - 0.05},${myCoords[0] + 0.05},${myCoords[1] + 0.05},${myCoords[0] - 0.05}&bounded=1`
-          );
-          const data = await res.json();
-          all.push(...data);
-          await delay(1100);
-        } catch { /* skip */ }
-      }
-      all.sort((a: any, b: any) => {
-        const da = distanceBetween(myCoords!, [parseFloat(a.lat), parseFloat(a.lon)]);
-        const db = distanceBetween(myCoords!, [parseFloat(b.lat), parseFloat(b.lon)]);
-        return da - db;
-      });
-      setNearby(all.slice(0, 8));
-    })();
-  }, [myCoords]);
 
   const search = useCallback((q: string) => {
     setQuery(q);
@@ -360,7 +387,6 @@ function useNominatimSearch(myCoords: [number, number] | null) {
           `https://nominatim.openstreetmap.org/search?format=json&limit=8&q=${encodeURIComponent(q)}${locBias}`
         );
         const data = await res.json();
-        // Sort results by distance if we have coords
         if (myCoords && data?.length) {
           data.sort((a: any, b: any) => {
             const da = distanceBetween(myCoords, [parseFloat(a.lat), parseFloat(a.lon)]);
@@ -376,7 +402,7 @@ function useNominatimSearch(myCoords: [number, number] | null) {
 
   const clear = useCallback(() => { setQuery(''); setResults([]); }, []);
 
-  return { query, results, nearby, loading, search, clear };
+  return { query, results, loading, search, clear };
 }
 
 /* ── component ───────────────────────────────────────── */
@@ -403,11 +429,15 @@ function FriendMapInner() {
 
   // State
   const [selId, setSelId] = useState<string | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchSheetOpen, setSearchSheetOpen] = useState(false);
   const [stylesOpen, setStylesOpen] = useState(false);
   const [ghostOpen, setGhostOpen] = useState(false);
   const [mapStyle, setMapStyle] = useState<MapStyleKey>(getInitialMapStyle);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [activeFilter, setActiveFilter] = useState('Friends');
+  const [visibilityPref, setVisibilityPref] = useState<string>(() => {
+    try { return localStorage.getItem(VISIBILITY_PREF_KEY) || 'friends'; } catch { return 'friends'; }
+  });
   const [hiddenFriends, setHiddenFriends] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem(HIDDEN_FRIENDS_KEY);
@@ -428,6 +458,9 @@ function FriendMapInner() {
     () => (myCoords && isValidLatLng(myCoords[0], myCoords[1]) ? myCoords : null),
     [myCoords]
   );
+  
+  const weather = useWeather(safeMyCoords);
+  
   const friendsArr = useMemo(
     () => (Array.isArray(friends) ? friends.filter((friend) => isValidLatLng(friend.latitude, friend.longitude) && !hiddenFriends.has(friend.user_id)) : []),
     [friends, hiddenFriends]
@@ -447,7 +480,22 @@ function FriendMapInner() {
     });
   }, [friendsArr, safeMyCoords]);
 
-  // Simple clustering: group friends within ~0.005 degrees at low zoom
+  // All friends for search list (including those not sharing location)
+  const { data: allFriendProfiles = [] } = useQuery({
+    queryKey: ['friend-profiles-for-map', friendIds],
+    enabled: friendIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!friendIds.length) return [];
+      const { data } = await supabase
+        .from('public_profiles')
+        .select('id, username, display_name, avatar_url')
+        .in('id', friendIds);
+      return (data || []) as PublicProfileSummary[];
+    },
+  });
+
+  // Simple clustering
   const clusteredMarkers = useMemo(() => {
     if (zoom >= 13) return { singles: friendsArr, clusters: [] as { center: [number, number]; members: LocationRecord[] }[] };
     const used = new Set<string>();
@@ -475,9 +523,7 @@ function FriendMapInner() {
     return { singles, clusters };
   }, [friendsArr, zoom]);
 
-  const { query: searchQuery, results: searchResults, nearby: nearbyPlaces, loading: searchLoading, search: doSearch, clear: clearSearch } = useNominatimSearch(safeMyCoords);
-
-  /* ── location tracking is handled by LocationProvider ── */
+  const { query: searchQuery, results: searchResults, loading: searchLoading, search: doSearch, clear: clearSearch } = useNominatimSearch(safeMyCoords);
 
   /* ── realtime subscription ─────────────────────────── */
 
@@ -511,6 +557,7 @@ function FriendMapInner() {
     setSelId(f.user_id);
     mapRef.current?.flyTo([f.latitude, f.longitude], FRIEND_FOCUS_ZOOM, { duration: 1.2 });
     triggerHaptic('light');
+    setSearchSheetOpen(false);
   }, []);
 
   const recenter = useCallback(() => {
@@ -522,11 +569,7 @@ function FriendMapInner() {
   const changeMapStyle = useCallback((style: string) => {
     if (!isMapStyleKey(style)) return;
     setMapStyle(style);
-    try {
-      localStorage.setItem(MAP_STYLE_KEY, style);
-    } catch {
-      // Ignore storage failures and keep the in-memory style.
-    }
+    try { localStorage.setItem(MAP_STYLE_KEY, style); } catch {}
     if (tileRef.current && mapRef.current) {
       tileRef.current.remove();
       tileRef.current = L.tileLayer(MAP_TILES[style].url, { maxZoom: 19 }).addTo(mapRef.current);
@@ -537,10 +580,15 @@ function FriendMapInner() {
 
   const flyToSearch = useCallback((r: SearchResult) => {
     mapRef.current?.flyTo([parseFloat(r.lat), parseFloat(r.lon)], 14, { duration: 1.5 });
-    setSearchOpen(false);
+    setSearchSheetOpen(false);
     clearSearch();
     triggerHaptic('light');
   }, [clearSearch]);
+
+  const handleVisibilityChange = useCallback((val: string) => {
+    setVisibilityPref(val);
+    try { localStorage.setItem(VISIBILITY_PREF_KEY, val); } catch {}
+  }, []);
 
   /* ── leaflet lifecycle ─────────────────────────────── */
 
@@ -551,17 +599,8 @@ function FriendMapInner() {
     let retryRaf: number | null = null;
     let timeoutIds: number[] = [];
 
-    const ensureVisible = (el: HTMLDivElement) => {
-      el.style.display = 'block';
-    };
-
-    const safeInvalidateSize = () => {
-      try {
-        mapRef.current?.invalidateSize();
-      } catch {
-        // Ignore teardown races
-      }
-    };
+    const ensureVisible = (el: HTMLDivElement) => { el.style.display = 'block'; };
+    const safeInvalidateSize = () => { try { mapRef.current?.invalidateSize(); } catch {} };
 
     const resizeObserver = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(() => {
@@ -576,7 +615,6 @@ function FriendMapInner() {
     const initMap = () => {
       const el = mapEl.current;
       if (!el || mapRef.current) return true;
-
       ensureVisible(el);
       const rect = el.getBoundingClientRect();
       if (rect.width < 200 || rect.height < 200) return false;
@@ -604,7 +642,6 @@ function FriendMapInner() {
       mapRef.current = map;
 
       resizeObserver?.observe(el);
-
       map.on('click', () => { setSelId(null); setStylesOpen(false); });
       map.on('zoomend', () => setZoom(map.getZoom()));
       map.whenReady(() => {
@@ -613,21 +650,15 @@ function FriendMapInner() {
       });
 
       timeoutIds = [100, 300, 600, 1000, 1600, 2500].map((ms) =>
-        window.setTimeout(() => {
-          ensureVisible(el);
-          safeInvalidateSize();
-        }, ms)
+        window.setTimeout(() => { ensureVisible(el); safeInvalidateSize(); }, ms)
       );
-
       return true;
     };
 
     const scheduleInit = () => {
       if (mapRef.current) return;
       if (retryTimer) window.clearTimeout(retryTimer);
-      retryTimer = window.setTimeout(() => {
-        if (!initMap()) scheduleInit();
-      }, 80);
+      retryTimer = window.setTimeout(() => { if (!initMap()) scheduleInit(); }, 80);
     };
 
     if (!initMap()) scheduleInit();
@@ -636,10 +667,7 @@ function FriendMapInner() {
       const el = mapEl.current;
       if (!el) return;
       ensureVisible(el);
-      if (!mapRef.current) {
-        scheduleInit();
-        return;
-      }
+      if (!mapRef.current) { scheduleInit(); return; }
       safeInvalidateSize();
     };
 
@@ -695,7 +723,6 @@ function FriendMapInner() {
     if (!myMk.current) {
       myMk.current = L.marker(safeMyCoords, { icon: myIcon(), zIndexOffset: 1000, interactive: false }).addTo(map);
     } else {
-      // Smooth animation for own marker (Apple Maps style)
       const old = myMk.current.getLatLng();
       if (old.lat !== safeMyCoords[0] || old.lng !== safeMyCoords[1]) {
         animateMarker(myMk.current, old, L.latLng(safeMyCoords[0], safeMyCoords[1]));
@@ -709,14 +736,11 @@ function FriendMapInner() {
     const layer = fLayer.current;
     if (!layer) return;
 
-    // Clean up old cluster markers first
     clusterMarkerRefs.current.forEach((m) => { try { layer.removeLayer(m); } catch {} });
     clusterMarkerRefs.current = [];
 
-    // Track which markers are still present
     const currentIds = new Set<string>();
 
-    // Smooth animate individual markers
     clusteredMarkers.singles.forEach((f) => {
       currentIds.add(f.user_id);
       const newPos = L.latLng(f.latitude, f.longitude);
@@ -736,7 +760,6 @@ function FriendMapInner() {
       }
     });
 
-    // Render clusters
     clusteredMarkers.clusters.forEach((c) => {
       c.members.forEach(m => {
         const existing = friendMarkers.current.get(m.user_id);
@@ -751,7 +774,6 @@ function FriendMapInner() {
       clusterMarkerRefs.current.push(clusterMk);
     });
 
-    // Remove markers for friends no longer present
     friendMarkers.current.forEach((marker, id) => {
       if (!currentIds.has(id)) {
         layer.removeLayer(marker);
@@ -784,7 +806,7 @@ function FriendMapInner() {
           @keyframes ring-pulse{0%,100%{opacity:.7}50%{opacity:1}}
           @keyframes moving-glow{0%,100%{box-shadow:0 0 8px 2px hsl(142 76% 56%/.3)}50%{box-shadow:0 0 20px 6px hsl(142 76% 56%/.15)}}
           .friend-map-marker,.my-location-marker{background:transparent!important;border:none!important}
-          .leaflet-container{height:100%!important;width:100%!important;background:hsl(var(--muted));font-family:inherit;display:block!important;visibility:visible!important}
+          .leaflet-container{height:100%!important;width:100%!important;background:#1a1a2e;font-family:inherit;display:block!important;visibility:visible!important}
           .leaflet-pane,.leaflet-map-pane,.leaflet-tile-pane,.leaflet-layer,.leaflet-tile{opacity:1!important;visibility:visible!important}
           .leaflet-container img,.leaflet-container .leaflet-tile{max-width:none!important;max-height:none!important}
           .leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
@@ -814,69 +836,82 @@ function FriendMapInner() {
           .vme-p{position:absolute;inset:4px;border-radius:9999px;background:hsl(217 91% 60%/.15);animation:pulse-ring 2.5s ease-out infinite .5s}
           .vme-d{position:relative;z-index:1;height:18px;width:18px;border-radius:9999px;border:3px solid hsl(var(--background));background:hsl(217 91% 60%);box-shadow:0 0 12px 4px hsl(217 91% 60%/.35);animation:pulse-glow 2s ease-in-out infinite}
           
-          
           .scrollbar-hide::-webkit-scrollbar{display:none}
           .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
         `}</style>
 
         {/* Map container */}
         <div ref={mapEl} className="absolute inset-0 block w-full h-full" />
-        {/* Removed map-vignette overlay that was causing dark layer on desktop */}
 
-        {/* ── Top bar ─────────────────────────────────── */}
+        {/* ── Top bar (Snap Maps style) ───────────────── */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-4 pt-[env(safe-area-inset-top)]">
-          <div className="mx-auto flex max-w-lg items-center gap-2">
+          <div className="mx-auto flex max-w-lg items-center gap-2 mt-2">
+            {/* Back + user avatar */}
             <motion.button
               onClick={() => navigate(-1)}
               whileTap={{ scale: 0.9 }}
-              className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xl"
+              className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-xl"
             >
               <ChevronLeft className="h-5 w-5" />
             </motion.button>
 
+            {/* User avatar */}
+            <motion.button
+              onClick={recenter}
+              whileTap={{ scale: 0.9 }}
+              className="pointer-events-auto relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden bg-black/50 backdrop-blur-xl border-2 border-primary/50"
+            >
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <User className="h-4 w-4 text-white" />
+              )}
+              {sharing && (
+                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-black" />
+              )}
+            </motion.button>
+
             <div className="flex-1" />
 
-            {/* Search button */}
-            <motion.button
-              onClick={() => { setSearchOpen(true); triggerHaptic('light'); }}
-              whileTap={{ scale: 0.9 }}
-              className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xl"
-            >
-              <Search className="h-4 w-4" />
-            </motion.button>
+            {/* Weather + location (Snap Maps top-right) */}
+            {weather && (
+              <motion.div
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-black/50 backdrop-blur-xl px-3 py-2"
+              >
+                <span className="text-sm">{weather.icon}</span>
+                <span className="text-xs font-semibold text-white">{weather.city}{weather.city ? ', ' : ''}{weather.temp}°F</span>
+              </motion.div>
+            )}
 
             {/* Map style button */}
             <motion.button
               onClick={() => { setStylesOpen(!stylesOpen); triggerHaptic('light'); }}
               whileTap={{ scale: 0.9 }}
-              className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xl"
+              className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-xl"
             >
               <Layers className="h-4 w-4" />
             </motion.button>
+          </div>
 
-            {/* Accuracy indicator */}
-            {sharing && accuracy && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-xl"
+          {/* Filter chips row (Snap Maps style) */}
+          <div className="pointer-events-auto flex gap-2 mt-3 overflow-x-auto scrollbar-hide px-1 pb-1 mx-auto max-w-lg">
+            {FILTER_CHIPS.map((chip) => (
+              <motion.button
+                key={chip}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => { setActiveFilter(chip); triggerHaptic('light'); }}
+                className={cn(
+                  'shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-all backdrop-blur-xl',
+                  activeFilter === chip
+                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25'
+                    : 'bg-black/40 text-white/70 hover:bg-black/60'
+                )}
               >
-                <span className={cn(
-                  'h-2 w-2 rounded-full',
-                  accuracy < 20 ? 'bg-green-400' : accuracy < 100 ? 'bg-yellow-400' : 'bg-red-400'
-                )} />
-                <span className="text-[11px] font-medium text-white/80">{Math.round(accuracy)}m</span>
-              </motion.div>
-            )}
-
-            <motion.button
-              onClick={recenter}
-                disabled={!safeMyCoords}
-              whileTap={{ scale: 0.9 }}
-              className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xl disabled:opacity-30"
-            >
-              <Navigation className="h-4.5 w-4.5" />
-            </motion.button>
+                {chip}
+              </motion.button>
+            ))}
           </div>
         </div>
 
@@ -884,11 +919,11 @@ function FriendMapInner() {
         <AnimatePresence>
           {stylesOpen && (
             <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="pointer-events-auto absolute right-4 z-[1001] rounded-2xl bg-black/70 p-2 backdrop-blur-2xl border border-white/10"
-              style={{ top: 'calc(max(env(safe-area-inset-top), 16px) + 52px)' }}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="pointer-events-auto absolute right-4 z-[1001] rounded-2xl bg-black/80 backdrop-blur-2xl p-2 border border-white/10 shadow-2xl"
+              style={{ top: 'calc(max(env(safe-area-inset-top), 16px) + 120px)' }}
             >
               {Object.entries(MAP_TILES).map(([key, tile]) => (
                 <button
@@ -896,7 +931,7 @@ function FriendMapInner() {
                   onClick={() => changeMapStyle(key)}
                   className={cn(
                     'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-all',
-                    mapStyle === key ? 'bg-primary/20 text-white' : 'text-white/70 hover:bg-white/10'
+                    mapStyle === key ? 'bg-primary/20 text-primary' : 'text-white/70 hover:bg-white/5'
                   )}
                 >
                   <span className="text-lg">{tile.icon}</span>
@@ -908,127 +943,30 @@ function FriendMapInner() {
           )}
         </AnimatePresence>
 
-        {/* ── Search overlay ─────────────────────────── */}
-        <AnimatePresence>
-          {searchOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="pointer-events-auto absolute inset-x-4 z-[1002] rounded-2xl bg-black/80 backdrop-blur-2xl border border-white/10 overflow-hidden"
-              style={{ top: 'calc(max(env(safe-area-inset-top), 16px) + 4px)' }}
-            >
-              <div className="flex items-center gap-2 p-3">
-                <Search className="h-4 w-4 text-white/50 shrink-0" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => doSearch(e.target.value)}
-                  placeholder="Search places..."
-                  className="flex-1 bg-transparent text-sm text-white placeholder:text-white/30 outline-none"
-                  autoFocus
-                />
-                <button onClick={() => { setSearchOpen(false); clearSearch(); }} className="p-1">
-                  <X className="h-4 w-4 text-white/50" />
-                </button>
-              </div>
-              {searchResults.length > 0 && (
-                <div className="border-t border-white/10 max-h-60 overflow-y-auto">
-                  {searchResults.map((r) => (
-                    <div
-                      key={`${r.lat}-${r.lon}`}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 hover:bg-white/5 transition-colors"
-                    >
-                      <button
-                        onClick={() => flyToSearch(r)}
-                        className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
-                      >
-                        <MapPin className="h-3.5 w-3.5 text-white/40 shrink-0" />
-                        <span className="text-xs text-white/80 truncate">{r.display_name}</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(`https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lon}`, '_blank');
-                          setSearchOpen(false);
-                          clearSearch();
-                        }}
-                        className="shrink-0 flex items-center gap-1 rounded-full bg-primary/20 px-2.5 py-1 text-[10px] font-bold text-primary hover:bg-primary/30 transition-colors"
-                      >
-                        <Navigation className="h-3 w-3" />
-                        Directions
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {searchLoading && (
-                <div className="border-t border-white/10 p-3 text-center text-xs text-white/40">Searching...</div>
-              )}
-              {/* Nearby suggestions when no query */}
-              {!searchQuery && nearbyPlaces.length > 0 && (
-                <div className="border-t border-white/10">
-                  <p className="px-3 pt-2.5 pb-1 text-[10px] font-semibold text-white/30 uppercase tracking-wider">Nearby</p>
-                  {nearbyPlaces.map((r, i) => {
-                    const dist = safeMyCoords ? distanceBetween(safeMyCoords, [parseFloat(r.lat), parseFloat(r.lon)]).toFixed(1) : null;
-                    return (
-                      <div key={`${r.lat}-${r.lon}`} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-white/5 transition-colors">
-                        <button
-                          onClick={() => flyToSearch(r)}
-                          className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
-                        >
-                          <MapPin className="h-3.5 w-3.5 text-primary/60 shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <span className="text-xs text-white/80 truncate block">{r.display_name}</span>
-                            {dist && <span className="text-[10px] text-white/40">{dist} mi away</span>}
-                          </div>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(`https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lon}`, '_blank');
-                          }}
-                          className="shrink-0 flex items-center gap-1 rounded-full bg-primary/20 px-2.5 py-1 text-[10px] font-bold text-primary hover:bg-primary/30 transition-colors"
-                        >
-                          <Navigation className="h-3 w-3" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── Ghost Mode FAB ─────────────────────────── */}
-        <div className="pointer-events-none absolute right-4 z-[1000]" style={{ bottom: 'max(calc(env(safe-area-inset-bottom) + 180px), 196px)' }}>
+        {/* ── Right side controls ────────────────────── */}
+        <div className="pointer-events-none absolute right-4 z-[1000] flex flex-col gap-2" style={{ top: 'calc(50% - 60px)' }}>
+          {/* Recenter */}
+          <motion.button
+            onClick={recenter}
+            whileTap={{ scale: 0.9 }}
+            className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-xl"
+          >
+            <Navigation className="h-4 w-4" />
+          </motion.button>
+          
+          {/* Ghost Mode FAB */}
           <motion.button
             onClick={() => { setGhostOpen(!ghostOpen); triggerHaptic('light'); }}
             whileTap={{ scale: 0.9 }}
             className={cn(
-              'pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full shadow-2xl transition-all',
+              'pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full shadow-xl transition-all',
               sharing
                 ? 'bg-primary text-primary-foreground'
-                : 'bg-black/60 text-white backdrop-blur-xl border border-white/20'
+                : 'bg-black/50 text-white backdrop-blur-xl'
             )}
           >
-            {sharing ? (
-              <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
-                <MapPin className="h-6 w-6" />
-              </motion.div>
-            ) : (
-              <Ghost className="h-6 w-6 opacity-80" />
-            )}
+            {sharing ? <MapPin className="h-4 w-4" /> : <Ghost className="h-4 w-4 opacity-80" />}
           </motion.button>
-          {!sharing && (
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: [1, 1.5, 1], opacity: [0.6, 0, 0.6] }}
-              transition={{ repeat: Infinity, duration: 2.5 }}
-              className="pointer-events-none absolute inset-0 rounded-full border-2 border-white/30"
-            />
-          )}
         </div>
 
         {/* ── Ghost Mode sheet ───────────────────────── */}
@@ -1047,55 +985,93 @@ function FriendMapInner() {
                 animate={{ y: 0 }}
                 exit={{ y: '100%' }}
                 transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-                className="pointer-events-auto absolute inset-x-0 bottom-0 z-[1004] rounded-t-3xl bg-black/80 backdrop-blur-2xl border-t border-white/10"
+                className="pointer-events-auto absolute inset-x-0 bottom-0 z-[1004] rounded-t-3xl bg-black/90 backdrop-blur-2xl border-t border-white/10"
                 style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
               >
                 <div className="flex justify-center pt-3 pb-1">
                   <div className="w-10 h-1.5 rounded-full bg-white/20" />
                 </div>
-                <div className="p-5 space-y-4">
+                <div className="p-5 space-y-5">
+                  {/* Ghost Mode header with avatar */}
                   <div className="flex items-center gap-3">
-                    <Ghost className="h-6 w-6 text-white" />
+                    <div className="relative h-14 w-14 rounded-full overflow-hidden bg-white/10">
+                      {profile?.avatar_url ? (
+                        <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <Ghost className="h-6 w-6 text-white/60" />
+                        </div>
+                      )}
+                      {!sharing && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <Ghost className="h-5 w-5 text-white" />
+                        </div>
+                      )}
+                    </div>
                     <div>
                       <h3 className="text-base font-bold text-white">Ghost Mode</h3>
-                      <p className="text-xs text-white/50">Control who can see your location</p>
+                      <p className="text-xs text-white/50">
+                        {sharing ? 'Your location is visible' : 'Your location is hidden'}
+                      </p>
+                    </div>
+                    <div className="ml-auto">
+                      <button
+                        onClick={toggleSharing}
+                        className={cn(
+                          'relative h-8 w-14 rounded-full transition-all',
+                          !sharing ? 'bg-primary' : 'bg-white/20'
+                        )}
+                      >
+                        <div className={cn(
+                          'absolute top-1 h-6 w-6 rounded-full bg-white transition-transform shadow',
+                          !sharing ? 'translate-x-7' : 'translate-x-1'
+                        )} />
+                      </button>
                     </div>
                   </div>
 
-                  <button
-                    onClick={toggleSharing}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-2xl p-4 transition-all',
-                      !sharing ? 'bg-primary/20 border border-primary/40' : 'bg-white/5 border border-white/10'
-                    )}
-                  >
-                    <Ghost className={cn('h-5 w-5', !sharing ? 'text-primary' : 'text-white/50')} />
-                    <div className="text-left flex-1">
-                      <p className={cn('text-sm font-semibold', !sharing ? 'text-primary' : 'text-white/70')}>Ghost Mode</p>
-                      <p className="text-[11px] text-white/40">Nobody can see your location</p>
+                  {/* Who Can See My Location */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold text-white/40 uppercase tracking-wider">Who Can See My Location</p>
+                    <div className="space-y-2">
+                      {[
+                        { value: 'friends', label: 'My Friends', desc: 'All your friends can see your location' },
+                        { value: 'friends-except', label: 'My Friends, Except...', desc: 'Hide from specific friends' },
+                        { value: 'only-these', label: 'Only These Friends...', desc: 'Only share with specific friends' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => handleVisibilityChange(opt.value)}
+                          className={cn(
+                            'flex w-full items-center gap-3 rounded-2xl p-3.5 transition-all text-left',
+                            visibilityPref === opt.value
+                              ? 'bg-primary/15 border border-primary/30'
+                              : 'bg-white/5 border border-white/5'
+                          )}
+                        >
+                          <div className={cn(
+                            'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0',
+                            visibilityPref === opt.value ? 'border-primary' : 'border-white/30'
+                          )}>
+                            {visibilityPref === opt.value && (
+                              <div className="h-2.5 w-2.5 rounded-full bg-primary" />
+                            )}
+                          </div>
+                          <div>
+                            <p className={cn('text-sm font-semibold', visibilityPref === opt.value ? 'text-white' : 'text-white/70')}>{opt.label}</p>
+                            <p className="text-[11px] text-white/40">{opt.desc}</p>
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                    {!sharing && <span className="text-primary text-xs font-bold">Active</span>}
-                  </button>
-
-                  <button
-                    onClick={toggleSharing}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-2xl p-4 transition-all',
-                      sharing ? 'bg-green-500/20 border border-green-500/40' : 'bg-white/5 border border-white/10'
-                    )}
-                  >
-                    <MapPin className={cn('h-5 w-5', sharing ? 'text-green-400' : 'text-white/50')} />
-                    <div className="text-left flex-1">
-                      <p className={cn('text-sm font-semibold', sharing ? 'text-green-400' : 'text-white/70')}>My Friends</p>
-                      <p className="text-[11px] text-white/40">Only friends can see your location</p>
-                    </div>
-                    {sharing && <span className="text-green-400 text-xs font-bold">Active</span>}
-                  </button>
+                  </div>
 
                   {/* Per-friend visibility */}
-                  {allFriendsArr.length > 0 && (
+                  {allFriendsArr.length > 0 && (visibilityPref === 'friends-except' || visibilityPref === 'only-these') && (
                     <div className="space-y-2">
-                      <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Hide from map</p>
+                      <p className="text-xs font-bold text-white/40 uppercase tracking-wider">
+                        {visibilityPref === 'friends-except' ? 'Hide from these friends' : 'Only show to these friends'}
+                      </p>
                       <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-hide">
                         {allFriendsArr.map((f) => (
                           <button
@@ -1134,11 +1110,11 @@ function FriendMapInner() {
           )}
         </AnimatePresence>
 
-        {/* ── Bottom panel ─────────────────────────────── */}
+        {/* ── Bottom section ─────────────────────────── */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] pb-[max(env(safe-area-inset-bottom),12px)]">
           <div className="mx-auto max-w-lg space-y-2 px-4">
 
-            {/* Selected friend card (Life360-inspired) */}
+            {/* Selected friend card */}
             <AnimatePresence>
               {sel && (() => {
                 const activity = getActivityFromSpeed(sel.speed);
@@ -1154,7 +1130,6 @@ function FriendMapInner() {
                   className="pointer-events-auto rounded-3xl bg-black/70 p-4 shadow-2xl backdrop-blur-2xl border border-white/10"
                 >
                   <div className="flex items-center gap-3">
-                    {/* Tappable avatar with activity ring */}
                     <button
                       onClick={() => { const u = friendUsername(sel); if (u) navigate(`/u/${u}`); }}
                       className="relative shrink-0"
@@ -1181,9 +1156,8 @@ function FriendMapInner() {
                       <p className="truncate text-xs text-white/50">
                         {friendUsername(sel) ? `@${friendUsername(sel)}` : ''}
                         {' · '}
-                        {isLive ? '📍 Live' : `${timeSince(sel.updated_at)} ago`}
+                        {isLive ? '📍 Live' : timeSince(sel.updated_at)}
                       </p>
-                      {/* Activity badge */}
                       <div className="flex items-center gap-2 mt-1.5">
                         <span className={cn(
                           'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold',
@@ -1218,10 +1192,8 @@ function FriendMapInner() {
                         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
                         const isAndroid = /Android/i.test(navigator.userAgent);
                         if (isIOS) {
-                          // Apple Maps deep link — falls back to Google Maps in browser
                           window.location.href = `maps://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`;
                         } else if (isAndroid) {
-                          // geo: intent opens user's preferred maps app
                           window.location.href = `geo:${lat},${lng}?q=${lat},${lng}`;
                         } else {
                           window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, '_blank');
@@ -1294,7 +1266,7 @@ function FriendMapInner() {
                   );
                 })}
               </div>
-            ) : (
+            ) : !searchSheetOpen && (
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1305,34 +1277,190 @@ function FriendMapInner() {
               </motion.div>
             )}
 
-            {/* Sharing status bar */}
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
+            {/* Search / Explore bar (Snap Maps style) */}
+            <motion.button
+              onClick={() => { setSearchSheetOpen(true); triggerHaptic('light'); }}
               className={cn(
-                'pointer-events-auto flex items-center gap-3 rounded-full px-4 py-2.5 backdrop-blur-xl transition-all',
-                sharing ? 'bg-primary/20 border border-primary/30' : 'bg-black/40 border border-white/5'
+                'pointer-events-auto flex w-full items-center gap-3 rounded-full px-4 py-3 backdrop-blur-xl transition-all',
+                'bg-black/50 border border-white/10'
               )}
             >
-              <span className={cn(
-                'h-2.5 w-2.5 rounded-full shrink-0',
-                sharing ? 'bg-primary animate-pulse' : 'bg-white/30'
-              )} />
-              <span className="flex-1 text-xs font-medium text-white/70">
-                {sharing ? 'Your live location is visible to friends' : '👻 Ghost Mode — Location hidden'}
-              </span>
-              <button
-                onClick={toggleSharing}
-                className={cn(
-                  'rounded-full px-3 py-1 text-[11px] font-bold transition-all',
-                  sharing ? 'bg-white/10 text-white/80' : 'bg-primary text-primary-foreground'
-                )}
-              >
-                {sharing ? 'Stop' : 'Go Live'}
-              </button>
-            </motion.div>
+              <Search className="h-4 w-4 text-white/40" />
+              <span className="flex-1 text-sm text-white/40 text-left">Search for places</span>
+              {sharing && (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-[10px] font-semibold text-green-400">Live</span>
+                </span>
+              )}
+            </motion.button>
           </div>
         </div>
+
+        {/* ── Search Bottom Sheet ────────────────────── */}
+        <AnimatePresence>
+          {searchSheetOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="pointer-events-auto absolute inset-0 z-[1005] bg-black/30"
+                onClick={() => { setSearchSheetOpen(false); clearSearch(); }}
+              />
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                className="pointer-events-auto absolute inset-x-0 bottom-0 z-[1006] rounded-t-3xl bg-black/90 backdrop-blur-2xl border-t border-white/10"
+                style={{ maxHeight: '75vh', paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+              >
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className="w-10 h-1.5 rounded-full bg-white/20" />
+                </div>
+                
+                {/* Search input */}
+                <div className="px-4 pb-3">
+                  <div className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2.5">
+                    <Search className="h-4 w-4 text-white/40 shrink-0" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => doSearch(e.target.value)}
+                      placeholder="Search for places"
+                      className="flex-1 bg-transparent text-sm text-white placeholder:text-white/30 outline-none"
+                      autoFocus
+                    />
+                    {searchQuery && (
+                      <button onClick={clearSearch} className="p-0.5">
+                        <X className="h-3.5 w-3.5 text-white/40" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Filter chips */}
+                <div className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-hide">
+                  {['Trending', 'Memories', 'Visited', 'Popular'].map((chip) => (
+                    <button
+                      key={chip}
+                      className="shrink-0 rounded-full bg-white/5 border border-white/10 px-3.5 py-1.5 text-xs font-medium text-white/60 hover:bg-white/10 transition-colors"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="overflow-y-auto scrollbar-hide" style={{ maxHeight: 'calc(75vh - 140px)' }}>
+                  {/* Search results */}
+                  {searchResults.length > 0 && (
+                    <div className="px-4 pb-3">
+                      <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider mb-2">Places</p>
+                      {searchResults.map((r) => (
+                        <button
+                          key={`${r.lat}-${r.lon}`}
+                          onClick={() => flyToSearch(r)}
+                          className="flex w-full items-center gap-3 py-2.5 hover:bg-white/5 rounded-xl px-2 transition-colors"
+                        >
+                          <div className="h-9 w-9 rounded-full bg-white/5 flex items-center justify-center shrink-0">
+                            <MapPin className="h-4 w-4 text-white/40" />
+                          </div>
+                          <span className="text-xs text-white/70 truncate flex-1 text-left">{r.display_name}</span>
+                          <Navigation className="h-3 w-3 text-primary/60 shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {searchLoading && (
+                    <div className="px-4 py-6 text-center text-xs text-white/30">Searching...</div>
+                  )}
+
+                  {/* Friends section (Snap Maps style) */}
+                  {!searchQuery && (
+                    <div className="px-4 pb-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-bold text-white/40 uppercase tracking-wider">Friends</p>
+                        <span className="text-[10px] text-white/30">{friendsArr.length} sharing</span>
+                      </div>
+                      
+                      {sortedFriends.length > 0 ? (
+                        <div className="space-y-1">
+                          {sortedFriends.map((f) => {
+                            const isLive = (Date.now() - new Date(f.updated_at).getTime()) < 300_000;
+                            const locationLabel = getLocationLabel(f);
+                            return (
+                              <button
+                                key={f.user_id}
+                                onClick={() => focus(f)}
+                                className="flex w-full items-center gap-3 py-2.5 px-2 rounded-xl hover:bg-white/5 transition-colors"
+                              >
+                                <div className={cn(
+                                  'relative h-10 w-10 rounded-full p-[2px] shrink-0',
+                                  isLive ? 'bg-green-500' : 'bg-white/20'
+                                )}>
+                                  <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-black/80">
+                                    {f.profile?.avatar_url ? (
+                                      <img src={f.profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                                    ) : (
+                                      <span className="text-xs font-bold text-white/60">{initial(friendName(f))}</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex-1 min-w-0 text-left">
+                                  <p className="text-sm font-semibold text-white truncate">{friendName(f)}</p>
+                                  <p className="text-[11px] text-white/40 truncate">{locationLabel}</p>
+                                </div>
+                                <span className="text-[10px] text-white/30 shrink-0">{timeSince(f.updated_at)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <Ghost className="h-8 w-8 text-white/20 mx-auto mb-2" />
+                          <p className="text-xs text-white/40">No friends sharing location</p>
+                          <p className="text-[10px] text-white/25 mt-1">Friends will appear here when they go live</p>
+                        </div>
+                      )}
+
+                      {/* All friends (not sharing) */}
+                      {allFriendProfiles.length > sortedFriends.length && (
+                        <div className="mt-4">
+                          <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-2">Not Sharing</p>
+                          {allFriendProfiles
+                            .filter(p => !sortedFriends.find(f => f.user_id === p.id))
+                            .slice(0, 5)
+                            .map((p) => (
+                              <div
+                                key={p.id}
+                                className="flex items-center gap-3 py-2 px-2 opacity-50"
+                              >
+                                <div className="h-10 w-10 rounded-full overflow-hidden bg-white/5 shrink-0">
+                                  {p.avatar_url ? (
+                                    <img src={p.avatar_url} alt="" className="h-full w-full object-cover" />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center">
+                                      <span className="text-xs font-bold text-white/30">{initial(p.display_name || p.username || '?')}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-white/50 truncate">{p.display_name || p.username}</p>
+                                  <p className="text-[10px] text-white/25">Location off</p>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </div>
   );
 }
