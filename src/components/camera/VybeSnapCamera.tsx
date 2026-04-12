@@ -1,13 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, SwitchCamera, Zap, ZapOff, Volume2, VolumeX, Loader2 } from 'lucide-react';
+import { X, SwitchCamera, Zap, ZapOff, Volume2, VolumeX, Loader2, Timer, Grid3X3, Sun, Moon, Image, Music, Search, UserPlus, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { VybeRecordButton } from './VybeRecordButton';
 import { VybeSnapEditor } from './VybeSnapEditor';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
 import { getActiveStream, stopCameraStream } from '@/hooks/useCameraPreload';
+import { useAuth } from '@/lib/auth';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { getRecentMessageUsers } from '@/lib/recentMessageUsers';
+import { useNavigate } from 'react-router-dom';
 
 interface RecordingSegment {
   blob: Blob;
@@ -20,9 +23,25 @@ interface VybeSnapCameraProps {
   onSend: (mediaUrl: string, isVideo: boolean) => void;
 }
 
-const MAX_RECORDING_DURATION = 30; // 30 seconds max
+const MAX_RECORDING_DURATION = 30;
+const TIMER_OPTIONS = [0, 3, 10];
+
+const LENS_FILTERS = [
+  { id: 'none', label: 'Normal', icon: '✨', filter: 'none' },
+  { id: 'warm', label: 'Warm', icon: '🌅', filter: 'saturate(1.3) sepia(0.15) brightness(1.05)' },
+  { id: 'cool', label: 'Cool', icon: '❄️', filter: 'saturate(0.9) hue-rotate(10deg) brightness(1.05)' },
+  { id: 'vintage', label: 'Vintage', icon: '📷', filter: 'sepia(0.4) contrast(1.1) brightness(0.95)' },
+  { id: 'vivid', label: 'Vivid', icon: '🎨', filter: 'saturate(1.6) contrast(1.1)' },
+  { id: 'bw', label: 'B&W', icon: '🖤', filter: 'grayscale(1) contrast(1.2)' },
+  { id: 'dreamy', label: 'Dreamy', icon: '💭', filter: 'brightness(1.1) contrast(0.9) saturate(1.2) blur(0.3px)' },
+  { id: 'noir', label: 'Noir', icon: '🎬', filter: 'grayscale(0.8) contrast(1.4) brightness(0.9)' },
+];
+
+const CATEGORY_TABS = ['Trending', 'For You', 'Favorites', 'Moments', 'Aesthetic'];
 
 export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps) {
+  const { profile } = useAuth();
+  const navigate = useNavigate();
   const [phase, setPhase] = useState<'camera' | 'edit' | 'sending'>('camera');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [flashEnabled, setFlashEnabled] = useState(false);
@@ -34,12 +53,19 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
   const [capturedMedia, setCapturedMedia] = useState<{ url: string; type: 'photo' | 'video' } | null>(null);
   const [showFlash, setShowFlash] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [showGrid, setShowGrid] = useState(false);
+  const [nightMode, setNightMode] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState('none');
+  const [activeCategory, setActiveCategory] = useState('Trending');
+  const [showTools, setShowTools] = useState(true);
+  const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
+  const [selfieFlash, setSelfieFlash] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const progressFrameRef = useRef<number | null>(null);
   const progressRef = useRef(0);
   const uiUpdateRef = useRef<NodeJS.Timeout | null>(null);
@@ -49,32 +75,26 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
   const totalRecordedTimeRef = useRef(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pinchStartRef = useRef<number | null>(null);
-  
-  // NEW: Refs for reliable finalization (fixes race condition)
   const segmentsRef = useRef<RecordingSegment[]>([]);
   const shouldFinalizeOnStopRef = useRef(false);
   const isRecordingRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [permissionDenied, setPermissionDenied] = useState(false);
 
   // Start camera with proper permission handling
   const startCamera = useCallback(async () => {
     try {
-      // Check permissions first
       if (navigator.permissions) {
         try {
           const camStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
           if (camStatus.state === 'denied') {
             setPermissionDenied(true);
-            console.warn('[VybeSnapCamera] Camera permission denied in settings');
             return;
           }
-        } catch {
-          // permissions.query not supported for camera on some browsers
-        }
+        } catch {}
       }
 
-      // Check if there's already a preloaded stream we can reuse
       const preloaded = getActiveStream();
       if (preloaded) {
         const videoTrack = preloaded.getVideoTracks()[0];
@@ -82,9 +102,7 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         const currentFacing = settings?.facingMode || 'user';
         const hasAudio = preloaded.getAudioTracks().length > 0;
         
-        // Reuse if facing mode and audio match
         if (currentFacing === facingMode && hasAudio === soundEnabled) {
-          console.log('[VybeSnapCamera] Reusing preloaded stream instantly');
           streamRef.current = preloaded;
           setPermissionDenied(false);
           setCameraReady(true);
@@ -92,7 +110,6 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
             videoRef.current.srcObject = preloaded;
             videoRef.current.play().catch(() => {});
           }
-          // Apply zoom/torch
           try {
             const capabilities = videoTrack.getCapabilities?.() as any;
             if (capabilities?.zoom) {
@@ -104,7 +121,6 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
           } catch {}
           return;
         }
-        // Different settings needed, stop preloaded
         stopCameraStream();
       }
 
@@ -127,52 +143,43 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
       setCameraReady(true);
       streamRef.current = stream;
       
-      // Attach to video element if it exists already
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play().catch(() => {});
       }
       
-      // Apply zoom and torch if supported
       const videoTrack = stream.getVideoTracks()[0];
       try {
-        const capabilities = videoTrack.getCapabilities?.() as MediaTrackCapabilities & { zoom?: { min: number; max: number }; torch?: boolean };
+        const capabilities = videoTrack.getCapabilities?.() as any;
         if (capabilities?.zoom) {
           await videoTrack.applyConstraints({ advanced: [{ zoom: zoomLevel } as any] } as any);
         }
-        // Apply torch state for rear camera
         if (capabilities?.torch && flashEnabled && facingMode === 'environment') {
           await videoTrack.applyConstraints({ advanced: [{ torch: true } as any] } as any);
         }
-      } catch {
-        // Zoom/torch not supported
-      }
+      } catch {}
     } catch (error: any) {
       if (error?.name === 'NotAllowedError') {
         setPermissionDenied(true);
-        console.warn('[VybeSnapCamera] Camera permission denied by user');
-      } else if (error?.name === 'NotFoundError') {
-        console.error('[VybeSnapCamera] No camera found');
       } else {
         console.error('[VybeSnapCamera] Camera error:', error);
       }
     }
   }, [facingMode, soundEnabled, zoomLevel, flashEnabled]);
 
-  // Toggle torch when flash setting changes (for rear camera)
+  // Toggle torch
   useEffect(() => {
     if (!streamRef.current || facingMode === 'user') return;
     const videoTrack = streamRef.current.getVideoTracks()[0];
     if (!videoTrack) return;
     try {
-      const capabilities = videoTrack.getCapabilities?.() as MediaTrackCapabilities & { torch?: boolean };
+      const capabilities = videoTrack.getCapabilities?.() as any;
       if (capabilities?.torch) {
         videoTrack.applyConstraints({ advanced: [{ torch: flashEnabled } as any] } as any).catch(() => {});
       }
     } catch {}
   }, [flashEnabled, facingMode]);
 
-  // Stop camera
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -180,10 +187,8 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     }
   }, []);
 
-  // Auto-start camera when modal opens
   useEffect(() => {
     if (isOpen) {
-      // Don't reset cameraReady if we already have a stream (instant reuse)
       if (!getActiveStream() && !streamRef.current) {
         setCameraReady(false);
       }
@@ -195,7 +200,6 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     return () => stopCamera();
   }, [isOpen, stopCamera, startCamera]);
 
-  // Re-attach stream to video element when it mounts (fixes race condition)
   useEffect(() => {
     if (streamRef.current && videoRef.current && !videoRef.current.srcObject) {
       videoRef.current.srcObject = streamRef.current;
@@ -203,7 +207,7 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     }
   });
   
-  // Handle pinch-to-zoom
+  // Pinch-to-zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2) {
       const distance = Math.hypot(
@@ -226,29 +230,21 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     }
   }, []);
 
-  // Switch camera (works while recording)
   const handleSwitchCamera = useCallback(async () => {
     haptics.impact();
     const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(newFacingMode);
     
-    // If recording, we need to handle the stream switch
     if (isRecording && streamRef.current) {
       try {
         const newStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: newFacingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: soundEnabled,
         });
-        
-        // Replace video track in the stream
         const oldVideoTrack = streamRef.current.getVideoTracks()[0];
-        const newVideoTrack = newStream.getVideoTracks()[0];
         
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          // Stop current segment, switch, and restart
           mediaRecorderRef.current.stop();
-          
-          // Wait a moment then restart with new camera
           setTimeout(() => {
             streamRef.current = newStream;
             if (videoRef.current) {
@@ -264,10 +260,8 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     }
   }, [facingMode, isRecording, soundEnabled]);
 
-  // Start recording a segment
   const startRecordingSegment = useCallback(() => {
     if (!streamRef.current) return;
-    
     recordedChunksRef.current = [];
     
     const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
@@ -289,28 +283,20 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
       const duration = Date.now() - recordingStartTimeRef.current;
       
       if (blob.size > 0 && duration > 100) {
-        // Push to ref synchronously (source of truth)
         segmentsRef.current = [...segmentsRef.current, { blob, duration }];
         totalRecordedTimeRef.current += duration;
-        // Update React state for UI
         setSegments([...segmentsRef.current]);
       }
       
-      // If we should finalize (user released or max duration), do it now
       if (shouldFinalizeOnStopRef.current) {
         shouldFinalizeOnStopRef.current = false;
-        
-        // Merge all segments
         const allSegments = segmentsRef.current;
         if (allSegments.length > 0) {
           const finalMimeType = allSegments[0].blob.type;
           const mergedBlob = new Blob(allSegments.map(s => s.blob), { type: finalMimeType });
           const videoUrl = URL.createObjectURL(mergedBlob);
-          
           setCapturedMedia({ url: videoUrl, type: 'video' });
           setPhase('edit');
-          
-          // Stop camera after finalizing
           if (streamRef.current) {
             streamRef.current.getTracks().forEach(track => track.stop());
             streamRef.current = null;
@@ -324,24 +310,18 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     recordingStartTimeRef.current = Date.now();
   }, []);
 
-  // Start recording
   const startRecording = useCallback(() => {
     if (!streamRef.current) return;
-    
     haptics.impact();
     setIsRecording(true);
     isRecordingRef.current = true;
     
-    // Calculate remaining time
     const remainingTime = MAX_RECORDING_DURATION * 1000 - totalRecordedTimeRef.current;
     if (remainingTime <= 0) return;
     
     startRecordingSegment();
-    
-    // Progress timer
     const recordingStartTime = Date.now();
     
-    // RAF for smooth 60fps progress tracking (updates ref, not state)
     const updateProgress = () => {
       const currentSegmentTime = Date.now() - recordingStartTime;
       const totalTime = totalRecordedTimeRef.current + currentSegmentTime;
@@ -349,7 +329,6 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
       progressRef.current = progress;
       
       if (progress >= 100) {
-        // Max duration reached - request finalization
         shouldFinalizeOnStopRef.current = true;
         stopRecording();
       } else if (isRecordingRef.current) {
@@ -358,48 +337,38 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     };
     progressFrameRef.current = requestAnimationFrame(updateProgress);
     
-    // Separate UI update at 10fps (100ms) for React state - reduces VDOM diffing
     uiUpdateRef.current = setInterval(() => {
       setRecordingProgress(progressRef.current);
     }, 100);
   }, [startRecordingSegment]);
 
-  // Stop recording
   const stopRecording = useCallback(() => {
     isRecordingRef.current = false;
-    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
-    
     if (progressFrameRef.current) {
       cancelAnimationFrame(progressFrameRef.current);
       progressFrameRef.current = null;
     }
-    
     if (uiUpdateRef.current) {
       clearInterval(uiUpdateRef.current);
       uiUpdateRef.current = null;
     }
-    
     setIsRecording(false);
-    setRecordingProgress(progressRef.current); // Final sync
+    setRecordingProgress(progressRef.current);
     haptics.success();
   }, []);
 
-  // Note: finalizeRecording is now handled inside mediaRecorder.onstop
-  // when shouldFinalizeOnStopRef.current === true
-
-  // Take photo
   const takePhoto = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
-    
     haptics.success();
     
-    // Flash effect
-    if (flashEnabled) {
+    // Selfie flash for front camera
+    if (facingMode === 'user' || flashEnabled) {
       setShowFlash(true);
-      setTimeout(() => setShowFlash(false), 150);
+      setSelfieFlash(facingMode === 'user');
+      setTimeout(() => { setShowFlash(false); setSelfieFlash(false); }, 200);
     }
     
     const video = videoRef.current;
@@ -407,17 +376,13 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas to video dimensions (vertical 9:16)
     const outputWidth = Math.min(1080, video.videoWidth);
     const outputHeight = Math.round(outputWidth * (16/9));
-    
     canvas.width = outputWidth;
     canvas.height = outputHeight;
     
-    // Calculate crop for 9:16
     const videoAspect = video.videoWidth / video.videoHeight;
     const targetAspect = 9/16;
-    
     let sx = 0, sy = 0, sw = video.videoWidth, sh = video.videoHeight;
     
     if (videoAspect > targetAspect) {
@@ -428,25 +393,47 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
       sy = (video.videoHeight - sh) / 2;
     }
     
-    // Mirror for front camera
     if (facingMode === 'user') {
       ctx.translate(outputWidth, 0);
       ctx.scale(-1, 1);
     }
     
+    // Apply filter to canvas
+    const filterObj = LENS_FILTERS.find(f => f.id === selectedFilter);
+    if (filterObj && filterObj.filter !== 'none') {
+      ctx.filter = filterObj.filter;
+    }
+    
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.filter = 'none';
     
     const imageUrl = canvas.toDataURL('image/jpeg', 0.92);
     setCapturedMedia({ url: imageUrl, type: 'photo' });
     setPhase('edit');
     stopCamera();
-  }, [flashEnabled, facingMode, stopCamera]);
+  }, [flashEnabled, facingMode, stopCamera, selectedFilter]);
 
-  // Capture button handlers
+  // Timer-based capture
+  const startTimerCapture = useCallback(() => {
+    if (timerSeconds === 0) return;
+    setTimerCountdown(timerSeconds);
+    let count = timerSeconds;
+    const interval = setInterval(() => {
+      count--;
+      if (count <= 0) {
+        clearInterval(interval);
+        setTimerCountdown(null);
+        takePhoto();
+      } else {
+        setTimerCountdown(count);
+        haptics.impact();
+      }
+    }, 1000);
+  }, [timerSeconds, takePhoto]);
+
   const handleCaptureStart = useCallback(() => {
     isHoldingRef.current = true;
-    
     holdTimerRef.current = setTimeout(() => {
       if (isHoldingRef.current) {
         startRecording();
@@ -456,29 +443,26 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
 
   const handleCaptureEnd = useCallback(() => {
     isHoldingRef.current = false;
-    
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
-    
-    // Use ref for reliable check (avoids stale closure)
     if (isRecordingRef.current) {
-      // Signal that we want to finalize when onstop fires
       shouldFinalizeOnStopRef.current = true;
       stopRecording();
     } else {
-      takePhoto();
+      if (timerSeconds > 0) {
+        startTimerCapture();
+      } else {
+        takePhoto();
+      }
     }
-  }, [stopRecording, takePhoto]);
+  }, [stopRecording, takePhoto, timerSeconds, startTimerCapture]);
 
-  // Handle send from editor
   const handleEditorSend = useCallback((mediaUrl: string) => {
     setPhase('sending');
     onSend(mediaUrl, capturedMedia?.type === 'video');
-    
     setTimeout(() => {
-      // Reset state
       setCapturedMedia(null);
       setSegments([]);
       setRecordingProgress(0);
@@ -488,13 +472,10 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     }, 800);
   }, [capturedMedia, onSend, onClose]);
 
-  // Handle close
   const handleClose = useCallback(() => {
-    // Clear finalization flags
     shouldFinalizeOnStopRef.current = false;
     segmentsRef.current = [];
     isRecordingRef.current = false;
-    
     stopCamera();
     stopRecording();
     setCapturedMedia(null);
@@ -505,7 +486,21 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     onClose();
   }, [stopCamera, stopRecording, onClose]);
   
-  // Visibility change handler - stop recording if page goes background
+  // Gallery pick
+  const handleGalleryPick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const isVideo = file.type.startsWith('video/');
+    setCapturedMedia({ url, type: isVideo ? 'video' : 'photo' });
+    setPhase('edit');
+    stopCamera();
+  }, [stopCamera]);
+
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && isRecordingRef.current) {
@@ -513,7 +508,6 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         stopRecording();
       }
     };
-    
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [stopRecording]);
@@ -553,26 +547,21 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
             animate={{ rotate: 360 }}
             transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
             className="w-20 h-20 rounded-full flex items-center justify-center"
-            style={{
-              background: 'conic-gradient(from 0deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))',
-              padding: '3px',
-            }}
+            style={{ background: 'conic-gradient(from 0deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))', padding: '3px' }}
           >
             <div className="w-full h-full rounded-full bg-black flex items-center justify-center">
-              <VybeMiniIcon size={32} showSparkles />
+              <Sparkles className="h-8 w-8 text-primary" />
             </div>
           </motion.div>
-          <motion.p
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-white font-semibold text-lg"
-          >
+          <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-white font-semibold text-lg">
             Sending VYBE...
           </motion.p>
         </div>
       </motion.div>
     );
   }
+
+  const currentFilter = LENS_FILTERS.find(f => f.id === selectedFilter);
 
   return (
     <motion.div
@@ -582,10 +571,17 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
       className="fixed inset-0 z-[200] bg-black flex flex-col"
     >
       <canvas ref={canvasRef} className="hidden" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={handleFileSelected}
+      />
       
       {/* Camera view */}
       <div 
-        className="flex-1 relative overflow-hidden"
+        className="flex-1 relative overflow-hidden rounded-b-3xl"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
       >
@@ -594,28 +590,20 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
             <div className="w-20 h-20 rounded-full bg-destructive/20 flex items-center justify-center mb-4">
               <X className="h-8 w-8 text-destructive" />
             </div>
-            <p className="text-foreground font-semibold text-lg mb-2">Camera Access Denied</p>
-            <p className="text-muted-foreground text-sm mb-6">
-              Please enable camera access in your browser or device settings to use this feature.
+            <p className="text-white font-semibold text-lg mb-2">Camera Access Denied</p>
+            <p className="text-white/50 text-sm mb-6">
+              Please enable camera access in your settings.
             </p>
-            <Button 
-              variant="outline" 
-              className="rounded-xl"
-              onClick={() => { setPermissionDenied(false); startCamera(); }}
-            >
+            <Button variant="outline" className="rounded-xl" onClick={() => { setPermissionDenied(false); startCamera(); }}>
               Try Again
             </Button>
           </div>
         ) : !cameraReady ? (
           <div className="w-full h-full flex flex-col items-center justify-center">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-              className="mb-4"
-            >
+            <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }} className="mb-4">
               <Loader2 className="h-10 w-10 text-primary" />
             </motion.div>
-            <p className="text-muted-foreground text-sm font-medium">Connecting camera...</p>
+            <p className="text-white/50 text-sm font-medium">Connecting camera...</p>
           </div>
         ) : (
           <video
@@ -623,6 +611,7 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
             className="w-full h-full object-cover"
             style={{ 
               transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+              filter: currentFilter?.filter !== 'none' ? currentFilter?.filter : (nightMode ? 'brightness(1.4) contrast(0.9)' : 'none'),
             }}
             playsInline
             muted
@@ -630,16 +619,44 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
           />
         )}
         
-        {/* Flash overlay */}
+        {/* Grid overlay */}
+        {showGrid && cameraReady && (
+          <div className="absolute inset-0 pointer-events-none z-10">
+            <div className="w-full h-full grid grid-cols-3 grid-rows-3">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} className="border border-white/20" />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Selfie flash / regular flash overlay */}
         <AnimatePresence>
           {showFlash && (
             <motion.div
               initial={{ opacity: 1 }}
               animate={{ opacity: 0 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="absolute inset-0 z-50 bg-white pointer-events-none"
+              transition={{ duration: 0.2 }}
+              className={cn(
+                "absolute inset-0 z-50 pointer-events-none",
+                selfieFlash ? "bg-yellow-100" : "bg-white"
+              )}
             />
+          )}
+        </AnimatePresence>
+
+        {/* Timer countdown overlay */}
+        <AnimatePresence>
+          {timerCountdown !== null && (
+            <motion.div
+              initial={{ scale: 2, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none"
+            >
+              <span className="text-8xl font-black text-white drop-shadow-2xl">{timerCountdown}</span>
+            </motion.div>
           )}
         </AnimatePresence>
         
@@ -647,83 +664,232 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         {(segments.length > 0 || isRecording) && (
           <div className="absolute top-4 left-4 right-4 flex gap-1 z-10">
             {segments.map((seg, i) => (
-              <div
-                key={i}
-                className="h-1 rounded-full bg-white"
-                style={{ 
-                  flex: seg.duration / (MAX_RECORDING_DURATION * 1000),
-                }}
-              />
+              <div key={i} className="h-1 rounded-full bg-white" style={{ flex: seg.duration / (MAX_RECORDING_DURATION * 1000) }} />
             ))}
             {isRecording && (
               <motion.div
                 className="h-1 rounded-full bg-gradient-to-r from-primary to-accent"
                 style={{ flex: (recordingProgress - (segments.reduce((a, s) => a + s.duration, 0) / (MAX_RECORDING_DURATION * 10))) / 100 }}
-                layoutId="recording-segment"
               />
             )}
           </div>
         )}
+
+        {/* Zoom indicator */}
+        {zoomLevel > 1 && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10">
+            <div className="bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 text-xs font-bold text-white">
+              {zoomLevel.toFixed(1)}x
+            </div>
+          </div>
+        )}
       </div>
       
-      {/* Header controls - Snapchat style */}
-      <div className="absolute top-0 left-0 right-0 z-10 safe-area-inset-top bg-gradient-to-b from-black/60 to-transparent">
-        <div className="flex items-center justify-between px-4 pt-3 pb-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleClose} 
-            className="text-white bg-black/40 rounded-full backdrop-blur-sm hover:bg-black/60 h-10 w-10"
-          >
-            <X className="h-5 w-5" strokeWidth={2.5} />
-          </Button>
-          
-          <div className="flex gap-1.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleSwitchCamera}
-              className="text-white bg-black/40 rounded-full backdrop-blur-sm hover:bg-black/60 h-9 w-9"
+      {/* ── Top bar (Snapchat style) ──────────────────── */}
+      <div className="absolute top-0 left-0 right-0 z-20 safe-area-inset-top">
+        <div className="flex items-center justify-between px-3 pt-3 pb-2">
+          {/* Left: User avatar + close */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/profile')}
+              className="h-10 w-10 rounded-full overflow-hidden bg-black/40 backdrop-blur-sm border-2 border-white/20"
             >
-              <SwitchCamera className="h-4 w-4" />
-            </Button>
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center">
+                  <span className="text-sm font-bold text-white">{profile?.username?.[0]?.toUpperCase()}</span>
+                </div>
+              )}
+            </button>
+            <button
+              onClick={() => {}}
+              className="h-9 w-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+            >
+              <Search className="h-4 w-4 text-white" />
+            </button>
+          </div>
+          
+          {/* Right: Add friend + Camera flip */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => navigate('/friends')}
+              className="h-9 w-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+            >
+              <UserPlus className="h-4 w-4 text-white" />
+            </button>
+            <button
+              onClick={handleSwitchCamera}
+              className="h-9 w-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+            >
+              <SwitchCamera className="h-4 w-4 text-white" />
+            </button>
+            <button
+              onClick={handleClose}
+              className="h-9 w-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+            >
+              <X className="h-4 w-4 text-white" strokeWidth={2.5} />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Right side vertical tools - Snapchat style */}
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3">
-        <button
-          onClick={() => setFlashEnabled(!flashEnabled)}
-          className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
-        >
-          <div className={cn(
-            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
-            flashEnabled ? "bg-yellow-400/30" : "bg-black/40"
-          )}>
-            {flashEnabled ? <Zap className="h-4.5 w-4.5 text-yellow-400" fill="currentColor" /> : <ZapOff className="h-4.5 w-4.5 text-white" />}
-          </div>
-          <span className="text-[9px] text-white/70 font-medium">Flash</span>
-        </button>
+      {/* ── Right side vertical tools (Snapchat style) ── */}
+      <AnimatePresence>
+        {showTools && !isRecording && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="absolute right-3 z-20 flex flex-col gap-2.5"
+            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 64px)' }}
+          >
+            {/* Flash */}
+            <button
+              onClick={() => setFlashEnabled(!flashEnabled)}
+              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+            >
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+                flashEnabled ? "bg-yellow-400/30" : "bg-black/40"
+              )}>
+                {flashEnabled ? <Zap className="h-4 w-4 text-yellow-400" fill="currentColor" /> : <ZapOff className="h-4 w-4 text-white/80" />}
+              </div>
+              <span className="text-[9px] text-white/70 font-medium">Flash</span>
+            </button>
 
-        <button
-          onClick={() => setSoundEnabled(!soundEnabled)}
-          className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
-        >
-          <div className={cn(
-            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
-            soundEnabled ? "bg-white/20" : "bg-black/40"
-          )}>
-            {soundEnabled ? <Volume2 className="h-4.5 w-4.5 text-white" /> : <VolumeX className="h-4.5 w-4.5 text-white/60" />}
-          </div>
-          <span className="text-[9px] text-white/70 font-medium">Sounds</span>
-        </button>
-      </div>
+            {/* Timer */}
+            <button
+              onClick={() => {
+                const idx = TIMER_OPTIONS.indexOf(timerSeconds);
+                setTimerSeconds(TIMER_OPTIONS[(idx + 1) % TIMER_OPTIONS.length]);
+                haptics.impact();
+              }}
+              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+            >
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm relative",
+                timerSeconds > 0 ? "bg-primary/30" : "bg-black/40"
+              )}>
+                <Timer className="h-4 w-4 text-white/80" />
+                {timerSeconds > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground text-[8px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                    {timerSeconds}
+                  </span>
+                )}
+              </div>
+              <span className="text-[9px] text-white/70 font-medium">Timer</span>
+            </button>
+
+            {/* Grid */}
+            <button
+              onClick={() => { setShowGrid(!showGrid); haptics.impact(); }}
+              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+            >
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+                showGrid ? "bg-white/20" : "bg-black/40"
+              )}>
+                <Grid3X3 className="h-4 w-4 text-white/80" />
+              </div>
+              <span className="text-[9px] text-white/70 font-medium">Grid</span>
+            </button>
+
+            {/* HDR (decorative) */}
+            <button
+              onClick={() => haptics.impact()}
+              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+            >
+              <div className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm bg-black/40">
+                <span className="text-[10px] font-black text-white/80">HDR</span>
+              </div>
+              <span className="text-[9px] text-white/70 font-medium">HDR</span>
+            </button>
+
+            {/* Night Mode */}
+            <button
+              onClick={() => { setNightMode(!nightMode); haptics.impact(); }}
+              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+            >
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+                nightMode ? "bg-yellow-400/20" : "bg-black/40"
+              )}>
+                {nightMode ? <Sun className="h-4 w-4 text-yellow-400" /> : <Moon className="h-4 w-4 text-white/80" />}
+              </div>
+              <span className="text-[9px] text-white/70 font-medium">Night</span>
+            </button>
+
+            {/* Sound */}
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+            >
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+                soundEnabled ? "bg-white/20" : "bg-black/40"
+              )}>
+                {soundEnabled ? <Volume2 className="h-4 w-4 text-white/80" /> : <VolumeX className="h-4 w-4 text-white/60" />}
+              </div>
+              <span className="text-[9px] text-white/70 font-medium">Sound</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
-      {/* Bottom controls - Snapchat style */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 safe-area-inset-bottom bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+      {/* ── Bottom area (Snapchat style) ──────────────── */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 safe-area-inset-bottom">
+        {/* Lens/filter carousel */}
+        {!isRecording && (
+          <div className="px-2 mb-3">
+            <div className="flex gap-2.5 overflow-x-auto scrollbar-hide px-2 pb-1">
+              {LENS_FILTERS.map((filter) => (
+                <button
+                  key={filter.id}
+                  onClick={() => { setSelectedFilter(filter.id); haptics.impact(); }}
+                  className={cn(
+                    "flex flex-col items-center gap-1 shrink-0 transition-all",
+                    selectedFilter === filter.id ? "scale-110" : "opacity-70"
+                  )}
+                >
+                  <div className={cn(
+                    "w-12 h-12 rounded-full flex items-center justify-center text-lg border-2 transition-all",
+                    selectedFilter === filter.id 
+                      ? "border-white bg-white/20 shadow-lg shadow-white/10" 
+                      : "border-white/20 bg-black/40 backdrop-blur-sm"
+                  )}>
+                    {filter.icon}
+                  </div>
+                  <span className={cn(
+                    "text-[9px] font-medium",
+                    selectedFilter === filter.id ? "text-white" : "text-white/50"
+                  )}>
+                    {filter.label}
+                  </span>
+                </button>
+              ))}
+              {/* AR Coming Soon placeholder */}
+              <button className="flex flex-col items-center gap-1 shrink-0 opacity-40">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg border-2 border-white/10 bg-black/40 backdrop-blur-sm">
+                  <Sparkles className="h-5 w-5 text-white/40" />
+                </div>
+                <span className="text-[9px] font-medium text-white/30">AR</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Capture row */}
-        <div className="flex items-center justify-center px-6 pb-4 pt-2">
+        <div className="flex items-center justify-between px-6 pb-2">
+          {/* Gallery / Memories */}
+          <button
+            onClick={handleGalleryPick}
+            className="h-12 w-12 rounded-xl overflow-hidden bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center"
+          >
+            <Image className="h-5 w-5 text-white/70" />
+          </button>
+
+          {/* Capture button */}
           <VybeRecordButton
             isRecording={isRecording}
             progress={recordingProgress}
@@ -731,15 +897,45 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
             onCaptureStart={handleCaptureStart}
             onCaptureEnd={handleCaptureEnd}
           />
+
+          {/* Music button */}
+          <button
+            onClick={() => haptics.impact()}
+            className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center"
+          >
+            <Music className="h-5 w-5 text-white/70" />
+          </button>
         </div>
         
+        {/* Category tabs */}
+        {!isRecording && (
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide px-4 pb-4 pt-1">
+            {CATEGORY_TABS.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => { setActiveCategory(tab); haptics.impact(); }}
+                className={cn(
+                  "shrink-0 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition-all",
+                  activeCategory === tab
+                    ? "bg-white text-black"
+                    : "bg-white/10 text-white/60"
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Hint */}
-        <motion.p 
-          className="text-center text-white/50 text-[11px] pb-4 font-medium"
-          animate={{ opacity: isRecording ? 0 : 1 }}
-        >
-          Tap for photo · Hold for video
-        </motion.p>
+        {!isRecording && (
+          <motion.p 
+            className="text-center text-white/40 text-[10px] pb-3 font-medium"
+            animate={{ opacity: isRecording ? 0 : 1 }}
+          >
+            Tap for photo · Hold for video
+          </motion.p>
+        )}
       </div>
     </motion.div>
   );
