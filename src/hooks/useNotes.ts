@@ -46,15 +46,18 @@ export function useFriendsNotes() {
     queryFn: async () => {
       if (!userId || !profile?.id) return [];
 
-      // Get friend IDs
-      const { data: friendships } = await supabase
-        .from('friendships')
-        .select('friend_id')
-        .eq('user_id', profile.id);
+      // Get friend IDs via accepted friend requests
+      const { data: friendReqs } = await supabase
+        .from('friend_requests')
+        .select('sender_id, receiver_id')
+        .eq('status', 'accepted')
+        .or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`);
 
-      if (!friendships || friendships.length === 0) return [];
+      if (!friendReqs || friendReqs.length === 0) return [];
 
-      const friendProfileIds = friendships.map(f => f.friend_id);
+      const friendProfileIds = friendReqs.map(f =>
+        f.sender_id === profile.id ? f.receiver_id : f.sender_id
+      );
 
       // Get profiles to map profile_id -> auth user_id
       const { data: friendProfiles } = await supabase
