@@ -253,25 +253,17 @@ export function useSendFriendRequest() {
       }
     }
 
-    const { data: newConversation, error: conversationError } = await supabase
-      .from('conversations')
-      .insert({
-        is_group: false,
-        created_by: currentUserId,
-      })
-      .select('id')
-      .single();
+    // Use the SECURITY DEFINER RPC to create conversation (bypasses RLS safely)
+    const { data: conversationId, error: rpcError } = await supabase.rpc('create_dm_conversation', {
+      other_profile_id: receiverId,
+    });
 
-    if (conversationError || !newConversation) {
+    if (rpcError) {
+      console.error('[Friends] Failed to create DM conversation via RPC:', rpcError);
       return false;
     }
 
-    const { error: membersError } = await supabase.from('conversation_members').insert([
-      { conversation_id: newConversation.id, user_id: currentUserId },
-      { conversation_id: newConversation.id, user_id: receiverId },
-    ]);
-
-    return !membersError;
+    return !!conversationId;
   };
 
   return useMutation({

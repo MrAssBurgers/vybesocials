@@ -36,6 +36,15 @@ export async function requestCallMediaPermissions(callType: CallMediaType): Prom
 
   console.log('[mediaPermissions] Checking permissions for:', callType);
 
+  // Release any existing camera stream (e.g. VybeSnapCamera) before requesting new media
+  try {
+    const { stopCameraStream } = await import('@/hooks/useCameraPreload');
+    stopCameraStream();
+    await new Promise(r => setTimeout(r, 100));
+  } catch {
+    // Non-critical
+  }
+
   // Step 1: Check mic permission via Permissions API (fast, no stream creation)
   const micStatus = await checkPermissionStatus('microphone');
   

@@ -52,7 +52,7 @@ function useSearchPosts(query: string) {
       if (!query || query.length < 2) return [];
       const { data, error } = await supabase
         .from('posts')
-        .select('id, caption, type, media_url, created_at, like_count, comment_count, author:profiles!user_id(id, username, avatar_url)')
+        .select('id, caption, type, media_url, created_at, like_count, comment_count, author:profiles!author_id(id, username, avatar_url)')
         .ilike('caption', `%${query}%`)
         .order('like_count', { ascending: false })
         .limit(30);
