@@ -1,45 +1,82 @@
 
 
-## Snapchat-Style Camera UI Revamp, DM Notes Feature, and Online Green Dots
+## Fix Map "No People Found", Note Bubble Visibility + GIF Support, and VybeSnap Camera Revamp
 
-### What we're building
+### Problem Summary
 
-1. **Revamp both camera UIs to match the Snapchat reference screenshot** — right-side vertical tool strip with labels (Flash, Sounds, HD Mode), user avatar top-left, search icon, add friend/scan icons top-right, a collapsible chevron, bottom filter carousel with category tabs (Moments, Favorites, For You, Aesthetic), Memories button, and AI lens button.
+1. **Map shows "No people found"** — Friends don't have rows in `user_locations` because they haven't toggled sharing on their devices. The map should handle this gracefully by showing friends who are online but not sharing, and improving the empty state messaging.
 
-2. **Add Instagram/Snapchat-style Notes above the DM conversation list** — horizontally scrollable row of circular avatars with speech bubble "notes" above them. First item is "Your note" (current user), followed by friends' notes. Users can tap their own to set/edit a note, and see others' notes displayed as rounded speech bubbles above their avatar.
+2. **Note bubble is clipped/hidden** — The speech bubble sits at `-top-7` with the parent having `overflow-x-auto` on the container, which clips the bubble. Needs higher z-index and overflow-visible fix.
 
-3. **Green online dot on avatars in the DM conversation list** — already partially implemented via `OnlineIndicator`, but needs to be consistently shown on the bottom-right of every user's profile picture in the conversation list when they're online.
+3. **Can't add GIFs to notes** — Currently notes are plain text only. Need to add a GIF picker (using Tenor/GIPHY API) so users can attach a GIF URL to their note.
 
-### Technical Details
+4. **VybeSnap camera needs full Snapchat feature parity** — Missing: lens carousel, AR filter placeholders, multi-snap timeline, music/sound attachment, timer, grid overlay, HDR toggle, night mode, selfie flash (screen flash for front cam), gallery/memories shortcut, friend quick-send row, and category tabs (Moments, Favorites, For You).
 
-**1. Camera UI Revamp (`src/components/camera/Camera.tsx` + `src/components/camera/VybeSnapCamera.tsx`)**
+---
 
-Both camera components will be updated to match the Snapchat layout from the reference:
+### Plan
 
-- **Top bar**: User avatar (top-left), search icon next to it, add-friend and camera-flip icons (top-right). Remove centered "VYBE" branding pill from VybeSnap.
-- **Right side vertical strip**: Replace the current scattered controls with a vertical column on the right side showing icon + label pairs: Flash, Sounds, HD Mode, plus a chevron-down to collapse/expand extra tools.
-- **Bottom area**: Add a "Memories" button (left of capture), an AI lens circle (between Memories and capture), keep capture button centered, add recent contacts/lenses strip to the right of capture. Add horizontal scrollable category tabs below: Moments, Favorites, For You, Aesthetic, etc.
-- **Remove**: The current "Flash On/Off" pill button from VybeSnapCamera bottom, the separate flash/sound/switch buttons from VybeSnapCamera header.
+#### 1. Fix Map Empty State
+**File: `src/pages/FriendMap.tsx`**
+- Change `useFriendLocations` to also show friends who are NOT sharing but ARE online — display them in the bottom sheet friend list with a "Not sharing" label and grayed-out state
+- Query all friend profiles regardless of location status, then LEFT JOIN with `user_locations`
+- Show friends without location data in the list as "Location off" instead of hiding them entirely
+- Remove or soften the "No people found" toast — only show it if user has zero friends at all
 
-**2. Notes Feature (new component + database table)**
+#### 2. Fix Note Bubble Visibility + GIF Support
+**File: `src/components/chat/NotesRow.tsx`**
+- Add `overflow-visible` to the parent container and `z-index` to the bubble so it renders above surrounding elements
+- Increase `max-w` from `80px` to `120px` so longer notes don't truncate too aggressively
+- Add a GIF preview: if note content starts with `https://` and is a GIF URL, render an `<img>` inside the bubble instead of text
+- In the edit dialog, add a "GIF" button that opens a simple GIF search (using Tenor API via an edge function or the free GIPHY endpoint)
 
-- **New table `user_notes`**: `id uuid PK`, `user_id uuid REFERENCES auth.users NOT NULL`, `content text NOT NULL`, `created_at timestamptz DEFAULT now()`, `expires_at timestamptz DEFAULT now() + interval '24 hours'`. RLS: authenticated users can read notes from their friends, and CRUD their own.
-- **New component `src/components/chat/NotesRow.tsx`**: Horizontal scroll row rendered above the conversation list in `ConversationList.tsx`. Shows current user's avatar first ("Your note" / tap to add), then friends with active notes. Each note displays as a rounded dark speech bubble above the avatar, exactly like the Instagram reference.
-- **New hook `src/hooks/useNotes.ts`**: Fetch current user's note + friends' notes (join with friendships table), create/update/delete own note.
+**File: `src/hooks/useNotes.ts`**
+- Increase max content length from 60 to 200 chars to accommodate GIF URLs
+- Add a `gif_url` field concept — store GIF URL in the content field with a prefix like `gif:URL` or just allow URL detection
 
-**3. Online Green Dot Consistency**
+**Database migration**: Add an optional `gif_url` column to `user_notes` so we can store the GIF separately from text content.
 
-The `OnlineIndicator` component is already used in `ConversationContent` at line 584, but it's placed inside the avatar button wrapper. Verify it renders correctly with `className="-bottom-0.5 -right-0.5"` on the outer relative container. For group chats, no dot is shown (correct). The implementation already handles this — just need to confirm the `relative` positioning context is correct on the parent div (line 557 has `relative`), so this should already work. Will audit and fix if the dot isn't visible due to overflow clipping.
+#### 3. VybeSnap Camera Full Redesign
+**File: `src/components/camera/VybeSnapCamera.tsx`** — Major rewrite to include:
 
-### Files to create
-- `src/components/chat/NotesRow.tsx` — Notes horizontal scroll component
-- `src/hooks/useNotes.ts` — Notes data hook
+**Top bar (Snapchat-style)**:
+- User avatar (top-left, links to profile)
+- Search icon
+- Add Friend icon + Flash toggle + Camera flip (top-right)
+
+**Right-side vertical tool strip** (already partially done, expand):
+- Flash (with torch)
+- Timer (0s, 3s, 10s cycle)
+- Grid overlay toggle
+- HDR toggle (decorative)
+- Night mode toggle (boosts brightness filter)
+- Selfie flash (white screen flash for front camera)
+
+**Bottom area**:
+- Gallery/Memories thumbnail (bottom-left) — opens device photo picker
+- Capture button (center) — tap photo, hold video
+- Camera flip shortcut (bottom-right, optional if already in top)
+- Horizontal scrollable lens/filter carousel — show circular lens icons (face effects as "Coming Soon", color filters functional)
+- Category tabs row: Trending, For You, Favorites, Moments
+
+**Multi-snap support** (already exists via segments — make visible):
+- Segment indicator bar at top (already done)
+- Add "Send All" vs individual segment management
+
+**Music attachment**:
+- Add music note icon that opens the existing `SoundPicker`
+- Selected song name shown as a pill
+
+**Post-capture quick send row**:
+- After capture → editor, show a row of recent friends to quick-send to (reuse recent message users utility)
 
 ### Files to modify
-- `src/components/camera/Camera.tsx` — Snapchat-style layout with right-side tools, bottom filter tabs
-- `src/components/camera/VybeSnapCamera.tsx` — Same Snapchat-style layout
-- `src/components/chat/ConversationList.tsx` — Add NotesRow above conversation list, verify online dots
+- `src/pages/FriendMap.tsx` — fix empty state, show all friends in bottom sheet
+- `src/components/chat/NotesRow.tsx` — fix bubble z-index/overflow, add GIF display, add GIF picker in edit dialog
+- `src/hooks/useNotes.ts` — support gif_url field
+- `src/components/camera/VybeSnapCamera.tsx` — full Snapchat-style redesign with all features
 
 ### Database migration
-- Create `user_notes` table with RLS policies for authenticated access
+- Add `gif_url TEXT` column to `user_notes` table
+- Update RLS and `get_friends_notes` RPC to include `gif_url`
 
