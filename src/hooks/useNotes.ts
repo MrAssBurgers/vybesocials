@@ -73,12 +73,9 @@ export function useFriendsNotes() {
 
       if (authUserIds.length === 0) return [];
 
-      // Get active notes
+      // Get active notes via secure RPC (bypasses owner-only RLS)
       const { data: notes, error } = await supabase
-        .from('user_notes')
-        .select('*')
-        .in('user_id', authUserIds)
-        .gt('expires_at', new Date().toISOString());
+        .rpc('get_friends_notes');
 
       if (error) throw error;
 
