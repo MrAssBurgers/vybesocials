@@ -47,6 +47,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
   const [brightness, setBrightness] = useState(100);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
   const [selectedSound, setSelectedSound] = useState<Sound | null>(null);
+  const [isSwiping, setIsSwiping] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -272,18 +273,30 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
   }
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black flex flex-col select-none">
+    <div className="fixed inset-0 z-[200] bg-black flex flex-col select-none" style={{ touchAction: 'none' }}>
       {/* Full-bleed viewfinder */}
       <div
         className="absolute inset-0"
         onTouchStart={(e) => {
+          // Only handle swipes on the viewfinder itself, not on buttons
+          if ((e.target as HTMLElement).closest('button')) return;
           const touch = e.touches[0];
           const startX = touch.clientX;
+          setIsSwiping(false);
+          const handleTouchMove = (moveE: TouchEvent) => {
+            const diff = Math.abs(moveE.touches[0].clientX - startX);
+            if (diff > 20) setIsSwiping(true);
+          };
           const handleTouchEnd = (endE: TouchEvent) => {
             const diff = endE.changedTouches[0].clientX - startX;
-            if (Math.abs(diff) > 50) handleFilterSwipe(diff > 0 ? -1 : 1);
+            if (Math.abs(diff) > 50) {
+              handleFilterSwipe(diff > 0 ? -1 : 1);
+            }
+            setIsSwiping(false);
+            document.removeEventListener('touchmove', handleTouchMove);
             document.removeEventListener('touchend', handleTouchEnd);
           };
+          document.addEventListener('touchmove', handleTouchMove, { passive: true });
           document.addEventListener('touchend', handleTouchEnd);
         }}
       >
