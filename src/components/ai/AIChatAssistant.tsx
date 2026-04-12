@@ -12,7 +12,7 @@ type Message = {
   content: string;
 };
 
-  const defaultMessage: Message = { role: 'assistant', content: "oh... hey... 😔 I'm Brock. Your AI companion on VYBE, I guess... Ask me anything about content or whatever. Not that it really matters in the grand scheme of things... but I'm here. 💔" };
+  const defaultMessage: Message = { role: 'assistant', content: "Hey! I'm VYBE-AI — your AI companion on VYBE. Ask me anything about content, coding, or whatever's on your mind. I'm here to help! ✨" };
 
 export function AIChatAssistant() {
   const [isOpen, setIsOpen] = useState(false);
@@ -156,8 +156,8 @@ export function AIChatAssistant() {
               <Bot className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-sm">Brock</h3>
-              <p className="text-xs text-muted-foreground">Melancholic AI companion 😔</p>
+              <h3 className="font-semibold text-sm">VYBE-AI</h3>
+              <p className="text-xs text-muted-foreground">Your AI companion ✨</p>
             </div>
           </div>
           <div className="flex items-center gap-1">

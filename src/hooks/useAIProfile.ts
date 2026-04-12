@@ -28,7 +28,7 @@ interface AIProfile {
 const AI_PROFILE_STORAGE_KEY = 'vybe_ai_profile_v2';
 
 const DEFAULT_AI_PROFILE: AIProfile = {
-  name: 'Morgan',
+  name: 'VYBE-AI',
   personality: 'A friendly, helpful AI assistant who is approachable, supportive, and genuinely interested in helping users succeed.',
   model: 'gemini-flash',
   feedDNA: true,
