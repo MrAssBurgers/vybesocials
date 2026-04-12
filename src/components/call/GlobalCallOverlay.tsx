@@ -1046,61 +1046,60 @@ export function GlobalCallOverlay() {
           )}
 
           {/* Header */}
-          <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" style={{ paddingTop: 'env(safe-area-inset-top)' }} onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave}>
+          <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" style={{ paddingTop: 'env(safe-area-inset-top)' }} onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave} onTouchStart={showControlsTemporarily}>
             <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: showHeader ? 0 : -100, opacity: showHeader ? 1 : 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="pointer-events-auto">
-              <div className="mx-4 mt-4 p-4 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <Avatar className="h-12 w-12 ring-2 ring-white/20 shadow-lg">
+              <div className="mx-3 sm:mx-4 mt-3 sm:mt-4 p-3 sm:p-4 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1">
+                    <div className="relative flex-shrink-0">
+                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12 ring-2 ring-white/20 shadow-lg">
                         <AvatarImage src={displayAvatar || undefined} />
-                        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">{displayInitial}</AvatarFallback>
+                        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold text-sm sm:text-base">{displayInitial}</AvatarFallback>
                       </Avatar>
-                      {isConnected && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black/50" />}
+                      {isConnected && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute -bottom-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded-full border-2 border-black/50" />}
                     </div>
-                    <div>
-                      <p className="text-white font-semibold text-lg">{displayName}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-white font-semibold text-base sm:text-lg truncate">{displayName}</p>
                       <div className="flex items-center gap-2">
                         {isConnecting && !isRingingOut && (
-                          <motion.div className="flex items-center gap-2 text-white/60" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+                          <motion.div className="flex items-center gap-1.5 text-white/60" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
                             <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-primary" /></span>
-                            <span className="text-sm">Connecting</span>
+                            <span className="text-xs sm:text-sm">Connecting</span>
                           </motion.div>
                         )}
                         {isRingingOut && (
-                          <motion.div className="flex items-center gap-2 text-white/60" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+                          <motion.div className="flex items-center gap-1.5 text-white/60" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
                             <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-500 opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500" /></span>
-                            <span className="text-sm">Ringing</span>
+                            <span className="text-xs sm:text-sm">Ringing</span>
                           </motion.div>
                         )}
                         {isConnected && !isRingingOut && (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                             <span className="flex h-2 w-2 rounded-full bg-green-500" />
-                            <span className="text-white/70 text-sm font-mono tracking-wide">{formatDuration(callDuration)}</span>
-                            {/* Call mode indicator */}
+                            <span className="text-white/70 text-xs sm:text-sm font-mono tracking-wide">{formatDuration(callDuration)}</span>
                             {currentMode === 'persistent' && (
                               <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/20 border border-primary/30">
-                                <Crown className="h-3 w-3 text-primary" />
-                                <span className="text-[10px] text-primary font-medium">Stay On</span>
+                                <Crown className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-primary" />
+                                <span className="text-[9px] sm:text-[10px] text-primary font-medium">Stay On</span>
                               </span>
                             )}
                           </div>
                         )}
                         {isReconnecting && (
-                          <div className="flex items-center gap-2 text-yellow-400">
+                          <div className="flex items-center gap-1.5 text-yellow-400">
                             <Loader2 className="h-3 w-3 animate-spin" />
-                            <span className="text-sm">Reconnecting</span>
+                            <span className="text-xs sm:text-sm">Reconnecting</span>
                           </div>
                         )}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/10">
-                      {isVideoCall ? <Video className="h-4 w-4 text-white/70" /> : <Phone className="h-4 w-4 text-white/70" />}
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                    <div className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/10">
+                      {isVideoCall ? <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white/70" /> : <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white/70" />}
                     </div>
-                    <motion.button whileTap={{ scale: 0.95 }} onClick={handleMinimize} className="h-9 w-9 rounded-full bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors" title="Minimize call">
-                      <Minimize2 className="h-4 w-4 text-white/70" />
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={handleMinimize} className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/10 backdrop-blur border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors" title="Minimize call">
+                      <Minimize2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white/70" />
                     </motion.button>
                   </div>
                 </div>
