@@ -7,6 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Search, X } from 'lucide-react';
+
+const TENOR_API_KEY = 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ'; // Free tier public key
+
+interface GifResult {
+  id: string;
+  url: string;
+  preview: string;
+}
 
 export const NotesRow = memo(function NotesRow() {
   const { profile } = useAuth();
@@ -17,15 +26,59 @@ export const NotesRow = memo(function NotesRow() {
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
+  const [gifUrl, setGifUrl] = useState<string | null>(null);
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const [gifSearch, setGifSearch] = useState('');
+  const [gifResults, setGifResults] = useState<GifResult[]>([]);
+  const [gifLoading, setGifLoading] = useState(false);
 
   const handleOpenEdit = () => {
     setNoteText(myNote?.content || '');
+    setGifUrl(myNote?.gif_url || null);
+    setShowGifPicker(false);
     setEditOpen(true);
+  };
+
+  const searchGifs = async (query: string) => {
+    if (!query.trim()) {
+      // Load trending
+      setGifLoading(true);
+      try {
+        const res = await fetch(
+          `https://tenor.googleapis.com/v2/featured?key=${TENOR_API_KEY}&limit=20&media_filter=gif,tinygif`
+        );
+        const data = await res.json();
+        setGifResults(
+          (data.results || []).map((r: any) => ({
+            id: r.id,
+            url: r.media_formats?.gif?.url || r.media_formats?.mediumgif?.url || '',
+            preview: r.media_formats?.tinygif?.url || r.media_formats?.nanogif?.url || '',
+          }))
+        );
+      } catch { setGifResults([]); }
+      setGifLoading(false);
+      return;
+    }
+    setGifLoading(true);
+    try {
+      const res = await fetch(
+        `https://tenor.googleapis.com/v2/search?key=${TENOR_API_KEY}&q=${encodeURIComponent(query)}&limit=20&media_filter=gif,tinygif`
+      );
+      const data = await res.json();
+      setGifResults(
+        (data.results || []).map((r: any) => ({
+          id: r.id,
+          url: r.media_formats?.gif?.url || r.media_formats?.mediumgif?.url || '',
+          preview: r.media_formats?.tinygif?.url || r.media_formats?.nanogif?.url || '',
+        }))
+      );
+    } catch { setGifResults([]); }
+    setGifLoading(false);
   };
 
   const handleSave = () => {
     const trimmed = noteText.trim();
-    if (!trimmed) {
+    if (!trimmed && !gifUrl) {
       deleteNote.mutate(undefined, {
         onSuccess: () => { setEditOpen(false); toast.success('Note removed'); },
       });
@@ -35,27 +88,41 @@ export const NotesRow = memo(function NotesRow() {
       toast.error('Note must be 60 characters or less');
       return;
     }
-    setNote.mutate(trimmed, {
+    setNote.mutate({ content: trimmed || '🎬', gifUrl: gifUrl || undefined }, {
       onSuccess: () => { setEditOpen(false); toast.success('Note updated!'); },
       onError: () => toast.error('Failed to update note'),
     });
   };
 
+  const renderNoteBubble = (content: string, noteGifUrl?: string | null, maxW = 'max-w-[120px]') => {
+    if (noteGifUrl) {
+      return (
+        <div className={`absolute -top-9 left-1/2 -translate-x-1/2 z-[50]`}>
+          <div className="bg-foreground/90 rounded-xl overflow-hidden shadow-lg" style={{ width: 56, height: 56 }}>
+            <img src={noteGifUrl} alt="" className="w-full h-full object-cover" />
+          </div>
+          <div className="w-2 h-2 bg-foreground/90 rounded-full mx-auto -mt-0.5" />
+        </div>
+      );
+    }
+    return (
+      <div className={`absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap ${maxW} z-[50]`}>
+        <div className={`bg-foreground/90 text-background text-[10px] px-2 py-0.5 rounded-full font-medium truncate ${maxW}`}>
+          {content}
+        </div>
+        <div className="w-2 h-2 bg-foreground/90 rounded-full mx-auto -mt-0.5" />
+      </div>
+    );
+  };
+
   return (
     <>
-      <div className="px-3 py-2 overflow-x-auto no-scrollbar">
-        <div className="flex gap-4 min-w-max">
+      <div className="px-3 pt-8 pb-2 overflow-x-auto overflow-y-visible no-scrollbar" style={{ overflow: 'visible', overflowX: 'auto' }}>
+        <div className="flex gap-4 min-w-max" style={{ overflow: 'visible' }}>
           {/* Current user's note */}
-          <button onClick={handleOpenEdit} className="flex flex-col items-center w-16 flex-shrink-0">
-            <div className="relative mb-1">
-              {myNote && (
-                <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap max-w-[80px]">
-                  <div className="bg-foreground/90 text-background text-[10px] px-2 py-0.5 rounded-full font-medium truncate max-w-[80px]">
-                    {myNote.content}
-                  </div>
-                  <div className="w-2 h-2 bg-foreground/90 rounded-full mx-auto -mt-0.5" />
-                </div>
-              )}
+          <button onClick={handleOpenEdit} className="flex flex-col items-center w-16 flex-shrink-0" style={{ overflow: 'visible' }}>
+            <div className="relative mb-1" style={{ overflow: 'visible' }}>
+              {(myNote?.content || myNote?.gif_url) && renderNoteBubble(myNote?.content || '', myNote?.gif_url)}
               <Avatar className="h-14 w-14 ring-2 ring-dashed ring-muted-foreground/30">
                 <AvatarImage src={profile?.avatar_url || undefined} />
                 <AvatarFallback className="text-sm bg-muted">
@@ -74,14 +141,10 @@ export const NotesRow = memo(function NotesRow() {
               key={note.id}
               onClick={() => note.profile && navigate(`/u/${note.profile.username}`)}
               className="flex flex-col items-center w-16 flex-shrink-0"
+              style={{ overflow: 'visible' }}
             >
-              <div className="relative mb-1">
-                <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap max-w-[80px]">
-                  <div className="bg-foreground/90 text-background text-[10px] px-2 py-0.5 rounded-full font-medium truncate max-w-[80px]">
-                    {note.content}
-                  </div>
-                  <div className="w-2 h-2 bg-foreground/90 rounded-full mx-auto -mt-0.5" />
-                </div>
+              <div className="relative mb-1" style={{ overflow: 'visible' }}>
+                {renderNoteBubble(note.content, note.gif_url)}
                 <Avatar className="h-14 w-14 ring-2 ring-primary/30">
                   <AvatarImage src={note.profile?.avatar_url || undefined} />
                   <AvatarFallback className="text-sm">
@@ -104,10 +167,26 @@ export const NotesRow = memo(function NotesRow() {
             <DialogTitle className="text-center">Set a Note</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-2">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback>{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
-            </Avatar>
+            <div className="relative">
+              <Avatar className="h-16 w-16">
+                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarFallback>{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
+              {gifUrl && (
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2">
+                  <div className="bg-foreground/90 rounded-xl overflow-hidden shadow-lg relative" style={{ width: 48, height: 48 }}>
+                    <img src={gifUrl} alt="" className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => setGifUrl(null)}
+                      className="absolute -top-1 -right-1 bg-destructive rounded-full p-0.5"
+                    >
+                      <X className="h-3 w-3 text-destructive-foreground" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            
             <Input
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
@@ -118,6 +197,59 @@ export const NotesRow = memo(function NotesRow() {
               onKeyDown={(e) => e.key === 'Enter' && handleSave()}
             />
             <p className="text-[10px] text-muted-foreground">{noteText.length}/60 · Expires in 24h</p>
+            
+            {/* GIF button */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full text-xs"
+              onClick={() => {
+                setShowGifPicker(!showGifPicker);
+                if (!showGifPicker) searchGifs('');
+              }}
+            >
+              🎬 {showGifPicker ? 'Hide GIFs' : 'Add GIF'}
+            </Button>
+
+            {/* GIF Picker */}
+            {showGifPicker && (
+              <div className="w-full space-y-2">
+                <div className="flex items-center gap-2 rounded-full border px-3 py-1.5">
+                  <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={gifSearch}
+                    onChange={(e) => {
+                      setGifSearch(e.target.value);
+                      searchGifs(e.target.value);
+                    }}
+                    placeholder="Search GIFs..."
+                    className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 max-h-40 overflow-y-auto rounded-lg">
+                  {gifLoading ? (
+                    <p className="col-span-3 text-center text-xs text-muted-foreground py-4">Loading...</p>
+                  ) : gifResults.length === 0 ? (
+                    <p className="col-span-3 text-center text-xs text-muted-foreground py-4">No GIFs found</p>
+                  ) : (
+                    gifResults.map((gif) => (
+                      <button
+                        key={gif.id}
+                        onClick={() => {
+                          setGifUrl(gif.url);
+                          setShowGifPicker(false);
+                        }}
+                        className="aspect-square rounded-lg overflow-hidden hover:ring-2 ring-primary transition-all"
+                      >
+                        <img src={gif.preview || gif.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2 w-full">
               {myNote && (
                 <Button
