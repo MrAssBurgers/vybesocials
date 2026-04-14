@@ -4,7 +4,8 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import { BugBountyOverlay } from '@/components/error/BugBountyOverlay';
+import { CrashReportConsent } from '@/components/error/CrashReportConsent';
+import { useAutoBugReporter } from '@/hooks/useAutoBugReporter';
 // VYBELogo removed from fallback for instant navigation
 
 // Lazy-load all pages to reduce unused JavaScript in the initial bundle
@@ -105,6 +106,7 @@ export function AnimatedRoutes() {
   
   useDebugCapture();
   usePageTitle();
+  useAutoBugReporter();
   
   return (
     <div className="min-h-screen" id="main-content">
@@ -197,10 +199,8 @@ export function AnimatedRoutes() {
             <Route path="/~oauth" element={null} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-          {/* Bug Bounty Overlay — gamified bug detection */}
-          <Suspense fallback={null}>
-            <BugBountyOverlay />
-          </Suspense>
+          {/* One-time crash report consent dialog */}
+          <CrashReportConsent />
           {/* Dev-only debug panel */}
           {import.meta.env.DEV && (
             <Suspense fallback={null}>
