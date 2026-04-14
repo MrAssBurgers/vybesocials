@@ -10,7 +10,6 @@ interface StoryRingProps {
   isExpiringSoon?: boolean;
   children: React.ReactNode;
 }
-}
 
 /**
  * Premium animated story ring with gradient rotation for unviewed stories.
