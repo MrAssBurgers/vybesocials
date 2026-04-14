@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -18,34 +19,50 @@ export function getConsentState(): boolean | null {
   const val = localStorage.getItem(CONSENT_KEY);
   if (val === 'true') return true;
   if (val === 'false') return false;
-  return null; // not yet decided
+  return null;
 }
 
-export function CrashReportConsent() {
+export const CrashReportConsent = memo(function CrashReportConsent() {
   const [open, setOpen] = useState(false);
+  const { profile } = useAuth();
 
   useEffect(() => {
-    // Only show if user hasn't decided yet AND is authenticated
+    // Already answered locally — done
     if (getConsentState() !== null) return;
+    if (!profile?.id) return;
 
-    const check = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setOpen(true);
-    };
-    check();
+    // Check DB for existing answer (cross-device persistence)
+    supabase
+      .rpc('get_own_sensitive_profile')
+      .single()
+      .then(({ data }) => {
+        const dbVal = (data as any)?.crash_consent;
+        if (dbVal === 'true' || dbVal === 'false' || dbVal === true || dbVal === false) {
+          const consent = dbVal === 'true' || dbVal === true;
+          localStorage.setItem(CONSENT_KEY, String(consent));
+          // Already answered — don't show
+        } else {
+          // Never answered on any device — show once
+          setTimeout(() => setOpen(true), 2500);
+        }
+      })
+      .catch(() => {
+        // RPC doesn't exist or failed — fall back to showing dialog
+        setTimeout(() => setOpen(true), 2500);
+      });
+  }, [profile?.id]);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' && getConsentState() === null) {
-        setOpen(true);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handleChoice = (consent: boolean) => {
+  const handleChoice = async (consent: boolean) => {
     localStorage.setItem(CONSENT_KEY, String(consent));
     setOpen(false);
+
+    // Persist to DB so it never asks again on any device
+    if (profile?.id) {
+      await supabase
+        .from('profiles')
+        .update({ crash_consent: String(consent) } as any)
+        .eq('id', profile.id);
+    }
   };
 
   return (
@@ -67,4 +84,4 @@ export function CrashReportConsent() {
       </AlertDialogContent>
     </AlertDialog>
   );
-}
+});
