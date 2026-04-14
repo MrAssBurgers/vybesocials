@@ -6,7 +6,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { trackError } from '@/lib/selfHealingMonitor';
-import { getConsentState } from '@/components/error/CrashReportConsent';
+import { getConsentState } from '@/lib/crashReportConsent';
 
 interface DetectedBug {
   message: string;
