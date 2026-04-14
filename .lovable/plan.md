@@ -1,73 +1,66 @@
 
 
-## VYBE Ultimate Experience Upgrade — 10 Changes
+## VybeSnap Editor — Complete Revamp
 
-All 10 items from the previous plan, with one adjustment: **Item 10 (Performance)** will keep the Daily Brief widget loading eagerly above the fold alongside greeting, stories, and feed.
+### Current Problems
+1. **Tap-to-text only works when there are zero overlays** — tap anywhere should always open text input
+2. **Text input is buried at the bottom** behind tool panels — Snapchat centers it on the image itself with a translucent bar
+3. **No inline text editing** — text appears as a separate textarea at the bottom, not directly on the photo where it'll appear
+4. **Tool buttons feel cluttered** — black/40 pills jammed together, no visual hierarchy
+5. **No caption bar** — Snapchat has a bottom caption strip ("Add a caption...") that's always visible, separate from overlay text
+6. **Send button is gradient-heavy and bulky** — should be a clean circle icon
+7. **Color picker is hidden** until you select text/draw mode — should slide in smoothly
+8. **Sticker panel is a plain horizontal scroll** — no search, no categories, feels flat
+9. **No save-to-gallery button** visible
+10. **Video overlays aren't rendered** — just sends raw URL with no indication
 
-### Batch 1 — Highest Impact
+### Redesign
 
-**1. Fix Empty States (Silent App Killer)**
-- Seed For You feed with staff-picked/popular posts for users with 0 following
-- Fix `useQuickAddSuggestions.ts` fallback query to always return users
-- Add "Post your first VYBE" CTA widget for users with 0 posts
-- Add "Find Friends" card in empty DM list
-- Files: `useQuickAddSuggestions.ts`, `ConversationList.tsx`, `HomeWidgetRenderer.tsx`, feed hooks
+**1. Snapchat-style centered text input**
+- Tapping anywhere on the photo opens a **full-width translucent text bar centered vertically on the image** (not at the bottom)
+- Semi-transparent black background behind the text line, white text, auto-expanding
+- Text style pills (Classic/Glow/Outline/Box/Neon) float above the text bar as a horizontal row
+- Color palette appears as a vertical slider on the right edge (Snapchat-style) instead of horizontal dots at bottom
+- Pressing Done/checkmark places the text as a draggable overlay
 
-**2. Vibe Check Status System**
-- Quick-tap mood/activity selector (listening, gaming, chilling, working out, studying)
-- Glowing avatar ring color + emoji visible in DMs, Quick Add, profiles
-- Auto-clears after 4 hours
-- Files: `StatusPicker.tsx` rewrite, new `AvatarRing.tsx`, `ConversationList.tsx`
+**2. Always-visible caption strip**
+- A thin "Add a caption..." bar sits just above the send row at the bottom
+- Tapping it opens a simple single-line input with the keyboard — this is for quick captions, not overlay text
+- Caption renders as small white text at the bottom of the snap when sent
 
-**3. Conversation Reactions (iMessage-style)**
-- Long-press message → floating emoji row (heart, laugh, wow, sad, fire, 100)
-- Reactions appear as small badges below message bubble
-- Files: `ChatView.tsx`, `MessageBubble.tsx`, new `MessageReactionBar.tsx`
+**3. Clean right-side tool strip**
+- Move text (T), sticker, and draw tools to a **vertical strip on the right side** of the screen (like Snapchat's scissors/sticker/text/pencil column)
+- Each tool is a 40px frosted circle, spaced 12px apart
+- Add a download/save button to the strip
 
-### Batch 2 — Differentiators
+**4. Bottom send row redesign**
+- Left: recipient name/avatar chip (or "Send to..." placeholder)
+- Right: circular gradient send button (arrow icon only, no text)
+- Caption bar sits just above this row
 
-**4. Profile Bento Grid**
-- Draggable, resizable blocks: bio, pinned post, music taste, badges, mutual friends, mood widget
-- Users design their own profile layout — no other app has this
-- Files: `Profile.tsx`, new `ProfileBentoGrid.tsx`, new `ProfileBentoEditor.tsx`
+**5. Improved color picker**
+- Vertical color slider on the right edge when in text or draw mode — a tall gradient strip you drag to pick color, plus 6 preset dots below it
+- Much more intuitive than the current horizontal dot row
 
-**5. Smart Notification Grouping**
-- Group: "Sarah and 12 others liked your post", "3 new friend requests"
-- Priority tab for meaningful notifications vs passive ones
-- Files: `Notifications.tsx`, `useNotifications.ts`
+**6. Better sticker panel**
+- Grid layout (4 columns) instead of horizontal scroll
+- Slightly larger stickers (48px)
+- Scroll area with max height
 
-**6. Immersive Feed Mode**
-- Optional toggle on For You tab: snap-to-card full-viewport scroll
-- Media fills screen, text posts get frosted card
-- Default stays as current list scroll
-- Files: `HomeWidgetRenderer.tsx`, new `ImmersiveFeedMode.tsx`
+**7. Polish & animations**
+- Text input slides in from center with a spring animation
+- Tool strip fades in on mount
+- Overlays have a subtle drop shadow for readability
+- Send button pulses gently when media is ready
+- Drag-to-trash: dragging an overlay toward bottom shows a trash zone
 
-### Batch 3 — Polish
+### Technical Details
 
-**7. Spotlight Search**
-- Full-screen overlay with tabs: People, Posts, Sounds, Communities
-- AI natural language search using existing Lovable AI integration
-- Files: `HeaderSearch.tsx` rewrite, new `SpotlightSearch.tsx`
+**Files modified:**
+- `src/components/camera/VybeSnapEditor.tsx` — Full rewrite (~500 lines)
 
-**8. Interactive Story Templates**
-- Polls, Q&A, "this or that," music rating, countdown timers
-- Customizable colors per template
-- Files: `StoriesBar.tsx`, new `StoryTemplates.tsx`, new `InteractiveStoryViewer.tsx`
-
-**9. Onboarding "Design Your VYBE"**
-- After current onboarding: 3-tap flow to pick color accent, background style, vibe (dark/light/auto)
-- Leverages existing `AIVybeDesigner.tsx`
-- Files: `Onboarding.tsx`
-
-**10. Performance: Lazy-Load Below-Fold Widgets**
-- Eagerly load: Greeting + Daily Brief + Stories + Feed tabs (above the fold)
-- Lazy-mount everything else (XP bar, discovery cards, battle pass, creator analytics) via `IntersectionObserver`
-- ~40% faster first paint
-- Files: `HomeWidgetRenderer.tsx`
-
-### What Stays the Same
-- All customization features (themes, backgrounds, widgets, jiggle mode)
-- Safety systems (AI content scanning, parental controls, age gating)
-- Colorful, expressive brand identity
-- All existing hooks and backend infrastructure
+**Files unchanged:**
+- `VybeSnapCamera.tsx` — still passes same props to editor
+- `VybeViewer.tsx` — viewing experience stays the same
+- All hooks remain unchanged
 
