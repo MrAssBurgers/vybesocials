@@ -261,16 +261,20 @@ function FeedSection({
           {!forYouLoading && forYouPosts.length === 0 && (
             <FirstPostCTA />
           )}
-          <InlinePostList
-            posts={forYouPosts}
-            isLoading={forYouLoading}
-            isFetchingNext={isFetchingNextForYou}
-            loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
-            emptyIcon="✨"
-            emptyText="No posts yet. Follow creators or check Global!"
-            onExplore={() => navigate('/explore')}
-            showAds={showAds}
-          />
+          {immersive && forYouPosts.length > 0 ? (
+            <ImmersiveFeedMode posts={forYouPosts} loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}} />
+          ) : (
+            <InlinePostList
+              posts={forYouPosts}
+              isLoading={forYouLoading}
+              isFetchingNext={isFetchingNextForYou}
+              loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
+              emptyIcon="✨"
+              emptyText="No posts yet. Follow creators or check Global!"
+              onExplore={() => navigate('/explore')}
+              showAds={showAds}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="local" className="space-y-4" forceMount style={{ display: activeTab === 'local' ? 'block' : 'none' }}>
