@@ -12,15 +12,7 @@ import {
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { ShieldCheck } from 'lucide-react';
-
-const CONSENT_KEY = 'vybe_crash_consent';
-
-export function getConsentState(): boolean | null {
-  const val = localStorage.getItem(CONSENT_KEY);
-  if (val === 'true') return true;
-  if (val === 'false') return false;
-  return null;
-}
+import { CONSENT_KEY, getConsentState } from '@/lib/crashReportConsent';
 
 export const CrashReportConsent = memo(function CrashReportConsent() {
   const [open, setOpen] = useState(false);

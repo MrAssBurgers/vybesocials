@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { RefreshCw, Home, AlertTriangle, Loader2, Bug, Check } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { reportAppCrash } from '@/lib/bugReportClient';
 
 interface Props {
   children: ReactNode;
@@ -57,9 +58,31 @@ class SmartErrorBoundary extends Component<Props, State> {
     console.error('[SmartErrorBoundary] Caught error:', error?.message, error?.stack);
     console.error('[SmartErrorBoundary] Component stack:', errorInfo.componentStack);
 
+    void this.reportCrash(error, errorInfo.componentStack, 'auto');
+
     // Ask AI to explain the error
     this.analyzeError(error, errorInfo);
   }
+
+  reportCrash = async (
+    error: Error,
+    componentStack?: string | null,
+    mode: 'auto' | 'manual' = 'auto',
+  ) => {
+    this.setState({ isReportingBug: true });
+
+    const { bugReported } = await reportAppCrash({
+      error,
+      componentStack,
+      mode,
+      source: 'smart_error_boundary',
+    });
+
+    this.setState((prevState) => ({
+      bugReported: prevState.bugReported || bugReported,
+      isReportingBug: false,
+    }));
+  };
 
   analyzeError = async (error: Error, errorInfo: ErrorInfo) => {
     this.setState({ isAnalyzing: true });
@@ -90,26 +113,8 @@ class SmartErrorBoundary extends Component<Props, State> {
   };
 
   handleReportBug = async () => {
-    this.setState({ isReportingBug: true });
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        this.setState({ isReportingBug: false });
-        return;
-      }
-      await supabase.from('bug_reports').insert({
-        reporter_id: user.id,
-        error_message: this.state.error?.message || 'Unknown error',
-        error_stack: this.state.error?.stack?.slice(0, 4000) || null,
-        component_stack: this.state.errorInfo?.componentStack?.slice(0, 4000) || null,
-        page_url: window.location.href,
-        user_agent: navigator.userAgent.slice(0, 500),
-        status: 'pending',
-      });
-      this.setState({ bugReported: true, isReportingBug: false });
-    } catch {
-      this.setState({ isReportingBug: false });
-    }
+    if (!this.state.error) return;
+    await this.reportCrash(this.state.error, this.state.errorInfo?.componentStack, 'manual');
   };
 
   handleRefresh = () => {
