@@ -18,6 +18,7 @@ import { haptics } from '@/lib/haptics';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useUserPrimaryBadge } from '@/hooks/useBadges';
 import { supabase } from '@/integrations/supabase/client';
+import { AIProfileWriter } from '@/components/ai/AIProfileWriter';
 
 export function ProfileSection() {
   const { t } = useTranslation();
@@ -175,6 +176,13 @@ export function ProfileSection() {
                 {formData.bio.length}/150
               </span>
             </div>
+
+            {/* AI Bio Writer */}
+            <AIProfileWriter
+              currentBio={formData.bio}
+              displayName={profile?.display_name || ''}
+              onSelectBio={(bio) => setFormData({ ...formData, bio })}
+            />
           </div>
 
           {/* Save Button */}

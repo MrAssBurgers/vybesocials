@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navVisibility } from '@/lib/navVisibility';
 import { useQueryClient } from '@tanstack/react-query';
+import { AICommentSuggestions } from '@/components/ai/AICommentSuggestions';
 
 interface CommentSheetProps {
   postId: string;
