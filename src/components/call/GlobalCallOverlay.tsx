@@ -1351,19 +1351,14 @@ function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onA
             {isGroupCall ? `${caller?.display_name || caller?.username} is calling...` : 'is calling you...'}
           </motion.p>
         </div>
-        <div className="flex items-center justify-center gap-6 sm:gap-8 w-full mb-6 sm:mb-8">
-          <div className="flex flex-col items-center gap-2 sm:gap-3">
-            <button onClick={handleDecline} onTouchEnd={(e) => { e.preventDefault(); handleDecline(); }} disabled={isProcessing} className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg flex items-center justify-center hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90">
-              <PhoneOff className="h-6 w-6 sm:h-7 sm:w-7" />
-            </button>
-            <span className="text-white/50 text-xs sm:text-sm font-medium">Decline</span>
-          </div>
-          <div className="flex flex-col items-center gap-2 sm:gap-3">
-            <button onClick={handleAccept} onTouchEnd={(e) => { e.preventDefault(); handleAccept(); }} disabled={isProcessing} className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg flex items-center justify-center hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 touch-manipulation active:scale-90 animate-pulse">
-              {isVideoCall ? <Video className="h-6 w-6 sm:h-7 sm:w-7" /> : <Phone className="h-6 w-6 sm:h-7 sm:w-7" />}
-            </button>
-            <span className="text-white/50 text-xs sm:text-sm font-medium">Accept</span>
-          </div>
+        {/* Slide to Answer */}
+        <div className="w-full px-6 mb-6 sm:mb-8">
+          <SlideToAnswer
+            isVideoCall={isVideoCall}
+            onAccept={handleAccept}
+            onDecline={handleDecline}
+            disabled={isProcessing}
+          />
         </div>
         <div className="flex items-center gap-2 text-white/30 text-xs sm:text-sm">
           <div className="w-1.5 h-1.5 rounded-full bg-white/30 animate-pulse" />
