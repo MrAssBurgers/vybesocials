@@ -146,28 +146,7 @@ export default function VybeDNAPage() {
               </Suspense>
             </FadeInSection>
           </>
-        ) : (
-          /* Empty state */
-          <div className="animate-in fade-in slide-in-from-bottom-4">
-            <Card className="border-border/50">
-              <CardContent className="py-16 text-center space-y-6">
-                <div className="animate-pulse">
-                  <Sparkles className="w-20 h-20 mx-auto text-primary/40" />
-                </div>
-                <div className="space-y-2">
-                  <h2 className="text-xl font-bold text-foreground">Your DNA Is Forming</h2>
-                  <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                    Start posting, messaging, and interacting on VYBE. Your DNA will 
-                    automatically generate once we have enough data about your unique style.
-                  </p>
-                </div>
-                <Button variant="outline" onClick={() => navigate('/')}>
-                  Go Explore VYBE
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

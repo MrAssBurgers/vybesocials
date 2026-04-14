@@ -21,10 +21,6 @@ export interface VybeDNA {
 
 const GLYPH_PATTERNS = ['wave', 'spiral', 'burst', 'pulse', 'orbit', 'fractal', 'mesh', 'aurora'];
 
-/**
- * Derive visual properties (colors, glyph) from personality scores.
- * Called client-side after the RPC returns the updated personality_vector.
- */
 function deriveVisuals(pv: Record<string, number>): { signature_colors: string[]; glyph_pattern: string } {
   const a = pv.activity ?? 0;
   const s = pv.social ?? 0;
@@ -46,9 +42,30 @@ function deriveVisuals(pv: Record<string, number>): { signature_colors: string[]
   return { signature_colors, glyph_pattern: GLYPH_PATTERNS[patternIndex] };
 }
 
+/** Build a seed DNA for brand-new users so the profile never looks empty */
+function buildSeedDNA(userId: string): VybeDNA {
+  const pv = { activity: 0.15, social: 0.1, creative: 0.1 };
+  const visuals = deriveVisuals(pv);
+  return {
+    id: 'seed',
+    user_id: userId,
+    ...visuals,
+    aura_intensity: 0.2,
+    personality_vector: pv,
+    watch_time_avg: 0,
+    session_time_avg: 0,
+    active_hours: [],
+    engagement_score: 0.05,
+    interests: [],
+    generated_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
 /**
  * Auto-compute DNA from real user activity via server RPC,
  * then fetch the full row with derived visuals.
+ * Always returns a DNA object — seeds a default for new users.
  */
 export function useVybeDNA(userId?: string) {
   const { user } = useAuth();
@@ -65,15 +82,15 @@ export function useVybeDNA(userId?: string) {
       return data as Record<string, number>;
     },
     enabled: !!targetId && isOwnProfile,
-    staleTime: 5 * 60_000, // recompute at most every 5 min
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
 
   // Fetch the stored DNA row (works for own + other users)
   const dnaQuery = useQuery({
     queryKey: ['vybe-dna', targetId],
-    queryFn: async (): Promise<VybeDNA | null> => {
-      if (!targetId) return null;
+    queryFn: async (): Promise<VybeDNA> => {
+      if (!targetId) return buildSeedDNA('unknown');
 
       const { data, error } = await supabase
         .from('vybe_dna' as any)
@@ -82,7 +99,9 @@ export function useVybeDNA(userId?: string) {
         .maybeSingle();
 
       if (error) throw error;
-      if (!data) return null;
+
+      // No row yet → return seed DNA so the UI always renders
+      if (!data) return buildSeedDNA(targetId);
 
       const row = data as unknown as VybeDNA;
       const pv = row.personality_vector || {};
@@ -90,7 +109,7 @@ export function useVybeDNA(userId?: string) {
 
       return { ...row, ...visuals };
     },
-    enabled: !!targetId && (isOwnProfile ? computeQuery.isSuccess : true),
+    enabled: !!targetId && (isOwnProfile ? computeQuery.isSuccess || computeQuery.isError : true),
     staleTime: 60_000,
   });
 
