@@ -71,7 +71,9 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
 
 .splash-shimmer {
   background: linear-gradient(90deg, transparent 0%, hsl(var(--foreground) / 0.06) 50%, transparent 100%);
-  animation: splash-shimmer 1.8s linear infinite;
+  animation: splash-shimmer 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  will-change: transform;
+  transform: translateZ(0);
 }
 @keyframes splash-shimmer {
   from { transform: translateX(-100%); }
@@ -749,16 +751,16 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     height: 6px;
     border-radius: 50%;
     background: hsl(var(--primary));
-    animation: orbit-sparkle 3s linear infinite;
+    animation: orbit-sparkle 5s linear infinite;
     will-change: transform;
     transform: translateZ(0);
   }
 
-  .orbit-sparkle:nth-child(2) { animation-delay: -0.5s; background: hsl(var(--accent)); }
-  .orbit-sparkle:nth-child(3) { animation-delay: -1s; }
-  .orbit-sparkle:nth-child(4) { animation-delay: -1.5s; background: hsl(var(--accent)); }
-  .orbit-sparkle:nth-child(5) { animation-delay: -2s; }
-  .orbit-sparkle:nth-child(6) { animation-delay: -2.5s; background: hsl(var(--accent)); }
+  .orbit-sparkle:nth-child(2) { animation-delay: -0.83s; background: hsl(var(--accent)); }
+  .orbit-sparkle:nth-child(3) { animation-delay: -1.66s; }
+  .orbit-sparkle:nth-child(4) { animation-delay: -2.5s; background: hsl(var(--accent)); }
+  .orbit-sparkle:nth-child(5) { animation-delay: -3.33s; }
+  .orbit-sparkle:nth-child(6) { animation-delay: -4.16s; background: hsl(var(--accent)); }
 
   /* Smooth spinning for AI Brief V icon */
   @keyframes spin-smooth {
@@ -767,7 +769,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
 
   .spin-smooth {
-    animation: spin-smooth 2.5s linear infinite;
+    animation: spin-smooth 4s linear infinite;
     will-change: transform;
     transform: translateZ(0);
     transform-origin: center center;
@@ -1326,8 +1328,9 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       hsl(var(--gradient-end)) 50%,
       hsl(var(--gradient-start)) 100%
     );
-    background-size: 200% 100%;
-    animation: gradient-shift 5s linear infinite;
+    background-size: 300% 100%;
+    animation: gradient-shift 6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    will-change: background-position;
     border-radius: inherit;
   }
 
@@ -1651,24 +1654,21 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       hsl(var(--muted) / 0.5) 50%,
       hsl(var(--muted)) 100%
     );
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
+    background-size: 300% 100%;
+    animation: shimmer 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    will-change: transform;
   }
 }
 
-/* Keyframe animations */
+/* Keyframe animations — tile-safe seamless loops */
 @keyframes gradient-shift {
   from { background-position: 0% 50%; }
-  to { background-position: -100% 50%; }
+  to { background-position: -33.333% 50%; }
 }
 
 @keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
+  from { transform: translateX(-100%); }
+  to { transform: translateX(200%); }
 }
 
 @keyframes fadeSlideIn {
@@ -1788,20 +1788,16 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 
 @keyframes rainbow-text {
   0% { color: hsl(0, 100%, 60%); }
-  16% { color: hsl(60, 100%, 60%); }
-  33% { color: hsl(120, 100%, 60%); }
+  16.666% { color: hsl(60, 100%, 60%); }
+  33.333% { color: hsl(120, 100%, 60%); }
   50% { color: hsl(180, 100%, 60%); }
-  66% { color: hsl(240, 100%, 60%); }
-  83% { color: hsl(300, 100%, 60%); }
+  66.666% { color: hsl(240, 100%, 60%); }
+  83.333% { color: hsl(300, 100%, 60%); }
   100% { color: hsl(360, 100%, 60%); }
 }
 
-.animate-fire {
-  animation: fire-flicker 0.3s infinite, fire-glow 1s infinite;
-}
-
 .animate-rainbow-text {
-  animation: rainbow-text 3s linear infinite;
+  animation: rainbow-text 5s ease-in-out infinite;
 }
 
 .animate-liquid-wobble {
@@ -2411,8 +2407,10 @@ img, video {
 /* ===== CYBERPUNK FRIENDDROP ANIMATIONS ===== */
 
 @keyframes cyber-scanline {
-  0% { top: -2px; }
-  100% { top: calc(100% + 2px); }
+  0% { top: -2px; opacity: 0; }
+  5% { opacity: 1; }
+  95% { opacity: 1; }
+  100% { top: calc(100% + 2px); opacity: 0; }
 }
 
 @keyframes cyber-glitch {
@@ -2463,11 +2461,11 @@ img, video {
   50% { top: 100%; }
 }
 
-/* CSS-only data stream falling */
+/* CSS-only data stream falling — accelerating drop */
 @keyframes cyber-stream-fall {
   0% { transform: translateY(-100%); opacity: 0; }
-  10% { opacity: 0.5; }
-  90% { opacity: 0.5; }
+  8% { opacity: 0.5; }
+  85% { opacity: 0.5; }
   100% { transform: translateY(500px); opacity: 0; }
 }
 
@@ -2501,11 +2499,11 @@ img, video {
   50% { opacity: 1; }
 }
 
-/* CSS-only data particle rise */
+/* CSS-only data particle rise — decelerating ascent */
 @keyframes cyber-particle-rise {
   0% { transform: translateY(300px); opacity: 0; }
-  15% { opacity: 0.6; }
-  85% { opacity: 0.6; }
+  12% { opacity: 0.6; }
+  80% { opacity: 0.6; }
   100% { transform: translateY(-20px); opacity: 0; }
 }
 
@@ -2597,7 +2595,8 @@ img, video {
   100% { transform: rotate(360deg); }
 }
 .cyber-ring-spin {
-  animation: cyber-ring-spin 4s linear infinite;
+  animation: cyber-ring-spin 6s linear infinite;
+  will-change: transform;
 }
 
 /* Legacy .cyber-card alias */
@@ -2617,7 +2616,7 @@ img, video {
   height: 1px;
   background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.6), transparent);
   box-shadow: 0 0 6px 1px hsl(var(--primary) / 0.25);
-  animation: cyber-scanline 3s linear infinite;
+  animation: cyber-scanline 4s ease-in-out infinite;
   z-index: 5;
   pointer-events: none;
 }
@@ -2642,7 +2641,8 @@ img, video {
   z-index: 3;
   pointer-events: none;
   background: linear-gradient(180deg, transparent, hsl(var(--primary) / 0.15), transparent);
-  animation: cyber-stream-fall 2s linear infinite;
+  animation: cyber-stream-fall 2.8s ease-in infinite;
+  will-change: transform;
 }
 
 /* CSS-only outer glow */
@@ -2686,7 +2686,8 @@ img, video {
   border-radius: 2px;
   box-shadow: 0 0 4px hsl(var(--primary) / 0.3);
   background: hsl(var(--primary) / 0.4);
-  animation: cyber-particle-rise 1.5s linear infinite;
+  animation: cyber-particle-rise 2.2s ease-out infinite;
+  will-change: transform;
 }
 
 /* CSS-only syncing text */
@@ -2705,13 +2706,14 @@ img, video {
 
 .friendlink-shimmer {
   background: linear-gradient(105deg, transparent 0%, hsl(var(--primary) / 0.06) 15%, hsl(var(--primary) / 0.08) 20%, hsl(var(--primary) / 0.06) 25%, transparent 40%, transparent 50%, hsl(var(--primary) / 0.06) 65%, hsl(var(--primary) / 0.08) 70%, hsl(var(--primary) / 0.06) 75%, transparent 100%);
-  background-size: 200% 100%;
-  animation: friendlink-shimmer-sweep 4s linear infinite;
+  background-size: 300% 100%;
+  animation: friendlink-shimmer-sweep 5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  will-change: background-position;
 }
 
 @keyframes friendlink-shimmer-sweep {
   from { background-position: 0% 0; }
-  to { background-position: -100% 0; }
+  to { background-position: -33.333% 0; }
 }
 
 .friendlink-icon-wrap {
@@ -2781,8 +2783,8 @@ img, video {
 /* gradient-shift defined above — removed duplicate */
 
 @keyframes shimmer-sweep {
-  from { transform: translateX(-150%); }
-  to { transform: translateX(150%); }
+  from { transform: translateX(-100%); }
+  to { transform: translateX(200%); }
 }
 
 .create-button-gradient {
