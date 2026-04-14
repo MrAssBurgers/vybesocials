@@ -83,9 +83,7 @@ export const ProfileVibeBoard = memo(function ProfileVibeBoard({
                 className="hidden sm:flex"
               />
             </div>
-          ) : (
-            <p className="text-xs text-muted-foreground italic">No DNA generated yet</p>
-          )}
+          ) : null}
         </VibeBoardCard>
       </motion.div>
 
