@@ -5,7 +5,7 @@ import { liquidSpring } from '@/motion/liquidConfig';
 
 const REWARD_TYPES = [
   { icon: TrendingUp, text: '🔥 This post is trending in your area', gradient: 'from-orange-500/15 to-amber-500/10', iconColor: 'text-orange-500' },
-  { icon: Sparkles, text: '✨ You've scrolled 10 posts — here's something special', gradient: 'from-violet-500/15 to-fuchsia-500/10', iconColor: 'text-violet-500' },
+  { icon: Sparkles, text: '\u2728 You\u2019ve scrolled 10 posts \u2014 here\u2019s something special', gradient: 'from-violet-500/15 to-fuchsia-500/10', iconColor: 'text-violet-500' },
   { icon: Users, text: '👀 Your friends are loving this post', gradient: 'from-blue-500/15 to-cyan-500/10', iconColor: 'text-blue-500' },
 ];
 
