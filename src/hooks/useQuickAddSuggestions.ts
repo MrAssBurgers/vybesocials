@@ -1,0 +1,116 @@
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
+import { useSuggestedFriends } from '@/hooks/useFriendsOfFriends';
+import { useFriends } from '@/hooks/useFriends';
+import { useHiddenFromDiscovery } from '@/hooks/useOutgoingRequests';
+import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
+
+export interface QuickAddUser {
+  id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  mutual_count: number;
+  subtitle: string;
+}
+
+/**
+ * Unified Quick Add suggestions: mutual friends first, then interest-based fallback.
+ * Always returns results even if user has no friends yet.
+ */
+export function useQuickAddSuggestions(limit = 8) {
+  const { profile } = useAuth();
+  const { data: mutualSuggestions, isLoading: loadingMutual } = useSuggestedFriends();
+  const { data: friends } = useFriends();
+  const { data: hiddenIds } = useHiddenFromDiscovery();
+  const { isDismissed } = useDismissedQuickAdd();
+
+  // Fallback: interest-based / general users when mutual friends are empty
+  const { data: generalUsers, isLoading: loadingGeneral } = useQuery({
+    queryKey: ['quick-add-general', profile?.id, friends?.length ?? 0],
+    queryFn: async (): Promise<QuickAddUser[]> => {
+      if (!profile?.id) return [];
+
+      const friendIds = friends?.map(f => f.id) || [];
+
+      // Get my interests
+      const { data: myProfile } = await supabase
+        .from('profiles')
+        .select('interests')
+        .eq('id', profile.id)
+        .maybeSingle();
+      const myInterests = new Set<string>(
+        (myProfile?.interests || []).map((i: string) => i.toLowerCase())
+      );
+
+      let query = supabase
+        .from('profiles' as any)
+        .select('id, username, display_name, avatar_url, interests')
+        .neq('id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(60) as any;
+
+      if (friendIds.length > 0) {
+        query = query.not('id', 'in', `(${friendIds.join(',')})`);
+      }
+
+      const { data: users } = await query;
+      if (!users || users.length === 0) return [];
+
+      return (users as any[])
+        .map((u: any) => {
+          const theirInterests = (u.interests || []).map((i: string) => i.toLowerCase());
+          const shared = theirInterests.filter((i: string) => myInterests.has(i));
+          const score = shared.length * 4 + (u.avatar_url ? 1 : 0) + (u.display_name ? 0.5 : 0);
+          return {
+            id: u.id,
+            username: u.username,
+            display_name: u.display_name,
+            avatar_url: u.avatar_url,
+            mutual_count: 0,
+            subtitle: shared.length > 0 ? shared.slice(0, 2).join(' · ') : `@${u.username}`,
+            _score: score,
+          };
+        })
+        .sort((a: any, b: any) => b._score - a._score)
+        .slice(0, 20)
+        .map(({ _score, ...rest }: any) => rest);
+    },
+    enabled: !!profile?.id && hiddenIds !== undefined,
+    staleTime: 60000,
+    gcTime: 300000,
+  });
+
+  // Merge: mutual first, then general, deduplicate
+  const suggestions: QuickAddUser[] = [];
+  const seenIds = new Set<string>();
+
+  // Add mutual-based suggestions first
+  for (const s of mutualSuggestions || []) {
+    if (seenIds.has(s.id) || hiddenIds?.has(s.id) || isDismissed(s.id)) continue;
+    seenIds.add(s.id);
+    suggestions.push({
+      id: s.id,
+      username: s.username,
+      display_name: s.display_name,
+      avatar_url: s.avatar_url,
+      mutual_count: s.mutual_count,
+      subtitle: s.mutual_count > 0
+        ? `${s.mutual_count} mutual friend${s.mutual_count !== 1 ? 's' : ''}`
+        : `@${s.username}`,
+    });
+  }
+
+  // Fill with general suggestions
+  for (const u of generalUsers || []) {
+    if (seenIds.has(u.id) || hiddenIds?.has(u.id) || isDismissed(u.id)) continue;
+    seenIds.add(u.id);
+    suggestions.push(u);
+  }
+
+  return {
+    suggestions: suggestions.slice(0, limit),
+    isLoading: loadingMutual && loadingGeneral,
+  };
+}
