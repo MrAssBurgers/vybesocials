@@ -17,6 +17,8 @@ export interface AISafetyResult {
   message: string;
   visual_analysis?: string;
   audio_analysis?: string;
+  suggested_age_rating?: 'safe' | '13+' | '18+';
+  age_rating_reasons?: string[];
 }
 
 /**

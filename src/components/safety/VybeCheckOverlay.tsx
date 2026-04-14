@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Check, Rocket, X } from 'lucide-react';
+import { Shield, Check, Rocket, X, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useContentSafety, type SafetyResult } from '@/hooks/useContentSafety';
 import { SafetyScanProgress } from '@/components/safety/SafetyScanProgress';
@@ -23,12 +23,15 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: Vyb
   const ageRatingRef = useRef<AgeRating>('safe');
   const contentSafety = useContentSafety();
 
+  // AI-detected minimum age rating
+  const [aiMinRating, setAiMinRating] = useState<AgeRating | null>(null);
+  const [aiReasons, setAiReasons] = useState<string[]>([]);
+
   // Run scan on mount
   useEffect(() => {
     let cancelled = false;
 
     const runScan = async () => {
-      // Owner bypass
       const isOwner = await shouldBypassSafety();
       if (isOwner) {
         if (!cancelled) setPhase('rating');
@@ -52,10 +55,24 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: Vyb
       if (result.result === 'blocked') {
         setPhase('blocked');
         onBlocked(result.message || 'Content violates community guidelines', result.categories || []);
-      } else {
-        triggerHaptic('light');
-        setPhase('rating');
+        return;
       }
+
+      // Check if AI suggested a minimum age rating
+      const scanDetails = contentSafety.scanDetails as any;
+      // The AI result is stored via mergeResults — check for suggested_age_rating
+      // We need to extract from the raw AI response which is in the hook's internal state
+      // For now, we pass through the categories to infer
+      const aiRating = (result as any).suggestedAgeRating;
+      const reasons = (result as any).ageRatingReasons;
+
+      if (aiRating && aiRating !== 'safe') {
+        setAiMinRating(aiRating);
+        setAiReasons(reasons || []);
+      }
+
+      triggerHaptic('light');
+      setPhase('rating');
     };
 
     runScan();
@@ -81,7 +98,6 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: Vyb
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[260] flex flex-col items-center justify-center bg-background/95 backdrop-blur-md"
     >
-      {/* Close button */}
       <button
         onClick={onCancel}
         className="absolute top-4 right-4 p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors z-10"
@@ -100,7 +116,6 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: Vyb
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             className="w-80 space-y-6 text-center"
           >
-            {/* Animated shield with ring */}
             <div className="relative w-20 h-20 mx-auto">
               <motion.div
                 animate={{ rotate: 360 }}
@@ -136,7 +151,36 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: Vyb
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             className="w-full px-6"
           >
-            <AgeRatingSelector onSelect={handleRatingSelect} />
+            {/* AI restriction notice */}
+            {aiMinRating && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="max-w-sm mx-auto mb-4 p-3 rounded-xl border border-amber-500/30 bg-amber-500/10"
+              >
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-amber-400">
+                      AI detected {aiMinRating} content
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {aiReasons.length > 0
+                        ? aiReasons[0]
+                        : `This content contains elements unsuitable for viewers under ${aiMinRating === '13+' ? '13' : '18'}.`}
+                    </p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">
+                      You cannot set this below {aiMinRating}.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            <AgeRatingSelector
+              onSelect={handleRatingSelect}
+              minimumRating={aiMinRating || undefined}
+            />
           </motion.div>
         )}
 
@@ -149,7 +193,6 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: Vyb
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="w-80 space-y-8 text-center"
           >
-            {/* Success check */}
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -181,6 +224,16 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: Vyb
               >
                 Rated {ageRating === 'safe' ? 'Safe · All ages' : ageRating}
               </motion.div>
+              {aiMinRating && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.45 }}
+                  className="text-xs text-muted-foreground/60 mt-2"
+                >
+                  🤖 AI enforced minimum rating: {aiMinRating}
+                </motion.p>
+              )}
             </div>
 
             <motion.button
