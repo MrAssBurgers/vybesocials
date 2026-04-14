@@ -22,8 +22,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Bot, UsersRound, Trash2, Nfc, X, UserCheck, Flame, Camera } from 'lucide-react';
-import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, UsersRound, Trash2, X, UserCheck, Flame, Camera } from 'lucide-react';
 
 import { toast } from 'sonner';
 import { CreateGroupDialog } from './CreateGroupDialog';
