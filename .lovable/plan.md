@@ -1,66 +1,99 @@
 
 
-## VybeSnap Editor — Complete Revamp
+## VYBE Addiction Engine — 12 Critical Changes
 
-### Current Problems
-1. **Tap-to-text only works when there are zero overlays** — tap anywhere should always open text input
-2. **Text input is buried at the bottom** behind tool panels — Snapchat centers it on the image itself with a translucent bar
-3. **No inline text editing** — text appears as a separate textarea at the bottom, not directly on the photo where it'll appear
-4. **Tool buttons feel cluttered** — black/40 pills jammed together, no visual hierarchy
-5. **No caption bar** — Snapchat has a bottom caption strip ("Add a caption...") that's always visible, separate from overlay text
-6. **Send button is gradient-heavy and bulky** — should be a clean circle icon
-7. **Color picker is hidden** until you select text/draw mode — should slide in smoothly
-8. **Sticker panel is a plain horizontal scroll** — no search, no categories, feels flat
-9. **No save-to-gallery button** visible
-10. **Video overlays aren't rendered** — just sends raw URL with no indication
+After scanning every major component, hook, page, and interaction pattern in the app, here are the 12 changes that would make VYBE genuinely addictive — using real behavioral psychology (variable reward schedules, completion loops, social proof, loss aversion) combined with Apple-level polish.
 
-### Redesign
+---
 
-**1. Snapchat-style centered text input**
-- Tapping anywhere on the photo opens a **full-width translucent text bar centered vertically on the image** (not at the bottom)
-- Semi-transparent black background behind the text line, white text, auto-expanding
-- Text style pills (Classic/Glow/Outline/Box/Neon) float above the text bar as a horizontal row
-- Color palette appears as a vertical slider on the right edge (Snapchat-style) instead of horizontal dots at bottom
-- Pressing Done/checkmark places the text as a draggable overlay
+### Critical Problems Found
 
-**2. Always-visible caption strip**
-- A thin "Add a caption..." bar sits just above the send row at the bottom
-- Tapping it opens a simple single-line input with the keyboard — this is for quick captions, not overlay text
-- Caption renders as small white text at the bottom of the snap when sent
+1. **No view tracking on PostCard** — `useRecordInteraction` exists but is never called when posts enter the viewport. The algorithm has zero dwell-time signal, making it blind.
+2. **No page transitions** — `AnimatedRoutes` renders raw `<Routes>` with no `AnimatePresence` wrapper. Navigation feels like a web page reload, not an app.
+3. **Feed has no variable reward** — Every scroll is the same linear list. No surprise content injections (trending post callout, "friend just posted", milestone card).
+4. **Double-tap heart is the only dopamine hit** — No sound, no haptic burst on other actions. Bookmark, comment, share feel flat.
+5. **PostCard action bar is cramped** — Icons are 24px with 8px gaps on a 32px row. Below Apple's 44px touch target guideline.
+6. **No "completion loop"** — Nothing tells users "you've caught up" or nudges them to post/share when feed runs dry.
+7. **Stories bar has no urgency** — No countdown timer, no "expires soon" visual. Users don't feel FOMO.
+8. **Profile is static** — No activity feed, no "currently vibing" status integration, no visitor count.
+9. **Explore page search has no trending suggestions** — Search input is empty with no autocomplete or trending hints.
+10. **No skeleton shimmer direction** — Skeletons pulse but don't sweep left-to-right like Apple/Instagram.
+11. **Comment count shows but doesn't preview content** — "View all 5 comments" with zero preview means zero curiosity hook.
+12. **No re-engagement nudge** — When a user hasn't posted in days, nothing triggers them to come back.
 
-**3. Clean right-side tool strip**
-- Move text (T), sticker, and draw tools to a **vertical strip on the right side** of the screen (like Snapchat's scissors/sticker/text/pencil column)
-- Each tool is a 40px frosted circle, spaced 12px apart
-- Add a download/save button to the strip
+---
 
-**4. Bottom send row redesign**
-- Left: recipient name/avatar chip (or "Send to..." placeholder)
-- Right: circular gradient send button (arrow icon only, no text)
-- Caption bar sits just above this row
+### The Changes
 
-**5. Improved color picker**
-- Vertical color slider on the right edge when in text or draw mode — a tall gradient strip you drag to pick color, plus 6 preset dots below it
-- Much more intuitive than the current horizontal dot row
+**1. Viewport-Aware View Tracking on PostCard**
+- Add `IntersectionObserver` to `PostCard` — when 50%+ visible for 1.5s+, fire `useRecordInteraction('view')`. Track cumulative dwell time per post.
+- This single change feeds the algorithm real engagement data, making the feed smarter over time.
+- Files: `PostCard.tsx`
 
-**6. Better sticker panel**
-- Grid layout (4 columns) instead of horizontal scroll
-- Slightly larger stickers (48px)
-- Scroll area with max height
+**2. Fluid Page Transitions**
+- Wrap `AnimatedRoutes` content in `AnimatePresence` with `mode="wait"`. Apply `liquidFadeUp` from existing `liquidConfig.ts` to all route transitions.
+- Forward navigation slides in from right, back navigation slides from left (using a navigation direction tracker).
+- Files: `AnimatedRoutes.tsx`, new `useNavigationDirection.ts`
 
-**7. Polish & animations**
-- Text input slides in from center with a spring animation
-- Tool strip fades in on mount
-- Overlays have a subtle drop shadow for readability
-- Send button pulses gently when media is ready
-- Drag-to-trash: dragging an overlay toward bottom shows a trash zone
+**3. Variable Reward Cards in Feed**
+- Inject surprise "reward" cards every 8-15 posts: "Your friend @X just posted!", "This post is trending in your area", "You've scrolled past 10 posts — here's something special".
+- These interrupt the predictable scroll pattern and create variable-ratio reinforcement (the most addictive schedule in behavioral psychology).
+- Files: `HomeWidgetRenderer.tsx` (InlinePostList), new `FeedRewardCard.tsx`
 
-### Technical Details
+**4. Micro-Interaction Sound + Haptic System**
+- Add subtle haptic bursts (medium) on bookmark, comment open, and share. Add a "success" haptic pattern on follow/friend request accepted.
+- Create a `useInteractionFeedback` hook that centralizes all tactile feedback. The existing `triggerHaptic` only fires on like — extend to all engagement actions.
+- Files: new `useInteractionFeedback.ts`, `PostCard.tsx`
 
-**Files modified:**
-- `src/components/camera/VybeSnapEditor.tsx` — Full rewrite (~500 lines)
+**5. Larger Touch Targets + Action Bar Redesign**
+- Increase action row height from 32px to 44px. Space icons 16px apart. Add subtle label counts directly under icons (like Instagram) instead of only showing on the reaction summary.
+- This makes the entire action area feel tappable and shows social proof on every action.
+- Files: `PostCard.tsx` (action section lines 722-758)
 
-**Files unchanged:**
-- `VybeSnapCamera.tsx` — still passes same props to editor
-- `VybeViewer.tsx` — viewing experience stays the same
-- All hooks remain unchanged
+**6. "You're All Caught Up" Completion Screen**
+- When a user has scrolled through all unseen posts, show a clean divider: checkmark + "You're all caught up" + "See older posts" button + "Invite a friend to VYBE" CTA.
+- This creates a completion loop that feels satisfying (like Instagram's green checkmark) instead of endless emptiness.
+- Files: `HomeWidgetRenderer.tsx` (InlinePostList)
+
+**7. Story Urgency Ring**
+- Add a countdown arc to story avatars showing time remaining (24h). Stories with <2h left get a pulsing orange/red ring instead of the standard gradient.
+- This creates FOMO — users tap stories faster when they see them expiring.
+- Files: `StoriesBar.tsx`, `StoryRing.tsx`
+
+**8. Comment Preview Hook**
+- Show the top 1-2 comments directly on the PostCard below "View all X comments". Display commenter username + truncated text.
+- This creates curiosity ("what did they say?") and social proof, driving comment sheet opens.
+- Files: `PostCard.tsx`, new lightweight query or include in existing post RPC
+
+**9. Directional Skeleton Shimmer**
+- Replace `animate-pulse` on all skeletons with a left-to-right sweep shimmer (single CSS keyframe). This is what makes apps feel premium — Apple, Instagram, and Stripe all use directional shimmer.
+- Files: `index.css` (add shimmer keyframe), `PostSkeleton.tsx`, `MediaFallback.tsx`
+
+**10. Trending Search Suggestions**
+- When search input is focused but empty, show a "Trending Now" list: top 5 hashtags and top 3 creators. Data from existing `TrendingHashtags` and `TrendingCreators` components.
+- An empty search box is a dead end. Trending suggestions keep users exploring.
+- Files: `HeaderSearch.tsx` or `SpotlightSearch.tsx`
+
+**11. Smooth Pull-to-Refresh Physics**
+- Replace the current linear `translateY` pull with spring-damped rubber-band physics. The VYBE logo should rotate and scale during pull, then snap back with a bounce.
+- Files: `PullToRefresh.tsx`, `Home.tsx` (pull transform)
+
+**12. Re-Engagement "Post Nudge" Widget**
+- If the current user hasn't posted in 3+ days, show a gentle home widget: "Your followers miss you — share a VYBE" with a gradient CTA. Dismissable, but reappears after 2 more days.
+- This is the #1 retention mechanic every social app uses. It turns passive scrollers into active posters.
+- Files: `HomeWidgetRenderer.tsx`, new `PostNudgeWidget.tsx`
+
+---
+
+### Implementation Priority
+
+**Wave 1 (Addiction core):** #1 View Tracking, #3 Variable Reward Cards, #6 Caught Up Screen, #8 Comment Preview
+**Wave 2 (Polish):** #2 Page Transitions, #4 Haptic System, #5 Touch Targets, #9 Shimmer
+**Wave 3 (Retention):** #7 Story Urgency, #10 Trending Search, #11 Pull Physics, #12 Post Nudge
+
+### What Stays the Same
+- All customization features, themes, backgrounds, jiggle mode
+- Safety systems, parental controls, content scanning
+- The colorful VYBE identity and design language
+- All existing backend infrastructure and RPCs
 
