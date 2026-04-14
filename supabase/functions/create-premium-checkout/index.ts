@@ -11,7 +11,7 @@ const corsHeaders = {
 // Test and live price IDs for VYBE Premium
 const PREMIUM_PRICES: Record<string, string> = {
   test: "price_1TCQhFCvnv9K2bAQeButRL6m",
-  live: "price_1TCQhFCvnv9K2bAQeButRL6m", // Replace with live price ID once created
+  live: "price_1TCp2T12viOSNBNOmoRk5JAD",
 };
 
 serve(async (req) => {
