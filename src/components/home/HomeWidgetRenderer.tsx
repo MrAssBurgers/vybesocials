@@ -8,7 +8,6 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { FeedRewardCard } from '@/components/home/FeedRewardCard';
 import { CaughtUpScreen } from '@/components/home/CaughtUpScreen';
 import { PostNudgeWidget } from '@/components/home/PostNudgeWidget';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { StoriesBar } from '@/components/stories/StoriesBar';
 import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
 import { GreetingWidget } from '@/components/home/GreetingWidget';
