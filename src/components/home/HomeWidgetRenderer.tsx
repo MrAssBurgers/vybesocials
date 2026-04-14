@@ -250,6 +250,10 @@ function FeedSection({
         )}
 
         <TabsContent value="foryou" className="space-y-4" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
+          {/* First post CTA for users with no posts in feed */}
+          {!forYouLoading && forYouPosts.length === 0 && (
+            <FirstPostCTA />
+          )}
           <InlinePostList
             posts={forYouPosts}
             isLoading={forYouLoading}
@@ -363,11 +367,14 @@ export function HomeWidgetRenderer(props: Props) {
     );
   }
 
-  // Non-editing: render with smooth layout animations
+  // Non-editing: render with lazy-loading for below-fold widgets
   return (
     <WidgetGrid>
       {enabledIds.map(id => {
         const w = widgets.find(wi => wi.id === id);
+        const isEager = EAGER_WIDGETS.has(id);
+        const content = <WidgetContent id={id} props={props} />;
+        
         return (
           <motion.div
             key={id}
@@ -379,7 +386,7 @@ export function HomeWidgetRenderer(props: Props) {
               w?.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
             )}
           >
-            <WidgetContent id={id} props={props} />
+            {isEager ? content : <LazyWidget>{content}</LazyWidget>}
           </motion.div>
         );
       })}
