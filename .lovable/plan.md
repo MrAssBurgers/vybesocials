@@ -1,45 +1,73 @@
 
 
-## Redesign Friend Link + Fix Quick Add Recommendations
+## VYBE Ultimate Experience Upgrade — 10 Changes
 
-### Problem 1: Friend Link UI
-The current Friend Link is an 895-line cyberpunk-themed monolith that mixes QR code scanning and NFC into one cluttered view. You want a clean, modern two-tab layout separating QR and NFC.
+All 10 items from the previous plan, with one adjustment: **Item 10 (Performance)** will keep the Daily Brief widget loading eagerly above the fold alongside greeting, stories, and feed.
 
-### Problem 2: Quick Add not showing recommendations
-The current `RecommendedFriendsSection` in the Chat page uses `useSuggestedFriends()` which ONLY returns friends-of-friends. If you have no friends yet (or few), it returns nothing. The `MutualFriendsQuickAdd` component has a fallback to interest/general suggestions but isn't being used in the conversation list. Quick Add also needs to match Snapchat's exact layout: vertical list rows with avatar, name, mutual info, blue "+" Add button, and X dismiss.
+### Batch 1 — Highest Impact
 
-### Plan
+**1. Fix Empty States (Silent App Killer)**
+- Seed For You feed with staff-picked/popular posts for users with 0 following
+- Fix `useQuickAddSuggestions.ts` fallback query to always return users
+- Add "Post your first VYBE" CTA widget for users with 0 posts
+- Add "Find Friends" card in empty DM list
+- Files: `useQuickAddSuggestions.ts`, `ConversationList.tsx`, `HomeWidgetRenderer.tsx`, feed hooks
 
-**1. Rewrite `AutoFriendDrop.tsx` with tabbed layout**
-- Replace the entire 895-line file with a clean, modern component (~400 lines)
-- Two tabs using the existing `Tabs` component: "QR Code" and "NFC"
-- **QR Tab**: Shows your QR code prominently at top with avatar overlay, camera scanner below with corner brackets, clean white/themed card design
-- **NFC Tab**: Clean illustration/animation of two phones tapping together, status text ("Hold phones together"), uses existing `useNativeFriendDrop` hook for native NFC, falls back to the existing `useFriendDropSync` proximity system
-- Keep all existing found/exchanging/success phase flows but with clean modern styling (drop cyberpunk fonts, HUD text, scan beams)
-- Remove the floating "FRIEND LINK" pill from home screen — open via explicit navigation instead
-- Keep the swing-to-activate gesture
+**2. Vibe Check Status System**
+- Quick-tap mood/activity selector (listening, gaming, chilling, working out, studying)
+- Glowing avatar ring color + emoji visible in DMs, Quick Add, profiles
+- Auto-clears after 4 hours
+- Files: `StatusPicker.tsx` rewrite, new `AvatarRing.tsx`, `ConversationList.tsx`
 
-**2. Fix Quick Add to always show recommendations (Snapchat-exact)**
-- Update `RecommendedFriendsSection` in `ConversationList.tsx` to use BOTH data sources: `useSuggestedFriends()` (mutual-based) AND the general `useSuggestedUsers()` fallback from `MutualFriendsQuickAdd`
-- Match Snapchat's Quick Add layout exactly:
-  - Section header: "Quick Add" with "More" link
-  - Vertical list of rows (not horizontal cards)
-  - Each row: 44px avatar | Name + "@username" or "X mutual friends" subtitle | blue "Add" button + X dismiss
-  - Rows animate out on add/dismiss
-  - Show up to 8 suggestions, combining mutual friends first then general users
+**3. Conversation Reactions (iMessage-style)**
+- Long-press message → floating emoji row (heart, laugh, wow, sad, fire, 100)
+- Reactions appear as small badges below message bubble
+- Files: `ChatView.tsx`, `MessageBubble.tsx`, new `MessageReactionBar.tsx`
 
-**3. Extract shared suggestion hook**
-- Create `src/hooks/useQuickAddSuggestions.ts` that merges mutual friend suggestions with interest-based fallback suggestions, deduplicates, and filters dismissed users — single source of truth for both Quick Add locations
+### Batch 2 — Differentiators
 
-### Technical Details
+**4. Profile Bento Grid**
+- Draggable, resizable blocks: bio, pinned post, music taste, badges, mutual friends, mood widget
+- Users design their own profile layout — no other app has this
+- Files: `Profile.tsx`, new `ProfileBentoGrid.tsx`, new `ProfileBentoEditor.tsx`
 
-Files modified:
-- **`src/components/friends/AutoFriendDrop.tsx`** — Full rewrite with tabbed QR/NFC UI
-- **`src/components/chat/ConversationList.tsx`** — Update `RecommendedFriendsSection` to use merged suggestions and match Snapchat layout exactly
-- **`src/hooks/useQuickAddSuggestions.ts`** — New hook combining both suggestion sources
+**5. Smart Notification Grouping**
+- Group: "Sarah and 12 others liked your post", "3 new friend requests"
+- Priority tab for meaningful notifications vs passive ones
+- Files: `Notifications.tsx`, `useNotifications.ts`
 
-Files unchanged:
-- All existing hooks (`useFriendDropSync`, `useNativeFriendDrop`, `useSwingDetection`, `useSendFriendRequest`) stay as-is
-- `useFriendsOfFriends.ts` stays as-is
-- QR generation logic stays the same (external API)
+**6. Immersive Feed Mode**
+- Optional toggle on For You tab: snap-to-card full-viewport scroll
+- Media fills screen, text posts get frosted card
+- Default stays as current list scroll
+- Files: `HomeWidgetRenderer.tsx`, new `ImmersiveFeedMode.tsx`
+
+### Batch 3 — Polish
+
+**7. Spotlight Search**
+- Full-screen overlay with tabs: People, Posts, Sounds, Communities
+- AI natural language search using existing Lovable AI integration
+- Files: `HeaderSearch.tsx` rewrite, new `SpotlightSearch.tsx`
+
+**8. Interactive Story Templates**
+- Polls, Q&A, "this or that," music rating, countdown timers
+- Customizable colors per template
+- Files: `StoriesBar.tsx`, new `StoryTemplates.tsx`, new `InteractiveStoryViewer.tsx`
+
+**9. Onboarding "Design Your VYBE"**
+- After current onboarding: 3-tap flow to pick color accent, background style, vibe (dark/light/auto)
+- Leverages existing `AIVybeDesigner.tsx`
+- Files: `Onboarding.tsx`
+
+**10. Performance: Lazy-Load Below-Fold Widgets**
+- Eagerly load: Greeting + Daily Brief + Stories + Feed tabs (above the fold)
+- Lazy-mount everything else (XP bar, discovery cards, battle pass, creator analytics) via `IntersectionObserver`
+- ~40% faster first paint
+- Files: `HomeWidgetRenderer.tsx`
+
+### What Stays the Same
+- All customization features (themes, backgrounds, widgets, jiggle mode)
+- Safety systems (AI content scanning, parental controls, age gating)
+- Colorful, expressive brand identity
+- All existing hooks and backend infrastructure
 
