@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Check, Rocket, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,7 @@ interface VybeCheckOverlayProps {
 export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: VybeCheckOverlayProps) {
   const [phase, setPhase] = useState<Phase>('scanning');
   const [ageRating, setAgeRating] = useState<AgeRating>('safe');
+  const ageRatingRef = useRef<AgeRating>('safe');
   const contentSafety = useContentSafety();
 
   // Run scan on mount
@@ -63,14 +64,15 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: Vyb
 
   const handleRatingSelect = useCallback((rating: AgeRating) => {
     setAgeRating(rating);
+    ageRatingRef.current = rating;
     triggerHaptic('medium');
     setTimeout(() => setPhase('ready'), 300);
   }, []);
 
   const handlePublish = useCallback(() => {
     triggerHaptic('heavy');
-    onComplete(ageRating);
-  }, [ageRating, onComplete]);
+    onComplete(ageRatingRef.current);
+  }, [onComplete]);
 
   return (
     <motion.div
