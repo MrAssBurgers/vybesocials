@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Grid, Film, Bookmark, Camera, MessageCircle, Play, MoreHorizontal, Award, Package, Crown, Share2 } from 'lucide-react';
+import { Grid, Film, Bookmark, Package, Play } from 'lucide-react';
 import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
@@ -11,33 +11,24 @@ import { useSavedPosts } from '@/hooks/useSavedPosts';
 import { useAuth } from '@/lib/auth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAppBackground } from '@/components/layout/AppBackground';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FriendButton } from '@/components/friends/FriendButton';
-import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
-import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { ClipsGrid } from '@/components/posts/ClipsGrid';
-import { MutualFriendsDisplay } from '@/components/profile/MutualFriendsDisplay';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { useCreateConversation, useMarkConversationReadByUser } from '@/hooks/useMessages';
-import { ModBadge } from '@/components/ui/ModBadge';
+import { useMarkConversationReadByUser } from '@/hooks/useMessages';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
-import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
-import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { useIsModOrAdmin, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
+import { PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { useLiveFollowerCount } from '@/hooks/useLiveFollowerCount';
 import { useUserBadges, useUserPrimaryBadge } from '@/hooks/useBadges';
-import { BadgeRow } from '@/components/badges';
-import { StyledUsername } from '@/components/ui/StyledUsername';
 import { ProfileLocker } from '@/components/profile/ProfileLocker';
 import { useLockerItems } from '@/hooks/useLockerItems';
-import { UpgradeButton } from '@/components/premium/UpgradeButton';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
-import { GiftPremiumButton } from '@/components/premium/GiftPremiumButton';
-import { EngagementScore } from '@/components/profile/EngagementScore';
+
+import { ProfileHeroCard } from '@/components/profile/ProfileHeroCard';
+import { ProfileAboutMe } from '@/components/profile/ProfileAboutMe';
+import { ProfileVibeBoard } from '@/components/profile/ProfileVibeBoard';
 
 import {
   NAME_COLOR_MAP, THEME_GRADIENTS, THEME_IMAGES, THEME_ACCENTS,
@@ -55,7 +46,6 @@ export default function ProfilePage() {
   const { data: savedPosts } = useSavedPosts();
   const follow = useFollow();
   const updateAvatar = useUpdateAvatar();
-  const createConversation = useCreateConversation();
   const markConversationReadByUser = useMarkConversationReadByUser();
   const [activeTab, setActiveTab] = useState('posts');
   const { data: profileRole } = useUserRoleById(profile?.id);
@@ -65,13 +55,12 @@ export default function ProfilePage() {
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
   const [premiumMemeBanOpen, setPremiumMemeBanOpen] = useState(false);
   const { isPremium } = usePremiumStatus();
-  
+
   const liveFollowerCount = useLiveFollowerCount(profile?.id);
   const { data: userBadges } = useUserBadges(profile?.id);
   const { data: primaryBadge } = useUserPrimaryBadge(profile?.id);
   const { data: lockerData } = useLockerItems(profile?.id);
 
-  // Apply profile theme as app background (uses the same fixed layer as custom backgrounds)
   const equippedTheme = lockerData?.equippedProfileTheme;
   const { setBackgroundImage, refreshBackground } = useAppBackground();
 
@@ -82,22 +71,17 @@ export default function ProfilePage() {
       img.onload = () => setBackgroundImage(themeImg);
       img.src = themeImg;
     }
-    // Always restore on unmount, regardless of whether theme was applied
     return () => { refreshBackground(); };
   }, [equippedTheme, setBackgroundImage, refreshBackground]);
 
   const isOwnProfile = !!currentProfile && !!profile && currentProfile.id === profile.id;
 
   const badgeSettings = (profile as any)?.badge_settings || {};
-  const showOwnerBadge = badgeSettings.show_owner_badge !== false;
-  const showOwnerWifeBadge = badgeSettings.show_owner_wife_badge !== false;
-  const showModBadge = badgeSettings.show_mod_badge !== false;
-  
-  // Show only the single equipped badge on profile
+
   const equippedBadge = lockerData?.equippedBadgeId
     ? userBadges?.find(ub => ub.badge_id === lockerData.equippedBadgeId)
     : null;
-  
+
   const displayBadges = equippedBadge ? [{
     id: equippedBadge.badge.id,
     icon: equippedBadge.badge.icon,
@@ -115,30 +99,18 @@ export default function ProfilePage() {
     }
   }, [profile?.id, currentProfile?.id]);
 
-  // Compute name color
   const nameColor = lockerData?.equippedNameColor ? NAME_COLOR_MAP[lockerData.equippedNameColor] : undefined;
-  
-  // Compute effect class
   const effectClass = lockerData?.equippedEffect ? EFFECT_CLASS_MAP[lockerData.equippedEffect] : undefined;
-  
-  // Compute frame class
   const frameClass = lockerData?.equippedFrame ? FRAME_CLASS_MAP[lockerData.equippedFrame] : undefined;
-  
   const themeGradient = lockerData?.equippedProfileTheme ? THEME_GRADIENTS[lockerData.equippedProfileTheme] : undefined;
   const themeImage = lockerData?.equippedProfileTheme ? THEME_IMAGES[lockerData.equippedProfileTheme] : undefined;
-  const themeAccent = lockerData?.equippedProfileTheme ? THEME_ACCENTS[lockerData.equippedProfileTheme] : undefined;
 
   const handleFollow = async () => {
     if (!profile) return;
     try {
-      await follow.mutateAsync({
-        targetId: profile.id,
-        isFollowing: profile.is_following,
-      });
+      await follow.mutateAsync({ targetId: profile.id, isFollowing: profile.is_following });
       toast.success(profile.is_following ? 'Unfollowed' : 'Following!');
-    } catch (error) {
-      toast.error('Something went wrong');
-    }
+    } catch { toast.error('Something went wrong'); }
   };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,26 +119,11 @@ export default function ProfilePage() {
     try {
       await updateAvatar.mutateAsync(file);
       toast.success('Avatar updated!');
-    } catch (error) {
-      toast.error('Failed to update avatar');
-    }
-  };
-
-  const handleMessage = async () => {
-    if (!profile) return;
-    try {
-      const conversation = await createConversation.mutateAsync({
-        memberIds: [profile.id],
-      });
-      navigate(`/messages/${conversation.id}`);
-    } catch (error) {
-      toast.error('Failed to start conversation');
-    }
+    } catch { toast.error('Failed to update avatar'); }
   };
 
   const gridPosts = posts?.filter((p) => p.type === 'post' || p.type === 'video') || [];
   const shortPosts = posts?.filter((p) => p.type === 'short') || [];
-
   const clipsForGrid = shortPosts.map(post => ({
     id: post.id,
     media_url: post.media_url,
@@ -183,19 +140,10 @@ export default function ProfilePage() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="flex flex-col md:flex-row items-center gap-8 mb-8">
-            <Skeleton className="h-32 w-32 rounded-full" />
-            <div className="space-y-4 flex-1">
-              <Skeleton className="h-8 w-48" />
-              <Skeleton className="h-4 w-64" />
-              <div className="flex gap-8">
-                <Skeleton className="h-12 w-16" />
-                <Skeleton className="h-12 w-16" />
-                <Skeleton className="h-12 w-16" />
-              </div>
-            </div>
-          </div>
+        <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
+          <Skeleton className="h-44 w-full rounded-3xl" />
+          <Skeleton className="h-20 w-full rounded-2xl" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
         </div>
       </AppLayout>
     );
@@ -211,21 +159,25 @@ export default function ProfilePage() {
             This user doesn't exist or their profile is unavailable.
           </p>
           <div className="flex gap-3 mt-4">
-            <Button variant="outline" onClick={() => navigate(-1)}>
-              Go Back
-            </Button>
-            <Button onClick={() => navigate('/home')}>
-              Go Home
-            </Button>
+            <Button variant="outline" onClick={() => navigate(-1)}>Go Back</Button>
+            <Button onClick={() => navigate('/home')}>Go Home</Button>
           </div>
         </div>
       </AppLayout>
     );
   }
 
+  const tabs = [
+    { id: 'posts', label: 'Posts', icon: Grid },
+    { id: 'shorts', label: 'Clips', icon: Film },
+    ...(isOwnProfile ? [
+      { id: 'locker', label: 'Locker', icon: Package },
+      { id: 'saved', label: 'Saved', icon: Bookmark },
+    ] : []),
+  ];
+
   return (
     <AppLayout>
-      {/* Dark overlay for themed profiles - rendered inline, scrolls are fine for overlays */}
       {(themeImage || themeGradient) && (
         <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
           {!themeImage && themeGradient && (
@@ -234,336 +186,134 @@ export default function ProfilePage() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70" />
         </div>
       )}
-      <div className="max-w-4xl mx-auto px-4 py-6 pb-28 relative min-h-screen overflow-x-hidden" style={{ zIndex: 1 }}>
 
-        {/* Profile Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col md:flex-row items-center gap-8 mb-8"
-        >
-          {/* Avatar */}
-          <div className="relative group">
-            <div className={cn(
-              "p-1 rounded-full transition-all duration-500",
-              frameClass || "story-ring",
-            )}>
-              <Avatar className="h-32 w-32 border-4 border-background">
-                <AvatarImage src={profile.avatar_url || undefined} />
-                <AvatarFallback className="text-4xl bg-secondary">
-                  {profile.username[0].toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </div>
-            {isOwnProfile && (
-              <label className="absolute inset-0 flex items-center justify-center rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/40">
-                <Camera className="h-8 w-8 text-white/80" strokeWidth={1.5} />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatarChange}
-                  className="hidden"
-                />
-              </label>
-            )}
-          </div>
+      <div className="max-w-lg mx-auto px-4 py-4 pb-28 relative min-h-screen space-y-4" style={{ zIndex: 1 }}>
+        {/* Hero Identity Card */}
+        <ProfileHeroCard
+          profile={profile}
+          isOwnProfile={isOwnProfile}
+          isPremium={isPremium}
+          profileRole={profileRole}
+          isModOrAdmin={isModOrAdmin}
+          liveFollowerCount={liveFollowerCount}
+          displayBadges={displayBadges}
+          nameColor={nameColor}
+          effectClass={effectClass}
+          frameClass={frameClass}
+          lockerData={lockerData}
+          badgeSettings={badgeSettings}
+          onFollow={handleFollow}
+          isFollowPending={follow.isPending}
+          onAvatarChange={handleAvatarChange}
+          onWarnClick={() => setWarnDialogOpen(true)}
+          onBanClick={() => setBanDialogOpen(true)}
+          onMemeBanClick={() => setMemeBanDialogOpen(true)}
+          onPremiumMemeBanClick={() => setPremiumMemeBanOpen(true)}
+        />
 
-          {/* Info */}
-          <div className="flex-1 text-center md:text-left">
-            <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-              <div className="flex flex-col max-w-full overflow-hidden">
-                {/* Display Name */}
-                {profile.display_name && (
-                  <h1 className={cn(
-                    "text-2xl font-bold flex items-center gap-2 flex-wrap",
-                    effectClass,
-                  )}>
-                    <StyledUsername
-                      userId={profile.id}
-                      username={profile.username}
-                      displayName={profile.display_name}
-                      preferDisplayName={true}
-                      className="text-2xl font-bold"
-                      nameColorOverride={nameColor}
-                    />
-                    {showOwnerBadge && isOwner(profile.username) && <OwnerBadge />}
-                    {showOwnerWifeBadge && isOwnerWife(profile.id) && <OwnerWifeRingBadge />}
-                    {showModBadge && profileRole && <ModBadge role={profileRole} />}
-                  </h1>
+        {/* About Me */}
+        <ProfileAboutMe
+          bio={profile.bio}
+          profile={profile}
+          isOwnProfile={isOwnProfile}
+        />
+
+        {/* Vibe Board */}
+        <ProfileVibeBoard
+          userId={profile.id}
+          isOwnProfile={isOwnProfile}
+          postCount={profile.post_count || 0}
+          followerCount={liveFollowerCount || 0}
+          followingCount={profile.following_count || 0}
+        />
+
+        {/* Pill Tab Selector */}
+        <div className="flex gap-1.5 p-1 rounded-2xl bg-card/60 border border-border/20 backdrop-blur-sm">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200",
+                  isActive
+                    ? "bg-primary/15 text-primary border border-primary/25"
+                    : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
                 )}
-                {/* Username */}
-                <p 
-                  className={cn(
-                    profile.display_name ? 'text-sm font-medium drop-shadow-sm' : 'text-2xl font-bold',
-                    'flex items-center gap-2',
-                    !profile.display_name && effectClass,
-                  )}
-                >
-                  {!profile.display_name ? (
-                    <StyledUsername
-                      userId={profile.id}
-                      username={profile.username}
-                      showAtSymbol={true}
-                      preferDisplayName={false}
-                      className="text-2xl font-bold"
-                      nameColorOverride={nameColor}
-                    />
-                  ) : (
-                    `@${profile.username}`
-                  )}
-                  {!profile.display_name && showOwnerBadge && isOwner(profile.username) && <OwnerBadge />}
-                  {!profile.display_name && showOwnerWifeBadge && isOwnerWife(profile.id) && <OwnerWifeRingBadge />}
-                  {!profile.display_name && showModBadge && profileRole && <ModBadge role={profileRole} />}
-                </p>
-                
-                {/* Badge Row */}
-                {displayBadges.length > 0 && (
-                  <div className="mt-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
-                    <BadgeRow badges={displayBadges} maxVisible={5} size="sm" />
-                  </div>
-                )}
-                 
-                {/* Equipped Title */}
-                {lockerData?.equippedTitle && (
-                  <div className="mt-1.5">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/30 text-primary">
-                      {lockerData.equippedTitle}
-                    </span>
-                  </div>
-                )}
-              </div>
-              {isOwnProfile ? (
-                <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-                  <Link to="/settings">
-                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                      <Button variant="secondary" size="sm">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Edit Profile
-                      </Button>
-                    </motion.div>
-                  </Link>
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const url = `${window.location.origin}/u/${profile.username}`;
-                        if (navigator.share) {
-                          navigator.share({ title: `${profile.display_name || profile.username} on VYBE`, url });
-                        } else {
-                          navigator.clipboard.writeText(url);
-                          toast.success('Profile link copied!');
-                        }
-                      }}
-                    >
-                      <Share2 className="h-4 w-4 mr-2" />
-                      Share
-                    </Button>
-                  </motion.div>
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    {isPremium ? (
-                      <Link to="/settings?tab=subscription">
-                        <Button variant="gradient" size="sm">
-                          <Crown className="h-4 w-4 mr-2" />
-                          Manage Premium
-                        </Button>
-                      </Link>
-                    ) : (
-                      <UpgradeButton
-                        label="Get Premium"
-                        variant="gradient"
-                        size="sm"
-                      />
-                    )}
-                  </motion.div>
-                </div>
-              ) : (
-                <div className="flex gap-2 flex-wrap justify-center md:justify-start">
-                  <FriendButton userId={profile.id} size="sm" />
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                      variant={profile.is_following ? 'secondary' : 'gradient'}
-                      size="sm"
-                      onClick={handleFollow}
-                      disabled={follow.isPending}
-                    >
-                      {profile.is_following ? 'Following' : 'Follow'}
-                    </Button>
-                  </motion.div>
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleMessage}
-                      disabled={createConversation.isPending}
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                    </Button>
-                  </motion.div>
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
 
-                  {profile.user_id && (
-                    <GiftPremiumButton
-                      targetUserId={profile.user_id}
-                      targetUsername={profile.username}
-                    />
-                  )}
-                  
-                  {isModOrAdmin && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="liquid-glass">
-                        <DropdownMenuLabel className="flex items-center gap-2">
-                          @{profile.username}
-                          {profileRole && <ModBadge role={profileRole} showLabel />}
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <ModeratorMenuItems
-                          userId={profile.id}
-                          username={profile.username}
-                          onWarnClick={() => setWarnDialogOpen(true)}
-                          onBanClick={() => setBanDialogOpen(true)}
-                          onMemeBanClick={() => setMemeBanDialogOpen(true)}
-                        />
-                        <PremiumMemeBanMenuItem
-                          userId={profile.id}
-                          username={profile.username}
-                          onOpen={() => setPremiumMemeBanOpen(true)}
-                        />
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Stats + Engagement Score */}
-            <div className="flex flex-wrap justify-center md:justify-start items-center gap-6 mb-4">
-              <div className="flex gap-8">
-                <div className="text-center">
-                  <p className="font-bold text-xl text-foreground drop-shadow-md">{profile.post_count}</p>
-                  <p className="text-sm font-medium text-foreground drop-shadow-sm">posts</p>
-                </div>
-                <div className="text-center">
-                  <p className="font-bold text-xl text-foreground drop-shadow-md">
-                    {liveFollowerCount}
-                  </p>
-                  <p className="text-sm font-medium text-foreground drop-shadow-sm">followers</p>
-                </div>
-                <div className="text-center">
-                  <p className="font-bold text-xl text-foreground drop-shadow-md">{profile.following_count}</p>
-                  <p className="text-sm font-medium text-foreground drop-shadow-sm">following</p>
-                </div>
-              </div>
-              <EngagementScore
-                postCount={profile.post_count || 0}
-                followerCount={liveFollowerCount || 0}
-                followingCount={profile.following_count || 0}
-              />
-            </div>
-
-            {/* Bio */}
-            {profile.bio && (
-              <p className="max-w-md text-foreground drop-shadow-sm">{profile.bio}</p>
-            )}
-            
-            {!isOwnProfile && (
-              <div className="mt-4">
-                <MutualFriendsDisplay targetUserId={profile.id} variant="compact" />
-              </div>
-            )}
-          </div>
-        </motion.div>
-
-        {/* Content Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full mb-6 bg-card/80 border border-border">
-            <TabsTrigger value="posts" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-              <Grid style={{ width: 16, height: 16, minWidth: 16, minHeight: 16 }} />
-              <span>Posts</span>
-            </TabsTrigger>
-            <TabsTrigger value="shorts" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-              <Film style={{ width: 16, height: 16, minWidth: 16, minHeight: 16 }} />
-              <span>Clips</span>
-            </TabsTrigger>
-            {isOwnProfile && (
-              <TabsTrigger value="locker" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-                <Package style={{ width: 16, height: 16, minWidth: 16, minHeight: 16 }} />
-                <span>Locker</span>
-              </TabsTrigger>
-            )}
-            {isOwnProfile && (
-              <TabsTrigger value="saved" className="flex-1 gap-2 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-                <Bookmark style={{ width: 16, height: 16, minWidth: 16, minHeight: 16 }} />
-                <span>Saved</span>
-              </TabsTrigger>
-            )}
-          </TabsList>
-
-          <TabsContent value="posts">
-            {gridPosts.length > 0 ? (
-              <div className="grid grid-cols-3 gap-1">
-                {gridPosts.map((post) => (
-                  <Link key={post.id} to={`/p/${post.id}`} className="relative group">
-                    <motion.div 
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="aspect-square overflow-hidden bg-muted rounded-sm"
-                    >
-                      {post.type === 'video' ? (
-                        <>
-                          <VideoThumbnail
-                            videoUrl={post.media_url}
-                            thumbnailUrl={post.thumbnail_url}
-                            alt={post.caption || 'Video'}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute top-2 left-2 p-1.5 rounded-full bg-black/50">
-                            <Play className="h-3 w-3 text-white" fill="white" />
-                          </div>
-                        </>
-                      ) : (
-                        <ProfileGridImage url={post.media_url} alt={post.caption || ''} />
-                      )}
-                    </motion.div>
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-sm">
-                      <span className="font-semibold text-white">❤️ {post.like_count}</span>
-                      <span className="font-semibold text-white">💬 {post.comment_count}</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-4xl mb-4">📷</p>
-                <p className="text-muted-foreground">No posts yet</p>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="shorts">
-            <ClipsGrid clips={clipsForGrid} />
-          </TabsContent>
-
-          {isOwnProfile && (
-            <TabsContent value="locker">
-              <ProfileLocker />
-            </TabsContent>
-          )}
-
-          {isOwnProfile && (
-            <TabsContent value="saved">
-              {savedPosts && savedPosts.length > 0 ? (
-                <div className="grid grid-cols-3 gap-1">
-                  {savedPosts.map((post) => (
+        {/* Tab Content */}
+        <div className="min-h-[200px]">
+          {activeTab === 'posts' && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+              {gridPosts.length > 0 ? (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {gridPosts.map((post) => (
                     <Link key={post.id} to={`/p/${post.id}`} className="relative group">
-                      <motion.div 
+                      <motion.div
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        className="aspect-square overflow-hidden bg-muted rounded-sm"
+                        className="aspect-square overflow-hidden bg-muted rounded-xl"
+                      >
+                        {post.type === 'video' ? (
+                          <>
+                            <VideoThumbnail
+                              videoUrl={post.media_url}
+                              thumbnailUrl={post.thumbnail_url}
+                              alt={post.caption || 'Video'}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-2 left-2 p-1.5 rounded-full bg-black/50">
+                              <Play className="h-3 w-3 text-foreground" fill="currentColor" />
+                            </div>
+                          </>
+                        ) : (
+                          <ProfileGridImage url={post.media_url} alt={post.caption || ''} />
+                        )}
+                      </motion.div>
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-xl">
+                        <span className="font-semibold text-foreground text-sm">❤️ {post.like_count}</span>
+                        <span className="font-semibold text-foreground text-sm">💬 {post.comment_count}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState emoji="📷" text="No posts yet" />
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === 'shorts' && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+              <ClipsGrid clips={clipsForGrid} />
+            </motion.div>
+          )}
+
+          {activeTab === 'locker' && isOwnProfile && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+              <ProfileLocker />
+            </motion.div>
+          )}
+
+          {activeTab === 'saved' && isOwnProfile && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+              {savedPosts && savedPosts.length > 0 ? (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {savedPosts.map((post) => (
+                    <Link key={post.id} to={`/p/${post.id}`} className="relative group">
+                      <motion.div
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="aspect-square overflow-hidden bg-muted rounded-xl"
                       >
                         {post.type === 'video' || post.type === 'short' ? (
                           <>
@@ -574,31 +324,28 @@ export default function ProfilePage() {
                               className="w-full h-full object-cover"
                             />
                             <div className="absolute top-2 left-2 p-1.5 rounded-full bg-black/50">
-                              <Play className="h-3 w-3 text-white" fill="white" />
+                              <Play className="h-3 w-3 text-foreground" fill="currentColor" />
                             </div>
                           </>
                         ) : (
                           <ProfileGridImage url={post.media_url} alt={post.caption || ''} />
                         )}
                       </motion.div>
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-sm">
-                        <span className="font-semibold text-white">❤️ {post.like_count}</span>
-                        <span className="font-semibold text-white">💬 {post.comment_count}</span>
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-xl">
+                        <span className="font-semibold text-foreground text-sm">❤️ {post.like_count}</span>
+                        <span className="font-semibold text-foreground text-sm">💬 {post.comment_count}</span>
                       </div>
                     </Link>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <p className="text-4xl mb-4">🔖</p>
-                  <p className="text-muted-foreground">No saved posts yet</p>
-                  <p className="text-sm text-muted-foreground mt-1">Posts you save will appear here</p>
-                </div>
+                <EmptyState emoji="🔖" text="No saved posts yet" subtitle="Posts you save will appear here" />
               )}
-            </TabsContent>
+            </motion.div>
           )}
-        </Tabs>
-        
+        </div>
+
+        {/* Moderator dialogs */}
         {profile && (
           <ModeratorDialogs
             userId={profile.id}
@@ -627,4 +374,14 @@ export default function ProfilePage() {
 function ProfileGridImage({ url, alt }: { url: string; alt: string }) {
   const signedUrl = useSignedUrl(url);
   return <img src={signedUrl || url} alt={alt} className="w-full h-full object-cover" />;
+}
+
+function EmptyState({ emoji, text, subtitle }: { emoji: string; text: string; subtitle?: string }) {
+  return (
+    <div className="text-center py-12">
+      <p className="text-4xl mb-4">{emoji}</p>
+      <p className="text-muted-foreground">{text}</p>
+      {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
+    </div>
+  );
 }
