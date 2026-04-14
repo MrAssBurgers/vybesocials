@@ -22,4 +22,8 @@ Update the `stripe_config` table to set `stripe_mode` to `live` and store the co
 - Test mode checkout sessions will be replaced with real payment processing
 - Users will be charged real money for VYBE Premium
 - The same subscription flow (checkout → verify → entitlement) stays intact
-- RevenueCat integration remains
+- RevenueCat integration remains as a parallel entitlement check
+
+### Important Note
+Before going live, you'll need to complete Stripe's account verification (identity + bank details) through the Stripe dashboard link provided after enabling. Without this, live charges will not process.
+
