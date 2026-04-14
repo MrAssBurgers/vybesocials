@@ -89,32 +89,29 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
     if (!canSubmit || !user) return;
     if (tags.length === 0) { toast.error('Add at least one tag'); return; }
 
-    // Run AI safety scan at post time
+    // Open Vybe Check overlay for media posts, skip for text-only
     if (files.length > 0 && files[0]) {
-      setShowCelebration(true);
-      setIsUploading(true);
-      setUploadProgress(0);
-      setShowSafetyScanner(true);
-
-      let scanResult;
-      if (files[0].type.startsWith('video/')) {
-        scanResult = await contentSafety.scanVideo(files[0]);
-      } else {
-        scanResult = await contentSafety.scanImage(files[0]);
-      }
-
-      setShowSafetyScanner(false);
-
-      if (scanResult.result === 'blocked') {
-        setIsUploading(false);
-        setShowCelebration(false);
-        setScanMessage(scanResult.message || 'Content violates community guidelines');
-        setScanCategories(scanResult.categories || []);
-        setVybeCheckFailed(true);
-        return;
-      }
+      setShowVybeCheck(true);
+      return;
     }
 
+    // Text-only posts skip safety scan, go straight to upload
+    await doPublish('safe');
+  };
+
+  const handleVybeCheckComplete = async (ageRating: AgeRating) => {
+    setShowVybeCheck(false);
+    await doPublish(ageRating);
+  };
+
+  const handleVybeCheckBlocked = (message: string, categories: string[]) => {
+    setShowVybeCheck(false);
+    setScanMessage(message);
+    setScanCategories(categories);
+    setVybeCheckFailed(true);
+  };
+
+  const doPublish = async (ageRating: AgeRating) => {
     setShowCelebration(true);
     setIsUploading(true);
     setUploadProgress(0);
@@ -129,6 +126,7 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
         mediaFile: files.length <= 1 ? files[0] || undefined : undefined,
         mediaFiles: files.length > 1 ? files : undefined,
         caption, type: contentType, tags,
+        age_rating: ageRating,
       });
       if (pi) clearInterval(pi);
       setUploadProgress(100);
