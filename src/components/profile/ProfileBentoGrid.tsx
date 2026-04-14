@@ -74,7 +74,7 @@ function VibeBlock({ userId }: { userId: string }) {
 function BadgesBlock({ userId }: { userId: string }) {
   const { data: badges } = useUserBadges(userId);
   if (!badges || badges.length === 0) return <p className="text-xs text-muted-foreground">No badges yet</p>;
-  return <BadgeRow badges={badges.slice(0, 6)} size="sm" />;
+  return <BadgeRow badges={badges.slice(0, 6) as any} size="sm" />;
 }
 
 /** Block content renderer */
