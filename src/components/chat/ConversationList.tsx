@@ -441,14 +441,23 @@ export function ConversationList() {
               <p className="text-sm text-muted-foreground">No {chatFilter} conversations</p>
             </div>
           ) : !acceptedRequests?.length ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-              <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-4" />
+            <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <MessageCircle className="h-7 w-7 text-primary" />
+              </div>
               <h3 className="text-base font-semibold mb-1">{t('messages.noConversations')}</h3>
-              <p className="text-xs text-muted-foreground mb-4">{t('messages.startChatting')}</p>
-              <Button onClick={() => navigate('/messages/new')} className="rounded-full px-5 h-9 text-sm">
-                <UserPlus className="h-4 w-4 mr-1.5" />
-                Add Friends
-              </Button>
+              <p className="text-xs text-muted-foreground mb-5 max-w-[240px]">
+                Add friends to start chatting. Your conversations will show up here.
+              </p>
+              <div className="flex gap-2">
+                <Button onClick={() => navigate('/messages/new')} className="rounded-full px-5 h-9 text-sm">
+                  <UserPlus className="h-4 w-4 mr-1.5" />
+                  Find Friends
+                </Button>
+                <Button variant="outline" onClick={() => navigate('/search')} className="rounded-full px-4 h-9 text-sm">
+                  Explore
+                </Button>
+              </div>
             </div>
           ) : null}
         </div>
