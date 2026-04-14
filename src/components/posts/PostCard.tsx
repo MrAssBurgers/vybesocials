@@ -475,7 +475,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   }, [post.id, queryClient]);
 
   return (
-    <article ref={viewRef} className="liquid-glass-card rounded-2xl overflow-hidden">
+    <article ref={viewRef} className="relative rounded-2xl overflow-hidden border border-border/10 bg-card/60 backdrop-blur-md">
+      {/* Aura accent strip */}
+      <div className="h-[3px] w-full bg-gradient-to-r from-primary via-accent to-primary animate-[aura-shift_4s_ease-in-out_infinite] bg-[length:200%_100%]" />
       {/* Header */}
       <div className="flex items-center justify-between p-4">
         <UserProfileHoverCard 

@@ -232,19 +232,35 @@ function FeedSection({
     <div className="pb-6" data-tutorial="feed-area">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex items-center gap-2 mb-5">
-          <TabsList className="flex-1 h-11 p-1 bg-muted/50 rounded-xl">
-            <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <Sparkles className="h-4 w-4 mr-1.5" />
-              For You
-            </TabsTrigger>
-            <TabsTrigger value="local" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <MapPin className="h-4 w-4 mr-1.5" />
-              Local
-            </TabsTrigger>
-            <TabsTrigger value="global" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <Globe className="h-4 w-4 mr-1.5" />
-              Global
-            </TabsTrigger>
+          <TabsList className="relative flex-1 h-11 p-1 bg-muted/50 rounded-xl">
+            {['foryou', 'local', 'global'].map((tab) => {
+              const isActive = activeTab === tab;
+              const icons: Record<string, typeof Sparkles> = { foryou: Sparkles, local: MapPin, global: Globe };
+              const labels: Record<string, string> = { foryou: 'For You', local: 'Local', global: 'Global' };
+              const Icon = icons[tab];
+              return (
+                <TabsTrigger
+                  key={tab}
+                  value={tab}
+                  className={cn(
+                    "relative flex-1 rounded-lg transition-all duration-300 z-10",
+                    isActive
+                      ? "text-primary [text-shadow:0_0_12px_hsl(var(--primary)/0.5)]"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4 mr-1.5" />
+                  {labels[tab]}
+                  {isActive && (
+                    <motion.div
+                      layoutId="feed-tab-underline"
+                      className="absolute -bottom-0.5 left-2 right-2 h-[2px] rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)]"
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
           <ImmersiveToggle isImmersive={immersive} onToggle={() => setImmersive(!immersive)} />
         </div>

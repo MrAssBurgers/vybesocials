@@ -119,16 +119,16 @@ export function ProfileHeroCard({
 
       <div className="relative p-5 pb-4">
         {/* Top row: Avatar + identity + actions */}
-        <div className="flex items-start gap-4">
+          <div className="flex items-start gap-3 sm:gap-4">
           {/* Avatar */}
           <div className="relative group flex-shrink-0 -mt-1">
             <div className={cn(
               "p-[3px] rounded-2xl transition-all duration-500",
               frameClass || "bg-gradient-to-br from-primary via-accent to-primary"
             )}>
-              <Avatar className="h-20 w-20 rounded-2xl border-2 border-background">
+              <Avatar className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl border-2 border-background">
                 <AvatarImage src={profile.avatar_url || undefined} className="rounded-xl" />
-                <AvatarFallback className="text-2xl bg-secondary rounded-xl">
+                <AvatarFallback className="text-xl sm:text-2xl bg-secondary rounded-xl">
                   {profile.username[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -142,9 +142,9 @@ export function ProfileHeroCard({
           </div>
 
           {/* Identity */}
-          <div className="flex-1 min-w-0 pt-0.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className={cn("text-xl font-bold leading-tight", effectClass)}>
+          <div className="flex-1 min-w-0 pt-0.5 overflow-hidden">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <h1 className={cn("text-lg sm:text-xl font-bold leading-tight truncate max-w-[160px] sm:max-w-none", effectClass)}>
                 <StyledUsername
                   userId={profile.id}
                   username={profile.username}
@@ -187,7 +187,7 @@ export function ProfileHeroCard({
           </div>
 
           {/* Action buttons - vertical stack on right */}
-          <div className="flex flex-col gap-1.5 flex-shrink-0">
+          <div className="flex flex-col gap-1 sm:gap-1.5 flex-shrink-0">
             {isOwnProfile ? (
               <>
                 <Link to="/settings">
@@ -252,7 +252,7 @@ export function ProfileHeroCard({
         </div>
 
         {/* Stats capsules row */}
-        <div className="flex items-center gap-2 mt-4">
+        <div className="flex items-center gap-1.5 sm:gap-2 mt-4 overflow-x-auto no-scrollbar">
           <StatCapsule value={profile.post_count} label="Posts" />
           <StatCapsule value={liveFollowerCount} label="Followers" highlight />
           <StatCapsule value={profile.following_count} label="Following" />

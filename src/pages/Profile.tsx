@@ -187,7 +187,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="max-w-lg mx-auto px-4 py-4 pb-28 relative min-h-screen space-y-4" style={{ zIndex: 1 }}>
+      <div className="max-w-lg mx-auto px-3 sm:px-4 py-4 pb-[calc(7rem+env(safe-area-inset-bottom))] relative min-h-screen space-y-4" style={{ zIndex: 1 }}>
         {/* Hero Identity Card */}
         <ProfileHeroCard
           profile={profile}
