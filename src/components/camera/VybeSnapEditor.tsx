@@ -403,11 +403,8 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
 
             {/* Sticker tool */}
             <button
-              onClick={() => { setMode(mode === 'sticker' ? 'none' : 'sticker'); haptics.impact(); }}
-              className={cn(
-                "w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all active:scale-90",
-                mode === 'sticker' ? "bg-white text-black" : "bg-black/30 text-white"
-              )}
+              onClick={() => { setMode('sticker'); haptics.impact(); }}
+              className="w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all active:scale-90 bg-black/30 text-white"
             >
               <Smile className="h-5 w-5" />
             </button>
