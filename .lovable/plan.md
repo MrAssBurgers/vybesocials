@@ -1,29 +1,19 @@
 
 
-## Switch Subscriptions to Live Mode with Lovable Payments
+## Replace Bug Bounty Popup with Silent Auto-Reporting + Consent
 
-Your project already has a custom Stripe integration with test-mode keys. To go live with Lovable's built-in Stripe payments, here's what needs to happen:
+### What Changes
 
-### Step 1: Enable Lovable's Built-in Stripe Integration
-Call the `enable_stripe_payments` tool to set up Lovable's managed Stripe integration. This gives you a proper Stripe account connected through Lovable — no need to manage secret keys manually.
+**Remove** the "You found a bug!" popup and XP reward system. **Replace** with a silent background reporter that automatically sends detected bugs to the admin `bug_reports` table — no user interaction needed. A one-time consent dialog asks users for permission on first login.
 
-### Step 2: Create Live Products & Prices
-Once Stripe is enabled through Lovable, create the VYBE Premium subscription product with a live price using Stripe tools. This replaces the current test price ID (`price_1TCQhFCvnv9K2bAQeButRL6m`).
+### Plan
 
-### Step 3: Update Edge Functions
-- **`create-premium-checkout/index.ts`**: Replace the hardcoded `PREMIUM_PRICES` with the new live price ID from the Lovable-managed Stripe account
-- **`check-premium-subscription/index.ts`**: No changes needed — it already reads `STRIPE_SECRET_KEY` dynamically
-- **`_shared/stripe-key.ts`**: No changes needed — it resolves keys from environment
+**1. Create consent dialog component** (`src/components/error/CrashReportConsent.tsx`)
+- Simple, friendly one-time dialog: "Help improve VYBE by automatically sending crash reports?"
+- Two buttons: "Sure!" and "No thanks"
+- Stores choice in `localStorage` key `vybe_crash_consent`
+- Only shows once per device, only for authenticated users
 
-### Step 4: Update Stripe Config
-Update the `stripe_config` table to set `stripe_mode` to `live` and store the correct live publishable key.
-
-### What This Means
-- Test mode checkout sessions will be replaced with real payment processing
-- Users will be charged real money for VYBE Premium
-- The same subscription flow (checkout → verify → entitlement) stays intact
-- RevenueCat integration remains as a parallel entitlement check
-
-### Important Note
-Before going live, you'll need to complete Stripe's account verification (identity + bank details) through the Stripe dashboard link provided after enabling. Without this, live charges will not process.
-
+**2. Rewrite `src/hooks/useBugBountyDetector.ts` → `src/hooks/useAutoBugReporter.ts`**
+- Keep all the same error detection logic (JS errors, unhandled rejections, resource errors, console.error interception, fetch HTTP error interception, same IGNORED_PATTERNS)
+- Remove all UI
