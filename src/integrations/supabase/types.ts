@@ -7020,6 +7020,7 @@ export type Database = {
           badge_settings: Json | null
           bio: string | null
           coins_balance: number | null
+          crash_consent: boolean | null
           created_at: string
           date_of_birth: string | null
           display_name: string | null
@@ -7066,6 +7067,7 @@ export type Database = {
           badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
+          crash_consent?: boolean | null
           created_at?: string
           date_of_birth?: string | null
           display_name?: string | null
@@ -7112,6 +7114,7 @@ export type Database = {
           badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
+          crash_consent?: boolean | null
           created_at?: string
           date_of_birth?: string | null
           display_name?: string | null
@@ -8733,6 +8736,7 @@ export type Database = {
           media_type: string
           media_url: string
           poll_data: Json | null
+          user_id: string | null
           view_count: number | null
         }
         Insert: {
@@ -8748,6 +8752,7 @@ export type Database = {
           media_type?: string
           media_url: string
           poll_data?: Json | null
+          user_id?: string | null
           view_count?: number | null
         }
         Update: {
@@ -8763,6 +8768,7 @@ export type Database = {
           media_type?: string
           media_url?: string
           poll_data?: Json | null
+          user_id?: string | null
           view_count?: number | null
         }
         Relationships: [

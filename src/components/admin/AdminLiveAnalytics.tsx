@@ -152,7 +152,7 @@ export function AdminLiveAnalytics() {
               created_at: p.created_at, user_id: p.author_id,
               detail: `${p.type || 'post'}: ${p.caption?.substring(0, 40) || 'new post'}`,
             }))),
-          Promise.resolve(supabase.from('stories').select('id, user_id, created_at')
+          Promise.resolve(supabase.from('stories').select('id, author_id, created_at')
             .gte('created_at', thirtyMinAgo).order('created_at', { ascending: false }).limit(5))
             .then(r => (r.data || []).map((s: any) => ({
               id: `story-${s.id}`, type: 'content', event_name: 'story_created',
