@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Baby, User, UserCheck } from 'lucide-react';
+import { Shield, Baby, User, UserCheck, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 
 export type AgeRating = 'safe' | '13+' | '18+';
+
+const AGE_RANK: Record<AgeRating, number> = { 'safe': 0, '13+': 1, '18+': 2 };
 
 interface AgeRatingOption {
   id: AgeRating;
@@ -48,12 +50,20 @@ const options: AgeRatingOption[] = [
 
 interface AgeRatingSelectorProps {
   onSelect: (rating: AgeRating) => void;
+  /** AI-enforced minimum rating — options below this are locked */
+  minimumRating?: AgeRating;
 }
 
-export function AgeRatingSelector({ onSelect }: AgeRatingSelectorProps) {
+export function AgeRatingSelector({ onSelect, minimumRating }: AgeRatingSelectorProps) {
   const [selected, setSelected] = useState<AgeRating | null>(null);
 
+  const isLocked = (id: AgeRating) => {
+    if (!minimumRating) return false;
+    return AGE_RANK[id] < AGE_RANK[minimumRating];
+  };
+
   const handleSelect = (rating: AgeRating) => {
+    if (isLocked(rating)) return;
     triggerHaptic('medium');
     setSelected(rating);
     setTimeout(() => onSelect(rating), 600);
@@ -74,6 +84,7 @@ export function AgeRatingSelector({ onSelect }: AgeRatingSelectorProps) {
         {options.map((opt, i) => {
           const Icon = opt.icon;
           const isSelected = selected === opt.id;
+          const locked = isLocked(opt.id);
           return (
             <motion.button
               key={opt.id}
@@ -84,24 +95,33 @@ export function AgeRatingSelector({ onSelect }: AgeRatingSelectorProps) {
               className={cn(
                 'relative flex items-center gap-4 p-4 rounded-2xl border transition-all duration-300',
                 opt.bg,
-                isSelected && opt.glow,
-                isSelected && 'ring-2 ring-offset-1 ring-offset-background',
+                locked && 'opacity-30 cursor-not-allowed',
+                isSelected && !locked && opt.glow,
+                isSelected && !locked && 'ring-2 ring-offset-1 ring-offset-background',
                 isSelected && opt.id === 'safe' && 'ring-emerald-400',
                 isSelected && opt.id === '13+' && 'ring-amber-400',
                 isSelected && opt.id === '18+' && 'ring-red-400',
-                !selected && 'hover:scale-[1.02] active:scale-[0.98]',
+                !selected && !locked && 'hover:scale-[1.02] active:scale-[0.98]',
                 selected && !isSelected && 'opacity-40 scale-95',
               )}
-              disabled={!!selected}
+              disabled={!!selected || locked}
             >
               <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center', opt.bg)}>
-                <Icon className={cn('w-5 h-5', opt.color)} />
+                {locked ? (
+                  <Lock className="w-5 h-5 text-muted-foreground" />
+                ) : (
+                  <Icon className={cn('w-5 h-5', opt.color)} />
+                )}
               </div>
               <div className="text-left flex-1">
-                <p className={cn('font-semibold text-base', opt.color)}>{opt.label}</p>
-                <p className="text-xs text-muted-foreground">{opt.sublabel}</p>
+                <p className={cn('font-semibold text-base', locked ? 'text-muted-foreground' : opt.color)}>
+                  {opt.label}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {locked ? 'Restricted by AI analysis' : opt.sublabel}
+                </p>
               </div>
-              {isSelected && (
+              {isSelected && !locked && (
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
@@ -111,6 +131,9 @@ export function AgeRatingSelector({ onSelect }: AgeRatingSelectorProps) {
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 </motion.div>
+              )}
+              {locked && (
+                <Lock className="w-4 h-4 text-muted-foreground/50" />
               )}
             </motion.button>
           );
