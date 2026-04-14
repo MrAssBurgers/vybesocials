@@ -28,6 +28,8 @@ import { useAuth } from '@/lib/auth';
 const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
 const MemoizedPostCard = memo(PostCard);
 
+import { ImmersiveToggle, ImmersiveFeedMode } from '@/components/home/ImmersiveFeedMode';
+
 /* ── Lazy-mount wrapper using IntersectionObserver ── */
 function LazyWidget({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
