@@ -7,6 +7,7 @@ interface StoryRingProps {
   hasUnviewed: boolean;
   hasStory: boolean;
   isUploading?: boolean;
+  isExpiringSoon?: boolean;
   children: React.ReactNode;
 }
 
@@ -20,6 +21,7 @@ export const StoryRing = memo(function StoryRing({
   hasUnviewed,
   hasStory,
   isUploading,
+  isExpiringSoon,
   children,
 }: StoryRingProps) {
   const ringSize = size + 6; // 3px padding on each side
@@ -48,26 +50,29 @@ export const StoryRing = memo(function StoryRing({
   }
 
   if (hasUnviewed) {
+    // Expiring soon — pulsing orange/red urgency ring
+    const gradient = isExpiringSoon
+      ? 'conic-gradient(from 0deg, hsl(0 80% 55%), hsl(30 90% 55%), hsl(0 80% 55%))'
+      : 'conic-gradient(from 0deg, hsl(var(--primary)), hsl(var(--accent)), hsl(280 80% 60%), hsl(var(--primary)))';
+    
     return (
       <div className="relative" style={{ width: ringSize, height: ringSize }}>
         {/* Glow layer */}
         <motion.div
           className="absolute inset-[-2px] rounded-full opacity-40 blur-[4px]"
-          style={{
-            background: 'conic-gradient(from 0deg, hsl(var(--primary)), hsl(var(--accent)), hsl(280 80% 60%), hsl(var(--primary)))',
-          }}
-          animate={{ rotate: 360 }}
-          transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+          style={{ background: gradient }}
+          animate={{ rotate: 360, ...(isExpiringSoon ? { scale: [1, 1.08, 1] } : {}) }}
+          transition={isExpiringSoon 
+            ? { rotate: { duration: 2, repeat: Infinity, ease: 'linear' }, scale: { duration: 1.2, repeat: Infinity } }
+            : { duration: 4, repeat: Infinity, ease: 'linear' }
+          }
         />
         {/* Ring layer */}
         <motion.div
           className="absolute inset-0 rounded-full"
-          style={{
-            background: 'conic-gradient(from 0deg, hsl(var(--primary)), hsl(var(--accent)), hsl(280 80% 60%), hsl(var(--primary)))',
-            padding: 3,
-          }}
+          style={{ background: gradient, padding: 3 }}
           animate={{ rotate: 360 }}
-          transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+          transition={{ duration: isExpiringSoon ? 2 : 4, repeat: Infinity, ease: 'linear' }}
         >
           <div className="w-full h-full rounded-full bg-background" />
         </motion.div>

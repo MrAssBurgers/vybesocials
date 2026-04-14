@@ -5,6 +5,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FeedRewardCard } from '@/components/home/FeedRewardCard';
+import { CaughtUpScreen } from '@/components/home/CaughtUpScreen';
+import { PostNudgeWidget } from '@/components/home/PostNudgeWidget';
 import { StoriesBar } from '@/components/stories/StoriesBar';
 import { WeeklyRhythmBanner } from '@/components/home/WeeklyRhythmBanner';
 import { GreetingWidget } from '@/components/home/GreetingWidget';
@@ -332,21 +335,49 @@ function InlinePostList({
     return positions;
   }, [showAds, posts.length]);
 
+  // Variable reward injection positions (every 8-15 posts)
+  const rewardPositions = useMemo(() => {
+    if (posts.length < 8) return new Set<number>();
+    const positions = new Set<number>();
+    let next = 7 + Math.floor(Math.random() * 8); // First at 8-15
+    let rewardIdx = 0;
+    while (next < posts.length) {
+      positions.add(next);
+      rewardIdx++;
+      next += 8 + Math.floor(Math.random() * 8);
+    }
+    return positions;
+  }, [posts.length]);
+
   if (isLoading && posts.length === 0) return <PostSkeletonList count={2} />;
   if (!isLoading && posts.length === 0) {
     return <EmptyState emoji={emptyIcon} title="Nothing here yet" description={emptyText} actionLabel={onExplore ? "Explore" : undefined} onAction={onExplore} />;
   }
 
+  let rewardCount = 0;
+
   return (
     <>
+      {/* Post Nudge — re-engagement */}
+      <PostNudgeWidget />
+
       {posts.map((post, index) => (
         <div key={post.id}>
           <MemoizedPostCard post={post} />
           {adPositions.has(index) && (
             <Suspense fallback={null}><FeedAdCard /></Suspense>
           )}
+          {rewardPositions.has(index) && (
+            <FeedRewardCard index={rewardCount++} />
+          )}
         </div>
       ))}
+
+      {/* Caught Up screen after all posts */}
+      {!isFetchingNext && posts.length >= 5 && (
+        <CaughtUpScreen />
+      )}
+
       <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
         {isFetchingNext && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
       </div>
