@@ -1656,7 +1656,12 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
 }
 
-/* Keyframe animations */
+/* Aura accent strip animation for PostCard */
+@keyframes aura-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
 @keyframes gradient-shift {
   from { background-position: 0% 50%; }
   to { background-position: -100% 50%; }
