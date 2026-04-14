@@ -1,59 +1,59 @@
 
 
-## 3-Step Vybe Check — Content Safety + Age Rating System
+## Profile Mobile Fix + Visual Redesign Pass
 
-### What Changes
+### Problem 1: Profile Content Cutoff on Mobile
+The profile page uses `max-w-lg` (512px) with `px-4` padding, plus `pb-28` for bottom nav clearance. On narrow phones (320-375px), the stat capsules row and action buttons in `ProfileHeroCard` can overflow. The avatar + identity + action buttons layout uses `flex items-start gap-4` with fixed `h-20 w-20` avatar, which leaves very little space for long usernames and badges on small screens.
 
-The posting flow gets a redesigned full-screen **3-phase Vybe Check** overlay that replaces the current single-step spinner. Nudity is always blocked — no age rating bypasses it.
+### Problem 2: Making VYBE Look Uniquely Premium
+The biggest visual opportunity is the **PostCard** — the most-seen component. Right now it's a standard card layout (avatar + name header, media, action row). Every social app looks like this. Here's what I'd redesign:
 
-### The 3 Phases
+---
 
-**Phase 1 — Content Scan** ("Scanning your VYBE...")
-- Animated shield icon with scanning ring animation
-- Progress steps: Quick Scan → Deep Analysis → (Audio Check for video)
-- Uses existing AI safety pipeline (NSFWJS + Gemini)
-- If blocked → stops here, shows VybeCheckFailed
-- If passed → auto-transitions to Phase 2
+### Changes
 
-**Phase 2 — Age Rating Selection** ("Who can see this?")
-- Three tappable cards slide in with stagger animation:
-  - **Safe** (green) — All ages, appears in everyone's feed
-  - **13+** (amber) — Teen content, hidden from users under 13
-  - **18+** (red) — Mature content (language, themes), hidden from users under 18
-- Nudity callout: small disclaimer "Nudity is never allowed on VYBE" under the cards
-- User taps one → it highlights with a glow ring → auto-advances to Phase 3
+#### 1. Profile Mobile Overflow Fixes (`ProfileHeroCard.tsx`)
+- Reduce avatar from `h-20 w-20` to `h-16 w-16` on screens < 375px using responsive classes
+- Make stat capsules row horizontally scrollable with `overflow-x-auto no-scrollbar` instead of wrapping/clipping
+- Add `min-w-0` and `truncate` to username text to prevent text overflow
+- Reduce action button column gap on small screens
 
-**Phase 3 — Ready to Launch** ("Your VYBE is ready!")
-- Green checkmark animation with the chosen age badge displayed
-- "Publish" button with rocket animation
-- Tapping publish triggers the existing upload flow + PublishCelebration
+#### 2. Profile Page (`Profile.tsx`)
+- Change `px-4` to `px-3 sm:px-4` for tight screens
+- Ensure `pb-28` accounts for safe-area-inset-bottom: `pb-[calc(7rem+env(safe-area-inset-bottom))]`
 
-### Database Changes
+#### 3. PostCard "Aura Gradient" Redesign (`PostCard.tsx`)
+This is the signature visual change — a **living color accent strip** on each post card that makes VYBE feel unlike any other platform:
+- Add a thin (3px) animated gradient accent line at the top of each post card, derived from the author's VYBE DNA signature colors (or a default primary gradient)
+- The accent subtly pulses/shifts, giving each post a "living" feel
+- Replace the flat `liquid-glass-card` border with a softer `border-border/10` so the accent line becomes the visual anchor
+- Add a subtle frosted noise texture overlay to the card background (CSS-only, no images)
 
-1. **Add `age_rating` column to `posts` table** — `text NOT NULL DEFAULT 'safe'` with check constraint for values `safe`, `13+`, `18+`
-2. **Feed filtering** — Modify feed queries to filter posts based on viewer's age (calculated from `date_of_birth` on their profile)
+#### 4. PostCard Action Bar Redesign (`PostCard.tsx`)
+- Move the action buttons from a horizontal row to a **vertical floating pill** on the right side of the media (like TikTok/Threads hybrid), but only for posts with media
+- For text-only posts, keep horizontal layout
+- Each action button gets a subtle count beneath it in a compact vertical stack
+- The bookmark moves into this vertical bar instead of being isolated on the right
+
+#### 5. Feed Tab Bar Polish (`HomeWidgetRenderer.tsx`)
+- Add a subtle animated underline indicator that slides between tabs instead of the background swap
+- Give the active tab a slight glow effect matching the primary color
+
+---
 
 ### Technical Details
 
 **Files modified:**
-- `src/components/create/MobilePostComposer.tsx` — Replace inline safety scanner overlay with new `VybeCheckOverlay` component; pass selected age rating to `createPost`
-- `src/hooks/usePosts.ts` — Add `age_rating` param to `createPost` mutation
-- `src/hooks/useFeedAlgorithm.ts` — Filter posts by viewer age vs post age_rating
+- `src/components/profile/ProfileHeroCard.tsx` — Responsive avatar sizing, scrollable stats, truncated text
+- `src/pages/Profile.tsx` — Safe-area padding, tighter mobile spacing
+- `src/components/posts/PostCard.tsx` — Aura accent gradient strip at top, vertical action bar for media posts
+- `src/components/home/HomeWidgetRenderer.tsx` — Animated tab underline indicator
 
-**New files:**
-- `src/components/safety/VybeCheckOverlay.tsx` — Full-screen 3-phase component managing scan → rating → confirm flow
-- `src/components/safety/AgeRatingSelector.tsx` — The three tappable age rating cards
+**No database changes needed.**
 
 **What stays the same:**
-- All existing safety scanning logic (useContentSafety, aiSafetyClient, nsfwScanner)
-- VybeCheckFailed component for blocked content
-- PublishCelebration for upload progress
-- Owner bypass (skips all 3 phases)
-
-### Migration
-```sql
-ALTER TABLE public.posts ADD COLUMN age_rating text NOT NULL DEFAULT 'safe';
-ALTER TABLE public.posts ADD CONSTRAINT posts_age_rating_check 
-  CHECK (age_rating IN ('safe', '13+', '18+'));
-```
+- All existing functionality (reactions, bookmarks, comments, shares)
+- PostCard header layout (avatar + username + menu)
+- Profile VibeBoard and AboutMe sections
+- All existing animations and haptic feedback
 
