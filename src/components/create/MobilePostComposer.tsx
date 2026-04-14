@@ -37,7 +37,6 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const createPost = useCreatePost();
-  const contentSafety = useContentSafety();
   const captionRef = useRef<HTMLTextAreaElement>(null);
 
   const [caption, setCaption] = useState('');
