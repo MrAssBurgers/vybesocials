@@ -22,8 +22,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Bot, UsersRound, Trash2, Nfc, X, UserCheck, Flame, Camera } from 'lucide-react';
-import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, UsersRound, Trash2, X, UserCheck, Flame, Camera } from 'lucide-react';
 
 import { toast } from 'sonner';
 import { CreateGroupDialog } from './CreateGroupDialog';
@@ -44,61 +43,11 @@ import { StatusPicker } from '@/components/status/StatusPicker';
 import { compactTime } from '@/lib/compactTime';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
-import { NotesRow } from './NotesRow';
+
 import { useSendFriendRequest } from '@/hooks/useFriends';
 
-const AutisyAIChatRow = memo(function AutisyAIChatRow() {
-  const navigate = useNavigate();
 
-  // Get AI name from localStorage
-  const aiName = useMemo(() => {
-    try {
-      const stored = localStorage.getItem('vybe_ai_profile_v2');
-      if (stored) {
-        const profile = JSON.parse(stored);
-        return profile.name || 'Morgan';
-      }
-    } catch {}
-    return 'Morgan';
-  }, []);
 
-  // Get last AI message from localStorage for preview
-  const lastAIMessage = useMemo(() => {
-    try {
-      const stored = localStorage.getItem('vybe_ai_chat_messages_v2');
-      if (stored) {
-        const messages = JSON.parse(stored);
-        const lastAssistant = messages.filter((m: any) => m.role === 'assistant').pop();
-        if (lastAssistant) return lastAssistant.content;
-      }
-    } catch {}
-    return "Hey! Tap to chat with me ✨";
-  }, []);
-
-  return (
-    <button
-      onClick={() => navigate('/messages/ai-autisy')}
-      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all mb-0.5 box-border"
-    >
-      <div className="relative flex-shrink-0">
-        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center shadow-lg shadow-primary/25">
-          <VybeMiniIcon size={22} showSparkles={false} />
-        </div>
-        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-card" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-0.5 gap-2">
-          <span className="font-semibold text-sm flex items-center gap-1.5 min-w-0">
-            <span className="truncate">{aiName}</span>
-            <VybeMiniIcon size={12} showSparkles className="flex-shrink-0" />
-          </span>
-          <span className="text-[9px] font-semibold text-primary px-1.5 py-0.5 bg-primary/10 rounded-full flex-shrink-0">AI</span>
-        </div>
-        <p className="text-xs text-muted-foreground truncate">{lastAIMessage.slice(0, 50)}...</p>
-      </div>
-    </button>
-  );
-});
 
 // Debug flag for dev visibility - moved inside component
 
@@ -356,15 +305,7 @@ export function ConversationList() {
       {/* Conversation List */}
       <ScrollArea className="flex-1" style={{ overflowX: 'hidden' }}>
 
-        {/* Notes Row - Instagram/Snapchat style */}
-        <NotesRow />
-
-        {/* AI Chat Row */}
-        <div className="px-3 pt-1 pb-1">
-          <AutisyAIChatRow />
-        </div>
-
-        {/* Accepted Friend Requests */}
+        {/* Conversations */}
         {acceptedRequests && acceptedRequests.length > 0 && (
           <div className="px-3 space-y-1">
             {acceptedRequests.map((request) => (
