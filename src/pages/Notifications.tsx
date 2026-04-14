@@ -425,6 +425,44 @@ export default function NotificationsPage() {
             </AnimatePresence>
           </TabsContent>
 
+          {/* ─── PRIORITY TAB ─── */}
+          <TabsContent value="priority" className="mt-0">
+            <AnimatePresence mode="popLayout">
+              {groupedPriority.length > 0 ? (
+                <motion.div key="priority" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">
+                    Important
+                  </p>
+                  <div className="rounded-2xl bg-card/95 border border-border/30 overflow-hidden">
+                    {groupedPriority.map((item, idx) => (
+                      item._single ? (
+                        <NotificationRow
+                          key={item.id}
+                          notification={item}
+                          index={idx}
+                          isLast={idx === groupedPriority.length - 1}
+                        />
+                      ) : (
+                        <GroupedNotificationRow
+                          key={`${item.type}-${item.post_id || 'follow'}`}
+                          group={item as GroupedNotification}
+                          index={idx}
+                          isLast={idx === groupedPriority.length - 1}
+                        />
+                      )
+                    ))}
+                  </div>
+                </motion.div>
+              ) : (
+                <EmptyState
+                  icon={<Sparkles className="h-7 w-7 text-muted-foreground" />}
+                  title="No priority notifications"
+                  description="Mentions, replies, and friend requests will show here"
+                />
+              )}
+            </AnimatePresence>
+          </TabsContent>
+
           {/* ─── REQUESTS TAB ─── */}
           <TabsContent value="requests" className="mt-0">
             <AnimatePresence mode="popLayout">
