@@ -279,6 +279,7 @@ export function useCreatePost() {
       tags: string[];
       thumbnailFile?: File;
       thumbnailDataUrl?: string;
+      age_rating?: 'safe' | '13+' | '18+';
     }) => {
       if (!profile?.id || !profile?.user_id) {
         console.error('[usePosts] Cannot create post: profile missing or incomplete', { id: profile?.id, user_id: profile?.user_id });
@@ -415,6 +416,7 @@ export function useCreatePost() {
           thumbnail_url: thumbnailUrl,
           caption: filteredCaption,
           tags: data.tags,
+          age_rating: data.age_rating || 'safe',
         } as any)
         .select()
         .single();
