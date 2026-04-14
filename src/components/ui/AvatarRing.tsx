@@ -4,8 +4,10 @@ import { cn } from '@/lib/utils';
 interface AvatarRingProps {
   children: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
-  variant?: 'default' | 'online' | 'calling' | 'ringing';
+  variant?: 'default' | 'online' | 'calling' | 'ringing' | 'vibe';
   pulse?: boolean;
+  vibeColor?: string; // CSS color for vibe status ring
+  vibeEmoji?: string; // Small emoji badge
   className?: string;
 }
 
@@ -30,6 +32,15 @@ const variantStyles = {
   online: 'ring-green-500/50',
   calling: 'ring-green-500',
   ringing: 'ring-primary',
+  vibe: '', // dynamic via vibeColor
+};
+
+const emojiBadgeSize = {
+  sm: 'w-3.5 h-3.5 text-[8px] -bottom-0.5 -right-0.5',
+  md: 'w-4 h-4 text-[9px] -bottom-0.5 -right-0.5',
+  lg: 'w-5 h-5 text-[10px] -bottom-0.5 -right-0.5',
+  xl: 'w-6 h-6 text-xs -bottom-1 -right-1',
+  '2xl': 'w-8 h-8 text-sm -bottom-1 -right-1',
 };
 
 export function AvatarRing({
@@ -37,31 +48,54 @@ export function AvatarRing({
   size = 'md',
   variant = 'default',
   pulse = false,
+  vibeColor,
+  vibeEmoji,
   className,
 }: AvatarRingProps) {
+  const isVibe = variant === 'vibe' && vibeColor;
+
   return (
     <div 
       className={cn(
         "relative inline-flex items-center justify-center rounded-full",
         sizeMap[size],
         ringThicknessMap[size],
-        variantStyles[variant],
+        !isVibe && variantStyles[variant],
         pulse && "animate-pulse",
         className
       )}
+      style={isVibe ? { boxShadow: `0 0 0 3px ${vibeColor}`, borderRadius: '9999px' } : undefined}
     >
-      {/* Ring container - exactly matches avatar size */}
+      {/* Glow effect for vibe status */}
+      {isVibe && (
+        <div
+          className="absolute inset-[-4px] rounded-full opacity-40 blur-[6px] animate-pulse"
+          style={{ backgroundColor: vibeColor }}
+        />
+      )}
+      
+      {/* Ring container */}
       <div className={cn(
         "absolute inset-0 rounded-full",
         ringThicknessMap[size],
-        variantStyles[variant],
+        !isVibe && variantStyles[variant],
         variant === 'ringing' && "animate-ping"
       )} />
       
-      {/* Avatar content - fills container exactly */}
+      {/* Avatar content */}
       <div className="relative w-full h-full rounded-full overflow-hidden">
         {children}
       </div>
+
+      {/* Vibe emoji badge */}
+      {vibeEmoji && (
+        <div className={cn(
+          "absolute flex items-center justify-center rounded-full bg-card border border-border shadow-sm z-10",
+          emojiBadgeSize[size]
+        )}>
+          <span className="leading-none">{vibeEmoji}</span>
+        </div>
+      )}
     </div>
   );
 }

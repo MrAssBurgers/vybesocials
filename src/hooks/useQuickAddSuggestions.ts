@@ -26,7 +26,7 @@ export function useQuickAddSuggestions(limit = 8) {
   const { data: hiddenIds } = useHiddenFromDiscovery();
   const { isDismissed } = useDismissedQuickAdd();
 
-  // Fallback: interest-based / general users when mutual friends are empty
+  // Fallback: interest-based / general users — ALWAYS fetched so Quick Add never empty
   const { data: generalUsers, isLoading: loadingGeneral } = useQuery({
     queryKey: ['quick-add-general', profile?.id, friends?.length ?? 0],
     queryFn: async (): Promise<QuickAddUser[]> => {
@@ -44,12 +44,14 @@ export function useQuickAddSuggestions(limit = 8) {
         (myProfile?.interests || []).map((i: string) => i.toLowerCase())
       );
 
+      // Build query — fetch recent active users excluding self and friends
       let query = supabase
         .from('profiles' as any)
         .select('id, username, display_name, avatar_url, interests')
         .neq('id', profile.id)
+        .not('username', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(60) as any;
+        .limit(80) as any;
 
       if (friendIds.length > 0) {
         query = query.not('id', 'in', `(${friendIds.join(',')})`);
@@ -62,7 +64,8 @@ export function useQuickAddSuggestions(limit = 8) {
         .map((u: any) => {
           const theirInterests = (u.interests || []).map((i: string) => i.toLowerCase());
           const shared = theirInterests.filter((i: string) => myInterests.has(i));
-          const score = shared.length * 4 + (u.avatar_url ? 1 : 0) + (u.display_name ? 0.5 : 0);
+          // Score: shared interests heavily, then profile completeness
+          const score = shared.length * 4 + (u.avatar_url ? 2 : 0) + (u.display_name ? 1 : 0) + Math.random() * 0.5;
           return {
             id: u.id,
             username: u.username,
@@ -74,7 +77,7 @@ export function useQuickAddSuggestions(limit = 8) {
           };
         })
         .sort((a: any, b: any) => b._score - a._score)
-        .slice(0, 20)
+        .slice(0, 30)
         .map(({ _score, ...rest }: any) => rest);
     },
     enabled: !!profile?.id && hiddenIds !== undefined,

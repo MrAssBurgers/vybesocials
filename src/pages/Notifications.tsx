@@ -237,9 +237,17 @@ export default function NotificationsPage() {
   const unreadNotifications = notifications?.filter(n => !n.read) || [];
   const readNotifications = notifications?.filter(n => n.read) || [];
   
+  // Priority notifications: DMs, friend requests, mentions — not passive likes/follows
+  const priorityTypes = new Set(['friend_request', 'mention', 'reply', 'dm', 'comment']);
+  const priorityNotifications = useMemo(() => 
+    (notifications || []).filter(n => priorityTypes.has(n.type) || !n.read),
+    [notifications]
+  );
+  
   // Group notifications for better UX
   const groupedUnread = useMemo(() => groupNotifications(unreadNotifications), [unreadNotifications]);
   const groupedRead = useMemo(() => groupNotifications(readNotifications), [readNotifications]);
+  const groupedPriority = useMemo(() => groupNotifications(priorityNotifications), [priorityNotifications]);
 
   const handleAcceptRequest = (requestId: string) => {
     respondToRequest.mutate({ requestId, action: 'accept' });
@@ -302,6 +310,13 @@ export default function NotificationsPage() {
               className="flex-1 h-full rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
             >
               All
+            </TabsTrigger>
+            <TabsTrigger 
+              value="priority" 
+              className="flex-1 h-full rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-1" />
+              Priority
             </TabsTrigger>
             <TabsTrigger 
               value="requests" 
@@ -405,6 +420,44 @@ export default function NotificationsPage() {
                   icon={<Bell className="h-7 w-7 text-muted-foreground" />}
                   title="You're all caught up"
                   description="New notifications will appear here"
+                />
+              )}
+            </AnimatePresence>
+          </TabsContent>
+
+          {/* ─── PRIORITY TAB ─── */}
+          <TabsContent value="priority" className="mt-0">
+            <AnimatePresence mode="popLayout">
+              {groupedPriority.length > 0 ? (
+                <motion.div key="priority" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">
+                    Important
+                  </p>
+                  <div className="rounded-2xl bg-card/95 border border-border/30 overflow-hidden">
+                    {groupedPriority.map((item, idx) => (
+                      item._single ? (
+                        <NotificationRow
+                          key={item.id}
+                          notification={item}
+                          index={idx}
+                          isLast={idx === groupedPriority.length - 1}
+                        />
+                      ) : (
+                        <GroupedNotificationRow
+                          key={`${item.type}-${item.post_id || 'follow'}`}
+                          group={item as GroupedNotification}
+                          index={idx}
+                          isLast={idx === groupedPriority.length - 1}
+                        />
+                      )
+                    ))}
+                  </div>
+                </motion.div>
+              ) : (
+                <EmptyState
+                  icon={<Sparkles className="h-7 w-7 text-muted-foreground" />}
+                  title="No priority notifications"
+                  description="Mentions, replies, and friend requests will show here"
                 />
               )}
             </AnimatePresence>

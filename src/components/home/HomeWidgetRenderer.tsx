@@ -1,6 +1,6 @@
-import { memo, type ReactNode } from 'react';
+import { memo, type ReactNode, useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Globe, Dna, Wallet, ShoppingBag, Radio, MapPin } from 'lucide-react';
+import { Sparkles, Globe, Dna, Wallet, ShoppingBag, Radio, MapPin, PenSquare } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
@@ -22,9 +22,61 @@ import { getAdInterval } from '@/components/ads/FeedAdCard';
 import { motion } from 'framer-motion';
 import { CreatorAnalytics } from '@/components/analytics/CreatorAnalytics';
 import { BattlePassWidget } from '@/components/gamification/BattlePassWidget';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/auth';
 
 const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
 const MemoizedPostCard = memo(PostCard);
+
+import { ImmersiveToggle, ImmersiveFeedMode } from '@/components/home/ImmersiveFeedMode';
+
+/* ── Lazy-mount wrapper using IntersectionObserver ── */
+function LazyWidget({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return <div ref={ref}>{visible ? children : <div className="h-24" />}</div>;
+}
+
+/* ── "Post your first VYBE" CTA for new users ── */
+function FirstPostCTA() {
+  const navigate = useNavigate();
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl bg-gradient-to-br from-primary/10 via-accent/5 to-primary/10 border border-primary/20 p-5 text-center"
+    >
+      <div className="w-12 h-12 rounded-full bg-primary/15 flex items-center justify-center mx-auto mb-3">
+        <PenSquare className="h-5 w-5 text-primary" />
+      </div>
+      <h3 className="text-sm font-bold mb-1">Share your first VYBE ✨</h3>
+      <p className="text-xs text-muted-foreground mb-4 max-w-[200px] mx-auto">
+        Post a photo, video, or thought to get started
+      </p>
+      <Button
+        onClick={() => navigate('/create')}
+        className="rounded-full px-6 h-9 text-sm"
+      >
+        Create Post
+      </Button>
+    </motion.div>
+  );
+}
+
+/* ── Widgets that load eagerly (above fold) ── */
+const EAGER_WIDGETS = new Set(['greeting', 'ai_brief', 'stories', 'feed']);
 
 interface Props {
   customizerOpen: boolean;
@@ -171,23 +223,28 @@ function FeedSection({
   localPosts, localLoading, localFetching, isFetchingNextLocal,
   loadMoreRef,
 }: Props) {
+  const [immersive, setImmersive] = useState(false);
+
   return (
     <div className="pb-6" data-tutorial="feed-area">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
-          <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <Sparkles className="h-4 w-4 mr-1.5" />
-            For You
-          </TabsTrigger>
-          <TabsTrigger value="local" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <MapPin className="h-4 w-4 mr-1.5" />
-            Local
-          </TabsTrigger>
-          <TabsTrigger value="global" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <Globe className="h-4 w-4 mr-1.5" />
-            Global
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center gap-2 mb-5">
+          <TabsList className="flex-1 h-11 p-1 bg-muted/50 rounded-xl">
+            <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Sparkles className="h-4 w-4 mr-1.5" />
+              For You
+            </TabsTrigger>
+            <TabsTrigger value="local" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <MapPin className="h-4 w-4 mr-1.5" />
+              Local
+            </TabsTrigger>
+            <TabsTrigger value="global" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Globe className="h-4 w-4 mr-1.5" />
+              Global
+            </TabsTrigger>
+          </TabsList>
+          <ImmersiveToggle isImmersive={immersive} onToggle={() => setImmersive(!immersive)} />
+        </div>
 
         {hasNewPosts && (
           <button
@@ -200,16 +257,24 @@ function FeedSection({
         )}
 
         <TabsContent value="foryou" className="space-y-4" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
-          <InlinePostList
-            posts={forYouPosts}
-            isLoading={forYouLoading}
-            isFetchingNext={isFetchingNextForYou}
-            loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
-            emptyIcon="✨"
-            emptyText="No posts yet. Follow creators or check Global!"
-            onExplore={() => navigate('/explore')}
-            showAds={showAds}
-          />
+          {/* First post CTA for users with no posts in feed */}
+          {!forYouLoading && forYouPosts.length === 0 && (
+            <FirstPostCTA />
+          )}
+          {immersive && forYouPosts.length > 0 ? (
+            <ImmersiveFeedMode posts={forYouPosts} loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}} />
+          ) : (
+            <InlinePostList
+              posts={forYouPosts}
+              isLoading={forYouLoading}
+              isFetchingNext={isFetchingNextForYou}
+              loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
+              emptyIcon="✨"
+              emptyText="No posts yet. Follow creators or check Global!"
+              onExplore={() => navigate('/explore')}
+              showAds={showAds}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="local" className="space-y-4" forceMount style={{ display: activeTab === 'local' ? 'block' : 'none' }}>
@@ -313,11 +378,14 @@ export function HomeWidgetRenderer(props: Props) {
     );
   }
 
-  // Non-editing: render with smooth layout animations
+  // Non-editing: render with lazy-loading for below-fold widgets
   return (
     <WidgetGrid>
       {enabledIds.map(id => {
         const w = widgets.find(wi => wi.id === id);
+        const isEager = EAGER_WIDGETS.has(id);
+        const content = <WidgetContent id={id} props={props} />;
+        
         return (
           <motion.div
             key={id}
@@ -329,7 +397,7 @@ export function HomeWidgetRenderer(props: Props) {
               w?.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
             )}
           >
-            <WidgetContent id={id} props={props} />
+            {isEager ? content : <LazyWidget>{content}</LazyWidget>}
           </motion.div>
         );
       })}

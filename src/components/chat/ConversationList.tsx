@@ -40,7 +40,7 @@ import { useUsersRoles } from '@/hooks/useUserRoleById';
 import { AvatarRing } from '@/components/ui/AvatarRing';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useBatchUserStatuses } from '@/hooks/useUserStatus';
-import { StatusPicker } from '@/components/status/StatusPicker';
+import { StatusPicker, getVibeColor } from '@/components/status/StatusPicker';
 import { compactTime } from '@/lib/compactTime';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
@@ -441,14 +441,23 @@ export function ConversationList() {
               <p className="text-sm text-muted-foreground">No {chatFilter} conversations</p>
             </div>
           ) : !acceptedRequests?.length ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-              <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-4" />
+            <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <MessageCircle className="h-7 w-7 text-primary" />
+              </div>
               <h3 className="text-base font-semibold mb-1">{t('messages.noConversations')}</h3>
-              <p className="text-xs text-muted-foreground mb-4">{t('messages.startChatting')}</p>
-              <Button onClick={() => navigate('/messages/new')} className="rounded-full px-5 h-9 text-sm">
-                <UserPlus className="h-4 w-4 mr-1.5" />
-                Add Friends
-              </Button>
+              <p className="text-xs text-muted-foreground mb-5 max-w-[240px]">
+                Add friends to start chatting. Your conversations will show up here.
+              </p>
+              <div className="flex gap-2">
+                <Button onClick={() => navigate('/messages/new')} className="rounded-full px-5 h-9 text-sm">
+                  <UserPlus className="h-4 w-4 mr-1.5" />
+                  Find Friends
+                </Button>
+                <Button variant="outline" onClick={() => navigate('/search')} className="rounded-full px-4 h-9 text-sm">
+                  Explore
+                </Button>
+              </div>
             </div>
           ) : null}
         </div>
@@ -577,15 +586,22 @@ const ConversationContent = memo(function ConversationContent({
           </div>
         ) : (
           <button onClick={handleAvatarClick} className="block relative">
-            <div className={`relative ${hasStory ? 'p-0.5' : ''}`}>
-              {hasStory && (
-                <div className={`absolute inset-0 rounded-full ${storyGroup?.hasUnviewed ? 'bg-gradient-to-tr from-primary via-primary/80 to-primary/60' : 'bg-muted-foreground/30'}`} />
-              )}
-              <Avatar className={`h-12 w-12 ring-2 ring-background shadow-md ${hasStory ? 'relative' : ''}`}>
-                <AvatarImage src={avatarUrl || undefined} />
-                <AvatarFallback className="text-base">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
-              </Avatar>
-            </div>
+            <AvatarRing
+              size="lg"
+              variant={userStatus ? 'vibe' : 'default'}
+              vibeColor={userStatus ? getVibeColor(userStatus.emoji) : undefined}
+              vibeEmoji={userStatus?.emoji}
+            >
+              <div className={`relative ${hasStory ? 'p-0.5' : ''} w-full h-full`}>
+                {hasStory && (
+                  <div className={`absolute inset-0 rounded-full ${storyGroup?.hasUnviewed ? 'bg-gradient-to-tr from-primary via-primary/80 to-primary/60' : 'bg-muted-foreground/30'}`} />
+                )}
+                <Avatar className={`h-full w-full ring-2 ring-background shadow-md ${hasStory ? 'relative' : ''}`}>
+                  <AvatarImage src={avatarUrl || undefined} />
+                  <AvatarFallback className="text-base">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+              </div>
+            </AvatarRing>
             <OnlineIndicator isOnline={isOnline} size="sm" className="absolute -bottom-0.5 -right-0.5" />
           </button>
         )}
