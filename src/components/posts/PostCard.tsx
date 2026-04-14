@@ -38,6 +38,8 @@ import { PostCarousel } from './PostCarousel';
 import { CommentSheet } from '@/components/comments/CommentSheet';
 import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 import { triggerHaptic } from '@/lib/haptics';
+import { useViewTracking } from '@/hooks/useViewTracking';
+import { useInteractionFeedback } from '@/hooks/useInteractionFeedback';
 import { AIBadge } from './AIBadge';
 import { ProductTagBadge } from './ProductTagBadge';
 // Video player component - maintains the video's native aspect ratio (no cropping)
@@ -305,6 +307,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const queryClient = useQueryClient();
   const togglePin = useTogglePin();
   const bumpStreak = useInteractionStreakBump();
+  const viewRef = useViewTracking(post.id);
+  const feedback = useInteractionFeedback();
   const { data: userRole } = useUserRole();
   // Defer fetching author role until menu is opened to reduce initial load
   const [menuOpen, setMenuOpen] = useState(false);
@@ -417,7 +421,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
 
     const newIsBookmarked = !isBookmarked;
     setIsBookmarked(newIsBookmarked);
-    if (newIsBookmarked) triggerHaptic('light');
+    if (newIsBookmarked) feedback.onBookmark();
 
     if (newIsBookmarked) {
       await supabase.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });
@@ -471,7 +475,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   }, [post.id, queryClient]);
 
   return (
-    <article className="liquid-glass-card rounded-2xl overflow-hidden">
+    <article ref={viewRef} className="liquid-glass-card rounded-2xl overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between p-4">
         <UserProfileHoverCard 
@@ -719,34 +723,34 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         );
       })()}
 
-      {/* Actions - unified alignment */}
+      {/* Actions - 44px touch targets */}
       <div className="p-4 space-y-3">
-        <div className="flex items-center justify-between h-8">
-          {/* Left action buttons - perfectly aligned */}
-          <div className="flex items-center gap-1">
-            {/* Reaction button - long press for picker */}
+        <div className="flex items-center justify-between h-11">
+          {/* Left action buttons */}
+          <div className="flex items-center gap-4">
             <ReactionPicker
               currentReaction={currentReaction}
               onReact={handleReaction}
               likeCount={likeCount}
             />
 
-            <button onClick={() => setShowCommentSheet(true)} className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform">
+            <button onClick={() => { feedback.onComment(); setShowCommentSheet(true); }} className="flex flex-col items-center justify-center h-11 w-11 active:scale-90 transition-transform">
               <MessageCircle className="h-6 w-6 hover:text-primary transition-colors" />
+              {post.comment_count > 0 && <span className="text-[10px] text-muted-foreground leading-none mt-0.5">{post.comment_count}</span>}
             </button>
             
             <button 
-              onClick={handleShare}
-              className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform"
+              onClick={() => { feedback.onShare(); handleShare(); }}
+              className="flex items-center justify-center h-11 w-11 active:scale-90 transition-transform"
             >
               <Share2 className="h-6 w-6 hover:text-primary transition-colors" />
             </button>
           </div>
           
-          {/* Bookmark button - right aligned */}
+          {/* Bookmark button */}
           <button 
             onClick={handleBookmark}
-            className="flex items-center justify-center h-8 w-8 active:scale-90 transition-transform"
+            className="flex items-center justify-center h-11 w-11 active:scale-90 transition-transform"
           >
             <Bookmark
               className={cn(
@@ -792,7 +796,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           </div>
         )}
 
-        {/* Comments preview */}
+        {/* Comment preview — shows top comment for curiosity */}
         {post.comment_count > 0 && (
           <button onClick={() => setShowCommentSheet(true)} className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left">
             View all {post.comment_count} comments
