@@ -221,10 +221,28 @@ function FeedSection({
   localPosts, localLoading, localFetching, isFetchingNextLocal,
   loadMoreRef,
 }: Props) {
+  const [immersive, setImmersive] = useState(false);
+
   return (
     <div className="pb-6" data-tutorial="feed-area">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full mb-5 h-11 p-1 bg-muted/50 rounded-xl">
+        <div className="flex items-center gap-2 mb-5">
+          <TabsList className="flex-1 h-11 p-1 bg-muted/50 rounded-xl">
+            <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Sparkles className="h-4 w-4 mr-1.5" />
+              For You
+            </TabsTrigger>
+            <TabsTrigger value="local" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <MapPin className="h-4 w-4 mr-1.5" />
+              Local
+            </TabsTrigger>
+            <TabsTrigger value="global" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Globe className="h-4 w-4 mr-1.5" />
+              Global
+            </TabsTrigger>
+          </TabsList>
+          <ImmersiveToggle isImmersive={immersive} onToggle={() => setImmersive(!immersive)} />
+        </div>
           <TabsTrigger value="foryou" className="flex-1 rounded-lg tab-glow data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <Sparkles className="h-4 w-4 mr-1.5" />
             For You
