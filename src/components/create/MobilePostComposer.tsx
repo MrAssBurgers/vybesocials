@@ -5,9 +5,9 @@ import { ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown, Check, 
 import { cn } from '@/lib/utils';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
-import { useContentSafety } from '@/hooks/useContentSafety';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
-import { SafetyScanProgress } from '@/components/safety/SafetyScanProgress';
+import { VybeCheckOverlay } from '@/components/safety/VybeCheckOverlay';
+import { type AgeRating } from '@/components/safety/AgeRatingSelector';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { AIPhotoEnhancer } from '@/components/ai/AIPhotoEnhancer';
 import { PublishCelebration } from './PublishCelebration';
