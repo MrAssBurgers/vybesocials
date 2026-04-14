@@ -10,10 +10,12 @@ import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
 import { SafetyScanProgress } from '@/components/safety/SafetyScanProgress';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { AIPhotoEnhancer } from '@/components/ai/AIPhotoEnhancer';
+import { PublishCelebration } from './PublishCelebration';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { INTEREST_CATEGORIES, getSuggestedTagsForInterests, getTagCategories } from '@/lib/tagCategories';
 import { Sound } from '@/hooks/useSounds';
 import { toast } from 'sonner';
+import { triggerHaptic } from '@/lib/haptics';
 
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe, description: 'Visible to all' },
@@ -50,6 +52,8 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
   const [scanMessage, setScanMessage] = useState('');
   const [scanCategories, setScanCategories] = useState<string[]>([]);
   const [publishSuccess, setPublishSuccess] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [publishAnimation, setPublishAnimation] = useState(false);
 
   useEffect(() => {
     const el = captionRef.current;
@@ -60,11 +64,9 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
     setTimeout(() => captionRef.current?.focus(), 300);
   }, []);
 
-  // No more scan on mount — scan happens at post time
-
   const handleAddTag = (tag: string) => {
     const c = tag.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-    if (c && !tags.includes(c) && tags.length < 10) { setTags([...tags, c]); setTagInput(''); }
+    if (c && !tags.includes(c) && tags.length < 10) { setTags([...tags, c]); setTagInput(''); triggerHaptic('light'); }
   };
   const handleRemoveTag = (t: string) => setTags(tags.filter(tag => tag !== t));
   const handleTagInputKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); handleAddTag(tagInput); } };
@@ -90,6 +92,7 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
 
     // Run AI safety scan at post time
     if (files.length > 0 && files[0]) {
+      setShowCelebration(true);
       setIsUploading(true);
       setUploadProgress(0);
       setShowSafetyScanner(true);
@@ -105,6 +108,7 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
 
       if (scanResult.result === 'blocked') {
         setIsUploading(false);
+        setShowCelebration(false);
         setScanMessage(scanResult.message || 'Content violates community guidelines');
         setScanCategories(scanResult.categories || []);
         setVybeCheckFailed(true);
@@ -112,7 +116,9 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
       }
     }
 
-    setIsUploading(true); setUploadProgress(0);
+    setShowCelebration(true);
+    setIsUploading(true);
+    setUploadProgress(0);
     const isLargeFile = files[0] && files[0].size > 5 * 1024 * 1024;
     const progressStep = isLargeFile ? 1 : 5;
     const progressInterval = isLargeFile ? 500 : 300;
@@ -126,11 +132,13 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
         caption, type: contentType, tags,
       });
       if (pi) clearInterval(pi);
-      setUploadProgress(100); setPublishSuccess(true);
-      setTimeout(() => { toast.success('Posted!'); navigate('/home'); }, 800);
+      setUploadProgress(100);
+      setPublishSuccess(true);
+      setTimeout(() => { navigate('/home'); }, 2000);
     } catch (err) {
       console.error('[Composer] Failed:', err);
       toast.error('Failed to upload');
+      setShowCelebration(false);
     } finally {
       if (pi) clearInterval(pi);
       setTimeout(() => { setIsUploading(false); setUploadProgress(0); }, 1000);
@@ -159,41 +167,33 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
       <AnimatePresence>
         {showSafetyScanner && contentSafety.isScanning && (
           <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[260] flex items-center justify-center bg-background/95 backdrop-blur-sm"
           >
             <div className="w-80 space-y-6 text-center">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center"
-              >
+              <motion.div animate={{ rotate: 360 }} transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
                 <Shield className="h-8 w-8 text-primary" />
               </motion.div>
               <div>
                 <p className="text-foreground font-bold text-lg mb-1">Vybe Check</p>
                 <p className="text-muted-foreground text-sm">{contentSafety.message || 'Scanning your content...'}</p>
               </div>
-              <SafetyScanProgress 
-                phase={contentSafety.scanPhase} 
-                isVideo={files[0]?.type.startsWith('video/')} 
-              />
+              <SafetyScanProgress phase={contentSafety.scanPhase} isVideo={files[0]?.type.startsWith('video/')} />
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Success overlay */}
+      {/* Publish Celebration — Full screen overlay */}
       <AnimatePresence>
-        {publishSuccess && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[250] flex items-center justify-center" style={{ backgroundColor: 'hsl(var(--background))' }}>
-            <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-              className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-2xl shadow-primary/40">
-              <Check className="w-10 h-10 text-primary-foreground" strokeWidth={3} />
-            </motion.div>
-          </motion.div>
+        {showCelebration && (
+          <PublishCelebration
+            isUploading={isUploading}
+            progress={uploadProgress}
+            isComplete={publishSuccess}
+            onViewPost={() => navigate('/home')}
+          />
         )}
       </AnimatePresence>
 
@@ -236,42 +236,66 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-        {/* Media preview */}
+        {/* Card-style media preview */}
         {previews.length > 0 && (
-          <div className="px-4 pt-3">
-            {previews.length === 1 ? (
-              <div className="relative rounded-2xl overflow-hidden border border-border" style={{ backgroundColor: 'hsl(var(--muted))' }}>
-                {files[0]?.type.startsWith('video/') ? (
-                  <video src={previews[0]} className="w-full max-h-[40dvh] object-contain mx-auto" controls playsInline />
-                ) : (
-                  <img src={previews[0]} alt="" className="w-full max-h-[40dvh] object-contain mx-auto" />
-                )}
-                {/* AI Photo Enhancer — only for single image uploads */}
-                {!files[0]?.type.startsWith('video/') && (
-                  <div className="absolute bottom-3 right-3 z-10">
-                    <AIPhotoEnhancer
-                      imageFile={files[0]}
-                      onEnhanced={(dataUrl) => {
-                        // Replace preview with enhanced version
-                        const newPreviews = [...previews];
-                        newPreviews[0] = dataUrl;
-                        // Note: we update preview visually — the actual upload still uses original file
-                        // but user sees the enhancement
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
-                {previews.map((p, i) => (
-                  <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 border border-border">
-                    <img src={p} alt="" className="w-full h-full object-cover" />
-                    <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">{i + 1}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="px-4 pt-4">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative rounded-3xl overflow-hidden shadow-2xl shadow-primary/10 border border-border"
+              style={{ backgroundColor: 'hsl(var(--muted))' }}
+            >
+              {previews.length === 1 ? (
+                <>
+                  {files[0]?.type.startsWith('video/') ? (
+                    <video src={previews[0]} className="w-full max-h-[45dvh] object-contain mx-auto" controls playsInline />
+                  ) : (
+                    <img src={previews[0]} alt="" className="w-full max-h-[45dvh] object-contain mx-auto" />
+                  )}
+                  {/* AI Photo Enhancer */}
+                  {!files[0]?.type.startsWith('video/') && (
+                    <div className="absolute bottom-3 right-3 z-10">
+                      <AIPhotoEnhancer
+                        imageFile={files[0]}
+                        onEnhanced={(dataUrl) => {
+                          const newPreviews = [...previews];
+                          newPreviews[0] = dataUrl;
+                        }}
+                      />
+                    </div>
+                  )}
+                  {/* Floating caption overlay hint */}
+                  {!caption && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.5 }}
+                      className="absolute bottom-14 left-4 right-4 pointer-events-none"
+                    >
+                      <div className="px-4 py-2 rounded-xl bg-black/30 backdrop-blur-sm">
+                        <span className="text-white/50 text-sm">Tap below to add a caption...</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </>
+              ) : (
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide p-3">
+                  {previews.map((p, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.05 }}
+                      className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 border border-border"
+                    >
+                      <img src={p} alt="" className="w-full h-full object-cover" />
+                      <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">{i + 1}</div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
           </div>
         )}
 
@@ -313,7 +337,7 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
           />
         </div>
 
-        {/* Tags */}
+        {/* Tags with stagger animation */}
         <div className="px-4 pb-3">
           <div className="flex items-center gap-1.5 mb-2">
             <Tag className={cn("w-3.5 h-3.5", tags.length > 0 ? "text-primary" : "text-destructive")} />
@@ -324,8 +348,13 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
 
           {tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
-              {tags.map((tag) => (
-                <motion.span key={tag} initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} layout
+              {tags.map((tag, i) => (
+                <motion.span
+                  key={tag}
+                  initial={{ scale: 0.5, opacity: 0, y: 10 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05, type: 'spring', stiffness: 400, damping: 20 }}
+                  layout
                   className="inline-flex items-center gap-1 text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-medium cursor-pointer hover:bg-primary/20 transition-colors"
                   onClick={() => handleRemoveTag(tag)}>
                   #{tag} <X className="w-2.5 h-2.5" />
