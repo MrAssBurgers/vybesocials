@@ -26,6 +26,8 @@ interface SafetyCheckResult {
   audioTranscript?: string;
   visualAnalysis?: string;
   audioAnalysis?: string;
+  suggestedAgeRating?: 'safe' | '13+' | '18+';
+  ageRatingReasons?: string[];
 }
 
 /**
@@ -57,6 +59,8 @@ function mergeResults(nsfwResult: ScanResult, aiResult: AISafetyResult): SafetyC
     score: worstScore,
     visualAnalysis: aiResult.visual_analysis,
     audioAnalysis: aiResult.audio_analysis,
+    suggestedAgeRating: aiResult.suggested_age_rating,
+    ageRatingReasons: aiResult.age_rating_reasons,
   };
 }
 
