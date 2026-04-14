@@ -22,7 +22,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizontal, RefreshCw, Minimize2, Crown, Zap } from 'lucide-react';
+import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizontal, RefreshCw, Minimize2, Crown, Zap, Smile } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -35,6 +35,7 @@ import { useAuth } from '@/lib/auth';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { P2PConnection, P2PEvent } from '@/lib/p2pConnection';
 import { PaywallSheet } from '@/components/premium/PaywallSheet';
+import { triggerHaptic } from '@/lib/haptics';
 import {
   Room,
   RoomEvent,
@@ -47,6 +48,9 @@ import {
 } from 'livekit-client';
 import { CallSettingsSheet } from './CallSettingsSheet';
 import { MinimizedCallBubble } from './MinimizedCallBubble';
+import { SlideToAnswer } from './SlideToAnswer';
+import { CallReactions } from './CallReactions';
+import { AudioVisualizer } from './AudioVisualizer';
 
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, leaveCall, setPhase, setError, dismissIncoming, switchMode } = useCallStore();
