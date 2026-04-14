@@ -36,7 +36,6 @@ export function PullToRefreshIndicator({
         {isRefreshing ? (
           <Loader2 className="h-5 w-5 text-primary animate-spin" />
         ) : (
-          {/* VYBE logo "V" glyph as pull indicator */}
           <span className={`text-lg font-black transition-colors duration-150 ${
             shouldTrigger ? 'text-primary' : 'text-muted-foreground'
           }`}>V</span>
