@@ -42,7 +42,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useBatchUserStatuses } from '@/hooks/useUserStatus';
 import { StatusPicker } from '@/components/status/StatusPicker';
 import { compactTime } from '@/lib/compactTime';
-import { useSuggestedFriends } from '@/hooks/useFriendsOfFriends';
+import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
+import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
 import { NotesRow } from './NotesRow';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 
@@ -1006,24 +1007,33 @@ const ConversationItem = memo(function ConversationItem({
 // Recommended Friends Section - Snapchat Quick Add style at bottom of DMs
 const RecommendedFriendsSection = memo(function RecommendedFriendsSection() {
   const navigate = useNavigate();
-  const { data: suggestions, isLoading } = useSuggestedFriends();
+  const { suggestions, isLoading } = useQuickAddSuggestions(8);
   const sendRequest = useSendFriendRequest();
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const { dismissUser } = useDismissedQuickAdd();
   const [added, setAdded] = useState<Set<string>>(new Set());
+  const [localDismissed, setLocalDismissed] = useState<Set<string>>(new Set());
 
-  if (isLoading || !suggestions || suggestions.length === 0) return null;
+  if (isLoading || suggestions.length === 0) return null;
 
-  const visible = suggestions.filter(s => !dismissed.has(s.id));
+  const visible = suggestions.filter(s => !localDismissed.has(s.id));
   if (visible.length === 0) return null;
 
   const handleAdd = (userId: string) => {
     setAdded(prev => new Set([...prev, userId]));
     sendRequest.mutate(userId, {
       onSuccess: () => {
-        setTimeout(() => setDismissed(prev => new Set([...prev, userId])), 800);
+        setTimeout(() => {
+          setLocalDismissed(prev => new Set([...prev, userId]));
+          dismissUser(userId);
+        }, 800);
       },
       onError: () => setAdded(prev => { const n = new Set(prev); n.delete(userId); return n; }),
     });
+  };
+
+  const handleDismiss = (userId: string) => {
+    setLocalDismissed(prev => new Set([...prev, userId]));
+    dismissUser(userId);
   };
 
   return (
@@ -1036,7 +1046,7 @@ const RecommendedFriendsSection = memo(function RecommendedFriendsSection() {
       </div>
       <div className="space-y-0.5">
         <AnimatePresence initial={false}>
-          {visible.slice(0, 5).map((person) => (
+          {visible.map((person) => (
             <motion.div
               key={person.id}
               initial={{ opacity: 0, height: 0 }}
@@ -1045,7 +1055,7 @@ const RecommendedFriendsSection = memo(function RecommendedFriendsSection() {
               className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted/40 transition-colors"
             >
               <button onClick={() => navigate(`/u/${person.username}`)} className="flex-shrink-0">
-                <Avatar className="h-10 w-10">
+                <Avatar className="h-11 w-11">
                   <AvatarImage src={person.avatar_url || undefined} />
                   <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
                     {(person.display_name || person.username)?.[0]?.toUpperCase()}
@@ -1054,13 +1064,9 @@ const RecommendedFriendsSection = memo(function RecommendedFriendsSection() {
               </button>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate">{person.display_name || person.username}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {person.mutual_count > 0
-                    ? `${person.mutual_count} mutual friend${person.mutual_count !== 1 ? 's' : ''}`
-                    : `@${person.username}`}
-                </p>
+                <p className="text-[11px] text-muted-foreground">{person.subtitle}</p>
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
                 {added.has(person.id) ? (
                   <div className="h-7 w-16 rounded-full bg-primary/20 flex items-center justify-center">
                     <Check className="h-3.5 w-3.5 text-primary" />
@@ -1076,8 +1082,8 @@ const RecommendedFriendsSection = memo(function RecommendedFriendsSection() {
                       Add
                     </Button>
                     <button
-                      onClick={() => setDismissed(prev => new Set([...prev, person.id]))}
-                      className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => handleDismiss(person.id)}
+                      className="p-1 text-muted-foreground hover:text-foreground transition-colors active:scale-95"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
