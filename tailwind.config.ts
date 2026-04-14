@@ -117,8 +117,8 @@ export default {
           "100%": { transform: "scale(1)" },
         },
         "gradient-shift": {
-          from: { backgroundPosition: "0% 50%" },
-          to: { backgroundPosition: "-33.333% 50%" },
+          "0%, 100%": { backgroundPosition: "0% 50%" },
+          "50%": { backgroundPosition: "100% 50%" },
         },
         spin: {
           from: { transform: "rotate(0deg)" },
@@ -167,7 +167,7 @@ export default {
         "slide-up": "slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
         "slide-down": "slide-down 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
         "heart-pop": "heart-pop 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
-        "gradient": "gradient-shift 6s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "gradient": "gradient-shift 10s ease infinite",
         spin: "spin 1s linear infinite",
         "bubble-pop-in": "bubble-pop-in 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
         "bubble-pop-out": "bubble-pop-out 0.25s cubic-bezier(0.4, 0, 0.2, 1)",

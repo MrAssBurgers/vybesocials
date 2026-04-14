@@ -145,12 +145,11 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
             )}
             style={{
               background: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--neon-purple, var(--primary))) 16.666%, hsl(var(--accent)) 33.333%, hsl(var(--primary)) 50%, hsl(var(--neon-purple, var(--primary))) 66.666%, hsl(var(--accent)) 83.333%, hsl(var(--primary)) 100%)',
-              backgroundSize: '300% 100%',
+              backgroundSize: '200% 100%',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-              animation: animated ? 'gradient-shift 6s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
-              willChange: animated ? 'background-position' : undefined,
+              animation: animated ? 'gradient-shift 3.2s linear infinite' : 'none',
             }}
           >
             VYBE
