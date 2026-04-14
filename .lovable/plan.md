@@ -1,110 +1,74 @@
 
 
-## VYBE Upload & Call UI — Complete Revamp
+## VYBE Profile — Complete Redesign (noplace-Inspired Identity)
 
-### Part 1: Upload Experience Redesign
+### The Problem
+The current profile is a standard Instagram clone: big circular avatar → username → stats row (posts/followers/following) → bio → tab grid. Every social app looks like this. It's forgettable.
 
-**Current Problems:**
-1. Camera screen bottom is cluttered — mode selector, filter toggle, filter carousel, capture button, gallery, music, hint text all stacked vertically
-2. Post composer is a plain form — media preview, caption, tags all feel like filling out a document, not creating art
-3. No swipe-up gesture to access gallery — users must tap a tiny thumbnail
-4. No post-capture preview animation — photo just appears in composer, no satisfying "snap" moment
-5. Upload progress is a thin bar — no celebration, no dopamine
-6. Desktop studio has no drag-and-drop delight — plain dotted box
-
-**Redesign:**
-
-**A. Camera Overhaul — "Swipe to Create"**
-- Replace the stacked bottom controls with a **single swipe-up drawer** for gallery access (like Instagram's recent photos grid)
-- Move mode selector (Photo/Video/Multi/Text/Story) to a **horizontal pill strip at the very top** of the bottom area, above the capture button
-- Collapse filter/AR toggle into the filter carousel itself — first item is "Normal", swipe right shows filters, swipe left shows AR
-- Add a **shutter animation**: white flash + scale-down bounce on the viewfinder when photo is taken
-- After capture, show a **3D flip transition** from camera to the preview (card flip effect)
-
-**B. Post Composer — "Create Card" Design**
-- Wrap the entire compose screen in a **card metaphor** — the post preview looks like the actual post card (rounded corners, shadow, the way it'll appear in the feed)
-- Caption input becomes a **floating translucent bar over the media** (like Stories caption), not a separate section below
-- Tags become **colorful chips that animate in** with stagger, with a "shake to suggest" feature using device motion
-- Add a **publish animation**: the card shrinks, flips, and "flies away" toward the top-right like it's being sent into the feed
-
-**C. Upload Progress — "Rocket Launch"**
-- Replace the thin progress bar with a **full-screen celebration overlay**: gradient background, animated progress ring in the center, percentage counter
-- On completion: confetti burst + checkmark + "Your VYBE is live!" with a "View Post" button
-
-**Files modified:**
-- `src/components/create/MobileCreateStudio.tsx` — Bottom controls restructure, shutter animation, gallery drawer
-- `src/components/create/MobilePostComposer.tsx` — Card metaphor, floating caption, publish animation
-- `src/components/create/DesktopCreateStudio.tsx` — Enhanced drag-drop with preview delight
-- New: `src/components/create/GalleryDrawer.tsx` — Swipe-up recent photos grid
-- New: `src/components/create/PublishCelebration.tsx` — Full-screen upload celebration
+### The Vision
+Inspired by noplace's colorful, customizable, personality-first approach — but taken further with VYBE's glass aesthetic and motion design. The profile becomes a **living card** that expresses who you are, not just what you've posted.
 
 ---
 
-### Part 2: Calling UI Redesign
+### Key Design Changes
 
-**Current Problems:**
-1. Footer control bar is a horizontal strip of same-sized buttons — no visual hierarchy between "Mute" and "End Call"
-2. Audio call screen is just a big avatar with pulse rings — feels empty, no activity visualization
-3. Incoming call dialog has no slide-to-answer gesture — just two buttons
-4. Local video preview (PiP) is a fixed rectangle — can't be dragged to different corners
-5. No call effects/reactions — can't send emoji reactions during a call (like FaceTime)
-6. Header and footer auto-hide but there's no elegant way to bring them back on mobile
+**1. Hero Identity Card (replaces avatar + stats header)**
+- Full-width rounded card at the top with the user's chosen background color/gradient (from their locker theme or a new color picker)
+- Avatar floats on the left edge of the card, overlapping the border (like a sticker on a notebook)
+- Display name is large and bold inside the card, username smaller below it
+- Current vibe/status shows as a live pill badge right under the name ("🎧 listening to music")
+- Stats (posts, followers, following) become **horizontal capsules** inside the card, not a separate row — compact, colorful, tappable
+- Badges display inline next to the name, not in a separate section
+- The entire card has a subtle parallax tilt on scroll (gyroscope on mobile)
 
-**Redesign:**
+**2. "About Me" Blocks (replaces plain bio)**
+- Bio becomes a styled text block with the user's chosen background color
+- Below it: a row of customizable "star signs" — favorite emoji, top interest tags, relationship status, location — displayed as colorful rounded pills (like noplace's profile fields)
+- These are **user-editable fields** stored in the profile, not computed
 
-**A. Control Bar — "Floating Dock"**
-- Redesign the bottom controls as a **two-tier system**:
-  - Primary row: Mute (circle), Video (circle), **End Call (wide red pill, 2x width)** — End Call is visually dominant
-  - Secondary row (above): Settings gear, Stay On Call crown, camera flip — smaller, less prominent
-- Add **haptic feedback** on every control tap
-- End call button gets a **long-press to confirm** with a radial progress fill (prevents accidental hang-ups)
+**3. Vibe Board (replaces Bento Grid)**
+- Instead of a rigid bento grid, the profile has a **vertical stack of expressive cards**:
+  - **"Currently..."** card: what they're listening to, watching, playing, reading (4 slots with icons)
+  - **Top Friends** card: circular avatars of their top 3-5 friends with online indicators
+  - **VYBE DNA** card: the existing DNA visualization but styled as a premium card with glow
+- Each card has a distinct background color that the user picks (noplace's most distinctive feature)
+- Cards animate in with stagger on profile load
 
-**B. Audio Call — "Sound Visualizer"**
-- Replace the static avatar pulse with a **real-time audio waveform ring** around the avatar — the ring reacts to the remote user's voice volume
-- Add a subtle **ambient particle system** behind the avatar that responds to audio levels
-- Show call quality indicator (signal bars icon) next to the duration
+**4. Content Tabs Redesign**
+- Replace the Instagram-style icon tabs with **pill-shaped segment control** at the bottom of the identity section
+- Posts grid gets **rounded corners on each cell** (8px radius) instead of the 1px gap Instagram grid
+- Add a "Highlights" tab (pinned posts) between Posts and Clips
 
-**C. Incoming Call — "Slide to Answer"**
-- Replace the two-button layout with a **slide-to-answer bar** at the bottom (like iPhone's native call screen)
-- Green slider on the left → slide right to answer
-- Red X button above → tap to decline
-- The caller's avatar has a **breathing glow** animation while ringing
+**5. Action Buttons Redesign**
+- For own profile: "Edit Profile" becomes a floating edit icon on the hero card corner
+- For other profiles: Follow/Message/Friend become a **stacked vertical pill group** on the right side of the hero card, not a horizontal row below
+- Share button integrated into the card as a small icon
 
-**D. Draggable PiP**
-- Make the local video preview **draggable** to any corner using a pan gesture
-- Snap to nearest corner on release with spring physics
-- Double-tap PiP to swap local/remote video (fullscreen your camera)
-
-**E. In-Call Reactions**
-- Add a small emoji button to the control bar
-- Tapping it opens a row of 6 reactions (thumbsup, heart, laugh, fire, clap, wave)
-- Selected emoji floats up from the bottom with a scale+fade animation, visible to both participants
-- Reactions are sent via the existing Realtime broadcast channel
-
-**Files modified:**
-- `src/components/call/GlobalCallOverlay.tsx` — Two-tier controls, long-press end, draggable PiP, reactions, audio visualizer
-- New: `src/components/call/AudioVisualizer.tsx` — Real-time waveform ring component
-- New: `src/components/call/CallReactions.tsx` — Emoji reaction picker + floating animations
-- New: `src/components/call/SlideToAnswer.tsx` — Slide gesture for incoming calls
-- `src/components/call/MinimizedCallBubble.tsx` — Polish the minimized state
+**6. Color Customization System**
+- Users can pick a **primary** and **secondary** profile color from a preset palette (12 vibrant colors + pastels)
+- These colors tint their hero card background, about-me block, and vibe board card backgrounds
+- Stored in the profile/locker system
+- Visitors see the profile in the owner's chosen colors — this is what makes every profile feel unique
 
 ---
 
-### Implementation Order
+### Technical Details
 
-**Wave 1 — Upload (highest user impact):**
-Gallery drawer, shutter animation, card-style composer, publish celebration
+**Files modified:**
+- `src/pages/Profile.tsx` — Full rewrite of the layout structure. Hero card, vibe board, new tabs, color system
+- `src/components/profile/ProfileBentoGrid.tsx` — Replaced with new `ProfileVibeBoard.tsx`
+- `src/components/profile/EngagementScore.tsx` — Integrated into hero card as inline element
 
-**Wave 2 — Call controls:**
-Two-tier dock, long-press end, slide-to-answer, draggable PiP
+**New files:**
+- `src/components/profile/ProfileHeroCard.tsx` — The identity card component with parallax, avatar, stats capsules, action buttons
+- `src/components/profile/ProfileVibeBoard.tsx` — Vertical stack of colorful "currently" / "top friends" / "DNA" cards
+- `src/components/profile/ProfileAboutMe.tsx` — Bio + interest pills + personal fields
+- `src/components/profile/ProfileColorPicker.tsx` — Color selection UI for edit mode
 
-**Wave 3 — Call delight:**
-Audio visualizer, in-call reactions
-
-### What Stays the Same
-- All camera functionality (filters, AR, zoom, timer, flash, recording)
-- P2P + LiveKit dual-mode calling architecture
-- Safety scanning, content moderation
-- Sound/music picker integration
-- All existing hooks and backend
+**What stays the same:**
+- All data fetching hooks (useProfileByUsername, usePosts, useFollow, etc.)
+- Locker system, badges, cosmetics (frames, effects, name colors)
+- Moderator tools and dialogs
+- Post grid content and clips grid
+- Profile themes from the locker still work (override the color system)
 
