@@ -75,7 +75,7 @@ export function GalleryDrawer({ open, onClose, onSelect, multiple = false }: Gal
               onDragEnd={handleDragEnd}
               style={{ y, opacity }}
               className="fixed bottom-0 left-0 right-0 z-[211] rounded-t-3xl overflow-hidden"
-              style2={{ backgroundColor: 'hsl(var(--card))' }}
+              
             >
               <div className="bg-card border-t border-border rounded-t-3xl">
                 {/* Handle */}
