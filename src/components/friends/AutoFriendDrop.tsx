@@ -283,10 +283,21 @@ export function AutoFriendDrop() {
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fade-in">
           <button
             onClick={handleBump}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-border/60 bg-card/95 backdrop-blur-lg shadow-lg active:scale-[0.97] transition-transform"
+            className="group relative flex items-center gap-2.5 px-5 py-3 rounded-full active:scale-[0.95] transition-all duration-200"
           >
-            <QrCode className="h-4 w-4 text-primary" />
-            <span className="text-xs font-semibold text-foreground">Friend Link</span>
+            {/* Animated gradient border */}
+            <span className="absolute inset-0 rounded-full bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] animate-[aura-shift_3s_ease-in-out_infinite] opacity-80" />
+            {/* Inner fill */}
+            <span className="absolute inset-[1.5px] rounded-full bg-card/95 backdrop-blur-xl" />
+            {/* Glow */}
+            <span className="absolute inset-0 rounded-full bg-primary/10 blur-lg group-hover:bg-primary/20 transition-colors" />
+            {/* Content */}
+            <QrCode className="relative z-10 h-4 w-4 text-primary" />
+            <span className="relative z-10 text-xs font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Friend Link
+            </span>
+            {/* Pulse ring */}
+            <span className="absolute inset-0 rounded-full border border-primary/30 animate-ping opacity-20" />
           </button>
         </div>
       )}
