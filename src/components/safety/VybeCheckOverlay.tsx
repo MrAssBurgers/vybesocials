@@ -1,0 +1,200 @@
+import { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Shield, Check, Rocket, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useContentSafety, type SafetyResult } from '@/hooks/useContentSafety';
+import { SafetyScanProgress } from '@/components/safety/SafetyScanProgress';
+import { AgeRatingSelector, type AgeRating } from './AgeRatingSelector';
+import { triggerHaptic } from '@/lib/haptics';
+import { shouldBypassSafety } from '@/lib/ownerBypass';
+
+type Phase = 'scanning' | 'rating' | 'ready' | 'blocked';
+
+interface VybeCheckOverlayProps {
+  files: File[];
+  onComplete: (ageRating: AgeRating) => void;
+  onBlocked: (message: string, categories: string[]) => void;
+  onCancel: () => void;
+}
+
+export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: VybeCheckOverlayProps) {
+  const [phase, setPhase] = useState<Phase>('scanning');
+  const [ageRating, setAgeRating] = useState<AgeRating>('safe');
+  const contentSafety = useContentSafety();
+
+  // Run scan on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    const runScan = async () => {
+      // Owner bypass
+      const isOwner = await shouldBypassSafety();
+      if (isOwner) {
+        if (!cancelled) setPhase('rating');
+        return;
+      }
+
+      if (!files.length || !files[0]) {
+        if (!cancelled) setPhase('rating');
+        return;
+      }
+
+      let result;
+      if (files[0].type.startsWith('video/')) {
+        result = await contentSafety.scanVideo(files[0]);
+      } else {
+        result = await contentSafety.scanImage(files[0]);
+      }
+
+      if (cancelled) return;
+
+      if (result.result === 'blocked') {
+        setPhase('blocked');
+        onBlocked(result.message || 'Content violates community guidelines', result.categories || []);
+      } else {
+        triggerHaptic('light');
+        setPhase('rating');
+      }
+    };
+
+    runScan();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRatingSelect = useCallback((rating: AgeRating) => {
+    setAgeRating(rating);
+    triggerHaptic('medium');
+    setTimeout(() => setPhase('ready'), 300);
+  }, []);
+
+  const handlePublish = useCallback(() => {
+    triggerHaptic('heavy');
+    onComplete(ageRating);
+  }, [ageRating, onComplete]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[260] flex flex-col items-center justify-center bg-background/95 backdrop-blur-md"
+    >
+      {/* Close button */}
+      <button
+        onClick={onCancel}
+        className="absolute top-4 right-4 p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors z-10"
+      >
+        <X className="w-5 h-5" />
+      </button>
+
+      <AnimatePresence mode="wait">
+        {/* Phase 1: Scanning */}
+        {phase === 'scanning' && (
+          <motion.div
+            key="scanning"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, y: -20 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="w-80 space-y-6 text-center"
+          >
+            {/* Animated shield with ring */}
+            <div className="relative w-20 h-20 mx-auto">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                className="absolute inset-0 rounded-full border-2 border-primary/30 border-t-primary"
+              />
+              <div className="absolute inset-2 rounded-full bg-primary/10 flex items-center justify-center">
+                <Shield className="h-8 w-8 text-primary" />
+              </div>
+            </div>
+
+            <div>
+              <p className="text-foreground font-bold text-lg mb-1">Scanning your VYBE...</p>
+              <p className="text-muted-foreground text-sm">
+                {contentSafety.message || 'Checking content safety'}
+              </p>
+            </div>
+
+            <SafetyScanProgress
+              phase={contentSafety.scanPhase}
+              isVideo={files[0]?.type.startsWith('video/')}
+            />
+          </motion.div>
+        )}
+
+        {/* Phase 2: Age Rating */}
+        {phase === 'rating' && (
+          <motion.div
+            key="rating"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, y: -20 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full px-6"
+          >
+            <AgeRatingSelector onSelect={handleRatingSelect} />
+          </motion.div>
+        )}
+
+        {/* Phase 3: Ready */}
+        {phase === 'ready' && (
+          <motion.div
+            key="ready"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="w-80 space-y-8 text-center"
+          >
+            {/* Success check */}
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.15, type: 'spring', stiffness: 300, damping: 20 }}
+              className="w-20 h-20 mx-auto rounded-full bg-emerald-500/15 flex items-center justify-center"
+            >
+              <Check className="w-10 h-10 text-emerald-400" />
+            </motion.div>
+
+            <div>
+              <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+                className="text-foreground font-bold text-xl"
+              >
+                Your VYBE is ready!
+              </motion.p>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.35 }}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border"
+                style={{
+                  borderColor: ageRating === 'safe' ? 'rgb(52 211 153 / 0.5)' : ageRating === '13+' ? 'rgb(251 191 36 / 0.5)' : 'rgb(248 113 113 / 0.5)',
+                  color: ageRating === 'safe' ? 'rgb(52 211 153)' : ageRating === '13+' ? 'rgb(251 191 36)' : 'rgb(248 113 113)',
+                  backgroundColor: ageRating === 'safe' ? 'rgb(52 211 153 / 0.1)' : ageRating === '13+' ? 'rgb(251 191 36 / 0.1)' : 'rgb(248 113 113 / 0.1)',
+                }}
+              >
+                Rated {ageRating === 'safe' ? 'Safe · All ages' : ageRating}
+              </motion.div>
+            </div>
+
+            <motion.button
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.45 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handlePublish}
+              className="w-full py-3.5 rounded-2xl bg-primary text-primary-foreground font-semibold text-base flex items-center justify-center gap-2 hover:brightness-110 transition-all"
+            >
+              <Rocket className="w-5 h-5" />
+              Publish
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
