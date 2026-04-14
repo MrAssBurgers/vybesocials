@@ -237,9 +237,17 @@ export default function NotificationsPage() {
   const unreadNotifications = notifications?.filter(n => !n.read) || [];
   const readNotifications = notifications?.filter(n => n.read) || [];
   
+  // Priority notifications: DMs, friend requests, mentions — not passive likes/follows
+  const priorityTypes = new Set(['friend_request', 'mention', 'reply', 'dm', 'comment']);
+  const priorityNotifications = useMemo(() => 
+    (notifications || []).filter(n => priorityTypes.has(n.type) || !n.read),
+    [notifications]
+  );
+  
   // Group notifications for better UX
   const groupedUnread = useMemo(() => groupNotifications(unreadNotifications), [unreadNotifications]);
   const groupedRead = useMemo(() => groupNotifications(readNotifications), [readNotifications]);
+  const groupedPriority = useMemo(() => groupNotifications(priorityNotifications), [priorityNotifications]);
 
   const handleAcceptRequest = (requestId: string) => {
     respondToRequest.mutate({ requestId, action: 'accept' });
@@ -302,6 +310,13 @@ export default function NotificationsPage() {
               className="flex-1 h-full rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
             >
               All
+            </TabsTrigger>
+            <TabsTrigger 
+              value="priority" 
+              className="flex-1 h-full rounded-lg text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-1" />
+              Priority
             </TabsTrigger>
             <TabsTrigger 
               value="requests" 
