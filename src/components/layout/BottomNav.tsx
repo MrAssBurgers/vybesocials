@@ -612,7 +612,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                             className="absolute inset-0"
                             style={{
                               background: 'linear-gradient(90deg, transparent 0%, transparent 30%, rgba(255,255,255,0.06) 45%, rgba(255,255,255,0.06) 55%, transparent 70%, transparent 100%)',
-                              animation: 'shimmer-sweep 4s linear infinite',
+                              animation: 'shimmer-sweep 4.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                             }}
                           />
                         </div>
