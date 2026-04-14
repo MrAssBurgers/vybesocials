@@ -5,9 +5,9 @@ import { ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown, Check, 
 import { cn } from '@/lib/utils';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
-import { useContentSafety } from '@/hooks/useContentSafety';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
-import { SafetyScanProgress } from '@/components/safety/SafetyScanProgress';
+import { VybeCheckOverlay } from '@/components/safety/VybeCheckOverlay';
+import { type AgeRating } from '@/components/safety/AgeRatingSelector';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { AIPhotoEnhancer } from '@/components/ai/AIPhotoEnhancer';
 import { PublishCelebration } from './PublishCelebration';
@@ -37,7 +37,6 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const createPost = useCreatePost();
-  const contentSafety = useContentSafety();
   const captionRef = useRef<HTMLTextAreaElement>(null);
 
   const [caption, setCaption] = useState('');
@@ -47,7 +46,7 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
   const [uploadProgress, setUploadProgress] = useState(0);
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');
   const [showVisibility, setShowVisibility] = useState(false);
-  const [showSafetyScanner, setShowSafetyScanner] = useState(false);
+  const [showVybeCheck, setShowVybeCheck] = useState(false);
   const [vybeCheckFailed, setVybeCheckFailed] = useState(false);
   const [scanMessage, setScanMessage] = useState('');
   const [scanCategories, setScanCategories] = useState<string[]>([]);
@@ -90,32 +89,29 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
     if (!canSubmit || !user) return;
     if (tags.length === 0) { toast.error('Add at least one tag'); return; }
 
-    // Run AI safety scan at post time
+    // Open Vybe Check overlay for media posts, skip for text-only
     if (files.length > 0 && files[0]) {
-      setShowCelebration(true);
-      setIsUploading(true);
-      setUploadProgress(0);
-      setShowSafetyScanner(true);
-
-      let scanResult;
-      if (files[0].type.startsWith('video/')) {
-        scanResult = await contentSafety.scanVideo(files[0]);
-      } else {
-        scanResult = await contentSafety.scanImage(files[0]);
-      }
-
-      setShowSafetyScanner(false);
-
-      if (scanResult.result === 'blocked') {
-        setIsUploading(false);
-        setShowCelebration(false);
-        setScanMessage(scanResult.message || 'Content violates community guidelines');
-        setScanCategories(scanResult.categories || []);
-        setVybeCheckFailed(true);
-        return;
-      }
+      setShowVybeCheck(true);
+      return;
     }
 
+    // Text-only posts skip safety scan, go straight to upload
+    await doPublish('safe');
+  };
+
+  const handleVybeCheckComplete = async (ageRating: AgeRating) => {
+    setShowVybeCheck(false);
+    await doPublish(ageRating);
+  };
+
+  const handleVybeCheckBlocked = (message: string, categories: string[]) => {
+    setShowVybeCheck(false);
+    setScanMessage(message);
+    setScanCategories(categories);
+    setVybeCheckFailed(true);
+  };
+
+  const doPublish = async (ageRating: AgeRating) => {
     setShowCelebration(true);
     setIsUploading(true);
     setUploadProgress(0);
@@ -130,6 +126,7 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
         mediaFile: files.length <= 1 ? files[0] || undefined : undefined,
         mediaFiles: files.length > 1 ? files : undefined,
         caption, type: contentType, tags,
+        age_rating: ageRating,
       });
       if (pi) clearInterval(pi);
       setUploadProgress(100);
@@ -163,25 +160,15 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
-      {/* Safety scan overlay */}
+      {/* Vybe Check Overlay — 3-phase safety + age rating */}
       <AnimatePresence>
-        {showSafetyScanner && contentSafety.isScanning && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[260] flex items-center justify-center bg-background/95 backdrop-blur-sm"
-          >
-            <div className="w-80 space-y-6 text-center">
-              <motion.div animate={{ rotate: 360 }} transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-                <Shield className="h-8 w-8 text-primary" />
-              </motion.div>
-              <div>
-                <p className="text-foreground font-bold text-lg mb-1">Vybe Check</p>
-                <p className="text-muted-foreground text-sm">{contentSafety.message || 'Scanning your content...'}</p>
-              </div>
-              <SafetyScanProgress phase={contentSafety.scanPhase} isVideo={files[0]?.type.startsWith('video/')} />
-            </div>
-          </motion.div>
+        {showVybeCheck && (
+          <VybeCheckOverlay
+            files={files}
+            onComplete={handleVybeCheckComplete}
+            onBlocked={handleVybeCheckBlocked}
+            onCancel={() => setShowVybeCheck(false)}
+          />
         )}
       </AnimatePresence>
 

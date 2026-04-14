@@ -6900,6 +6900,7 @@ export type Database = {
       }
       posts: {
         Row: {
+          age_rating: string
           ai_confidence: number | null
           ai_override: boolean | null
           author_id: string
@@ -6922,6 +6923,7 @@ export type Database = {
           view_count: number | null
         }
         Insert: {
+          age_rating?: string
           ai_confidence?: number | null
           ai_override?: boolean | null
           author_id: string
@@ -6944,6 +6946,7 @@ export type Database = {
           view_count?: number | null
         }
         Update: {
+          age_rating?: string
           ai_confidence?: number | null
           ai_override?: boolean | null
           author_id?: string
