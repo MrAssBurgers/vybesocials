@@ -59,16 +59,9 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: Vyb
       }
 
       // Check if AI suggested a minimum age rating
-      const scanDetails = contentSafety.scanDetails as any;
-      // The AI result is stored via mergeResults — check for suggested_age_rating
-      // We need to extract from the raw AI response which is in the hook's internal state
-      // For now, we pass through the categories to infer
-      const aiRating = (result as any).suggestedAgeRating;
-      const reasons = (result as any).ageRatingReasons;
-
-      if (aiRating && aiRating !== 'safe') {
-        setAiMinRating(aiRating);
-        setAiReasons(reasons || []);
+      if (result.suggestedAgeRating && result.suggestedAgeRating !== 'safe') {
+        setAiMinRating(result.suggestedAgeRating);
+        setAiReasons(result.ageRatingReasons || []);
       }
 
       triggerHaptic('light');
