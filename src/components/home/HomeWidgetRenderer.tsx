@@ -1,6 +1,6 @@
-import { memo, type ReactNode } from 'react';
+import { memo, type ReactNode, useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Globe, Dna, Wallet, ShoppingBag, Radio, MapPin } from 'lucide-react';
+import { Sparkles, Globe, Dna, Wallet, ShoppingBag, Radio, MapPin, PenSquare } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
@@ -22,9 +22,59 @@ import { getAdInterval } from '@/components/ads/FeedAdCard';
 import { motion } from 'framer-motion';
 import { CreatorAnalytics } from '@/components/analytics/CreatorAnalytics';
 import { BattlePassWidget } from '@/components/gamification/BattlePassWidget';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/auth';
 
 const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
 const MemoizedPostCard = memo(PostCard);
+
+/* ── Lazy-mount wrapper using IntersectionObserver ── */
+function LazyWidget({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return <div ref={ref}>{visible ? children : <div className="h-24" />}</div>;
+}
+
+/* ── "Post your first VYBE" CTA for new users ── */
+function FirstPostCTA() {
+  const navigate = useNavigate();
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl bg-gradient-to-br from-primary/10 via-accent/5 to-primary/10 border border-primary/20 p-5 text-center"
+    >
+      <div className="w-12 h-12 rounded-full bg-primary/15 flex items-center justify-center mx-auto mb-3">
+        <PenSquare className="h-5 w-5 text-primary" />
+      </div>
+      <h3 className="text-sm font-bold mb-1">Share your first VYBE ✨</h3>
+      <p className="text-xs text-muted-foreground mb-4 max-w-[200px] mx-auto">
+        Post a photo, video, or thought to get started
+      </p>
+      <Button
+        onClick={() => navigate('/create')}
+        className="rounded-full px-6 h-9 text-sm"
+      >
+        Create Post
+      </Button>
+    </motion.div>
+  );
+}
+
+/* ── Widgets that load eagerly (above fold) ── */
+const EAGER_WIDGETS = new Set(['greeting', 'ai_brief', 'stories', 'feed']);
 
 interface Props {
   customizerOpen: boolean;
