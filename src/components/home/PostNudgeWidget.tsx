@@ -14,9 +14,9 @@ export const PostNudgeWidget = memo(function PostNudgeWidget() {
   const [dismissed, setDismissed] = useState(false);
 
   // Check if user posted in last 3 days
-  const { data: hasRecentPost } = useQuery({
+  const { data: hasRecentPost } = useQuery<boolean>({
     queryKey: ['recent-post-check', profile?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<boolean> => {
       if (!profile?.id) return true;
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
       const { count } = await supabase
