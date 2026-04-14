@@ -1056,7 +1056,7 @@ export function GlobalCallOverlay() {
                 )}
               </div>
             </div>
-          )
+          )}
 
           {/* Header */}
           <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" style={{ paddingTop: 'env(safe-area-inset-top)' }} onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave} onTouchStart={showControlsTemporarily}>
