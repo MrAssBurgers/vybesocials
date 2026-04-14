@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navVisibility } from '@/lib/navVisibility';
 import { useQueryClient } from '@tanstack/react-query';
+import { AICommentSuggestions } from '@/components/ai/AICommentSuggestions';
 
 interface CommentSheetProps {
   postId: string;
@@ -304,6 +305,13 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {/* AI Comment Suggestions */}
+                <div className="px-1 mb-2">
+                  <AICommentSuggestions
+                    onSelectComment={(comment) => setText(comment)}
+                  />
+                </div>
 
                 {/* Input row */}
                 <div className="flex items-end gap-2">

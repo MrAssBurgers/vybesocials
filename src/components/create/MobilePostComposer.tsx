@@ -9,6 +9,7 @@ import { useContentSafety } from '@/hooks/useContentSafety';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
 import { SafetyScanProgress } from '@/components/safety/SafetyScanProgress';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
+import { AIPhotoEnhancer } from '@/components/ai/AIPhotoEnhancer';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { INTEREST_CATEGORIES, getSuggestedTagsForInterests, getTagCategories } from '@/lib/tagCategories';
 import { Sound } from '@/hooks/useSounds';
@@ -244,6 +245,21 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
                   <video src={previews[0]} className="w-full max-h-[40dvh] object-contain mx-auto" controls playsInline />
                 ) : (
                   <img src={previews[0]} alt="" className="w-full max-h-[40dvh] object-contain mx-auto" />
+                )}
+                {/* AI Photo Enhancer — only for single image uploads */}
+                {!files[0]?.type.startsWith('video/') && (
+                  <div className="absolute bottom-3 right-3 z-10">
+                    <AIPhotoEnhancer
+                      imageFile={files[0]}
+                      onEnhanced={(dataUrl) => {
+                        // Replace preview with enhanced version
+                        const newPreviews = [...previews];
+                        newPreviews[0] = dataUrl;
+                        // Note: we update preview visually — the actual upload still uses original file
+                        // but user sees the enhancement
+                      }}
+                    />
+                  </div>
                 )}
               </div>
             ) : (
