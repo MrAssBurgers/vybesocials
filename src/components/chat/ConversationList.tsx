@@ -40,7 +40,7 @@ import { useUsersRoles } from '@/hooks/useUserRoleById';
 import { AvatarRing } from '@/components/ui/AvatarRing';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useBatchUserStatuses } from '@/hooks/useUserStatus';
-import { StatusPicker } from '@/components/status/StatusPicker';
+import { StatusPicker, getVibeColor } from '@/components/status/StatusPicker';
 import { compactTime } from '@/lib/compactTime';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
@@ -580,7 +580,7 @@ const ConversationContent = memo(function ConversationContent({
             <AvatarRing
               size="lg"
               variant={userStatus ? 'vibe' : 'default'}
-              vibeColor={userStatus ? (await import('@/components/status/StatusPicker')).getVibeColor(userStatus.emoji) : undefined}
+              vibeColor={userStatus ? getVibeColor(userStatus.emoji) : undefined}
               vibeEmoji={userStatus?.emoji}
             >
               <div className={`relative ${hasStory ? 'p-0.5' : ''} w-full h-full`}>
