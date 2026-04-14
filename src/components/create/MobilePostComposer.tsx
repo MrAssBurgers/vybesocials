@@ -46,7 +46,7 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
   const [uploadProgress, setUploadProgress] = useState(0);
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');
   const [showVisibility, setShowVisibility] = useState(false);
-  const [showSafetyScanner, setShowSafetyScanner] = useState(false);
+  const [showVybeCheck, setShowVybeCheck] = useState(false);
   const [vybeCheckFailed, setVybeCheckFailed] = useState(false);
   const [scanMessage, setScanMessage] = useState('');
   const [scanCategories, setScanCategories] = useState<string[]>([]);
