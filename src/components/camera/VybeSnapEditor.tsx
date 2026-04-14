@@ -2,15 +2,12 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { 
   X, Type, Smile, Pencil, Check, Undo, Trash2, 
-  Send, AlignCenter, AlignLeft, AlignRight, RotateCcw
+  Send, Download, ArrowLeft
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
 
 type TextStyle = 'classic' | 'glow' | 'outline' | 'background' | 'neon';
-type TextAlign = 'left' | 'center' | 'right';
 
 interface TextOverlay {
   id: string;
@@ -22,7 +19,6 @@ interface TextOverlay {
   rotation: number;
   scale: number;
   style: TextStyle;
-  align: TextAlign;
 }
 
 interface DrawPath {
@@ -41,10 +37,15 @@ interface VybeSnapEditorProps {
 
 const VYBE_COLORS = [
   '#ffffff', '#000000', '#3B82F6', '#8B5CF6', '#EC4899', 
-  '#F97316', '#10B981', '#FACC15', '#14B8A6', '#EF4444'
+  '#F97316', '#10B981', '#FACC15', '#14B8A6', '#EF4444',
+  '#6366F1', '#D946EF', '#0EA5E9', '#F43F5E'
 ];
 
-const STICKERS = ['✨', '💜', '🔥', '💯', '⚡', '🎉', '💖', '🙌', '🌟', '💫', '🎵', '🦋', '👀', '😍', '🤩'];
+const STICKERS = [
+  '✨', '💜', '🔥', '💯', '⚡', '🎉', '💖', '🙌', 
+  '🌟', '💫', '🎵', '🦋', '👀', '😍', '🤩', '😂',
+  '🥺', '💀', '🫶', '❤️‍🔥', '🥵', '😈', '🤯', '🫠'
+];
 
 const TEXT_STYLES: { id: TextStyle; label: string }[] = [
   { id: 'classic', label: 'Classic' },
@@ -61,40 +62,56 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
   const [currentText, setCurrentText] = useState('');
   const [currentColor, setCurrentColor] = useState('#ffffff');
   const [currentStyle, setCurrentStyle] = useState<TextStyle>('classic');
-  const [currentAlign, setCurrentAlign] = useState<TextAlign>('center');
   const [isTextInputOpen, setIsTextInputOpen] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>([]);
-  const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+  const [caption, setCaption] = useState('');
+  const [isCaptionFocused, setIsCaptionFocused] = useState(false);
+  const [dragTrashVisible, setDragTrashVisible] = useState(false);
+  const [dragOverTrash, setDragOverTrash] = useState(false);
+  const [colorPickerY, setColorPickerY] = useState(0.5);
   
   const containerRef = useRef<HTMLDivElement>(null);
-  const textInputRef = useRef<HTMLTextAreaElement>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
+  const captionInputRef = useRef<HTMLInputElement>(null);
+  const colorBarRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Focus text input when opening
   useEffect(() => {
     if (isTextInputOpen) {
-      setTimeout(() => textInputRef.current?.focus(), 100);
+      setTimeout(() => textInputRef.current?.focus(), 150);
     }
   }, [isTextInputOpen]);
+
+  // Derive color from vertical position
+  const getColorFromY = (y: number): string => {
+    const idx = Math.floor(y * (VYBE_COLORS.length - 1));
+    return VYBE_COLORS[Math.max(0, Math.min(VYBE_COLORS.length - 1, idx))];
+  };
+
+  const handleColorBarTouch = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    const bar = colorBarRef.current;
+    if (!bar) return;
+    const rect = bar.getBoundingClientRect();
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+    setColorPickerY(y);
+    setCurrentColor(getColorFromY(y));
+  }, []);
 
   // Get text style CSS
   const getTextStyleCSS = (style: TextStyle, color: string): React.CSSProperties => {
     switch (style) {
       case 'glow':
-        return {
-          textShadow: `0 0 10px ${color}, 0 0 20px ${color}, 0 0 30px ${color}`,
-        };
+        return { textShadow: `0 0 10px ${color}, 0 0 20px ${color}, 0 0 30px ${color}` };
       case 'outline':
-        return {
-          WebkitTextStroke: '2px black',
-          textShadow: 'none',
-        };
+        return { WebkitTextStroke: '2px black', textShadow: 'none' };
       case 'background':
         return {
           backgroundColor: color,
           color: color === '#ffffff' || color === '#FACC15' ? '#000000' : '#ffffff',
-          padding: '8px 16px',
+          padding: '6px 14px',
           borderRadius: '8px',
           textShadow: 'none',
         };
@@ -104,9 +121,7 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
           color: '#fff',
         };
       default:
-        return {
-          textShadow: '2px 2px 8px rgba(0,0,0,0.8)',
-        };
+        return { textShadow: '2px 2px 8px rgba(0,0,0,0.8)' };
     }
   };
 
@@ -117,14 +132,11 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
     setTextOverlays(prev => [...prev, {
       id: crypto.randomUUID(),
       text: currentText,
-      x: 50,
-      y: 40,
+      x: 50, y: 40,
       color: currentColor,
       fontSize: 28,
-      rotation: 0,
-      scale: 1,
+      rotation: 0, scale: 1,
       style: currentStyle,
-      align: currentAlign,
     }]);
     setCurrentText('');
     setIsTextInputOpen(false);
@@ -137,14 +149,12 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
     setTextOverlays(prev => [...prev, {
       id: crypto.randomUUID(),
       text: emoji,
-      x: 50,
-      y: 50,
+      x: 30 + Math.random() * 40,
+      y: 30 + Math.random() * 40,
       color: '#ffffff',
       fontSize: 56,
-      rotation: 0,
-      scale: 1,
+      rotation: 0, scale: 1,
       style: 'classic',
-      align: 'center',
     }]);
   };
 
@@ -182,146 +192,161 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
     setCurrentPath([]);
   };
 
-  // Overlay drag handler
+  // Overlay drag
   const handleDrag = useCallback((id: string, info: PanInfo) => {
     const container = containerRef.current;
     if (!container) return;
-    
     const rect = container.getBoundingClientRect();
     
     setTextOverlays(prev => prev.map(overlay => {
       if (overlay.id !== id) return overlay;
-      
       const deltaXPercent = (info.delta.x / rect.width) * 100;
       const deltaYPercent = (info.delta.y / rect.height) * 100;
-      
       return {
         ...overlay,
         x: Math.min(95, Math.max(5, overlay.x + deltaXPercent)),
         y: Math.min(95, Math.max(5, overlay.y + deltaYPercent)),
       };
     }));
+
+    // Check if near trash zone (bottom 15%)
+    const container2 = containerRef.current?.getBoundingClientRect();
+    if (container2) {
+      const absY = info.point.y;
+      const threshold = container2.bottom - container2.height * 0.15;
+      setDragOverTrash(absY > threshold);
+    }
   }, []);
 
-  // Delete overlay
-  const deleteOverlay = (id: string) => {
+  const handleDragStart = useCallback(() => {
+    setDragTrashVisible(true);
+  }, []);
+
+  const handleDragEnd = useCallback((id: string) => {
+    if (dragOverTrash) {
+      haptics.impact();
+      setTextOverlays(prev => prev.filter(o => o.id !== id));
+    }
+    setDragTrashVisible(false);
+    setDragOverTrash(false);
+  }, [dragOverTrash]);
+
+  const undoDrawing = () => { haptics.impact(); setDrawings(prev => prev.slice(0, -1)); };
+  const clearAll = () => { haptics.impact(); setTextOverlays([]); setDrawings([]); };
+
+  // Tap on media to open text input
+  const handleMediaTap = (e: React.MouseEvent) => {
+    if (mode === 'draw' || isDrawing || isTextInputOpen || mode === 'sticker') return;
+    e.stopPropagation();
+    setMode('text');
+    setIsTextInputOpen(true);
     haptics.impact();
-    setTextOverlays(prev => prev.filter(o => o.id !== id));
-    setSelectedOverlayId(null);
   };
 
-  // Undo drawing
-  const undoDrawing = () => {
-    haptics.impact();
-    setDrawings(prev => prev.slice(0, -1));
-  };
-
-  // Clear all
-  const clearAll = () => {
-    haptics.impact();
-    setTextOverlays([]);
-    setDrawings([]);
-  };
-
-  // Render final media with overlays
-  const handleSend = useCallback(async () => {
+  // Save to gallery
+  const handleSave = useCallback(async () => {
     haptics.success();
-    
-    if (mediaType === 'video') {
-      // For video, just send URL (overlays would need server-side processing)
-      onSend(mediaUrl);
-      return;
-    }
-    
-    // For photos, render overlays to canvas
-    if (textOverlays.length === 0 && drawings.length === 0) {
-      onSend(mediaUrl);
-      return;
-    }
-    
+    // Render to canvas and download
+    if (mediaType === 'video') return;
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    
     img.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
       const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        onSend(mediaUrl);
-        return;
-      }
-      
+      if (!ctx) return;
       ctx.drawImage(img, 0, 0);
-      
-      // Draw paths
-      drawings.forEach(path => {
-        ctx.beginPath();
-        ctx.strokeStyle = path.color;
-        ctx.lineWidth = path.width * (img.width / 400);
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        
-        path.points.forEach((point, i) => {
-          const x = (point.x / 100) * img.width;
-          const y = (point.y / 100) * img.height;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
+      renderOverlaysToCanvas(ctx, img.width, img.height);
+      const link = document.createElement('a');
+      link.download = `vybe-snap-${Date.now()}.jpg`;
+      link.href = canvas.toDataURL('image/jpeg', 0.92);
+      link.click();
+    };
+    img.src = mediaUrl;
+  }, [mediaUrl, mediaType, textOverlays, drawings]);
+
+  const renderOverlaysToCanvas = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    // Draw paths
+    drawings.forEach(path => {
+      ctx.beginPath();
+      ctx.strokeStyle = path.color;
+      ctx.lineWidth = path.width * (w / 400);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      path.points.forEach((point, i) => {
+        const x = (point.x / 100) * w;
+        const y = (point.y / 100) * h;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       });
-      
-      // Draw text overlays
-      textOverlays.forEach(overlay => {
-        ctx.save();
-        const x = (overlay.x / 100) * img.width;
-        const y = (overlay.y / 100) * img.height;
-        const scaledFontSize = overlay.fontSize * (img.width / 400) * overlay.scale;
-        
-        ctx.translate(x, y);
-        ctx.rotate((overlay.rotation * Math.PI) / 180);
-        
-        ctx.font = `bold ${scaledFontSize}px sans-serif`;
-        ctx.textAlign = overlay.align;
-        ctx.textBaseline = 'middle';
+      ctx.stroke();
+    });
+    // Draw text overlays
+    textOverlays.forEach(overlay => {
+      ctx.save();
+      const x = (overlay.x / 100) * w;
+      const y = (overlay.y / 100) * h;
+      const scaledFontSize = overlay.fontSize * (w / 400) * overlay.scale;
+      ctx.translate(x, y);
+      ctx.rotate((overlay.rotation * Math.PI) / 180);
+      ctx.font = `bold ${scaledFontSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = overlay.color;
+      if (overlay.style === 'glow' || overlay.style === 'neon') {
+        ctx.shadowColor = overlay.color; ctx.shadowBlur = 20;
+      } else if (overlay.style === 'background') {
+        const metrics = ctx.measureText(overlay.text);
+        const padding = scaledFontSize * 0.3;
         ctx.fillStyle = overlay.color;
-        
-        // Apply style effects
-        if (overlay.style === 'glow' || overlay.style === 'neon') {
-          ctx.shadowColor = overlay.color;
-          ctx.shadowBlur = 20;
-        } else if (overlay.style === 'background') {
-          const metrics = ctx.measureText(overlay.text);
-          const padding = scaledFontSize * 0.3;
-          ctx.fillStyle = overlay.color;
-          ctx.fillRect(
-            -metrics.width / 2 - padding,
-            -scaledFontSize / 2 - padding / 2,
-            metrics.width + padding * 2,
-            scaledFontSize + padding
-          );
-          ctx.fillStyle = overlay.color === '#ffffff' || overlay.color === '#FACC15' ? '#000' : '#fff';
-        } else if (overlay.style === 'outline') {
-          ctx.strokeStyle = '#000';
-          ctx.lineWidth = 3;
-          ctx.strokeText(overlay.text, 0, 0);
-        } else {
-          ctx.shadowColor = 'rgba(0,0,0,0.8)';
-          ctx.shadowBlur = 8;
-          ctx.shadowOffsetX = 2;
-          ctx.shadowOffsetY = 2;
-        }
-        
-        ctx.fillText(overlay.text, 0, 0);
-        ctx.restore();
-      });
-      
+        ctx.fillRect(-metrics.width / 2 - padding, -scaledFontSize / 2 - padding / 2, metrics.width + padding * 2, scaledFontSize + padding);
+        ctx.fillStyle = overlay.color === '#ffffff' || overlay.color === '#FACC15' ? '#000' : '#fff';
+      } else if (overlay.style === 'outline') {
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.strokeText(overlay.text, 0, 0);
+      } else {
+        ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2;
+      }
+      ctx.fillText(overlay.text, 0, 0);
+      ctx.restore();
+    });
+    // Draw caption
+    if (caption.trim()) {
+      ctx.save();
+      const capFontSize = 18 * (w / 400);
+      ctx.font = `500 ${capFontSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(0, h - capFontSize * 2.5, w, capFontSize * 2.5);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(caption, w / 2, h - capFontSize * 0.7);
+      ctx.restore();
+    }
+  };
+
+  // Send handler
+  const handleSend = useCallback(async () => {
+    haptics.success();
+    if (mediaType === 'video') { onSend(mediaUrl); return; }
+    if (textOverlays.length === 0 && drawings.length === 0 && !caption.trim()) {
+      onSend(mediaUrl); return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width; canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { onSend(mediaUrl); return; }
+      ctx.drawImage(img, 0, 0);
+      renderOverlaysToCanvas(ctx, img.width, img.height);
       onSend(canvas.toDataURL('image/jpeg', 0.92));
     };
-    
     img.onerror = () => onSend(mediaUrl);
     img.src = mediaUrl;
-  }, [mediaUrl, mediaType, textOverlays, drawings, onSend]);
+  }, [mediaUrl, mediaType, textOverlays, drawings, caption, onSend]);
+
+  const hasContent = textOverlays.length > 0 || drawings.length > 0;
 
   return (
     <motion.div
@@ -330,42 +355,122 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[200] bg-black flex flex-col"
     >
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-20 p-4 flex items-center justify-between safe-area-inset-top bg-gradient-to-b from-black/70 to-transparent">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={onCancel}
-          className="text-white bg-black/40 rounded-full backdrop-blur-sm"
-        >
-          <X className="h-6 w-6" />
-        </Button>
-        
-        <div className="flex gap-2">
-          {drawings.length > 0 && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={undoDrawing}
-              className="text-white bg-black/40 rounded-full backdrop-blur-sm"
-            >
-              <Undo className="h-5 w-5" />
-            </Button>
-          )}
-          {(textOverlays.length > 0 || drawings.length > 0) && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={clearAll}
-              className="text-white bg-black/40 rounded-full backdrop-blur-sm"
-            >
-              <Trash2 className="h-5 w-5" />
-            </Button>
-          )}
+      {/* ── Top bar: back + undo/clear ── */}
+      <div className="absolute top-0 left-0 right-0 z-30 safe-area-inset-top">
+        <div className="flex items-center justify-between px-3 pt-3">
+          <button
+            onClick={onCancel}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-md active:scale-95 transition-transform"
+          >
+            <ArrowLeft className="h-5 w-5 text-white" />
+          </button>
+          
+          <div className="flex gap-2">
+            {drawings.length > 0 && (
+              <button onClick={undoDrawing} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-md active:scale-95 transition-transform">
+                <Undo className="h-5 w-5 text-white" />
+              </button>
+            )}
+            {hasContent && (
+              <button onClick={clearAll} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-md active:scale-95 transition-transform">
+                <Trash2 className="h-5 w-5 text-white" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
-      
-      {/* Media preview with overlays */}
+
+      {/* ── Right-side tool strip ── */}
+      <AnimatePresence>
+        {!isTextInputOpen && mode !== 'sticker' && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-3"
+          >
+            {/* Text tool */}
+            <button
+              onClick={() => { setMode('text'); setIsTextInputOpen(true); haptics.impact(); }}
+              className={cn(
+                "w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all active:scale-90",
+                mode === 'text' ? "bg-white text-black" : "bg-black/30 text-white"
+              )}
+            >
+              <Type className="h-5 w-5" />
+            </button>
+
+            {/* Sticker tool */}
+            <button
+              onClick={() => { setMode(mode === 'sticker' ? 'none' : 'sticker'); haptics.impact(); }}
+              className={cn(
+                "w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all active:scale-90",
+                mode === 'sticker' ? "bg-white text-black" : "bg-black/30 text-white"
+              )}
+            >
+              <Smile className="h-5 w-5" />
+            </button>
+
+            {/* Draw tool */}
+            <button
+              onClick={() => { setMode(mode === 'draw' ? 'none' : 'draw'); haptics.impact(); }}
+              className={cn(
+                "w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md transition-all active:scale-90",
+                mode === 'draw' ? "bg-white text-black" : "bg-black/30 text-white"
+              )}
+            >
+              <Pencil className="h-5 w-5" />
+            </button>
+
+            {/* Save */}
+            {mediaType === 'photo' && (
+              <button
+                onClick={handleSave}
+                className="w-11 h-11 rounded-full flex items-center justify-center bg-black/30 backdrop-blur-md text-white active:scale-90 transition-all"
+              >
+                <Download className="h-5 w-5" />
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Vertical color picker (right edge, when in draw mode) ── */}
+      <AnimatePresence>
+        {mode === 'draw' && !isTextInputOpen && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="absolute right-16 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center"
+          >
+            <div
+              ref={colorBarRef}
+              className="w-6 h-48 rounded-full overflow-hidden relative cursor-pointer"
+              style={{
+                background: `linear-gradient(to bottom, ${VYBE_COLORS.join(', ')})`,
+              }}
+              onMouseDown={handleColorBarTouch}
+              onMouseMove={(e) => { if (e.buttons === 1) handleColorBarTouch(e); }}
+              onTouchStart={handleColorBarTouch}
+              onTouchMove={handleColorBarTouch}
+            >
+              {/* Indicator dot */}
+              <div
+                className="absolute left-1/2 -translate-x-1/2 w-7 h-7 rounded-full border-[3px] border-white shadow-lg pointer-events-none"
+                style={{
+                  top: `${colorPickerY * 100}%`,
+                  transform: `translate(-50%, -50%)`,
+                  backgroundColor: currentColor,
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Media preview ── */}
       <div 
         ref={containerRef}
         className="flex-1 relative overflow-hidden"
@@ -373,33 +478,12 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        onClick={(e) => {
-          // Tap-to-text: open frosted glass text input when tapping the media area
-          if (mode === 'none' && !isDrawing && textOverlays.length === 0 && !selectedOverlayId) {
-            e.stopPropagation();
-            setMode('text');
-            setIsTextInputOpen(true);
-            haptics.impact();
-          }
-        }}
+        onClick={handleMediaTap}
       >
         {mediaType === 'photo' ? (
-          <img 
-            src={mediaUrl} 
-            alt="Captured" 
-            className="w-full h-full object-contain"
-            draggable={false}
-          />
+          <img src={mediaUrl} alt="Captured" className="w-full h-full object-contain" draggable={false} />
         ) : (
-          <video 
-            ref={videoRef}
-            src={mediaUrl} 
-            className="w-full h-full object-contain"
-            autoPlay 
-            loop 
-            muted={false}
-            playsInline
-          />
+          <video ref={videoRef} src={mediaUrl} className="w-full h-full object-contain" autoPlay loop muted={false} playsInline />
         )}
         
         {/* Drawings SVG */}
@@ -408,21 +492,15 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
             <polyline
               key={path.id}
               points={path.points.map(p => `${p.x}%,${p.y}%`).join(' ')}
-              fill="none"
-              stroke={path.color}
-              strokeWidth={path.width}
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              fill="none" stroke={path.color} strokeWidth={path.width}
+              strokeLinecap="round" strokeLinejoin="round"
             />
           ))}
           {currentPath.length > 1 && (
             <polyline
               points={currentPath.map(p => `${p.x}%,${p.y}%`).join(' ')}
-              fill="none"
-              stroke={currentColor}
-              strokeWidth={4}
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              fill="none" stroke={currentColor} strokeWidth={4}
+              strokeLinecap="round" strokeLinejoin="round"
             />
           )}
         </svg>
@@ -433,19 +511,17 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
             key={overlay.id}
             drag
             dragMomentum={false}
+            onDragStart={handleDragStart}
             onDrag={(_, info) => handleDrag(overlay.id, info)}
-            onDoubleClick={() => deleteOverlay(overlay.id)}
-            onClick={() => setSelectedOverlayId(overlay.id === selectedOverlayId ? null : overlay.id)}
-            className={cn(
-              "absolute cursor-move select-none whitespace-nowrap font-bold",
-              selectedOverlayId === overlay.id && "ring-2 ring-primary ring-offset-2 ring-offset-transparent"
-            )}
+            onDragEnd={() => handleDragEnd(overlay.id)}
+            className="absolute cursor-move select-none whitespace-pre-wrap font-bold text-center"
             style={{
               left: `${overlay.x}%`,
               top: `${overlay.y}%`,
               transform: `translate(-50%, -50%) rotate(${overlay.rotation}deg) scale(${overlay.scale})`,
               color: overlay.style === 'background' ? undefined : overlay.color,
               fontSize: overlay.fontSize,
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))',
               ...getTextStyleCSS(overlay.style, overlay.color),
             }}
             whileTap={{ scale: 1.05 }}
@@ -453,185 +529,211 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
             {overlay.text}
           </motion.div>
         ))}
-      </div>
-      
-      {/* Tools panel */}
-      <div className="absolute bottom-0 left-0 right-0 z-20 pb-safe bg-gradient-to-t from-black/90 via-black/70 to-transparent">
-        <AnimatePresence mode="wait">
-          {/* Text input overlay */}
-          {isTextInputOpen && (
+
+        {/* Drag-to-trash zone */}
+        <AnimatePresence>
+          {dragTrashVisible && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="px-4 pb-4 space-y-4"
+              className={cn(
+                "absolute bottom-0 left-0 right-0 h-[15%] flex items-center justify-center transition-colors duration-200",
+                dragOverTrash ? "bg-red-500/50" : "bg-black/30"
+              )}
             >
-              {/* Style selector */}
-              <div className="flex justify-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                {TEXT_STYLES.map(style => (
-                  <button
-                    key={style.id}
-                    onClick={() => setCurrentStyle(style.id)}
-                    className={cn(
-                      "px-4 py-2 rounded-full text-sm font-medium transition-all",
-                      currentStyle === style.id
-                        ? "bg-white text-black"
-                        : "bg-white/20 text-white backdrop-blur-sm"
-                    )}
-                  >
-                    {style.label}
-                  </button>
-                ))}
-              </div>
-              
-              {/* Alignment */}
-              <div className="flex justify-center gap-2">
-                {(['left', 'center', 'right'] as TextAlign[]).map(align => (
-                  <button
-                    key={align}
-                    onClick={() => setCurrentAlign(align)}
-                    className={cn(
-                      "p-2 rounded-full transition-all",
-                      currentAlign === align ? "bg-white text-black" : "bg-white/20 text-white"
-                    )}
-                  >
-                    {align === 'left' && <AlignLeft className="h-5 w-5" />}
-                    {align === 'center' && <AlignCenter className="h-5 w-5" />}
-                    {align === 'right' && <AlignRight className="h-5 w-5" />}
-                  </button>
-                ))}
-              </div>
-              
-              {/* Text input */}
-              <div className="flex gap-2">
-                <textarea
-                  ref={textInputRef}
-                  value={currentText}
-                  onChange={(e) => setCurrentText(e.target.value)}
-                  placeholder="Type something..."
-                  className="flex-1 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl px-4 py-3 text-white placeholder:text-white/50 resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                  rows={2}
-                />
-                <Button 
-                  onClick={addText} 
-                  size="icon" 
-                  className="h-auto bg-gradient-to-r from-primary to-accent rounded-2xl"
-                >
-                  <Check className="h-6 w-6" />
-                </Button>
-              </div>
-            </motion.div>
-          )}
-          
-          {/* Stickers panel */}
-          {mode === 'sticker' && !isTextInputOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="px-4 pb-4"
-            >
-              <div className="flex gap-2 overflow-x-auto py-3 scrollbar-hide">
-                {STICKERS.map(sticker => (
-                  <button
-                    key={sticker}
-                    onClick={() => addSticker(sticker)}
-                    className="text-4xl p-2 hover:scale-125 transition-transform flex-shrink-0"
-                  >
-                    {sticker}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-          
-          {/* Color picker (for text and draw modes) */}
-          {(mode === 'text' || mode === 'draw') && !isTextInputOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="px-4 pb-4"
-            >
-              <div className="flex justify-center gap-3">
-                {VYBE_COLORS.map(color => (
-                  <button
-                    key={color}
-                    onClick={() => setCurrentColor(color)}
-                    className={cn(
-                      "w-8 h-8 rounded-full border-2 transition-transform",
-                      currentColor === color 
-                        ? "scale-125 border-white shadow-lg" 
-                        : "border-white/30"
-                    )}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
+              <Trash2 className={cn(
+                "h-8 w-8 transition-all duration-200",
+                dragOverTrash ? "text-white scale-125" : "text-white/70"
+              )} />
             </motion.div>
           )}
         </AnimatePresence>
-        
-        {/* Tool buttons & Send */}
-        <div className="px-4 pb-6 flex items-center justify-between">
-          <div className="flex gap-3">
-            <Button
-              variant={mode === 'text' ? 'default' : 'ghost'}
-              size="icon"
-              onClick={() => {
-                if (mode === 'text') {
-                  setMode('none');
-                  setIsTextInputOpen(false);
-                } else {
-                  setMode('text');
-                  setIsTextInputOpen(true);
-                }
-              }}
-              className={cn(
-                "rounded-full",
-                mode !== 'text' && "text-white bg-black/40 backdrop-blur-sm"
-              )}
-            >
-              <Type className="h-5 w-5" />
-            </Button>
-            
-            <Button
-              variant={mode === 'sticker' ? 'default' : 'ghost'}
-              size="icon"
-              onClick={() => setMode(mode === 'sticker' ? 'none' : 'sticker')}
-              className={cn(
-                "rounded-full",
-                mode !== 'sticker' && "text-white bg-black/40 backdrop-blur-sm"
-              )}
-            >
-              <Smile className="h-5 w-5" />
-            </Button>
-            
-            <Button
-              variant={mode === 'draw' ? 'default' : 'ghost'}
-              size="icon"
-              onClick={() => setMode(mode === 'draw' ? 'none' : 'draw')}
-              className={cn(
-                "rounded-full",
-                mode !== 'draw' && "text-white bg-black/40 backdrop-blur-sm"
-              )}
-            >
-              <Pencil className="h-5 w-5" />
-            </Button>
-          </div>
-          
-          {/* Send button */}
-          <motion.button
-            onClick={handleSend}
-            className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-primary to-accent text-white font-semibold shadow-lg"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Send className="h-5 w-5" />
-            <span>Send</span>
-          </motion.button>
-        </div>
       </div>
+
+      {/* ── Centered text input (Snapchat-style) ── */}
+      <AnimatePresence>
+        {isTextInputOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-40 flex flex-col items-center justify-center"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                if (currentText.trim()) addText();
+                else { setIsTextInputOpen(false); setMode('none'); }
+              }
+            }}
+          >
+            {/* Dark scrim */}
+            <div className="absolute inset-0 bg-black/50" />
+            
+            {/* Style pills */}
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="relative z-10 flex gap-2 mb-4 overflow-x-auto px-4 scrollbar-hide"
+            >
+              {TEXT_STYLES.map(style => (
+                <button
+                  key={style.id}
+                  onClick={() => setCurrentStyle(style.id)}
+                  className={cn(
+                    "px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap",
+                    currentStyle === style.id
+                      ? "bg-white text-black scale-105"
+                      : "bg-white/15 text-white/80 backdrop-blur-sm"
+                  )}
+                >
+                  {style.label}
+                </button>
+              ))}
+            </motion.div>
+
+            {/* Text input bar */}
+            <motion.div
+              initial={{ opacity: 0, scaleX: 0.8 }}
+              animate={{ opacity: 1, scaleX: 1 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+              className="relative z-10 w-full px-4"
+            >
+              <div className="bg-black/40 backdrop-blur-xl rounded-lg px-4 py-3 flex items-center gap-3">
+                <input
+                  ref={textInputRef}
+                  value={currentText}
+                  onChange={(e) => setCurrentText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') addText(); }}
+                  placeholder="Type something..."
+                  className="flex-1 bg-transparent text-white text-xl font-bold placeholder:text-white/40 focus:outline-none text-center"
+                  style={{
+                    color: currentColor,
+                    ...getTextStyleCSS(currentStyle, currentColor),
+                  }}
+                />
+                <button
+                  onClick={addText}
+                  className="w-9 h-9 rounded-full bg-white flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform"
+                >
+                  <Check className="h-5 w-5 text-black" />
+                </button>
+              </div>
+            </motion.div>
+
+            {/* Vertical color picker */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.15 }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-10"
+            >
+              <div
+                ref={colorBarRef}
+                className="w-6 h-52 rounded-full overflow-hidden relative cursor-pointer"
+                style={{ background: `linear-gradient(to bottom, ${VYBE_COLORS.join(', ')})` }}
+                onMouseDown={handleColorBarTouch}
+                onMouseMove={(e) => { if (e.buttons === 1) handleColorBarTouch(e); }}
+                onTouchStart={handleColorBarTouch}
+                onTouchMove={handleColorBarTouch}
+              >
+                <div
+                  className="absolute left-1/2 -translate-x-1/2 w-7 h-7 rounded-full border-[3px] border-white shadow-lg pointer-events-none"
+                  style={{
+                    top: `${colorPickerY * 100}%`,
+                    transform: 'translate(-50%, -50%)',
+                    backgroundColor: currentColor,
+                  }}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Sticker grid panel ── */}
+      <AnimatePresence>
+        {mode === 'sticker' && !isTextInputOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 60 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 60 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            className="absolute bottom-0 left-0 right-0 z-30 bg-black/70 backdrop-blur-xl rounded-t-3xl pb-safe"
+          >
+            <div className="flex items-center justify-between px-4 pt-4 pb-2">
+              <span className="text-white/60 text-sm font-medium">Stickers</span>
+              <button
+                onClick={() => { setMode('none'); haptics.impact(); }}
+                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"
+              >
+                <X className="h-4 w-4 text-white/70" />
+              </button>
+            </div>
+            <div className="grid grid-cols-6 gap-1 px-3 pb-6 max-h-48 overflow-y-auto scrollbar-hide">
+              {STICKERS.map((sticker, i) => (
+                <button
+                  key={i}
+                  onClick={() => addSticker(sticker)}
+                  className="text-3xl p-2 rounded-xl hover:bg-white/10 active:scale-90 transition-all flex items-center justify-center"
+                >
+                  {sticker}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Bottom: Caption + Send row ── */}
+      <AnimatePresence>
+        {!isTextInputOpen && mode !== 'sticker' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="absolute bottom-0 left-0 right-0 z-20 pb-safe"
+          >
+            <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-12 px-3 pb-4 space-y-2.5">
+              {/* Caption bar */}
+              <div className="relative">
+                <input
+                  ref={captionInputRef}
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  onFocus={() => setIsCaptionFocused(true)}
+                  onBlur={() => setIsCaptionFocused(false)}
+                  placeholder="Add a caption..."
+                  className={cn(
+                    "w-full bg-black/30 backdrop-blur-md rounded-full px-4 py-2.5 text-white text-sm placeholder:text-white/40 focus:outline-none transition-all border",
+                    isCaptionFocused ? "border-white/30" : "border-white/10"
+                  )}
+                />
+              </div>
+
+              {/* Send row */}
+              <div className="flex items-center justify-between">
+                <span className="text-white/50 text-xs font-medium pl-1">VybeSnap</span>
+                
+                <motion.button
+                  onClick={handleSend}
+                  className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/30"
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  animate={{ 
+                    boxShadow: ['0 0 15px hsl(var(--primary) / 0.3)', '0 0 25px hsl(var(--primary) / 0.5)', '0 0 15px hsl(var(--primary) / 0.3)']
+                  }}
+                  transition={{ 
+                    boxShadow: { duration: 2, repeat: Infinity, ease: 'easeInOut' }
+                  }}
+                >
+                  <Send className="h-6 w-6 text-white ml-0.5" />
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
