@@ -95,7 +95,8 @@ export function useNotInterested() {
 }
 
 // Calculate engagement score for ranking
-function calculateEngagementScore(post: any, userInteractions: Map<string, any>): number {
+// dnaFeedBoostPercent: if the post author has a Creator DNA perk, their posts get boosted
+function calculateEngagementScore(post: any, userInteractions: Map<string, any>, dnaFeedBoostPercent = 0): number {
   const baseScore = 100;
   let score = baseScore;
 
@@ -126,6 +127,11 @@ function calculateEngagementScore(post: any, userInteractions: Map<string, any>)
     if (creatorInteractions.likes > 0) score *= 1.3;
     if (creatorInteractions.comments > 0) score *= 1.4;
     if (creatorInteractions.saves > 0) score *= 1.5;
+  }
+
+  // DNA Creator Spotlight perk: boost own posts in discovery
+  if (dnaFeedBoostPercent > 0) {
+    score *= (1 + dnaFeedBoostPercent / 100);
   }
 
   // Penalize if user marked similar content as "not interested"

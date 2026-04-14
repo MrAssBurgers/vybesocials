@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useDNAPerks } from '@/hooks/useDNAPerks';
 
 export interface TokenBalance {
   id: string;
@@ -132,16 +133,21 @@ export function useEarnTokens() {
  */
 export function useTokenReward() {
   const earn = useEarnTokens();
+  const perks = useDNAPerks();
+
+  // Apply DNA token multiplier to all earnings
+  const applyMultiplier = (base: number) => Math.round(base * perks.tokenMultiplier);
 
   return {
-    rewardPost: () => earn.mutate({ amount: TOKEN_RATES.post_created, type: 'post_created', description: 'Created a post' }),
-    rewardComment: () => earn.mutate({ amount: TOKEN_RATES.comment_added, type: 'comment_added', description: 'Added a comment' }),
-    rewardLike: () => earn.mutate({ amount: TOKEN_RATES.like_received, type: 'like_received', description: 'Received a like' }),
-    rewardStreak: (days: number) => earn.mutate({ amount: TOKEN_RATES.streak_bonus * days, type: 'streak_bonus', description: `${days}-day streak bonus` }),
-    rewardChallenge: (name: string) => earn.mutate({ amount: TOKEN_RATES.challenge_completed, type: 'challenge_completed', description: `Completed: ${name}` }),
-    rewardDailyLogin: () => earn.mutate({ amount: TOKEN_RATES.daily_login, type: 'daily_login', description: 'Daily login bonus' }),
-    rewardInvite: () => earn.mutate({ amount: TOKEN_RATES.invite_accepted, type: 'invite_accepted', description: 'Friend accepted invite' }),
-    rewardQuiz: () => earn.mutate({ amount: TOKEN_RATES.quiz_completed, type: 'quiz_completed', description: 'Completed personality quiz' }),
+    rewardPost: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.post_created), type: 'post_created', description: 'Created a post' }),
+    rewardComment: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.comment_added), type: 'comment_added', description: 'Added a comment' }),
+    rewardLike: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.like_received), type: 'like_received', description: 'Received a like' }),
+    rewardStreak: (days: number) => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.streak_bonus * days), type: 'streak_bonus', description: `${days}-day streak bonus` }),
+    rewardChallenge: (name: string) => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.challenge_completed), type: 'challenge_completed', description: `Completed: ${name}` }),
+    rewardDailyLogin: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.daily_login), type: 'daily_login', description: 'Daily login bonus' }),
+    rewardInvite: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.invite_accepted), type: 'invite_accepted', description: 'Friend accepted invite' }),
+    rewardQuiz: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.quiz_completed), type: 'quiz_completed', description: 'Completed personality quiz' }),
     earn,
+    perks,
   };
 }
