@@ -306,6 +306,13 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
                   )}
                 </AnimatePresence>
 
+                {/* AI Comment Suggestions */}
+                <div className="px-1 mb-2">
+                  <AICommentSuggestions
+                    onSelectComment={(comment) => setText(comment)}
+                  />
+                </div>
+
                 {/* Input row */}
                 <div className="flex items-end gap-2">
                   <Avatar className="h-8 w-8 flex-shrink-0">
