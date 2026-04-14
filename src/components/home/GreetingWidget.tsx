@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
+import { LiveActivityTicker } from './LiveActivityTicker';
 
 export function GreetingWidget() {
   const { profile } = useAuth();
@@ -16,10 +18,19 @@ export function GreetingWidget() {
   if (!profile) return null;
 
   return (
-    <div className="px-4 pt-2 pb-1">
-      <h1 className="text-base font-bold text-foreground tracking-tight">
-        {greeting}, <span className="text-primary">@{profile.username}</span>
-      </h1>
+    <div className="px-3 py-4 overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h1 className="text-lg sm:text-xl md:text-2xl font-extrabold text-foreground tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] truncate">
+          {greeting}, <span className="text-primary drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]">@{profile.username}</span>
+        </h1>
+        <div className="mt-1">
+          <LiveActivityTicker />
+        </div>
+      </motion.div>
     </div>
   );
 }
