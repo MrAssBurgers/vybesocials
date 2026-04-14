@@ -31,25 +31,23 @@ export const CrashReportConsent = memo(function CrashReportConsent() {
     if (getConsentState() !== null) return;
     if (!profile?.id) return;
 
-    // Check DB for existing answer (cross-device persistence)
-    supabase
-      .rpc('get_own_sensitive_profile')
-      .single()
-      .then(({ data }) => {
+    const fetchConsent = async () => {
+      try {
+        const { data } = await supabase
+          .rpc('get_own_sensitive_profile')
+          .single();
         const dbVal = (data as any)?.crash_consent;
         if (dbVal === 'true' || dbVal === 'false' || dbVal === true || dbVal === false) {
           const consent = dbVal === 'true' || dbVal === true;
           localStorage.setItem(CONSENT_KEY, String(consent));
-          // Already answered — don't show
         } else {
-          // Never answered on any device — show once
           setTimeout(() => setOpen(true), 2500);
         }
-      })
-      .catch(() => {
-        // RPC doesn't exist or failed — fall back to showing dialog
+      } catch {
         setTimeout(() => setOpen(true), 2500);
-      });
+      }
+    };
+    fetchConsent();
   }, [profile?.id]);
 
   const handleChoice = async (consent: boolean) => {
