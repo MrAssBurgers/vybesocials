@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export function PostSkeleton() {
   return (
-    <div className="liquid-glass-card rounded-2xl overflow-hidden animate-pulse">
+    <div className="liquid-glass-card rounded-2xl overflow-hidden skeleton-shimmer">
       {/* Header - matches PostCard header exactly */}
       <div className="flex items-center justify-between p-4">
         <div className="flex items-center gap-3">

@@ -1,5 +1,7 @@
 import { lazy, Suspense, memo, useEffect } from 'react';
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { liquidSpring } from '@/motion/liquidConfig';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
@@ -109,7 +111,16 @@ export function AnimatedRoutes() {
   useAutoBugReporter();
   
   return (
-    <div className="min-h-screen" id="main-content">
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -4 }}
+        transition={{ ...liquidSpring, duration: 0.25 }}
+        className="min-h-screen"
+        id="main-content"
+      >
       <Suspense fallback={<PageFallback />}>
         <Routes location={location}>
             {/* Public routes - no authentication required */}
@@ -214,6 +225,7 @@ export function AnimatedRoutes() {
             </Suspense>
           )}
         </Suspense>
-      </div>
+      </motion.div>
+    </AnimatePresence>
   );
 }
