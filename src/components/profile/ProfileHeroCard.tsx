@@ -24,7 +24,7 @@ interface ProfileHeroCardProps {
   profile: any;
   isOwnProfile: boolean;
   isPremium: boolean;
-  profileRole: string | null;
+  profileRole: any;
   isModOrAdmin: boolean;
   liveFollowerCount: number;
   displayBadges: any[];
