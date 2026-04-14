@@ -577,15 +577,22 @@ const ConversationContent = memo(function ConversationContent({
           </div>
         ) : (
           <button onClick={handleAvatarClick} className="block relative">
-            <div className={`relative ${hasStory ? 'p-0.5' : ''}`}>
-              {hasStory && (
-                <div className={`absolute inset-0 rounded-full ${storyGroup?.hasUnviewed ? 'bg-gradient-to-tr from-primary via-primary/80 to-primary/60' : 'bg-muted-foreground/30'}`} />
-              )}
-              <Avatar className={`h-12 w-12 ring-2 ring-background shadow-md ${hasStory ? 'relative' : ''}`}>
-                <AvatarImage src={avatarUrl || undefined} />
-                <AvatarFallback className="text-base">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
-              </Avatar>
-            </div>
+            <AvatarRing
+              size="lg"
+              variant={userStatus ? 'vibe' : 'default'}
+              vibeColor={userStatus ? (await import('@/components/status/StatusPicker')).getVibeColor(userStatus.emoji) : undefined}
+              vibeEmoji={userStatus?.emoji}
+            >
+              <div className={`relative ${hasStory ? 'p-0.5' : ''} w-full h-full`}>
+                {hasStory && (
+                  <div className={`absolute inset-0 rounded-full ${storyGroup?.hasUnviewed ? 'bg-gradient-to-tr from-primary via-primary/80 to-primary/60' : 'bg-muted-foreground/30'}`} />
+                )}
+                <Avatar className={`h-full w-full ring-2 ring-background shadow-md ${hasStory ? 'relative' : ''}`}>
+                  <AvatarImage src={avatarUrl || undefined} />
+                  <AvatarFallback className="text-base">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+              </div>
+            </AvatarRing>
             <OnlineIndicator isOnline={isOnline} size="sm" className="absolute -bottom-0.5 -right-0.5" />
           </button>
         )}
