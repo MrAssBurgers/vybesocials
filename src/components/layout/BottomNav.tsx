@@ -84,13 +84,24 @@ function useNavVisibility() {
   return isVisible;
 }
 
-const NAV_ITEMS = [
+interface NavItem {
+  id: string;
+  icon?: typeof Home;
+  path?: string;
+  label: string;
+  tutorial: string;
+  isCreate?: boolean;
+  isProfile?: boolean;
+  requiresAuth?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { id: 'home', icon: Home, path: '/home', label: 'Home', tutorial: 'home-nav' },
   { id: 'explore', icon: Compass, path: '/explore', label: 'Explore', tutorial: 'explore-nav' },
   { id: 'create', path: '/upload', label: 'Create', tutorial: 'create-nav', isCreate: true },
   { id: 'messages', icon: MessageCircle, path: '/messages', label: 'Messages', tutorial: 'messages-nav', requiresAuth: true },
   { id: 'profile', label: 'Profile', tutorial: 'profile-nav', isProfile: true },
-] as const;
+];
 
 export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav(_props, ref) {
   const location = useLocation();
