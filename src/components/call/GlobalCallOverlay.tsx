@@ -1000,8 +1000,18 @@ export function GlobalCallOverlay() {
           {!isVideoCall && (
             <div className="absolute inset-0 flex items-center justify-center" onClick={handleScreenTap} onTouchEnd={handleScreenTap}>
               <div className="text-center px-4">
-                {/* Outer glow rings */}
                 <div className="relative inline-block">
+                  {/* Audio Visualizer ring */}
+                  {isConnected && (
+                    <div className="absolute inset-0 flex items-center justify-center" style={{ width: 180, height: 180, margin: '-24px' }}>
+                      <AudioVisualizer
+                        size={180}
+                        stream={remoteAudioRef.current?.srcObject as MediaStream | null}
+                        active={isConnected}
+                      />
+                    </div>
+                  )}
+                  {/* Outer glow rings */}
                   <motion.div
                     animate={{ scale: [1, 1.6], opacity: [0.3, 0] }}
                     transition={{ repeat: Infinity, duration: 3, ease: "easeOut" }}
@@ -1046,7 +1056,7 @@ export function GlobalCallOverlay() {
                 )}
               </div>
             </div>
-          )}
+          )
 
           {/* Header */}
           <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" style={{ paddingTop: 'env(safe-area-inset-top)' }} onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave} onTouchStart={showControlsTemporarily}>
@@ -1159,61 +1169,78 @@ export function GlobalCallOverlay() {
             onMouseLeave={handleFooterAreaLeave}
             onTouchStart={handleFooterAreaEnter}
           >
-            <div className="flex justify-center px-3">
-              <div className="inline-flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)] max-w-full overflow-x-auto">
+            <div className="flex flex-col items-center gap-2 px-3">
+              {/* Secondary row (smaller) */}
+              <div className="inline-flex items-center gap-2 p-1.5 rounded-2xl backdrop-blur-xl bg-black/20 border border-white/[0.05]">
                 {/* Settings */}
-                <motion.button whileTap={{ scale: 0.95 }} onClick={() => setSettingsOpen(true)} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-300", "bg-white/10 text-white hover:bg-white/20 border border-white/10", "disabled:opacity-50 disabled:cursor-not-allowed")}>
-                  <SlidersHorizontal className="h-4 w-4 sm:h-5 sm:w-5" />
+                <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('light'); setSettingsOpen(true); }} disabled={!isConnected} className={cn("h-9 w-9 sm:h-10 sm:w-10 rounded-lg flex-shrink-0 flex items-center justify-center transition-all", "bg-white/10 text-white/70 hover:bg-white/20", "disabled:opacity-50 disabled:cursor-not-allowed")}>
+                  <SlidersHorizontal className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </motion.button>
 
-                {/* Stay On Call toggle — premium feature */}
+                {/* Stay On Call */}
                 <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleStayOnCallToggle}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => { triggerHaptic('medium'); handleStayOnCallToggle(); }}
                   disabled={!isConnected || isSwitching}
                   className={cn(
-                    "relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-300",
+                    "h-9 w-9 sm:h-10 sm:w-10 rounded-lg flex-shrink-0 flex items-center justify-center transition-all",
                     "disabled:opacity-50 disabled:cursor-not-allowed",
                     currentMode === 'persistent'
-                      ? "bg-gradient-to-br from-primary to-accent text-white shadow-lg ring-2 ring-primary/50"
-                      : "bg-white/10 text-white hover:bg-white/20 border border-white/10"
+                      ? "bg-gradient-to-br from-primary to-accent text-white shadow-lg ring-1 ring-primary/50"
+                      : "bg-white/10 text-white/70 hover:bg-white/20"
                   )}
                   title={currentMode === 'persistent' ? 'Stay On Call (active)' : 'Stay On Call (premium)'}
                 >
-                  <Crown className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <Crown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   {!isPremium && currentMode !== 'persistent' && (
-                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-yellow-500 flex items-center justify-center">
-                      <span className="text-[7px] sm:text-[8px] font-bold text-black">PRO</span>
+                    <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center">
+                      <span className="text-[6px] font-bold text-black">PRO</span>
                     </span>
                   )}
                 </motion.button>
 
+                {/* Camera flip (video only) */}
+                {isVideoCall && (
+                  <motion.button whileTap={{ scale: 0.9 }} onClick={() => triggerHaptic('light')} disabled={!isConnected} className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg flex-shrink-0 flex items-center justify-center bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-50">
+                    <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  </motion.button>
+                )}
+              </div>
+
+              {/* Primary row (larger, dominant) */}
+              <div className="inline-flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+                {/* Reactions */}
+                <CallReactions onReaction={(emoji) => { /* broadcast via realtime */ }} />
+
                 <div className="w-px h-8 sm:h-10 bg-white/20 flex-shrink-0" />
 
                 {/* Mute */}
-                <motion.button whileTap={{ scale: 0.95 }} onClick={handleToggleMute} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isMuted ? "bg-white text-black shadow-lg ring-2 ring-primary/50" : "bg-white/10 text-white hover:bg-white/20")}>
+                <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('medium'); handleToggleMute(); }} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isMuted ? "bg-white text-black shadow-lg ring-2 ring-primary/50" : "bg-white/10 text-white hover:bg-white/20")}>
                   {isMuted ? <MicOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Mic className="h-5 w-5 sm:h-6 sm:w-6" />}
                 </motion.button>
 
                 {/* Video toggle */}
                 {isVideoCall && (
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleToggleVideo} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isVideoOff ? "bg-white text-black shadow-lg ring-2 ring-accent/50" : "bg-white/10 text-white hover:bg-white/20")}>
+                  <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('medium'); handleToggleVideo(); }} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isVideoOff ? "bg-white text-black shadow-lg ring-2 ring-accent/50" : "bg-white/10 text-white hover:bg-white/20")}>
                     {isVideoOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
-                  </motion.button>
-                )}
-
-                {/* Retry camera */}
-                {isVideoCall && cameraError && (
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleRetryVideo} className="relative h-11 w-11 sm:h-14 sm:w-14 rounded-xl flex-shrink-0 flex items-center justify-center bg-white/10 text-white hover:bg-white/20 border border-white/10">
-                    <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5" />
                   </motion.button>
                 )}
 
                 <div className="w-px h-8 sm:h-10 bg-white/20 flex-shrink-0" />
 
-                {/* Leave / End */}
-                <motion.button whileTap={{ scale: 0.95 }} onClick={currentMode === 'persistent' ? handleLeaveCall : handleHangup} disabled={isHangingUp} className={cn("relative h-11 sm:h-14 px-4 sm:px-6 rounded-xl flex-shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 transition-all duration-300", "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg", "hover:from-red-600 hover:to-red-700", "disabled:opacity-70")}>
-                  {isHangingUp ? <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" /> : (<><PhoneOff className="h-4 w-4 sm:h-5 sm:w-5" /><span className="font-medium text-sm sm:text-base">{currentMode === 'persistent' ? 'Leave' : 'End'}</span></>)}
+                {/* End Call — Wide red pill (2x width) */}
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => { triggerHaptic('heavy'); currentMode === 'persistent' ? handleLeaveCall() : handleHangup(); }}
+                  disabled={isHangingUp}
+                  className={cn(
+                    "relative h-11 sm:h-14 px-6 sm:px-8 rounded-full flex-shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 transition-all duration-300",
+                    "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg",
+                    "hover:from-red-600 hover:to-red-700",
+                    "disabled:opacity-70"
+                  )}
+                >
+                  {isHangingUp ? <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" /> : (<><PhoneOff className="h-4 w-4 sm:h-5 sm:w-5" /><span className="font-semibold text-sm sm:text-base">{currentMode === 'persistent' ? 'Leave' : 'End'}</span></>)}
                 </motion.button>
               </div>
             </div>
