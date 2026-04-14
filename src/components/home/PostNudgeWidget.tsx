@@ -22,7 +22,7 @@ export const PostNudgeWidget = memo(function PostNudgeWidget() {
       const { count } = await (supabase as any)
         .from('posts')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', profile.id)
+        .eq('author_id', profile.id)
         .gte('created_at', threeDaysAgo);
       return (count ?? 0) > 0;
     },
