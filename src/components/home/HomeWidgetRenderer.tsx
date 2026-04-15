@@ -31,7 +31,7 @@ import { useAuth } from '@/lib/auth';
 const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
 const MemoizedPostCard = memo(PostCard);
 
-import { ImmersiveToggle, ImmersiveFeedMode } from '@/components/home/ImmersiveFeedMode';
+
 
 /* ── Lazy-mount wrapper using IntersectionObserver ── */
 function LazyWidget({ children }: { children: ReactNode }) {
@@ -226,8 +226,6 @@ function FeedSection({
   localPosts, localLoading, localFetching, isFetchingNextLocal,
   loadMoreRef,
 }: Props) {
-  const [immersive, setImmersive] = useState(false);
-
   return (
     <div className="pb-6" data-tutorial="feed-area">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -252,19 +250,18 @@ function FeedSection({
                   {isActive && (
                     <motion.div
                       layoutId="feed-tab-capsule"
-                      className="absolute inset-0.5 rounded-xl bg-gradient-to-r from-primary/15 via-primary/10 to-accent/15 border border-primary/20 shadow-[0_0_12px_hsl(var(--primary)/0.15),inset_0_1px_0_hsl(var(--foreground)/0.05)]"
+                      className="absolute inset-0.5 rounded-xl bg-gradient-to-r from-primary/15 via-primary/10 to-accent/15 border border-primary/20 shadow-[0_0_20px_hsl(var(--primary)/0.25),0_0_8px_hsl(var(--accent)/0.15),inset_0_1px_0_hsl(var(--foreground)/0.05)]"
                       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     />
                   )}
                   <span className="relative z-10 flex items-center gap-1.5">
-                    <Icon className={cn("h-3.5 w-3.5", isActive && "text-primary")} />
+                    <Icon className={cn("h-3.5 w-3.5 transition-colors", isActive && "text-primary drop-shadow-[0_0_6px_hsl(var(--primary)/0.5)]")} />
                     {labels[tab]}
                   </span>
                 </TabsTrigger>
               );
             })}
           </TabsList>
-          <ImmersiveToggle isImmersive={immersive} onToggle={() => setImmersive(!immersive)} />
         </div>
 
         {hasNewPosts && (
@@ -278,24 +275,19 @@ function FeedSection({
         )}
 
         <TabsContent value="foryou" className="space-y-4" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
-          {/* First post CTA for users with no posts in feed */}
           {!forYouLoading && forYouPosts.length === 0 && (
             <FirstPostCTA />
           )}
-          {immersive && forYouPosts.length > 0 ? (
-            <ImmersiveFeedMode posts={forYouPosts} loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}} />
-          ) : (
-            <InlinePostList
-              posts={forYouPosts}
-              isLoading={forYouLoading}
-              isFetchingNext={isFetchingNextForYou}
-              loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
-              emptyIcon="✨"
-              emptyText="No posts yet. Follow creators or check Global!"
-              onExplore={() => navigate('/explore')}
-              showAds={showAds}
-            />
-          )}
+          <InlinePostList
+            posts={forYouPosts}
+            isLoading={forYouLoading}
+            isFetchingNext={isFetchingNextForYou}
+            loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
+            emptyIcon="✨"
+            emptyText="No posts yet. Follow creators or check Global!"
+            onExplore={() => navigate('/explore')}
+            showAds={showAds}
+          />
         </TabsContent>
 
         <TabsContent value="local" className="space-y-4" forceMount style={{ display: activeTab === 'local' ? 'block' : 'none' }}>

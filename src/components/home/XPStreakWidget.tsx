@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion';
 import { Flame, Zap, ChevronRight } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
 import { useStreakCount } from '@/hooks/useLoginStreak';
 import { useNextLevelProgress } from '@/hooks/useVybePass';
 import { useNavigate } from 'react-router-dom';
@@ -24,7 +23,12 @@ export function XPStreakWidget() {
           <div className="flex items-center gap-3">
             {streakCount > 0 && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/10 border border-accent/20">
-                <Flame className="h-3.5 w-3.5 text-accent" />
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 0.4, ease: 'easeInOut' }}
+                >
+                  <Flame className="h-3.5 w-3.5 text-accent drop-shadow-[0_0_4px_hsl(var(--accent)/0.6)]" />
+                </motion.div>
                 <span className="text-xs font-bold text-accent">{streakCount}</span>
               </div>
             )}
@@ -36,7 +40,21 @@ export function XPStreakWidget() {
                 </div>
                 <span className="text-[10px] text-muted-foreground">{xpToNextLevel} XP to next</span>
               </div>
-              <Progress value={progressPercent} className="h-1.5" />
+              {/* Shimmer progress bar */}
+              <div className="relative h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                <motion.div
+                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-primary via-accent to-primary"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progressPercent}%` }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                />
+                {/* Moving shimmer highlight */}
+                <motion.div
+                  className="absolute inset-y-0 w-8 rounded-full bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                  animate={{ left: ['-2rem', '100%'] }}
+                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 1, ease: 'easeInOut' }}
+                />
+              </div>
             </div>
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
           </div>
