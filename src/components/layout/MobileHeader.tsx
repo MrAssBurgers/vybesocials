@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Bell, Target, Flame, Crown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,6 +16,18 @@ export const MobileHeader = React.forwardRef<HTMLElement, {}>(function MobileHea
   const { profile } = useAuth();
   const { data: unreadCount = 0 } = useUnreadCount();
   const streakCount = useStreakCount();
+  const prevUnreadRef = useRef(unreadCount);
+  const [bellBounce, setBellBounce] = useState(false);
+
+  // Bell bounce when unread count increases
+  useEffect(() => {
+    if (unreadCount > prevUnreadRef.current) {
+      setBellBounce(true);
+      const t = setTimeout(() => setBellBounce(false), 1500);
+      return () => clearTimeout(t);
+    }
+    prevUnreadRef.current = unreadCount;
+  }, [unreadCount]);
   const { isPremium } = usePremiumStatus();
   const location = useLocation();
   const debugPanel = useDebugPanel();
@@ -77,7 +89,14 @@ export const MobileHeader = React.forwardRef<HTMLElement, {}>(function MobileHea
                   : "hover:bg-muted/30 text-muted-foreground hover:text-foreground"
               )}
             >
-              <Bell className="h-5 w-5" />
+              <Bell className={cn("h-5 w-5", bellBounce && "animate-bell-ring")} />
+              {unreadCount > 0 && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.6)]"
+                />
+              )}
             </Link>
 
             {/* Challenges with streak indicator */}
@@ -110,6 +129,8 @@ export const MobileHeader = React.forwardRef<HTMLElement, {}>(function MobileHea
           </div>
         </div>
       </div>
+      {/* Bottom glow line */}
+      <div className="h-[1px] bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
     </header>
   );
 });

@@ -145,9 +145,10 @@ const StoryAvatar = memo(function StoryAvatar({
   };
   
   return (
-    <button
+    <motion.button
       onClick={onClick}
-      className="flex flex-col items-center gap-1.5 flex-shrink-0 active:scale-95 transition-transform"
+      whileTap={{ scale: 0.92 }}
+      className="flex flex-col items-center gap-1.5 flex-shrink-0 transition-transform"
     >
       <div className="relative">
         <StoryRing
@@ -174,6 +175,6 @@ const StoryAvatar = memo(function StoryAvatar({
       <span className="text-[11px] font-semibold text-foreground truncate w-16 text-center leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
         {isUploading ? 'Posting...' : label || displayName || username}
       </span>
-    </button>
+    </motion.button>
   );
 });

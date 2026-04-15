@@ -242,13 +242,26 @@ const DraggableNavItem = memo(({
           {isHighlighted && (
             <div className="absolute -inset-2 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse" />
           )}
-          <Icon
-            className={cn(
-              "h-6 w-6 relative z-10 transition-colors duration-150",
-              isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
-              isEditMode && "animate-pulse"
-            )}
-          />
+          <motion.div
+            animate={{ scale: isActive && !isEditMode ? 1.15 : 1 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          >
+            <Icon
+              className={cn(
+                "h-6 w-6 relative z-10 transition-colors duration-150",
+                isActive ? "text-primary" : "text-muted-foreground/60 group-hover:text-foreground",
+                isEditMode && "animate-pulse"
+              )}
+            />
+          </motion.div>
+          {/* Active glow dot */}
+          {isActive && !isEditMode && (
+            <motion.div
+              layoutId="nav-glow-dot"
+              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)]"
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+            />
+          )}
           {badge > 0 && !isEditMode && (
             <motion.span 
               initial={{ scale: 0 }}
@@ -523,6 +536,8 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
               : '0 8px 32px hsl(var(--primary) / 0.3), inset 0 1px 0 hsl(var(--primary) / 0.15)',
           }}
         >
+          {/* Top edge highlight */}
+          <div className="h-[1px] bg-gradient-to-r from-transparent via-white/8 to-transparent" />
           <Reorder.Group
             axis="x"
             values={navOrder}
