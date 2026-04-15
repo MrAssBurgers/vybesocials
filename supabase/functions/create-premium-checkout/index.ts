@@ -63,7 +63,13 @@ serve(async (req) => {
       }
     }
 
-    const origin = req.headers.get("origin") || (isLive ? "https://vybehub.app" : "https://vybeapp.lovable.app");
+    // Warn if live domain is using test keys
+    const requestOrigin = req.headers.get("origin") || "";
+    if (!isLive && requestOrigin.includes("vybehub.app")) {
+      console.warn("[create-premium-checkout] WARNING: Live domain using test-mode Stripe key!");
+    }
+
+    const origin = requestOrigin || (isLive ? "https://vybehub.app" : "https://vybeapp.lovable.app");
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
