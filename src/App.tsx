@@ -195,6 +195,13 @@ function AppWithPreloader() {
         status={preloadStatus.step}
         progress={preloadStatus.progress}
       />
+      {welcomeBack && (
+        <WelcomeBackSplash
+          username={welcomeBack.username}
+          avatarUrl={welcomeBack.avatarUrl}
+          onComplete={() => setWelcomeBack(null)}
+        />
+      )}
       <GlobalErrorHandler />
       <AuthProvider>
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
