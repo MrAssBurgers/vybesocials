@@ -28,6 +28,7 @@ import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 
 import { ProfileHeroCard } from '@/components/profile/ProfileHeroCard';
 import { ProfileAboutMe } from '@/components/profile/ProfileAboutMe';
+import { ProfileAboutDetails } from '@/components/profile/ProfileAboutDetails';
 import { ProfileVibeBoard } from '@/components/profile/ProfileVibeBoard';
 
 import {
@@ -216,6 +217,12 @@ export default function ProfilePage() {
           bio={profile.bio}
           profile={profile}
           isOwnProfile={isOwnProfile}
+        />
+
+        {/* About Details (MBTI, height, music, etc.) */}
+        <ProfileAboutDetails
+          profileId={profile.id}
+          birthday={(profile as any).birthday}
         />
 
         {/* Vibe Board */}
