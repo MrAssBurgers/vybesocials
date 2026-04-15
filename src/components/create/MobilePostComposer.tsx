@@ -128,7 +128,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
       pi = setInterval(() => setUploadProgress(prev => Math.min(prev + progressStep, 85)), progressInterval);
       await createPost.mutateAsync({
         mediaFile: localFiles.length <= 1 ? localFiles[0] || undefined : undefined,
-        mediaFiles: localFiles.length > 1 ? files : undefined,
+        mediaFiles: localFiles.length > 1 ? localFiles : undefined,
         caption, type: contentType, tags,
         age_rating: ageRating,
       });
@@ -169,7 +169,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
       <AnimatePresence>
         {showVybeCheck && (
           <VybeCheckOverlay
-            files={files}
+            files={localFiles}
             onComplete={handleVybeCheckComplete}
             onBlocked={handleVybeCheckBlocked}
             onCancel={() => setShowVybeCheck(false)}
@@ -253,8 +253,15 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
                     <AIPhotoEnhancer
                       imageFile={localFiles[0]}
                       onEnhanced={(dataUrl) => {
-                        const newPreviews = [...previews];
-                        newPreviews[0] = dataUrl;
+                        // Update preview
+                        setLocalPreviews(prev => { const n = [...prev]; n[0] = dataUrl; return n; });
+                        // Convert data URL to File and update files array
+                        fetch(dataUrl)
+                          .then(r => r.blob())
+                          .then(blob => {
+                            const enhanced = new File([blob], `enhanced-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                            setLocalFiles(prev => { const n = [...prev]; n[0] = enhanced; return n; });
+                          });
                       }}
                     />
                   </div>
