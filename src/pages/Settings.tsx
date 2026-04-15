@@ -103,17 +103,21 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
   return (
     <AppLayout>
       <div className="max-w-5xl mx-auto px-3 sm:px-6 py-3 sm:py-8 pb-24 sm:pb-8">
-        {/* Header */}
+        {/* Header — Premium glass identity */}
         <div className="mb-4 sm:mb-6">
           <div className="flex items-center gap-2.5 sm:gap-3 mb-2">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            <div className="relative w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center flex-shrink-0">
+              {/* Rotating gradient ring */}
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary/30 via-accent/20 to-primary/30 animate-spin" style={{ animationDuration: '8s' }} />
+              <div className="absolute inset-[2px] rounded-[10px] bg-background" />
+              <Settings className="relative w-4 h-4 sm:w-5 sm:h-5 text-primary" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-2xl font-bold truncate text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{t('settings.title')}</h1>
-              <p className="text-xs sm:text-sm text-foreground/80 truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{t('settingsNav.manageAccount')}</p>
+              <h1 className="text-lg sm:text-2xl font-bold truncate gradient-text">{t('settings.title')}</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground truncate">{t('settingsNav.manageAccount')}</p>
             </div>
           </div>
+          <div className="h-[2px] rounded-full bg-gradient-to-r from-primary/40 via-accent/30 to-transparent" />
         </div>
 
         {/* Mobile: Dropdown category selector */}
@@ -168,7 +172,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
 
               <Button
                 variant="outline"
-                className="w-full justify-between text-sm border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground h-11"
+                className="w-full justify-between text-sm border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/15 hover:border-destructive/40 hover:shadow-[0_0_15px_hsl(var(--destructive)/0.1)] h-11 backdrop-blur-sm transition-all"
                 onClick={handleSignOut}
               >
                 <span className="flex items-center gap-2">

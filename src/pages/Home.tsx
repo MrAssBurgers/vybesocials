@@ -319,18 +319,26 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
           <GlobalEventBanner />
 
 
-          {/* Customize Button - prominent floating pill */}
+          {/* Customize Button - floating glassmorphic pill with shimmer */}
           {!customizerOpen && (
             <div className="px-4 pt-2 pb-2 flex justify-center">
-              <Button
-                variant="outline"
-                size="sm"
+              <motion.button
                 onClick={() => setCustomizerOpen(true)}
-                className="rounded-full px-4 gap-2 border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/50 shadow-sm"
+                className="relative group rounded-full px-5 py-2.5 flex items-center gap-2.5 overflow-hidden border border-primary/20 bg-primary/5 backdrop-blur-xl shadow-[0_0_20px_hsl(var(--primary)/0.1)] hover:shadow-[0_0_30px_hsl(var(--primary)/0.2)] transition-shadow"
+                animate={{ scale: [1, 1.02, 1] }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
               >
-                <LayoutGrid className="h-3.5 w-3.5" />
-                Customize Home
-              </Button>
+                {/* Shimmer sweep */}
+                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-primary/10 to-transparent" />
+                {/* Gradient border glow */}
+                <div className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.15), hsl(var(--accent) / 0.15))' }} />
+                <div className="relative flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                    <LayoutGrid className="h-3 w-3 text-primary" />
+                  </div>
+                  <span className="text-sm font-semibold text-primary">Customize Home</span>
+                </div>
+              </motion.button>
             </div>
           )}
 

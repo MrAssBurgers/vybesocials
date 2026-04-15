@@ -232,7 +232,7 @@ function FeedSection({
     <div className="pb-6" data-tutorial="feed-area">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex items-center gap-2 mb-5">
-          <TabsList className="relative flex-1 h-11 p-1 bg-muted/50 rounded-xl">
+          <TabsList className="relative flex-1 h-12 p-1 bg-card/60 backdrop-blur-xl rounded-2xl border border-border/20 shadow-[inset_0_1px_0_hsl(var(--foreground)/0.05)]">
             {['foryou', 'local', 'global'].map((tab) => {
               const isActive = activeTab === tab;
               const icons: Record<string, typeof Sparkles> = { foryou: Sparkles, local: MapPin, global: Globe };
@@ -243,21 +243,23 @@ function FeedSection({
                   key={tab}
                   value={tab}
                   className={cn(
-                    "relative flex-1 rounded-lg transition-all duration-300 z-10",
+                    "relative flex-1 rounded-xl transition-all duration-300 z-10 h-full",
                     isActive
-                      ? "text-primary [text-shadow:0_0_12px_hsl(var(--primary)/0.5)]"
-                      : "text-muted-foreground"
+                      ? "text-foreground font-semibold"
+                      : "text-muted-foreground hover:text-foreground/70"
                   )}
                 >
-                  <Icon className="h-4 w-4 mr-1.5" />
-                  {labels[tab]}
                   {isActive && (
                     <motion.div
-                      layoutId="feed-tab-underline"
-                      className="absolute -bottom-0.5 left-2 right-2 h-[2px] rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)]"
+                      layoutId="feed-tab-capsule"
+                      className="absolute inset-0.5 rounded-xl bg-gradient-to-r from-primary/15 via-primary/10 to-accent/15 border border-primary/20 shadow-[0_0_12px_hsl(var(--primary)/0.15),inset_0_1px_0_hsl(var(--foreground)/0.05)]"
                       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     />
                   )}
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    <Icon className={cn("h-3.5 w-3.5", isActive && "text-primary")} />
+                    {labels[tab]}
+                  </span>
                 </TabsTrigger>
               );
             })}
@@ -367,7 +369,33 @@ function InlinePostList({
 
   if (isLoading && posts.length === 0) return <PostSkeletonList count={2} />;
   if (!isLoading && posts.length === 0) {
-    return <EmptyState emoji={emptyIcon} title="Nothing here yet" description={emptyText} actionLabel={onExplore ? "Explore" : undefined} onAction={onExplore} />;
+    const iconMap: Record<string, { icon: typeof Sparkles; gradient: string }> = {
+      '✨': { icon: Sparkles, gradient: 'from-violet-500/20 to-fuchsia-500/20' },
+      '📍': { icon: MapPin, gradient: 'from-orange-500/20 to-amber-500/20' },
+      '🌍': { icon: Globe, gradient: 'from-cyan-500/20 to-blue-500/20' },
+    };
+    const cfg = iconMap[emptyIcon] || iconMap['✨'];
+    const EmptyIcon = cfg.icon;
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col items-center py-16 px-4"
+      >
+        <div className={cn("w-20 h-20 rounded-3xl bg-gradient-to-br flex items-center justify-center mb-5 shadow-lg", cfg.gradient)}>
+          <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>
+            <EmptyIcon className="h-8 w-8 text-foreground/70" />
+          </motion.div>
+        </div>
+        <h3 className="text-base font-bold text-foreground mb-1">Nothing here yet</h3>
+        <p className="text-sm text-muted-foreground text-center max-w-[240px] mb-5">{emptyText}</p>
+        {onExplore && (
+          <Button onClick={onExplore} className="rounded-full px-6 h-9 text-sm bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-md">
+            Explore
+          </Button>
+        )}
+      </motion.div>
+    );
   }
 
   let rewardCount = 0;
