@@ -33,11 +33,15 @@ interface MobilePostComposerProps {
   onClose: () => void;
 }
 
-export function MobilePostComposer({ files, previews, contentType, selectedSound, soundStartTime, onBack, onClose }: MobilePostComposerProps) {
+export function MobilePostComposer({ files: propFiles, previews: propPreviews, contentType, selectedSound, soundStartTime, onBack, onClose }: MobilePostComposerProps) {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const createPost = useCreatePost();
   const captionRef = useRef<HTMLTextAreaElement>(null);
+
+  // Local state mirrors so filters/enhancements can mutate what gets uploaded
+  const [localFiles, setLocalFiles] = useState<File[]>(propFiles);
+  const [localPreviews, setLocalPreviews] = useState<string[]>(propPreviews);
 
   const [caption, setCaption] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -53,6 +57,10 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showTags, setShowTags] = useState(true);
+
+  // Sync from props if they change (e.g. parent re-captures)
+  useEffect(() => { setLocalFiles(propFiles); }, [propFiles]);
+  useEffect(() => { setLocalPreviews(propPreviews); }, [propPreviews]);
 
   useEffect(() => {
     const el = captionRef.current;
