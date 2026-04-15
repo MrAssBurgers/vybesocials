@@ -1,58 +1,94 @@
 
 
-## Emoji Memory + Composer Redesign + Background Auto-Contrast
+## Full App Visual Refresh — Kill the Boring
 
-### Problem Analysis
-
-1. **Emoji memory not working on posts**: `recordEmoji()` is only called in `ChatView.tsx` and `WordReactions.tsx` (DMs). The `ReactionPicker` component used on posts never calls `recordEmoji()`, so post reactions are never remembered.
-
-2. **Composer screens look ugly**: The `MobilePostComposer` and `DesktopCreateStudio` use basic form layouts with plain inputs and flat styling. The screenshots show a cluttered layout with visible borders, plain caption textareas, and cramped tag areas on a dark background.
-
-3. **No auto-contrast when custom background is uploaded**: `AppBackground` applies the image but never adjusts text/UI contrast. When a bright or colorful background is set, text can become unreadable.
+After scanning every page and component, here are the areas that look generic/basic and the redesign plan for each.
 
 ---
 
-### Changes
+### 1. NotFound Page — Full Cinematic 404
+**Current**: Plain white `bg-muted` div with "404" text and an underlined link. Looks like a template.
 
-#### 1. Fix Emoji Memory for Post Reactions (`ReactionPicker.tsx`)
-- Import `recordEmoji` from `@/lib/frequentEmojis`
-- Call `recordEmoji(reaction.emoji)` in both `handleSelectReaction` and the `handlePointerUp` quick-tap path
-- This ensures every reaction on posts/clips is remembered and surfaces in DM smart emoji rows
+**Redesign**: Immersive dark fullscreen with animated glitch effect on the "404" text, a floating VYBE logo with ambient glow, gradient mesh background, and a glassmorphic "Go Home" button. Add a subtle particle drift animation.
 
-#### 2. Redesign MobilePostComposer (`MobilePostComposer.tsx`)
-Transform from a flat form into a polished, immersive composer:
-- **Header**: Frosted glass header with gradient accent line (reuse `aura-shift` keyframe)
-- **Media preview**: Full-bleed behind a semi-transparent overlay instead of a bordered card — the media becomes the background of the compose screen
-- **Caption area**: Floating translucent text area overlaid on the media (Instagram Stories-style), not a bordered textarea below
-- **User identity row**: Compact pill with avatar + username + visibility selector inline
-- **Tags section**: Redesigned as floating chips with a more compact input, grouped under a collapsible section to reduce visual clutter
-- **AI Caption button**: Elevated as a gradient pill instead of a plain button
+**File**: `src/pages/NotFound.tsx`
 
-#### 3. Redesign DesktopCreateStudio (`DesktopCreateStudio.tsx`)
-- Match the mobile redesign aesthetic on the right-side panel
-- Add frosted glass card styling to the Post tab content area
-- Caption textarea gets the same translucent floating style
-- Tag chips get matching gradient styling
+---
 
-#### 4. Auto-Contrast for Custom Backgrounds (`AppBackground.tsx`)
-- When a background image is applied, analyze its average luminance (sample canvas pixels)
-- Set a CSS custom property `--bg-luminance` on `document.documentElement` (0-1 scale)
-- Add CSS rules in `index.css`:
-  - When `[data-has-bg-image="true"]`: add a semi-transparent dark overlay (`bg-background/70`) to content containers
-  - Boost text contrast with `text-shadow` for foreground text
-  - Cards/glass elements get increased `backdrop-blur` and darker `bg-card` opacity
-- This ensures all text remains legible regardless of background brightness
+### 2. Home Feed Tab Bar — Glowing Capsule Selector
+**Current**: Standard `TabsList` with muted background. The animated underline is nice but the container is flat `bg-muted/50`.
+
+**Redesign**: Frosted glass capsule with inner glow on the active tab. Active tab gets a gradient fill (not just text color change) with soft neon shadow. The underline becomes a full capsule highlight that morphs between tabs using `layoutId`.
+
+**File**: `src/components/home/HomeWidgetRenderer.tsx` (FeedSection)
+
+---
+
+### 3. "Customize Home" Button — Floating Gradient Orb
+**Current**: Small outline button that says "Customize Home" with a grid icon. Easily missed.
+
+**Redesign**: Morph into a floating glassmorphic pill with a subtle breathing animation and gradient border. Add a shimmer sweep effect. Make it feel premium, not utilitarian.
+
+**File**: `src/pages/Home.tsx`
+
+---
+
+### 4. Empty States — Illustrated Glass Cards
+**Current**: Centered emoji + plain text. Every empty state looks identical and forgettable.
+
+**Redesign**: Glassmorphic card with gradient accent strip, animated floating icon (not emoji — use Lucide icons with gradient backgrounds), and a CTA button. Each empty state gets a unique gradient based on context (notifications = violet, posts = cyan, saved = amber).
+
+**Files**: 
+- `src/pages/Notifications.tsx` (EmptyState component)
+- `src/components/home/HomeWidgetRenderer.tsx` (InlinePostList empty)
+- `src/pages/Profile.tsx` (EmptyState component)
+
+---
+
+### 5. Notification Page Header — Gradient Identity Banner
+**Current**: "Notifications" h1 + "X new" text + basic Referrals pill. Standard layout.
+
+**Redesign**: Add a gradient accent line under the header (like the composer redesign). The unread count becomes an animated gradient badge that pulses. The Referrals button gets a gift gradient background with shimmer.
+
+**File**: `src/pages/Notifications.tsx`
+
+---
+
+### 6. Settings Page Header — Premium Glass Identity
+**Current**: Basic icon in a rounded box + "Settings" text. The desktop nav is wrapped in a plain `liquid-glass-card`.
+
+**Redesign**: Settings icon gets a rotating gradient ring. Header text uses gradient fill. Desktop category selector buttons get frosted glass active states with glow. Sign out button gets a red glass treatment instead of plain outline.
+
+**File**: `src/pages/Settings.tsx`
+
+---
+
+### 7. Profile Empty States + Post Grid
+**Current**: Profile empty states are plain emoji + text. The post grid is a basic 3-col grid with no personality.
+
+**Redesign**: Empty states become illustrated glass cards with animated icons. Post grid gets subtle rounded corners with a staggered fade-in animation on each tile.
+
+**File**: `src/pages/Profile.tsx`
 
 ---
 
 ### Technical Details
 
-**Files modified:**
-- `src/components/reactions/ReactionPicker.tsx` — Add `recordEmoji` call
-- `src/components/create/MobilePostComposer.tsx` — Full visual redesign
-- `src/components/create/DesktopCreateStudio.tsx` — Matching visual polish
-- `src/components/layout/AppBackground.tsx` — Luminance detection + CSS property
-- `src/index.css` — Auto-contrast utility classes for custom backgrounds
+**Files modified** (7 files):
+- `src/pages/NotFound.tsx` — Complete cinematic redesign
+- `src/pages/Home.tsx` — Customize button redesign
+- `src/components/home/HomeWidgetRenderer.tsx` — Feed tabs + empty states
+- `src/pages/Notifications.tsx` — Header + empty states
+- `src/pages/Settings.tsx` — Header + nav + sign out
+- `src/pages/Profile.tsx` — Empty states + grid animation
+- `src/index.css` — Add glitch keyframe + new utility animations
 
 **No database changes needed.**
+
+**What stays the same:**
+- All functionality, data fetching, and navigation
+- Notification grouping and row layout
+- Bottom nav design (already polished)
+- PostCard layout (recently redesigned)
+- All existing motion/spring physics
 
