@@ -228,24 +228,32 @@ export default function ProfilePage() {
         />
 
         {/* Pill Tab Selector */}
-        <div className="flex gap-1.5 p-1 rounded-2xl bg-card/60 border border-border/20 backdrop-blur-sm">
+        <div className="flex gap-1.5 p-1 rounded-2xl bg-card/60 border border-border/20 backdrop-blur-sm relative">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
-              <button
+              <motion.button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                whileTap={{ scale: 0.95 }}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200",
+                  "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors duration-200 relative",
                   isActive
-                    ? "bg-primary/15 text-primary border border-primary/25"
+                    ? "text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
                 )}
               >
-                <Icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
+                {isActive && (
+                  <motion.div
+                    layoutId="profile-tab-indicator"
+                    className="absolute inset-0 rounded-xl bg-primary/15 border border-primary/25 shadow-[0_0_12px_hsl(var(--primary)/0.15)]"
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <Icon className="h-3.5 w-3.5 relative z-10" />
+                <span className="relative z-10">{tab.label}</span>
+              </motion.button>
             );
           })}
         </div>

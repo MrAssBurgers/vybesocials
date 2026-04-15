@@ -1,4 +1,5 @@
 import { useState, forwardRef, lazy, Suspense } from 'react';
+import { motion } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { LogOut, ChevronRight, Settings } from 'lucide-react';
@@ -156,19 +157,25 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
               </div>
             )}
 
-            <div key={activeCategory} className="min-h-[400px]">
+            <motion.div 
+              key={activeCategory} 
+              className="min-h-[400px]"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+            >
               {renderContent()}
-            </div>
+            </motion.div>
 
             {/* Account Management */}
             <div className="mt-6 space-y-4">
-              <Separator />
+              <div className="h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent" />
               <AccountDangerZone />
             </div>
 
             {/* Sign Out & App Info */}
             <div className="mt-6 space-y-4 pb-4">
-              <Separator />
+              <div className="h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent" />
 
               <Button
                 variant="outline"
