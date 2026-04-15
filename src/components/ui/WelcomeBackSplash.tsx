@@ -1,7 +1,6 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
-import { Confetti } from '@/components/easter-eggs/Confetti';
 
 interface WelcomeBackSplashProps {
   username?: string | null;
@@ -9,22 +8,48 @@ interface WelcomeBackSplashProps {
   onComplete: () => void;
 }
 
-/**
- * Cinematic welcome-back splash shown after login.
- * Auto-dismisses after 2.8s with a premium exit animation.
- */
+const BURST_COLORS = [
+  'hsl(var(--primary))',
+  'hsl(var(--accent))',
+  'hsl(280 80% 65%)',
+  'hsl(340 90% 65%)',
+  'hsl(45 95% 60%)',
+  'hsl(160 70% 55%)',
+];
+
+interface BurstParticle {
+  id: number;
+  angle: number;
+  distance: number;
+  color: string;
+  size: number;
+  delay: number;
+}
+
+function generateParticles(count: number): BurstParticle[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i,
+    angle: (360 / count) * i + (Math.random() * 20 - 10),
+    distance: 80 + Math.random() * 140,
+    color: BURST_COLORS[i % BURST_COLORS.length],
+    size: 4 + Math.random() * 5,
+    delay: Math.random() * 0.08,
+  }));
+}
+
 export const WelcomeBackSplash = memo(function WelcomeBackSplash({
   username,
   avatarUrl,
   onComplete,
 }: WelcomeBackSplashProps) {
   const [visible, setVisible] = useState(true);
-  const [showConfetti, setShowConfetti] = useState(false);
+  const [showBurst, setShowBurst] = useState(false);
+  const particles = useMemo(() => generateParticles(24), []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
+      setShowBurst(true);
       setVisible(false);
-      setShowConfetti(true);
     }, 2800);
     return () => clearTimeout(timer);
   }, []);
@@ -33,7 +58,44 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
 
   return (
     <>
-      {showConfetti && <Confetti />}
+      {/* Radial burst particles */}
+      <AnimatePresence>
+        {showBurst && (
+          <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 2147483647 }}>
+            {particles.map((p) => {
+              const rad = (p.angle * Math.PI) / 180;
+              const tx = Math.cos(rad) * p.distance;
+              const ty = Math.sin(rad) * p.distance;
+              return (
+                <motion.div
+                  key={p.id}
+                  initial={{ x: '-50%', y: '-50%', scale: 1, opacity: 1 }}
+                  animate={{
+                    x: tx,
+                    y: ty,
+                    scale: 0,
+                    opacity: 0,
+                  }}
+                  transition={{
+                    duration: 0.7,
+                    delay: p.delay,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  className="absolute rounded-full"
+                  style={{
+                    top: '50%',
+                    left: '50%',
+                    width: p.size,
+                    height: p.size,
+                    backgroundColor: p.color,
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence onExitComplete={onComplete}>
         {visible && (
         <motion.div
@@ -58,7 +120,6 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
                 filter: 'blur(60px)',
               }}
             />
-            {/* Secondary orb */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.3 }}
@@ -108,7 +169,6 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
             transition={{ delay: 0.15, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
             className="relative mb-5"
           >
-            {/* Pulsing ring */}
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: [1, 1.2, 1], opacity: [0, 0.4, 0] }}
