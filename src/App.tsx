@@ -142,6 +142,7 @@ function BriefPreFetchInit() {
 function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
   const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
+  const [welcomeBack, setWelcomeBack] = useState<{ username?: string | null; avatarUrl?: string | null } | null>(null);
   
   // Auto-update checker
   useAutoUpdate();
@@ -157,11 +158,31 @@ function AppWithPreloader() {
     }
   }, [preloadStatus.isComplete, showSplash]);
 
-  // When auth resolves after preloader cached guest data, invalidate stale caches
+  // Show welcome-back splash on sign-in (not on initial page load with existing session)
+  const signInHandledRef = useRef(false);
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         queryClient.invalidateQueries();
+      }
+
+      // Show welcome splash only on explicit sign-in, not token refresh or initial load
+      if (event === 'SIGNED_IN' && !signInHandledRef.current && hasInitialLoadCompleted) {
+        signInHandledRef.current = true;
+        // Fetch minimal profile info for the splash
+        if (session?.user?.id) {
+          try {
+            const { data } = await supabase
+              .from('profiles')
+              .select('username, avatar_url')
+              .eq('user_id', session.user.id)
+              .limit(1)
+              .maybeSingle();
+            if (data?.username) {
+              setWelcomeBack({ username: data.username, avatarUrl: data.avatar_url });
+            }
+          } catch { /* skip splash on error */ }
+        }
       }
     });
     return () => subscription.unsubscribe();
