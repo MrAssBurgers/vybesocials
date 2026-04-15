@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
+import { Confetti } from '@/components/easter-eggs/Confetti';
 
 interface WelcomeBackSplashProps {
   username?: string | null;
@@ -18,17 +19,23 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
   onComplete,
 }: WelcomeBackSplashProps) {
   const [visible, setVisible] = useState(true);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setVisible(false), 2800);
+    const timer = setTimeout(() => {
+      setVisible(false);
+      setShowConfetti(true);
+    }, 2800);
     return () => clearTimeout(timer);
   }, []);
 
   const displayName = username || 'you';
 
   return (
-    <AnimatePresence onExitComplete={onComplete}>
-      {visible && (
+    <>
+      {showConfetti && <Confetti />}
+      <AnimatePresence onExitComplete={onComplete}>
+        {visible && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -203,6 +210,7 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
           />
         </motion.div>
       )}
-    </AnimatePresence>
+      </AnimatePresence>
+    </>
   );
 });
