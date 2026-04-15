@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquarePlus, ThumbsUp, Bug, Lightbulb, MoreHorizontal, Filter } from 'lucide-react';
+import { MessageSquarePlus, ThumbsUp, Bug, Lightbulb, MoreHorizontal, Filter, Sparkles } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -11,25 +11,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useFeedback, useCreateFeedback, useLikeFeedback, useUpdateFeedbackStatus, Feedback } from '@/hooks/useFeedback';
 import { useAuth } from '@/lib/auth';
@@ -40,8 +28,15 @@ import { cn } from '@/lib/utils';
 const typeIcons: Record<string, React.ComponentType<{ className?: string }> | null> = {
   bug: Bug,
   feature: Lightbulb,
-  improvement: null, // Uses VybeMiniIcon instead
+  improvement: null,
   other: MessageSquarePlus,
+};
+
+const typeAccents = {
+  bug: 'border-l-red-500/60',
+  feature: 'border-l-blue-500/60',
+  improvement: 'border-l-green-500/60',
+  other: 'border-l-muted-foreground/30',
 };
 
 const typeColors = {
@@ -79,19 +74,20 @@ function FeedbackCard({ feedback }: { feedback: Feedback }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       layout
     >
-      <Card className="overflow-hidden hover:shadow-md transition-shadow">
+      <Card className={cn(
+        'overflow-hidden hover:shadow-md transition-all border-l-[3px]',
+        typeAccents[feedback.type as keyof typeof typeAccents] || typeAccents.other
+      )}>
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
               <Avatar className="h-8 w-8">
                 <AvatarImage src={feedback.user?.avatar_url || undefined} />
-                <AvatarFallback>
-                  {feedback.user?.username?.[0]?.toUpperCase() || 'U'}
-                </AvatarFallback>
+                <AvatarFallback>{feedback.user?.username?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
               </Avatar>
               <div>
                 <p className="text-sm font-medium">{feedback.user?.username || 'Anonymous'}</p>
@@ -122,18 +118,10 @@ function FeedbackCard({ feedback }: { feedback: Feedback }) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleStatusChange('open')}>
-                      Mark as Open
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleStatusChange('in_progress')}>
-                      Mark as In Progress
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleStatusChange('resolved')}>
-                      Mark as Resolved
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleStatusChange('closed')}>
-                      Mark as Closed
-                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusChange('open')}>Mark as Open</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusChange('in_progress')}>Mark as In Progress</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusChange('resolved')}>Mark as Resolved</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusChange('closed')}>Mark as Closed</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
@@ -142,19 +130,17 @@ function FeedbackCard({ feedback }: { feedback: Feedback }) {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm whitespace-pre-wrap">{feedback.message}</p>
-          
           <div className="flex items-center justify-between pt-2 border-t border-border">
             <Button
               variant="ghost"
               size="sm"
               onClick={handleLike}
               disabled={!profile || likeFeedback.isPending}
-              className={cn(
-                'gap-2',
-                feedback.has_liked && 'text-primary'
-              )}
+              className={cn('gap-2 group', feedback.has_liked && 'text-primary')}
             >
-              <ThumbsUp className={cn('h-4 w-4', feedback.has_liked && 'fill-current')} />
+              <motion.div whileTap={{ scale: 1.3 }} transition={{ type: 'spring', stiffness: 500 }}>
+                <ThumbsUp className={cn('h-4 w-4 transition-all', feedback.has_liked && 'fill-current')} />
+              </motion.div>
               <span>{feedback.likes_count}</span>
             </Button>
           </div>
@@ -172,7 +158,6 @@ function NewFeedbackDialog() {
 
   const handleSubmit = async () => {
     if (!message.trim() || !type) return;
-
     await createFeedback.mutateAsync({ type, message });
     setOpen(false);
     setMessage('');
@@ -190,17 +175,13 @@ function NewFeedbackDialog() {
       <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Submit Feedback</DialogTitle>
-          <DialogDescription>
-            Help us improve by sharing your thoughts, reporting bugs, or suggesting features.
-          </DialogDescription>
+          <DialogDescription>Help us improve by sharing your thoughts, reporting bugs, or suggesting features.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Type</Label>
             <Select value={type} onValueChange={setType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select feedback type" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select feedback type" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="bug">🐛 Bug Report</SelectItem>
                 <SelectItem value="feature">💡 Feature Request</SelectItem>
@@ -211,26 +192,13 @@ function NewFeedbackDialog() {
           </div>
           <div className="space-y-2">
             <Label>Message</Label>
-            <Textarea
-              placeholder="Describe your feedback..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={4}
-              maxLength={1000}
-            />
-            <p className="text-xs text-muted-foreground text-right">
-              {message.length}/1000
-            </p>
+            <Textarea placeholder="Describe your feedback..." value={message} onChange={(e) => setMessage(e.target.value)} rows={4} maxLength={1000} />
+            <p className="text-xs text-muted-foreground text-right">{message.length}/1000</p>
           </div>
         </div>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={!type || !message.trim() || createFeedback.isPending}
-          >
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={!type || !message.trim() || createFeedback.isPending}>
             {createFeedback.isPending ? 'Submitting...' : 'Submit'}
           </Button>
         </div>
@@ -238,6 +206,13 @@ function NewFeedbackDialog() {
     </Dialog>
   );
 }
+
+const FILTER_OPTIONS = [
+  { value: 'all', label: 'All', icon: null },
+  { value: 'bug', label: 'Bugs', icon: Bug },
+  { value: 'feature', label: 'Features', icon: Lightbulb },
+  { value: 'improvement', label: 'Improvements', icon: Sparkles },
+];
 
 export default function FeedbackPage() {
   const { data: feedback, isLoading } = useFeedback();
@@ -251,35 +226,44 @@ export default function FeedbackPage() {
   return (
     <AppLayout>
       <div className="p-4 max-w-2xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          {/* Header with gradient icon */}
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-bold">Feedback</h1>
-              <p className="text-muted-foreground">
-                Community suggestions and bug reports
-              </p>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 blur-sm" />
+                <div className="relative w-10 h-10 rounded-xl bg-card/80 backdrop-blur-sm border border-border/30 flex items-center justify-center">
+                  <MessageSquarePlus className="h-5 w-5 text-primary" />
+                </div>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">Feedback</h1>
+                <p className="text-xs text-muted-foreground">Community voice board</p>
+              </div>
             </div>
             <NewFeedbackDialog />
           </div>
 
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="bug">🐛 Bugs</SelectItem>
-                <SelectItem value="feature">💡 Features</SelectItem>
-                <SelectItem value="improvement">✨ Improvements</SelectItem>
-                <SelectItem value="other">💬 Other</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Gradient accent line */}
+          <div className="h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent mb-4" />
+
+          {/* Capsule Filters */}
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+            {FILTER_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setTypeFilter(opt.value)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all shrink-0',
+                  typeFilter === opt.value
+                    ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/20'
+                    : 'bg-card/60 text-muted-foreground hover:text-foreground border border-border/40'
+                )}
+              >
+                {opt.icon && <opt.icon className="h-3 w-3" />}
+                {opt.label}
+              </button>
+            ))}
           </div>
         </motion.div>
 
@@ -298,18 +282,21 @@ export default function FeedbackPage() {
             ))}
           </div>
         ) : filteredFeedback?.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <MessageSquarePlus className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">No feedback yet</h3>
-              <p className="text-muted-foreground mb-4">
-                Be the first to share your thoughts!
-              </p>
-              <NewFeedbackDialog />
-            </CardContent>
-          </Card>
+          <div className="py-16 text-center">
+            <div className="relative inline-block mb-4">
+              <div className="absolute -inset-4 rounded-2xl bg-gradient-to-br from-primary/5 to-accent/5" />
+              <div className="relative w-16 h-16 rounded-2xl bg-card/80 backdrop-blur-sm border border-border/30 flex items-center justify-center">
+                <motion.div animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 2.5 }}>
+                  <MessageSquarePlus className="h-7 w-7 text-muted-foreground/50" />
+                </motion.div>
+              </div>
+            </div>
+            <h3 className="text-sm font-medium mb-1">No feedback yet</h3>
+            <p className="text-xs text-muted-foreground mb-4">Be the first to share your thoughts!</p>
+            <NewFeedbackDialog />
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <AnimatePresence>
               {filteredFeedback?.map((f) => (
                 <FeedbackCard key={f.id} feedback={f} />
