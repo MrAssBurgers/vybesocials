@@ -839,6 +839,6 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         isOpen={showCommentSheet}
         onClose={() => setShowCommentSheet(false)}
       />
-    </article>
+    </motion.article>
   );
 });
