@@ -220,18 +220,20 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
     const threshold = 50;
     const velocity = 0.5;
     
-    // Horizontal swipe - navigate between groups
-    if (Math.abs(info.offset.x) > threshold || Math.abs(info.velocity.x) > velocity) {
+    const absX = Math.abs(info.offset.x);
+    const absY = Math.abs(info.offset.y);
+    
+    // Determine dominant axis — only fire one handler
+    if (absY > absX && info.offset.y > 100) {
+      // Vertical swipe down — close
+      onClose();
+    } else if (absX > absY && (absX > threshold || Math.abs(info.velocity.x) > velocity)) {
+      // Horizontal swipe — navigate between groups
       if (info.offset.x > 0) {
         goToPrevGroup();
       } else {
         goToNextGroup();
       }
-    }
-    
-    // Vertical swipe down - close
-    if (info.offset.y > 100) {
-      onClose();
     }
   }, [goToNextGroup, goToPrevGroup, onClose]);
 
@@ -285,10 +287,10 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
       {/* Story Container */}
       <motion.div 
         className="relative w-full h-full md:w-[400px] md:h-[700px] md:rounded-2xl overflow-hidden bg-black"
-        drag="x"
-        dragDirectionLock
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.2}
+        drag
+        dragSnapToOrigin
+        dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
+        dragElastic={{ x: 0.2, y: 0.4 }}
         onDragEnd={handleDragEnd}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -296,7 +298,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
         onMouseUp={handleTouchEnd}
         onMouseLeave={handleTouchEnd}
         onClick={handleClick}
-        style={{ touchAction: 'none' }}
+        style={{ touchAction: 'pan-y' }}
       >
         {/* Story Content with Slide Animation */}
         <AnimatePresence mode="popLayout" custom={direction}>
