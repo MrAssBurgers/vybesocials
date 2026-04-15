@@ -1,54 +1,101 @@
 
 
-## Fix: Background Suppression on Upload Page + Filter Baking for Sent Photos + AI Enhance Filter Preservation
+## Visual Polish Pass + Home Feed Scroll Fix
 
-Three issues to fix:
-
----
-
-### 1. Suppress Custom Background on /upload and Other Full-Screen Pages
-
-**Problem**: The custom user background (wallpaper) bleeds through on pages like `/upload` where it hurts contrast (camera viewfinder, compose screen). The `MobileCreateStudio` and `DesktopCreateStudio` already use `bg-black` / `bg-background` but the `has-custom-bg` CSS overrides make those transparent.
-
-**Fix**: On mount of the Upload page (and any other full-screen overlay pages like camera), temporarily remove the `has-custom-bg` class from `document.body` and restore it on unmount. This gives these pages their solid default background while keeping the wallpaper on normal pages.
-
-**Implementation**: Add a `useEffect` in `Upload.tsx` that removes `has-custom-bg` on mount and restores it on unmount. Also add the same to `MobilePostComposer.tsx` (the compose phase).
-
-**Files**: `src/pages/Upload.tsx`
+Two focus areas: fixing the broken immersive feed scrolling, and polishing key surfaces to create that "wow" first impression.
 
 ---
 
-### 2. Fix "Filter Not Applied When Sending" — Gallery-Picked Images
+### 1. Fix Home Feed Scrolling (Immersive Mode)
 
-**Problem**: When a user picks an image from gallery and applies a filter via `ImageFilterEditor`, the `handleEditorApply` correctly replaces the file. However, in `MobilePostComposer`, the `onEnhanced` callback only updates `previews` (the display URL) but **never updates the `files` array**. The `files` prop is what gets uploaded. So the preview shows the enhanced/filtered version but the original file gets sent.
+**Problem**: `ImmersiveFeedMode` uses a hardcoded `h-[calc(100vh-140px)]` that doesn't match the actual layout. The mobile layout has a 56px header (`h-14`) + bottom nav with safe areas, and uses `100dvh` elsewhere. The snap scroll container height mismatches the card heights, causing cards to get cut off and scroll to feel janky.
 
-Since `MobilePostComposer` receives `files` and `previews` as props (not state it owns), it can't update them. The `onEnhanced` callback at line 247-250 sets `newPreviews` but never calls any setter and never updates the file.
+**Fix**:
+- Remove the immersive snap-scroll mode entirely — it's a secondary view toggle that conflicts with the normal infinite scroll feed and causes the cut-off bug
+- Remove the `ImmersiveToggle` button from the feed tab bar
+- The normal list feed already works well with the infinite scroll observer and pull-to-refresh
+- This eliminates the snap-scroll container nesting problem entirely
 
-**Fix**: Convert the AI enhance `onEnhanced` handler to also create a new `File` from the data URL and update the files array. Since `files`/`previews` are props from the parent, we need to either:
-- Add `onUpdateFiles` callback prop to `MobilePostComposer`, OR
-- Manage local state copies of files/previews inside `MobilePostComposer` so edits can be applied locally
-
-The simpler approach: add local state mirrors of `files` and `previews` in `MobilePostComposer` that initialize from props but can be mutated locally for enhancements.
-
-**Files**: `src/components/create/MobilePostComposer.tsx`
+**Files**: `src/components/home/HomeWidgetRenderer.tsx`, `src/components/home/ImmersiveFeedMode.tsx`
 
 ---
 
-### 3. AI Enhancement Doesn't Preserve Current Filter
+### 2. Greeting Widget — Premium Welcome Header
 
-**Problem**: The AI enhance sends the original `imageFile` to the edge function. If the user already applied a camera filter (baked into the JPEG at capture time from the canvas), the filter IS in the file. But if the user applied a filter via `ImageFilterEditor` in the desktop flow, the filtered file replaces the original — so the AI enhance would work on the filtered version.
+**Current**: Plain text "Good morning, @username" with a small activity ticker below. Functional but flat.
 
-The real issue is in `MobilePostComposer` where `onEnhanced` doesn't actually persist anything (bug #2 above). Once we fix bug #2 so the enhanced data URL gets converted to a File and replaces the entry in the local files array, the AI enhancement will be properly applied and sent.
+**Upgrade**:
+- Add a subtle animated gradient accent line below the greeting (primary → accent, 2px, slow shimmer)
+- Show the user's avatar next to the greeting with a level badge overlay
+- Add a "current vibe" emoji if they have a Vibe Check active
+- Typography upgrade: lighter weight on "Good morning" (font-medium), bolder on username (font-black), creates visual hierarchy
 
-**Files**: Same fix as #2 — `src/components/create/MobilePostComposer.tsx`
+**Files**: `src/components/home/GreetingWidget.tsx`
+
+---
+
+### 3. Feed Tab Bar — Floating Capsule Upgrade
+
+**Current**: The tab bar is `bg-card/60 backdrop-blur-xl` with a motion pill indicator. It works but looks like a standard tab bar.
+
+**Upgrade**:
+- Make the active tab indicator a neon-glow capsule with a soft box-shadow pulse (`shadow-[0_0_20px_hsl(var(--primary)/0.25)]`)
+- Add a tiny dot indicator on tabs that have unread/new content
+- Subtle parallax tilt on the active capsule using `perspective` and `rotateX` on hover
+
+**Files**: `src/components/home/HomeWidgetRenderer.tsx`
+
+---
+
+### 4. Post Cards — Depth & Micro-interactions
+
+**Current**: PostCards are clean but every social app has them. No distinctive visual signature.
+
+**Upgrade**:
+- Add a subtle left-edge accent bar (3px, rounded, gradient from primary/30 to transparent) — gives cards a distinct "VYBE" signature
+- Smooth entrance animation: staggered `opacity` + `translateY(8px)` as cards enter viewport (using the existing IntersectionObserver pattern)
+- Double-tap heart: add a brief scale pop on the heart icon (0.9→1.2→1.0) with haptic
+
+**Files**: `src/components/posts/PostCard.tsx`
+
+---
+
+### 5. XP Streak Widget — Alive & Glowing
+
+**Current**: Small bar with flame icon, level text, and a basic progress bar. Functional but easy to ignore.
+
+**Upgrade**:
+- Animated flame icon that flickers (subtle scale oscillation) when streak > 0
+- Progress bar gets a gradient fill (primary → accent) with a moving shimmer highlight
+- The whole widget pulses softly once on mount to draw attention
+
+**Files**: `src/components/home/XPStreakWidget.tsx`
+
+---
+
+### 6. "You're All Caught Up" Screen — Celebration Moment
+
+**Current**: Basic checkmark in a circle with text. Boring — this is a reward moment.
+
+**Upgrade**:
+- Animated checkmark that draws itself (SVG path animation)
+- Confetti burst (reuse existing `Confetti` component) on first appearance
+- Gradient text on "You're all caught up" (primary → accent)
+- Fun rotating emoji (🎉) next to the title
+
+**Files**: `src/components/home/CaughtUpScreen.tsx`
 
 ---
 
 ### Technical Summary
 
-**Files modified** (2 files):
-- `src/pages/Upload.tsx` — Add `useEffect` to suppress custom background on mount/unmount
-- `src/components/create/MobilePostComposer.tsx` — Add local state mirrors for files/previews; fix `onEnhanced` to convert data URL to File and update both arrays; fix the dead code where `newPreviews` is set but never used
+**Files modified** (6 files):
+- `src/components/home/HomeWidgetRenderer.tsx` — Remove immersive toggle, upgrade tab bar glow
+- `src/components/home/ImmersiveFeedMode.tsx` — Delete or gut (no longer used)
+- `src/components/home/GreetingWidget.tsx` — Avatar + gradient accent + typography hierarchy
+- `src/components/posts/PostCard.tsx` — Left accent bar + entrance animation
+- `src/components/home/XPStreakWidget.tsx` — Animated flame + shimmer progress
+- `src/components/home/CaughtUpScreen.tsx` — SVG draw animation + confetti + gradient text
 
-**No database changes needed.**
+**No database changes needed. No functionality removed — everything is purely visual polish.**
 
