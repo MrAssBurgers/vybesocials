@@ -290,7 +290,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
         drag
         dragSnapToOrigin
         dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-        dragElastic={{ x: 0.2, y: 0.4 }}
+        dragElastic={0.3}
         onDragEnd={handleDragEnd}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
