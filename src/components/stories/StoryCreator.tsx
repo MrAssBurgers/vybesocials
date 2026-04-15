@@ -14,6 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { validateStoryMedia, compressImage, generateStoryFileName } from '@/lib/storyUtils';
 import { Camera } from '@/components/camera/Camera';
+import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 
 interface StoryCreatorProps {
   onClose: () => void;
@@ -217,12 +218,13 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black flex flex-col overflow-hidden"
-    >
+    <FullscreenPortal>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[6000] bg-black flex flex-col overflow-hidden"
+      >
       {/* Header */}
       <div className="flex items-center justify-between p-3 flex-shrink-0">
         <Button 
@@ -443,6 +445,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
         className="hidden"
         capture="environment"
       />
-    </motion.div>
+      </motion.div>
+    </FullscreenPortal>
   );
 }
