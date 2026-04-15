@@ -1,94 +1,114 @@
 
 
-## Full App Visual Refresh — Kill the Boring
+## Full Visual Refresh — Round 2
 
-After scanning every page and component, here are the areas that look generic/basic and the redesign plan for each.
-
----
-
-### 1. NotFound Page — Full Cinematic 404
-**Current**: Plain white `bg-muted` div with "404" text and an underlined link. Looks like a template.
-
-**Redesign**: Immersive dark fullscreen with animated glitch effect on the "404" text, a floating VYBE logo with ambient glow, gradient mesh background, and a glassmorphic "Go Home" button. Add a subtle particle drift animation.
-
-**File**: `src/pages/NotFound.tsx`
+After scanning the entire app, these pages stand out as bland, template-like, or visually flat compared to the recently redesigned pages.
 
 ---
 
-### 2. Home Feed Tab Bar — Glowing Capsule Selector
-**Current**: Standard `TabsList` with muted background. The animated underline is nice but the container is flat `bg-muted/50`.
+### 1. Leaderboard Page — Podium Hero + Neon Rank Cards
+**Current**: Plain Trophy icon + centered text header. Standard TabsList. Rows are basic `hover:bg-accent/50` links in a `liquid-glass-card`.
 
-**Redesign**: Frosted glass capsule with inner glow on the active tab. Active tab gets a gradient fill (not just text color change) with soft neon shadow. The underline becomes a full capsule highlight that morphs between tabs using `layoutId`.
+**Redesign**:
+- Top 3 users get a **podium layout** — three stacked cards with the #1 in the center raised higher, gold/silver/bronze gradient borders and ambient glow
+- Each podium card shows avatar with a pulsing rank ring
+- Remaining rows get subtle gradient left-border accent based on rank tier
+- Header becomes a gradient text "Leaderboard" with animated trophy that rotates on mount
+- Tabs get the frosted capsule treatment (matching Home feed tabs)
 
-**File**: `src/components/home/HomeWidgetRenderer.tsx` (FeedSection)
-
----
-
-### 3. "Customize Home" Button — Floating Gradient Orb
-**Current**: Small outline button that says "Customize Home" with a grid icon. Easily missed.
-
-**Redesign**: Morph into a floating glassmorphic pill with a subtle breathing animation and gradient border. Add a shimmer sweep effect. Make it feel premium, not utilitarian.
-
-**File**: `src/pages/Home.tsx`
+**File**: `src/pages/Leaderboard.tsx`
 
 ---
 
-### 4. Empty States — Illustrated Glass Cards
-**Current**: Centered emoji + plain text. Every empty state looks identical and forgettable.
+### 2. Search Page — Immersive Discovery Hub
+**Current**: Plain search input + basic pill tabs + flat `PersonRow` items. "Suggested for you" section is a plain list with no visual distinction.
 
-**Redesign**: Glassmorphic card with gradient accent strip, animated floating icon (not emoji — use Lucide icons with gradient backgrounds), and a CTA button. Each empty state gets a unique gradient based on context (notifications = violet, posts = cyan, saved = amber).
+**Redesign**:
+- Search input gets a gradient border glow on focus with floating search icon animation
+- Tab pills get inner glow on active state (matching existing capsule pattern)
+- Trending/Suggested section gets horizontal scrollable avatar cards with gradient rings instead of a flat list
+- PersonRow gets a glassmorphic hover card with subtle gradient accent strip on the left
+- Empty results gets the illustrated glass card treatment
+- "Find Friends from Contacts" button gets gradient shimmer treatment
 
-**Files**: 
-- `src/pages/Notifications.tsx` (EmptyState component)
-- `src/components/home/HomeWidgetRenderer.tsx` (InlinePostList empty)
-- `src/pages/Profile.tsx` (EmptyState component)
-
----
-
-### 5. Notification Page Header — Gradient Identity Banner
-**Current**: "Notifications" h1 + "X new" text + basic Referrals pill. Standard layout.
-
-**Redesign**: Add a gradient accent line under the header (like the composer redesign). The unread count becomes an animated gradient badge that pulses. The Referrals button gets a gift gradient background with shimmer.
-
-**File**: `src/pages/Notifications.tsx`
+**File**: `src/pages/Search.tsx`
 
 ---
 
-### 6. Settings Page Header — Premium Glass Identity
-**Current**: Basic icon in a rounded box + "Settings" text. The desktop nav is wrapped in a plain `liquid-glass-card`.
+### 3. Feedback Page — Community Voice Board
+**Current**: Plain h1 "Feedback" + standard cards with basic borders. Filter is a bare Select dropdown. No visual hierarchy.
 
-**Redesign**: Settings icon gets a rotating gradient ring. Header text uses gradient fill. Desktop category selector buttons get frosted glass active states with glow. Sign out button gets a red glass treatment instead of plain outline.
+**Redesign**:
+- Header gets a gradient icon container + gradient text, matching Settings page treatment
+- FeedbackCard gets gradient accent strip on the left based on type (red=bug, blue=feature, green=improvement)
+- Vote/like button gets animated fill effect on tap
+- Filter pills become capsule buttons instead of a dropdown
+- Empty state gets glassmorphic illustrated card
+- "Submit" button becomes a floating gradient FAB at bottom-right
 
-**File**: `src/pages/Settings.tsx`
+**File**: `src/pages/Feedback.tsx`
 
 ---
 
-### 7. Profile Empty States + Post Grid
-**Current**: Profile empty states are plain emoji + text. The post grid is a basic 3-col grid with no personality.
+### 4. Sounds Page — Music Discovery Vibe
+**Current**: Standard sticky header with plain Input. Tabs are default TabsList. Sound grid skeletons are plain gray boxes. Empty states are bare icons + text.
 
-**Redesign**: Empty states become illustrated glass cards with animated icons. Post grid gets subtle rounded corners with a staggered fade-in animation on each tile.
+**Redesign**:
+- Header gets animated equalizer bars next to the "Sounds" title (CSS animation)
+- Search input gets the gradient focus glow
+- Tab triggers get neon underline on active state
+- "Live" badge gets a pulsing red dot instead of generic animate-pulse
+- Empty states get context-colored glassmorphic cards with animated music icons
+- The "Upload" button becomes a gradient pill with shimmer
 
-**File**: `src/pages/Profile.tsx`
+**File**: `src/pages/Sounds.tsx`
+
+---
+
+### 5. Terms & Privacy Pages — Modern Legal Styling
+**Current**: Wall of plain text with basic section headers. No visual rhythm. Looks like a raw HTML document.
+
+**Redesign**:
+- Add a frosted glass sidebar-style table of contents (desktop) or collapsible accordion (mobile) for section navigation
+- Section headers get numbered gradient badges (e.g., "01" in a primary-colored circle)
+- Key terms/definitions get highlighted with a subtle `bg-primary/5` inline marker
+- Add a gradient accent line under the page header
+- Contact email gets a glassmorphic card treatment instead of bare link
+
+**Files**: `src/pages/Terms.tsx`, `src/pages/Privacy.tsx`
+
+---
+
+### 6. Messages Empty State — Conversation Starter
+**Current**: Desktop empty state is just "Select a conversation / or start a new chat" in plain text centered on a blank area.
+
+**Redesign**:
+- Animated chat bubble illustration using Lucide icons (MessageCircle stacked)
+- Gradient text for the heading
+- Subtle floating particle animation in the background of the empty area
+- "Start a Chat" CTA button with gradient shimmer
+
+**File**: `src/pages/Messages.tsx`
 
 ---
 
 ### Technical Details
 
-**Files modified** (7 files):
-- `src/pages/NotFound.tsx` — Complete cinematic redesign
-- `src/pages/Home.tsx` — Customize button redesign
-- `src/components/home/HomeWidgetRenderer.tsx` — Feed tabs + empty states
-- `src/pages/Notifications.tsx` — Header + empty states
-- `src/pages/Settings.tsx` — Header + nav + sign out
-- `src/pages/Profile.tsx` — Empty states + grid animation
-- `src/index.css` — Add glitch keyframe + new utility animations
+**Files modified** (8 files):
+- `src/pages/Leaderboard.tsx` — Podium hero + rank cards
+- `src/pages/Search.tsx` — Discovery hub with gradient search + horizontal suggested
+- `src/pages/Feedback.tsx` — Community voice board with type-colored accents
+- `src/pages/Sounds.tsx` — Music discovery with equalizer animations
+- `src/pages/Terms.tsx` — Modern legal with numbered sections
+- `src/pages/Privacy.tsx` — Matching legal redesign
+- `src/pages/Messages.tsx` — Desktop empty state upgrade
+- `src/index.css` — Equalizer keyframes + new utility animations
 
 **No database changes needed.**
 
 **What stays the same:**
-- All functionality, data fetching, and navigation
-- Notification grouping and row layout
-- Bottom nav design (already polished)
-- PostCard layout (recently redesigned)
-- All existing motion/spring physics
+- All data fetching, hooks, and functionality
+- All existing navigation and routing
+- Component structure and prop interfaces
+- Mobile responsiveness and safe areas
 
