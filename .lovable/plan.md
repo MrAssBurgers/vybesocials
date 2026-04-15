@@ -1,105 +1,54 @@
 
 
-## Friend Link Compact Redesign + Premium System Overhaul + Live Payments Fix
+## Fix: Background Suppression on Upload Page + Filter Baking for Sent Photos + AI Enhance Filter Preservation
+
+Three issues to fix:
 
 ---
 
-### 1. Friend Link — Compact Mobile Redesign
+### 1. Suppress Custom Background on /upload and Other Full-Screen Pages
 
-**Problem**: The current `FriendDrop.tsx` is a 1139-line component with a "cyber hacker" aesthetic (font-mono, TERMINATE, SIGNAL ACQUIRED, etc.) that doesn't fit a clean social app. It uses a Dialog that's oversized on phones with a 2-column grid layout that's cramped on small screens. `AutoFriendDrop.tsx` (511 lines) is a second implementation with cleaner styling but duplicated logic.
+**Problem**: The custom user background (wallpaper) bleeds through on pages like `/upload` where it hurts contrast (camera viewfinder, compose screen). The `MobileCreateStudio` and `DesktopCreateStudio` already use `bg-black` / `bg-background` but the `has-custom-bg` CSS overrides make those transparent.
 
-**Redesign**: Replace the cyber/hacker theme with a clean, compact bottom sheet design:
-- **Single-column layout**: QR code centered at top, scanner button below, share/copy row as compact pills
-- **Remove all cyber language**: No more "SIGNAL ACQUIRED", "TERMINATE", "DECRYPTING IDENTITY", "SCAN TARGET". Replace with clean, friendly copy
-- **Compact found/success states**: Inline card instead of full-page takeover
-- **Clean header**: Simple "Add Friend" title with X close, no cyber grid overlays
-- **Sheet height**: `max-h-[75vh]` instead of full dialog, bottom sheet style on mobile
-- **Remove duplicate**: Consolidate `AutoFriendDrop.tsx` trigger into `FriendDrop.tsx`
+**Fix**: On mount of the Upload page (and any other full-screen overlay pages like camera), temporarily remove the `has-custom-bg` class from `document.body` and restore it on unmount. This gives these pages their solid default background while keeping the wallpaper on normal pages.
 
-**Files**: `src/components/friends/FriendDrop.tsx`, `src/components/friends/AutoFriendDrop.tsx`
+**Implementation**: Add a `useEffect` in `Upload.tsx` that removes `has-custom-bg` on mount and restores it on unmount. Also add the same to `MobilePostComposer.tsx` (the compose phase).
+
+**Files**: `src/pages/Upload.tsx`
 
 ---
 
-### 2. Premium Feature Audit — Free vs Premium Rebalancing
+### 2. Fix "Filter Not Applied When Sending" — Gallery-Picked Images
 
-**Problem**: The paywall lists features like voice messages, unsending, vanish mode as premium-only, but these are basic messaging features users expect for free. The perk list is inflated with features that don't exist yet.
+**Problem**: When a user picks an image from gallery and applies a filter via `ImageFilterEditor`, the `handleEditorApply` correctly replaces the file. However, in `MobilePostComposer`, the `onEnhanced` callback only updates `previews` (the display URL) but **never updates the `files` array**. The `files` prop is what gets uploaded. So the preview shows the enhanced/filtered version but the original file gets sent.
 
-**New Free vs Premium split**:
+Since `MobilePostComposer` receives `files` and `previews` as props (not state it owns), it can't update them. The `onEnhanced` callback at line 247-250 sets `newPreviews` but never calls any setter and never updates the file.
 
-**FREE (basic social features)**:
-- Voice messages in DMs
-- Unsend/delete messages
-- Basic reactions & emojis
-- Standard file uploads (20MB)
-- Basic themes & colors
-- Read receipts (always on)
-- Standard profile customization
-- Pin 1 post to profile
-- Ad-supported experience
+**Fix**: Convert the AI enhance `onEnhanced` handler to also create a new `File` from the data URL and update the files array. Since `files`/`previews` are props from the parent, we need to either:
+- Add `onUpdateFiles` callback prop to `MobilePostComposer`, OR
+- Manage local state copies of files/previews inside `MobilePostComposer` so edits can be applied locally
 
-**PREMIUM (enhancement layer)**:
-- Ad-free experience
-- Animated profile borders & name effects
-- Profile visitor tracker (see who viewed you)
-- Custom emoji reactions (upload your own)
-- Chat effects (confetti, screen-shake)
-- Profile music (song on your profile)
-- 50MB file uploads + high-res media
-- Read receipt control (toggle per convo)
-- Message scheduling
-- Post analytics (views, reach, engagement)
-- Post scheduling & priority in Explore
-- Longer clips (3min vs 1min)
-- Premium font packs & unlimited AI themes
-- Daily loot box & rare reaction packs
-- Profile pet
-- Gift Premium to friends
-- Early access to new features
-- OG Flex Badge
-- Custom status badges
-- Animated banners (GIF/video)
+The simpler approach: add local state mirrors of `files` and `previews` in `MobilePostComposer` that initialize from props but can be mutated locally for enhancements.
 
-**Files**: `src/components/premium/PaywallSheet.tsx`, `src/components/settings/PremiumPerkActions.tsx`
+**Files**: `src/components/create/MobilePostComposer.tsx`
 
 ---
 
-### 3. PaywallSheet Redesign — Clean, Accurate Listing
+### 3. AI Enhancement Doesn't Preserve Current Filter
 
-**Redesign the paywall from scratch**:
-- **Hero section**: Gradient crown with "VYBE Pro" branding, clean sans-serif typography (not the current busy icon layout)
-- **Feature list**: Simple scrollable list with checkmark icons grouped into 3 clear sections (Social, Creator, Style) instead of 6 collapsible categories
-- **Before/After visual**: Compact 2-column comparison showing Free vs Pro for key features
-- **Pricing**: Clean price cards at bottom with monthly/annual toggle
-- **CTA**: Single prominent gradient button
+**Problem**: The AI enhance sends the original `imageFile` to the edge function. If the user already applied a camera filter (baked into the JPEG at capture time from the canvas), the filter IS in the file. But if the user applied a filter via `ImageFilterEditor` in the desktop flow, the filtered file replaces the original — so the AI enhance would work on the filtered version.
 
-**Files**: `src/components/premium/PaywallSheet.tsx`, `src/components/settings/PremiumPerkActions.tsx`
+The real issue is in `MobilePostComposer` where `onEnhanced` doesn't actually persist anything (bug #2 above). Once we fix bug #2 so the enhanced data URL gets converted to a File and replaces the entry in the local files array, the AI enhancement will be properly applied and sent.
+
+**Files**: Same fix as #2 — `src/components/create/MobilePostComposer.tsx`
 
 ---
 
-### 4. Fix "Test Purchase" on Live App
+### Technical Summary
 
-**Problem**: The `create-premium-checkout` edge function uses `resolveStripeKey()` which falls back to `app_secrets` table. The key stored is likely a `sk_test_` key, causing test mode on the live domain.
-
-**Fix**:
-- Update `create-premium-checkout/index.ts` to validate the resolved key and log clearly when running in test vs live mode (it already does this via `validateStripeKey`)
-- The actual fix is ensuring the correct `sk_live_` key is stored. Will check if `STRIPE_SECRET_KEY` env secret is set to a live key
-- Add a visible indicator in the PaywallSheet when in test mode so the user knows ("Test Mode" badge)
-- On the live domain (`vybehub.app`), if the key resolves to test mode, show a warning toast instead of silently proceeding
-
-**Files**: `supabase/functions/create-premium-checkout/index.ts`, `src/components/premium/PaywallSheet.tsx`
-
----
-
-### Technical Details
-
-**Files modified** (6 files):
-- `src/components/friends/FriendDrop.tsx` — Complete compact redesign, remove cyber theme
-- `src/components/friends/AutoFriendDrop.tsx` — Simplify to just the trigger pill, delegate to FriendDrop
-- `src/components/premium/PaywallSheet.tsx` — Full redesign with accurate free/premium split
-- `src/components/settings/PremiumPerkActions.tsx` — Updated comparison table matching new premium tiers
-- `supabase/functions/create-premium-checkout/index.ts` — Add live domain validation warning
+**Files modified** (2 files):
+- `src/pages/Upload.tsx` — Add `useEffect` to suppress custom background on mount/unmount
+- `src/components/create/MobilePostComposer.tsx` — Add local state mirrors for files/previews; fix `onEnhanced` to convert data URL to File and update both arrays; fix the dead code where `newPreviews` is set but never used
 
 **No database changes needed.**
-
-**Secret check needed**: Will verify if `STRIPE_SECRET_KEY` is set to a live key via the secrets tool.
 
