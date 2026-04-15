@@ -219,6 +219,7 @@ export const ReactionPicker = memo(function ReactionPicker({
         const reaction = REACTIONS[hoveredIndex];
         triggerHaptic('medium');
         sounds[reaction.sound]();
+        recordEmoji(reaction.emoji);
         if (currentReaction === reaction.type) {
           onReact(null);
         } else {
@@ -268,6 +269,7 @@ export const ReactionPicker = memo(function ReactionPicker({
     triggerHaptic('medium');
     const reaction = getReaction(type);
     sounds[reaction.sound]();
+    recordEmoji(reaction.emoji);
     
     if (currentReaction === type) {
       onReact(null);
