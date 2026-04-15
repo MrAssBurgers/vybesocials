@@ -9447,6 +9447,95 @@ export type Database = {
           },
         ]
       }
+      user_about: {
+        Row: {
+          created_at: string | null
+          favorite_food: string | null
+          height: string | null
+          id: string
+          mbti: string | null
+          music_genres: string[] | null
+          now_listening_artist: string | null
+          now_listening_cover_url: string | null
+          now_listening_service: string | null
+          now_listening_title: string | null
+          now_watching_cover_url: string | null
+          now_watching_service: string | null
+          now_watching_title: string | null
+          show_age: boolean | null
+          streaming_services: string[] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          favorite_food?: string | null
+          height?: string | null
+          id?: string
+          mbti?: string | null
+          music_genres?: string[] | null
+          now_listening_artist?: string | null
+          now_listening_cover_url?: string | null
+          now_listening_service?: string | null
+          now_listening_title?: string | null
+          now_watching_cover_url?: string | null
+          now_watching_service?: string | null
+          now_watching_title?: string | null
+          show_age?: boolean | null
+          streaming_services?: string[] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          favorite_food?: string | null
+          height?: string | null
+          id?: string
+          mbti?: string | null
+          music_genres?: string[] | null
+          now_listening_artist?: string | null
+          now_listening_cover_url?: string | null
+          now_listening_service?: string | null
+          now_listening_title?: string | null
+          now_watching_cover_url?: string | null
+          now_watching_service?: string | null
+          now_watching_title?: string | null
+          show_age?: boolean | null
+          streaming_services?: string[] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_about_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_about_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_about_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_about_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       user_ai_keys: {
         Row: {
           api_key: string
