@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserAbout } from '@/hooks/useUserAbout';
+import { StatPill } from './StatPill';
 
 interface ProfileAboutDetailsProps {
   profileId: string;

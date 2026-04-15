@@ -33,7 +33,7 @@ export function useUserAbout(profileId: string | undefined) {
         .eq('user_id', profileId)
         .maybeSingle();
       if (error) throw error;
-      return data as UserAbout | null;
+      return data as unknown as UserAbout | null;
     },
     enabled: !!profileId,
     staleTime: 2 * 60_000,
