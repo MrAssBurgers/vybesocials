@@ -40,6 +40,37 @@ export function useAppBackgroundSafe() {
   return useContext(BackgroundContext);
 }
 
+/** Analyze image luminance by sampling canvas pixels */
+function analyzeLuminance(imageUrl: string): Promise<number> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const size = 64; // Small sample for performance
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(0.5); return; }
+        ctx.drawImage(img, 0, 0, size, size);
+        const data = ctx.getImageData(0, 0, size, size).data;
+        let totalLum = 0;
+        const pixelCount = size * size;
+        for (let i = 0; i < data.length; i += 4) {
+          // Relative luminance (sRGB)
+          totalLum += (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
+        }
+        resolve(totalLum / pixelCount);
+      } catch {
+        resolve(0.5);
+      }
+    };
+    img.onerror = () => resolve(0.5);
+    img.src = imageUrl;
+  });
+}
+
 /** Apply or clear background styles on document.body */
 function applyBodyBackground(state: BackgroundState) {
   const { imageUrl, opacity, blur } = state;
@@ -55,6 +86,7 @@ function applyBodyBackground(state: BackgroundState) {
     body.style.removeProperty('--bg-opacity');
     body.style.removeProperty('--bg-blur');
     document.documentElement.dataset.hasBgImage = 'false';
+    document.documentElement.style.removeProperty('--bg-luminance');
     // Remove the pseudo-element opacity/blur layer
     body.classList.remove('has-custom-bg');
     return;
@@ -75,6 +107,13 @@ function applyBodyBackground(state: BackgroundState) {
   // Use CSS custom properties for opacity/blur so a pseudo-element can handle them
   body.style.setProperty('--bg-opacity', String(opacity));
   body.style.setProperty('--bg-blur', `${blur}px`);
+  
+  // Analyze luminance for auto-contrast
+  analyzeLuminance(imageUrl).then(lum => {
+    document.documentElement.style.setProperty('--bg-luminance', String(lum));
+    // Set contrast mode: light bg needs dark text boost, dark bg needs light text boost
+    document.documentElement.dataset.bgContrast = lum > 0.55 ? 'light' : lum < 0.35 ? 'dark' : 'mid';
+  });
 }
 
 function clearBodyBackground() {

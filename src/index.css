@@ -3346,3 +3346,58 @@ img, video {
     transition: none !important;
   }
 }
+
+/* ========================================
+   BACKGROUND AUTO-CONTRAST SYSTEM
+   Automatically adjusts text and UI legibility
+   when a custom background image is active.
+   ======================================== */
+
+/* When any custom background is active, boost card surfaces */
+html[data-has-bg-image="true"] .liquid-glass-card,
+html[data-has-bg-image="true"] .liquid-glass,
+html[data-has-bg-image="true"] .glass-card {
+  backdrop-filter: blur(20px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
+  background-color: hsl(var(--card) / 0.85) !important;
+}
+
+html[data-has-bg-image="true"] .liquid-glass-subtle {
+  backdrop-filter: blur(16px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(130%) !important;
+  background-color: hsl(var(--card) / 0.75) !important;
+}
+
+/* Text shadow for legibility on any background */
+html[data-has-bg-image="true"] main h1,
+html[data-has-bg-image="true"] main h2,
+html[data-has-bg-image="true"] main h3 {
+  text-shadow: 0 1px 3px hsl(var(--background) / 0.5);
+}
+
+/* Light background detected — darken text */
+html[data-bg-contrast="light"] {
+  --bg-text-shadow: 0 1px 4px hsl(var(--background) / 0.7);
+}
+
+html[data-bg-contrast="light"] main p,
+html[data-bg-contrast="light"] main span:not([class*="bg-"]) {
+  text-shadow: var(--bg-text-shadow);
+}
+
+/* Dark background detected — add subtle glow to text */
+html[data-bg-contrast="dark"] main h1,
+html[data-bg-contrast="dark"] main h2,
+html[data-bg-contrast="dark"] main h3 {
+  text-shadow: 0 0 8px hsl(var(--primary) / 0.15), 0 1px 3px hsl(0 0% 0% / 0.6);
+}
+
+/* Nav bar gets extra solid backing when bg image active */
+html[data-has-bg-image="true"] nav[aria-label="Bottom navigation"] {
+  backdrop-filter: blur(24px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(150%) !important;
+}
+
+html[data-has-bg-image="true"] nav[aria-label="Bottom navigation"] .liquid-glass-depth {
+  background: hsl(var(--card) / 0.9) !important;
+}

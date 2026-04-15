@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { REACTIONS, ReactionType, ReactionConfig, getReaction } from '@/lib/reactions';
 import { triggerHaptic } from '@/lib/haptics';
 import { sounds } from '@/lib/sounds';
+import { recordEmoji } from '@/lib/frequentEmojis';
 
 interface ReactionPickerProps {
   currentReaction: ReactionType | null;
@@ -218,6 +219,7 @@ export const ReactionPicker = memo(function ReactionPicker({
         const reaction = REACTIONS[hoveredIndex];
         triggerHaptic('medium');
         sounds[reaction.sound]();
+        recordEmoji(reaction.emoji);
         if (currentReaction === reaction.type) {
           onReact(null);
         } else {
@@ -267,6 +269,7 @@ export const ReactionPicker = memo(function ReactionPicker({
     triggerHaptic('medium');
     const reaction = getReaction(type);
     sounds[reaction.sound]();
+    recordEmoji(reaction.emoji);
     
     if (currentReaction === type) {
       onReact(null);

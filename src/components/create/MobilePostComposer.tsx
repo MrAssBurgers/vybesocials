@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown, Check, Sparkles, Image as ImageIcon, Plus, Shield } from 'lucide-react';
+import { ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown, Check, Sparkles, Image as ImageIcon, Plus, Shield, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
@@ -18,9 +18,9 @@ import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
 
 const visibilityOptions = [
-  { id: 'public' as const, label: 'Everyone', icon: Globe, description: 'Visible to all' },
-  { id: 'followers' as const, label: 'Followers', icon: Users, description: 'Only followers' },
-  { id: 'private' as const, label: 'Only me', icon: Lock, description: 'Private post' },
+  { id: 'public' as const, label: 'Everyone', icon: Globe },
+  { id: 'followers' as const, label: 'Followers', icon: Users },
+  { id: 'private' as const, label: 'Only me', icon: Lock },
 ];
 
 interface MobilePostComposerProps {
@@ -52,7 +52,7 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
   const [scanCategories, setScanCategories] = useState<string[]>([]);
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
-  const [publishAnimation, setPublishAnimation] = useState(false);
+  const [showTags, setShowTags] = useState(true);
 
   useEffect(() => {
     const el = captionRef.current;
@@ -88,14 +88,10 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
   const handleSubmit = async () => {
     if (!canSubmit || !user) return;
     if (tags.length === 0) { toast.error('Add at least one tag'); return; }
-
-    // Open Vybe Check overlay for media posts, skip for text-only
     if (files.length > 0 && files[0]) {
       setShowVybeCheck(true);
       return;
     }
-
-    // Text-only posts skip safety scan, go straight to upload
     await doPublish('safe');
   };
 
@@ -142,7 +138,6 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
     }
   };
 
-  // Vybe Check Failed overlay
   if (vybeCheckFailed) {
     return (
       <VybeCheckFailed
@@ -158,9 +153,11 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
     );
   }
 
+  const hasMedia = previews.length > 0;
+
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
-      {/* Vybe Check Overlay — 3-phase safety + age rating */}
+    <div className="fixed inset-0 z-[200] flex flex-col bg-background">
+      {/* Overlays */}
       <AnimatePresence>
         {showVybeCheck && (
           <VybeCheckOverlay
@@ -171,8 +168,6 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
           />
         )}
       </AnimatePresence>
-
-      {/* Publish Celebration — Full screen overlay */}
       <AnimatePresence>
         {showCelebration && (
           <PublishCelebration
@@ -184,24 +179,31 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
         )}
       </AnimatePresence>
 
-      {/* Header */}
-      <div className="sticky top-0 z-40 border-b border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
-        <div className="flex items-center justify-between px-4 h-14">
-          <button onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted transition-colors">
+      {/* Frosted Glass Header */}
+      <div className="sticky top-0 z-40 backdrop-blur-xl bg-card/80 border-b border-border/30">
+        {/* Aura accent line */}
+        <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-primary to-transparent opacity-60" />
+        <div className="flex items-center justify-between px-4 h-13">
+          <button onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted/50 transition-colors">
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
           <div className="flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-base font-bold text-foreground">Create</span>
+            <motion.div
+              animate={{ rotate: [0, 15, -15, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <Sparkles className="w-4 h-4 text-primary" />
+            </motion.div>
+            <span className="text-sm font-bold text-foreground tracking-tight">Create Post</span>
           </div>
           <motion.button
             onClick={handleSubmit}
             disabled={!canSubmit || isUploading}
             whileTap={canSubmit ? { scale: 0.92 } : {}}
             className={cn(
-              "h-9 px-5 rounded-full text-sm font-bold transition-all duration-200",
+              "h-9 px-5 rounded-full text-sm font-bold transition-all duration-300",
               canSubmit && !isUploading
-                ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+                ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30"
                 : "bg-muted text-muted-foreground cursor-not-allowed"
             )}
           >
@@ -217,165 +219,196 @@ export function MobilePostComposer({ files, previews, contentType, selectedSound
           </motion.button>
         </div>
         {isUploading && (
-          <motion.div className="h-0.5 bg-primary" initial={{ width: '0%' }} animate={{ width: `${uploadProgress}%` }} transition={{ duration: 0.3 }} />
+          <motion.div className="h-0.5 bg-gradient-to-r from-primary via-accent to-primary" initial={{ width: '0%' }} animate={{ width: `${uploadProgress}%` }} transition={{ duration: 0.3 }} />
         )}
       </div>
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-        {/* Card-style media preview */}
-        {previews.length > 0 && (
-          <div className="px-4 pt-4">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="relative rounded-3xl overflow-hidden shadow-2xl shadow-primary/10 border border-border"
-              style={{ backgroundColor: 'hsl(var(--muted))' }}
-            >
-              {previews.length === 1 ? (
-                <>
-                  {files[0]?.type.startsWith('video/') ? (
-                    <video src={previews[0]} className="w-full max-h-[45dvh] object-contain mx-auto" controls playsInline />
-                  ) : (
-                    <img src={previews[0]} alt="" className="w-full max-h-[45dvh] object-contain mx-auto" />
-                  )}
-                  {/* AI Photo Enhancer */}
-                  {!files[0]?.type.startsWith('video/') && (
-                    <div className="absolute bottom-3 right-3 z-10">
-                      <AIPhotoEnhancer
-                        imageFile={files[0]}
-                        onEnhanced={(dataUrl) => {
-                          const newPreviews = [...previews];
-                          newPreviews[0] = dataUrl;
-                        }}
-                      />
-                    </div>
-                  )}
-                  {/* Floating caption overlay hint */}
-                  {!caption && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.5 }}
-                      className="absolute bottom-14 left-4 right-4 pointer-events-none"
-                    >
-                      <div className="px-4 py-2 rounded-xl bg-black/30 backdrop-blur-sm">
-                        <span className="text-white/50 text-sm">Tap below to add a caption...</span>
-                      </div>
-                    </motion.div>
-                  )}
-                </>
-              ) : (
-                <div className="flex gap-2 overflow-x-auto scrollbar-hide p-3">
-                  {previews.map((p, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 border border-border"
-                    >
-                      <img src={p} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">{i + 1}</div>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
+        
+        {/* Immersive Media Preview */}
+        {hasMedia && (
+          <div className="relative">
+            {previews.length === 1 ? (
+              <div className="relative">
+                {files[0]?.type.startsWith('video/') ? (
+                  <video src={previews[0]} className="w-full max-h-[50dvh] object-cover" controls playsInline />
+                ) : (
+                  <img src={previews[0]} alt="" className="w-full max-h-[50dvh] object-cover" />
+                )}
+                {/* Gradient fade at bottom */}
+                <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+                
+                {/* AI Enhance floating button */}
+                {!files[0]?.type.startsWith('video/') && (
+                  <div className="absolute top-3 right-3 z-10">
+                    <AIPhotoEnhancer
+                      imageFile={files[0]}
+                      onEnhanced={(dataUrl) => {
+                        const newPreviews = [...previews];
+                        newPreviews[0] = dataUrl;
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-3 pt-3 pb-1">
+                {previews.map((p, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.04, type: 'spring', stiffness: 400, damping: 25 }}
+                    className="relative w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 ring-1 ring-border/30"
+                  >
+                    <img src={p} alt="" className="w-full h-full object-cover" />
+                    <div className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-primary/90 text-primary-foreground text-[10px] font-bold flex items-center justify-center backdrop-blur-sm">{i + 1}</div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* User row */}
-        <div className="flex items-center gap-3 px-4 pt-3 pb-2">
-          <div className="w-10 h-10 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary flex-shrink-0">
+        {/* Identity + Visibility pill row */}
+        <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">
+          <div className="w-9 h-9 rounded-full p-[1.5px] bg-gradient-to-br from-primary via-accent to-primary flex-shrink-0">
             <div className="w-full h-full rounded-full overflow-hidden bg-card">
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground">
+                <div className="w-full h-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
                   {profile?.username?.[0]?.toUpperCase() || '?'}
                 </div>
               )}
             </div>
           </div>
-          <div className="flex flex-col gap-0.5">
-            {profile && <StyledUsername userId={profile.id} username={profile.username} displayName={profile.display_name} className="text-sm font-bold" />}
+          <div className="flex items-center gap-2">
+            {profile && <StyledUsername userId={profile.id} username={profile.username} displayName={profile.display_name} className="text-sm font-semibold" />}
             <button onClick={() => setShowVisibility(!showVisibility)}
-              className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground hover:bg-accent transition-colors">
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted/60 text-muted-foreground hover:bg-muted transition-colors backdrop-blur-sm">
               <currentVisibility.icon className="w-3 h-3" /> {currentVisibility.label}
-              <ChevronDown className={cn("w-3 h-3 transition-transform", showVisibility && "rotate-180")} />
+              <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", showVisibility && "rotate-180")} />
             </button>
           </div>
         </div>
 
-        {/* Caption */}
-        <div className="px-4 pb-2">
+        {/* Visibility dropdown */}
+        <AnimatePresence>
+          {showVisibility && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden px-4"
+            >
+              <div className="flex gap-2 pb-2">
+                {visibilityOptions.map(opt => (
+                  <button key={opt.id} onClick={() => { setVisibility(opt.id); setShowVisibility(false); }}
+                    className={cn("flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-medium transition-all border",
+                      visibility === opt.id 
+                        ? "border-primary/50 bg-primary/10 text-primary" 
+                        : "border-border/30 text-muted-foreground hover:border-primary/30")}>
+                    <opt.icon className="w-3 h-3" /> {opt.label}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Floating Caption */}
+        <div className="px-4 py-2">
           <textarea
             ref={captionRef}
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
             placeholder={contentType === 'text' ? "What's on your mind?" : "Write a caption..."}
-            className={cn("w-full bg-transparent text-foreground placeholder:text-muted-foreground resize-none outline-none leading-relaxed",
-              contentType === 'text' ? "text-lg min-h-[100px]" : "text-[15px] min-h-[44px]"
+            className={cn(
+              "w-full bg-muted/30 backdrop-blur-sm rounded-2xl px-4 py-3 text-foreground placeholder:text-muted-foreground/60 resize-none outline-none leading-relaxed border border-border/20 focus:border-primary/30 transition-colors",
+              contentType === 'text' ? "text-lg min-h-[120px]" : "text-[15px] min-h-[52px]"
             )}
             maxLength={2200}
             rows={1}
           />
+          <div className="flex items-center justify-between mt-1.5 px-1">
+            <span className="text-[10px] text-muted-foreground/50">{caption.length}/2200</span>
+          </div>
         </div>
 
-        {/* Tags with stagger animation */}
+        {/* AI Caption — gradient pill */}
         <div className="px-4 pb-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Tag className={cn("w-3.5 h-3.5", tags.length > 0 ? "text-primary" : "text-destructive")} />
-            <span className={cn("text-xs font-medium", tags.length > 0 ? "text-primary" : "text-destructive")}>
-              {tags.length === 0 ? 'Add at least 1 tag (required)' : `${tags.length} tag${tags.length > 1 ? 's' : ''}`}
-            </span>
-          </div>
+          <AICaptionGenerator tags={tags} contentType={contentType === 'text' ? 'post' : contentType} onSelectCaption={setCaption} />
+        </div>
 
+        {/* Tags Section — collapsible */}
+        <div className="px-4 pb-4">
+          <button 
+            onClick={() => setShowTags(!showTags)}
+            className="flex items-center justify-between w-full mb-2"
+          >
+            <div className="flex items-center gap-1.5">
+              <Tag className={cn("w-3.5 h-3.5", tags.length > 0 ? "text-primary" : "text-destructive")} />
+              <span className={cn("text-xs font-semibold", tags.length > 0 ? "text-primary" : "text-destructive")}>
+                {tags.length === 0 ? 'Tags required' : `${tags.length} tag${tags.length > 1 ? 's' : ''}`}
+              </span>
+            </div>
+            <ChevronUp className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform", !showTags && "rotate-180")} />
+          </button>
+
+          {/* Active tags as gradient chips */}
           {tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
               {tags.map((tag, i) => (
                 <motion.span
                   key={tag}
-                  initial={{ scale: 0.5, opacity: 0, y: 10 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05, type: 'spring', stiffness: 400, damping: 20 }}
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: i * 0.03, type: 'spring', stiffness: 500, damping: 22 }}
                   layout
-                  className="inline-flex items-center gap-1 text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-medium cursor-pointer hover:bg-primary/20 transition-colors"
+                  className="inline-flex items-center gap-1 text-xs font-semibold bg-gradient-to-r from-primary/15 to-accent/15 text-primary px-3 py-1.5 rounded-full cursor-pointer hover:from-primary/25 hover:to-accent/25 transition-all border border-primary/20"
                   onClick={() => handleRemoveTag(tag)}>
-                  #{tag} <X className="w-2.5 h-2.5" />
+                  #{tag} <X className="w-2.5 h-2.5 opacity-60" />
                 </motion.span>
               ))}
             </div>
           )}
 
-          <div className="flex items-center gap-2 mb-2">
-            <div className="flex-1 relative">
-              <Hash className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <input type="text" value={tagInput} onChange={(e) => setTagInput(e.target.value.replace(/\s/g, ''))} onKeyDown={handleTagInputKeyDown}
-                placeholder="Add a tag..." className="w-full pl-8 pr-3 py-2 text-xs bg-muted/50 rounded-full border border-border/50 text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 transition-all" maxLength={30} />
-            </div>
-            {tagInput.trim() && (
-              <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} onClick={() => handleAddTag(tagInput)}
-                className="h-8 px-3 rounded-full bg-primary text-primary-foreground text-xs font-semibold">Add</motion.button>
+          <AnimatePresence>
+            {showTags && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="flex items-center gap-2 mb-2.5">
+                  <div className="flex-1 relative">
+                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+                    <input type="text" value={tagInput} onChange={(e) => setTagInput(e.target.value.replace(/\s/g, ''))} onKeyDown={handleTagInputKeyDown}
+                      placeholder="Add a tag..."
+                      className="w-full pl-8 pr-3 py-2.5 text-xs bg-muted/30 rounded-full border border-border/20 text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 transition-all backdrop-blur-sm"
+                      maxLength={30} />
+                  </div>
+                  {tagInput.trim() && (
+                    <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} onClick={() => handleAddTag(tagInput)}
+                      className="h-9 px-4 rounded-full bg-gradient-to-r from-primary to-accent text-primary-foreground text-xs font-bold shadow-md shadow-primary/20">Add</motion.button>
+                  )}
+                </div>
+
+                {/* Smart suggestions */}
+                <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+                  {filteredSuggestions.slice(0, 8).map((s) => (
+                    <button key={s.tag} onClick={() => handleAddTag(s.tag)}
+                      className="flex-shrink-0 text-[11px] px-3 py-1.5 rounded-full border border-border/20 text-muted-foreground/70 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all font-medium backdrop-blur-sm">
+                      {s.emoji} #{s.tag}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
             )}
-          </div>
-
-          {/* Suggestions */}
-          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
-            {filteredSuggestions.slice(0, 8).map((s) => (
-              <button key={s.tag} onClick={() => handleAddTag(s.tag)}
-                className="flex-shrink-0 text-[11px] px-3 py-1 rounded-full border border-border/50 text-muted-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all font-medium">
-                #{s.tag}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* AI Caption */}
-        <div className="px-4 pb-4 border-t border-border/30 pt-3">
-          <AICaptionGenerator tags={tags} contentType={contentType === 'text' ? 'post' : contentType} onSelectCaption={setCaption} />
+          </AnimatePresence>
         </div>
       </div>
     </div>
