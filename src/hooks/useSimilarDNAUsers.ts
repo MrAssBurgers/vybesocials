@@ -58,6 +58,26 @@ export function useSimilarDNAUsers(limit = 10) {
 
       if (!allDna || allDna.length === 0) return [];
 
+      // Get my about data for lifestyle matching
+      const { data: myAbout } = await supabase
+        .from('user_about' as any)
+        .select('mbti, music_genres, streaming_services')
+        .eq('user_id', myProfile.id)
+        .maybeSingle();
+
+      const myMbti = (myAbout as any)?.mbti as string | null;
+      const myGenres = ((myAbout as any)?.music_genres || []) as string[];
+      const myStreaming = ((myAbout as any)?.streaming_services || []) as string[];
+
+      // Batch fetch about data for other users
+      const otherIds = (allDna as any[]).map((d: any) => d.user_id);
+      const { data: allAbout } = await supabase
+        .from('user_about' as any)
+        .select('user_id, mbti, music_genres, streaming_services')
+        .in('user_id', otherIds);
+
+      const aboutMap = new Map((allAbout as any[] || []).map((a: any) => [a.user_id, a]));
+
       // Calculate similarity for each
       const scored = (allDna as any[]).map((d: any) => {
         const pv = d.personality_vector as Record<string, number>;
@@ -71,8 +91,32 @@ export function useSimilarDNAUsers(limit = 10) {
           Math.pow(myS - s, 2) +
           Math.pow(myC - c, 2)
         );
-        const maxDist = Math.sqrt(3); // max possible distance
-        const similarity = Math.round((1 - dist / maxDist) * 100);
+        const maxDist = Math.sqrt(3);
+        let similarity = (1 - dist / maxDist) * 100;
+
+        // Bonus points for lifestyle matches
+        const theirAbout = aboutMap.get(d.user_id) as any;
+        if (theirAbout) {
+          // MBTI match bonus (+8)
+          if (myMbti && theirAbout.mbti === myMbti) similarity += 8;
+
+          // Music genre overlap bonus (up to +10)
+          const theirGenres = (theirAbout.music_genres || []) as string[];
+          if (myGenres.length > 0 && theirGenres.length > 0) {
+            const overlap = myGenres.filter((g: string) => theirGenres.includes(g)).length;
+            const maxOverlap = Math.max(myGenres.length, theirGenres.length);
+            similarity += (overlap / maxOverlap) * 10;
+          }
+
+          // Streaming service overlap bonus (up to +4)
+          const theirStreaming = (theirAbout.streaming_services || []) as string[];
+          if (myStreaming.length > 0 && theirStreaming.length > 0) {
+            const overlap = myStreaming.filter((s: string) => theirStreaming.includes(s)).length;
+            similarity += Math.min(overlap * 2, 4);
+          }
+        }
+
+        similarity = Math.min(Math.round(similarity), 100);
 
         const dominant = a >= s && a >= c ? 'Activity' : s >= c ? 'Social' : 'Creative';
 

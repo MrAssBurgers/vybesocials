@@ -19,6 +19,7 @@ import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useUserPrimaryBadge } from '@/hooks/useBadges';
 import { supabase } from '@/integrations/supabase/client';
 import { AIProfileWriter } from '@/components/ai/AIProfileWriter';
+import { AboutMeSection } from '@/components/settings/AboutMeSection';
 
 export function ProfileSection() {
   const { t } = useTranslation();
@@ -237,6 +238,9 @@ export function ProfileSection() {
           </p>
         </motion.div>
       )}
+
+      {/* About Me Details */}
+      <AboutMeSection />
 
       {/* Badge settings moved to Profile → Locker tab */}
     </div>
