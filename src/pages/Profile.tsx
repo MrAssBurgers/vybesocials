@@ -256,12 +256,15 @@ export default function ProfilePage() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
               {gridPosts.length > 0 ? (
                 <div className="grid grid-cols-3 gap-1.5">
-                  {gridPosts.map((post) => (
+                  {gridPosts.map((post, idx) => (
                     <Link key={post.id} to={`/p/${post.id}`} className="relative group">
                       <motion.div
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="aspect-square overflow-hidden bg-muted rounded-xl"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: idx * 0.04, duration: 0.3 }}
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        className="aspect-square overflow-hidden bg-muted rounded-xl ring-1 ring-border/10"
                       >
                         {post.type === 'video' ? (
                           <>
@@ -377,11 +380,27 @@ function ProfileGridImage({ url, alt }: { url: string; alt: string }) {
 }
 
 function EmptyState({ emoji, text, subtitle }: { emoji: string; text: string; subtitle?: string }) {
+  const iconMap: Record<string, { icon: typeof Grid; gradient: string }> = {
+    '📷': { icon: Grid, gradient: 'from-cyan-500/20 to-blue-500/20' },
+    '🔖': { icon: Bookmark, gradient: 'from-amber-500/20 to-orange-500/20' },
+  };
+  const cfg = iconMap[emoji];
+  const Icon = cfg?.icon || Grid;
+  const gradient = cfg?.gradient || 'from-primary/20 to-accent/20';
+
   return (
-    <div className="text-center py-12">
-      <p className="text-4xl mb-4">{emoji}</p>
-      <p className="text-muted-foreground">{text}</p>
-      {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col items-center py-14 px-4"
+    >
+      <div className={cn("w-16 h-16 rounded-2xl bg-gradient-to-br flex items-center justify-center mb-4 shadow-lg border border-border/10", gradient)}>
+        <motion.div animate={{ y: [0, -3, 0] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}>
+          <Icon className="h-7 w-7 text-foreground/60" />
+        </motion.div>
+      </div>
+      <p className="text-sm font-semibold text-foreground mb-0.5">{text}</p>
+      {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+    </motion.div>
   );
 }

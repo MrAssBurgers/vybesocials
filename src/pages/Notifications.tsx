@@ -277,29 +277,37 @@ export default function NotificationsPage() {
           )}
         </AnimatePresence>
 
-        {/* Header with referral button */}
+        {/* Header with gradient accent */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">Notifications</h1>
+              <h1 className="text-2xl font-bold tracking-tight gradient-text">Notifications</h1>
               {unreadNotifications.length > 0 && (
-                <motion.p 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-sm text-primary font-medium mt-0.5"
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-primary/15 to-accent/15 border border-primary/20"
                 >
-                  {unreadNotifications.length} new
-                </motion.p>
+                  <motion.div
+                    className="w-1.5 h-1.5 rounded-full bg-primary"
+                    animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                  <span className="text-xs font-semibold text-primary">{unreadNotifications.length} new</span>
+                </motion.div>
               )}
             </div>
             <Link
               to="/invite-friends"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-sm transition-all active:scale-95"
+              className="relative group flex items-center gap-2 px-4 py-2.5 rounded-xl overflow-hidden bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 text-amber-500 font-semibold text-sm transition-all active:scale-95 hover:shadow-[0_0_15px_hsl(40_95%_60%/0.15)]"
             >
-              <Gift className="h-4 w-4" />
-              <span>Referrals</span>
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-amber-500/10 to-transparent" />
+              <Gift className="h-4 w-4 relative" />
+              <span className="relative">Referrals</span>
             </Link>
           </div>
+          {/* Gradient accent line */}
+          <div className="mt-3 h-[2px] rounded-full bg-gradient-to-r from-primary/40 via-accent/30 to-transparent" />
         </div>
 
         {/* Tabs */}
