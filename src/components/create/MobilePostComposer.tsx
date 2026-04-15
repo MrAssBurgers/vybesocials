@@ -90,13 +90,13 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
 
   const filteredSuggestions = useMemo(() => smartSuggestions.filter(s => !tags.includes(s.tag)), [smartSuggestions, tags]);
 
-  const canSubmit = (contentType === 'text' ? caption.trim().length > 0 : files.length > 0) && tags.length > 0;
+  const canSubmit = (contentType === 'text' ? caption.trim().length > 0 : localFiles.length > 0) && tags.length > 0;
   const currentVisibility = visibilityOptions.find(v => v.id === visibility)!;
 
   const handleSubmit = async () => {
     if (!canSubmit || !user) return;
     if (tags.length === 0) { toast.error('Add at least one tag'); return; }
-    if (files.length > 0 && files[0]) {
+    if (localFiles.length > 0 && localFiles[0]) {
       setShowVybeCheck(true);
       return;
     }
@@ -119,7 +119,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
     setShowCelebration(true);
     setIsUploading(true);
     setUploadProgress(0);
-    const isLargeFile = files[0] && files[0].size > 5 * 1024 * 1024;
+    const isLargeFile = localFiles[0] && localFiles[0].size > 5 * 1024 * 1024;
     const progressStep = isLargeFile ? 1 : 5;
     const progressInterval = isLargeFile ? 500 : 300;
     let pi: ReturnType<typeof setInterval> | null = null;
@@ -127,8 +127,8 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
     try {
       pi = setInterval(() => setUploadProgress(prev => Math.min(prev + progressStep, 85)), progressInterval);
       await createPost.mutateAsync({
-        mediaFile: files.length <= 1 ? files[0] || undefined : undefined,
-        mediaFiles: files.length > 1 ? files : undefined,
+        mediaFile: localFiles.length <= 1 ? localFiles[0] || undefined : undefined,
+        mediaFiles: localFiles.length > 1 ? files : undefined,
         caption, type: contentType, tags,
         age_rating: ageRating,
       });
@@ -153,7 +153,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
         categories={scanCategories}
         caption={caption}
         tags={tags}
-        mediaUrls={previews}
+        mediaUrls={localPreviews}
         contentType={contentType}
         onEdit={() => { setVybeCheckFailed(false); }}
         onAppealComplete={() => { setVybeCheckFailed(false); onClose(); }}
@@ -161,7 +161,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
     );
   }
 
-  const hasMedia = previews.length > 0;
+  const hasMedia = localPreviews.length > 0;
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col bg-background">
@@ -237,21 +237,21 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
         {/* Immersive Media Preview */}
         {hasMedia && (
           <div className="relative">
-            {previews.length === 1 ? (
+            {localPreviews.length === 1 ? (
               <div className="relative">
-                {files[0]?.type.startsWith('video/') ? (
-                  <video src={previews[0]} className="w-full max-h-[50dvh] object-cover" controls playsInline />
+                {localFiles[0]?.type.startsWith('video/') ? (
+                  <video src={localPreviews[0]} className="w-full max-h-[50dvh] object-cover" controls playsInline />
                 ) : (
-                  <img src={previews[0]} alt="" className="w-full max-h-[50dvh] object-cover" />
+                  <img src={localPreviews[0]} alt="" className="w-full max-h-[50dvh] object-cover" />
                 )}
                 {/* Gradient fade at bottom */}
                 <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none" />
                 
                 {/* AI Enhance floating button */}
-                {!files[0]?.type.startsWith('video/') && (
+                {!localFiles[0]?.type.startsWith('video/') && (
                   <div className="absolute top-3 right-3 z-10">
                     <AIPhotoEnhancer
-                      imageFile={files[0]}
+                      imageFile={localFiles[0]}
                       onEnhanced={(dataUrl) => {
                         const newPreviews = [...previews];
                         newPreviews[0] = dataUrl;
@@ -262,7 +262,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
               </div>
             ) : (
               <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-3 pt-3 pb-1">
-                {previews.map((p, i) => (
+                {localPreviews.map((p, i) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, scale: 0.85 }}
