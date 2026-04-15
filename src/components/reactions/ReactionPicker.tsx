@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { REACTIONS, ReactionType, ReactionConfig, getReaction } from '@/lib/reactions';
 import { triggerHaptic } from '@/lib/haptics';
 import { sounds } from '@/lib/sounds';
+import { recordEmoji } from '@/lib/frequentEmojis';
 
 interface ReactionPickerProps {
   currentReaction: ReactionType | null;
