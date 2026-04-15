@@ -311,12 +311,15 @@ export default function ProfilePage() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
               {savedPosts && savedPosts.length > 0 ? (
                 <div className="grid grid-cols-3 gap-1.5">
-                  {savedPosts.map((post) => (
+                  {savedPosts.map((post, idx) => (
                     <Link key={post.id} to={`/p/${post.id}`} className="relative group">
                       <motion.div
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="aspect-square overflow-hidden bg-muted rounded-xl"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: idx * 0.04, duration: 0.3 }}
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        className="aspect-square overflow-hidden bg-muted rounded-xl ring-1 ring-border/10"
                       >
                         {post.type === 'video' || post.type === 'short' ? (
                           <>
