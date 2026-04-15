@@ -485,37 +485,38 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
               )}
             </TabsContent>
 
-            {/* POST TAB */}
             <TabsContent value="post" className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
               {/* User */}
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full p-[2px] bg-gradient-to-br from-primary to-accent flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full p-[1.5px] bg-gradient-to-br from-primary via-accent to-primary flex-shrink-0">
                   <div className="w-full h-full rounded-full overflow-hidden bg-card">
                     {profile?.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
                       : <div className="w-full h-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">{profile?.username?.[0]?.toUpperCase()}</div>}
                   </div>
                 </div>
-                {profile && <StyledUsername userId={profile.id} username={profile.username} displayName={profile.display_name} className="text-sm font-bold" />}
+                {profile && <StyledUsername userId={profile.id} username={profile.username} displayName={profile.display_name} className="text-sm font-semibold" />}
               </div>
 
               {/* Caption */}
               <div>
                 <textarea ref={captionRef} value={caption} onChange={(e) => setCaption(e.target.value)}
                   placeholder={contentType === 'text' ? "What's on your mind?" : "Write a caption..."}
-                  className="w-full bg-transparent text-foreground placeholder:text-muted-foreground resize-none outline-none leading-relaxed text-sm min-h-[60px]"
+                  className="w-full bg-muted/30 backdrop-blur-sm rounded-2xl px-4 py-3 text-foreground placeholder:text-muted-foreground/60 resize-none outline-none leading-relaxed text-sm min-h-[60px] border border-border/20 focus:border-primary/30 transition-colors"
                   maxLength={2200} rows={2} />
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center mt-1">
                   <AICaptionGenerator tags={tags} contentType={contentType === 'text' ? 'post' : contentType} onSelectCaption={setCaption} />
-                  <span className="text-[10px] text-muted-foreground">{caption.length}/2200</span>
+                  <span className="text-[10px] text-muted-foreground/50">{caption.length}/2200</span>
                 </div>
               </div>
 
               {/* Video details */}
               {contentType === 'video' && (
-                <div className="space-y-2 p-3 rounded-xl border border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
+                <div className="space-y-2 p-3 rounded-2xl border border-border/20 bg-muted/20 backdrop-blur-sm">
                   <p className="text-xs font-semibold text-foreground flex items-center gap-1.5"><Video className="w-3.5 h-3.5 text-primary" /> Video details</p>
-                  <input value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} placeholder="Title" className="w-full text-sm bg-muted border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none" maxLength={100} />
-                  <textarea value={videoDescription} onChange={(e) => setVideoDescription(e.target.value)} placeholder="Description" className="w-full min-h-[50px] text-sm bg-muted border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none resize-none" maxLength={5000} />
+                  <input value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} placeholder="Title"
+                    className="w-full text-sm bg-muted/30 border border-border/20 rounded-xl px-3 py-2 text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/30 transition-colors" maxLength={100} />
+                  <textarea value={videoDescription} onChange={(e) => setVideoDescription(e.target.value)} placeholder="Description"
+                    className="w-full min-h-[50px] text-sm bg-muted/30 border border-border/20 rounded-xl px-3 py-2 text-foreground placeholder:text-muted-foreground/50 outline-none resize-none focus:border-primary/30 transition-colors" maxLength={5000} />
                 </div>
               )}
 
@@ -526,7 +527,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
                   {visibilityOptions.map(opt => (
                     <button key={opt.id} onClick={() => setVisibility(opt.id)}
                       className={cn("flex-1 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-all",
-                        visibility === opt.id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/40")}>
+                        visibility === opt.id ? "border-primary/50 bg-primary/10 text-primary" : "border-border/20 text-muted-foreground hover:border-primary/30")}>
                       <opt.icon className="w-3.5 h-3.5" /> {opt.label}
                     </button>
                   ))}
@@ -537,35 +538,37 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <Tag className={cn("w-3.5 h-3.5", tags.length > 0 ? "text-primary" : "text-destructive")} />
-                  <span className={cn("text-xs font-medium", tags.length > 0 ? "text-primary" : "text-destructive")}>
-                    {tags.length === 0 ? 'Add at least 1 tag' : `${tags.length} tag${tags.length > 1 ? 's' : ''}`}
+                  <span className={cn("text-xs font-semibold", tags.length > 0 ? "text-primary" : "text-destructive")}>
+                    {tags.length === 0 ? 'Tags required' : `${tags.length} tag${tags.length > 1 ? 's' : ''}`}
                   </span>
                 </div>
                 {tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mb-2">
                     {tags.map(tag => (
                       <span key={tag} onClick={() => setTags(tags.filter(t => t !== tag))}
-                        className="inline-flex items-center gap-1 text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-medium cursor-pointer hover:bg-primary/20">
-                        #{tag} <X className="w-2.5 h-2.5" />
+                        className="inline-flex items-center gap-1 text-xs font-semibold bg-gradient-to-r from-primary/15 to-accent/15 text-primary px-3 py-1.5 rounded-full cursor-pointer hover:from-primary/25 hover:to-accent/25 transition-all border border-primary/20">
+                        #{tag} <X className="w-2.5 h-2.5 opacity-60" />
                       </span>
                     ))}
                   </div>
                 )}
                 <div className="flex items-center gap-2 mb-2">
                   <div className="flex-1 relative">
-                    <Hash className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
                     <input type="text" value={tagInput} onChange={(e) => setTagInput(e.target.value.replace(/\s/g, ''))}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); handleAddTag(tagInput); } }}
-                      placeholder="Add tag..." className="w-full pl-8 pr-3 py-2 text-xs bg-muted/50 rounded-full border border-border/50 text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 transition-all" maxLength={30} />
+                      placeholder="Add tag..."
+                      className="w-full pl-8 pr-3 py-2.5 text-xs bg-muted/30 rounded-full border border-border/20 text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 transition-all backdrop-blur-sm" maxLength={30} />
                   </div>
                   {tagInput.trim() && (
-                    <button onClick={() => handleAddTag(tagInput)} className="h-7 px-3 rounded-full bg-primary text-primary-foreground text-xs font-semibold">Add</button>
+                    <button onClick={() => handleAddTag(tagInput)}
+                      className="h-8 px-4 rounded-full bg-gradient-to-r from-primary to-accent text-primary-foreground text-xs font-bold shadow-md shadow-primary/20">Add</button>
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {smartSuggestions.filter(s => !tags.includes(s.tag)).slice(0, 6).map(s => (
                     <button key={s.tag} onClick={() => handleAddTag(s.tag)}
-                      className="text-[11px] px-2.5 py-1 rounded-full border border-border/50 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-all font-medium">
+                      className="text-[11px] px-3 py-1.5 rounded-full border border-border/20 text-muted-foreground/70 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all font-medium backdrop-blur-sm">
                       #{s.tag}
                     </button>
                   ))}
