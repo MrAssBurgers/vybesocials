@@ -2,30 +2,33 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  Search, 
-  TrendingUp, 
-  Clock, 
-  Heart,
-  ArrowLeft,
-  Music2,
-  Zap,
-  Star,
-  MoreVertical,
-  Upload
+  Search, TrendingUp, Heart, ArrowLeft, Music2, Zap, Star, Upload
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useTrendingSounds, useNewSounds, useSavedSounds } from '@/hooks/useSounds';
 import { SoundCard } from '@/components/sounds/SoundCard';
 import { SoundPlayer } from '@/components/sounds/SoundPlayer';
 import { SoundUploadSheet } from '@/components/sounds/SoundUploadSheet';
+
+function EqBars() {
+  return (
+    <div className="flex items-end gap-[2px] h-5">
+      {[1, 2, 3, 4].map(i => (
+        <motion.div
+          key={i}
+          className="w-[3px] rounded-full bg-primary"
+          animate={{ height: ['30%', '100%', '50%', '80%', '30%'] }}
+          transition={{ repeat: Infinity, duration: 0.8 + i * 0.15, ease: 'easeInOut' }}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function SoundsPage() {
   const navigate = useNavigate();
@@ -33,22 +36,15 @@ export default function SoundsPage() {
   const [activeTab, setActiveTab] = useState('trending');
   const [selectedSound, setSelectedSound] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
 
-  // Query hooks
   const { data: trendingSounds, isLoading: loadingTrending } = useTrendingSounds();
   const { data: newSounds, isLoading: loadingNew } = useNewSounds();
   const { data: savedSounds, isLoading: loadingSaved } = useSavedSounds();
 
   const goBack = () => navigate(-1);
-
-  const handleSoundSelect = (soundId: string) => {
-    setSelectedSound(soundId);
-  };
-
-  const handleUseSound = (soundId: string) => {
-    // Navigate to camera with sound preloaded
-    navigate('/upload', { state: { selectedSoundId: soundId } });
-  };
+  const handleSoundSelect = (soundId: string) => setSelectedSound(soundId);
+  const handleUseSound = (soundId: string) => navigate('/upload', { state: { selectedSoundId: soundId } });
 
   const renderSoundGrid = (sounds: any[], isLoading: boolean) => {
     if (isLoading) {
@@ -56,9 +52,9 @@ export default function SoundsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="animate-pulse">
-              <div className="aspect-square bg-muted rounded-lg mb-3" />
-              <div className="h-4 bg-muted rounded w-3/4 mb-2" />
-              <div className="h-3 bg-muted rounded w-1/2" />
+              <div className="aspect-square bg-muted/30 rounded-xl mb-3" />
+              <div className="h-4 bg-muted/30 rounded w-3/4 mb-2" />
+              <div className="h-3 bg-muted/30 rounded w-1/2" />
             </div>
           ))}
         </div>
@@ -67,10 +63,17 @@ export default function SoundsPage() {
 
     if (!sounds?.length) {
       return (
-        <div className="text-center py-12">
-          <Music2 className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground text-lg mb-2">No sounds found</p>
-          <p className="text-sm text-muted-foreground">Be the first to upload a sound!</p>
+        <div className="text-center py-16">
+          <div className="relative inline-block mb-4">
+            <div className="absolute -inset-4 rounded-2xl bg-gradient-to-br from-primary/5 to-purple-500/5" />
+            <div className="relative w-16 h-16 rounded-2xl bg-card/80 backdrop-blur-sm border border-border/30 flex items-center justify-center">
+              <motion.div animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 2.5 }}>
+                <Music2 className="h-7 w-7 text-muted-foreground/50" />
+              </motion.div>
+            </div>
+          </div>
+          <p className="text-sm font-medium mb-1">No sounds found</p>
+          <p className="text-xs text-muted-foreground">Be the first to upload a sound!</p>
         </div>
       );
     }
@@ -97,39 +100,47 @@ export default function SoundsPage() {
         <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-lg border-b border-border/50">
           <div className="max-w-screen-xl mx-auto px-4 py-4">
             <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={goBack}
-                className="shrink-0"
-              >
+              <Button variant="ghost" size="icon" onClick={goBack} className="shrink-0">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               
-              <div className="flex-1">
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                  <Music2 className="h-6 w-6 text-primary" />
-                  Sounds
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  Discover trending sounds for your videos
-                </p>
+              <div className="flex-1 flex items-center gap-2.5">
+                <EqBars />
+                <div>
+                  <h1 className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                    Sounds
+                  </h1>
+                  <p className="text-xs text-muted-foreground">Discover trending sounds</p>
+                </div>
               </div>
               
-              <Button onClick={() => setShowUpload(true)} size="sm" className="shrink-0">
-                <Upload className="h-4 w-4 mr-1.5" />
-                Upload
-              </Button>
+              {/* Upload button with shimmer */}
+              <button
+                onClick={() => setShowUpload(true)}
+                className="relative flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-primary text-primary-foreground text-sm font-medium overflow-hidden group"
+              >
+                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                <Upload className="h-3.5 w-3.5 relative z-10" />
+                <span className="relative z-10">Upload</span>
+              </button>
             </div>
 
-            {/* Search */}
-            <div className="mt-4 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            {/* Search with gradient glow */}
+            <div className={cn(
+              'mt-4 relative rounded-xl transition-all duration-300',
+              searchFocused && 'ring-2 ring-primary/30 shadow-[0_0_16px_rgba(var(--primary-rgb,99,102,241),0.12)]'
+            )}>
+              <Search className={cn(
+                "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors",
+                searchFocused ? "text-primary" : "text-muted-foreground"
+              )} />
               <Input
                 placeholder="Search sounds..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                className="pl-10 rounded-xl border-border/50 focus:border-transparent focus:ring-0"
               />
             </div>
           </div>
@@ -138,20 +149,20 @@ export default function SoundsPage() {
         {/* Content */}
         <div className="max-w-screen-xl mx-auto px-4 py-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-8">
-              <TabsTrigger value="trending" className="flex items-center gap-2">
+            <TabsList className="grid w-full grid-cols-4 mb-8 bg-card/60 backdrop-blur-sm border border-border/30">
+              <TabsTrigger value="trending" className="flex items-center gap-2 data-[state=active]:shadow-sm">
                 <TrendingUp className="h-4 w-4" />
                 <span className="hidden sm:inline">Trending</span>
               </TabsTrigger>
-              <TabsTrigger value="new" className="flex items-center gap-2">
+              <TabsTrigger value="new" className="flex items-center gap-2 data-[state=active]:shadow-sm">
                 <Zap className="h-4 w-4" />
                 <span className="hidden sm:inline">New</span>
               </TabsTrigger>
-              <TabsTrigger value="saved" className="flex items-center gap-2">
+              <TabsTrigger value="saved" className="flex items-center gap-2 data-[state=active]:shadow-sm">
                 <Heart className="h-4 w-4" />
                 <span className="hidden sm:inline">Saved</span>
               </TabsTrigger>
-              <TabsTrigger value="recommended" className="flex items-center gap-2">
+              <TabsTrigger value="recommended" className="flex items-center gap-2 data-[state=active]:shadow-sm">
                 <Star className="h-4 w-4" />
                 <span className="hidden sm:inline">For You</span>
               </TabsTrigger>
@@ -159,11 +170,12 @@ export default function SoundsPage() {
 
             <TabsContent value="trending" className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold flex items-center gap-2">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-red-500" />
                   Trending Now
                 </h2>
-                <Badge variant="secondary" className="animate-pulse">
+                <Badge variant="secondary" className="gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
                   Live
                 </Badge>
               </div>
@@ -172,7 +184,7 @@ export default function SoundsPage() {
 
             <TabsContent value="new" className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold flex items-center gap-2">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
                   <Zap className="h-5 w-5 text-yellow-500" />
                   Fresh Sounds
                 </h2>
@@ -182,7 +194,7 @@ export default function SoundsPage() {
 
             <TabsContent value="saved" className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold flex items-center gap-2">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
                   <Heart className="h-5 w-5 text-pink-500" />
                   Your Saved Sounds
                 </h2>
@@ -192,32 +204,30 @@ export default function SoundsPage() {
 
             <TabsContent value="recommended" className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold flex items-center gap-2">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
                   <Star className="h-5 w-5 text-purple-500" />
                   Recommended for You
                 </h2>
               </div>
-              <div className="text-center py-12">
-                <Star className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground text-lg mb-2">AI recommendations coming soon!</p>
-                <p className="text-sm text-muted-foreground">
-                  We're training our AI to learn your music taste
-                </p>
+              <div className="text-center py-16">
+                <div className="relative inline-block mb-4">
+                  <div className="absolute -inset-4 rounded-2xl bg-gradient-to-br from-purple-500/5 to-primary/5" />
+                  <div className="relative w-16 h-16 rounded-2xl bg-card/80 backdrop-blur-sm border border-border/30 flex items-center justify-center">
+                    <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 3 }}>
+                      <Star className="h-7 w-7 text-purple-400/50" />
+                    </motion.div>
+                  </div>
+                </div>
+                <p className="text-sm font-medium mb-1">AI recommendations coming soon!</p>
+                <p className="text-xs text-muted-foreground">We're training our AI to learn your music taste</p>
               </div>
             </TabsContent>
           </Tabs>
         </div>
 
-        {/* Floating Sound Player */}
         {selectedSound && (
-          <SoundPlayer
-            soundId={selectedSound}
-            onClose={() => setSelectedSound(null)}
-            onUse={handleUseSound}
-          />
+          <SoundPlayer soundId={selectedSound} onClose={() => setSelectedSound(null)} onUse={handleUseSound} />
         )}
-
-        {/* Upload Sheet */}
         <SoundUploadSheet open={showUpload} onClose={() => setShowUpload(false)} />
       </div>
     </AppLayout>
