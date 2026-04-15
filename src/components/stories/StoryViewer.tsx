@@ -17,6 +17,7 @@ import { navVisibility } from '@/lib/navVisibility';
 import { useShowAds } from '@/hooks/useShowAds';
 import { AdUnit } from '@/components/ads/AdUnit';
 import { AD_SLOTS } from '@/components/ads/FeedAdCard';
+import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 
 interface StoryViewerProps {
   groups: StoryGroup[];
@@ -277,13 +278,14 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-50 bg-black flex items-center justify-center"
-    >
+    <FullscreenPortal>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 z-[6000] bg-black flex items-center justify-center"
+      >
       {/* Story Container */}
       <motion.div 
         className="relative w-full h-full md:w-[400px] md:h-[700px] md:rounded-2xl overflow-hidden bg-black"
@@ -655,6 +657,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+      </motion.div>
+    </FullscreenPortal>
   );
 }

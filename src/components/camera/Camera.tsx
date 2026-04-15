@@ -11,6 +11,7 @@ import { Sound } from '@/hooks/useSounds';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
 import { toast } from 'sonner';
+import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 
 interface CameraProps {
   onClose: () => void;
@@ -259,25 +260,34 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
   const combinedFilter = `${getFilterCSS(currentFilter) || 'none'} brightness(${brightness / 100})`;
 
   if (state === 'edit' && capturedMedia) {
-    return <CameraEditor mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} filter={currentFilter} onSave={() => {
-      if (onCapture && capturedMedia.file) {
-        onCapture({ file: capturedMedia.file, url: capturedMedia.url, type: capturedMedia.type });
-        return;
-      }
-      setState('share');
-    }} onCancel={() => { 
-      setCapturedMedia(null); 
-      setState('capture');
-      // Restart camera after returning from editor
-      setTimeout(() => startCamera(), 100);
-    }} />;
+    return (
+      <FullscreenPortal>
+        <CameraEditor mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} filter={currentFilter} onSave={() => {
+          if (onCapture && capturedMedia.file) {
+            onCapture({ file: capturedMedia.file, url: capturedMedia.url, type: capturedMedia.type });
+            return;
+          }
+          setState('share');
+        }} onCancel={() => { 
+          setCapturedMedia(null); 
+          setState('capture');
+          // Restart camera after returning from editor
+          setTimeout(() => startCamera(), 100);
+        }} />
+      </FullscreenPortal>
+    );
   }
   if (state === 'share' && capturedMedia) {
-    return <CameraShareSheet mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} mediaFile={capturedMedia.file} onClose={() => setState('edit')} onComplete={onClose} />;
+    return (
+      <FullscreenPortal>
+        <CameraShareSheet mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} mediaFile={capturedMedia.file} onClose={() => setState('edit')} onComplete={onClose} />
+      </FullscreenPortal>
+    );
   }
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black flex flex-col select-none overflow-hidden" style={{ touchAction: 'pan-y' }}>
+    <FullscreenPortal>
+      <div className="fixed inset-0 z-[6000] bg-black flex flex-col select-none overflow-hidden" style={{ touchAction: 'pan-y' }}>
       {/* Full-bleed viewfinder */}
       <div
         className="absolute inset-0"
@@ -585,6 +595,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
         onSelectSound={(sound) => setSelectedSound(sound)}
         selectedSoundId={selectedSound?.sound_id}
       />
-    </div>
+      </div>
+    </FullscreenPortal>
   );
 }
