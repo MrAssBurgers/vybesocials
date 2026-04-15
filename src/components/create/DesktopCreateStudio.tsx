@@ -289,25 +289,30 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
         )}
       </AnimatePresence>
 
-      {/* Header */}
-      <div className="border-b border-border px-6 h-14 flex items-center justify-between flex-shrink-0" style={{ backgroundColor: 'hsl(var(--card))' }}>
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted transition-colors">
-            <ArrowLeft className="w-5 h-5 text-foreground" />
-          </button>
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-base font-bold text-foreground">Create Studio</span>
+      {/* Frosted Glass Header */}
+      <div className="flex-shrink-0 backdrop-blur-xl bg-card/80 border-b border-border/30">
+        <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-primary to-transparent opacity-60" />
+        <div className="px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted/50 transition-colors">
+              <ArrowLeft className="w-5 h-5 text-foreground" />
+            </button>
+            <div className="flex items-center gap-1.5">
+              <motion.div animate={{ rotate: [0, 15, -15, 0] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}>
+                <Sparkles className="w-4 h-4 text-primary" />
+              </motion.div>
+              <span className="text-base font-bold text-foreground tracking-tight">Create Studio</span>
+            </div>
           </div>
+          <motion.button onClick={handleSubmit} disabled={!canSubmit || isUploading} whileTap={canSubmit ? { scale: 0.95 } : {}}
+            className={cn("h-9 px-6 rounded-full text-sm font-bold transition-all duration-300",
+              canSubmit && !isUploading ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30" : "bg-muted text-muted-foreground cursor-not-allowed")}>
+            {isUploading ? <span className="flex items-center gap-1.5"><motion.span className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }} />{uploadProgress}%</span>
+              : <span className="flex items-center gap-1.5"><Send className="w-3.5 h-3.5" /> Publish</span>}
+          </motion.button>
         </div>
-        <motion.button onClick={handleSubmit} disabled={!canSubmit || isUploading} whileTap={canSubmit ? { scale: 0.95 } : {}}
-          className={cn("h-9 px-6 rounded-full text-sm font-bold transition-all",
-            canSubmit && !isUploading ? "bg-primary text-primary-foreground shadow-md shadow-primary/25" : "bg-muted text-muted-foreground cursor-not-allowed")}>
-          {isUploading ? <span className="flex items-center gap-1.5"><motion.span className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }} />{uploadProgress}%</span>
-            : <span className="flex items-center gap-1.5"><Send className="w-3.5 h-3.5" /> Publish</span>}
-        </motion.button>
       </div>
-      {isUploading && <motion.div className="h-0.5 bg-primary flex-shrink-0" initial={{ width: '0%' }} animate={{ width: `${uploadProgress}%` }} />}
+      {isUploading && <motion.div className="h-0.5 bg-gradient-to-r from-primary via-accent to-primary flex-shrink-0" initial={{ width: '0%' }} animate={{ width: `${uploadProgress}%` }} />}
 
       {/* Split panels */}
       <div className="flex-1 flex overflow-hidden">
