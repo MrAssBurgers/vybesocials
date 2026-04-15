@@ -1,6 +1,6 @@
 import { useState, memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import { useStories } from '@/hooks/useStories';
 import { useAuth } from '@/lib/auth';

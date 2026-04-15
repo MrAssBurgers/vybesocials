@@ -175,7 +175,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
 
             {/* Sign Out & App Info */}
             <div className="mt-6 space-y-4 pb-4">
-              <Separator />
+              <div className="h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent" />
 
               <Button
                 variant="outline"
