@@ -37,9 +37,7 @@ export default function Messages() {
           inset: isImmersive ? 0 : undefined,
           zIndex: isImmersive ? 50 : undefined,
           overflow: 'hidden',
-          backgroundColor: 'hsl(var(--card) / 0.85)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
+          backgroundColor: 'hsl(var(--card))',
         }}
       >
         {/* Conversation list */}
