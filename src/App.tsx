@@ -33,6 +33,7 @@ import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
 import { LocationProvider } from "@/providers/LocationProvider";
 import { useBriefPreFetch } from "@/hooks/useBriefPreFetch";
 import { SplashScreen } from "@/components/ui/SplashScreen";
+import { WelcomeBackSplash } from "@/components/ui/WelcomeBackSplash";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
