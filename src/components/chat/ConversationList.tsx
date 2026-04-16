@@ -131,6 +131,7 @@ export function ConversationList() {
   const streakMap = useStreakMap();
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [isTrashOpen, setIsTrashOpen] = useState(false);
+  const [showSnapCamera, setShowSnapCamera] = useState(false);
   const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);
   
   // Create a map of user IDs to story groups for quick lookup
@@ -482,6 +483,16 @@ export function ConversationList() {
           <div className="pb-24" />
         )}
       </ScrollArea>
+
+      {/* VybeSnap Camera */}
+      <VybeSnapCamera
+        isOpen={showSnapCamera}
+        onClose={() => setShowSnapCamera(false)}
+        onSend={(mediaUrl, isVideo) => {
+          setShowSnapCamera(false);
+          toast.success('Snap saved!');
+        }}
+      />
     </div>
   );
 }
