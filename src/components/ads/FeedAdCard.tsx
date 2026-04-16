@@ -8,14 +8,13 @@ import { useDNAPreferences } from '@/hooks/useDNAPreferences';
  * Uses Google AdSense with DNA-personalized topic hints.
  */
 
-// Ad slots for different placements
+// TODO: Replace with real AdSense slot IDs before re-enabling ads
 export const AD_SLOTS = {
-  FEED_INLINE: '1234567890',       // Replace with real slot ID from AdSense
-  STORY_INTERSTITIAL: '0987654321', // Replace with real slot ID from AdSense
+  FEED_INLINE: 'TODO_REAL_SLOT_ID',       // Get from AdSense dashboard
+  STORY_INTERSTITIAL: 'TODO_REAL_SLOT_ID', // Get from AdSense dashboard
 } as const;
 
-/** Returns a deterministic interval for ad spacing based on index.
- *  Produces a repeating pattern of 5, 7, 6, 8 to feel organic without Math.random(). */
+/** Returns a deterministic interval for ad spacing based on index. */
 const AD_INTERVALS = [5, 7, 6, 8] as const;
 export function getAdInterval(index: number): number {
   return AD_INTERVALS[index % AD_INTERVALS.length];
@@ -24,7 +23,6 @@ export function getAdInterval(index: number): number {
 export const FeedAdCard = memo(function FeedAdCard() {
   const { data: dnaPrefs } = useDNAPreferences();
 
-  // Build a comma-separated topic hint string from DNA boost topics
   const topicHint = useMemo(() => {
     if (!dnaPrefs?.boost_topics?.length) return null;
     return dnaPrefs.boost_topics.slice(0, 5).join(', ');
@@ -32,7 +30,6 @@ export const FeedAdCard = memo(function FeedAdCard() {
 
   return (
     <div className="relative rounded-2xl overflow-hidden border border-border/50 bg-card/50 backdrop-blur-sm my-2">
-      {/* Sponsored label with DNA personalization indicator */}
       <div className="flex items-center gap-1.5 px-4 pt-3 pb-1">
         <Megaphone className="h-3 w-3 text-muted-foreground" />
         <span className="text-[11px] text-muted-foreground font-medium tracking-wide uppercase">
@@ -46,7 +43,6 @@ export const FeedAdCard = memo(function FeedAdCard() {
         )}
       </div>
 
-      {/* Ad content */}
       <div className="px-4 pb-3">
         <AdUnit 
           slot={AD_SLOTS.FEED_INLINE} 
