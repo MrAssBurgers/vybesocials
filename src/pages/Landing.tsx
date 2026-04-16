@@ -290,12 +290,23 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         />
       </div>
 
+      {/* Public content section for SEO — visible to crawlers */}
+      <div className="relative z-10 w-full max-w-[400px] flex flex-col gap-6">
+        {/* Hero text above the form */}
+        <div className="text-center space-y-2 px-2">
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">The Social Platform for Real Connection</h2>
+          <p className="text-xs text-muted-foreground/80 leading-relaxed">
+            Share stories, create clips, message friends, join communities, and express yourself with AR filters, music, and AI-powered tools. 
+            <a href="/about" className="text-primary hover:underline ml-1">Learn more about VYBE →</a>
+          </p>
+        </div>
+
       {/* Main content - centered card */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="relative z-10 w-full max-w-[400px]"
+        className="w-full"
       >
         <div className="liquid-glass-card rounded-2xl p-5 sm:p-6 border border-white/[0.08]">
           {/* Centered Logo with clean smooth glow */}
@@ -608,7 +619,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         </div>
 
         {/* Footer links */}
-        <div className="flex justify-center gap-4 mt-4 text-xs text-muted-foreground">
+        <div className="flex flex-wrap justify-center gap-3 mt-4 text-xs text-muted-foreground">
+          <a href="/about" className="hover:text-foreground transition-colors">About</a>
+          <span>•</span>
+          <a href="/contact" className="hover:text-foreground transition-colors">Contact</a>
+          <span>•</span>
           <a href="/privacy" className="hover:text-foreground transition-colors">Privacy</a>
           <span>•</span>
           <a href="/terms" className="hover:text-foreground transition-colors">Terms</a>
@@ -616,6 +631,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           <a href="/guidelines" className="hover:text-foreground transition-colors">Guidelines</a>
         </div>
       </motion.div>
+      </div>
 
       {/* Forgot Password Dialog */}
       <ForgotPasswordDialog 
