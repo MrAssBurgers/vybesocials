@@ -192,7 +192,7 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
     setCurrentPath([]);
   };
 
-  // Overlay drag
+  // Overlay vertical-only drag
   const handleDrag = useCallback((id: string, info: PanInfo) => {
     const container = containerRef.current;
     if (!container) return;
@@ -200,11 +200,9 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
     
     setTextOverlays(prev => prev.map(overlay => {
       if (overlay.id !== id) return overlay;
-      const deltaXPercent = (info.delta.x / rect.width) * 100;
       const deltaYPercent = (info.delta.y / rect.height) * 100;
       return {
         ...overlay,
-        x: Math.min(95, Math.max(5, overlay.x + deltaXPercent)),
         y: Math.min(95, Math.max(5, overlay.y + deltaYPercent)),
       };
     }));
@@ -281,32 +279,40 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
       });
       ctx.stroke();
     });
-    // Draw text overlays
+    // Draw text overlays as full-width frosted bars
     textOverlays.forEach(overlay => {
       ctx.save();
-      const x = (overlay.x / 100) * w;
-      const y = (overlay.y / 100) * h;
+      const yPos = (overlay.y / 100) * h;
       const scaledFontSize = overlay.fontSize * (w / 400) * overlay.scale;
-      ctx.translate(x, y);
-      ctx.rotate((overlay.rotation * Math.PI) / 180);
+      const barHeight = scaledFontSize * 2.2;
+      
+      // Draw frosted bar background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.beginPath();
+      const radius = barHeight * 0.3;
+      const barY = yPos - barHeight / 2;
+      // Rounded rect
+      ctx.moveTo(radius, barY);
+      ctx.lineTo(w - radius, barY);
+      ctx.quadraticCurveTo(w, barY, w, barY + radius);
+      ctx.lineTo(w, barY + barHeight - radius);
+      ctx.quadraticCurveTo(w, barY + barHeight, w - radius, barY + barHeight);
+      ctx.lineTo(radius, barY + barHeight);
+      ctx.quadraticCurveTo(0, barY + barHeight, 0, barY + barHeight - radius);
+      ctx.lineTo(0, barY + radius);
+      ctx.quadraticCurveTo(0, barY, radius, barY);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Draw text centered
       ctx.font = `bold ${scaledFontSize}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = overlay.color;
       if (overlay.style === 'glow' || overlay.style === 'neon') {
         ctx.shadowColor = overlay.color; ctx.shadowBlur = 20;
-      } else if (overlay.style === 'background') {
-        const metrics = ctx.measureText(overlay.text);
-        const padding = scaledFontSize * 0.3;
-        ctx.fillStyle = overlay.color;
-        ctx.fillRect(-metrics.width / 2 - padding, -scaledFontSize / 2 - padding / 2, metrics.width + padding * 2, scaledFontSize + padding);
-        ctx.fillStyle = overlay.color === '#ffffff' || overlay.color === '#FACC15' ? '#000' : '#fff';
-      } else if (overlay.style === 'outline') {
-        ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.strokeText(overlay.text, 0, 0);
-      } else {
-        ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2;
       }
-      ctx.fillText(overlay.text, 0, 0);
+      ctx.fillText(overlay.text, w / 2, yPos);
       ctx.restore();
     });
     // Draw caption
@@ -502,28 +508,39 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
           )}
         </svg>
         
-        {/* Text overlays */}
+        {/* Text overlays - full-width frosted bars, vertical drag only */}
         {textOverlays.map(overlay => (
           <motion.div
             key={overlay.id}
-            drag
+            drag="y"
             dragMomentum={false}
+            dragConstraints={containerRef}
             onDragStart={handleDragStart}
             onDrag={(_, info) => handleDrag(overlay.id, info)}
             onDragEnd={() => handleDragEnd(overlay.id)}
-            className="absolute cursor-move select-none whitespace-pre-wrap font-bold text-center"
+            className="absolute left-0 right-0 cursor-move select-none flex items-center justify-center"
             style={{
-              left: `${overlay.x}%`,
               top: `${overlay.y}%`,
-              transform: `translate(-50%, -50%) rotate(${overlay.rotation}deg) scale(${overlay.scale})`,
-              color: overlay.style === 'background' ? undefined : overlay.color,
-              fontSize: overlay.fontSize,
-              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))',
-              ...getTextStyleCSS(overlay.style, overlay.color),
+              transform: 'translateY(-50%)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              background: 'rgba(0, 0, 0, 0.35)',
+              borderRadius: '16px',
+              padding: '12px 24px',
+              filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))',
             }}
-            whileTap={{ scale: 1.05 }}
+            whileTap={{ scale: 1.02 }}
           >
-            {overlay.text}
+            <span
+              className="font-bold text-center whitespace-pre-wrap"
+              style={{
+                color: overlay.color,
+                fontSize: overlay.fontSize,
+                ...getTextStyleCSS(overlay.style, overlay.color),
+              }}
+            >
+              {overlay.text}
+            </span>
           </motion.div>
         ))}
 
@@ -605,16 +622,23 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
                   boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
                 }}
               >
-                <input
-                  ref={textInputRef}
+                <textarea
+                  ref={textInputRef as any}
                   value={currentText}
                   onChange={(e) => setCurrentText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') addText(); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addText(); } }}
                   placeholder="Type something..."
-                  className="flex-1 bg-transparent text-white text-xl font-bold placeholder:text-white/30 focus:outline-none text-center"
+                  rows={1}
+                  className="flex-1 bg-transparent text-white text-xl font-bold placeholder:text-white/30 focus:outline-none text-center resize-none overflow-hidden"
                   style={{
                     color: currentColor,
                     ...getTextStyleCSS(currentStyle, currentColor),
+                    minHeight: '32px',
+                  }}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    target.style.height = target.scrollHeight + 'px';
                   }}
                 />
                 <button
@@ -731,14 +755,7 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
                 <motion.button
                   onClick={handleSend}
                   className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/30"
-                  whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
-                  animate={{ 
-                    boxShadow: ['0 0 15px hsl(var(--primary) / 0.3)', '0 0 25px hsl(var(--primary) / 0.5)', '0 0 15px hsl(var(--primary) / 0.3)']
-                  }}
-                  transition={{ 
-                    boxShadow: { duration: 2, repeat: Infinity, ease: 'easeInOut' }
-                  }}
                 >
                   <Send className="h-6 w-6 text-white ml-0.5" />
                 </motion.button>
