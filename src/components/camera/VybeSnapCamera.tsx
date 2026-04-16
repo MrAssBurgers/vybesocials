@@ -804,21 +804,6 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
                 {nightMode ? <Sun className="h-4 w-4 text-yellow-400" /> : <Moon className="h-4 w-4 text-white/80" />}
               </div>
             </button>
-            </button>
-
-            {/* Sound */}
-            <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
-            >
-              <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
-                soundEnabled ? "bg-white/20" : "bg-black/40"
-              )}>
-                {soundEnabled ? <Volume2 className="h-4 w-4 text-white/80" /> : <VolumeX className="h-4 w-4 text-white/60" />}
-              </div>
-              <span className="text-[9px] text-white/70 font-medium">Sound</span>
-            </button>
           </motion.div>
         )}
       </AnimatePresence>
