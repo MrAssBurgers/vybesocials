@@ -747,15 +747,14 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
             {/* Flash */}
             <button
               onClick={() => setFlashEnabled(!flashEnabled)}
-              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+              className="active:scale-90 transition-transform"
             >
               <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+                "w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm",
                 flashEnabled ? "bg-yellow-400/30" : "bg-black/40"
               )}>
                 {flashEnabled ? <Zap className="h-4 w-4 text-yellow-400" fill="currentColor" /> : <ZapOff className="h-4 w-4 text-white/80" />}
               </div>
-              <span className="text-[9px] text-white/70 font-medium">Flash</span>
             </button>
 
             {/* Timer */}
@@ -765,10 +764,10 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
                 setTimerSeconds(TIMER_OPTIONS[(idx + 1) % TIMER_OPTIONS.length]);
                 haptics.impact();
               }}
-              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+              className="active:scale-90 transition-transform"
             >
               <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm relative",
+                "w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm relative",
                 timerSeconds > 0 ? "bg-primary/30" : "bg-black/40"
               )}>
                 <Timer className="h-4 w-4 text-white/80" />
@@ -778,46 +777,33 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
                   </span>
                 )}
               </div>
-              <span className="text-[9px] text-white/70 font-medium">Timer</span>
             </button>
 
             {/* Grid */}
             <button
               onClick={() => { setShowGrid(!showGrid); haptics.impact(); }}
-              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+              className="active:scale-90 transition-transform"
             >
               <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+                "w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm",
                 showGrid ? "bg-white/20" : "bg-black/40"
               )}>
                 <Grid3X3 className="h-4 w-4 text-white/80" />
               </div>
-              <span className="text-[9px] text-white/70 font-medium">Grid</span>
-            </button>
-
-            {/* HDR (decorative) */}
-            <button
-              onClick={() => haptics.impact()}
-              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
-            >
-              <div className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm bg-black/40">
-                <span className="text-[10px] font-black text-white/80">HDR</span>
-              </div>
-              <span className="text-[9px] text-white/70 font-medium">HDR</span>
             </button>
 
             {/* Night Mode */}
             <button
               onClick={() => { setNightMode(!nightMode); haptics.impact(); }}
-              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+              className="active:scale-90 transition-transform"
             >
               <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+                "w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm",
                 nightMode ? "bg-yellow-400/20" : "bg-black/40"
               )}>
                 {nightMode ? <Sun className="h-4 w-4 text-yellow-400" /> : <Moon className="h-4 w-4 text-white/80" />}
               </div>
-              <span className="text-[9px] text-white/70 font-medium">Night</span>
+            </button>
             </button>
 
             {/* Sound */}
