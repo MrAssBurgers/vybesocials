@@ -725,6 +725,7 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
           >
             <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-8 px-3 pb-4 space-y-2.5">
               {/* Quick Send - Recent contacts row */}
+              <span className="text-white/40 text-[10px] font-semibold uppercase tracking-wider pl-1">Send to</span>
               <QuickSendRow />
 
               {/* Caption bar */}
