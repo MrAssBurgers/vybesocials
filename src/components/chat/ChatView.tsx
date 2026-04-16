@@ -94,6 +94,7 @@ import { EmojiPicker } from './EmojiPicker';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
 import { requestCameraStream } from '@/hooks/useCameraPreload';
 import { VybeViewer } from './VybeViewer';
+import { CameraFirstOverlay } from './CameraFirstOverlay';
 // Flying bubble removed - messages now pop in like iMessage
 import { VideoSendPreview } from './VideoSendPreview';
 import { VideoBubble } from './VideoBubble';
@@ -264,6 +265,7 @@ export function ChatView() {
   const [showMediaSettings, setShowMediaSettings] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showSnapCamera, setShowSnapCamera] = useState(false);
+  const [cameraFirstMode, setCameraFirstMode] = useState(false);
   const [showScreenshotAlert, setShowScreenshotAlert] = useState(false);
   const [screenshotUser, setScreenshotUser] = useState<string | undefined>();
   // Video preview state
@@ -1646,6 +1648,19 @@ export function ChatView() {
         </div>
       </div>
 
+
+      {/* Camera-First Overlay */}
+      <CameraFirstOverlay
+        isOpen={cameraFirstMode}
+        recipientName={displayName}
+        recipientAvatar={otherMember?.avatar_url || undefined}
+        onClose={() => setCameraFirstMode(false)}
+        onSend={(mediaUrl, isVideo) => {
+          setCameraFirstMode(false);
+          handleVybeSend(mediaUrl, isVideo);
+        }}
+        onOpenChat={() => setCameraFirstMode(false)}
+      />
 
       {/* VYBE Camera Modal */}
       <VybeSnapCamera
