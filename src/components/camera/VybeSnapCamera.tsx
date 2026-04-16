@@ -853,7 +853,7 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
                   )}
                 >
                   <div className={cn(
-                    "w-12 h-12 rounded-full flex items-center justify-center text-lg border-2 transition-all",
+                    "w-10 h-10 rounded-full flex items-center justify-center text-base border-2 transition-all",
                     selectedFilter === filter.id 
                       ? "border-white bg-white/20 shadow-lg shadow-white/10" 
                       : "border-white/20 bg-black/40 backdrop-blur-sm"
@@ -868,13 +868,6 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
                   </span>
                 </button>
               ))}
-              {/* AR Coming Soon placeholder */}
-              <button className="flex flex-col items-center gap-1 shrink-0 opacity-40">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg border-2 border-white/10 bg-black/40 backdrop-blur-sm">
-                  <Sparkles className="h-5 w-5 text-white/40" />
-                </div>
-                <span className="text-[9px] font-medium text-white/30">AR</span>
-              </button>
             </div>
           </div>
         )}
@@ -907,35 +900,6 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
           </button>
         </div>
         
-        {/* Category tabs */}
-        {!isRecording && (
-          <div className="flex gap-1 overflow-x-auto scrollbar-hide px-4 pb-4 pt-1">
-            {CATEGORY_TABS.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => { setActiveCategory(tab); haptics.impact(); }}
-                className={cn(
-                  "shrink-0 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition-all",
-                  activeCategory === tab
-                    ? "bg-white text-black"
-                    : "bg-white/10 text-white/60"
-                )}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Hint */}
-        {!isRecording && (
-          <motion.p 
-            className="text-center text-white/40 text-[10px] pb-3 font-medium"
-            animate={{ opacity: isRecording ? 0 : 1 }}
-          >
-            Tap for photo · Hold for video
-          </motion.p>
-        )}
       </div>
     </motion.div>
   );
