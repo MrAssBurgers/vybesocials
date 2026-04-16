@@ -548,7 +548,7 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
         </AnimatePresence>
       </div>
 
-      {/* ── Centered text input (Snapchat-style) ── */}
+      {/* ── Centered text input (Frosted Glass Snapchat-style) ── */}
       <AnimatePresence>
         {isTextInputOpen && (
           <motion.div
@@ -564,7 +564,7 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
             }}
           >
             {/* Dark scrim */}
-            <div className="absolute inset-0 bg-black/50" />
+            <div className="absolute inset-0 bg-black/40" />
             
             {/* Style pills */}
             <motion.div
@@ -580,8 +580,8 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
                   className={cn(
                     "px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap",
                     currentStyle === style.id
-                      ? "bg-white text-black scale-105"
-                      : "bg-white/15 text-white/80 backdrop-blur-sm"
+                      ? "bg-white/90 text-black scale-105 shadow-lg"
+                      : "bg-white/10 text-white/80 backdrop-blur-md"
                   )}
                 >
                   {style.label}
@@ -589,21 +589,29 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
               ))}
             </motion.div>
 
-            {/* Text input bar */}
+            {/* Frosted glass text input bar */}
             <motion.div
               initial={{ opacity: 0, scaleX: 0.8 }}
               animate={{ opacity: 1, scaleX: 1 }}
               transition={{ type: 'spring', stiffness: 300, damping: 25 }}
               className="relative z-10 w-full px-4"
             >
-              <div className="bg-black/40 backdrop-blur-xl rounded-lg px-4 py-3 flex items-center gap-3">
+              <div 
+                className="rounded-2xl px-5 py-4 flex items-center gap-3 border border-white/15"
+                style={{
+                  background: 'rgba(255,255,255,0.08)',
+                  backdropFilter: 'blur(20px) saturate(1.5)',
+                  WebkitBackdropFilter: 'blur(20px) saturate(1.5)',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
+                }}
+              >
                 <input
                   ref={textInputRef}
                   value={currentText}
                   onChange={(e) => setCurrentText(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') addText(); }}
                   placeholder="Type something..."
-                  className="flex-1 bg-transparent text-white text-xl font-bold placeholder:text-white/40 focus:outline-none text-center"
+                  className="flex-1 bg-transparent text-white text-xl font-bold placeholder:text-white/30 focus:outline-none text-center"
                   style={{
                     color: currentColor,
                     ...getTextStyleCSS(currentStyle, currentColor),
@@ -611,7 +619,7 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
                 />
                 <button
                   onClick={addText}
-                  className="w-9 h-9 rounded-full bg-white flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform"
+                  className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform shadow-lg"
                 >
                   <Check className="h-5 w-5 text-black" />
                 </button>
@@ -682,7 +690,7 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
         )}
       </AnimatePresence>
 
-      {/* ── Bottom: Caption + Send row ── */}
+      {/* ── Bottom: Quick Send + Caption + Send row ── */}
       <AnimatePresence>
         {!isTextInputOpen && mode !== 'sticker' && (
           <motion.div
@@ -691,7 +699,10 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
             exit={{ opacity: 0, y: 10 }}
             className="absolute bottom-0 left-0 right-0 z-20 pb-safe"
           >
-            <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-12 px-3 pb-4 space-y-2.5">
+            <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-8 px-3 pb-4 space-y-2.5">
+              {/* Quick Send - Recent contacts row */}
+              <QuickSendRow />
+
               {/* Caption bar */}
               <div className="relative">
                 <input
@@ -702,9 +713,14 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
                   onBlur={() => setIsCaptionFocused(false)}
                   placeholder="Add a caption..."
                   className={cn(
-                    "w-full bg-black/30 backdrop-blur-md rounded-full px-4 py-2.5 text-white text-sm placeholder:text-white/40 focus:outline-none transition-all border",
+                    "w-full rounded-full px-4 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none transition-all border",
                     isCaptionFocused ? "border-white/30" : "border-white/10"
                   )}
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                  }}
                 />
               </div>
 
@@ -732,5 +748,47 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
         )}
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+/** Quick send row - shows recent contacts as tappable avatars */
+function QuickSendRow() {
+  const [recentUsers, setRecentUsers] = useState<Array<{ id: string; name: string; avatar?: string }>>([]);
+
+  useEffect(() => {
+    try {
+      const { getRecentMessageUsers } = require('@/lib/recentMessageUsers');
+      const users = getRecentMessageUsers();
+      setRecentUsers(users.slice(0, 8).map((u: any) => ({
+        id: u.id,
+        name: u.username || u.display_name || '?',
+        avatar: u.avatar_url,
+      })));
+    } catch {}
+  }, []);
+
+  if (recentUsers.length === 0) return null;
+
+  return (
+    <div className="flex gap-3 overflow-x-auto scrollbar-hide px-1 pb-1">
+      {recentUsers.map(user => (
+        <button
+          key={user.id}
+          className="flex flex-col items-center gap-1 shrink-0 active:scale-90 transition-transform"
+          onClick={() => haptics.impact()}
+        >
+          <div className="w-11 h-11 rounded-full overflow-hidden bg-white/15 border-2 border-white/20">
+            {user.avatar ? (
+              <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-white font-bold text-sm">
+                {user.name[0]?.toUpperCase()}
+              </div>
+            )}
+          </div>
+          <span className="text-[10px] text-white/70 font-medium truncate max-w-[48px]">{user.name}</span>
+        </button>
+      ))}
+    </div>
   );
 }

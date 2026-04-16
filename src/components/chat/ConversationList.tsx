@@ -45,6 +45,7 @@ import { compactTime } from '@/lib/compactTime';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
 import { NotesRow } from './NotesRow';
+import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
@@ -131,6 +132,7 @@ export function ConversationList() {
   const streakMap = useStreakMap();
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [isTrashOpen, setIsTrashOpen] = useState(false);
+  const [showSnapCamera, setShowSnapCamera] = useState(false);
   const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);
   
   // Create a map of user IDs to story groups for quick lookup
@@ -273,17 +275,27 @@ export function ConversationList() {
       {/* Snapchat-style Header */}
       <div className="flex-shrink-0">
         <div className="flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-2">
-          {/* Left: User Avatar */}
-          {profile && (
-            <button onClick={() => navigate(`/u/${profile.username}`)} className="flex-shrink-0">
-              <Avatar className="h-9 w-9 ring-2 ring-primary/20">
-                <AvatarImage src={profile.avatar_url || undefined} />
-                <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-primary/60 to-accent/60 text-primary-foreground">
-                  {profile.username?.[0]?.toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </button>
-          )}
+          {/* Left: User Avatar + Camera */}
+          <div className="flex items-center gap-1.5">
+            {profile && (
+              <button onClick={() => navigate(`/u/${profile.username}`)} className="flex-shrink-0">
+                <Avatar className="h-9 w-9 ring-2 ring-primary/20">
+                  <AvatarImage src={profile.avatar_url || undefined} />
+                  <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-primary/60 to-accent/60 text-primary-foreground">
+                    {profile.username?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setShowSnapCamera(true)}
+              className="h-9 w-9 rounded-full bg-primary/10 hover:bg-primary/20"
+            >
+              <Camera className="h-4.5 w-4.5 text-primary" />
+            </Button>
+          </div>
 
           {/* Center: Title + Status */}
           <div className="flex flex-col items-center">
@@ -472,6 +484,16 @@ export function ConversationList() {
           <div className="pb-24" />
         )}
       </ScrollArea>
+
+      {/* VybeSnap Camera */}
+      <VybeSnapCamera
+        isOpen={showSnapCamera}
+        onClose={() => setShowSnapCamera(false)}
+        onSend={(mediaUrl, isVideo) => {
+          setShowSnapCamera(false);
+          toast.success('Snap saved!');
+        }}
+      />
     </div>
   );
 }
