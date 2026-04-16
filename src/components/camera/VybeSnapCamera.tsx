@@ -60,10 +60,15 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
   const [showGrid, setShowGrid] = useState(false);
   const [nightMode, setNightMode] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('none');
-  const [activeCategory, setActiveCategory] = useState('Trending');
   const [showTools, setShowTools] = useState(true);
   const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
   const [selfieFlash, setSelfieFlash] = useState(false);
+  const [activeARFilter, setActiveARFilter] = useState<ARFilterDef | null>(null);
+  const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
+  
+  // AR Face Tracking
+  const { faces, isReady: arReady, isLoading: arLoading, startTracking, stopTracking } = useFaceTracking({ enabled: isOpen && cameraReady });
+  const { applySnapLens, removeSnapLens, isAvailable: snapAvailable } = useSnapAR();
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
