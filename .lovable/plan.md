@@ -1,51 +1,97 @@
 
 
-## Combined: Bottom Nav Polish + Camera Declutter + Snapchat-Style Text Bar
+## AR Engine Activation + Snap Camera Kit SDK Integration
 
-### 1. Bottom Nav — Restore gradient + remove active dot
+### What This Does
 
-**File**: `src/components/layout/BottomNav.tsx`
-
-- **Lines 533**: Change non-edit background from `'hsl(var(--card))'` back to `'linear-gradient(135deg, hsl(var(--primary) / 0.15), hsl(var(--accent) / 0.1)), hsl(var(--card))'`
-- **Lines 257-264**: Delete the active glow dot `motion.div` with `layoutId="nav-glow-dot"`
-
-### 2. Camera Declutter
-
-**File**: `src/components/camera/VybeSnapCamera.tsx`
-
-- **Remove HDR button** (lines 798-807) — decorative, does nothing
-- **Remove Sound button** (lines 823-835) — not functional
-- **Remove label text** under remaining tool buttons (Flash, Timer, Grid, Night) — icon-only, shrink to `w-9 h-9`
-- **Remove category tabs** (lines 910-928) — non-functional clutter
-- **Remove hint text** "Tap for photo · Hold for video" (lines 930-938)
-- **Remove AR placeholder** from lens carousel (lines 872-877)
-- **Shrink lens filter circles** from `w-12 h-12` to `w-10 h-10`
-
-### 3. Snapchat-Style Full-Width Frosted Text Bar
-
-**File**: `src/components/camera/VybeSnapEditor.tsx`
-
-**The key change**: After the user finishes typing and confirms text, instead of placing a small draggable text block at an arbitrary (x, y), create a **full-width frosted glass bar** that stretches edge-to-edge across the image.
-
-- The bar has `backdrop-filter: blur(24px)`, `background: rgba(0,0,0,0.35)`, `rounded-2xl`, and horizontal padding
-- Text is centered inside, bold, with the user's chosen color/style
-- The bar **only drags vertically** (`drag="y"` with `dragConstraints` clamped to the container ref) — it slides up and down but never leaves the image
-- The y-position is stored as a percentage and clamped between 5% and 95%
-
-**Input bar** (while typing): Stays the same frosted input UI but uses a `textarea` that auto-expands vertically for multi-line text.
-
-**Canvas export update** in `renderOverlaysToCanvas`: Draw a semi-transparent full-width rectangle at the correct y-position with centered text — matching the on-screen appearance.
-
-**Remove pulsing glow** on send button (lines 736-741) — replace with static shadow.
-
-**Add "Send to" label** above the QuickSendRow for clarity.
+Activates the existing (but dormant) AR filter engine in VybeSnapCamera, installs the official Snap AR Camera Kit React SDK (`@snap/react-camera-kit` + `@snap/camera-kit`), and wires everything together so filters actually work on the live camera feed.
 
 ---
 
-### Files Modified (3)
-1. `src/components/layout/BottomNav.tsx` — gradient restore, remove dot
-2. `src/components/camera/VybeSnapCamera.tsx` — declutter (remove HDR, Sound, tabs, hint, AR, shrink filters)
-3. `src/components/camera/VybeSnapEditor.tsx` — full-width frosted bar overlays with vertical-only drag, send button cleanup
+### 1. Install Snap AR Camera Kit SDK
 
-No database changes.
+Install two packages:
+- `@snap/camera-kit` — core AR engine
+- `@snap/react-camera-kit` — React wrapper with `CameraKitProvider` and `LensPlayer`
+
+These require a Camera Kit API token from the Snap Developer Portal. You'll need to create a free Snap AR account and get an API token + lens group ID.
+
+### 2. Wire MediaPipe Face Tracking into VybeSnapCamera
+
+**File**: `src/components/camera/VybeSnapCamera.tsx`
+
+- Import `useFaceTracking` and `AROverlayCanvas`
+- Call `useFaceTracking()` and pass the video element via `startTracking(video)` once the camera stream is active
+- Layer `<AROverlayCanvas>` over the `<video>` element with matching dimensions
+- Import and replace the CSS-only lens carousel with `ARFilterPicker`
+- Track the selected `ARFilterDef` in state and pass to both `AROverlayCanvas` (for face overlays/particles) and the video element's `style.filter` (for CSS color grading)
+
+### 3. Activate ARFilterPicker (Remove "Coming Soon")
+
+**File**: `src/components/camera/ARFilterPicker.tsx`
+
+- Replace `handleFilterSelect` (which just shows a toast) with actual filter application: call `onFilterChange(filter)` directly
+- Keep premium gate check — show upsell for locked filters
+
+### 4. Add Snap Camera Kit Provider Wrapper
+
+**New file**: `src/components/camera/SnapARProvider.tsx`
+
+- Wraps `CameraKitProvider` from `@snap/react-camera-kit` with the API token
+- Provides a `useSnapLens` hook for loading and applying Snap Lens Studio lenses by ID
+- Falls back gracefully if the token isn't configured (uses MediaPipe-only mode)
+
+### 5. Snap Lens Integration in Camera
+
+**File**: `src/components/camera/VybeSnapCamera.tsx`
+
+- When a filter has a `snapLensId` property, use Snap Camera Kit to render it instead of the MediaPipe canvas
+- For filters without a lens ID, continue using the existing `AROverlayCanvas` + `useFaceTracking` pipeline
+- Both systems can coexist — Snap for premium/community lenses, MediaPipe for built-in effects
+
+### 6. API Token Setup
+
+The Snap Camera Kit API token is a publishable key (safe for client-side). It will be stored as `VITE_SNAP_CAMERA_KIT_TOKEN` in the codebase. You'll need to:
+1. Go to https://developers.snap.com
+2. Create a Camera Kit application
+3. Copy the API token
+
+### 7. Filter Creator Upload Portal
+
+**New file**: `src/components/camera/FilterUploadModal.tsx`
+
+- Users who create lenses in Snap Lens Studio can submit their lens ID + group ID
+- Saves to the existing `filters` table with `effect_config: { snapLensId, snapGroupId }`
+- Moderation flag: `is_approved: false` by default for public visibility
+
+### 8. Moderation Update
+
+**File**: `src/hooks/useFilters.ts`
+
+- `useCreateFilter` sets `is_approved: false` for non-premium user submissions
+- Admin approval uses existing admin dashboard patterns
+
+---
+
+### Technical Details
+
+- `@snap/camera-kit` handles Snap Lens rendering via WebGL — runs alongside or instead of the MediaPipe canvas
+- `@snap/react-camera-kit` provides `CameraKitProvider` (context) and `LensPlayer` (managed camera + lens renderer)
+- MediaPipe remains the fallback for built-in filters (no external dependency needed)
+- Snap lenses load from Snap's CDN — typical load time <500ms with caching
+
+### Files Summary
+
+**New packages** (2): `@snap/camera-kit`, `@snap/react-camera-kit`
+
+**New files** (2):
+1. `src/components/camera/SnapARProvider.tsx` — Camera Kit context + hook
+2. `src/components/camera/FilterUploadModal.tsx` — Lens upload portal
+
+**Modified files** (3):
+1. `src/components/camera/VybeSnapCamera.tsx` — Wire face tracking + AR canvas + Snap lens support
+2. `src/components/camera/ARFilterPicker.tsx` — Remove "coming soon", activate filter selection
+3. `src/hooks/useFilters.ts` — Moderation flag for uploads
+
+No database changes — existing tables support this.
 
