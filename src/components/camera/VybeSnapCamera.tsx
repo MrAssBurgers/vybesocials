@@ -214,6 +214,37 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
       videoRef.current.play().catch(() => {});
     }
   });
+
+  // Start face tracking when camera is ready
+  useEffect(() => {
+    if (cameraReady && videoRef.current && arReady) {
+      startTracking(videoRef.current);
+      // Track video dimensions for AR overlay
+      const vid = videoRef.current;
+      const updateSize = () => setVideoSize({ width: vid.videoWidth, height: vid.videoHeight });
+      vid.addEventListener('loadedmetadata', updateSize);
+      updateSize();
+      return () => vid.removeEventListener('loadedmetadata', updateSize);
+    }
+    return () => { if (!cameraReady) stopTracking(); };
+  }, [cameraReady, arReady, startTracking, stopTracking]);
+
+  // Handle AR filter changes (including Snap lens)
+  const handleARFilterChange = useCallback(async (filter: ARFilterDef | null) => {
+    setActiveARFilter(filter);
+    // If filter has a Snap Lens ID, apply via Snap SDK
+    if (filter && (filter as any).snapLensId && snapAvailable) {
+      await applySnapLens((filter as any).snapLensId, (filter as any).snapGroupId || '');
+    } else {
+      await removeSnapLens();
+    }
+    // Apply CSS filter to the video element
+    if (filter?.cssFilter) {
+      setSelectedFilter(filter.cssFilter);
+    } else {
+      setSelectedFilter('none');
+    }
+  }, [snapAvailable, applySnapLens, removeSnapLens]);
   
   // Pinch-to-zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
