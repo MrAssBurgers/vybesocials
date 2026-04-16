@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, SwitchCamera, Zap, ZapOff, Volume2, VolumeX, Loader2, Timer, Grid3X3, Sun, Moon, Image, Music, Search, UserPlus, Sparkles } from 'lucide-react';
+import { X, SwitchCamera, Zap, ZapOff, Loader2, Timer, Grid3X3, Sun, Moon, Image, Music, Search, UserPlus, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VybeRecordButton } from './VybeRecordButton';
 import { VybeSnapEditor } from './VybeSnapEditor';
@@ -11,6 +11,11 @@ import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { getRecentMessageUsers } from '@/lib/recentMessageUsers';
 import { useNavigate } from 'react-router-dom';
+import { useFaceTracking } from '@/hooks/useFaceTracking';
+import { AROverlayCanvas } from './AROverlayCanvas';
+import { ARFilterPicker } from './ARFilterPicker';
+import { ARFilterDef } from '@/lib/arFilters';
+import { useSnapAR } from './SnapARProvider';
 
 interface RecordingSegment {
   blob: Blob;
@@ -36,8 +41,6 @@ const LENS_FILTERS = [
   { id: 'dreamy', label: 'Dreamy', icon: '💭', filter: 'brightness(1.1) contrast(0.9) saturate(1.2) blur(0.3px)' },
   { id: 'noir', label: 'Noir', icon: '🎬', filter: 'grayscale(0.8) contrast(1.4) brightness(0.9)' },
 ];
-
-const CATEGORY_TABS = ['Trending', 'For You', 'Favorites', 'Moments', 'Aesthetic'];
 
 export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps) {
   const { profile } = useAuth();
