@@ -1,47 +1,62 @@
 
 
-## Fix AdSense Policy Violations
+## AdSense Approval: Make the Site Ready for Resubmission
 
 ### The Problem
 
-Google rejected the site for two policy violations:
+Google rejected for two reasons:
+1. **"Ads on screens without publisher-content"** — Already fixed (ads disabled)
+2. **"Low value content"** — Google's crawler only sees the login page. All actual content (posts, feeds, profiles) is behind authentication. To Google, this is a single-page login form with no indexable content.
 
-1. **"Ads on screens without publisher-content"** — The AdSense script loads globally on every screen (camera, loading states, empty feeds, settings, etc.), and ad units render on pages that may have no meaningful content.
-2. **"Low value content"** — The ad slot IDs are **placeholders** (`1234567890`, `0987654321`), meaning Google sees ad containers being pushed without valid slot configuration. This makes the site appear low-quality to their crawler.
+### What Google Needs to See
 
-### The Fix
-
-**Disable AdSense entirely until the site meets Google's content requirements.** The ad infrastructure stays in code but becomes inert. Once Google approves the site, you flip a single flag and add real slot IDs.
+- Substantial, publicly accessible content pages
+- Clear site purpose and navigation
+- Contact information and legal pages (already exist: Privacy, Terms, Cookie Policy, Guidelines)
+- An "About" page explaining what VYBE is
+- A proper landing page with content preview (not just a login form)
 
 ### Changes
 
-**1. `index.html`** — Remove the AdSense script loader  
-Delete the deferred `pagead2.googlesyndication.com` script block (lines 16-25). No AdSense JS means no policy violations from Google's crawler.
+**1. Create `/about` page** — `src/pages/About.tsx`
 
-**2. `src/components/ads/AdUnit.tsx`** — Add an early return  
-Return `null` immediately. The component becomes a no-op. This prevents any `<ins class="adsbygoogle">` tags from rendering anywhere in the app.
+A public, content-rich page explaining VYBE: what it is, key features (social feed, stories, clips, communities, messaging, creator tools), how it works, and the team/mission. This gives Google a real content page to crawl. Links to Privacy, Terms, Guidelines, Contact.
 
-**3. `src/components/ads/FeedAdCard.tsx`** — Update slot IDs to be clearly marked  
-Add a `TODO` and keep the placeholder IDs but document they must be replaced with real AdSense slot IDs before re-enabling.
+**2. Create `/contact` page** — `src/pages/Contact.tsx`
 
-**4. `src/hooks/useShowAds.ts`** — Force `showAds: false`  
-Add a kill switch: `const ADS_ENABLED = false;` at the top. All downstream consumers (`Home.tsx`, `StoryViewer.tsx`, `HomeWidgetRenderer.tsx`) automatically stop rendering ads without any changes needed.
+A simple page with the support email (`vybesocial.info@gmail.com`), a brief FAQ section covering common questions (account issues, content policy, creator program, data requests). Google values accessible contact information.
 
-### Re-enabling Later
+**3. Enhance Landing page** — `src/pages/Landing.tsx`
 
-When you're ready to resubmit to AdSense:
-1. Get real ad slot IDs from your AdSense dashboard
-2. Replace placeholder IDs in `FeedAdCard.tsx`
-3. Restore the AdSense script in `index.html`
-4. Flip `ADS_ENABLED` to `true` in `useShowAds.ts`
-5. Remove the early return in `AdUnit.tsx`
-6. Request a new review from Google
+Add a public content section **above** the login form: a hero section with feature highlights, screenshots/descriptions of the platform, social proof, and links to About, Privacy, Terms, Contact, Guidelines. This transforms the landing page from "just a login form" to a proper homepage with crawlable content.
 
-### Files Modified (4)
-1. `index.html` — Remove AdSense script
-2. `src/components/ads/AdUnit.tsx` — Early return null
-3. `src/components/ads/FeedAdCard.tsx` — Document placeholder slots
-4. `src/hooks/useShowAds.ts` — Kill switch flag
+**4. Add routes** — `src/App.tsx`
+
+Register `/about` and `/contact` as public routes (no auth required).
+
+**5. Add `robots.txt`** — `public/robots.txt`
+
+Allow Google to crawl all public pages. Include sitemap reference.
+
+**6. Add `sitemap.xml`** — `public/sitemap.xml`
+
+List all public URLs: `/`, `/about`, `/contact`, `/privacy`, `/terms`, `/guidelines`, `/cookies`. This helps Google discover and index all content pages.
+
+**7. Update footer links** — `src/pages/Landing.tsx`
+
+Add About and Contact to the existing footer links (Privacy, Terms, Guidelines).
+
+### Files Summary
+
+**New files (4)**:
+1. `src/pages/About.tsx` — Feature-rich about page
+2. `src/pages/Contact.tsx` — Contact info + FAQ
+3. `public/robots.txt` — Crawler permissions
+4. `public/sitemap.xml` — URL index for Google
+
+**Modified files (2)**:
+1. `src/pages/Landing.tsx` — Add hero content section + footer links
+2. `src/App.tsx` — Register public routes
 
 No database changes.
 
