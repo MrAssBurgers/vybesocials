@@ -1,97 +1,47 @@
 
 
-## AR Engine Activation + Snap Camera Kit SDK Integration
+## Fix AdSense Policy Violations
 
-### What This Does
+### The Problem
 
-Activates the existing (but dormant) AR filter engine in VybeSnapCamera, installs the official Snap AR Camera Kit React SDK (`@snap/react-camera-kit` + `@snap/camera-kit`), and wires everything together so filters actually work on the live camera feed.
+Google rejected the site for two policy violations:
 
----
+1. **"Ads on screens without publisher-content"** — The AdSense script loads globally on every screen (camera, loading states, empty feeds, settings, etc.), and ad units render on pages that may have no meaningful content.
+2. **"Low value content"** — The ad slot IDs are **placeholders** (`1234567890`, `0987654321`), meaning Google sees ad containers being pushed without valid slot configuration. This makes the site appear low-quality to their crawler.
 
-### 1. Install Snap AR Camera Kit SDK
+### The Fix
 
-Install two packages:
-- `@snap/camera-kit` — core AR engine
-- `@snap/react-camera-kit` — React wrapper with `CameraKitProvider` and `LensPlayer`
+**Disable AdSense entirely until the site meets Google's content requirements.** The ad infrastructure stays in code but becomes inert. Once Google approves the site, you flip a single flag and add real slot IDs.
 
-These require a Camera Kit API token from the Snap Developer Portal. You'll need to create a free Snap AR account and get an API token + lens group ID.
+### Changes
 
-### 2. Wire MediaPipe Face Tracking into VybeSnapCamera
+**1. `index.html`** — Remove the AdSense script loader  
+Delete the deferred `pagead2.googlesyndication.com` script block (lines 16-25). No AdSense JS means no policy violations from Google's crawler.
 
-**File**: `src/components/camera/VybeSnapCamera.tsx`
+**2. `src/components/ads/AdUnit.tsx`** — Add an early return  
+Return `null` immediately. The component becomes a no-op. This prevents any `<ins class="adsbygoogle">` tags from rendering anywhere in the app.
 
-- Import `useFaceTracking` and `AROverlayCanvas`
-- Call `useFaceTracking()` and pass the video element via `startTracking(video)` once the camera stream is active
-- Layer `<AROverlayCanvas>` over the `<video>` element with matching dimensions
-- Import and replace the CSS-only lens carousel with `ARFilterPicker`
-- Track the selected `ARFilterDef` in state and pass to both `AROverlayCanvas` (for face overlays/particles) and the video element's `style.filter` (for CSS color grading)
+**3. `src/components/ads/FeedAdCard.tsx`** — Update slot IDs to be clearly marked  
+Add a `TODO` and keep the placeholder IDs but document they must be replaced with real AdSense slot IDs before re-enabling.
 
-### 3. Activate ARFilterPicker (Remove "Coming Soon")
+**4. `src/hooks/useShowAds.ts`** — Force `showAds: false`  
+Add a kill switch: `const ADS_ENABLED = false;` at the top. All downstream consumers (`Home.tsx`, `StoryViewer.tsx`, `HomeWidgetRenderer.tsx`) automatically stop rendering ads without any changes needed.
 
-**File**: `src/components/camera/ARFilterPicker.tsx`
+### Re-enabling Later
 
-- Replace `handleFilterSelect` (which just shows a toast) with actual filter application: call `onFilterChange(filter)` directly
-- Keep premium gate check — show upsell for locked filters
+When you're ready to resubmit to AdSense:
+1. Get real ad slot IDs from your AdSense dashboard
+2. Replace placeholder IDs in `FeedAdCard.tsx`
+3. Restore the AdSense script in `index.html`
+4. Flip `ADS_ENABLED` to `true` in `useShowAds.ts`
+5. Remove the early return in `AdUnit.tsx`
+6. Request a new review from Google
 
-### 4. Add Snap Camera Kit Provider Wrapper
+### Files Modified (4)
+1. `index.html` — Remove AdSense script
+2. `src/components/ads/AdUnit.tsx` — Early return null
+3. `src/components/ads/FeedAdCard.tsx` — Document placeholder slots
+4. `src/hooks/useShowAds.ts` — Kill switch flag
 
-**New file**: `src/components/camera/SnapARProvider.tsx`
-
-- Wraps `CameraKitProvider` from `@snap/react-camera-kit` with the API token
-- Provides a `useSnapLens` hook for loading and applying Snap Lens Studio lenses by ID
-- Falls back gracefully if the token isn't configured (uses MediaPipe-only mode)
-
-### 5. Snap Lens Integration in Camera
-
-**File**: `src/components/camera/VybeSnapCamera.tsx`
-
-- When a filter has a `snapLensId` property, use Snap Camera Kit to render it instead of the MediaPipe canvas
-- For filters without a lens ID, continue using the existing `AROverlayCanvas` + `useFaceTracking` pipeline
-- Both systems can coexist — Snap for premium/community lenses, MediaPipe for built-in effects
-
-### 6. API Token Setup
-
-The Snap Camera Kit API token is a publishable key (safe for client-side). It will be stored as `VITE_SNAP_CAMERA_KIT_TOKEN` in the codebase. You'll need to:
-1. Go to https://developers.snap.com
-2. Create a Camera Kit application
-3. Copy the API token
-
-### 7. Filter Creator Upload Portal
-
-**New file**: `src/components/camera/FilterUploadModal.tsx`
-
-- Users who create lenses in Snap Lens Studio can submit their lens ID + group ID
-- Saves to the existing `filters` table with `effect_config: { snapLensId, snapGroupId }`
-- Moderation flag: `is_approved: false` by default for public visibility
-
-### 8. Moderation Update
-
-**File**: `src/hooks/useFilters.ts`
-
-- `useCreateFilter` sets `is_approved: false` for non-premium user submissions
-- Admin approval uses existing admin dashboard patterns
-
----
-
-### Technical Details
-
-- `@snap/camera-kit` handles Snap Lens rendering via WebGL — runs alongside or instead of the MediaPipe canvas
-- `@snap/react-camera-kit` provides `CameraKitProvider` (context) and `LensPlayer` (managed camera + lens renderer)
-- MediaPipe remains the fallback for built-in filters (no external dependency needed)
-- Snap lenses load from Snap's CDN — typical load time <500ms with caching
-
-### Files Summary
-
-**New packages** (2): `@snap/camera-kit`, `@snap/react-camera-kit`
-
-**New files** (2):
-1. `src/components/camera/SnapARProvider.tsx` — Camera Kit context + hook
-2. `src/components/camera/FilterUploadModal.tsx` — Lens upload portal
-
-**Modified files** (3):
-1. `src/components/camera/VybeSnapCamera.tsx` — Wire face tracking + AR canvas + Snap lens support
-2. `src/components/camera/ARFilterPicker.tsx` — Remove "coming soon", activate filter selection
-3. `src/hooks/useFilters.ts` — Moderation flag for uploads
-
-No database changes — existing tables support this.
+No database changes.
 
