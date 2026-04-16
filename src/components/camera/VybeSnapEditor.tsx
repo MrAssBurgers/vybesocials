@@ -72,7 +72,7 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
   const [colorPickerY, setColorPickerY] = useState(0.5);
   
   const containerRef = useRef<HTMLDivElement>(null);
-  const textInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
   const captionInputRef = useRef<HTMLInputElement>(null);
   const colorBarRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
