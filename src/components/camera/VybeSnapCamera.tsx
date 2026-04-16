@@ -645,17 +645,31 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
             <p className="text-white/50 text-sm font-medium">Connecting camera...</p>
           </div>
         ) : (
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            style={{ 
-              transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
-              filter: currentFilter?.filter !== 'none' ? currentFilter?.filter : (nightMode ? 'brightness(1.4) contrast(0.9)' : 'none'),
-            }}
-            playsInline
-            muted
-            autoPlay
-          />
+          <>
+            <video
+              ref={videoRef}
+              className="w-full h-full object-cover"
+              style={{ 
+                transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+                filter: activeARFilter?.cssFilter || (selectedFilter !== 'none' 
+                  ? LENS_FILTERS.find(f => f.id === selectedFilter)?.filter 
+                  : (nightMode ? 'brightness(1.4) contrast(0.9)' : 'none')),
+              }}
+              playsInline
+              muted
+              autoPlay
+            />
+            {/* AR Overlay Canvas — renders face masks, particles, effects */}
+            {activeARFilter && videoSize.width > 0 && (
+              <AROverlayCanvas
+                faces={faces}
+                filter={activeARFilter}
+                videoWidth={videoSize.width}
+                videoHeight={videoSize.height}
+                mirrored={facingMode === 'user'}
+              />
+            )}
+          </>
         )}
         
         {/* Grid overlay */}
@@ -852,33 +866,12 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         {/* Lens/filter carousel */}
         {!isRecording && (
           <div className="px-2 mb-3">
-            <div className="flex gap-2.5 overflow-x-auto scrollbar-hide px-2 pb-1">
-              {LENS_FILTERS.map((filter) => (
-                <button
-                  key={filter.id}
-                  onClick={() => { setSelectedFilter(filter.id); haptics.impact(); }}
-                  className={cn(
-                    "flex flex-col items-center gap-1 shrink-0 transition-all",
-                    selectedFilter === filter.id ? "scale-110" : "opacity-70"
-                  )}
-                >
-                  <div className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center text-base border-2 transition-all",
-                    selectedFilter === filter.id 
-                      ? "border-white bg-white/20 shadow-lg shadow-white/10" 
-                      : "border-white/20 bg-black/40 backdrop-blur-sm"
-                  )}>
-                    {filter.icon}
-                  </div>
-                  <span className={cn(
-                    "text-[9px] font-medium",
-                    selectedFilter === filter.id ? "text-white" : "text-white/50"
-                  )}>
-                    {filter.label}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <ARFilterPicker
+              currentFilter={activeARFilter?.id || null}
+              onFilterChange={handleARFilterChange}
+              isTracking={faces.length > 0}
+              isLoading={arLoading}
+            />
           </div>
         )}
 
