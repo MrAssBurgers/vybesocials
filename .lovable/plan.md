@@ -1,112 +1,51 @@
 
 
-## Snapchat-Style Camera-First Messaging System
+## Combined: Bottom Nav Polish + Camera Declutter + Snapchat-Style Text Bar
 
-A major UX overhaul that makes camera the center of the messaging experience — matching Snapchat's speed, gestures, and flow.
+### 1. Bottom Nav — Restore gradient + remove active dot
 
----
+**File**: `src/components/layout/BottomNav.tsx`
 
-### What This Changes
+- **Lines 533**: Change non-edit background from `'hsl(var(--card))'` back to `'linear-gradient(135deg, hsl(var(--primary) / 0.15), hsl(var(--accent) / 0.1)), hsl(var(--card))'`
+- **Lines 257-264**: Delete the active glow dot `motion.div` with `layoutId="nav-glow-dot"`
 
-The DM experience shifts from "tap chat → type text" to "tap → camera opens → capture → send instantly." Every interaction prioritizes speed and gesture-based navigation.
-
----
-
-### Phase 1: Camera Button on DM List Header
-
-**File**: `src/components/chat/ConversationList.tsx`
-
-Add a camera icon button to the **left side** of the header (next to the user avatar). Tapping it opens VybeSnapCamera in fullscreen with rear camera default. Uses the existing `VybeSnapCamera` component.
-
----
-
-### Phase 2: Camera-First DM Entry
-
-**File**: `src/components/chat/ChatView.tsx`
-
-When a user taps a DM conversation, instead of showing the chat immediately:
-- Show VybeSnapCamera fullscreen first (rear camera default)
-- Chat is accessible by swiping up or tapping a "Chat" pill at the bottom
-- Keyboard stays hidden until user explicitly taps the text input
-- A small semi-transparent overlay at the bottom shows the recipient name + avatar
-
-**New file**: `src/components/chat/CameraFirstOverlay.tsx` — The overlay component that wraps camera + chat-below flow
-
----
-
-### Phase 3: Snap Preview Viewer for Media Messages
-
-**File**: `src/components/chat/ConversationList.tsx` + `src/components/chat/VybeViewer.tsx`
-
-When a DM has unviewed media (snap), tapping the conversation opens `VybeViewer` directly instead of loading the full chat:
-- Fullscreen camera-style viewer with progress bar
-- Swipe right → return to DM list
-- Swipe up → open full chat thread
-- After viewing, mark as read and return to list
-
----
-
-### Phase 4: Quick Send After Capture
+### 2. Camera Declutter
 
 **File**: `src/components/camera/VybeSnapCamera.tsx`
 
-After capturing a photo/video, show a quick-send overlay:
-- Recent chats appear as a horizontal avatar row at the bottom
-- Tap a contact → sends immediately (no confirmation)
-- Send button always visible
-- Uses existing `CameraShareSheet` logic but streamlined into an inline row
+- **Remove HDR button** (lines 798-807) — decorative, does nothing
+- **Remove Sound button** (lines 823-835) — not functional
+- **Remove label text** under remaining tool buttons (Flash, Timer, Grid, Night) — icon-only, shrink to `w-9 h-9`
+- **Remove category tabs** (lines 910-928) — non-functional clutter
+- **Remove hint text** "Tap for photo · Hold for video" (lines 930-938)
+- **Remove AR placeholder** from lens carousel (lines 872-877)
+- **Shrink lens filter circles** from `w-12 h-12` to `w-10 h-10`
 
----
-
-### Phase 5: Gesture Navigation System
-
-**File**: `src/components/chat/CameraFirstOverlay.tsx` (new)
-
-Implement Snapchat-style gesture navigation on the camera-first view:
-- **Swipe right** → exit camera, return to DM list
-- **Swipe left** → open chat overlay
-- **Swipe up** → open memories/chat overlay
-- Smooth spring animations tracking finger position
-- Haptic feedback at gesture thresholds
-
----
-
-### Phase 6: Frosted Glass Text Input on Captured Media
+### 3. Snapchat-Style Full-Width Frosted Text Bar
 
 **File**: `src/components/camera/VybeSnapEditor.tsx`
 
-Replace the existing text overlay system with Snapchat-style frosted glass text input:
-- Tap anywhere on captured media → centered text box appears with frosted glass background
-- Semi-transparent blur with rounded corners (`backdrop-filter: blur(20px)`)
-- Auto-contrast: light tint on dark images, dark tint on light images (sample center pixel)
-- Text box expands dynamically as user types
-- Draggable + pinch-to-resize after placing
-- Smooth fade-in animation on appear
+**The key change**: After the user finishes typing and confirms text, instead of placing a small draggable text block at an arbitrary (x, y), create a **full-width frosted glass bar** that stretches edge-to-edge across the image.
+
+- The bar has `backdrop-filter: blur(24px)`, `background: rgba(0,0,0,0.35)`, `rounded-2xl`, and horizontal padding
+- Text is centered inside, bold, with the user's chosen color/style
+- The bar **only drags vertically** (`drag="y"` with `dragConstraints` clamped to the container ref) — it slides up and down but never leaves the image
+- The y-position is stored as a percentage and clamped between 5% and 95%
+
+**Input bar** (while typing): Stays the same frosted input UI but uses a `textarea` that auto-expands vertically for multi-line text.
+
+**Canvas export update** in `renderOverlaysToCanvas`: Draw a semi-transparent full-width rectangle at the correct y-position with centered text — matching the on-screen appearance.
+
+**Remove pulsing glow** on send button (lines 736-741) — replace with static shadow.
+
+**Add "Send to" label** above the QuickSendRow for clarity.
 
 ---
 
-### Phase 7: Performance Optimizations
+### Files Modified (3)
+1. `src/components/layout/BottomNav.tsx` — gradient restore, remove dot
+2. `src/components/camera/VybeSnapCamera.tsx` — declutter (remove HDR, Sound, tabs, hint, AR, shrink filters)
+3. `src/components/camera/VybeSnapEditor.tsx` — full-width frosted bar overlays with vertical-only drag, send button cleanup
 
-**Files**: `src/components/camera/VybeSnapCamera.tsx`, `src/components/chat/CameraFirstOverlay.tsx`
-
-- Camera stream pre-warm on DM list mount (gesture-gated, not auto-start)
-- Instant camera open (<150ms) by keeping stream reference alive
-- Text input appears within 100ms via pre-rendered hidden input
-- No UI flicker on view transitions (use `will-change: transform`)
-- Haptic feedback on capture (medium) and send (light)
-
----
-
-### Technical Summary
-
-**New files** (1):
-1. `src/components/chat/CameraFirstOverlay.tsx` — Camera-first DM entry wrapper with gesture nav
-
-**Modified files** (4):
-1. `src/components/chat/ConversationList.tsx` — Camera button in header + snap preview tap behavior
-2. `src/components/chat/ChatView.tsx` — Camera-first entry mode, deferred keyboard
-3. `src/components/camera/VybeSnapCamera.tsx` — Quick send row, instant open optimizations
-4. `src/components/camera/VybeSnapEditor.tsx` — Frosted glass text input with auto-contrast
-
-**No database changes required.**
+No database changes.
 
