@@ -205,7 +205,7 @@ export function useCreateFilter() {
           description: filter.description || null,
           category: filter.category || 'community',
           is_published: true,
-          is_approved: true, // Auto-approve for now
+          is_approved: false, // Requires moderation review before public visibility
         })
         .select()
         .single();

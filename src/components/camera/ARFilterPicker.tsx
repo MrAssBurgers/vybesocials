@@ -47,9 +47,15 @@ export const ARFilterPicker = memo(function ARFilterPicker({
     ? allFilters
     : allFilters.filter(f => f.category === activeCategory);
 
-  const handleFilterSelect = (_filter: ARFilterDef) => {
-    toast('AR Filters coming soon! 🎭', { description: 'Stay tuned for face filters & effects' });
-    triggerHaptic('light');
+  const handleFilterSelect = (filter: ARFilterDef) => {
+    // Premium gate check
+    if (filter.premium && !isPremium) {
+      toast('Premium filter 💎', { description: 'Upgrade to VYBE Pro for this filter' });
+      triggerHaptic('light');
+      return;
+    }
+    onFilterChange(filter);
+    triggerHaptic('medium');
   };
 
   const handleShareFilter = useCallback(async (filter: ARFilterDef) => {
@@ -153,14 +159,20 @@ export const ARFilterPicker = memo(function ARFilterPicker({
                   onClick={() => handleFilterSelect(filter)}
                   className="relative"
                 >
-                  <div className={cn(
+              <div className={cn(
                     "w-11 h-11 rounded-xl flex items-center justify-center text-base border-2 transition-all",
-                    "border-white/10 bg-white/5 opacity-60"
+                    isActive
+                      ? "border-primary bg-primary/20 scale-105"
+                      : isLocked
+                        ? "border-white/10 bg-white/5 opacity-50"
+                        : "border-white/20 bg-white/10"
                   )}>
                     {filter.icon}
-                    <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center">
-                      <span className="text-[5px] font-bold text-white/80 uppercase tracking-wide">Soon</span>
-                    </div>
+                    {isLocked && (
+                      <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center">
+                        <Lock className="w-3 h-3 text-white/60" />
+                      </div>
+                    )}
                   </div>
                   {isAI && (
                     <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-primary flex items-center justify-center">

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, SwitchCamera, Zap, ZapOff, Volume2, VolumeX, Loader2, Timer, Grid3X3, Sun, Moon, Image, Music, Search, UserPlus, Sparkles } from 'lucide-react';
+import { X, SwitchCamera, Zap, ZapOff, Loader2, Timer, Grid3X3, Sun, Moon, Image, Music, Search, UserPlus, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VybeRecordButton } from './VybeRecordButton';
 import { VybeSnapEditor } from './VybeSnapEditor';
@@ -11,6 +11,11 @@ import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { getRecentMessageUsers } from '@/lib/recentMessageUsers';
 import { useNavigate } from 'react-router-dom';
+import { useFaceTracking } from '@/hooks/useFaceTracking';
+import { AROverlayCanvas } from './AROverlayCanvas';
+import { ARFilterPicker } from './ARFilterPicker';
+import { ARFilterDef } from '@/lib/arFilters';
+import { useSnapAR } from './SnapARProvider';
 
 interface RecordingSegment {
   blob: Blob;
@@ -37,8 +42,6 @@ const LENS_FILTERS = [
   { id: 'noir', label: 'Noir', icon: '🎬', filter: 'grayscale(0.8) contrast(1.4) brightness(0.9)' },
 ];
 
-const CATEGORY_TABS = ['Trending', 'For You', 'Favorites', 'Moments', 'Aesthetic'];
-
 export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps) {
   const { profile } = useAuth();
   const navigate = useNavigate();
@@ -57,10 +60,15 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
   const [showGrid, setShowGrid] = useState(false);
   const [nightMode, setNightMode] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('none');
-  const [activeCategory, setActiveCategory] = useState('Trending');
   const [showTools, setShowTools] = useState(true);
   const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
   const [selfieFlash, setSelfieFlash] = useState(false);
+  const [activeARFilter, setActiveARFilter] = useState<ARFilterDef | null>(null);
+  const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
+  
+  // AR Face Tracking
+  const { faces, isReady: arReady, isLoading: arLoading, startTracking, stopTracking } = useFaceTracking({ enabled: isOpen && cameraReady });
+  const { applySnapLens, removeSnapLens, isAvailable: snapAvailable } = useSnapAR();
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -206,6 +214,37 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
       videoRef.current.play().catch(() => {});
     }
   });
+
+  // Start face tracking when camera is ready
+  useEffect(() => {
+    if (cameraReady && videoRef.current && arReady) {
+      startTracking(videoRef.current);
+      // Track video dimensions for AR overlay
+      const vid = videoRef.current;
+      const updateSize = () => setVideoSize({ width: vid.videoWidth, height: vid.videoHeight });
+      vid.addEventListener('loadedmetadata', updateSize);
+      updateSize();
+      return () => vid.removeEventListener('loadedmetadata', updateSize);
+    }
+    return () => { if (!cameraReady) stopTracking(); };
+  }, [cameraReady, arReady, startTracking, stopTracking]);
+
+  // Handle AR filter changes (including Snap lens)
+  const handleARFilterChange = useCallback(async (filter: ARFilterDef | null) => {
+    setActiveARFilter(filter);
+    // If filter has a Snap Lens ID, apply via Snap SDK
+    if (filter && (filter as any).snapLensId && snapAvailable) {
+      await applySnapLens((filter as any).snapLensId, (filter as any).snapGroupId || '');
+    } else {
+      await removeSnapLens();
+    }
+    // Apply CSS filter to the video element
+    if (filter?.cssFilter) {
+      setSelectedFilter(filter.cssFilter);
+    } else {
+      setSelectedFilter('none');
+    }
+  }, [snapAvailable, applySnapLens, removeSnapLens]);
   
   // Pinch-to-zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -606,17 +645,31 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
             <p className="text-white/50 text-sm font-medium">Connecting camera...</p>
           </div>
         ) : (
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            style={{ 
-              transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
-              filter: currentFilter?.filter !== 'none' ? currentFilter?.filter : (nightMode ? 'brightness(1.4) contrast(0.9)' : 'none'),
-            }}
-            playsInline
-            muted
-            autoPlay
-          />
+          <>
+            <video
+              ref={videoRef}
+              className="w-full h-full object-cover"
+              style={{ 
+                transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+                filter: activeARFilter?.cssFilter || (selectedFilter !== 'none' 
+                  ? LENS_FILTERS.find(f => f.id === selectedFilter)?.filter 
+                  : (nightMode ? 'brightness(1.4) contrast(0.9)' : 'none')),
+              }}
+              playsInline
+              muted
+              autoPlay
+            />
+            {/* AR Overlay Canvas — renders face masks, particles, effects */}
+            {activeARFilter && videoSize.width > 0 && (
+              <AROverlayCanvas
+                faces={faces}
+                filter={activeARFilter}
+                videoWidth={videoSize.width}
+                videoHeight={videoSize.height}
+                mirrored={facingMode === 'user'}
+              />
+            )}
+          </>
         )}
         
         {/* Grid overlay */}
@@ -813,33 +866,12 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
         {/* Lens/filter carousel */}
         {!isRecording && (
           <div className="px-2 mb-3">
-            <div className="flex gap-2.5 overflow-x-auto scrollbar-hide px-2 pb-1">
-              {LENS_FILTERS.map((filter) => (
-                <button
-                  key={filter.id}
-                  onClick={() => { setSelectedFilter(filter.id); haptics.impact(); }}
-                  className={cn(
-                    "flex flex-col items-center gap-1 shrink-0 transition-all",
-                    selectedFilter === filter.id ? "scale-110" : "opacity-70"
-                  )}
-                >
-                  <div className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center text-base border-2 transition-all",
-                    selectedFilter === filter.id 
-                      ? "border-white bg-white/20 shadow-lg shadow-white/10" 
-                      : "border-white/20 bg-black/40 backdrop-blur-sm"
-                  )}>
-                    {filter.icon}
-                  </div>
-                  <span className={cn(
-                    "text-[9px] font-medium",
-                    selectedFilter === filter.id ? "text-white" : "text-white/50"
-                  )}>
-                    {filter.label}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <ARFilterPicker
+              currentFilter={activeARFilter?.id || null}
+              onFilterChange={handleARFilterChange}
+              isTracking={faces.length > 0}
+              isLoading={arLoading}
+            />
           </div>
         )}
 
