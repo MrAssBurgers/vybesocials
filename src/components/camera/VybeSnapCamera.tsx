@@ -747,15 +747,14 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
             {/* Flash */}
             <button
               onClick={() => setFlashEnabled(!flashEnabled)}
-              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+              className="active:scale-90 transition-transform"
             >
               <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+                "w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm",
                 flashEnabled ? "bg-yellow-400/30" : "bg-black/40"
               )}>
                 {flashEnabled ? <Zap className="h-4 w-4 text-yellow-400" fill="currentColor" /> : <ZapOff className="h-4 w-4 text-white/80" />}
               </div>
-              <span className="text-[9px] text-white/70 font-medium">Flash</span>
             </button>
 
             {/* Timer */}
@@ -765,10 +764,10 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
                 setTimerSeconds(TIMER_OPTIONS[(idx + 1) % TIMER_OPTIONS.length]);
                 haptics.impact();
               }}
-              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+              className="active:scale-90 transition-transform"
             >
               <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm relative",
+                "w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm relative",
                 timerSeconds > 0 ? "bg-primary/30" : "bg-black/40"
               )}>
                 <Timer className="h-4 w-4 text-white/80" />
@@ -778,60 +777,32 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
                   </span>
                 )}
               </div>
-              <span className="text-[9px] text-white/70 font-medium">Timer</span>
             </button>
 
             {/* Grid */}
             <button
               onClick={() => { setShowGrid(!showGrid); haptics.impact(); }}
-              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+              className="active:scale-90 transition-transform"
             >
               <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+                "w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm",
                 showGrid ? "bg-white/20" : "bg-black/40"
               )}>
                 <Grid3X3 className="h-4 w-4 text-white/80" />
               </div>
-              <span className="text-[9px] text-white/70 font-medium">Grid</span>
-            </button>
-
-            {/* HDR (decorative) */}
-            <button
-              onClick={() => haptics.impact()}
-              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
-            >
-              <div className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm bg-black/40">
-                <span className="text-[10px] font-black text-white/80">HDR</span>
-              </div>
-              <span className="text-[9px] text-white/70 font-medium">HDR</span>
             </button>
 
             {/* Night Mode */}
             <button
               onClick={() => { setNightMode(!nightMode); haptics.impact(); }}
-              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
+              className="active:scale-90 transition-transform"
             >
               <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
+                "w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm",
                 nightMode ? "bg-yellow-400/20" : "bg-black/40"
               )}>
                 {nightMode ? <Sun className="h-4 w-4 text-yellow-400" /> : <Moon className="h-4 w-4 text-white/80" />}
               </div>
-              <span className="text-[9px] text-white/70 font-medium">Night</span>
-            </button>
-
-            {/* Sound */}
-            <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
-            >
-              <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
-                soundEnabled ? "bg-white/20" : "bg-black/40"
-              )}>
-                {soundEnabled ? <Volume2 className="h-4 w-4 text-white/80" /> : <VolumeX className="h-4 w-4 text-white/60" />}
-              </div>
-              <span className="text-[9px] text-white/70 font-medium">Sound</span>
             </button>
           </motion.div>
         )}
@@ -853,7 +824,7 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
                   )}
                 >
                   <div className={cn(
-                    "w-12 h-12 rounded-full flex items-center justify-center text-lg border-2 transition-all",
+                    "w-10 h-10 rounded-full flex items-center justify-center text-base border-2 transition-all",
                     selectedFilter === filter.id 
                       ? "border-white bg-white/20 shadow-lg shadow-white/10" 
                       : "border-white/20 bg-black/40 backdrop-blur-sm"
@@ -868,13 +839,6 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
                   </span>
                 </button>
               ))}
-              {/* AR Coming Soon placeholder */}
-              <button className="flex flex-col items-center gap-1 shrink-0 opacity-40">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg border-2 border-white/10 bg-black/40 backdrop-blur-sm">
-                  <Sparkles className="h-5 w-5 text-white/40" />
-                </div>
-                <span className="text-[9px] font-medium text-white/30">AR</span>
-              </button>
             </div>
           </div>
         )}
@@ -907,35 +871,6 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
           </button>
         </div>
         
-        {/* Category tabs */}
-        {!isRecording && (
-          <div className="flex gap-1 overflow-x-auto scrollbar-hide px-4 pb-4 pt-1">
-            {CATEGORY_TABS.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => { setActiveCategory(tab); haptics.impact(); }}
-                className={cn(
-                  "shrink-0 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition-all",
-                  activeCategory === tab
-                    ? "bg-white text-black"
-                    : "bg-white/10 text-white/60"
-                )}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Hint */}
-        {!isRecording && (
-          <motion.p 
-            className="text-center text-white/40 text-[10px] pb-3 font-medium"
-            animate={{ opacity: isRecording ? 0 : 1 }}
-          >
-            Tap for photo · Hold for video
-          </motion.p>
-        )}
       </div>
     </motion.div>
   );
