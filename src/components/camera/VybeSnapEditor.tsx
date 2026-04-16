@@ -623,7 +623,7 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
                 }}
               >
                 <textarea
-                  ref={textInputRef as any}
+                  ref={textInputRef}
                   value={currentText}
                   onChange={(e) => setCurrentText(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addText(); } }}
