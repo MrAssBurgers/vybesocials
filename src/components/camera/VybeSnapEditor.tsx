@@ -690,7 +690,7 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
         )}
       </AnimatePresence>
 
-      {/* ── Bottom: Caption + Send row ── */}
+      {/* ── Bottom: Quick Send + Caption + Send row ── */}
       <AnimatePresence>
         {!isTextInputOpen && mode !== 'sticker' && (
           <motion.div
@@ -699,7 +699,10 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
             exit={{ opacity: 0, y: 10 }}
             className="absolute bottom-0 left-0 right-0 z-20 pb-safe"
           >
-            <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-12 px-3 pb-4 space-y-2.5">
+            <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-8 px-3 pb-4 space-y-2.5">
+              {/* Quick Send - Recent contacts row */}
+              <QuickSendRow />
+
               {/* Caption bar */}
               <div className="relative">
                 <input
@@ -710,9 +713,14 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
                   onBlur={() => setIsCaptionFocused(false)}
                   placeholder="Add a caption..."
                   className={cn(
-                    "w-full bg-black/30 backdrop-blur-md rounded-full px-4 py-2.5 text-white text-sm placeholder:text-white/40 focus:outline-none transition-all border",
+                    "w-full rounded-full px-4 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none transition-all border",
                     isCaptionFocused ? "border-white/30" : "border-white/10"
                   )}
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                  }}
                 />
               </div>
 
@@ -740,5 +748,47 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
         )}
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+/** Quick send row - shows recent contacts as tappable avatars */
+function QuickSendRow() {
+  const [recentUsers, setRecentUsers] = useState<Array<{ id: string; name: string; avatar?: string }>>([]);
+
+  useEffect(() => {
+    try {
+      const { getRecentMessageUsers } = require('@/lib/recentMessageUsers');
+      const users = getRecentMessageUsers();
+      setRecentUsers(users.slice(0, 8).map((u: any) => ({
+        id: u.id,
+        name: u.username || u.display_name || '?',
+        avatar: u.avatar_url,
+      })));
+    } catch {}
+  }, []);
+
+  if (recentUsers.length === 0) return null;
+
+  return (
+    <div className="flex gap-3 overflow-x-auto scrollbar-hide px-1 pb-1">
+      {recentUsers.map(user => (
+        <button
+          key={user.id}
+          className="flex flex-col items-center gap-1 shrink-0 active:scale-90 transition-transform"
+          onClick={() => haptics.impact()}
+        >
+          <div className="w-11 h-11 rounded-full overflow-hidden bg-white/15 border-2 border-white/20">
+            {user.avatar ? (
+              <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-white font-bold text-sm">
+                {user.name[0]?.toUpperCase()}
+              </div>
+            )}
+          </div>
+          <span className="text-[10px] text-white/70 font-medium truncate max-w-[48px]">{user.name}</span>
+        </button>
+      ))}
+    </div>
   );
 }
