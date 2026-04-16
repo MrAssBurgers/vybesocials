@@ -45,6 +45,7 @@ import { compactTime } from '@/lib/compactTime';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
 import { NotesRow } from './NotesRow';
+import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
