@@ -803,98 +803,220 @@ export default function AIChat() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* AI Humanizer Sheet */}
+      {/* AI Humanizer + Detector Sheet */}
       <Sheet open={isHumanizerOpen} onOpenChange={setIsHumanizerOpen}>
-        <SheetContent side="bottom" className="h-[88vh] rounded-t-3xl">
-          <SheetHeader className="text-left">
+        <SheetContent side="bottom" className="h-[92vh] rounded-t-3xl flex flex-col p-0">
+          <SheetHeader className="text-left px-4 pt-4 pb-2 border-b border-border/40">
             <SheetTitle className="flex items-center gap-2">
               <Wand2 className="h-5 w-5 text-primary" />
-              AI Humanizer
-              <span className="text-[10px] font-normal text-muted-foreground ml-1">removes AI tells</span>
+              Essay Studio
+              <span className="text-[10px] font-normal text-muted-foreground ml-1">humanize · detect</span>
             </SheetTitle>
+            <div className="flex gap-1.5 mt-3 p-1 bg-muted/40 rounded-full">
+              <button
+                onClick={() => setHumanizerTab('humanize')}
+                className={cn(
+                  "flex-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center justify-center gap-1.5",
+                  humanizerTab === 'humanize' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
+                )}
+              >
+                <Wand2 className="h-3.5 w-3.5" /> Humanizer
+              </button>
+              <button
+                onClick={() => setHumanizerTab('detect')}
+                className={cn(
+                  "flex-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center justify-center gap-1.5",
+                  humanizerTab === 'detect' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'
+                )}
+              >
+                <ScanLine className="h-3.5 w-3.5" /> AI Detector
+              </button>
+            </div>
           </SheetHeader>
 
-          <div className="mt-3 space-y-3 overflow-y-auto max-h-[calc(88vh-6rem)] pb-6">
-            {/* Tone selector */}
-            <div className="flex gap-1.5">
-              {(['natural','casual','academic'] as const).map(tone => (
-                <button
-                  key={tone}
-                  onClick={() => setHumanizerTone(tone)}
-                  className={cn(
-                    "flex-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors capitalize",
-                    humanizerTone === tone
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-muted/40 text-foreground/80 border-border/40 hover:bg-muted'
-                  )}
-                >{tone}</button>
-              ))}
-            </div>
-
-            {/* Input */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-medium">Paste your essay or AI-generated text</Label>
-                <span className="text-[10px] text-muted-foreground">
-                  {humanizerInput.trim() ? `${humanizerInput.trim().split(/\s+/).length} words` : '0 words'} · {humanizerInput.length}/8000
-                </span>
-              </div>
-              <Textarea
-                value={humanizerInput}
-                onChange={(e) => setHumanizerInput(e.target.value.slice(0, 8000))}
-                placeholder="Paste up to 8000 characters of AI-written text. The humanizer will rewrite it with varied rhythm, natural phrasing, and remove typical AI tells."
-                rows={8}
-                className="text-sm resize-none"
-              />
-            </div>
-
-            <Button
-              onClick={runHumanizer}
-              disabled={isHumanizing || !humanizerInput.trim()}
-              className="w-full"
-            >
-              {isHumanizing ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Humanizing...</>
-              ) : (
-                <><Wand2 className="h-4 w-4 mr-2" /> Humanize</>
-              )}
-            </Button>
-
-            {/* Output */}
-            {(humanizerOutput || isHumanizing) && (
-              <div className="space-y-1.5 pt-1">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium flex items-center gap-1.5">
-                    <Sparkles className="h-3 w-3 text-primary" /> Humanized result
-                  </Label>
-                  {humanizerOutput && !isHumanizing && (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => { navigator.clipboard.writeText(humanizerOutput); toast.success('Copied'); }}
-                        className="text-[11px] px-2 py-1 rounded-md bg-muted/60 hover:bg-muted flex items-center gap-1"
-                      >
-                        <Copy className="h-3 w-3" /> Copy
-                      </button>
-                      <button
-                        onClick={() => { setHumanizerInput(humanizerOutput); setHumanizerOutput(''); toast.success('Replaced'); }}
-                        className="text-[11px] px-2 py-1 rounded-md bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-1"
-                      >
-                        <Check className="h-3 w-3" /> Replace original
-                      </button>
-                    </div>
-                  )}
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+            {humanizerTab === 'humanize' ? (
+              <>
+                <div className="flex gap-1.5">
+                  {(['natural','casual','academic'] as const).map(tone => (
+                    <button
+                      key={tone}
+                      onClick={() => setHumanizerTone(tone)}
+                      className={cn(
+                        "flex-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors capitalize",
+                        humanizerTone === tone
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-muted/40 text-foreground/80 border-border/40 hover:bg-muted'
+                      )}
+                    >{tone}</button>
+                  ))}
                 </div>
-                <div className="rounded-xl border border-border/40 bg-muted/30 p-3 text-sm whitespace-pre-wrap min-h-[100px] leading-relaxed">
-                  {humanizerOutput || (
-                    <span className="text-muted-foreground text-xs flex items-center gap-2">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Rewriting...
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">Paste your essay or AI-generated text</Label>
+                    <span className="text-[10px] text-muted-foreground">
+                      {humanizerInput.trim() ? `${humanizerInput.trim().split(/\s+/).length} words` : '0 words'} · {humanizerInput.length}/8000
                     </span>
-                  )}
-                  {isHumanizing && humanizerOutput && (
-                    <span className="inline-block w-[2px] h-[14px] bg-foreground/70 ml-0.5 align-middle animate-pulse" />
-                  )}
+                  </div>
+                  <Textarea
+                    value={humanizerInput}
+                    onChange={(e) => setHumanizerInput(e.target.value.slice(0, 8000))}
+                    placeholder="Paste up to 8000 characters. The humanizer rewrites it to bypass GPTZero, Turnitin, Originality.ai — keeping every fact intact."
+                    rows={7}
+                    className="text-sm resize-none"
+                  />
                 </div>
-              </div>
+
+                <Button
+                  onClick={runHumanizer}
+                  disabled={isHumanizing || !humanizerInput.trim()}
+                  className="w-full"
+                >
+                  {isHumanizing ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Humanizing...</>
+                  ) : (
+                    <><Wand2 className="h-4 w-4 mr-2" /> Humanize</>
+                  )}
+                </Button>
+
+                {(humanizerOutput || isHumanizing) && (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between flex-wrap gap-1.5">
+                      <Label className="text-xs font-medium flex items-center gap-1.5">
+                        <Sparkles className="h-3 w-3 text-primary" /> Humanized result
+                      </Label>
+                      {humanizerOutput && !isHumanizing && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(humanizerOutput); toast.success('Copied'); }}
+                            className="text-[11px] px-2 py-1 rounded-md bg-muted/60 hover:bg-muted flex items-center gap-1"
+                          >
+                            <Copy className="h-3 w-3" /> Copy
+                          </button>
+                          <button
+                            onClick={() => { setDetectorInput(humanizerOutput); setHumanizerTab('detect'); runDetector(humanizerOutput); }}
+                            className="text-[11px] px-2 py-1 rounded-md bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-1"
+                          >
+                            <ScanLine className="h-3 w-3" /> Check AI score
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-border/40 bg-muted/30 p-3 text-sm whitespace-pre-wrap min-h-[100px] leading-relaxed">
+                      {humanizerOutput || (
+                        <span className="text-muted-foreground text-xs flex items-center gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Rewriting...
+                        </span>
+                      )}
+                      {isHumanizing && humanizerOutput && (
+                        <span className="inline-block w-[2px] h-[14px] bg-foreground/70 ml-0.5 align-middle animate-pulse" />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">Paste any text to scan</Label>
+                    <span className="text-[10px] text-muted-foreground">
+                      {detectorInput.trim() ? `${detectorInput.trim().split(/\s+/).length} words` : '0 words'} · {detectorInput.length}/12000
+                    </span>
+                  </div>
+                  <Textarea
+                    value={detectorInput}
+                    onChange={(e) => setDetectorInput(e.target.value.slice(0, 12000))}
+                    placeholder="Paste any text to check if it was written by AI. Uses statistical signals (burstiness, AI tells, repetition) blended with an LLM judge — like GPTZero."
+                    rows={7}
+                    className="text-sm resize-none"
+                  />
+                </div>
+
+                <Button
+                  onClick={() => runDetector()}
+                  disabled={isDetecting || !detectorInput.trim()}
+                  className="w-full"
+                >
+                  {isDetecting ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Scanning...</>
+                  ) : (
+                    <><ScanLine className="h-4 w-4 mr-2" /> Detect AI</>
+                  )}
+                </Button>
+
+                {detectorResult && (
+                  <div className="space-y-3 pt-1">
+                    <div className="rounded-2xl border border-border/40 bg-gradient-to-br from-card to-muted/20 p-4 space-y-2">
+                      <div className="flex items-baseline justify-between">
+                        <div className="flex items-center gap-2">
+                          {detectorResult.ai_probability >= 60 ? (
+                            <Bot className="h-5 w-5 text-primary" />
+                          ) : (
+                            <User className="h-5 w-5 text-primary" />
+                          )}
+                          <span className="text-sm font-semibold">{detectorResult.verdict}</span>
+                        </div>
+                        <span className="text-3xl font-bold tabular-nums">
+                          {detectorResult.ai_probability}<span className="text-xs text-muted-foreground">%</span>
+                        </span>
+                      </div>
+                      <div className="h-2.5 rounded-full bg-muted/60 overflow-hidden">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-all duration-700",
+                            detectorResult.ai_probability >= 80 ? 'bg-destructive' :
+                            detectorResult.ai_probability >= 60 ? 'bg-orange-500' :
+                            detectorResult.ai_probability >= 40 ? 'bg-yellow-500' :
+                            'bg-green-500'
+                          )}
+                          style={{ width: `${detectorResult.ai_probability}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground italic">{detectorResult.reason}</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { label: 'Burstiness', val: detectorResult.metrics.burstiness, hint: 'higher = human', raw: false },
+                        { label: 'Uniformity', val: detectorResult.metrics.uniformity, hint: 'higher = AI', raw: false },
+                        { label: 'AI tells', val: detectorResult.metrics.ai_tells_count, hint: 'phrases found', raw: true },
+                        { label: 'Repetition', val: detectorResult.metrics.repetition, hint: 'n-gram repeats', raw: false },
+                      ].map(m => (
+                        <div key={m.label} className="rounded-xl border border-border/40 bg-muted/20 px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{m.label}</div>
+                          <div className="text-lg font-bold tabular-nums">{m.val}{!m.raw && '%'}</div>
+                          <div className="text-[10px] text-muted-foreground">{m.hint}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {detectorResult.metrics.ai_tells_matched.length > 0 && (
+                      <div className="rounded-xl border border-border/40 bg-muted/20 p-3 space-y-1.5">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">AI phrases detected</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {detectorResult.metrics.ai_tells_matched.map(tell => (
+                            <span key={tell} className="text-[11px] px-2 py-0.5 rounded-full bg-destructive/15 text-destructive border border-destructive/30">
+                              {tell}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {detectorResult.ai_probability >= 50 && (
+                      <Button
+                        variant="outline"
+                        onClick={() => { setHumanizerInput(detectorInput); setHumanizerTab('humanize'); }}
+                        className="w-full"
+                      >
+                        <Wand2 className="h-4 w-4 mr-2" /> Humanize this text
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </SheetContent>
