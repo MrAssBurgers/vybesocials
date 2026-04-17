@@ -337,6 +337,10 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     try {
       const roomName = `call-${params.conversationId}`;
 
+      // Group calls REQUIRE persistent (LiveKit) mode — P2P is 1:1 only.
+      // Group calling is free for everyone; only 1:1 "Stay-on" persistent mode is Pro.
+      const initialMode: CallMode = params.isGroupCall ? 'persistent' : 'p2p';
+
       // Insert call record directly — P2P doesn't need an edge function
       const { data: callSession, error: callError } = await supabase
         .from('calls')
@@ -348,7 +352,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           status: 'ringing',
           room_name: roomName,
           is_group_call: params.isGroupCall || false,
-          call_mode: 'p2p',
+          call_mode: initialMode,
         })
         .select()
         .single();
@@ -357,13 +361,35 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         throw new Error(callError?.message || 'Failed to create call');
       }
 
+      // For group calls, fetch a LiveKit token up-front so the caller can join the room
+      let livekitUrl = '';
+      let token = '';
+      let resolvedRoomName = roomName;
+
+      if (initialMode === 'persistent') {
+        const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
+          body: {
+            conversationId: params.conversationId,
+            callType: params.callType,
+            callId: callSession.id,
+          },
+        });
+
+        if (tokenError || !tokenData?.token) {
+          throw new Error(tokenError?.message || tokenData?.error || 'Failed to start group call');
+        }
+        livekitUrl = tokenData.url;
+        token = tokenData.token;
+        resolvedRoomName = tokenData.roomName || roomName;
+      }
+
       const callData: CallData = {
         id: callSession.id,
-        roomName,
-        livekitUrl: '',
-        token: '',
+        roomName: resolvedRoomName,
+        livekitUrl,
+        token,
         callType: params.callType,
-        callMode: 'p2p',
+        callMode: initialMode,
         conversationId: params.conversationId,
         caller: {
           id: profile.id,
