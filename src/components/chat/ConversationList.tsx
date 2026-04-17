@@ -726,6 +726,18 @@ const ConversationContent = memo(function ConversationContent({
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
+            {lastMessage &&
+              lastMessage.media_type === 'vybe' &&
+              lastMessage.sender_id !== currentUserId &&
+              !lastMessage.viewed_at && (
+                <span
+                  className="flex items-center justify-center h-5 w-5 rounded-full bg-red-500/15 ring-1 ring-red-500/40"
+                  aria-label="New Vybe Snap"
+                  title="New Vybe Snap"
+                >
+                  <Camera className="h-3 w-3 text-red-500" />
+                </span>
+              )}
             {unreadCount > 0 && (
               <span className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm flex-shrink-0">
                 {unreadCount > 99 ? '99+' : unreadCount}
