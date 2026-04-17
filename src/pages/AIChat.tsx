@@ -390,6 +390,17 @@ export default function AIChat() {
     if (text.length > 8000) { toast.error('Max 8000 characters'); return; }
     setIsHumanizing(true);
     setHumanizerOutput('');
+    setHumanizerElapsed(0);
+    setHumanizerProgress(2);
+    const startTs = Date.now();
+    // Estimated total: ~1.2s setup + ~30ms/word for flash-lite
+    const estimatedTotalMs = 1200 + (text.trim().split(/\s+/).length * 30);
+    const tickInterval = setInterval(() => {
+      const elapsed = (Date.now() - startTs) / 1000;
+      setHumanizerElapsed(Math.round(elapsed * 10) / 10);
+      const ratio = Math.min(0.92, (Date.now() - startTs) / estimatedTotalMs);
+      setHumanizerProgress(Math.max(2, Math.round(ratio * 100)));
+    }, 100);
     let acc = '';
     try {
       const headers = await getFunctionAuthHeaders();
@@ -427,10 +438,12 @@ export default function AIChat() {
           } catch { buffer = line + '\n' + buffer; break; }
         }
       }
+      setHumanizerProgress(100);
     } catch (e) {
       console.error(e);
       toast.error('Humanizer failed. Try again.');
     } finally {
+      clearInterval(tickInterval);
       setIsHumanizing(false);
     }
   }, [humanizerInput, humanizerTone]);
