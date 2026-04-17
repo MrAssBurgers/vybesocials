@@ -431,6 +431,33 @@ export default function AIChat() {
     }
   }, [humanizerInput, humanizerTone]);
 
+  const runDetector = useCallback(async (overrideText?: string) => {
+    const text = (overrideText ?? detectorInput).trim();
+    if (!text) { toast.error('Paste some text first'); return; }
+    if (text.length > 12000) { toast.error('Max 12000 characters'); return; }
+    setIsDetecting(true);
+    setDetectorResult(null);
+    try {
+      const headers = await getFunctionAuthHeaders();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-detect-text`,
+        { method: 'POST', headers, body: JSON.stringify({ text }) }
+      );
+      if (!response.ok) {
+        if (response.status === 429) { toast.error('Slow down — try again in a moment'); return; }
+        if (response.status === 402) { toast.error('AI credits exhausted'); return; }
+        throw new Error('Detector failed');
+      }
+      const data = await response.json();
+      setDetectorResult(data);
+    } catch (e) {
+      console.error(e);
+      toast.error('Detector failed. Try again.');
+    } finally {
+      setIsDetecting(false);
+    }
+  }, [detectorInput]);
+
 
   return (
     <>
