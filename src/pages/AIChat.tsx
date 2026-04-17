@@ -357,6 +357,63 @@ export default function AIChat() {
   const formatTime = (date: Date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const showQuickPrompts = messages.length <= 2 && !isLoading;
 
+  const handleQuickPrompt = useCallback((prompt: string) => {
+    if (prompt.startsWith('✍️')) { setIsHumanizerOpen(true); return; }
+    sendMessage(prompt);
+  }, [sendMessage]);
+
+  const runHumanizer = useCallback(async () => {
+    const text = humanizerInput.trim();
+    if (!text) { toast.error('Paste some text first'); return; }
+    if (text.length > 8000) { toast.error('Max 8000 characters'); return; }
+    setIsHumanizing(true);
+    setHumanizerOutput('');
+    let acc = '';
+    try {
+      const headers = await getFunctionAuthHeaders();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-humanize`,
+        { method: 'POST', headers, body: JSON.stringify({ text, tone: humanizerTone }) }
+      );
+      if (!response.ok) {
+        if (response.status === 429) { toast.error('Slow down — try again in a moment'); return; }
+        if (response.status === 402) { toast.error('AI credits exhausted'); return; }
+        throw new Error('Humanizer failed');
+      }
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) throw new Error('No reader');
+      let buffer = '';
+      let streamDone = false;
+      while (!streamDone) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let idx: number;
+        while ((idx = buffer.indexOf('\n')) !== -1) {
+          let line = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 1);
+          if (line.endsWith('\r')) line = line.slice(0, -1);
+          if (line.startsWith(':') || line.trim() === '') continue;
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === '[DONE]') { streamDone = true; break; }
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) { acc += content; setHumanizerOutput(acc); }
+          } catch { buffer = line + '\n' + buffer; break; }
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Humanizer failed. Try again.');
+    } finally {
+      setIsHumanizing(false);
+    }
+  }, [humanizerInput, humanizerTone]);
+
+
   return (
     <>
       <div className="fixed inset-0 z-[100] flex flex-col bg-background">
