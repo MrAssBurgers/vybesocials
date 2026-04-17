@@ -574,22 +574,30 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                         className="absolute rounded-full pointer-events-none"
                         style={{
                           inset: -6,
-                          background: 'radial-gradient(circle, hsl(var(--primary) / 0.6), hsl(var(--accent) / 0.4), transparent 70%)',
+                          background: 'radial-gradient(circle, hsl(var(--primary) / 0.55), hsl(var(--accent) / 0.35), transparent 70%)',
                           opacity: 0.5,
                           filter: 'blur(14px)',
+                          transform: 'translateZ(0)',
+                          willChange: 'transform',
+                          WebkitBackfaceVisibility: 'hidden',
+                          backfaceVisibility: 'hidden',
                         }}
                       />
                       <AnimatePresence>
                         {isCreateMenuOpen && !isEditMode && (
                           <motion.div
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1.5, opacity: 0.7 }}
-                            exit={{ scale: 0.8, opacity: 0 }}
+                            initial={{ scale: 0.85, opacity: 0 }}
+                            animate={{ scale: 1.2, opacity: 0.65 }}
+                            exit={{ scale: 0.85, opacity: 0 }}
                             transition={{ duration: 0.3 }}
-                            className="absolute inset-0 rounded-2xl"
+                            className="absolute inset-0 rounded-2xl pointer-events-none"
                             style={{
                               background: 'linear-gradient(135deg, hsl(var(--primary) / 0.6), hsl(var(--accent) / 0.6))',
                               filter: 'blur(12px)',
+                              transform: 'translateZ(0)',
+                              willChange: 'transform, opacity',
+                              WebkitBackfaceVisibility: 'hidden',
+                              backfaceVisibility: 'hidden',
                             }}
                           />
                         )}
