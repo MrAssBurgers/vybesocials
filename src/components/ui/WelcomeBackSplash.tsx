@@ -11,10 +11,12 @@ interface WelcomeBackSplashProps {
 const BURST_COLORS = [
   'hsl(var(--primary))',
   'hsl(var(--accent))',
-  'hsl(280 80% 65%)',
-  'hsl(340 90% 65%)',
-  'hsl(45 95% 60%)',
-  'hsl(160 70% 55%)',
+  'hsl(280 90% 65%)',
+  'hsl(330 100% 65%)',
+  'hsl(190 100% 60%)',
+  'hsl(45 100% 60%)',
+  'hsl(160 80% 55%)',
+  'hsl(220 100% 65%)',
 ];
 
 interface BurstParticle {
@@ -24,16 +26,20 @@ interface BurstParticle {
   color: string;
   size: number;
   delay: number;
+  shape: 'circle' | 'square';
+  rotation: number;
 }
 
 function generateParticles(count: number): BurstParticle[] {
   return Array.from({ length: count }, (_, i) => ({
     id: i,
-    angle: (360 / count) * i + (Math.random() * 20 - 10),
-    distance: 80 + Math.random() * 140,
+    angle: (360 / count) * i + (Math.random() * 24 - 12),
+    distance: 140 + Math.random() * 220,
     color: BURST_COLORS[i % BURST_COLORS.length],
-    size: 4 + Math.random() * 5,
-    delay: Math.random() * 0.08,
+    size: 5 + Math.random() * 7,
+    delay: Math.random() * 0.12,
+    shape: Math.random() > 0.5 ? 'circle' : 'square',
+    rotation: Math.random() * 720 - 360,
   }));
 }
 
