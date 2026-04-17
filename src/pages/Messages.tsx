@@ -81,7 +81,7 @@ export default function Messages() {
                 ))}
               </div>
 
-              <div className="text-center relative z-10">
+              <div className="text-center relative z-10 liquid-glass-depth px-10 py-8 max-w-sm mx-4">
                 {/* Animated chat bubbles */}
                 <div className="relative w-20 h-20 mx-auto mb-5">
                   <motion.div
@@ -90,19 +90,19 @@ export default function Messages() {
                     className="absolute inset-0 flex items-center justify-center"
                   >
                     <div className="relative">
-                      <MessageCircle className="h-12 w-12 text-primary/30" />
+                      <MessageCircle className="h-12 w-12 text-primary/60" />
                       <motion.div
-                        animate={{ scale: [0.8, 1.1, 0.8], opacity: [0.3, 0.6, 0.3] }}
+                        animate={{ scale: [0.8, 1.1, 0.8], opacity: [0.5, 0.8, 0.5] }}
                         transition={{ repeat: Infinity, duration: 2, delay: 0.5 }}
                         className="absolute -top-1 -right-1"
                       >
-                        <MessageCircle className="h-6 w-6 text-primary/50" />
+                        <MessageCircle className="h-6 w-6 text-primary/80" />
                       </motion.div>
                     </div>
                   </motion.div>
                 </div>
 
-                <p className="text-lg font-semibold bg-gradient-to-r from-foreground to-foreground/60 bg-clip-text text-transparent mb-1.5">
+                <p className="text-lg font-semibold text-foreground mb-1.5">
                   Select a conversation
                 </p>
                 <p className="text-sm text-muted-foreground mb-5">or start a new chat</p>
