@@ -454,6 +454,19 @@ export default function AIChat() {
     if (text.length > 12000) { toast.error('Max 12000 characters'); return; }
     setIsDetecting(true);
     setDetectorResult(null);
+    setDetectorProgress(5);
+    setDetectorStage('Analyzing sentence rhythm…');
+    // Staged fake-but-honest progress: stages match what the backend actually does
+    const stages = [
+      { at: 400, p: 25, label: 'Counting AI tells & repetition…' },
+      { at: 1100, p: 55, label: 'Asking the AI judge…' },
+      { at: 4500, p: 80, label: 'Blending detection scores…' },
+      { at: 9000, p: 92, label: 'Almost done…' },
+    ];
+    const timers = stages.map(s => setTimeout(() => {
+      setDetectorProgress(s.p);
+      setDetectorStage(s.label);
+    }, s.at));
     try {
       const headers = await getFunctionAuthHeaders();
       const response = await fetch(
@@ -466,11 +479,14 @@ export default function AIChat() {
         throw new Error('Detector failed');
       }
       const data = await response.json();
+      setDetectorProgress(100);
+      setDetectorStage('Done');
       setDetectorResult(data);
     } catch (e) {
       console.error(e);
       toast.error('Detector failed. Try again.');
     } finally {
+      timers.forEach(clearTimeout);
       setIsDetecting(false);
     }
   }, [detectorInput]);
