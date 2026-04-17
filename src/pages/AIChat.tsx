@@ -133,6 +133,10 @@ export default function AIChat() {
   const [humanizerOutput, setHumanizerOutput] = useState('');
   const [humanizerTone, setHumanizerTone] = useState<'natural' | 'casual' | 'academic'>('natural');
   const [isHumanizing, setIsHumanizing] = useState(false);
+  const [humanizerElapsed, setHumanizerElapsed] = useState(0); // seconds
+  const [humanizerProgress, setHumanizerProgress] = useState(0); // 0-100 estimated
+  const [detectorStage, setDetectorStage] = useState<string>('');
+  const [detectorProgress, setDetectorProgress] = useState(0);
   // Detector state
   const [detectorInput, setDetectorInput] = useState('');
   const [detectorResult, setDetectorResult] = useState<null | {
@@ -386,6 +390,17 @@ export default function AIChat() {
     if (text.length > 8000) { toast.error('Max 8000 characters'); return; }
     setIsHumanizing(true);
     setHumanizerOutput('');
+    setHumanizerElapsed(0);
+    setHumanizerProgress(2);
+    const startTs = Date.now();
+    // Estimated total: ~1.2s setup + ~30ms/word for flash-lite
+    const estimatedTotalMs = 1200 + (text.trim().split(/\s+/).length * 30);
+    const tickInterval = setInterval(() => {
+      const elapsed = (Date.now() - startTs) / 1000;
+      setHumanizerElapsed(Math.round(elapsed * 10) / 10);
+      const ratio = Math.min(0.92, (Date.now() - startTs) / estimatedTotalMs);
+      setHumanizerProgress(Math.max(2, Math.round(ratio * 100)));
+    }, 100);
     let acc = '';
     try {
       const headers = await getFunctionAuthHeaders();
@@ -423,10 +438,12 @@ export default function AIChat() {
           } catch { buffer = line + '\n' + buffer; break; }
         }
       }
+      setHumanizerProgress(100);
     } catch (e) {
       console.error(e);
       toast.error('Humanizer failed. Try again.');
     } finally {
+      clearInterval(tickInterval);
       setIsHumanizing(false);
     }
   }, [humanizerInput, humanizerTone]);
@@ -437,6 +454,19 @@ export default function AIChat() {
     if (text.length > 12000) { toast.error('Max 12000 characters'); return; }
     setIsDetecting(true);
     setDetectorResult(null);
+    setDetectorProgress(5);
+    setDetectorStage('Analyzing sentence rhythm…');
+    // Staged fake-but-honest progress: stages match what the backend actually does
+    const stages = [
+      { at: 400, p: 25, label: 'Counting AI tells & repetition…' },
+      { at: 1100, p: 55, label: 'Asking the AI judge…' },
+      { at: 4500, p: 80, label: 'Blending detection scores…' },
+      { at: 9000, p: 92, label: 'Almost done…' },
+    ];
+    const timers = stages.map(s => setTimeout(() => {
+      setDetectorProgress(s.p);
+      setDetectorStage(s.label);
+    }, s.at));
     try {
       const headers = await getFunctionAuthHeaders();
       const response = await fetch(
@@ -449,11 +479,14 @@ export default function AIChat() {
         throw new Error('Detector failed');
       }
       const data = await response.json();
+      setDetectorProgress(100);
+      setDetectorStage('Done');
       setDetectorResult(data);
     } catch (e) {
       console.error(e);
       toast.error('Detector failed. Try again.');
     } finally {
+      timers.forEach(clearTimeout);
       setIsDetecting(false);
     }
   }, [detectorInput]);
@@ -874,11 +907,31 @@ export default function AIChat() {
                   className="w-full"
                 >
                   {isHumanizing ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Humanizing...</>
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Humanizing… {humanizerElapsed.toFixed(1)}s</>
                   ) : (
                     <><Wand2 className="h-4 w-4 mr-2" /> Humanize</>
                   )}
                 </Button>
+
+                {isHumanizing && (
+                  <div className="space-y-1.5">
+                    <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-primary via-accent to-primary transition-all duration-200 ease-out"
+                        style={{ width: `${humanizerProgress}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                        {humanizerOutput
+                          ? `${humanizerOutput.trim().split(/\s+/).filter(Boolean).length} words written`
+                          : 'Connecting to AI…'}
+                      </span>
+                      <span>{humanizerProgress}% · {humanizerElapsed.toFixed(1)}s</span>
+                    </div>
+                  </div>
+                )}
 
                 {(humanizerOutput || isHumanizing) && (
                   <div className="space-y-1.5 pt-1">
@@ -940,11 +993,26 @@ export default function AIChat() {
                   className="w-full"
                 >
                   {isDetecting ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Scanning...</>
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Scanning… {detectorProgress}%</>
                   ) : (
                     <><ScanLine className="h-4 w-4 mr-2" /> Detect AI</>
                   )}
                 </Button>
+
+                {isDetecting && (
+                  <div className="space-y-1.5">
+                    <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-primary via-accent to-primary transition-all duration-300 ease-out"
+                        style={{ width: `${detectorProgress}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                      {detectorStage}
+                    </div>
+                  </div>
+                )}
 
                 {detectorResult && (
                   <div className="space-y-3 pt-1">

@@ -139,8 +139,12 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (LOVABLE_API_KEY) {
       try {
+        // 12s timeout — if the judge is slow, fall back to stat-only score
+        const ctrl = new AbortController();
+        const timeoutId = setTimeout(() => ctrl.abort(), 12_000);
         const judgeResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
+          signal: ctrl.signal,
           headers: {
             Authorization: `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json",
@@ -168,6 +172,7 @@ ${text.slice(0, 6000)}
           }),
         });
 
+        clearTimeout(timeoutId);
         if (judgeResp.ok) {
           const data = await judgeResp.json();
           const raw = data.choices?.[0]?.message?.content || "{}";

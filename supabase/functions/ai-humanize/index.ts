@@ -111,7 +111,8 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        // flash-lite is ~3x faster than flash and works great for rewriting
+        model: "google/gemini-2.5-flash-lite",
         stream: true,
         temperature: 1.0,
         messages: [
