@@ -1,49 +1,45 @@
 
 
-## Two-Part Fix
+## Make VYBE AdSense Policy Compliant
 
-### Part 1 — Confetti behavior (precise fix)
+The app is already structurally in good shape: ads are disabled until approval (`ADS_ENABLED=false`), there's a tracking consent dialog gated behind login, content moderation runs Gemini safety scans server-side, under-13 users get parental controls, and the legal pages exist. Three concrete gaps need to be closed for Google Publisher Policies.
 
-**The bug:** `CaughtUpScreen.tsx` auto-fires the full-screen `Confetti` component every time it mounts. That component spans the whole viewport and rains 100 pieces from the top of the screen — which is exactly what you're seeing every time you land on Home (the "you're all caught up" empty state mounts on every visit).
+### Gap 1 — `ads.txt` is missing
+Google's "Authorized inventory" policy requires `ads.txt` at the domain root once you publish ads. Add `public/ads.txt` containing:
+```
+google.com, pub-9952523729646293, DIRECT, f08c47fec0942fa0
+```
+Served at `https://vybehub.app/ads.txt`.
 
-**The fix:**
-1. **Remove the auto-confetti from `CaughtUpScreen.tsx`.** Drop the `showConfetti` state, the `useEffect` timer, and the `<Confetti />` render. The screen still has its own subtle checkmark + emoji rotation — that's enough.
-2. **Add a "burst" mode to the welcome-back splash itself.** `WelcomeBackSplash.tsx` already has a 24-particle radial burst that fires from the avatar center when it dismisses. I'll upgrade that burst:
-   - Bump particle count (24 → 60)
-   - Wider color palette (match brand neon)
-   - Longer travel distance + slight gravity arc (particles fall a bit at the end instead of just shrinking)
-   - Slightly longer duration (0.7s → 1.1s) so it reads as one continuous "shoot from your avatar" motion as the splash dissolves
-3. **Result:** Confetti only happens on actual sign-in (welcome back), shoots out *from the welcome-back card* in one smooth motion, and never auto-plays on Home again.
+### Gap 2 — Privacy Policy doesn't disclose Google AdSense
+Required by "Privacy disclosures" + "Identifying users" + "EU user consent" policies. Update `src/pages/Privacy.tsx`:
+- Expand Section 04 (Data Sharing) to explicitly name **Google AdSense** as a third-party advertising partner that may set cookies, use web beacons, and read IP addresses.
+- Expand Section 06 (Cookies) to mention third-party advertising cookies and link to Google's "How Google uses data" page (`https://policies.google.com/technologies/partner-sites`).
+- Strengthen Section 09 (Children's Privacy) to state: users known to be under 13 are **excluded from personalized advertising** and ad requests for them are tagged for child-directed treatment per COPPA.
+- Add a new short Section 11 — **Personalized Advertising & Your Choices** — describing AdChoices, opt-out via `https://www.aboutads.info/choices`, and that VYBE+ removes ads.
 
-Other confetti sources stay intact and correct (token purchases, post publish celebration, easter egg unlocks) — those are user-triggered and contextual.
+### Gap 3 — COPPA / under-13 ad tagging not wired
+The app already knows a user's age. The `useShowAds` hook must additionally hide ads (and tag any future ad requests as child-directed) for under-13 accounts. Update `src/hooks/useShowAds.ts`:
+- Pull user age via the existing profile/age helper.
+- Return `showAds: false` when `age < 13`, regardless of premium/consent state.
+- Add a `childDirected: boolean` flag the future `AdUnit` will use to set `data-tag-for-child-directed-treatment="1"` on the AdSense ins element when re-enabled.
 
-### Part 2 — "Full app scan" — scope check
+### Bonus — small policy hardening already covered, just verifying
+- ✅ Ads disabled globally (`ADS_ENABLED=false`) — no ads on empty/loading/camera screens.
+- ✅ Tracking consent gated behind login and stored in DB.
+- ✅ Server-side Gemini safety scan blocks sexual/violent/CSAM content.
+- ✅ No deepfake generation, no escort/dating-for-pay features.
+- ✅ Terms forbid illegal content, harassment, hate, and IP infringement (will verify wording).
+- ✅ App is English-only (supported language).
+- ✅ Not operated from sanctioned jurisdictions.
 
-Honest read: the app has 100s of components and dozens of major flows (camera, AR, DMs, calls, stories, clips, communities, marketplace, creator program, admin, payments, etc.). A real "test every single thing and fix anything I don't like" pass is not one task — it's weeks of QA. If I claim to do it in one shot I'll either miss things or change behavior you actually liked.
+If `src/pages/Terms.tsx` is missing an explicit "no hate speech / no CSAM / no illegal content / no IP infringement / no deceptive content" clause when I open it during implementation, I'll add a single Prohibited Content section to cover Google's content policies.
 
-So instead of a vague promise, I'll do a **focused polish pass** on the highest-traffic surfaces — the ones every user touches every session. If you approve this scope, I'll cover:
+### Files (3–4)
+1. **New** `public/ads.txt` — authorized seller declaration
+2. **Modify** `src/pages/Privacy.tsx` — AdSense + COPPA + AdChoices disclosures
+3. **Modify** `src/hooks/useShowAds.ts` — under-13 ad suppression + childDirected flag
+4. **Maybe modify** `src/pages/Terms.tsx` — add explicit Prohibited Content section if missing
 
-1. **Home feed** — story rail tap response, post card lift/tap settle, like/save/share wired to the existing `heartPop`/`saveFold`/`shareFly` variants, scroll smoothness
-2. **Bottom nav** — verify magic-move indicator, tap haptics, no flash-of-wrong-tab on route change
-3. **Post detail / comments sheet** — open/close spring, drag-to-dismiss, keyboard behavior
-4. **DMs list + thread** — open animation, message entry stagger, send button press
-5. **Profile** — tab switch (layoutId), stat number flips using the new `AnimatedNumber`
-6. **Camera entry** — capture button feel, mode switch, permission gate
-7. **Toasts + sheets** — verify all use the standardized liquid spring, no jarring fades
-8. **Reduced-motion respect** — confirm the global `MotionConfig` actually disables springs for users who set it
-
-For each surface I'll: read the code, fix anything obviously broken or janky, apply the existing motion primitives where they're missing, and note (not silently change) anything that looks intentional but rough.
-
-**What I will NOT touch in this pass** (unless you ask): admin/owner panels, payment flows, AR filter pipeline, calling system internals, AI safety scan UI, the marketplace, anything monetization-related. Those are sensitive and need targeted asks.
-
-### Files
-
-**Part 1 (3 files):**
-1. `src/components/home/CaughtUpScreen.tsx` — remove auto-confetti
-2. `src/components/ui/WelcomeBackSplash.tsx` — upgrade burst (more particles, wider spread, gentle arc, longer duration)
-3. No third file — `Confetti.tsx` itself stays unchanged (still used by token marketplace + easter eggs)
-
-**Part 2 (~10–15 files):** scoped to the surfaces listed above. Exact list will be reported in the implementation summary.
-
-No DB changes. No new packages.
+No DB changes. No new packages. Ads stay off until you flip `ADS_ENABLED` after Google approves.
 
