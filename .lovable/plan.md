@@ -1,45 +1,42 @@
 
+The user wants to fix contrast on the DM section by adding theme-aware frosted glass to:
+1. The empty state ("Select a conversation" panel — desktop only)
+2. The conversation list panel (left sidebar)
 
-## Make VYBE AdSense Policy Compliant
+Currently `Messages.tsx` uses `backgroundColor: 'hsl(var(--card))'` which is a flat solid color — no glass, and contrast against the wallpaper/background may be off in light mode.
 
-The app is already structurally in good shape: ads are disabled until approval (`ADS_ENABLED=false`), there's a tracking consent dialog gated behind login, content moderation runs Gemini safety scans server-side, under-13 users get parental controls, and the legal pages exist. Three concrete gaps need to be closed for Google Publisher Policies.
+I need to check the ConversationList component too to see what surface it sits on.
 
-### Gap 1 — `ads.txt` is missing
-Google's "Authorized inventory" policy requires `ads.txt` at the domain root once you publish ads. Add `public/ads.txt` containing:
-```
-google.com, pub-9952523729646293, DIRECT, f08c47fec0942fa0
-```
-Served at `https://vybehub.app/ads.txt`.
+## Plan
 
-### Gap 2 — Privacy Policy doesn't disclose Google AdSense
-Required by "Privacy disclosures" + "Identifying users" + "EU user consent" policies. Update `src/pages/Privacy.tsx`:
-- Expand Section 04 (Data Sharing) to explicitly name **Google AdSense** as a third-party advertising partner that may set cookies, use web beacons, and read IP addresses.
-- Expand Section 06 (Cookies) to mention third-party advertising cookies and link to Google's "How Google uses data" page (`https://policies.google.com/technologies/partner-sites`).
-- Strengthen Section 09 (Children's Privacy) to state: users known to be under 13 are **excluded from personalized advertising** and ad requests for them are tagged for child-directed treatment per COPPA.
-- Add a new short Section 11 — **Personalized Advertising & Your Choices** — describing AdChoices, opt-out via `https://www.aboutads.info/choices`, and that VYBE+ removes ads.
+Apply a theme-aware frosted glass surface to the DM shell in `src/pages/Messages.tsx` and ensure text inside auto-adjusts for contrast.
 
-### Gap 3 — COPPA / under-13 ad tagging not wired
-The app already knows a user's age. The `useShowAds` hook must additionally hide ads (and tag any future ad requests as child-directed) for under-13 accounts. Update `src/hooks/useShowAds.ts`:
-- Pull user age via the existing profile/age helper.
-- Return `showAds: false` when `age < 13`, regardless of premium/consent state.
-- Add a `childDirected: boolean` flag the future `AdUnit` will use to set `data-tag-for-child-directed-treatment="1"` on the AdSense ins element when re-enabled.
+### Changes
 
-### Bonus — small policy hardening already covered, just verifying
-- ✅ Ads disabled globally (`ADS_ENABLED=false`) — no ads on empty/loading/camera screens.
-- ✅ Tracking consent gated behind login and stored in DB.
-- ✅ Server-side Gemini safety scan blocks sexual/violent/CSAM content.
-- ✅ No deepfake generation, no escort/dating-for-pay features.
-- ✅ Terms forbid illegal content, harassment, hate, and IP infringement (will verify wording).
-- ✅ App is English-only (supported language).
-- ✅ Not operated from sanctioned jurisdictions.
+**1. `src/pages/Messages.tsx`**
+- Replace the flat `backgroundColor: 'hsl(var(--card))'` on the outer DM container with a frosted glass layer that works in both themes:
+  - Dark mode: `bg-background/60` + `backdrop-blur-xl` + subtle white border
+  - Light mode: `bg-background/70` + `backdrop-blur-xl` + subtle dark border
+  - Achieved via a single class set using existing theme tokens (`bg-background/65 backdrop-blur-2xl`) — tokens already flip per theme.
+- Add a faint inner border between the conversation list and chat panel using `border-border/50` instead of solid `border-border` so it reads as glass-on-glass.
+- Empty state ("Select a conversation"):
+  - Wrap the centered content in a frosted glass card (`liquid-glass-depth` from `src/styles/liquid.css`, which is already theme-aware via `--glass`, `--primary`, `--accent` tokens).
+  - Use `text-foreground` for the heading and `text-muted-foreground` for the subtitle — both auto-flip per theme for WCAG-safe contrast.
+  - Keep the gradient text effect but ensure the gradient stops use `from-foreground to-foreground/70` (already correct).
 
-If `src/pages/Terms.tsx` is missing an explicit "no hate speech / no CSAM / no illegal content / no IP infringement / no deceptive content" clause when I open it during implementation, I'll add a single Prohibited Content section to cover Google's content policies.
+**2. `src/components/chat/ConversationList.tsx`** (read first, then minimal patch)
+- Make its root background transparent (or `bg-transparent`) so the frosted glass from the parent shows through, instead of stacking another opaque surface on top.
+- If the list rows have their own backgrounds, switch them to `bg-card/40 hover:bg-card/60` so they feel like glass tiles on glass.
+- Confirm row text uses `text-foreground` / `text-muted-foreground` (semantic tokens), not hardcoded colors.
 
-### Files (3–4)
-1. **New** `public/ads.txt` — authorized seller declaration
-2. **Modify** `src/pages/Privacy.tsx` — AdSense + COPPA + AdChoices disclosures
-3. **Modify** `src/hooks/useShowAds.ts` — under-13 ad suppression + childDirected flag
-4. **Maybe modify** `src/pages/Terms.tsx` — add explicit Prohibited Content section if missing
+### Why this works for contrast
+All changes use the semantic theme tokens (`--background`, `--foreground`, `--muted-foreground`, `--border`, `--card`) which are already defined for both `.dark` and `.light` in the design system. That means text contrast auto-adjusts per theme without any conditional logic. The frosted layer uses opacity on `--background` so the wallpaper shows through but text stays readable.
 
-No DB changes. No new packages. Ads stay off until you flip `ADS_ENABLED` after Google approves.
+### Out of scope
+- The actual `ChatView` (active conversation thread) — user said "mainly the list and empty state."
+- Mobile DM overlay — already has its own `data-dm-active` isolation and looks fine.
+- No new files. No DB changes. No new packages.
 
+### Files
+1. `src/pages/Messages.tsx` — swap solid bg for frosted glass; wrap empty state in glass card
+2. `src/components/chat/ConversationList.tsx` — make root transparent so glass shows through; soften row backgrounds
