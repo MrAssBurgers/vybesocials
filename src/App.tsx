@@ -7,6 +7,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, useLocation } from "react-router-dom";
+import { MotionConfig } from "framer-motion";
 import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { CustomThemeProvider } from "@/providers/ThemeProvider";
@@ -270,7 +271,10 @@ const App = memo(() => {
         <ThemeProvider>
           <GlassIntensityProvider>
             <AccessibilityProvider>
-              <AppWithPreloader />
+              {/* Apple-style global motion: respects OS reduce-motion automatically */}
+              <MotionConfig reducedMotion="user" transition={{ type: 'spring', stiffness: 260, damping: 24, mass: 0.9 }}>
+                <AppWithPreloader />
+              </MotionConfig>
             </AccessibilityProvider>
           </GlassIntensityProvider>
         </ThemeProvider>
