@@ -52,6 +52,7 @@ function loadSetting(key: string, fallback: string) {
 }
 
 const QUICK_PROMPTS = [
+  '✍️ Humanize my essay',
   '💡 Give me a content idea',
   '📝 Help me write a caption',
   '🎯 How to grow my audience?',
@@ -359,11 +360,16 @@ export default function AIChat() {
           </Button>
           
           <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-2.5 flex-1 min-w-0">
-            <div className="relative">
-              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center shadow-md shadow-primary/20 ring-2 ring-card">
-                <VybeMiniIcon size={18} showSparkles={false} />
+            <div className="relative flex-shrink-0">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary blur-md opacity-60 animate-pulse" />
+              <div className="relative h-10 w-10 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary shadow-lg shadow-primary/40">
+                <div className="h-full w-full rounded-full bg-gradient-to-br from-background via-card to-background flex items-center justify-center overflow-hidden relative">
+                  <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 via-transparent to-accent/20" />
+                  <VybeMiniIcon size={20} showSparkles className="relative z-10 drop-shadow-[0_0_6px_hsl(var(--primary)/0.8)]" />
+                  <div className="absolute -top-1 -right-1 w-7 h-7 bg-primary/30 rounded-full blur-xl" />
+                </div>
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card bg-green-500" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-background shadow-md shadow-green-500/50" />
             </div>
             <div className="min-w-0">
               <h2 className="font-semibold text-sm truncate flex items-center gap-1">
@@ -405,8 +411,13 @@ export default function AIChat() {
               className={cn("flex gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}
             >
               {message.role === 'assistant' && (
-                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-accent flex-shrink-0 flex items-center justify-center mt-0.5 ring-2 ring-card shadow-sm">
-                  <VybeMiniIcon size={14} showSparkles={false} />
+                <div className="relative flex-shrink-0 mt-0.5">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary blur-sm opacity-50 animate-pulse" />
+                  <div className="relative h-7 w-7 rounded-full p-[1.5px] bg-gradient-to-br from-primary via-accent to-primary shadow-sm shadow-primary/40">
+                    <div className="h-full w-full rounded-full bg-gradient-to-br from-background via-card to-background flex items-center justify-center overflow-hidden">
+                      <VybeMiniIcon size={14} showSparkles className="relative z-10 drop-shadow-[0_0_4px_hsl(var(--primary)/0.8)]" />
+                    </div>
+                  </div>
                 </div>
               )}
               <div className="flex flex-col max-w-[82%]">
@@ -448,8 +459,13 @@ export default function AIChat() {
               transition={{ duration: 0.2 }}
               className="flex gap-2 justify-start"
             >
-              <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-accent flex-shrink-0 flex items-center justify-center mt-0.5 ring-2 ring-card shadow-sm">
-                <VybeMiniIcon size={14} showSparkles={false} />
+              <div className="relative flex-shrink-0 mt-0.5">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary blur-sm opacity-50 animate-pulse" />
+                <div className="relative h-7 w-7 rounded-full p-[1.5px] bg-gradient-to-br from-primary via-accent to-primary shadow-sm shadow-primary/40">
+                  <div className="h-full w-full rounded-full bg-gradient-to-br from-background via-card to-background flex items-center justify-center overflow-hidden">
+                    <VybeMiniIcon size={14} showSparkles className="relative z-10 drop-shadow-[0_0_4px_hsl(var(--primary)/0.8)]" />
+                  </div>
+                </div>
               </div>
               <div className="flex flex-col max-w-[82%]">
                 <div className="rounded-2xl px-3 py-2 text-[13px] leading-relaxed bg-muted/60 rounded-tl-md border border-border/30">
