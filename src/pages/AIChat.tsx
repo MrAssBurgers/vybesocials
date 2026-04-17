@@ -133,6 +133,10 @@ export default function AIChat() {
   const [humanizerOutput, setHumanizerOutput] = useState('');
   const [humanizerTone, setHumanizerTone] = useState<'natural' | 'casual' | 'academic'>('natural');
   const [isHumanizing, setIsHumanizing] = useState(false);
+  const [humanizerElapsed, setHumanizerElapsed] = useState(0); // seconds
+  const [humanizerProgress, setHumanizerProgress] = useState(0); // 0-100 estimated
+  const [detectorStage, setDetectorStage] = useState<string>('');
+  const [detectorProgress, setDetectorProgress] = useState(0);
   // Detector state
   const [detectorInput, setDetectorInput] = useState('');
   const [detectorResult, setDetectorResult] = useState<null | {
