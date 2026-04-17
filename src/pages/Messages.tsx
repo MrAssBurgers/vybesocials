@@ -30,19 +30,18 @@ export default function Messages() {
             ? 'h-[100dvh] fixed inset-0 z-50' 
             : 'min-h-[100dvh] md:min-h-screen h-[100dvh] md:h-screen w-full'
           } 
-          flex max-w-full pb-0
+          flex max-w-full pb-0 bg-background/65 backdrop-blur-2xl
         `}
         style={{ 
           position: isImmersive ? 'fixed' : undefined,
           inset: isImmersive ? 0 : undefined,
           zIndex: isImmersive ? 50 : undefined,
           overflow: 'hidden',
-          backgroundColor: 'hsl(var(--card))',
         }}
       >
         {/* Conversation list */}
         <div 
-          className={`w-full md:w-80 lg:w-96 border-r border-border flex-shrink-0 min-w-0 ${isInChat ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}
+          className={`w-full md:w-80 lg:w-96 border-r border-border/50 flex-shrink-0 min-w-0 bg-card/30 backdrop-blur-xl ${isInChat ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}
           style={{ overflow: 'hidden', height: '100%' }}
         >
           <ConversationList />
