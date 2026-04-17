@@ -458,6 +458,9 @@ export default function AIChat() {
               <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
                 <Settings className="h-4 w-4 mr-2" /> Customize AI
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsHumanizerOpen(true)}>
+                <Wand2 className="h-4 w-4 mr-2" /> AI Humanizer ✍️
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={clearChat}>Clear Chat</DropdownMenuItem>
             </DropdownMenuContent>
@@ -563,7 +566,7 @@ export default function AIChat() {
                 {QUICK_PROMPTS.map((prompt) => (
                   <button
                     key={prompt}
-                    onClick={() => sendMessage(prompt)}
+                    onClick={() => handleQuickPrompt(prompt)}
                     className="px-3 py-1.5 rounded-full bg-muted/50 border border-border/40 text-xs text-foreground/80 hover:bg-muted transition-colors"
                   >
                     {prompt}
@@ -754,6 +757,103 @@ export default function AIChat() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Humanizer Sheet */}
+      <Sheet open={isHumanizerOpen} onOpenChange={setIsHumanizerOpen}>
+        <SheetContent side="bottom" className="h-[88vh] rounded-t-3xl">
+          <SheetHeader className="text-left">
+            <SheetTitle className="flex items-center gap-2">
+              <Wand2 className="h-5 w-5 text-primary" />
+              AI Humanizer
+              <span className="text-[10px] font-normal text-muted-foreground ml-1">removes AI tells</span>
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="mt-3 space-y-3 overflow-y-auto max-h-[calc(88vh-6rem)] pb-6">
+            {/* Tone selector */}
+            <div className="flex gap-1.5">
+              {(['natural','casual','academic'] as const).map(tone => (
+                <button
+                  key={tone}
+                  onClick={() => setHumanizerTone(tone)}
+                  className={cn(
+                    "flex-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors capitalize",
+                    humanizerTone === tone
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-muted/40 text-foreground/80 border-border/40 hover:bg-muted'
+                  )}
+                >{tone}</button>
+              ))}
+            </div>
+
+            {/* Input */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">Paste your essay or AI-generated text</Label>
+                <span className="text-[10px] text-muted-foreground">
+                  {humanizerInput.trim() ? `${humanizerInput.trim().split(/\s+/).length} words` : '0 words'} · {humanizerInput.length}/8000
+                </span>
+              </div>
+              <Textarea
+                value={humanizerInput}
+                onChange={(e) => setHumanizerInput(e.target.value.slice(0, 8000))}
+                placeholder="Paste up to 8000 characters of AI-written text. The humanizer will rewrite it with varied rhythm, natural phrasing, and remove typical AI tells."
+                rows={8}
+                className="text-sm resize-none"
+              />
+            </div>
+
+            <Button
+              onClick={runHumanizer}
+              disabled={isHumanizing || !humanizerInput.trim()}
+              className="w-full"
+            >
+              {isHumanizing ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Humanizing...</>
+              ) : (
+                <><Wand2 className="h-4 w-4 mr-2" /> Humanize</>
+              )}
+            </Button>
+
+            {/* Output */}
+            {(humanizerOutput || isHumanizing) && (
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3 text-primary" /> Humanized result
+                  </Label>
+                  {humanizerOutput && !isHumanizing && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(humanizerOutput); toast.success('Copied'); }}
+                        className="text-[11px] px-2 py-1 rounded-md bg-muted/60 hover:bg-muted flex items-center gap-1"
+                      >
+                        <Copy className="h-3 w-3" /> Copy
+                      </button>
+                      <button
+                        onClick={() => { setHumanizerInput(humanizerOutput); setHumanizerOutput(''); toast.success('Replaced'); }}
+                        className="text-[11px] px-2 py-1 rounded-md bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-1"
+                      >
+                        <Check className="h-3 w-3" /> Replace original
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-xl border border-border/40 bg-muted/30 p-3 text-sm whitespace-pre-wrap min-h-[100px] leading-relaxed">
+                  {humanizerOutput || (
+                    <span className="text-muted-foreground text-xs flex items-center gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Rewriting...
+                    </span>
+                  )}
+                  {isHumanizing && humanizerOutput && (
+                    <span className="inline-block w-[2px] h-[14px] bg-foreground/70 ml-0.5 align-middle animate-pulse" />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
