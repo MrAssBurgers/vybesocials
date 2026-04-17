@@ -68,7 +68,7 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
 
   return (
     <button
-      onClick={() => navigate('/messages/ai-autisy')}
+      onClick={() => navigate('/VYBE-AI')}
       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all mb-0.5 box-border"
     >
       <div className="relative flex-shrink-0">
