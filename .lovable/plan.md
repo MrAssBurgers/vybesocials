@@ -1,40 +1,45 @@
 
 
-## Plan
+## Plan: Premium "Advanced" VYBE Email Redesign
 
-### 1. Match VYBE-AI header pfp to the DMs page version
-**File:** `src/pages/AIChat.tsx` (lines 362-367)
+The existing templates are already on-brand (dark + neon gradient header) but feel basic — flat header, plain text block, single button. I'll level them up to feel like a premium product email (think Linear / Arc / Vercel meets neon Y2K).
 
-Replace the small simple gradient circle with the same animated pfp used in `ConversationList.tsx` (`AutisyAIChatRow`, lines 74-84): pulsing blur halo, gradient ring border, inner gradient overlay, sparkles on the V, drop-shadow glow, and a green online dot with shadow. Sized down slightly (`h-10 w-10` instead of `h-12 w-12`) to fit the header neatly.
+### Design upgrades to `_styles.ts`
+- **Layered hero header**: gradient base + radial glow overlays + subtle noise grid, "VYBE" wordmark with stronger letter-spacing, animated-feeling 3-dot pill ("● ● ●") above the wordmark for that "live broadcast" vibe.
+- **Glow card container**: outer wrapper with neon glow shadow (`box-shadow: 0 0 60px rgba(255,51,153,0.15), 0 30px 80px rgba(0,0,0,0.6)`), thinner inner border, subtle inner top highlight line for depth.
+- **Premium CTA button**: gradient + 1px inner highlight border + drop shadow + chevron arrow (›) appended after the label.
+- **Section divider**: gradient hairline (`linear-gradient(90deg, transparent, #FF3399, transparent)`) used between hero and body.
+- **Meta chip row** (new): small uppercase pills like `SECURE · ENCRYPTED · 5 MIN` under the H1 for that "advanced" feel.
+- **Footer upgrade**: 3-column micro-grid (Help · Privacy · Status) above brand line, with neon dot separators.
+- **Preheader text** kept (Preview component) — invisible but boosts inbox preview quality.
 
-Also update the small inline assistant message bubble avatar (lines 408-410 and 451-453) to a mini version of the same look (gradient ring + sparkles) so the whole page feels cohesive.
+### Per-template refinements (each gets its own personality while sharing the system)
+1. **`signup.tsx`** — Hero says "Activate your VYBE", swap CTA to "Activate Account ›", add a 3-step progress strip (`① Verify  ②Personalize  ③ Vibe`).
+2. **`magic-link.tsx`** — "Instant access" headline, lock icon mark, 10-min expiry chip, secure-link badge.
+3. **`recovery.tsx`** — "Reset incoming" with key motif, security tips block (3 tiny bullet points with neon dots).
+4. **`invite.tsx`** — Big "You're on the list" + inviter name slot, sparkle motifs, "What's inside VYBE" mini feature row (3 emoji tiles: 💬 Chat · 🎵 Sounds · ✨ DNA).
+5. **`email-change.tsx`** — Keep the from/to card, upgrade it to a neon framed comparison block with arrow between addresses.
+6. **`reauthentication.tsx`** — OTP code box gets a glowing animated-look border (multi-layer box-shadow) + per-digit spacing, expiry countdown chip.
+7. **`welcome.tsx`** (transactional) — Confetti gradient header, "Your VYBE starts now" headline, 3-tile quick start grid (Set up profile / Find friends / Drop your first vybe), each as a mini card with a gradient corner accent.
 
-### 2. Add AI Humanizer for essays
-Linked GPT (`g-2azCVmXdy-ai-humanizer`) rewrites AI-generated text into natural, human-sounding prose — varied sentence rhythm, contractions, mild imperfections, removed AI tells (em-dashes overuse, "delve", "in conclusion", uniform cadence).
+### Files
+- `supabase/functions/_shared/email-templates/_styles.ts` — extend tokens (add `heroOverlay`, `divider`, `chip`, `chipRow`, `featureTile`, `glowCard`, `buttonInner`)
+- `supabase/functions/_shared/email-templates/signup.tsx`
+- `supabase/functions/_shared/email-templates/magic-link.tsx`
+- `supabase/functions/_shared/email-templates/recovery.tsx`
+- `supabase/functions/_shared/email-templates/invite.tsx`
+- `supabase/functions/_shared/email-templates/email-change.tsx`
+- `supabase/functions/_shared/email-templates/reauthentication.tsx`
+- `supabase/functions/_shared/transactional-email-templates/welcome.tsx`
 
-**New edge function:** `supabase/functions/ai-humanize/index.ts`
-- Accepts `{ text: string, tone?: 'casual' | 'academic' | 'natural' }` (default `natural`)
-- Rate-limited per user (10/min), auth-required
-- Calls Lovable AI Gateway with `google/gemini-3-flash-preview` and a strong humanizer system prompt (sentence-length variation, contractions, idioms, remove AI cliches, preserve meaning + length)
-- Streams back the humanized text via SSE (token-by-token) following the streaming pattern already used in `ai-chat`
-- Registered in `supabase/config.toml` with `verify_jwt = true`
+Then redeploy `auth-email-hook` + `send-transactional-email`.
 
-**UI in `src/pages/AIChat.tsx`:**
-- New "✍️ Humanize my essay" entry added to `QUICK_PROMPTS` 
-- New `HumanizerSheet` modal (bottom sheet, opened via the dropdown menu "More" → "AI Humanizer ✍️"):
-  - Large textarea for pasting essay (up to 8000 chars)
-  - Tone selector chips: **Natural · Casual · Academic**
-  - "Humanize" button → streams output into a results panel below
-  - Copy-to-clipboard + "Replace original" buttons on the result
-  - Word count + "removes AI tells" hint
-
-### Files to change
-1. `src/pages/AIChat.tsx` — upgrade header + bubble avatars, add Humanizer dropdown item + bottom-sheet UI + streaming logic
-2. `supabase/functions/ai-humanize/index.ts` (new) — humanizer SSE endpoint
-3. `supabase/functions/ai-humanize/deno.json` (new)
-4. `supabase/config.toml` — register the new function
+### Email-client safety notes
+- All effects use **inline styles** + **CSS that Gmail/Apple Mail support**: `linear-gradient`, `box-shadow`, `border-radius`, multiple `<Section>` overlays. No `@keyframes`, no SVG filters, no web fonts (system stack only).
+- Body remains dark `#0A0A12` (intentional brand choice — VYBE's whole identity is dark; the white preview canvas in the dashboard is just the dashboard chrome, the actual email renders dark).
 
 ### Out of scope
-- Changing the DMs page row (already correct — it's the source of truth)
-- Renaming "VYBE-AI" or other AI settings
+- Changing copy beyond the headline polish above
+- Adding images/logos (kept text-based VYBE wordmark for crisp retina + zero load)
+- Editing `auth-email-hook/index.ts` routing
 
