@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Send, Loader2, MoreVertical, Sparkles, Settings, RotateCcw, Check,
-  Dna, MapPin, BotMessageSquare, Shield, ImagePlus, X, Wand2, Copy
+  Dna, MapPin, BotMessageSquare, Shield, ImagePlus, X, Wand2, Copy, ScanLine, Bot, User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -128,10 +128,28 @@ export default function AIChat() {
 
   // Humanizer state
   const [isHumanizerOpen, setIsHumanizerOpen] = useState(false);
+  const [humanizerTab, setHumanizerTab] = useState<'humanize' | 'detect'>('humanize');
   const [humanizerInput, setHumanizerInput] = useState('');
   const [humanizerOutput, setHumanizerOutput] = useState('');
   const [humanizerTone, setHumanizerTone] = useState<'natural' | 'casual' | 'academic'>('natural');
   const [isHumanizing, setIsHumanizing] = useState(false);
+  // Detector state
+  const [detectorInput, setDetectorInput] = useState('');
+  const [detectorResult, setDetectorResult] = useState<null | {
+    ai_probability: number;
+    verdict: string;
+    reason: string;
+    metrics: {
+      burstiness: number;
+      uniformity: number;
+      ai_tells_count: number;
+      ai_tells_matched: string[];
+      repetition: number;
+      word_count: number;
+      sentence_count: number;
+    };
+  }>(null);
+  const [isDetecting, setIsDetecting] = useState(false);
 
   useEffect(() => { saveMessages(messages); }, [messages]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages, streamingText]);
