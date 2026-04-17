@@ -159,7 +159,8 @@ export function AnimatedRoutes() {
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route path="/complete-profile" element={<Navigate to="/onboarding" replace />} />
             <Route path="/messages/new" element={<ProtectedRoute><NewMessage /></ProtectedRoute>} />
-            <Route path="/messages/ai-autisy" element={<ProtectedRoute><AIChat /></ProtectedRoute>} />
+            <Route path="/VYBE-AI" element={<ProtectedRoute><AIChat /></ProtectedRoute>} />
+            <Route path="/messages/ai-autisy" element={<Navigate to="/VYBE-AI" replace />} />
             <Route path="/feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
             <Route path="/market/new" element={<ProtectedRoute><CreateListing /></ProtectedRoute>} />
             <Route path="/market/:id" element={<ProtectedRoute><ListingDetail /></ProtectedRoute>} />
