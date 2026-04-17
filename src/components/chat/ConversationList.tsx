@@ -275,7 +275,7 @@ export function ConversationList() {
       {/* Snapchat-style Header */}
       <div className="flex-shrink-0">
         <div className="flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-2">
-          {/* Left: User Avatar + Camera */}
+          {/* Left: User Avatar */}
           <div className="flex items-center gap-1.5">
             {profile && (
               <button onClick={() => navigate(`/u/${profile.username}`)} className="flex-shrink-0">
@@ -287,14 +287,6 @@ export function ConversationList() {
                 </Avatar>
               </button>
             )}
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setShowSnapCamera(true)}
-              className="h-9 w-9 rounded-full bg-primary/10 hover:bg-primary/20"
-            >
-              <Camera className="h-4.5 w-4.5 text-primary" />
-            </Button>
           </div>
 
           {/* Center: Title + Status */}
