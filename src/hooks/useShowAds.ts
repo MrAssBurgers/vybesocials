@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { usePremiumStatus } from './usePremiumStatus';
 import { getTrackingConsent } from '@/components/app/TrackingConsentDialog';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/lib/auth';
 
 /**
  * Global kill switch for ads.
