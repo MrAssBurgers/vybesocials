@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global tap-highlight reset — kills the iPad/iOS Safari yellow/orange overlay
+   that appears on tap for buttons, links, framer-motion wrappers, and inputs.
+   Must use !important to defeat per-element stacking contexts. */
+*,
+*::before,
+*::after {
+  -webkit-tap-highlight-color: transparent;
+}
+button,
+a,
+[role="button"],
+[data-framer-motion],
+.motion-button,
+input,
+textarea,
+select,
+label {
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0) !important;
+  -webkit-touch-callout: none;
+}
+
 /* Hide bottom nav on splash, landing, and intro pages */
 body.splash-visible nav[aria-label="Bottom navigation"],
 body.splash-visible [data-tutorial-bottomnav],
