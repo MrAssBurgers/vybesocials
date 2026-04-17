@@ -51,17 +51,7 @@ import { useSendFriendRequest } from '@/hooks/useFriends';
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
 
-  // Get AI name from localStorage
-  const aiName = useMemo(() => {
-    try {
-      const stored = localStorage.getItem('vybe_ai_profile_v2');
-      if (stored) {
-        const profile = JSON.parse(stored);
-        return profile.name || 'Morgan';
-      }
-    } catch {}
-    return 'Morgan';
-  }, []);
+  const aiName = '/VYBE-AI';
 
   // Get last AI message from localStorage for preview
   const lastAIMessage = useMemo(() => {
