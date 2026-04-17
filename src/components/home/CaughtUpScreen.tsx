@@ -1,19 +1,12 @@
-import { memo, useState, useEffect } from 'react';
+import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { liquidSpring } from '@/motion/liquidConfig';
-import { Confetti } from '@/components/easter-eggs/Confetti';
 
 export const CaughtUpScreen = memo(function CaughtUpScreen() {
   const navigate = useNavigate();
-  const [showConfetti, setShowConfetti] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setShowConfetti(true), 600);
-    return () => clearTimeout(t);
-  }, []);
 
   return (
     <motion.div
@@ -22,8 +15,6 @@ export const CaughtUpScreen = memo(function CaughtUpScreen() {
       transition={liquidSpring}
       className="py-10 flex flex-col items-center gap-4 text-center"
     >
-      {showConfetti && <Confetti />}
-
       {/* Animated SVG checkmark */}
       <motion.div
         initial={{ scale: 0 }}
