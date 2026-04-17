@@ -1,42 +1,55 @@
 
-The user wants to fix contrast on the DM section by adding theme-aware frosted glass to:
-1. The empty state ("Select a conversation" panel — desktop only)
-2. The conversation list panel (left sidebar)
 
-Currently `Messages.tsx` uses `backgroundColor: 'hsl(var(--card))'` which is a flat solid color — no glass, and contrast against the wallpaper/background may be off in light mode.
+## What I'll fix
 
-I need to check the ConversationList component too to see what surface it sits on.
+### 1. Email domain — already configured ✅
+The domain `notify.vybehub.app` IS verified. The Cloud → Emails view banner says "no default email domain configured" because no domain is selected as the project default. I'll surface a button so you can confirm/select it. (Tool action, no code change.)
 
-## Plan
+### 2. Yellow tap-highlight overlay (iPad on login + create menu)
+**Root cause:** iOS/iPadOS Safari paints a translucent **yellow/orange tap-highlight** on `<button>`, `<a>`, and `motion.button` elements during touch. The global rule `body { -webkit-tap-highlight-color: transparent }` is set in `index.html`, but Framer Motion's `motion.button` and several inline buttons override it with their own stacking contexts so the highlight bleeds through on iPadOS specifically.
 
-Apply a theme-aware frosted glass surface to the DM shell in `src/pages/Messages.tsx` and ensure text inside auto-adjusts for contrast.
+**Fix in `src/index.css`:** Strengthen the global tap-highlight reset so it covers ALL interactive elements and Framer Motion wrappers (not just `<a>/<button>` under 1024px):
 
-### Changes
+```css
+*, *::before, *::after {
+  -webkit-tap-highlight-color: transparent;
+}
+button, a, [role="button"], [data-framer-motion], .motion-button,
+input, textarea, select, label {
+  -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
+  -webkit-touch-callout: none;
+}
+```
 
-**1. `src/pages/Messages.tsx`**
-- Replace the flat `backgroundColor: 'hsl(var(--card))'` on the outer DM container with a frosted glass layer that works in both themes:
-  - Dark mode: `bg-background/60` + `backdrop-blur-xl` + subtle white border
-  - Light mode: `bg-background/70` + `backdrop-blur-xl` + subtle dark border
-  - Achieved via a single class set using existing theme tokens (`bg-background/65 backdrop-blur-2xl`) — tokens already flip per theme.
-- Add a faint inner border between the conversation list and chat panel using `border-border/50` instead of solid `border-border` so it reads as glass-on-glass.
-- Empty state ("Select a conversation"):
-  - Wrap the centered content in a frosted glass card (`liquid-glass-depth` from `src/styles/liquid.css`, which is already theme-aware via `--glass`, `--primary`, `--accent` tokens).
-  - Use `text-foreground` for the heading and `text-muted-foreground` for the subtitle — both auto-flip per theme for WCAG-safe contrast.
-  - Keep the gradient text effect but ensure the gradient stops use `from-foreground to-foreground/70` (already correct).
+Also wrap login form buttons + `CreateMenuLayer` action buttons in `touch-manipulation` class (already defined) for good measure.
 
-**2. `src/components/chat/ConversationList.tsx`** (read first, then minimal patch)
-- Make its root background transparent (or `bg-transparent`) so the frosted glass from the parent shows through, instead of stacking another opaque surface on top.
-- If the list rows have their own backgrounds, switch them to `bg-card/40 hover:bg-card/60` so they feel like glass tiles on glass.
-- Confirm row text uses `text-foreground` / `text-muted-foreground` (semantic tokens), not hardcoded colors.
+### 3. Broken/torn gradient on Create (+) button tap
+**Root cause in `src/components/layout/BottomNav.tsx` (lines 573-595):** The Create button has a `radial-gradient` blob positioned at `inset: -6` with `filter: blur(14px)`, PLUS an animated overlay on open with `filter: blur(12px)` and `scale: 1.5`. On iPad Safari, **filter: blur** + framer-motion `whileTap scale: 0.8` causes the blur layer to clip incorrectly during the scale animation — appearing as a "broken/torn gradient strip."
 
-### Why this works for contrast
-All changes use the semantic theme tokens (`--background`, `--foreground`, `--muted-foreground`, `--border`, `--card`) which are already defined for both `.dark` and `.light` in the design system. That means text contrast auto-adjusts per theme without any conditional logic. The frosted layer uses opacity on `--background` so the wallpaper shows through but text stays readable.
+**Fix:** 
+- Move the static glow blob inside an `overflow-hidden` parent OR drop `filter: blur` (use `box-shadow` instead — composited cleanly on iOS).
+- Set `transform: translateZ(0)` and `will-change: transform` on the blur layers so they get their own GPU layer instead of compositing oddly with the parent's scale.
+- Reduce `scale: 1.5` open-animation overlay to `scale: 1.2` to stay inside button bounds.
+
+### 4. Login flash even when already logged in
+**Root cause in `src/App.tsx` (line 145) + `src/pages/Landing.tsx`:**
+- `AppWithPreloader` shows the splash while `useAppPreloader` runs.
+- BUT the splash hides as soon as `preloadStatus.isComplete = true` — which happens **before** `AuthProvider` finishes resolving the session.
+- So for ~200-500ms after the splash hides, `Landing.tsx` renders (because `/` is the public route), THEN the `useEffect` at line 165 redirects to `/home` once `user` resolves. That's the "login flash."
+
+**Fix:**
+1. In `Landing.tsx`: gate the entire render behind `authReady`. If `!authReady`, return `null` (splash is still painting underneath OR show a tiny inline spinner). Once `authReady=true && user && profile?.onboarding_completed`, redirect immediately — never render the landing UI.
+2. In `App.tsx` `AppWithPreloader`: keep splash visible until BOTH `preloadStatus.isComplete` AND `authReady` are true. Add an `authReady` selector via a small wrapper that consumes `useAuth()` (move `<SplashScreen>` inside `<AuthProvider>` or pass `authReady` via context bridge).
+3. Persist a `localStorage` flag `vybe-was-logged-in` set on every successful auth — when present on boot, render splash longer (skip Landing entirely, route straight to `/home`).
+
+### Files to change
+1. `src/index.css` — global tap-highlight reset
+2. `src/components/layout/BottomNav.tsx` — fix create button blur layers
+3. `src/pages/Landing.tsx` — gate render behind `authReady`, skip render if logged-in user detected
+4. `src/App.tsx` — extend splash visibility until `authReady`, add `vybe-was-logged-in` flag check
 
 ### Out of scope
-- The actual `ChatView` (active conversation thread) — user said "mainly the list and empty state."
-- Mobile DM overlay — already has its own `data-dm-active` isolation and looks fine.
-- No new files. No DB changes. No new packages.
+- Email domain code changes (it's already set up — just needs UI selection via the Cloud panel)
+- DM list styling (already done in earlier turn)
+- The "create menu" content itself (only its tap-highlight)
 
-### Files
-1. `src/pages/Messages.tsx` — swap solid bg for frosted glass; wrap empty state in glass card
-2. `src/components/chat/ConversationList.tsx` — make root transparent so glass shows through; soften row backgrounds
