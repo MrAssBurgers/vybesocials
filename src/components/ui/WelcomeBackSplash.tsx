@@ -50,7 +50,7 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
 }: WelcomeBackSplashProps) {
   const [visible, setVisible] = useState(true);
   const [showBurst, setShowBurst] = useState(false);
-  const particles = useMemo(() => generateParticles(24), []);
+  const particles = useMemo(() => generateParticles(60), []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
