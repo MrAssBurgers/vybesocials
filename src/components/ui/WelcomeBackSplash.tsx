@@ -11,10 +11,12 @@ interface WelcomeBackSplashProps {
 const BURST_COLORS = [
   'hsl(var(--primary))',
   'hsl(var(--accent))',
-  'hsl(280 80% 65%)',
-  'hsl(340 90% 65%)',
-  'hsl(45 95% 60%)',
-  'hsl(160 70% 55%)',
+  'hsl(280 90% 65%)',
+  'hsl(330 100% 65%)',
+  'hsl(190 100% 60%)',
+  'hsl(45 100% 60%)',
+  'hsl(160 80% 55%)',
+  'hsl(220 100% 65%)',
 ];
 
 interface BurstParticle {
@@ -24,16 +26,20 @@ interface BurstParticle {
   color: string;
   size: number;
   delay: number;
+  shape: 'circle' | 'square';
+  rotation: number;
 }
 
 function generateParticles(count: number): BurstParticle[] {
   return Array.from({ length: count }, (_, i) => ({
     id: i,
-    angle: (360 / count) * i + (Math.random() * 20 - 10),
-    distance: 80 + Math.random() * 140,
+    angle: (360 / count) * i + (Math.random() * 24 - 12),
+    distance: 140 + Math.random() * 220,
     color: BURST_COLORS[i % BURST_COLORS.length],
-    size: 4 + Math.random() * 5,
-    delay: Math.random() * 0.08,
+    size: 5 + Math.random() * 7,
+    delay: Math.random() * 0.12,
+    shape: Math.random() > 0.5 ? 'circle' : 'square',
+    rotation: Math.random() * 720 - 360,
   }));
 }
 
@@ -44,7 +50,7 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
 }: WelcomeBackSplashProps) {
   const [visible, setVisible] = useState(true);
   const [showBurst, setShowBurst] = useState(false);
-  const particles = useMemo(() => generateParticles(24), []);
+  const particles = useMemo(() => generateParticles(60), []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -65,29 +71,35 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
             {particles.map((p) => {
               const rad = (p.angle * Math.PI) / 180;
               const tx = Math.cos(rad) * p.distance;
-              const ty = Math.sin(rad) * p.distance;
+              // Bias upward then add gravity at the end
+              const tyMid = Math.sin(rad) * p.distance - 40;
+              const tyEnd = tyMid + 180; // gravity drop
               return (
                 <motion.div
                   key={p.id}
-                  initial={{ x: '-50%', y: '-50%', scale: 1, opacity: 1 }}
+                  initial={{ x: '-50%', y: '-50%', scale: 0.6, opacity: 1, rotate: 0 }}
                   animate={{
-                    x: tx,
-                    y: ty,
-                    scale: 0,
-                    opacity: 0,
+                    x: [0, tx * 0.6, tx],
+                    y: [0, tyMid, tyEnd],
+                    scale: [1, 1, 0.4],
+                    opacity: [1, 1, 0],
+                    rotate: p.rotation,
                   }}
                   transition={{
-                    duration: 0.7,
+                    duration: 1.1,
                     delay: p.delay,
                     ease: [0.16, 1, 0.3, 1],
+                    times: [0, 0.55, 1],
                   }}
-                  className="absolute rounded-full"
+                  className="absolute"
                   style={{
                     top: '50%',
                     left: '50%',
                     width: p.size,
-                    height: p.size,
+                    height: p.shape === 'square' ? p.size * 1.4 : p.size,
                     backgroundColor: p.color,
+                    borderRadius: p.shape === 'circle' ? '50%' : '2px',
+                    boxShadow: `0 0 8px ${p.color}`,
                   }}
                 />
               );
