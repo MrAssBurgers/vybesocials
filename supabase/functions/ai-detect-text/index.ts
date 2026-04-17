@@ -172,6 +172,7 @@ ${text.slice(0, 6000)}
           }),
         });
 
+        clearTimeout(timeoutId);
         if (judgeResp.ok) {
           const data = await judgeResp.json();
           const raw = data.choices?.[0]?.message?.content || "{}";
