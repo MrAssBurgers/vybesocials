@@ -139,25 +139,70 @@ function BriefPreFetchInit() {
   return null;
 }
 
+// Persist a flag whenever the user has an active session, so on next boot
+// we know to keep the splash up until auth resolves (no login flash).
+const WAS_LOGGED_IN_KEY = 'vybe-was-logged-in';
+function getWasLoggedIn(): boolean {
+  try { return localStorage.getItem(WAS_LOGGED_IN_KEY) === '1'; } catch { return false; }
+}
+function setWasLoggedIn(value: boolean) {
+  try {
+    if (value) localStorage.setItem(WAS_LOGGED_IN_KEY, '1');
+    else localStorage.removeItem(WAS_LOGGED_IN_KEY);
+  } catch { /* noop */ }
+}
+
+// Tracks Supabase auth resolution at the App root so the splash can wait for it.
+function useAuthResolved() {
+  const [resolved, setResolved] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
+      setHasSession(!!data.session);
+      setWasLoggedIn(!!data.session);
+      setResolved(true);
+    }).catch(() => { if (!cancelled) setResolved(true); });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setHasSession(!!session);
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') setWasLoggedIn(!!session);
+      if (event === 'SIGNED_OUT') setWasLoggedIn(false);
+      setResolved(true);
+    });
+    return () => { cancelled = true; subscription.unsubscribe(); };
+  }, []);
+  return { authResolved: resolved, hasSession };
+}
+
 // Preloader wrapper component - must be inside QueryClientProvider
 function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
+  const { authResolved, hasSession } = useAuthResolved();
+  const wasLoggedInRef = useRef(getWasLoggedIn());
   const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
   const [welcomeBack, setWelcomeBack] = useState<{ username?: string | null; avatarUrl?: string | null } | null>(null);
-  
+
   // Auto-update checker
   useAutoUpdate();
-  
+
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
   usePostsRealtime();
 
   useEffect(() => {
-    if (preloadStatus.isComplete && showSplash) {
+    if (!showSplash) return;
+    // Hide splash only when preloader is done AND auth has resolved.
+    // If we knew the user was logged in last time, also wait until session restored
+    // (or auth definitively says there is none) to avoid the login flash.
+    const preloaderDone = preloadStatus.isComplete;
+    const authDone = authResolved && (wasLoggedInRef.current ? (hasSession || authResolved) : true);
+    if (preloaderDone && authDone) {
       setShowSplash(false);
       hasInitialLoadCompleted = true;
     }
-  }, [preloadStatus.isComplete, showSplash]);
+  }, [preloadStatus.isComplete, showSplash, authResolved, hasSession]);
 
   // Show welcome-back splash on sign-in (not on initial page load with existing session)
   const signInHandledRef = useRef(false);
