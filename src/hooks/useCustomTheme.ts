@@ -3,6 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
+import { usePremiumStatus } from './usePremiumStatus';
+
+// Free-tier cooldown for AI theme generation (Pro users skip this)
+const AI_THEME_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+const AI_THEME_COOLDOWN_KEY = 'vybe-ai-theme-last-gen';
 
 export interface ThemeTokens {
   colorPrimary: string;
@@ -323,6 +328,8 @@ export function useResetTheme() {
 }
 
 export function useGenerateTheme() {
+  const { isPremium } = usePremiumStatus();
+
   return useMutation({
     mutationFn: async ({
       prompt,
@@ -331,6 +338,20 @@ export function useGenerateTheme() {
       prompt: string;
       basePreset?: string;
     }) => {
+      // Free-tier cooldown: 1 AI theme generation per 24h.
+      // Pro users skip this entirely.
+      if (!isPremium) {
+        const lastGenStr = localStorage.getItem(AI_THEME_COOLDOWN_KEY);
+        const lastGen = lastGenStr ? parseInt(lastGenStr, 10) : 0;
+        const elapsed = Date.now() - lastGen;
+        if (lastGen && elapsed < AI_THEME_COOLDOWN_MS) {
+          const hoursLeft = Math.ceil((AI_THEME_COOLDOWN_MS - elapsed) / (60 * 60 * 1000));
+          throw new Error(
+            `Free plan: 1 AI theme per day. Try again in ${hoursLeft}h, or upgrade to VYBE Pro for unlimited.`
+          );
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('generate-theme', {
         body: { prompt, basePreset },
       });
@@ -338,13 +359,21 @@ export function useGenerateTheme() {
       if (error) throw error;
       if (data.error) throw new Error(data.error);
 
+      // Stamp cooldown for free users on success
+      if (!isPremium) {
+        localStorage.setItem(AI_THEME_COOLDOWN_KEY, String(Date.now()));
+      }
+
       return data.theme as ThemeTokens & { themeName: string };
     },
     onError: (error: any) => {
       console.error('Failed to generate theme:', error);
-      if (error.message?.includes('Rate limit')) {
+      const msg = error?.message || '';
+      if (msg.includes('Free plan')) {
+        toast.error(msg);
+      } else if (msg.includes('Rate limit')) {
         toast.error('Too many requests. Please wait a moment.');
-      } else if (error.message?.includes('credits')) {
+      } else if (msg.includes('credits')) {
         toast.error('AI credits exhausted. Please add funds.');
       } else {
         toast.error('Failed to generate theme. Try again.');
