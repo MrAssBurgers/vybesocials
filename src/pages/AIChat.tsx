@@ -126,6 +126,13 @@ export default function AIChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Humanizer state
+  const [isHumanizerOpen, setIsHumanizerOpen] = useState(false);
+  const [humanizerInput, setHumanizerInput] = useState('');
+  const [humanizerOutput, setHumanizerOutput] = useState('');
+  const [humanizerTone, setHumanizerTone] = useState<'natural' | 'casual' | 'academic'>('natural');
+  const [isHumanizing, setIsHumanizing] = useState(false);
+
   useEffect(() => { saveMessages(messages); }, [messages]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages, streamingText]);
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
