@@ -20,15 +20,14 @@ interface PerkRow {
 // Only perks that are ACTUALLY implemented and gated by isPremium in the codebase.
 const COMPARISON: PerkRow[] = [
   { icon: Shield, label: 'Ad-free', free: false, pro: true, color: 'from-blue-500 to-indigo-500' },
-  { icon: Eye, label: 'Profile visitors', free: false, pro: true, color: 'from-purple-500 to-pink-500' },
   { icon: Clock, label: 'Schedule DMs', free: false, pro: true, color: 'from-cyan-500 to-blue-500' },
-  { icon: Phone, label: 'Group calls', free: false, pro: true, color: 'from-emerald-500 to-teal-500' },
+  { icon: Phone, label: 'Stay-on calls', free: false, pro: true, color: 'from-emerald-500 to-teal-500' },
   { icon: Sparkles, label: 'AR Pro filters', free: 'Limited', pro: 'All', color: 'from-pink-500 to-fuchsia-500' },
   { icon: Box, label: 'Toybox FX', free: 'Basic', pro: 'All', color: 'from-amber-500 to-orange-500' },
   { icon: Flame, label: 'Meme-Ban powers', free: false, pro: true, color: 'from-red-500 to-rose-500' },
   { icon: Package, label: 'Locker exclusives', free: false, pro: true, color: 'from-yellow-500 to-amber-500' },
   { icon: Coins, label: 'Pro marketplace', free: false, pro: true, color: 'from-lime-500 to-green-500' },
-  { icon: Palette, label: 'AI themes', free: 'Limited', pro: 'Unlimited', color: 'from-violet-500 to-purple-500' },
+  { icon: Palette, label: 'AI themes', free: '1 / day', pro: 'Unlimited', color: 'from-violet-500 to-purple-500' },
   { icon: Gift, label: 'Gift Pro to friends', free: false, pro: true, color: 'from-rose-500 to-pink-500' },
   { icon: Wand2, label: 'AI Humanizer', free: false, pro: 'Soon', color: 'from-indigo-500 to-violet-500', comingSoon: true },
 ];
