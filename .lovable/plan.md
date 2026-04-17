@@ -1,84 +1,49 @@
 
-The user wants Apple-grade smooth, satisfying animations across the entire app. They already have a solid liquid motion system (`src/motion/liquidConfig.ts`, `src/lib/motion.ts`, `PageTransition.tsx`) but it's likely under-used. Let me audit what exists and what needs polish.
 
-Key areas to enhance based on memory + file structure:
-- Bottom nav tab switches (springy bounce)
-- Buttons across app (liquid press)
-- Cards (lift on hover, settle on tap)
-- Modals/sheets (liquid slide + backdrop fade)
-- List items (stagger entry)
-- Icons (micro rotate/scale on tap)
-- Page transitions (already exists — ensure it wraps all routes)
-- Like/save/share buttons (heart pop, fold, fly already defined — wire them)
-- Tab indicators (layoutId magic move)
-- Number changes (count-up / scale flip)
-- Pull-to-refresh elasticity
-- Toast entry (liquid pop already standardized)
+## Two-Part Fix
 
-Plan stays concise — apply the existing motion system everywhere it's missing, plus add a few new Apple-signature touches (magic-move tab indicators, number flips, elastic scroll).
+### Part 1 — Confetti behavior (precise fix)
 
-## Apple-Style Animation Pass — Whole App
+**The bug:** `CaughtUpScreen.tsx` auto-fires the full-screen `Confetti` component every time it mounts. That component spans the whole viewport and rains 100 pieces from the top of the screen — which is exactly what you're seeing every time you land on Home (the "you're all caught up" empty state mounts on every visit).
 
-### Strategy
-Use the existing `liquidConfig.ts` spring system everywhere — don't reinvent. Add 3 new signature Apple touches. Respect `prefers-reduced-motion` globally.
+**The fix:**
+1. **Remove the auto-confetti from `CaughtUpScreen.tsx`.** Drop the `showConfetti` state, the `useEffect` timer, and the `<Confetti />` render. The screen still has its own subtle checkmark + emoji rotation — that's enough.
+2. **Add a "burst" mode to the welcome-back splash itself.** `WelcomeBackSplash.tsx` already has a 24-particle radial burst that fires from the avatar center when it dismisses. I'll upgrade that burst:
+   - Bump particle count (24 → 60)
+   - Wider color palette (match brand neon)
+   - Longer travel distance + slight gravity arc (particles fall a bit at the end instead of just shrinking)
+   - Slightly longer duration (0.7s → 1.1s) so it reads as one continuous "shoot from your avatar" motion as the splash dissolves
+3. **Result:** Confetti only happens on actual sign-in (welcome back), shoots out *from the welcome-back card* in one smooth motion, and never auto-plays on Home again.
 
-### 1. Magic-Move Tab Indicators (`layoutId`)
-**Files**: `BottomNav.tsx`, profile tabs, communities tabs, spotlight tabs
-- Active pill uses `layoutId="activeTab"` so it morphs between tabs (Apple Music / iOS Settings style) instead of fade-swap.
-- Spring: `liquidSpring`.
+Other confetti sources stay intact and correct (token purchases, post publish celebration, easter egg unlocks) — those are user-triggered and contextual.
 
-### 2. Liquid Button Pass
-**Files**: All primary/icon buttons across `src/components/ui/`, `src/components/layout/`, `src/components/feed/`, `src/components/create/`
-- Wrap key interactive elements with `liquidButton` preset (`whileHover scale 1.03`, `whileTap scale 0.94`, snappy spring).
-- Apply specifically to: FAB, send buttons, like/save/share, follow button, story ring tap, comment submit, camera shutter ring.
+### Part 2 — "Full app scan" — scope check
 
-### 3. Card Lift + Settle
-**Files**: `PostCard.tsx`, `ClipCard.tsx`, story cards, community cards, notification cards, search results
-- `whileHover={{ y: -3, scale: 1.01 }}` `whileTap={{ scale: 0.98 }}` with `liquidSpring`.
-- Use existing `CardHover` from `PageTransition.tsx`.
+Honest read: the app has 100s of components and dozens of major flows (camera, AR, DMs, calls, stories, clips, communities, marketplace, creator program, admin, payments, etc.). A real "test every single thing and fix anything I don't like" pass is not one task — it's weeks of QA. If I claim to do it in one shot I'll either miss things or change behavior you actually liked.
 
-### 4. Wire Existing Engagement Animations
-**Files**: like/save/share buttons in feed + post detail + clips
-- `MOTION_VARIANTS.heartPop` already exists — apply on like tap.
-- `saveFold` on bookmark tap.
-- `shareFly` on share tap.
-- Add haptic via existing `useInteractionFeedback`.
+So instead of a vague promise, I'll do a **focused polish pass** on the highest-traffic surfaces — the ones every user touches every session. If you approve this scope, I'll cover:
 
-### 5. Stagger All Lists
-**Files**: feed lists, notifications, comments, search results, friends, followers, DM thread list, community member list
-- Wrap in `StaggerList` from `PageTransition.tsx` (0.04s stagger, liquid spring).
+1. **Home feed** — story rail tap response, post card lift/tap settle, like/save/share wired to the existing `heartPop`/`saveFold`/`shareFly` variants, scroll smoothness
+2. **Bottom nav** — verify magic-move indicator, tap haptics, no flash-of-wrong-tab on route change
+3. **Post detail / comments sheet** — open/close spring, drag-to-dismiss, keyboard behavior
+4. **DMs list + thread** — open animation, message entry stagger, send button press
+5. **Profile** — tab switch (layoutId), stat number flips using the new `AnimatedNumber`
+6. **Camera entry** — capture button feel, mode switch, permission gate
+7. **Toasts + sheets** — verify all use the standardized liquid spring, no jarring fades
+8. **Reduced-motion respect** — confirm the global `MotionConfig` actually disables springs for users who set it
 
-### 6. Modal / Sheet Liquid Slide
-**Files**: Comments sheet, share sheet, Toybox, filter picker, settings sheets, DM hold menu, reaction picker
-- `liquidSlideUp` for bottom sheets, `liquidBackdrop` for overlay fade, dismiss with same spring on exit.
+For each surface I'll: read the code, fix anything obviously broken or janky, apply the existing motion primitives where they're missing, and note (not silently change) anything that looks intentional but rough.
 
-### 7. Icon Micro-interactions
-**Files**: nav icons, action icons, header icons
-- `liquidIcon` preset (`whileTap rotate 2°, scale 1.08 → 0.9`) for tactile feel.
+**What I will NOT touch in this pass** (unless you ask): admin/owner panels, payment flows, AR filter pipeline, calling system internals, AI safety scan UI, the marketplace, anything monetization-related. Those are sensitive and need targeted asks.
 
-### 8. NEW — Apple Number Flip
-**New file**: `src/components/ui/AnimatedNumber.tsx`
-- Counts (likes, followers, XP, level, comment count) animate with vertical scroll-flip when value changes (like iOS Stocks/Activity rings).
-- Used in: profile stats, post engagement counts, level badges, XP bar.
+### Files
 
-### 9. NEW — Elastic Pull / Overscroll
-**New file**: `src/hooks/useElasticScroll.ts`
-- Adds rubber-band resistance to top of feeds (Home, Clips, Notifications) — Apple-style overscroll bounce when already at top.
+**Part 1 (3 files):**
+1. `src/components/home/CaughtUpScreen.tsx` — remove auto-confetti
+2. `src/components/ui/WelcomeBackSplash.tsx` — upgrade burst (more particles, wider spread, gentle arc, longer duration)
+3. No third file — `Confetti.tsx` itself stays unchanged (still used by token marketplace + easter eggs)
 
-### 10. NEW — Shared Element Image Expand
-**File**: `PostCard` → post detail, story thumb → story viewer
-- Use `motion.div layoutId={postId}` to make images fluidly expand from grid → fullscreen (Apple Photos style).
+**Part 2 (~10–15 files):** scoped to the surfaces listed above. Exact list will be reported in the implementation summary.
 
-### 11. Page Transitions Audit
-**File**: `src/components/layout/AnimatedRoutes.tsx`
-- Ensure every route is wrapped in `PageTransition` and `AnimatePresence mode="wait"`.
+No DB changes. No new packages.
 
-### 12. Reduced Motion Guard
-**File**: `src/lib/motion.ts` (`prefersReducedMotion` already exists)
-- Add a top-level `MotionConfig reducedMotion="user"` provider in `App.tsx` so framer-motion auto-disables for users with the OS setting on.
-
-### Files Summary
-**New (3)**: `AnimatedNumber.tsx`, `useElasticScroll.ts`, plus `MotionConfig` wrapper in `App.tsx`
-**Modified (~15)**: `BottomNav.tsx`, `AnimatedRoutes.tsx`, `App.tsx`, `PostCard.tsx`, `ClipCard.tsx`, like/save/share button components, comments sheet, share sheet, Toybox, profile tabs, story ring, FAB, notification cards, level/XP badges, feed list wrappers.
-
-No DB changes. No new packages — uses existing framer-motion + liquidConfig.
