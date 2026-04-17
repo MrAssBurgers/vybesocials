@@ -869,106 +869,41 @@ export default function AIChat() {
 
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
             {humanizerTab === 'humanize' ? (
-              <>
-                <div className="flex gap-1.5">
-                  {(['natural','casual','academic'] as const).map(tone => (
-                    <button
-                      key={tone}
-                      onClick={() => setHumanizerTone(tone)}
-                      className={cn(
-                        "flex-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors capitalize",
-                        humanizerTone === tone
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-muted/40 text-foreground/80 border-border/40 hover:bg-muted'
-                      )}
-                    >{tone}</button>
-                  ))}
+              <div className="flex flex-col items-center justify-center text-center py-10 px-4 space-y-5">
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/40 via-accent/30 to-primary/20 blur-2xl" />
+                  <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-xl">
+                    <Wand2 className="h-10 w-10 text-primary-foreground" />
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium">Paste your essay or AI-generated text</Label>
-                    <span className="text-[10px] text-muted-foreground">
-                      {humanizerInput.trim() ? `${humanizerInput.trim().split(/\s+/).length} words` : '0 words'} · {humanizerInput.length}/8000
+                <div className="space-y-2 max-w-sm">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/30">
+                    <Sparkles className="h-3 w-3 text-primary" />
+                    <span className="text-[11px] font-bold tracking-wider uppercase bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                      VYBE Pro
                     </span>
                   </div>
-                  <Textarea
-                    value={humanizerInput}
-                    onChange={(e) => setHumanizerInput(e.target.value.slice(0, 8000))}
-                    placeholder="Paste up to 8000 characters. The humanizer rewrites it to bypass GPTZero, Turnitin, Originality.ai — keeping every fact intact."
-                    rows={7}
-                    className="text-sm resize-none"
-                  />
+                  <h3 className="text-xl font-bold">Undetectable AI Humanizer</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Rewrite any AI-generated text so it bypasses GPTZero, Turnitin, Originality.ai, and Copyleaks — while keeping every fact intact.
+                  </p>
                 </div>
 
-                <Button
-                  onClick={runHumanizer}
-                  disabled={isHumanizing || !humanizerInput.trim()}
-                  className="w-full"
-                >
-                  {isHumanizing ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Humanizing… {humanizerElapsed.toFixed(1)}s</>
-                  ) : (
-                    <><Wand2 className="h-4 w-4 mr-2" /> Humanize</>
-                  )}
-                </Button>
-
-                {isHumanizing && (
-                  <div className="space-y-1.5">
-                    <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-primary via-accent to-primary transition-all duration-200 ease-out"
-                        style={{ width: `${humanizerProgress}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                        {humanizerOutput
-                          ? `${humanizerOutput.trim().split(/\s+/).filter(Boolean).length} words written`
-                          : 'Connecting to AI…'}
-                      </span>
-                      <span>{humanizerProgress}% · {humanizerElapsed.toFixed(1)}s</span>
-                    </div>
+                <div className="w-full max-w-sm rounded-2xl border border-border/40 bg-muted/30 p-4 space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                    <span className="font-semibold">Coming Soon to Pro</span>
                   </div>
-                )}
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    We're integrating the world's most advanced humanization engine. Pro members will get unlimited access the moment it launches.
+                  </p>
+                </div>
 
-                {(humanizerOutput || isHumanizing) && (
-                  <div className="space-y-1.5 pt-1">
-                    <div className="flex items-center justify-between flex-wrap gap-1.5">
-                      <Label className="text-xs font-medium flex items-center gap-1.5">
-                        <Sparkles className="h-3 w-3 text-primary" /> Humanized result
-                      </Label>
-                      {humanizerOutput && !isHumanizing && (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <button
-                            onClick={() => { navigator.clipboard.writeText(humanizerOutput); toast.success('Copied'); }}
-                            className="text-[11px] px-2 py-1 rounded-md bg-muted/60 hover:bg-muted flex items-center gap-1"
-                          >
-                            <Copy className="h-3 w-3" /> Copy
-                          </button>
-                          <button
-                            onClick={() => { setDetectorInput(humanizerOutput); setHumanizerTab('detect'); runDetector(humanizerOutput); }}
-                            className="text-[11px] px-2 py-1 rounded-md bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-1"
-                          >
-                            <ScanLine className="h-3 w-3" /> Check AI score
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="rounded-xl border border-border/40 bg-muted/30 p-3 text-sm whitespace-pre-wrap min-h-[100px] leading-relaxed">
-                      {humanizerOutput || (
-                        <span className="text-muted-foreground text-xs flex items-center gap-2">
-                          <Loader2 className="h-3 w-3 animate-spin" /> Rewriting...
-                        </span>
-                      )}
-                      {isHumanizing && humanizerOutput && (
-                        <span className="inline-block w-[2px] h-[14px] bg-foreground/70 ml-0.5 align-middle animate-pulse" />
-                      )}
-                    </div>
-                  </div>
-                )}
-              </>
+                <div className="text-[10px] text-muted-foreground">
+                  The free AI Detector still works — switch tabs above.
+                </div>
+              </div>
             ) : (
               <>
                 <div className="space-y-1">
