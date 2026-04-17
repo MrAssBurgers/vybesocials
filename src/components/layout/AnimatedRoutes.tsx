@@ -62,6 +62,7 @@ const AdminBugReports = lazy(() => import("@/pages/AdminBugReports"));
 const BadgeLibrary = lazy(() => import("@/pages/BadgeLibrary"));
 const ChallengesHub = lazy(() => import("@/pages/ChallengesHub"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+const Unsubscribe = lazy(() => import("@/pages/Unsubscribe"));
 const ModeratorApplication = lazy(() => import("@/pages/ModeratorApplication"));
 const HowUDoinHub = lazy(() => import("@/pages/HowUDoinHub"));
 const BusinessPortal = lazy(() => import("@/pages/BusinessPortal"));
@@ -134,6 +135,7 @@ export function AnimatedRoutes() {
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/invite/:identifier" element={<InviteRedeem />} />
             
