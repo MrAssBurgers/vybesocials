@@ -148,24 +148,32 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       console.log('[Landing] In invite mode - auth redirects handled by InviteRedeem');
       return;
     }
-    
+
+    if (!authReady) return;
     if (!user) return;
-    
+
     // If on invite route or in invite entry mode, don't auto-redirect to home
     if (isInviteRoute || isInviteEntryMode()) {
       console.log('[Landing] In invite flow, skipping auto-redirect');
       return;
     }
-    
+
     // Use profile from auth context to avoid race condition on iPad Safari
     // where a separate Supabase query runs before the JWT is fully established
     if (authProfile?.username && authProfile?.onboarding_completed !== false) {
-      navigate('/home');
+      navigate('/home', { replace: true });
     }
-  }, [user, authProfile, navigate, isInviteRoute, isInviteMode]);
+  }, [user, authProfile, navigate, isInviteRoute, isInviteMode, authReady]);
 
-  // Only hide the landing page if we're about to redirect (handled in useEffect)
-  // Don't return null immediately - let the useEffect decide
+  // Prevent the "login flash": if auth is still resolving, OR we already have a
+  // logged-in user with a completed profile (about to redirect), render nothing.
+  // The splash screen / next route paints in our place.
+  if (!isInviteMode) {
+    if (!authReady) return null;
+    if (user && authProfile?.username && authProfile?.onboarding_completed !== false) {
+      return null;
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
