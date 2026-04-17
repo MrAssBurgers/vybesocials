@@ -72,10 +72,15 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all mb-0.5 box-border"
     >
       <div className="relative flex-shrink-0">
-        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center shadow-lg shadow-primary/30 ring-2 ring-background">
-          <VybeMiniIcon size={22} showSparkles={false} className="text-primary-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" />
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary blur-md opacity-60 animate-pulse" />
+        <div className="relative h-12 w-12 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary shadow-lg shadow-primary/40">
+          <div className="h-full w-full rounded-full bg-gradient-to-br from-background via-card to-background flex items-center justify-center overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 via-transparent to-accent/20" />
+            <VybeMiniIcon size={24} showSparkles className="relative z-10 drop-shadow-[0_0_6px_hsl(var(--primary)/0.8)]" />
+            <div className="absolute -top-1 -right-1 w-8 h-8 bg-primary/30 rounded-full blur-xl" />
+          </div>
         </div>
-        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-background" />
+        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-background shadow-md shadow-green-500/50" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5 gap-2">
