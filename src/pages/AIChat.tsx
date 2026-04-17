@@ -993,11 +993,26 @@ export default function AIChat() {
                   className="w-full"
                 >
                   {isDetecting ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Scanning...</>
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Scanning… {detectorProgress}%</>
                   ) : (
                     <><ScanLine className="h-4 w-4 mr-2" /> Detect AI</>
                   )}
                 </Button>
+
+                {isDetecting && (
+                  <div className="space-y-1.5">
+                    <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-primary via-accent to-primary transition-all duration-300 ease-out"
+                        style={{ width: `${detectorProgress}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                      {detectorStage}
+                    </div>
+                  </div>
+                )}
 
                 {detectorResult && (
                   <div className="space-y-3 pt-1">
