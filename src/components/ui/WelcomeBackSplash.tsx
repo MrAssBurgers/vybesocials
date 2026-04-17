@@ -71,29 +71,35 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
             {particles.map((p) => {
               const rad = (p.angle * Math.PI) / 180;
               const tx = Math.cos(rad) * p.distance;
-              const ty = Math.sin(rad) * p.distance;
+              // Bias upward then add gravity at the end
+              const tyMid = Math.sin(rad) * p.distance - 40;
+              const tyEnd = tyMid + 180; // gravity drop
               return (
                 <motion.div
                   key={p.id}
-                  initial={{ x: '-50%', y: '-50%', scale: 1, opacity: 1 }}
+                  initial={{ x: '-50%', y: '-50%', scale: 0.6, opacity: 1, rotate: 0 }}
                   animate={{
-                    x: tx,
-                    y: ty,
-                    scale: 0,
-                    opacity: 0,
+                    x: [0, tx * 0.6, tx],
+                    y: [0, tyMid, tyEnd],
+                    scale: [1, 1, 0.4],
+                    opacity: [1, 1, 0],
+                    rotate: p.rotation,
                   }}
                   transition={{
-                    duration: 0.7,
+                    duration: 1.1,
                     delay: p.delay,
                     ease: [0.16, 1, 0.3, 1],
+                    times: [0, 0.55, 1],
                   }}
-                  className="absolute rounded-full"
+                  className="absolute"
                   style={{
                     top: '50%',
                     left: '50%',
                     width: p.size,
-                    height: p.size,
+                    height: p.shape === 'square' ? p.size * 1.4 : p.size,
                     backgroundColor: p.color,
+                    borderRadius: p.shape === 'circle' ? '50%' : '2px',
+                    boxShadow: `0 0 8px ${p.color}`,
                   }}
                 />
               );
