@@ -907,11 +907,31 @@ export default function AIChat() {
                   className="w-full"
                 >
                   {isHumanizing ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Humanizing...</>
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Humanizing… {humanizerElapsed.toFixed(1)}s</>
                   ) : (
                     <><Wand2 className="h-4 w-4 mr-2" /> Humanize</>
                   )}
                 </Button>
+
+                {isHumanizing && (
+                  <div className="space-y-1.5">
+                    <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-primary via-accent to-primary transition-all duration-200 ease-out"
+                        style={{ width: `${humanizerProgress}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                        {humanizerOutput
+                          ? `${humanizerOutput.trim().split(/\s+/).filter(Boolean).length} words written`
+                          : 'Connecting to AI…'}
+                      </span>
+                      <span>{humanizerProgress}% · {humanizerElapsed.toFixed(1)}s</span>
+                    </div>
+                  </div>
+                )}
 
                 {(humanizerOutput || isHumanizing) && (
                   <div className="space-y-1.5 pt-1">
