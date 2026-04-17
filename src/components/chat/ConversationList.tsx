@@ -51,7 +51,7 @@ import { useSendFriendRequest } from '@/hooks/useFriends';
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
 
-  const aiName = '/VYBE-AI';
+  const aiName = 'VYBE-AI';
 
   // Get last AI message from localStorage for preview
   const lastAIMessage = useMemo(() => {
@@ -72,10 +72,10 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all mb-0.5 box-border"
     >
       <div className="relative flex-shrink-0">
-        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center shadow-lg shadow-primary/25">
-          <VybeMiniIcon size={22} showSparkles={false} />
+        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center shadow-lg shadow-primary/30 ring-2 ring-background">
+          <VybeMiniIcon size={22} showSparkles={false} className="text-primary-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" />
         </div>
-        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-card" />
+        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-background" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5 gap-2">
