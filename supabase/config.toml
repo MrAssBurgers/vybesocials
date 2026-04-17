@@ -9,6 +9,8 @@ project_id = "agtcyxjxgkdyoxwxkjth"
     verify_jwt = false
   [functions.ai-humanize]
     verify_jwt = false
+  [functions.ai-detect-text]
+    verify_jwt = false
   [functions.ai-chat]
     verify_jwt = false
   [functions.ai-chat-summary]
