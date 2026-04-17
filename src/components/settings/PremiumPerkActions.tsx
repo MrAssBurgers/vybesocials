@@ -1,9 +1,8 @@
 import { motion } from 'framer-motion';
 import {
   Crown, Zap, Check, X, Shield, Eye, Lock, Clock,
-  Bomb, Gift, Send, Music, Upload, BarChart3,
-  Rocket, Star, Sparkles, Wand2, Paintbrush,
-  Palette, Cat, Dice1, MessageSquare,
+  Gift, Sparkles, Palette, Wand2, Phone, Flame,
+  Coins, Package, Box,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
@@ -15,19 +14,23 @@ interface PerkRow {
   free: string | boolean;
   pro: string | boolean;
   color: string;
+  comingSoon?: boolean;
 }
 
+// Only perks that are ACTUALLY implemented and gated by isPremium in the codebase.
 const COMPARISON: PerkRow[] = [
   { icon: Shield, label: 'Ad-free', free: false, pro: true, color: 'from-blue-500 to-indigo-500' },
   { icon: Eye, label: 'Profile visitors', free: false, pro: true, color: 'from-purple-500 to-pink-500' },
-  { icon: Music, label: 'Profile music', free: false, pro: true, color: 'from-red-500 to-rose-500' },
-  { icon: Upload, label: 'File uploads', free: '20MB', pro: '50MB', color: 'from-emerald-500 to-green-500' },
-  { icon: BarChart3, label: 'Post analytics', free: false, pro: true, color: 'from-amber-500 to-orange-500' },
-  { icon: Clock, label: 'Scheduling', free: false, pro: true, color: 'from-cyan-500 to-blue-500' },
-  { icon: Sparkles, label: 'Animated borders', free: false, pro: true, color: 'from-pink-500 to-fuchsia-500' },
+  { icon: Clock, label: 'Schedule DMs', free: false, pro: true, color: 'from-cyan-500 to-blue-500' },
+  { icon: Phone, label: 'Group calls', free: false, pro: true, color: 'from-emerald-500 to-teal-500' },
+  { icon: Sparkles, label: 'AR Pro filters', free: 'Limited', pro: 'All', color: 'from-pink-500 to-fuchsia-500' },
+  { icon: Box, label: 'Toybox FX', free: 'Basic', pro: 'All', color: 'from-amber-500 to-orange-500' },
+  { icon: Flame, label: 'Meme-Ban powers', free: false, pro: true, color: 'from-red-500 to-rose-500' },
+  { icon: Package, label: 'Locker exclusives', free: false, pro: true, color: 'from-yellow-500 to-amber-500' },
+  { icon: Coins, label: 'Pro marketplace', free: false, pro: true, color: 'from-lime-500 to-green-500' },
   { icon: Palette, label: 'AI themes', free: 'Limited', pro: 'Unlimited', color: 'from-violet-500 to-purple-500' },
-  { icon: Cat, label: 'Profile pet', free: false, pro: true, color: 'from-orange-500 to-red-500' },
-  { icon: Crown, label: 'OG badge', free: false, pro: true, color: 'from-yellow-500 to-amber-500' },
+  { icon: Gift, label: 'Gift Pro to friends', free: false, pro: true, color: 'from-rose-500 to-pink-500' },
+  { icon: Wand2, label: 'AI Humanizer', free: false, pro: 'Soon', color: 'from-indigo-500 to-violet-500', comingSoon: true },
 ];
 
 export function PremiumPerkActions() {
@@ -87,7 +90,12 @@ export function PremiumPerkActions() {
                 <Icon className="h-3.5 w-3.5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium truncate block">{row.label}</span>
+                <span className="text-xs font-medium truncate block">
+                  {row.label}
+                  {row.comingSoon && (
+                    <span className="ml-1.5 text-[8px] uppercase font-bold text-primary/80">Soon</span>
+                  )}
+                </span>
               </div>
               <div className="flex gap-2 shrink-0">
                 <span className="w-16 text-center flex items-center justify-center">
@@ -102,6 +110,8 @@ export function PremiumPerkActions() {
                 <span className="w-16 text-center flex items-center justify-center">
                   {row.pro === true ? (
                     <Check className="h-3 w-3 text-primary" />
+                  ) : row.pro === false ? (
+                    <X className="h-3 w-3 text-destructive/50" />
                   ) : (
                     <span className="text-[10px] text-primary font-medium">{row.pro}</span>
                   )}
