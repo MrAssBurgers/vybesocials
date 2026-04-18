@@ -150,28 +150,38 @@ export function GlobalCallOverlay() {
       case 'disconnected':
         if (!isLeavingRef.current && !p2pEndedRef.current) {
           if (event.reason === 'remote-hangup') {
-            // P2P linger: don't end the call immediately, start 3-minute countdown
-            console.log('[CallOverlay] P2P remote hangup — entering linger mode (3 min)');
+            const isPersistentMode = stateRef.current.call?.callMode === 'persistent';
+            const isGroupCall = stateRef.current.call?.isGroupCall;
             setHasRemoteParticipant(false);
             setRemoteUserLeft(true);
-            const LINGER_SECONDS = 180; // 3 minutes
 
-            setAutoEndCountdown(LINGER_SECONDS);
+            if (isPersistentMode && !isGroupCall) {
+              // Persistent 1:1: stay alive indefinitely until local user leaves
+              console.log('[CallOverlay] Persistent remote hangup — staying alive indefinitely');
+              setAutoEndCountdown(-1);
+              if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+              if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
+            } else {
+              // P2P / default mode: 3-minute linger then auto-end
+              console.log('[CallOverlay] P2P remote hangup — entering linger mode (3 min)');
+              const LINGER_SECONDS = 180;
+              setAutoEndCountdown(LINGER_SECONDS);
 
-            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-            countdownIntervalRef.current = setInterval(() => {
-              setAutoEndCountdown(prev => {
-                if (prev <= 1) { if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current); return 0; }
-                return prev - 1;
-              });
-            }, 1000);
+              if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+              countdownIntervalRef.current = setInterval(() => {
+                setAutoEndCountdown(prev => {
+                  if (prev <= 1) { if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current); return 0; }
+                  return prev - 1;
+                });
+              }, 1000);
 
-            if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
-            autoEndTimerRef.current = setTimeout(() => {
-              p2pEndedRef.current = true;
-              toast.info('Call ended');
-              endCall();
-            }, LINGER_SECONDS * 1000);
+              if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
+              autoEndTimerRef.current = setTimeout(() => {
+                p2pEndedRef.current = true;
+                toast.info('Call ended');
+                endCall();
+              }, LINGER_SECONDS * 1000);
+            }
           }
         }
         break;
