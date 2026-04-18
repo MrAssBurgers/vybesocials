@@ -67,6 +67,9 @@ export default function ClipsPage() {
     enabled: !isSlowConnection 
   });
 
+  // Aggressive: warm next 3 posts' first-frame + thumbnails (no scroll pause)
+  useAheadMediaPreload(shorts as any, currentIndex, 3);
+
   // Infinite scroll trigger
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0,
