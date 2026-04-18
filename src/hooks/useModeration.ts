@@ -18,7 +18,8 @@ export interface ContentFlag {
 
 export interface Report {
   id: string;
-  post_id: string;
+  post_id: string | null;
+  reported_user_id: string | null;
   reporter_id: string;
   reason: string;
   status: string;
@@ -27,7 +28,8 @@ export interface Report {
   admin_notes: string | null;
   created_at: string;
   reporter?: { username: string; avatar_url: string | null };
-  post?: { caption: string | null; media_url: string };
+  reported_user?: { username: string; avatar_url: string | null } | null;
+  post?: { caption: string | null; media_url: string } | null;
 }
 
 export function useContentFlags() {
@@ -54,6 +56,7 @@ export function useReports() {
         .select(`
           *,
           reporter:profiles!reports_reporter_id_fkey(username, avatar_url),
+          reported_user:profiles!reports_reported_user_id_fkey(username, avatar_url),
           post:posts!reports_post_id_fkey(caption, media_url)
         `)
         .order('created_at', { ascending: false });

@@ -59,6 +59,16 @@ export function AdminReportsSection() {
                       {report.status}
                     </Badge>
                   </div>
+                  {report.reported_user && (
+                    <p className="text-xs text-foreground/70">
+                      Target: <span className="font-medium">@{report.reported_user.username}</span>
+                    </p>
+                  )}
+                  {report.post && (
+                    <p className="text-xs text-foreground/70 line-clamp-1">
+                      Post: {report.post.caption || '(media post)'}
+                    </p>
+                  )}
                   <p className="text-sm text-foreground/90 leading-relaxed">{report.reason}</p>
                   <p className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
