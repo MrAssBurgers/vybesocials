@@ -7374,8 +7374,9 @@ export type Database = {
           admin_notes: string | null
           created_at: string
           id: string
-          post_id: string
+          post_id: string | null
           reason: string
+          reported_user_id: string | null
           reporter_id: string
           reviewed_at: string | null
           reviewed_by: string | null
@@ -7385,8 +7386,9 @@ export type Database = {
           admin_notes?: string | null
           created_at?: string
           id?: string
-          post_id: string
+          post_id?: string | null
           reason: string
+          reported_user_id?: string | null
           reporter_id: string
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -7396,8 +7398,9 @@ export type Database = {
           admin_notes?: string | null
           created_at?: string
           id?: string
-          post_id?: string
+          post_id?: string | null
           reason?: string
+          reported_user_id?: string | null
           reporter_id?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -7410,6 +7413,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "posts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_reported_user_id_fkey"
+            columns: ["reported_user_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "reports_reported_user_id_fkey"
+            columns: ["reported_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_reported_user_id_fkey"
+            columns: ["reported_user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_reported_user_id_fkey"
+            columns: ["reported_user_id"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "reports_reporter_id_fkey"
