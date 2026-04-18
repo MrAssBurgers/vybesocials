@@ -128,6 +128,11 @@ export function AnimatedRoutes() {
         <Routes location={location}>
             {/* Public routes - no authentication required */}
             <Route path="/" element={<Landing />} />
+            {/* Common sign-in URL aliases → redirect to landing (which hosts auth) */}
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="/signin" element={<Navigate to="/" replace />} />
+            <Route path="/sign-in" element={<Navigate to="/" replace />} />
+            <Route path="/auth" element={<Navigate to="/" replace />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/cookies" element={<CookiePolicy />} />
