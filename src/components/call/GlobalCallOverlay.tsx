@@ -1000,10 +1000,10 @@ export function GlobalCallOverlay() {
           {!isVideoCall && (
             <div className="absolute inset-0 flex items-center justify-center" onClick={handleScreenTap} onTouchEnd={handleScreenTap}>
               <div className="text-center px-4">
-                <div className="relative inline-block">
+                <div className="relative inline-flex items-center justify-center h-32 w-32 sm:h-40 sm:w-40">
                   {/* Audio Visualizer ring */}
                   {isConnected && (
-                    <div className="absolute inset-0 flex items-center justify-center" style={{ width: 180, height: 180, margin: '-24px' }}>
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center" style={{ width: 180, height: 180 }}>
                       <AudioVisualizer
                         size={180}
                         stream={remoteAudioRef.current?.srcObject as MediaStream | null}
@@ -1015,23 +1015,23 @@ export function GlobalCallOverlay() {
                   <motion.div
                     animate={{ scale: [1, 1.6], opacity: [0.3, 0] }}
                     transition={{ repeat: Infinity, duration: 3, ease: "easeOut" }}
-                    className="absolute inset-0 rounded-full border border-primary/40"
-                    style={{ width: 144, height: 144, margin: '-8px' }}
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/40"
+                    style={{ width: '110%', height: '110%' }}
                   />
                   <motion.div
                     animate={{ scale: [1, 1.4], opacity: [0.2, 0] }}
                     transition={{ repeat: Infinity, duration: 3, delay: 0.8, ease: "easeOut" }}
-                    className="absolute inset-0 rounded-full border border-accent/30"
-                    style={{ width: 144, height: 144, margin: '-8px' }}
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-accent/30"
+                    style={{ width: '110%', height: '110%' }}
                   />
                   <motion.div
                     animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.6, 0.4] }}
                     transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-                    className="absolute inset-0 rounded-full blur-2xl"
-                    style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(280 80% 60% / 0.3))', width: 128, height: 128 }}
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl"
+                    style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(280 80% 60% / 0.3))', width: '100%', height: '100%' }}
                   />
-                  <motion.div animate={{ scale: [1, 1.03, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
-                    <Avatar className="h-32 w-32 sm:h-40 sm:w-40 mx-auto ring-4 ring-white/10 shadow-2xl relative z-10">
+                  <motion.div animate={{ scale: [1, 1.03, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }} className="relative z-10">
+                    <Avatar className="h-32 w-32 sm:h-40 sm:w-40 ring-4 ring-white/10 shadow-2xl">
                       <AvatarImage src={displayAvatar || undefined} />
                       <AvatarFallback className="text-4xl sm:text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
                     </Avatar>
