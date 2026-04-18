@@ -7020,6 +7020,7 @@ export type Database = {
           badge_settings: Json | null
           bio: string | null
           coins_balance: number | null
+          cookie_consent: string | null
           crash_consent: boolean | null
           created_at: string
           date_of_birth: string | null
@@ -7067,6 +7068,7 @@ export type Database = {
           badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
+          cookie_consent?: string | null
           crash_consent?: boolean | null
           created_at?: string
           date_of_birth?: string | null
@@ -7114,6 +7116,7 @@ export type Database = {
           badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
+          cookie_consent?: string | null
           crash_consent?: boolean | null
           created_at?: string
           date_of_birth?: string | null
