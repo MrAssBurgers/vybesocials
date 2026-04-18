@@ -1,4 +1,4 @@
-import { memo, type ReactNode, useRef, useState, useEffect } from 'react';
+import { memo, type ReactNode, useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, Globe, Dna, Wallet, ShoppingBag, Radio, MapPin, PenSquare } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,6 +27,8 @@ import { CreatorAnalytics } from '@/components/analytics/CreatorAnalytics';
 import { BattlePassWidget } from '@/components/gamification/BattlePassWidget';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { useAheadMediaPreload } from '@/hooks/useAheadMediaPreload';
+import { FEED_PRELOAD_AHEAD } from '@/lib/performanceConfig';
 
 const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
 const MemoizedPostCard = memo(PostCard);
