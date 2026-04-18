@@ -361,6 +361,50 @@ function InlinePostList({
     return positions;
   }, [posts.length]);
 
+  // Track which post is currently in view so we can preload the next 3 ahead
+  const [visibleIndex, setVisibleIndex] = useState(0);
+  const visibilityObserverRef = useRef<IntersectionObserver | null>(null);
+  const postRefMap = useRef<Map<number, HTMLElement>>(new Map());
+
+  useEffect(() => {
+    visibilityObserverRef.current?.disconnect();
+    if (posts.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        let best: { idx: number; ratio: number } | null = null;
+        entries.forEach((entry) => {
+          if (entry.intersectionRatio < 0.3) return;
+          const idxAttr = (entry.target as HTMLElement).dataset.postIndex;
+          if (!idxAttr) return;
+          const idx = Number(idxAttr);
+          if (!best || entry.intersectionRatio > best.ratio) {
+            best = { idx, ratio: entry.intersectionRatio };
+          }
+        });
+        if (best) setVisibleIndex(best.idx);
+      },
+      { threshold: [0.3, 0.6] },
+    );
+
+    visibilityObserverRef.current = observer;
+    postRefMap.current.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [posts.length]);
+
+  const registerPostRef = useCallback((index: number) => (el: HTMLElement | null) => {
+    if (el) {
+      el.dataset.postIndex = String(index);
+      postRefMap.current.set(index, el);
+      visibilityObserverRef.current?.observe(el);
+    } else {
+      postRefMap.current.delete(index);
+    }
+  }, []);
+
+  // Aggressively warm next N posts (images decoded, video first-frame ready)
+  useAheadMediaPreload(posts as any, visibleIndex, FEED_PRELOAD_AHEAD);
+
   if (isLoading && posts.length === 0) return <PostSkeletonList count={2} />;
   if (!isLoading && posts.length === 0) {
     const iconMap: Record<string, { icon: typeof Sparkles; gradient: string }> = {
