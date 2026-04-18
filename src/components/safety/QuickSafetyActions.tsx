@@ -57,12 +57,11 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
     triggerHaptic('medium');
 
     try {
-      // Use generic reports insert - the table accepts various content types
       const { error } = await supabase
         .from('reports')
         .insert({
           reporter_id: profile.id,
-          post_id: targetUserId, // Using post_id field for user reports
+          reported_user_id: targetUserId,
           reason: selectedReason,
         } as any);
 
