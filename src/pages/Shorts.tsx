@@ -9,6 +9,7 @@ import { useInView } from 'react-intersection-observer';
 import { X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
+import { useAheadMediaPreload } from '@/hooks/useAheadMediaPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
@@ -66,10 +67,13 @@ export default function ClipsPage() {
     enabled: !isSlowConnection 
   });
 
+  // Aggressive: warm next 3 posts' first-frame + thumbnails (no scroll pause)
+  useAheadMediaPreload(shorts as any, currentIndex, 3);
+
   // Infinite scroll trigger
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0,
-    rootMargin: '200px',
+    rootMargin: '1200px',
   });
 
   // Fetch next page when approaching end
