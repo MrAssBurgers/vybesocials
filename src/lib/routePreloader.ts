@@ -98,6 +98,9 @@ export function preloadCriticalRoutes(): void {
     criticalRoutes.forEach(route => {
       preloadRoute(route);
     });
+
+    // Preload Framer Motion chunk so first animated route is instant
+    import('framer-motion').catch(() => {});
   }, { timeout: 2000 });
 }
 

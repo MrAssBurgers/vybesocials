@@ -4,6 +4,11 @@ import App from "./App.tsx";
 import "./index.css";
 import { initializeNativePlugins, isNativePlatform, isWeb } from "./lib/capacitor";
 import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled } from "./lib/serviceWorker";
+import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
+
+// Warm up keyframes and preload Framer Motion at idle so first animations are jank-free
+warmupAnimations();
+preloadFramerMotion();
 
 function isPreviewOneSignalDomainError(message: unknown) {
   return typeof message === 'string' && message.includes('Can only be used on: https://vybehub.app');
