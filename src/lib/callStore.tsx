@@ -128,6 +128,65 @@ let globalCallState: CallStoreState = initialState;
 let globalIncomingCall: CallData | null = null;
 let globalLingeringCall: CallData | null = null;
 
+// ── Auto-reconnect: persistence helpers ───────────────────────
+const SNAPSHOT_KEY = 'vybe-active-call';
+const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;        // 30 min hard cap
+const DEFAULT_REJOIN_WINDOW_MS = 60 * 1000;        // 60s for non-persistent calls
+
+interface CallSnapshot {
+  callId: string;
+  conversationId: string;
+  callType: CallType;
+  callMode: CallMode;
+  isGroupCall?: boolean;
+  groupName?: string;
+  groupAvatar?: string | null;
+  receiver: CallUser;
+  caller: CallUser;
+  isInitiator: boolean;
+  roomName: string;
+  startedAt: number;
+}
+
+function persistCallSnapshot(call: CallData) {
+  try {
+    const snap: CallSnapshot = {
+      callId: call.id,
+      conversationId: call.conversationId,
+      callType: call.callType,
+      callMode: call.callMode,
+      isGroupCall: call.isGroupCall,
+      groupName: call.groupName,
+      groupAvatar: call.groupAvatar,
+      receiver: call.receiver,
+      caller: call.caller,
+      isInitiator: call.isInitiator,
+      roomName: call.roomName,
+      startedAt: Date.now(),
+    };
+    sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap));
+  } catch {}
+}
+
+function clearCallSnapshot() {
+  try { sessionStorage.removeItem(SNAPSHOT_KEY); } catch {}
+}
+
+function readCallSnapshot(): CallSnapshot | null {
+  try {
+    const raw = sessionStorage.getItem(SNAPSHOT_KEY);
+    if (!raw) return null;
+    const snap = JSON.parse(raw) as CallSnapshot;
+    if (!snap?.callId || Date.now() - snap.startedAt > SNAPSHOT_MAX_AGE_MS) {
+      sessionStorage.removeItem(SNAPSHOT_KEY);
+      return null;
+    }
+    return snap;
+  } catch {
+    return null;
+  }
+}
+
 export function CallStoreProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
   const [state, setStateInternal] = useState<CallStoreState>(() => globalCallState);
