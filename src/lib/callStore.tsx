@@ -17,6 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
+import { toast } from 'sonner';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
@@ -128,6 +129,65 @@ let globalCallState: CallStoreState = initialState;
 let globalIncomingCall: CallData | null = null;
 let globalLingeringCall: CallData | null = null;
 
+// ── Auto-reconnect: persistence helpers ───────────────────────
+const SNAPSHOT_KEY = 'vybe-active-call';
+const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;        // 30 min hard cap
+const DEFAULT_REJOIN_WINDOW_MS = 60 * 1000;        // 60s for non-persistent calls
+
+interface CallSnapshot {
+  callId: string;
+  conversationId: string;
+  callType: CallType;
+  callMode: CallMode;
+  isGroupCall?: boolean;
+  groupName?: string;
+  groupAvatar?: string | null;
+  receiver: CallUser;
+  caller: CallUser;
+  isInitiator: boolean;
+  roomName: string;
+  startedAt: number;
+}
+
+function persistCallSnapshot(call: CallData) {
+  try {
+    const snap: CallSnapshot = {
+      callId: call.id,
+      conversationId: call.conversationId,
+      callType: call.callType,
+      callMode: call.callMode,
+      isGroupCall: call.isGroupCall,
+      groupName: call.groupName,
+      groupAvatar: call.groupAvatar,
+      receiver: call.receiver,
+      caller: call.caller,
+      isInitiator: call.isInitiator,
+      roomName: call.roomName,
+      startedAt: Date.now(),
+    };
+    sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap));
+  } catch {}
+}
+
+function clearCallSnapshot() {
+  try { sessionStorage.removeItem(SNAPSHOT_KEY); } catch {}
+}
+
+function readCallSnapshot(): CallSnapshot | null {
+  try {
+    const raw = sessionStorage.getItem(SNAPSHOT_KEY);
+    if (!raw) return null;
+    const snap = JSON.parse(raw) as CallSnapshot;
+    if (!snap?.callId || Date.now() - snap.startedAt > SNAPSHOT_MAX_AGE_MS) {
+      sessionStorage.removeItem(SNAPSHOT_KEY);
+      return null;
+    }
+    return snap;
+  } catch {
+    return null;
+  }
+}
+
 export function CallStoreProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
   const [state, setStateInternal] = useState<CallStoreState>(() => globalCallState);
@@ -138,6 +198,14 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       const next = typeof newState === 'function' ? newState(prev) : newState;
       globalCallState = next;
       if (import.meta.env.DEV) console.log('[CallStore] State:', next.phase, '| Mode:', next.call?.callMode || 'none', '| Call:', next.call?.id || 'none');
+
+      // Persist snapshot for refresh-resume; clear on idle/error
+      if (next.call && (next.phase === 'joining' || next.phase === 'connected' || next.phase === 'switching')) {
+        persistCallSnapshot(next.call);
+      } else if (next.phase === 'idle' || next.phase === 'error') {
+        clearCallSnapshot();
+      }
+
       return next;
     });
   }, []);
@@ -268,6 +336,101 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       if (pollTimeoutId) clearTimeout(pollTimeoutId);
     };
   }, [profile?.id, processIncomingCall]);
+
+  // ── AUTO-RECONNECT on page refresh ─────────────────────────
+  // If a snapshot exists and the call is still alive in DB, silently rejoin.
+  const reconnectAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (!profile?.id) return;
+    if (reconnectAttemptedRef.current) return;
+    if (globalCallState.phase !== 'idle') return;
+
+    const snap = readCallSnapshot();
+    if (!snap) return;
+
+    // For non-persistent (default) calls, only resume if refresh was within 60s
+    const age = Date.now() - snap.startedAt;
+    if (snap.callMode !== 'persistent' && age > DEFAULT_REJOIN_WINDOW_MS) {
+      clearCallSnapshot();
+      return;
+    }
+
+    reconnectAttemptedRef.current = true;
+
+    const tryReconnect = async () => {
+      const toastId = toast.loading('Reconnecting to call…');
+      const failTimer = setTimeout(() => {
+        toast.dismiss(toastId);
+        clearCallSnapshot();
+      }, 8000);
+
+      try {
+        // Verify the call is still active
+        const { data: callRow, error: callErr } = await supabase
+          .from('calls')
+          .select('id, status, call_mode, call_type, conversation_id, room_name')
+          .eq('id', snap.callId)
+          .single();
+
+        if (callErr || !callRow || callRow.status === 'ended' || callRow.status === 'declined' || callRow.status === 'missed') {
+          clearTimeout(failTimer);
+          toast.dismiss(toastId);
+          clearCallSnapshot();
+          return;
+        }
+
+        const mode = (callRow.call_mode as CallMode) || snap.callMode;
+
+        // Get a fresh LiveKit token if persistent
+        let token = '';
+        let livekitUrl = '';
+        let resolvedRoom = callRow.room_name || snap.roomName;
+        if (mode === 'persistent') {
+          const { data: tokenData, error: tokenErr } = await supabase.functions.invoke('livekit-token', {
+            body: {
+              conversationId: snap.conversationId,
+              callType: snap.callType,
+              callId: snap.callId,
+            },
+          });
+          if (tokenErr || !tokenData?.token) {
+            throw new Error(tokenErr?.message || 'Failed to fetch token');
+          }
+          token = tokenData.token;
+          livekitUrl = tokenData.url;
+          resolvedRoom = tokenData.roomName || resolvedRoom;
+        }
+
+        const callData: CallData = {
+          id: snap.callId,
+          roomName: resolvedRoom,
+          livekitUrl,
+          token,
+          callType: snap.callType,
+          callMode: mode,
+          conversationId: snap.conversationId,
+          caller: snap.caller,
+          receiver: snap.receiver,
+          isInitiator: snap.isInitiator,
+          isGroupCall: snap.isGroupCall,
+          groupName: snap.groupName,
+          groupAvatar: snap.groupAvatar,
+        };
+
+        clearTimeout(failTimer);
+        toast.dismiss(toastId);
+        toast.success('Reconnected', { duration: 1500 });
+        setState({ phase: 'joining', call: callData, error: null });
+      } catch (err) {
+        clearTimeout(failTimer);
+        toast.dismiss(toastId);
+        clearCallSnapshot();
+        if (import.meta.env.DEV) console.warn('[CallStore] Auto-reconnect failed:', err);
+      }
+    };
+
+    tryReconnect();
+  }, [profile?.id, setState]);
 
   // Listen for call status changes (remote hangup) AND call_mode changes (mode switch)
   useEffect(() => {

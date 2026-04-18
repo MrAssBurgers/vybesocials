@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useAnimationControls } from 'framer-motion';
 import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizontal, RefreshCw, Minimize2, Crown, Zap, Smile } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
@@ -98,6 +98,19 @@ export function GlobalCallOverlay() {
   const [showFooter, setShowFooter] = useState(true);
   const headerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const footerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Call container + PiP corner snap controls
+  const callContainerRef = useRef<HTMLDivElement>(null);
+  const pipControls = useAnimationControls();
+  const pipPositionRef = useRef<{ corner: 'tl' | 'tr' | 'bl' | 'br' }>({ corner: 'tr' });
+
+  // Animate PiP in when local video becomes available; reset position
+  useEffect(() => {
+    pipControls.start({ x: 0, y: 0, scale: 1, opacity: 1, transition: { duration: 0.3 } });
+  }, [pipControls]);
+
+  // Screen wake lock — keep mic/media alive during calls
+  const wakeLockRef = useRef<any>(null);
 
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
@@ -587,9 +600,27 @@ export function GlobalCallOverlay() {
     return () => clearInterval(interval);
   }, [state.phase]);
 
-  // Visibility change — resume media when returning from background
+  // Track latest mute state without re-binding listeners
+  const isMutedRef = useRef(isMuted);
+  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+
+  // Visibility change — resume media + force-re-enable mic when returning from background
   useEffect(() => {
     if (state.phase !== 'connected') return;
+
+    const reEnableMic = async () => {
+      // Only re-enable if user hasn't manually muted
+      if (isMutedRef.current) return;
+      try {
+        if (stateRef.current.call?.callMode === 'persistent' && roomRef.current) {
+          await roomRef.current.localParticipant.setMicrophoneEnabled(true);
+        } else if (p2pRef.current) {
+          p2pRef.current.setMicEnabled(true);
+        }
+      } catch (err) {
+        if (import.meta.env.DEV) console.warn('[CallOverlay] Mic re-enable failed:', err);
+      }
+    };
 
     const handleVisibility = async () => {
       if (document.visibilityState === 'visible') {
@@ -602,8 +633,14 @@ export function GlobalCallOverlay() {
         if (remoteVideoRef.current?.srcObject) {
           remoteVideoRef.current.play().catch(() => {});
         }
+        // Force-resume the local mic track (OS may suspend it on background)
+        await reEnableMic();
+        // Re-acquire wake lock if it was released
+        requestWakeLock();
       }
     };
+
+    const handleFocus = () => { reEnableMic(); };
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (state.phase === 'connected' || state.phase === 'joining') {
@@ -613,12 +650,45 @@ export function GlobalCallOverlay() {
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [state.phase]);
+
+  // Wake lock — prevent screen sleep from suspending media tracks
+  const requestWakeLock = useCallback(async () => {
+    try {
+      if ('wakeLock' in navigator && !wakeLockRef.current) {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        wakeLockRef.current.addEventListener?.('release', () => {
+          wakeLockRef.current = null;
+        });
+      }
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[CallOverlay] WakeLock failed:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (state.phase === 'connected') {
+      requestWakeLock();
+    } else {
+      if (wakeLockRef.current) {
+        try { wakeLockRef.current.release?.(); } catch {}
+        wakeLockRef.current = null;
+      }
+    }
+    return () => {
+      if (wakeLockRef.current && state.phase !== 'connected') {
+        try { wakeLockRef.current.release?.(); } catch {}
+        wakeLockRef.current = null;
+      }
+    };
+  }, [state.phase, requestWakeLock]);
 
   // ── Control Handlers ──────────────────────────────────────
 
@@ -897,6 +967,7 @@ export function GlobalCallOverlay() {
       {/* Main Call UI */}
       {isVisible && !isRinging && (
         <div
+          ref={callContainerRef}
           className="fixed inset-0 z-[99999] transition-opacity duration-300"
           style={{
             opacity: isMinimized ? 0 : 1,
@@ -993,13 +1064,46 @@ export function GlobalCallOverlay() {
               {hasLocalVideo && !isVideoOff && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
+                  animate={pipControls}
                   drag
                   dragMomentum={false}
-                  dragElastic={0.08}
-                  dragConstraints={{ top: 16, left: 16, right: 16, bottom: 16 }}
+                  dragElastic={0.12}
+                  dragConstraints={callContainerRef}
                   whileDrag={{ scale: 1.05, cursor: 'grabbing' }}
                   whileTap={{ scale: 0.98 }}
+                  onDragEnd={(_, info) => {
+                    const container = callContainerRef.current;
+                    if (!container) return;
+                    const cRect = container.getBoundingClientRect();
+                    const pipW = 128; // ~w-32 sm
+                    const pipH = 192; // ~h-48 sm
+                    const margin = 12;
+                    // Use the pointer release position relative to the container
+                    const px = info.point.x - cRect.left;
+                    const py = info.point.y - cRect.top;
+                    const isLeft = px < cRect.width / 2;
+                    const isTop = py < cRect.height / 2;
+                    const corner = `${isTop ? 't' : 'b'}${isLeft ? 'l' : 'r'}` as 'tl' | 'tr' | 'bl' | 'br';
+                    pipPositionRef.current.corner = corner;
+                    // Calculate target offsets relative to its initial top-right anchor
+                    // The element is positioned via Tailwind at top-20 right-3 (sm: top-24 right-4)
+                    // We translate from that anchor to reach each corner
+                    const baseTop = 80; // top-20
+                    const baseRight = 12; // right-3
+                    const targetX = isLeft
+                      ? -(cRect.width - pipW - baseRight - margin)
+                      : 0;
+                    const targetY = isTop
+                      ? 0
+                      : (cRect.height - pipH - baseTop - margin - 80); // leave room for footer
+                    pipControls.start({
+                      x: targetX,
+                      y: targetY,
+                      scale: 1,
+                      opacity: 1,
+                      transition: { type: 'spring', stiffness: 400, damping: 32 },
+                    });
+                  }}
                   className="absolute top-20 sm:top-24 right-3 sm:right-4 w-24 h-36 sm:w-32 sm:h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/30 z-30 cursor-grab touch-none active:ring-primary/60"
                   style={{ touchAction: 'none' }}
                 >
@@ -1112,9 +1216,18 @@ export function GlobalCallOverlay() {
                 )}
                 {isConnected && remoteUserLeft && (
                   <div className="mt-3 sm:mt-4 text-center">
-                    <p className="text-white/50 text-xs sm:text-sm">{displayName} left · They can rejoin</p>
-                    <p className="text-white/70 text-base sm:text-lg font-mono mt-1">{Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
-                    <p className="text-white/40 text-xs mt-1">They can rejoin</p>
+                    {autoEndCountdown === -1 ? (
+                      <>
+                        <p className="text-white/60 text-sm sm:text-base">{displayName} left</p>
+                        <p className="text-white/40 text-xs sm:text-sm mt-1">They can rejoin anytime</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-white/50 text-xs sm:text-sm">{displayName} left · They can rejoin</p>
+                        <p className="text-white/70 text-base sm:text-lg font-mono mt-1">{Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
+                        <p className="text-white/40 text-xs mt-1">Call auto-ends</p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1236,7 +1349,7 @@ export function GlobalCallOverlay() {
               {/* Secondary row (smaller) */}
               <div className="inline-flex items-center gap-2 p-1.5 rounded-2xl backdrop-blur-xl bg-black/20 border border-white/[0.05]">
                 {/* Settings */}
-                <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('light'); setSettingsOpen(true); }} disabled={!isConnected} className={cn("h-9 w-9 sm:h-10 sm:w-10 rounded-lg flex-shrink-0 flex items-center justify-center transition-all", "bg-white/10 text-white/70 hover:bg-white/20", "disabled:opacity-50 disabled:cursor-not-allowed")}>
+                <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('light'); setSettingsOpen(true); }} className={cn("h-9 w-9 sm:h-10 sm:w-10 rounded-lg flex-shrink-0 flex items-center justify-center transition-all", "bg-white/10 text-white/70 hover:bg-white/20")}>
                   <SlidersHorizontal className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </motion.button>
 
