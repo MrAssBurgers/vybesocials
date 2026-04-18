@@ -595,9 +595,27 @@ export function GlobalCallOverlay() {
     return () => clearInterval(interval);
   }, [state.phase]);
 
-  // Visibility change — resume media when returning from background
+  // Track latest mute state without re-binding listeners
+  const isMutedRef = useRef(isMuted);
+  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+
+  // Visibility change — resume media + force-re-enable mic when returning from background
   useEffect(() => {
     if (state.phase !== 'connected') return;
+
+    const reEnableMic = async () => {
+      // Only re-enable if user hasn't manually muted
+      if (isMutedRef.current) return;
+      try {
+        if (stateRef.current.call?.callMode === 'persistent' && roomRef.current) {
+          await roomRef.current.localParticipant.setMicrophoneEnabled(true);
+        } else if (p2pRef.current) {
+          p2pRef.current.setMicEnabled(true);
+        }
+      } catch (err) {
+        if (import.meta.env.DEV) console.warn('[CallOverlay] Mic re-enable failed:', err);
+      }
+    };
 
     const handleVisibility = async () => {
       if (document.visibilityState === 'visible') {
@@ -610,8 +628,14 @@ export function GlobalCallOverlay() {
         if (remoteVideoRef.current?.srcObject) {
           remoteVideoRef.current.play().catch(() => {});
         }
+        // Force-resume the local mic track (OS may suspend it on background)
+        await reEnableMic();
+        // Re-acquire wake lock if it was released
+        requestWakeLock();
       }
     };
+
+    const handleFocus = () => { reEnableMic(); };
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (state.phase === 'connected' || state.phase === 'joining') {
@@ -621,12 +645,45 @@ export function GlobalCallOverlay() {
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [state.phase]);
+
+  // Wake lock — prevent screen sleep from suspending media tracks
+  const requestWakeLock = useCallback(async () => {
+    try {
+      if ('wakeLock' in navigator && !wakeLockRef.current) {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        wakeLockRef.current.addEventListener?.('release', () => {
+          wakeLockRef.current = null;
+        });
+      }
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[CallOverlay] WakeLock failed:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (state.phase === 'connected') {
+      requestWakeLock();
+    } else {
+      if (wakeLockRef.current) {
+        try { wakeLockRef.current.release?.(); } catch {}
+        wakeLockRef.current = null;
+      }
+    }
+    return () => {
+      if (wakeLockRef.current && state.phase !== 'connected') {
+        try { wakeLockRef.current.release?.(); } catch {}
+        wakeLockRef.current = null;
+      }
+    };
+  }, [state.phase, requestWakeLock]);
 
   // ── Control Handlers ──────────────────────────────────────
 
