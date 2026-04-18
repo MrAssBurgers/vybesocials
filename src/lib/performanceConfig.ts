@@ -65,11 +65,11 @@ export const getImageConfig = () => {
     // Load lower quality images on slow connections
     quality: connection?.effectiveType === '4g' ? 'high' : 'medium',
     
-    // Lazy load more aggressively on low-end devices
-    lazyLoadMargin: lowEnd ? '50px' : '200px',
+    // Lazy load aggressively — start fetching well before view to eliminate pop-in
+    lazyLoadMargin: lowEnd ? '200px' : '600px',
     
-    // Limit concurrent image loads
-    maxConcurrentLoads: lowEnd ? 2 : 6,
+    // Limit concurrent image loads — bumped for fast connections
+    maxConcurrentLoads: lowEnd ? 2 : 10,
   };
 };
 
