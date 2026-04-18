@@ -73,7 +73,7 @@ export default function ClipsPage() {
   // Infinite scroll trigger
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0,
-    rootMargin: '200px',
+    rootMargin: '1200px',
   });
 
   // Fetch next page when approaching end
