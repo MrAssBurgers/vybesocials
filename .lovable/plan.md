@@ -1,52 +1,60 @@
 
-The user wants:
-1. Preload all animations (so they don't stutter on first play)
-2. Speed up image loading
-3. Speed up post loading
+User wants: when scrolling the feed, the next 3 posts must already be fully loaded (media decoded, ready to display) before the user reaches them. No waiting, no pop-in.
 
-Let me think about what's already in place based on the files I can see:
-- `useSmartPreload.ts` exists with network-adaptive preloading
-- `useNetworkStatus.ts` for adaptive quality
-- `performanceConfig.ts` with cache config (10min stale, 1hr gc)
-- `routePreloader.ts` for route component preloading
-- Animations defined in `src/index.css` (gradient flows, etc.)
+Current state (from files I've seen):
+- `useInfinitePosts.ts` already pre-signs URLs and calls `preloadSignedMedia` (creates `new Image()` for thumbnails) on every page fetch.
+- `useSmartPreload.ts` exists with `preloadAhead` config and idle-callback preloading, but it's index-driven and pauses during scroll.
+- `performanceConfig.ts` has `lazyLoadMargin: 600px` and `maxConcurrentLoads: 10`.
+- Pagination only fetches next page when `nextPage` triggers (likely at the very end via IntersectionObserver).
 
-Let me check what likely exists for posts/images to plan properly.
+Problems:
+1. Next-page fetch likely fires too late (at the last visible post), so user hits a loading state.
+2. `useSmartPreload` pauses during active scroll — exactly when we need it most for the next 3 posts.
+3. Videos only get metadata preloaded, not the first frame/buffer.
+4. No explicit "+3 ahead" media warming tied to the currently-viewed post index.
 
-## Plan: Faster Posts, Images & Animation Preloading
+## Plan
 
-### 1. Image Loading Speed
-- **Eager-decode hero images**: Add `decoding="async"` + `fetchpriority="high"` to above-the-fold post images (first 3 in feed, first story, avatars in viewport).
-- **Progressive blur-up**: Use Supabase storage transform `?width=40&quality=20` as a tiny placeholder while full image loads — instant visual feedback.
-- **Preconnect to Supabase storage**: Add `<link rel="preconnect">` and `<link rel="dns-prefetch">` to `index.html` for the storage CDN so the first image request skips DNS+TLS handshake (~200-400ms saved).
-- **Increase concurrent loads** in `performanceConfig.ts` from 6 → 10 on fast connections.
-- **Aggressive lazy-load margin**: Bump `lazyLoadMargin` from 200px → 600px so images start fetching well before they enter view.
+### 1. Aggressive next-page prefetch (`useInfinitePosts.ts`)
+- Expose a helper or auto-trigger so `fetchNextPage()` fires when user is within **5 posts** of the end (not at the end). This keeps the buffer always full.
+- In the feed component, call `fetchNextPage()` early via an IntersectionObserver placed on the post 5 from the bottom.
 
-### 2. Post Loading Speed
-- **Prefetch next page** of feed when user scrolls past 60% of current page (instead of waiting for end).
-- **Increase React Query `staleTime`** for feeds from 10min → keep, but add `placeholderData: keepPreviousData` so pagination feels instant.
-- **Preload first 5 post media URLs** as soon as the feed query resolves (using existing `useSmartPreload`).
-- **Skeleton → content fade**: ensure feed renders skeletons instantly while data loads (verify already in place).
+### 2. New hook: `useAheadMediaPreload(posts, currentIndex, ahead=3)`
+- Replaces the scroll-pausing logic of `useSmartPreload` for feed media.
+- For the next N posts after `currentIndex`:
+  - Pre-sign URLs (already cached via `signedUrlCache`).
+  - Create `Image()` objects for thumbnails AND full media (images).
+  - For videos: create `<video preload="auto">` elements with `currentTime = 0.1` to force first-frame decode (small buffer, ~100KB).
+- Run **immediately** on index change — do NOT pause during scroll. The user is scrolling toward these posts; we need them ready.
+- Cap concurrent loads at 6 so we don't hammer the network.
+- Use a ref-based dedupe set so we never re-fetch the same URL.
 
-### 3. Animation Preloading
-- **Force GPU layer promotion** on key animated elements at mount via `transform: translateZ(0)` + `will-change` set briefly then removed (avoid memory bloat).
-- **Preload Framer Motion** chunk on app boot so first animation doesn't wait for chunk download.
-- **Preload Lottie/animated assets**: if the app uses any Lottie JSON (splash, badges, reactions), fetch them at idle time after initial render.
-- **Warm CSS keyframes**: trigger a hidden 1px element with each major keyframe animation at app boot so the browser compiles them once — eliminates first-play jank for `gradient-flow`, `fade-in`, `scale-in`, etc.
+### 3. Wire into the feed component
+- Find the active feed component (likely `src/pages/Home.tsx` or `src/components/feed/FeedContainer.tsx` — will locate during implementation).
+- Track `currentVisibleIndex` via IntersectionObserver on each post card (threshold 0.5).
+- Pass `posts` array + `currentVisibleIndex` to `useAheadMediaPreload`.
+- Also call `fetchNextPage()` when `currentVisibleIndex >= posts.length - 5`.
 
-### 4. Files to touch
-- `index.html` — preconnect/dns-prefetch tags
-- `src/lib/performanceConfig.ts` — bump lazy margin & concurrent loads
-- `src/lib/routePreloader.ts` — add Framer Motion preload
-- `src/components/feed/*` (Home/feed component) — fetchpriority, prefetch next page, preload media URLs
-- `src/main.tsx` or `src/App.tsx` — add animation warm-up component on boot
-- New: `src/lib/animationWarmup.ts` — invisible element that runs each keyframe once at idle
-- New: `src/components/common/ProgressiveImage.tsx` (if not present) — blur-up placeholder wrapper
+### 4. Video first-frame warming
+- New helper `warmVideoFirstFrame(url)` in `useSmartPreload.ts`:
+  - Creates hidden `<video>`, sets `preload="auto"`, `muted=true`, seeks to 0.1s, waits for `loadeddata`, then removes element (browser keeps decoded frame in cache).
+- Used by `useAheadMediaPreload` for video posts.
 
-### 5. Expected wins
-- First image visible: ~300-500ms faster (preconnect + fetchpriority)
-- Pagination: feels instant (keepPreviousData + 60% prefetch)
-- Animations: zero first-play stutter (keyframe warm-up)
-- Scroll: smoother (larger lazy margin = no pop-in)
+### 5. Bump preload buffer in performance config
+- `maxConcurrentLoads`: 10 → 12 on fast connections.
+- Add `feedPreloadAhead: 3` constant for consistency.
 
-No database migrations needed. No new dependencies.
+### 6. Files to touch
+- New: `src/hooks/useAheadMediaPreload.ts`
+- Edit: `src/hooks/useSmartPreload.ts` (add `warmVideoFirstFrame` export)
+- Edit: `src/lib/performanceConfig.ts` (bump concurrent loads, add constant)
+- Edit: feed container/page (locate during implementation — Home, Clips, FeedContainer)
+- Edit: `src/hooks/useInfinitePosts.ts` (no changes needed unless prefetch trigger needs adjustment)
+
+### Expected result
+- Posts within 3 ahead of viewport are fully decoded and ready before user reaches them.
+- Next page fetched 5 posts before end, never blocking.
+- Videos show first frame instantly on entry.
+- Zero loading spinners during normal scroll.
+
+No DB changes. No new dependencies.
