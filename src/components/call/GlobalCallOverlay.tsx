@@ -125,12 +125,17 @@ export function GlobalCallOverlay() {
     el.play().catch(() => {});
   }, []);
 
+  const localTrackRef = useRef<MediaStreamTrack | null>(null);
   const attachLocalVideo = useCallback((track: MediaStreamTrack) => {
-    const el = localVideoRef.current;
-    if (!el) return;
-    el.srcObject = new MediaStream([track]);
-    el.play().catch(() => {});
+    localTrackRef.current = track;
     setHasLocalVideo(true);
+    // Defer attachment to next tick so the <video> element is mounted
+    requestAnimationFrame(() => {
+      const el = localVideoRef.current;
+      if (!el) return;
+      el.srcObject = new MediaStream([track]);
+      el.play().catch(() => {});
+    });
   }, []);
 
   // ── P2P Connection ────────────────────────────────────────
