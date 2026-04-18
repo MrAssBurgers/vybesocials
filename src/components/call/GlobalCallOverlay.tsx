@@ -104,6 +104,11 @@ export function GlobalCallOverlay() {
   const pipControls = useAnimationControls();
   const pipPositionRef = useRef<{ corner: 'tl' | 'tr' | 'bl' | 'br' }>({ corner: 'tr' });
 
+  // Animate PiP in when local video becomes available; reset position
+  useEffect(() => {
+    pipControls.start({ x: 0, y: 0, scale: 1, opacity: 1, transition: { duration: 0.3 } });
+  }, [pipControls]);
+
   // Screen wake lock — keep mic/media alive during calls
   const wakeLockRef = useRef<any>(null);
 
