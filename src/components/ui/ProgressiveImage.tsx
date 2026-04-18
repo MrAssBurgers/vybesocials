@@ -7,13 +7,15 @@ interface ProgressiveImageProps {
   className?: string;
   containerClassName?: string;
   aspectRatio?: string;
+  /** Mark as above-the-fold for fetchpriority=high + eager loading */
+  priority?: boolean;
 }
 
 /**
  * Progressive image component with blur-up loading effect.
  * Shows a blurred gradient placeholder that smoothly transitions to the full image.
  */
-export function ProgressiveImage({ src, alt = '', className, containerClassName, aspectRatio }: ProgressiveImageProps) {
+export function ProgressiveImage({ src, alt = '', className, containerClassName, aspectRatio, priority = false }: ProgressiveImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -46,8 +48,10 @@ export function ProgressiveImage({ src, alt = '', className, containerClassName,
         ref={imgRef}
         src={src}
         alt={alt}
-        loading="lazy"
+        loading={priority ? 'eager' : 'lazy'}
         decoding="async"
+        // @ts-expect-error fetchpriority is a valid HTML attribute, missing in older React types
+        fetchpriority={priority ? 'high' : 'auto'}
         onLoad={() => setLoaded(true)}
         onError={() => setError(true)}
         className={cn(
@@ -59,3 +63,4 @@ export function ProgressiveImage({ src, alt = '', className, containerClassName,
     </div>
   );
 }
+
