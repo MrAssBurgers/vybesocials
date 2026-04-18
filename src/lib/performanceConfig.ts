@@ -69,9 +69,12 @@ export const getImageConfig = () => {
     lazyLoadMargin: lowEnd ? '200px' : '600px',
     
     // Limit concurrent image loads — bumped for fast connections
-    maxConcurrentLoads: lowEnd ? 2 : 10,
+    maxConcurrentLoads: lowEnd ? 2 : 12,
   };
 };
+
+// Feed-specific preload buffer — how many posts ahead to fully warm
+export const FEED_PRELOAD_AHEAD = 3;
 
 // Cache configuration
 export const CACHE_CONFIG = {
