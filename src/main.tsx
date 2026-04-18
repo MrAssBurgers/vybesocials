@@ -14,6 +14,16 @@ function isPreviewOneSignalDomainError(message: unknown) {
   return typeof message === 'string' && message.includes('Can only be used on: https://vybehub.app');
 }
 
+// Suppress benign third-party service worker postMessage warnings
+const originalConsoleError = console.error;
+console.error = (...args: unknown[]) => {
+  const first = args[0];
+  if (typeof first === 'string' && first.includes('[WM] No SW registration for postMessage')) {
+    return;
+  }
+  originalConsoleError.apply(console, args);
+};
+
 // Initialize native plugins if running on native platform
 if (isNativePlatform) {
   initializeNativePlugins().then(() => {
