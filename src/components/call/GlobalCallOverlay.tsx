@@ -1011,8 +1011,8 @@ export function GlobalCallOverlay() {
             <div className="absolute inset-0 flex items-center justify-center" onClick={handleScreenTap} onTouchEnd={handleScreenTap}>
               <div className="text-center px-4">
                 <div className="relative inline-flex items-center justify-center h-32 w-32 sm:h-40 sm:w-40">
-                  {/* Audio Visualizer ring */}
-                  {isConnected && (
+                  {/* Audio Visualizer ring — only when remote is present */}
+                  {isConnected && !remoteUserLeft && (
                     <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center" style={{ width: 180, height: 180 }}>
                       <AudioVisualizer
                         size={180}
@@ -1021,27 +1021,61 @@ export function GlobalCallOverlay() {
                       />
                     </div>
                   )}
-                  {/* Outer glow rings */}
+
+                  {/* Active call rings (remote present) */}
+                  {!remoteUserLeft && (
+                    <>
+                      <motion.div
+                        animate={{ scale: [1, 1.6], opacity: [0.3, 0] }}
+                        transition={{ repeat: Infinity, duration: 3, ease: "easeOut" }}
+                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/40"
+                        style={{ width: '110%', height: '110%' }}
+                      />
+                      <motion.div
+                        animate={{ scale: [1, 1.4], opacity: [0.2, 0] }}
+                        transition={{ repeat: Infinity, duration: 3, delay: 0.8, ease: "easeOut" }}
+                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-accent/30"
+                        style={{ width: '110%', height: '110%' }}
+                      />
+                      <motion.div
+                        animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.6, 0.4] }}
+                        transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl"
+                        style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(280 80% 60% / 0.3))', width: '100%', height: '100%' }}
+                      />
+                    </>
+                  )}
+
+                  {/* Standby aura (remote left) — single synchronized 6s breathing cycle */}
+                  {remoteUserLeft && (
+                    <>
+                      <motion.div
+                        animate={{ scale: [1, 1.18, 1], opacity: [0.35, 0.6, 0.35] }}
+                        transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
+                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/40"
+                        style={{ width: '115%', height: '115%' }}
+                      />
+                      <motion.div
+                        animate={{ scale: [1, 1.18, 1], opacity: [0.15, 0.3, 0.15] }}
+                        transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
+                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30"
+                        style={{ width: '135%', height: '135%' }}
+                      />
+                      <motion.div
+                        animate={{ scale: [1, 1.06, 1], opacity: [0.25, 0.4, 0.25] }}
+                        transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
+                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl"
+                        style={{ background: 'radial-gradient(circle, hsl(40 90% 70% / 0.35), transparent 70%)', width: '100%', height: '100%' }}
+                      />
+                    </>
+                  )}
+
                   <motion.div
-                    animate={{ scale: [1, 1.6], opacity: [0.3, 0] }}
-                    transition={{ repeat: Infinity, duration: 3, ease: "easeOut" }}
-                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/40"
-                    style={{ width: '110%', height: '110%' }}
-                  />
-                  <motion.div
-                    animate={{ scale: [1, 1.4], opacity: [0.2, 0] }}
-                    transition={{ repeat: Infinity, duration: 3, delay: 0.8, ease: "easeOut" }}
-                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-accent/30"
-                    style={{ width: '110%', height: '110%' }}
-                  />
-                  <motion.div
-                    animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.6, 0.4] }}
-                    transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl"
-                    style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(280 80% 60% / 0.3))', width: '100%', height: '100%' }}
-                  />
-                  <motion.div animate={{ scale: [1, 1.03, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }} className="relative z-10">
-                    <Avatar className="h-32 w-32 sm:h-40 sm:w-40 ring-4 ring-white/10 shadow-2xl">
+                    animate={remoteUserLeft ? { scale: [1, 1.025, 1] } : { scale: [1, 1.03, 1] }}
+                    transition={{ repeat: Infinity, duration: remoteUserLeft ? 6 : 3, ease: "easeInOut" }}
+                    className="relative z-10"
+                  >
+                    <Avatar className={`h-32 w-32 sm:h-40 sm:w-40 ring-4 ring-white/10 shadow-2xl transition-opacity duration-500 ${remoteUserLeft ? 'opacity-80' : ''}`}>
                       <AvatarImage src={displayAvatar || undefined} />
                       <AvatarFallback className="text-4xl sm:text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
                     </Avatar>
