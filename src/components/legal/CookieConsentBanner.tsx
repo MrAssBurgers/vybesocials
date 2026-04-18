@@ -2,31 +2,54 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cookie, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/lib/auth';
+import { supabase } from '@/integrations/supabase/client';
 
 const COOKIE_CONSENT_KEY = 'vybe-cookie-consent';
 
 export function CookieConsentBanner() {
   const [visible, setVisible] = useState(false);
+  const { profile } = useAuth();
 
   useEffect(() => {
-    // Show banner if user hasn't made a choice yet
-    const consent = localStorage.getItem(COOKIE_CONSENT_KEY);
-    if (!consent) {
-      // Small delay so it doesn't appear immediately on page load
-      const timer = setTimeout(() => setVisible(true), 2000);
-      return () => clearTimeout(timer);
+    // Already answered locally — done
+    if (localStorage.getItem(COOKIE_CONSENT_KEY)) return;
+
+    // If logged in, check DB first so the choice follows them across devices
+    if (profile?.id) {
+      supabase
+        .rpc('get_own_sensitive_profile')
+        .single()
+        .then(({ data }) => {
+          const dbVal = (data as any)?.cookie_consent;
+          if (dbVal === 'accepted' || dbVal === 'declined') {
+            localStorage.setItem(COOKIE_CONSENT_KEY, dbVal);
+          } else {
+            const timer = setTimeout(() => setVisible(true), 2000);
+            return () => clearTimeout(timer);
+          }
+        });
+      return;
     }
-  }, []);
 
-  const handleAccept = () => {
-    localStorage.setItem(COOKIE_CONSENT_KEY, 'accepted');
+    // Not logged in — show banner after short delay
+    const timer = setTimeout(() => setVisible(true), 2000);
+    return () => clearTimeout(timer);
+  }, [profile?.id]);
+
+  const persist = async (value: 'accepted' | 'declined') => {
+    localStorage.setItem(COOKIE_CONSENT_KEY, value);
     setVisible(false);
+    if (profile?.id) {
+      await supabase
+        .from('profiles')
+        .update({ cookie_consent: value } as any)
+        .eq('id', profile.id);
+    }
   };
 
-  const handleDecline = () => {
-    localStorage.setItem(COOKIE_CONSENT_KEY, 'declined');
-    setVisible(false);
-  };
+  const handleAccept = () => persist('accepted');
+  const handleDecline = () => persist('declined');
 
   return (
     <AnimatePresence>
