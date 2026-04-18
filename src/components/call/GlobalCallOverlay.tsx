@@ -962,6 +962,7 @@ export function GlobalCallOverlay() {
       {/* Main Call UI */}
       {isVisible && !isRinging && (
         <div
+          ref={callContainerRef}
           className="fixed inset-0 z-[99999] transition-opacity duration-300"
           style={{
             opacity: isMinimized ? 0 : 1,
@@ -1058,13 +1059,46 @@ export function GlobalCallOverlay() {
               {hasLocalVideo && !isVideoOff && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
+                  animate={pipControls}
                   drag
                   dragMomentum={false}
-                  dragElastic={0.08}
-                  dragConstraints={{ top: 16, left: 16, right: 16, bottom: 16 }}
+                  dragElastic={0.12}
+                  dragConstraints={callContainerRef}
                   whileDrag={{ scale: 1.05, cursor: 'grabbing' }}
                   whileTap={{ scale: 0.98 }}
+                  onDragEnd={(_, info) => {
+                    const container = callContainerRef.current;
+                    if (!container) return;
+                    const cRect = container.getBoundingClientRect();
+                    const pipW = 128; // ~w-32 sm
+                    const pipH = 192; // ~h-48 sm
+                    const margin = 12;
+                    // Use the pointer release position relative to the container
+                    const px = info.point.x - cRect.left;
+                    const py = info.point.y - cRect.top;
+                    const isLeft = px < cRect.width / 2;
+                    const isTop = py < cRect.height / 2;
+                    const corner = `${isTop ? 't' : 'b'}${isLeft ? 'l' : 'r'}` as 'tl' | 'tr' | 'bl' | 'br';
+                    pipPositionRef.current.corner = corner;
+                    // Calculate target offsets relative to its initial top-right anchor
+                    // The element is positioned via Tailwind at top-20 right-3 (sm: top-24 right-4)
+                    // We translate from that anchor to reach each corner
+                    const baseTop = 80; // top-20
+                    const baseRight = 12; // right-3
+                    const targetX = isLeft
+                      ? -(cRect.width - pipW - baseRight - margin)
+                      : 0;
+                    const targetY = isTop
+                      ? 0
+                      : (cRect.height - pipH - baseTop - margin - 80); // leave room for footer
+                    pipControls.start({
+                      x: targetX,
+                      y: targetY,
+                      scale: 1,
+                      opacity: 1,
+                      transition: { type: 'spring', stiffness: 400, damping: 32 },
+                    });
+                  }}
                   className="absolute top-20 sm:top-24 right-3 sm:right-4 w-24 h-36 sm:w-32 sm:h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/30 z-30 cursor-grab touch-none active:ring-primary/60"
                   style={{ touchAction: 'none' }}
                 >
