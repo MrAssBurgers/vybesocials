@@ -986,8 +986,22 @@ export function GlobalCallOverlay() {
                 )}
               </div>
               {hasLocalVideo && !isVideoOff && (
-                <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="absolute top-20 sm:top-24 right-3 sm:right-4 w-24 h-36 sm:w-32 sm:h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 z-30">
-                  <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1) translateZ(0)' }} />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  drag
+                  dragMomentum={false}
+                  dragElastic={0.08}
+                  dragConstraints={{ top: 16, left: 16, right: 16, bottom: 16 }}
+                  whileDrag={{ scale: 1.05, cursor: 'grabbing' }}
+                  whileTap={{ scale: 0.98 }}
+                  className="absolute top-20 sm:top-24 right-3 sm:right-4 w-24 h-36 sm:w-32 sm:h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/30 z-30 cursor-grab touch-none active:ring-primary/60"
+                  style={{ touchAction: 'none' }}
+                >
+                  <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover pointer-events-none" style={{ transform: 'scaleX(-1) translateZ(0)' }} />
+                  <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/40 to-transparent pointer-events-none flex items-end justify-center pb-1">
+                    <div className="w-8 h-1 rounded-full bg-white/40" />
+                  </div>
                 </motion.div>
               )}
               {cameraError && isConnected && (
