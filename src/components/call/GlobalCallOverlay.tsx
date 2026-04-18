@@ -1216,9 +1216,18 @@ export function GlobalCallOverlay() {
                 )}
                 {isConnected && remoteUserLeft && (
                   <div className="mt-3 sm:mt-4 text-center">
-                    <p className="text-white/50 text-xs sm:text-sm">{displayName} left · They can rejoin</p>
-                    <p className="text-white/70 text-base sm:text-lg font-mono mt-1">{Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
-                    <p className="text-white/40 text-xs mt-1">They can rejoin</p>
+                    {autoEndCountdown === -1 ? (
+                      <>
+                        <p className="text-white/60 text-sm sm:text-base">{displayName} left</p>
+                        <p className="text-white/40 text-xs sm:text-sm mt-1">They can rejoin anytime</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-white/50 text-xs sm:text-sm">{displayName} left · They can rejoin</p>
+                        <p className="text-white/70 text-base sm:text-lg font-mono mt-1">{Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
+                        <p className="text-white/40 text-xs mt-1">Call auto-ends</p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1340,7 +1349,7 @@ export function GlobalCallOverlay() {
               {/* Secondary row (smaller) */}
               <div className="inline-flex items-center gap-2 p-1.5 rounded-2xl backdrop-blur-xl bg-black/20 border border-white/[0.05]">
                 {/* Settings */}
-                <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('light'); setSettingsOpen(true); }} disabled={!isConnected} className={cn("h-9 w-9 sm:h-10 sm:w-10 rounded-lg flex-shrink-0 flex items-center justify-center transition-all", "bg-white/10 text-white/70 hover:bg-white/20", "disabled:opacity-50 disabled:cursor-not-allowed")}>
+                <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('light'); setSettingsOpen(true); }} className={cn("h-9 w-9 sm:h-10 sm:w-10 rounded-lg flex-shrink-0 flex items-center justify-center transition-all", "bg-white/10 text-white/70 hover:bg-white/20")}>
                   <SlidersHorizontal className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </motion.button>
 
