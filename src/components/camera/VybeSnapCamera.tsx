@@ -169,6 +169,13 @@ export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps)
     } catch (error: any) {
       if (error?.name === 'NotAllowedError') {
         setPermissionDenied(true);
+      } else if (error?.name === 'NotReadableError' || error?.name === 'AbortError') {
+        // Camera is in use by another tab/app or hardware unavailable — surface to user, not console
+        setPermissionDenied(true);
+        console.warn('[VybeSnapCamera] Camera unavailable (in use by another app):', error?.name);
+      } else if (error?.name === 'NotFoundError' || error?.name === 'OverconstrainedError') {
+        setPermissionDenied(true);
+        console.warn('[VybeSnapCamera] No compatible camera found:', error?.name);
       } else {
         console.error('[VybeSnapCamera] Camera error:', error);
       }
