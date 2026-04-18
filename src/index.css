@@ -2836,6 +2836,13 @@ img, video {
   to { transform: translateX(150%); }
 }
 
+/* Seamless continuous scroll — no reset jump.
+   Gradient is doubled so end position matches start exactly. */
+@keyframes create-button-gradient-flow {
+  from { background-position: 0% 50%; }
+  to { background-position: 200% 50%; }
+}
+
 .create-button-gradient {
   background: linear-gradient(
     90deg,
@@ -2846,7 +2853,7 @@ img, video {
     hsl(var(--primary)) 100%
   );
   background-size: 200% 100%;
-  animation: gradient-shift 4.5s linear infinite;
+  animation: create-button-gradient-flow 8s linear infinite;
   box-shadow: 
     0 4px 24px hsl(var(--primary) / 0.5),
     0 0 40px hsl(var(--accent) / 0.2),
