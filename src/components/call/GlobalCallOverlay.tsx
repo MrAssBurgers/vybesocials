@@ -99,6 +99,14 @@ export function GlobalCallOverlay() {
   const headerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const footerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Call container + PiP corner snap controls
+  const callContainerRef = useRef<HTMLDivElement>(null);
+  const pipControls = useAnimationControls();
+  const pipPositionRef = useRef<{ corner: 'tl' | 'tr' | 'bl' | 'br' }>({ corner: 'tr' });
+
+  // Screen wake lock — keep mic/media alive during calls
+  const wakeLockRef = useRef<any>(null);
+
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
