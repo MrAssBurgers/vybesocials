@@ -9,6 +9,7 @@ import { useInView } from 'react-intersection-observer';
 import { X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
+import { useAheadMediaPreload } from '@/hooks/useAheadMediaPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
