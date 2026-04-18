@@ -1,35 +1,38 @@
 
+Adding call auto-reconnect on page refresh to the existing plan.
 
-### Goal
-Fix the chaotic flashing aura that appears on the avatar when the remote user leaves a persistent call (the "they can rejoin" state). Replace it with a calm, aligned, satisfying "standby" pulse.
+### Updated plan — 5 fixes in `GlobalCallOverlay.tsx` + `callStore.tsx`
 
-### Root cause
-In `GlobalCallOverlay.tsx` (lines ~1010-1068), when `remoteUserLeft === true` the avatar block keeps rendering ALL of these on top of each other:
-1. `AudioVisualizer` — driven by remote stream that no longer exists, producing random flicker
-2. Primary purple expanding ring (3s loop)
-3. Accent expanding ring (3s loop, 0.8s delay)
-4. Blurred gradient glow (4s scale loop)
-5. Avatar wrapper scale pulse (3s loop)
+**1. Settings button does nothing**
+Remove `disabled={!isConnected}` on the gear button (line ~1239) so settings open in any call state.
 
-All five animate simultaneously with mismatched timings → "weird aura flashing." None are centered to a single rhythm, and the visualizer reacts to a dead stream.
+**2. PiP camera can't reach corners**
+- Add `callContainerRef` on the fullscreen call container.
+- Replace pixel `dragConstraints` with `dragConstraints={callContainerRef}` so it can travel edge-to-edge.
+- Add `onDragEnd` handler that measures release position and snaps to the nearest of 4 corners (top-left, top-right, bottom-left, bottom-right) via `useAnimationControls`.
 
-### Fix
-In the audio-call avatar block, branch on `remoteUserLeft`:
+**3. Mic auto-mutes when app backgrounded / screen off**
+- In the `visibilitychange` handler, on return to `visible`: re-call `p2pRef.current.setMicEnabled(!isMuted)` (P2P) or `roomRef.current.localParticipant.setMicrophoneEnabled(!isMuted)` (LiveKit) to force-resume the suspended track.
+- Listen to the local audio track's `mute` event and auto re-enable when `!isMuted`.
+- Request `navigator.wakeLock.request('screen')` on call start, release on end.
 
-**When connected & remote present** → keep current rings (active call vibe).
+**4. "Auto-ends in 3:00" still shown in persistent Stay-On state**
+In the avatar caption block (~line 1116), branch on `autoEndCountdown === -1`: show "They can rejoin anytime" with no timer; otherwise keep the existing `m:ss` countdown.
 
-**When `remoteUserLeft` is true** → render a "standby" aura instead:
-- Hide `AudioVisualizer` entirely (no stream to react to).
-- Replace the 3 mismatched rings with **one** slow, perfectly centered breathing ring (6s ease-in-out) using a soft amber/white tone to signal "waiting."
-- Add **one** very subtle second ring at 50% opacity, same timing, slightly larger — synchronized, not staggered.
-- Keep the avatar itself with a gentle, slower scale breath (5s) matched to the ring rhythm.
-- Desaturate the avatar slightly (`opacity-80`) to reinforce the "paused" feeling.
+**5. NEW — Auto-reconnect to call on page refresh**
+- In `callStore.tsx`: on every meaningful call state change (start, mode switch, mute toggle), persist a snapshot to `sessionStorage` under `vybe-active-call`: `{ peerId, peerName, peerAvatar, callType, callMode, isGroupCall, conversationId, startedAt }`. Clear on `endCall()`.
+- On `callStore` mount: read `sessionStorage`. If a snapshot exists AND `Date.now() - startedAt < 30min`, dispatch a "rejoin" action that restores call state and re-establishes the P2P/LiveKit connection using existing `startCall` / `joinPersistentRoom` logic with a `isReconnect: true` flag (skips ringing UI, goes straight to connecting).
+- Show a brief "Reconnecting…" toast during the rejoin window. If reconnect fails within 8s, clear the snapshot silently.
+- For persistent (Stay-On) calls: always try to reconnect. For default calls: only reconnect if refresh happened within 60s (avoid resurrecting stale calls).
 
-All animations share the same 6s cycle so they pulse **together** — that's what makes it satisfying instead of chaotic.
-
-### File to edit
-- `src/components/call/GlobalCallOverlay.tsx` — lines ~1014-1048 (audio-call avatar visualizer + rings block). Wrap existing rings in `{!remoteUserLeft && (...)}` and add a new `{remoteUserLeft && (...)}` block with the calm synchronized standby aura.
+### Files to edit
+- `src/components/call/GlobalCallOverlay.tsx` — fixes 1-4
+- `src/state/callStore.tsx` (or wherever the call store lives) — fix 5: persistence + auto-rejoin
+- (No changes to `CallSettingsSheet.tsx` or `p2pConnection.ts`)
 
 ### Expected result
-When the other person leaves a Stay-On call, the avatar gently breathes with one aligned soft ring — calm, centered, and visually obvious that the call is waiting for rejoin rather than actively connected. No more flicker fight.
-
+- Gear opens settings in any call state.
+- Local PiP drags to all 4 corners and snaps cleanly on release.
+- Mic stays live when you switch apps or lock the screen.
+- Stay-On shows "They can rejoin anytime" — no false 3-min timer.
+- Refreshing the page silently rejoins the active call within seconds (always for Stay-On, within 60s for default).
