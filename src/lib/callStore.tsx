@@ -198,6 +198,14 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       const next = typeof newState === 'function' ? newState(prev) : newState;
       globalCallState = next;
       if (import.meta.env.DEV) console.log('[CallStore] State:', next.phase, '| Mode:', next.call?.callMode || 'none', '| Call:', next.call?.id || 'none');
+
+      // Persist snapshot for refresh-resume; clear on idle/error
+      if (next.call && (next.phase === 'joining' || next.phase === 'connected' || next.phase === 'switching')) {
+        persistCallSnapshot(next.call);
+      } else if (next.phase === 'idle' || next.phase === 'error') {
+        clearCallSnapshot();
+      }
+
       return next;
     });
   }, []);
