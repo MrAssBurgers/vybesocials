@@ -1338,76 +1338,45 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       0 4px 12px hsl(var(--neon-purple) / 0.15);
   }
 
-  /* Animated gradient background - true seamless marquee, no reset frame */
+  /* Animated gradient background - original look, duplicated internally so loop boundary is invisible */
   .gradient-animated {
     position: relative;
     overflow: hidden;
-    background: transparent;
     border-radius: inherit;
-    isolation: isolate;
-    z-index: 0;
-  }
-
-  .gradient-animated::before,
-  .gradient-animated::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-    pointer-events: none;
-    z-index: -1;
-    background: repeating-linear-gradient(
+    background: linear-gradient(
       90deg,
       hsl(var(--gradient-start)) 0%,
-      hsl(var(--gradient-mid)) 25%,
-      hsl(var(--gradient-end)) 50%,
+      hsl(var(--gradient-mid)) 12.5%,
+      hsl(var(--gradient-end)) 25%,
+      hsl(var(--gradient-start)) 37.5%,
+      hsl(var(--gradient-start)) 50%,
+      hsl(var(--gradient-mid)) 62.5%,
+      hsl(var(--gradient-end)) 75%,
+      hsl(var(--gradient-start)) 87.5%,
       hsl(var(--gradient-start)) 100%
     );
-    animation: gradient-marquee 5s linear infinite;
-  }
-
-  .gradient-animated::before {
-    left: 0;
-  }
-
-  .gradient-animated::after {
-    left: 100%;
+    background-size: 200% 100%;
+    animation: gradient-shift 8s linear infinite;
   }
 
   .seamless-gradient-strip {
     position: relative;
     overflow: hidden;
     border-radius: inherit;
-    isolation: isolate;
-    z-index: 0;
-  }
-
-  .seamless-gradient-strip::before,
-  .seamless-gradient-strip::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    pointer-events: none;
-    z-index: -1;
-    background: repeating-linear-gradient(
+    background: linear-gradient(
       90deg,
       hsl(var(--primary)) 0%,
-      hsl(var(--accent)) 25%,
+      hsl(var(--accent)) 12.5%,
+      hsl(var(--primary)) 25%,
+      hsl(var(--accent)) 37.5%,
       hsl(var(--primary)) 50%,
-      hsl(var(--accent)) 75%,
+      hsl(var(--accent)) 62.5%,
+      hsl(var(--primary)) 75%,
+      hsl(var(--accent)) 87.5%,
       hsl(var(--primary)) 100%
     );
-    animation: gradient-marquee 4s linear infinite;
-  }
-
-  .seamless-gradient-strip::before {
-    left: 0;
-  }
-
-  .seamless-gradient-strip::after {
-    left: 100%;
+    background-size: 200% 100%;
+    animation: gradient-shift 6s linear infinite;
   }
 
   /* Static gradient for non-critical elements */

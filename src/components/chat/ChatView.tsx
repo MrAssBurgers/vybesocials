@@ -2471,16 +2471,13 @@ const MessageBubble = memo(function MessageBubble({
                 >
                   {/* Animated gradient background */}
                   <motion.div 
-                    className="absolute top-0 bottom-0 left-0 w-full"
-                    style={{ backgroundImage: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 25%, hsl(var(--primary)) 50%, hsl(var(--accent)) 75%, hsl(var(--primary)) 100%)' }}
-                    animate={{ x: ['0%', '-100%'] }}
-                    transition={{ duration: 5.6, repeat: Infinity, ease: 'linear' }}
-                  />
-                  <motion.div 
-                    className="absolute top-0 bottom-0 left-full w-full"
-                    style={{ backgroundImage: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 25%, hsl(var(--primary)) 50%, hsl(var(--accent)) 75%, hsl(var(--primary)) 100%)' }}
-                    animate={{ x: ['0%', '-100%'] }}
-                    transition={{ duration: 5.6, repeat: Infinity, ease: 'linear' }}
+                    className="absolute inset-0"
+                    style={{
+                      backgroundSize: '200% 100%',
+                      backgroundImage: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 12.5%, hsl(var(--primary)) 25%, hsl(var(--accent)) 37.5%, hsl(var(--primary)) 50%, hsl(var(--accent)) 62.5%, hsl(var(--primary)) 75%, hsl(var(--accent)) 87.5%, hsl(var(--primary)) 100%)'
+                    }}
+                    animate={{ backgroundPosition: ['0% 50%', '-100% 50%'] }}
+                    transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
                   />
                   
                   {/* Gradient only — no raw storage URL for preview */}
