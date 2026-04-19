@@ -1345,6 +1345,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     background: transparent;
     border-radius: inherit;
     isolation: isolate;
+    z-index: 0;
   }
 
   .gradient-animated::before,
@@ -1355,6 +1356,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     bottom: 0;
     width: 100%;
     pointer-events: none;
+    z-index: -1;
     background: repeating-linear-gradient(
       90deg,
       hsl(var(--gradient-start)) 0%,
@@ -1373,15 +1375,12 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     left: 100%;
   }
 
-  .gradient-animated > * {
-    position: relative;
-    z-index: 1;
-  }
-
   .seamless-gradient-strip {
     position: relative;
     overflow: hidden;
     border-radius: inherit;
+    isolation: isolate;
+    z-index: 0;
   }
 
   .seamless-gradient-strip::before,
@@ -1390,6 +1389,8 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     position: absolute;
     inset: 0;
     width: 100%;
+    pointer-events: none;
+    z-index: -1;
     background: repeating-linear-gradient(
       90deg,
       hsl(var(--primary)) 0%,
@@ -1734,7 +1735,16 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
 }
 
-/* Aura accent strip - seamless one-directional flow (no snap-back) */
+@keyframes gradient-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+/* Aura accent strip - legacy alias retained for compatibility */
 @keyframes aura-shift {
   from { background-position: 0% 50%; }
   to { background-position: 200% 50%; }
