@@ -1096,8 +1096,8 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 style={{
                   backgroundImage: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 25%, hsl(var(--primary)) 50%, hsl(var(--accent)) 75%, hsl(var(--primary)) 100%)',
                 }}
-                animate={!isSending ? { backgroundPosition: ['0% 50%', '100% 50%'] } : {}}
-                transition={{ duration: 2.8, repeat: Infinity, ease: 'linear' }}
+                animate={!isSending ? { backgroundPosition: ['0% 50%', '200% 50%'] } : {}}
+                transition={{ duration: 5.6, repeat: Infinity, ease: 'linear' }}
               >
                 {isSending ? (
                   <motion.div
