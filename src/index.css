@@ -1338,8 +1338,22 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       0 4px 12px hsl(var(--neon-purple) / 0.15);
   }
 
-  /* Animated gradient background - smooth and fluid */
+  /* Animated gradient background - true seamless marquee, no reset frame */
   .gradient-animated {
+    position: relative;
+    overflow: hidden;
+    background: transparent;
+    border-radius: inherit;
+    isolation: isolate;
+    z-index: 0;
+  }
+
+  .gradient-animated::before,
+  .gradient-animated::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
     background: linear-gradient(
       90deg,
       hsl(var(--gradient-start)) 0%,
@@ -1347,9 +1361,21 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       hsl(var(--gradient-end)) 50%,
       hsl(var(--gradient-start)) 100%
     );
-    background-size: 200% 100%;
-    animation: gradient-shift 5s linear infinite;
-    border-radius: inherit;
+    animation: gradient-marquee 5s linear infinite;
+    z-index: -1;
+  }
+
+  .gradient-animated::before {
+    transform: translateX(0);
+  }
+
+  .gradient-animated::after {
+    transform: translateX(100%);
+  }
+
+  .gradient-animated > * {
+    position: relative;
+    z-index: 1;
   }
 
   /* Static gradient for non-critical elements */
