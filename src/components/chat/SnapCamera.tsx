@@ -1110,18 +1110,19 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                   </>
                 )}
                 <span className="relative z-10 flex items-center justify-center gap-2">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                    className="h-6 w-6 border-3 border-white/30 border-t-white rounded-full"
-                  />
-                ) : (
-                  <>
-                    <VybeMiniIcon size={20} showSparkles />
-                    Send VYBE
-                    <Send className="h-5 w-5" />
-                  </>
-                )}
+                  {isSending ? (
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                      className="h-6 w-6 border-3 border-white/30 border-t-white rounded-full"
+                    />
+                  ) : (
+                    <>
+                      <VybeMiniIcon size={20} showSparkles />
+                      Send VYBE
+                      <Send className="h-5 w-5" />
+                    </>
+                  )}
                 </span>
               </motion.button>
             </div>
