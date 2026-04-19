@@ -1073,6 +1073,9 @@ export function GlobalCallOverlay() {
                   </div>
                 </motion.div>
               )}
+            </>
+          )}
+
 
           {/* Audio Call — Avatar */}
           {!isVideoCall && (
