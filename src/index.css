@@ -1677,10 +1677,10 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
 }
 
-/* Aura accent strip animation for PostCard */
+/* Aura accent strip - seamless one-directional flow (no snap-back) */
 @keyframes aura-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+  from { background-position: 0% 50%; }
+  to { background-position: 200% 50%; }
 }
 
 @keyframes gradient-shift {
@@ -1733,24 +1733,27 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
 }
 
+/* Seamless glow flow — uses overlapping fades that meet at boundary, no snap */
 @keyframes pulse-glow {
-  0%, 100% {
-    opacity: 1;
+  0% {
+    opacity: 0.85;
     box-shadow: 0 0 20px hsl(var(--neon-pink) / 0.4);
   }
   50% {
-    opacity: 0.8;
+    opacity: 1;
     box-shadow: 0 0 40px hsl(var(--neon-pink) / 0.6);
+  }
+  100% {
+    opacity: 0.85;
+    box-shadow: 0 0 20px hsl(var(--neon-pink) / 0.4);
   }
 }
 
+/* Float — start = end so loop is seamless */
 @keyframes float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0); }
 }
 
 /* Fresh liquid animations */
@@ -1776,13 +1779,10 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   50% { opacity: 1; }
 }
 
+/* Continuous hue rotation — fully seamless, never resets */
 @keyframes color-shift {
-  0%, 100% {
-    filter: hue-rotate(0deg);
-  }
-  50% {
-    filter: hue-rotate(15deg);
-  }
+  from { filter: hue-rotate(0deg); }
+  to { filter: hue-rotate(360deg); }
 }
 
 @keyframes subtle-float {
