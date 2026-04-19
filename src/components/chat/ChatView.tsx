@@ -2473,8 +2473,8 @@ const MessageBubble = memo(function MessageBubble({
                   <motion.div 
                     className="absolute inset-0 bg-[length:200%_100%]"
                     style={{ backgroundImage: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 25%, hsl(var(--primary)) 50%, hsl(var(--accent)) 75%, hsl(var(--primary)) 100%)' }}
-                    animate={{ backgroundPosition: ['0% 50%', '100% 50%'] }}
-                    transition={{ duration: 2.8, repeat: Infinity, ease: 'linear' }}
+                    animate={{ backgroundPosition: ['0% 50%', '200% 50%'] }}
+                    transition={{ duration: 5.6, repeat: Infinity, ease: 'linear' }}
                   />
                   
                   {/* Gradient only — no raw storage URL for preview */}
