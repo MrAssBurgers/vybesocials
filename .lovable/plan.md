@@ -1,29 +1,54 @@
 
-The user wants the PiP corner-snap animation removed — when they release the dragged local video, it should stay exactly where they let go, not animate back to a corner. Same principle applied to any other call-overlay drag/animation that "snaps back."
+The user wants ALL linear/looping animations across the app (not just call overlay) to flow continuously without visible reset frames. Examples called out: login button, create menu button — these have shimmer/gradient/pulse loops that visibly snap back to frame 1.
 
-### What's causing the snap-back
-In `GlobalCallOverlay.tsx`, the recently added `onDragEnd` handler on the local video PiP calls `pipControls.start({ x: targetX, y: targetY, transition: { type: 'spring' } })`. That's the spring-back. Framer-motion's `drag` already keeps the element where you release it — the extra `animate` call is what yanks it to a corner.
+### Root cause
+Same pattern as before, but app-wide:
+- `backgroundPosition: ['0% 50%', '100% 50%', '0% 50%']` — goes there and back, visible reverse
+- `opacity: [0.5, 1, 0.5]` — pulse-back
+- `scale: [1, 1.1, 1]` — breathe-back
+- `x: [0, 20, 0]` — wander-back
+- Some use `repeatType: 'reverse'` which guarantees a visible turnaround
 
-### Fix
-**1. Local video PiP — remove corner snapping entirely**
-- Delete the `onDragEnd` snap handler.
-- Remove `useAnimationControls` / `pipControls` usage on this element.
-- Keep `drag`, `dragMomentum={false}`, `dragElastic={0}` (was 0.08 — set to 0 so edges don't bounce), and `dragConstraints={callContainerRef}` so it can travel freely to any pixel and stay there.
-- Result: drag → release → it stays exactly where the finger lifts. No spring, no snap, no reset.
+Even with `ease: 'linear'`, any keyframe array that returns to the start creates a perceptible "reset" because direction reverses.
 
-**2. Audit other call-overlay motion for snap-backs**
-Quickly scan `GlobalCallOverlay.tsx` for any `whileDrag` + `animate`-on-release patterns or springy transitions that bounce. Specifically check:
-- The minimized call bubble drag (if it snaps to an edge)
-- The avatar/standby aura (must stay calm linear, no spring rebound)
-- Any `transition: { type: 'spring' }` on drag-end handlers → replace with no animation OR a `linear` ease so motion is continuous, never elastic.
+### Fix — convert to one-directional seamless loops
 
-**3. Global motion principle for this overlay**
-Where any continuous animation remains (e.g., the standby breathing pulse), confirm it uses `ease: 'linear'` with `repeat: Infinity` so it loops seamlessly without a visible reset frame. No `repeatType: 'reverse'` snap.
+**1. Gradient/shimmer animations (login button, gradient buttons, CreateMenu)**
+- Replace `backgroundPosition: ['0% 50%', '100% 50%', '0% 50%']` with one-way: `['0% 50%', '200% 50%']` on a 200%-wide gradient — end frame matches start visually.
+- Or use CSS `background-size: 200% 100%` + animate `backgroundPosition: ['0% 0%', '-100% 0%']` for infinite scroll.
 
-### Files to edit
-- `src/components/call/GlobalCallOverlay.tsx` — remove PiP corner-snap, set `dragElastic={0}`, audit other drag handlers, ensure any looping animations use `linear` + seamless repeat.
+**2. Pulse/glow loops**
+- Replace `opacity: [0.5, 1, 0.5]` with staggered fade-out waves: each layer goes `opacity: [0.6, 0]` + `scale: [1, 1.4]`, stacked with delays so a new wave starts as the old fades — constant flow, no reset.
+
+**3. Floating/drift animations**
+- Replace `x: [0, 30, 0]` with one-way translation on tiled/duplicated layers: `x: ['0%', '-50%']` on a doubled-width container — seamless wrap.
+
+**4. Scale breathing**
+- Where a "breathing" feel is wanted, keep it but add a second offset layer so the eye always sees outward motion from somewhere — no global reset moment.
+
+### Scope — files to audit and update
+
+Primary targets (called out by user + most visible):
+- `src/components/hub/CreateMenu.tsx` — gradient icon backgrounds, header pulse, glow ring
+- Login / auth buttons — find via search (likely `src/pages/Auth.tsx`, `src/components/auth/*`)
+- `src/components/ui/button.tsx` `gradient-animated` class — defined in `tailwind.config.ts` / `index.css`
+- `src/index.css` — `gradient-animated`, `liquid-glass-button`, any `@keyframes` with reverse paths
+- `src/motion/liquidConfig.ts` — add a reusable `seamlessLoop` preset
+
+Secondary sweep (any persistent loops):
+- `src/components/call/GlobalCallOverlay.tsx` (already partially done — finalize)
+- `src/components/call/MinimizedCallBubble.tsx`
+- Background/ambient: `src/components/AppBackground.tsx` and similar
+- Any `repeatType: 'reverse'` across `src/**` — replace with one-way keyframes
+
+### Approach
+1. Add `seamlessShimmer`, `seamlessDrift`, `seamlessWave` presets to `src/motion/liquidConfig.ts`.
+2. Update `gradient-animated` CSS keyframes in `index.css` to use one-way `background-position` shift on a 200% gradient.
+3. Sweep `src/**/*.tsx` for `repeatType: 'reverse'`, `[x, y, x]` triplet patterns, and `opacity: [a, b, a]` patterns in persistent loops — convert each.
+4. Leave one-shot entrance animations (button tap scale, modal open) alone — those aren't loops.
 
 ### Expected result
-- Drag your camera anywhere — top-left, dead-center, bottom-right pixel — release, it stays put. Zero snap-back.
-- No rubber-band on edges.
-- Any ambient looping animation in the call overlay flows continuously with no visible reset.
+- Login button gradient flows continuously in one direction, no visible "snap to start."
+- CreateMenu icons/glow pulse outward in waves, never resetting.
+- All app-wide ambient loops feel like constant flow.
+- One-shot interactions (tap, hover, open) unchanged.
