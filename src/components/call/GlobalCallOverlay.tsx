@@ -978,19 +978,19 @@ export function GlobalCallOverlay() {
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <motion.div
               animate={{ x: [0, 40, -20, 0], y: [0, -30, 20, 0], scale: [1, 1.3, 0.9, 1] }}
-              transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+              transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
               className="absolute -top-20 -left-20 w-[400px] h-[400px] rounded-full opacity-[0.15]"
               style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }}
             />
             <motion.div
               animate={{ x: [0, -50, 30, 0], y: [0, 40, -20, 0], scale: [1, 1.2, 1.1, 1] }}
-              transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+              transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
               className="absolute -bottom-32 -right-20 w-[500px] h-[500px] rounded-full opacity-[0.12]"
               style={{ background: 'radial-gradient(circle, hsl(280 80% 60%) 0%, transparent 70%)' }}
             />
             <motion.div
               animate={{ x: [0, 30, -30, 0], y: [0, -40, 30, 0] }}
-              transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+              transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-[0.06]"
               style={{ background: 'radial-gradient(circle, hsl(200 80% 50%) 0%, transparent 60%)' }}
             />
@@ -1098,19 +1098,19 @@ export function GlobalCallOverlay() {
                     <>
                       <motion.div
                         animate={{ scale: [1, 1.6], opacity: [0.3, 0] }}
-                        transition={{ repeat: Infinity, duration: 3, ease: "easeOut" }}
+                        transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
                         className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/40"
                         style={{ width: '110%', height: '110%' }}
                       />
                       <motion.div
                         animate={{ scale: [1, 1.4], opacity: [0.2, 0] }}
-                        transition={{ repeat: Infinity, duration: 3, delay: 0.8, ease: "easeOut" }}
+                        transition={{ repeat: Infinity, duration: 3, delay: 0.8, ease: "linear" }}
                         className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-accent/30"
                         style={{ width: '110%', height: '110%' }}
                       />
                       <motion.div
                         animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.6, 0.4] }}
-                        transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                        transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
                         className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl"
                         style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(280 80% 60% / 0.3))', width: '100%', height: '100%' }}
                       />
@@ -1122,19 +1122,19 @@ export function GlobalCallOverlay() {
                     <>
                       <motion.div
                         animate={{ scale: [1, 1.18, 1], opacity: [0.35, 0.6, 0.35] }}
-                        transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
+                        transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
                         className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/40"
                         style={{ width: '115%', height: '115%' }}
                       />
                       <motion.div
                         animate={{ scale: [1, 1.18, 1], opacity: [0.15, 0.3, 0.15] }}
-                        transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
+                        transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
                         className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30"
                         style={{ width: '135%', height: '135%' }}
                       />
                       <motion.div
                         animate={{ scale: [1, 1.06, 1], opacity: [0.25, 0.4, 0.25] }}
-                        transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
+                        transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
                         className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl"
                         style={{ background: 'radial-gradient(circle, hsl(40 90% 70% / 0.35), transparent 70%)', width: '100%', height: '100%' }}
                       />
@@ -1143,7 +1143,7 @@ export function GlobalCallOverlay() {
 
                   <motion.div
                     animate={remoteUserLeft ? { scale: [1, 1.025, 1] } : { scale: [1, 1.03, 1] }}
-                    transition={{ repeat: Infinity, duration: remoteUserLeft ? 6 : 3, ease: "easeInOut" }}
+                    transition={{ repeat: Infinity, duration: remoteUserLeft ? 6 : 3, ease: "linear" }}
                     className="relative z-10"
                   >
                     <Avatar className={`h-32 w-32 sm:h-40 sm:w-40 ring-4 ring-white/10 shadow-2xl transition-opacity duration-500 ${remoteUserLeft ? 'opacity-80' : ''}`}>
@@ -1184,7 +1184,7 @@ export function GlobalCallOverlay() {
 
           {/* Header */}
           <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" style={{ paddingTop: 'env(safe-area-inset-top)' }} onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave} onTouchStart={showControlsTemporarily}>
-            <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: showHeader ? 0 : -100, opacity: showHeader ? 1 : 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="pointer-events-auto">
+            <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: showHeader ? 0 : -100, opacity: showHeader ? 1 : 0 }} transition={{ duration: 0.3, ease: "linear" }} className="pointer-events-auto">
               <div className="mx-3 sm:mx-4 mt-3 sm:mt-4 p-3 sm:p-4 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1">
@@ -1250,7 +1250,7 @@ export function GlobalCallOverlay() {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(8, 8, 16, 0.8)', backdropFilter: 'blur(40px) saturate(150%)', WebkitBackdropFilter: 'blur(40px) saturate(150%)' }}>
                 <div className="text-center p-8 rounded-3xl backdrop-blur-2xl bg-white/[0.06] border border-white/[0.1] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
                   <div className="relative">
-                    <motion.div animate={{ scale: [1, 2], opacity: [0.5, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 140, height: 140, margin: 'auto', left: 0, right: 0, top: 0, bottom: 0 }} />
+                    <motion.div animate={{ scale: [1, 2], opacity: [0.5, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 140, height: 140, margin: 'auto', left: 0, right: 0, top: 0, bottom: 0 }} />
                     <Avatar className="h-32 w-32 mx-auto ring-4 ring-primary/20 shadow-2xl">
                       <AvatarImage src={displayAvatar || undefined} />
                       <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
@@ -1446,15 +1446,15 @@ function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onA
   return (
     <>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div animate={{ x: [0, 50, 0], y: [0, 30, 0], scale: [1, 1.2, 1] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }} />
-        <motion.div animate={{ x: [0, -30, 0], y: [0, -50, 0], scale: [1, 1.3, 1] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }} />
+        <motion.div animate={{ x: [0, 50, 0], y: [0, 30, 0], scale: [1, 1.2, 1] }} transition={{ duration: 8, repeat: Infinity, ease: "linear" }} className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }} />
+        <motion.div animate={{ x: [0, -30, 0], y: [0, -50, 0], scale: [1, 1.3, 1] }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }} className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }} />
       </div>
       <div className="absolute inset-0 backdrop-blur-3xl" />
       <motion.div initial={{ scale: 0.8, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: 40 }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="relative z-10 flex flex-col items-center max-w-sm w-full px-4">
         <div className="relative mb-6 sm:mb-8">
-          <motion.div animate={{ scale: [1, 1.5], opacity: [0.6, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 120, height: 120, margin: '-8px' }} />
-          <motion.div animate={{ scale: [1, 1.4], opacity: [0.4, 0] }} transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "easeOut" }} className="absolute inset-0 rounded-full border-2 border-accent/40" style={{ width: 120, height: 120, margin: '-8px' }} />
-          <motion.div animate={{ scale: [1, 1.02, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
+          <motion.div animate={{ scale: [1, 1.5], opacity: [0.6, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 120, height: 120, margin: '-8px' }} />
+          <motion.div animate={{ scale: [1, 1.4], opacity: [0.4, 0] }} transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "linear" }} className="absolute inset-0 rounded-full border-2 border-accent/40" style={{ width: 120, height: 120, margin: '-8px' }} />
+          <motion.div animate={{ scale: [1, 1.02, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "linear" }}>
             <Avatar className="h-24 w-24 sm:h-32 sm:w-32 ring-4 ring-white/10 shadow-2xl">
               <AvatarImage src={incomingDisplayAvatar || undefined} />
               <AvatarFallback className="text-3xl sm:text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{incomingDisplayInitial}</AvatarFallback>
