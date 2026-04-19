@@ -1,38 +1,29 @@
 
-Adding call auto-reconnect on page refresh to the existing plan.
+The user wants the PiP corner-snap animation removed — when they release the dragged local video, it should stay exactly where they let go, not animate back to a corner. Same principle applied to any other call-overlay drag/animation that "snaps back."
 
-### Updated plan — 5 fixes in `GlobalCallOverlay.tsx` + `callStore.tsx`
+### What's causing the snap-back
+In `GlobalCallOverlay.tsx`, the recently added `onDragEnd` handler on the local video PiP calls `pipControls.start({ x: targetX, y: targetY, transition: { type: 'spring' } })`. That's the spring-back. Framer-motion's `drag` already keeps the element where you release it — the extra `animate` call is what yanks it to a corner.
 
-**1. Settings button does nothing**
-Remove `disabled={!isConnected}` on the gear button (line ~1239) so settings open in any call state.
+### Fix
+**1. Local video PiP — remove corner snapping entirely**
+- Delete the `onDragEnd` snap handler.
+- Remove `useAnimationControls` / `pipControls` usage on this element.
+- Keep `drag`, `dragMomentum={false}`, `dragElastic={0}` (was 0.08 — set to 0 so edges don't bounce), and `dragConstraints={callContainerRef}` so it can travel freely to any pixel and stay there.
+- Result: drag → release → it stays exactly where the finger lifts. No spring, no snap, no reset.
 
-**2. PiP camera can't reach corners**
-- Add `callContainerRef` on the fullscreen call container.
-- Replace pixel `dragConstraints` with `dragConstraints={callContainerRef}` so it can travel edge-to-edge.
-- Add `onDragEnd` handler that measures release position and snaps to the nearest of 4 corners (top-left, top-right, bottom-left, bottom-right) via `useAnimationControls`.
+**2. Audit other call-overlay motion for snap-backs**
+Quickly scan `GlobalCallOverlay.tsx` for any `whileDrag` + `animate`-on-release patterns or springy transitions that bounce. Specifically check:
+- The minimized call bubble drag (if it snaps to an edge)
+- The avatar/standby aura (must stay calm linear, no spring rebound)
+- Any `transition: { type: 'spring' }` on drag-end handlers → replace with no animation OR a `linear` ease so motion is continuous, never elastic.
 
-**3. Mic auto-mutes when app backgrounded / screen off**
-- In the `visibilitychange` handler, on return to `visible`: re-call `p2pRef.current.setMicEnabled(!isMuted)` (P2P) or `roomRef.current.localParticipant.setMicrophoneEnabled(!isMuted)` (LiveKit) to force-resume the suspended track.
-- Listen to the local audio track's `mute` event and auto re-enable when `!isMuted`.
-- Request `navigator.wakeLock.request('screen')` on call start, release on end.
-
-**4. "Auto-ends in 3:00" still shown in persistent Stay-On state**
-In the avatar caption block (~line 1116), branch on `autoEndCountdown === -1`: show "They can rejoin anytime" with no timer; otherwise keep the existing `m:ss` countdown.
-
-**5. NEW — Auto-reconnect to call on page refresh**
-- In `callStore.tsx`: on every meaningful call state change (start, mode switch, mute toggle), persist a snapshot to `sessionStorage` under `vybe-active-call`: `{ peerId, peerName, peerAvatar, callType, callMode, isGroupCall, conversationId, startedAt }`. Clear on `endCall()`.
-- On `callStore` mount: read `sessionStorage`. If a snapshot exists AND `Date.now() - startedAt < 30min`, dispatch a "rejoin" action that restores call state and re-establishes the P2P/LiveKit connection using existing `startCall` / `joinPersistentRoom` logic with a `isReconnect: true` flag (skips ringing UI, goes straight to connecting).
-- Show a brief "Reconnecting…" toast during the rejoin window. If reconnect fails within 8s, clear the snapshot silently.
-- For persistent (Stay-On) calls: always try to reconnect. For default calls: only reconnect if refresh happened within 60s (avoid resurrecting stale calls).
+**3. Global motion principle for this overlay**
+Where any continuous animation remains (e.g., the standby breathing pulse), confirm it uses `ease: 'linear'` with `repeat: Infinity` so it loops seamlessly without a visible reset frame. No `repeatType: 'reverse'` snap.
 
 ### Files to edit
-- `src/components/call/GlobalCallOverlay.tsx` — fixes 1-4
-- `src/state/callStore.tsx` (or wherever the call store lives) — fix 5: persistence + auto-rejoin
-- (No changes to `CallSettingsSheet.tsx` or `p2pConnection.ts`)
+- `src/components/call/GlobalCallOverlay.tsx` — remove PiP corner-snap, set `dragElastic={0}`, audit other drag handlers, ensure any looping animations use `linear` + seamless repeat.
 
 ### Expected result
-- Gear opens settings in any call state.
-- Local PiP drags to all 4 corners and snaps cleanly on release.
-- Mic stays live when you switch apps or lock the screen.
-- Stay-On shows "They can rejoin anytime" — no false 3-min timer.
-- Refreshing the page silently rejoins the active call within seconds (always for Stay-On, within 60s for default).
+- Drag your camera anywhere — top-left, dead-center, bottom-right pixel — release, it stays put. Zero snap-back.
+- No rubber-band on edges.
+- Any ambient looping animation in the call overlay flows continuously with no visible reset.
