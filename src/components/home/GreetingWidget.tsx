@@ -49,7 +49,7 @@ export function GreetingWidget() {
             <span className="font-black text-primary drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]">@{profile.username}</span>
           </h1>
           {/* Gradient accent line */}
-          <div className="mt-1 h-[2px] w-full rounded-full bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] animate-[aura-shift_4s_linear_infinite] opacity-60" />
+          <div className="mt-1 h-[2px] w-full rounded-full seamless-gradient-strip opacity-60" />
           <div className="mt-1">
             <LiveActivityTicker />
           </div>

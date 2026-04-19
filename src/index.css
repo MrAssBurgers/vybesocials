@@ -1338,18 +1338,76 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       0 4px 12px hsl(var(--neon-purple) / 0.15);
   }
 
-  /* Animated gradient background - smooth and fluid */
+  /* Animated gradient background - true seamless marquee, no reset frame */
   .gradient-animated {
-    background: linear-gradient(
+    position: relative;
+    overflow: hidden;
+    background: transparent;
+    border-radius: inherit;
+    isolation: isolate;
+    z-index: 0;
+  }
+
+  .gradient-animated::before,
+  .gradient-animated::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    pointer-events: none;
+    z-index: -1;
+    background: repeating-linear-gradient(
       90deg,
       hsl(var(--gradient-start)) 0%,
       hsl(var(--gradient-mid)) 25%,
       hsl(var(--gradient-end)) 50%,
       hsl(var(--gradient-start)) 100%
     );
-    background-size: 200% 100%;
-    animation: gradient-shift 5s linear infinite;
+    animation: gradient-marquee 5s linear infinite;
+  }
+
+  .gradient-animated::before {
+    left: 0;
+  }
+
+  .gradient-animated::after {
+    left: 100%;
+  }
+
+  .seamless-gradient-strip {
+    position: relative;
+    overflow: hidden;
     border-radius: inherit;
+    isolation: isolate;
+    z-index: 0;
+  }
+
+  .seamless-gradient-strip::before,
+  .seamless-gradient-strip::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    pointer-events: none;
+    z-index: -1;
+    background: repeating-linear-gradient(
+      90deg,
+      hsl(var(--primary)) 0%,
+      hsl(var(--accent)) 25%,
+      hsl(var(--primary)) 50%,
+      hsl(var(--accent)) 75%,
+      hsl(var(--primary)) 100%
+    );
+    animation: gradient-marquee 4s linear infinite;
+  }
+
+  .seamless-gradient-strip::before {
+    left: 0;
+  }
+
+  .seamless-gradient-strip::after {
+    left: 100%;
   }
 
   /* Static gradient for non-critical elements */
@@ -1677,7 +1735,16 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
 }
 
-/* Aura accent strip - seamless one-directional flow (no snap-back) */
+@keyframes gradient-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+/* Aura accent strip - legacy alias retained for compatibility */
 @keyframes aura-shift {
   from { background-position: 0% 50%; }
   to { background-position: 200% 50%; }

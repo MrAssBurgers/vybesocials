@@ -286,7 +286,7 @@ export function AutoFriendDrop() {
             className="group relative flex items-center gap-2.5 px-5 py-3 rounded-full active:scale-[0.95] transition-all duration-200"
           >
             {/* Animated gradient border */}
-            <span className="absolute inset-0 rounded-full bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] animate-[aura-shift_3s_linear_infinite] opacity-80" />
+            <span className="absolute inset-0 rounded-full seamless-gradient-strip opacity-80" />
             {/* Inner fill */}
             <span className="absolute inset-[1.5px] rounded-full bg-card/95 backdrop-blur-xl" />
             {/* Glow */}
