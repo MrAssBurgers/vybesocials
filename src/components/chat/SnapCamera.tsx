@@ -1086,20 +1086,30 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 onClick={handleSend}
                 disabled={isSending}
                 className={cn(
-                  "w-full py-4 rounded-2xl font-bold text-white text-lg flex items-center justify-center gap-2",
-                  "bg-[length:200%_100%]",
+                  "relative overflow-hidden w-full py-4 rounded-2xl font-bold text-white text-lg flex items-center justify-center gap-2",
                   "disabled:opacity-50 disabled:cursor-not-allowed",
                   "transition-all duration-300"
                 )}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                style={{
-                  backgroundImage: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 25%, hsl(var(--primary)) 50%, hsl(var(--accent)) 75%, hsl(var(--primary)) 100%)',
-                }}
-                animate={!isSending ? { backgroundPosition: ['0% 50%', '200% 50%'] } : {}}
-                transition={{ duration: 5.6, repeat: Infinity, ease: 'linear' }}
               >
-                {isSending ? (
+                {!isSending && (
+                  <>
+                    <motion.div
+                      className="absolute top-0 bottom-0 left-0 w-full"
+                      style={{ backgroundImage: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 25%, hsl(var(--primary)) 50%, hsl(var(--accent)) 75%, hsl(var(--primary)) 100%)' }}
+                      animate={{ x: ['0%', '-100%'] }}
+                      transition={{ duration: 5.6, repeat: Infinity, ease: 'linear' }}
+                    />
+                    <motion.div
+                      className="absolute top-0 bottom-0 left-full w-full"
+                      style={{ backgroundImage: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 25%, hsl(var(--primary)) 50%, hsl(var(--accent)) 75%, hsl(var(--primary)) 100%)' }}
+                      animate={{ x: ['0%', '-100%'] }}
+                      transition={{ duration: 5.6, repeat: Infinity, ease: 'linear' }}
+                    />
+                  </>
+                )}
+                <span className="relative z-10 flex items-center justify-center gap-2">
                   <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
@@ -1112,6 +1122,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                     <Send className="h-5 w-5" />
                   </>
                 )}
+                </span>
               </motion.button>
             </div>
           </motion.div>
