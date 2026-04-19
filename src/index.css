@@ -1345,16 +1345,17 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     background: transparent;
     border-radius: inherit;
     isolation: isolate;
-    z-index: 0;
   }
 
   .gradient-animated::before,
   .gradient-animated::after {
     content: '';
     position: absolute;
-    inset: 0;
+    top: 0;
+    bottom: 0;
+    width: 100%;
     pointer-events: none;
-    background: linear-gradient(
+    background: repeating-linear-gradient(
       90deg,
       hsl(var(--gradient-start)) 0%,
       hsl(var(--gradient-mid)) 25%,
@@ -1362,20 +1363,50 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       hsl(var(--gradient-start)) 100%
     );
     animation: gradient-marquee 5s linear infinite;
-    z-index: -1;
   }
 
   .gradient-animated::before {
-    transform: translateX(0);
+    left: 0;
   }
 
   .gradient-animated::after {
-    transform: translateX(100%);
+    left: 100%;
   }
 
   .gradient-animated > * {
     position: relative;
     z-index: 1;
+  }
+
+  .seamless-gradient-strip {
+    position: relative;
+    overflow: hidden;
+    border-radius: inherit;
+  }
+
+  .seamless-gradient-strip::before,
+  .seamless-gradient-strip::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: repeating-linear-gradient(
+      90deg,
+      hsl(var(--primary)) 0%,
+      hsl(var(--accent)) 25%,
+      hsl(var(--primary)) 50%,
+      hsl(var(--accent)) 75%,
+      hsl(var(--primary)) 100%
+    );
+    animation: gradient-marquee 4s linear infinite;
+  }
+
+  .seamless-gradient-strip::before {
+    left: 0;
+  }
+
+  .seamless-gradient-strip::after {
+    left: 100%;
   }
 
   /* Static gradient for non-critical elements */
