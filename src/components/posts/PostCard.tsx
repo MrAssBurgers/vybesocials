@@ -485,7 +485,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
       {/* Left accent bar — VYBE signature */}
       <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-full bg-gradient-to-b from-primary/40 via-accent/20 to-transparent" />
       {/* Aura accent strip */}
-      <div className="h-[3px] w-full bg-gradient-to-r from-primary via-accent to-primary animate-[aura-shift_4s_ease-in-out_infinite] bg-[length:200%_100%]" />
+      <div className="h-[3px] w-full bg-gradient-to-r from-primary via-accent to-primary animate-[aura-shift_4s_linear_infinite] bg-[length:200%_100%]" />
       {/* Header */}
       <div className="flex items-center justify-between p-4">
         <UserProfileHoverCard 

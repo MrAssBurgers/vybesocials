@@ -1864,7 +1864,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 }
 
 .animate-color-shift {
-  animation: color-shift 6s ease-in-out infinite;
+  animation: color-shift 12s linear infinite;
 }
 
 .animate-subtle-float {
