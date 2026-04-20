@@ -52,6 +52,8 @@ import { SlideToAnswer } from './SlideToAnswer';
 import { CallReactions } from './CallReactions';
 import { AudioVisualizer } from './AudioVisualizer';
 
+const INCOMING_CALL_TIMEOUT_SECONDS = 30;
+
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, leaveCall, setPhase, setError, dismissIncoming, switchMode } = useCallStore();
   const { profile } = useAuth();
@@ -480,9 +482,8 @@ export function GlobalCallOverlay() {
       if (cancelled) return;
 
       clearJoinTimeout();
-      // P2P: 15s timeout (offer retransmission handles retries internally)
-      // Persistent: 30s timeout
-      const timeout = state.call!.callMode === 'p2p' ? 15000 : 30000;
+      // Keep caller join timeout aligned with the incoming-call answer window.
+      const timeout = INCOMING_CALL_TIMEOUT_SECONDS * 1000;
       joinTimeoutRef.current = setTimeout(() => {
         if (stateRef.current.phase === 'joining') {
           toast.error('Call failed to connect');
@@ -1405,7 +1406,7 @@ export function GlobalCallOverlay() {
 // ── Incoming Call Dialog ────────────────────────────────────
 
 function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onAccept: () => void; onDecline: () => void }) {
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState(INCOMING_CALL_TIMEOUT_SECONDS);
   const [isProcessing, setIsProcessing] = useState(false);
   const processingRef = useRef(false);
 
