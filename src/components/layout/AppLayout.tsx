@@ -1,4 +1,4 @@
-import { ReactNode, forwardRef, memo } from 'react';
+import { ReactNode, forwardRef, memo, useEffect, useState } from 'react';
 import { MobileHeader } from './MobileHeader';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
@@ -8,10 +8,10 @@ import { usePresence } from '@/hooks/usePresence';
 import { useScrollOptimization } from '@/hooks/useScrollOptimization';
 import { useScreenTimeTracker } from '@/hooks/useScreenTime';
 import { useBreakpoint } from '@/hooks/usePlatform';
-import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
+import { navVisibility } from '@/lib/navVisibility';
 
 interface AppLayoutProps {
   children: ReactNode;
