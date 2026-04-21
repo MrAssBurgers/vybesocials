@@ -349,6 +349,11 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
     return navOrder.map(id => navItemsConfig.find(item => item.id === id)!).filter(Boolean);
   }, [navOrder, navItemsConfig]);
 
+  // Report effective visibility to AppLayout (so it can collapse padding)
+  useEffect(() => {
+    navVisibility.setEffectiveVisible(isVisible);
+  }, [isVisible]);
+
   // Tutorial event listeners
   useEffect(() => {
     const handleOpenCreateMenu = () => setIsCreateMenuOpen(true);
