@@ -34,7 +34,10 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const { user, loading } = useAuth();
   const { isDesktop, isTablet, isIPad } = useBreakpoint();
   const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [navEffectiveVisible, setNavEffectiveVisible] = useState(true);
   const { swipeBackHandlers, swipeProgress } = useSwipeBack();
+
+  useEffect(() => navVisibility.subscribeEffective(setNavEffectiveVisible), []);
   
   // Track online presence
   usePresence();
