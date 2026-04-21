@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { motion } from 'framer-motion';
+import { WifiOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MOTION_VARIANTS } from '@/lib/motion';
 import { InteractiveButton } from './InteractiveButton';
@@ -166,9 +167,10 @@ export function OfflineBanner() {
       initial={{ y: -50, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: -50, opacity: 0 }}
-      className="fixed top-0 left-0 right-0 z-50 bg-yellow-500/90 text-yellow-900 py-2 px-4 text-center text-sm font-medium backdrop-blur-sm"
+      className="fixed top-0 left-0 right-0 z-50 bg-card/90 backdrop-blur-xl border-b border-border/50 text-foreground py-2 px-4 text-center text-sm font-medium flex items-center justify-center gap-2"
     >
-      📡 You're offline. Some features may be limited.
+      <WifiOff className="h-4 w-4 text-muted-foreground" />
+      You're offline. Some features may be limited.
     </motion.div>
   );
 }

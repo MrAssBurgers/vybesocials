@@ -2120,10 +2120,13 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
    Auto-fit, no overflow, perfect alignment
    =========================================== */
 
-/* Prevent horizontal overflow globally */
+/* Prevent horizontal overflow globally + lock background to brand to prevent
+   colored letterboxing (e.g. yellow tint) on resize/rotate/keyboard reflow. */
 html, body, #root {
   overflow-x: hidden;
   max-width: 100vw;
+  min-height: 100dvh;
+  background: hsl(var(--background));
 }
 
 /* Post card layout isolation for reflow prevention */
