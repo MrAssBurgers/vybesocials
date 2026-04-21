@@ -87,6 +87,7 @@ const MY_LOCATION_ZOOM = 16;
 const SHARING_PREF_KEY = 'vybe-map-sharing';
 const MAP_STYLE_KEY = 'vybe-map-style';
 const HIDDEN_FRIENDS_KEY = 'vybe-map-hidden-friends';
+const ALLOWED_FRIENDS_KEY = 'vybe-map-allowed-friends';
 const VISIBILITY_PREF_KEY = 'vybe-map-visibility';
 
 const MAP_TILES: Record<string, { url: string; label: string; icon: string }> = {
@@ -444,12 +445,27 @@ function FriendMapInner() {
       return stored ? new Set(JSON.parse(stored)) : new Set();
     } catch { return new Set(); }
   });
+  const [allowedFriends, setAllowedFriends] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(ALLOWED_FRIENDS_KEY);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
 
   const toggleHiddenFriend = useCallback((friendId: string) => {
     setHiddenFriends(prev => {
       const next = new Set(prev);
       if (next.has(friendId)) next.delete(friendId); else next.add(friendId);
       try { localStorage.setItem(HIDDEN_FRIENDS_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
+
+  const toggleAllowedFriend = useCallback((friendId: string) => {
+    setAllowedFriends(prev => {
+      const next = new Set(prev);
+      if (next.has(friendId)) next.delete(friendId); else next.add(friendId);
+      try { localStorage.setItem(ALLOWED_FRIENDS_KEY, JSON.stringify([...next])); } catch {}
       return next;
     });
   }, []);
@@ -1019,12 +1035,12 @@ function FriendMapInner() {
                         onClick={toggleSharing}
                         className={cn(
                           'relative h-8 w-14 rounded-full transition-all',
-                          !sharing ? 'bg-primary' : 'bg-white/20'
+                          sharing ? 'bg-primary' : 'bg-white/20'
                         )}
                       >
                         <div className={cn(
                           'absolute top-1 h-6 w-6 rounded-full bg-white transition-transform shadow',
-                          !sharing ? 'translate-x-7' : 'translate-x-1'
+                          sharing ? 'translate-x-7' : 'translate-x-1'
                         )} />
                       </button>
                     </div>
