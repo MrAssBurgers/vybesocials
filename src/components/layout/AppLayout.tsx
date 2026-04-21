@@ -134,15 +134,21 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
         className={cn(
           "overflow-x-hidden relative z-[2]",
           noPadding ? "overflow-hidden" : "overflow-y-auto",
-          hideNav ? "" : (!noPadding ? "pb-[calc(5rem+env(safe-area-inset-bottom))]" : ""),
           hideNav ? "" : "pt-14",
         )}
         style={{
           height: hideNav ? '100dvh' : (noPadding ? 'calc(100dvh - 3.5rem)' : 'calc(100dvh)'),
+          paddingBottom: hideNav || noPadding
+            ? undefined
+            : (navEffectiveVisible
+                ? 'calc(5rem + env(safe-area-inset-bottom))'
+                : 'env(safe-area-inset-bottom)'),
           WebkitOverflowScrolling: 'touch',
           overscrollBehaviorY: 'contain',
           transform: swipeProgress > 0 ? `translateX(${swipeProgress * 60}px)` : undefined,
-          transition: swipeProgress === 0 ? 'transform 0.2s ease-out' : undefined,
+          transition: swipeProgress === 0
+            ? 'transform 0.2s ease-out, padding-bottom 0.3s ease'
+            : 'padding-bottom 0.3s ease',
         }}
       >
         {children}
