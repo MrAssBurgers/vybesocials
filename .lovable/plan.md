@@ -1,56 +1,61 @@
 
 
 ## Goal
-Strip the gray/yellow frosted overlay from the bottom nav, fix the inverted Ghost Mode toggle, and make the friend selector show all friends (not just those currently sharing location).
+Kill the leftover "blurred/dark backdrop" behind the bottom nav and make the nav actually get out of the way (auto-hide on scroll down, on input focus, and stop reserving blank space when hidden).
 
-## Fix 1 — Bottom nav: remove the tinted overlay
-`src/components/layout/BottomNav.tsx` (lines 515–530)
+## Root causes
 
-The "weird gray/yellow background" is this gradient layered on top of the card:
-```
-linear-gradient(135deg, hsl(var(--primary)/0.15), hsl(var(--accent)/0.1)), hsl(var(--card))
-```
-With the current theme, `--primary`/`--accent` render warm → that yellow/gray haze in the screenshot.
+1. **Persistent backdrop strip behind the pill.** The nav pill (`mx-3 mb-2 rounded-[20px]`) sits on top of a full-width `<motion.nav>` that paints its safe-area padding area. With the dark `boxShadow: '0 4px 12px rgba(0,0,0,0.3)'` + the surrounding margin, you can see a dim band hugging the pill — that's the "blurred background thing." It's also visible even when `y: 120` animates out because the parent nav still occupies layout reserved by `AppLayout`'s `pb-[calc(5rem+env(safe-area-inset-bottom))]`.
 
-Change the non-edit-mode background to a clean solid card with a subtle border only:
-- Background: `hsl(var(--card))` (no gradient overlay).
-- Keep the border `border-white/10` and the soft drop shadow.
-- Edit mode keeps its primary glow (intentional, signals active state).
+2. **Nav doesn't actually go down when it should.** `useNavVisibility` only hides on a few explicit triggers (community chat, story viewer, designer, edit mode). It does NOT respect:
+   - `useScrollDirection` (defined at top of file but **never used** in the render — dead code).
+   - Soft keyboard / input focus on regular pages (only `RoomChat` wires it up).
+   - Modal/sheet open states (DM input, comments full screen, etc.).
+   So on every normal page the nav stays put and overlaps content.
 
-Result: bottom nav is a clean dark pill — no yellow tint, no frosted overlay behind icons.
+3. **Reserved space stays even when nav is hidden.** `AppLayout` always reserves `pb-[calc(5rem+env(safe-area-inset-bottom))]` regardless of nav visibility. When the nav animates down, you get an empty band where it used to be.
 
-## Fix 2 — Ghost Mode toggle: correct ON/OFF
-`src/pages/FriendMap.tsx` (lines 1017–1030)
+## Fix plan
 
-Toggle currently uses `!sharing` for both color and knob position, so when location is ON the switch reads as OFF (the screenshot shows white knob right + gray track while "location is visible"). Invert:
-- Track: `sharing ? 'bg-primary' : 'bg-white/20'`
-- Knob: `sharing ? 'translate-x-7' : 'translate-x-1'`
+### A. Remove the visible "backdrop" around the pill
+`src/components/layout/BottomNav.tsx`
 
-Now: sharing ON = knob right + primary track. Ghost Mode (sharing OFF) = knob left + gray track. Matches the subtitle text.
+- Drop the dark `boxShadow: '0 4px 12px rgba(0,0,0,0.3)'` on the non-edit-mode pill — replace with a subtle shadow tied to theme (`0 -2px 12px hsl(var(--background) / 0.4)`) or remove entirely. The big drop shadow is what reads as a "blurred background."
+- Remove `border-white/10` border (or soften to `border-white/5`) — the white hairline on a dark page reads as a frame.
+- Make the outer `<motion.nav>` element transparent and only paint the inner pill. Confirm no `bg-*` class leaks onto the parent.
+- Result: just the dark pill floats — no visible band, no blur halo.
 
-## Fix 3 — Friend selector shows everyone
-`src/pages/FriendMap.tsx` (lines 468–470, ~1070)
+### B. Auto-hide on scroll down (re-enable existing dead code)
+`src/components/layout/BottomNav.tsx`
 
-`allFriendsArr` filters out friends without valid lat/lng, so friends who haven't shared location can't be selected for "Friends, Except…" / "Only These Friends…". That's the root cause of "can't select certain people."
+- Wire `useScrollDirection()` (already implemented at lines 23–96 but unused) into the visibility calc:
+  `const isVisible = useNavVisibility() && useScrollDirection();`
+- Behavior: scroll down ≥10px past 50 → hide; scroll up or near top → show. Already implemented, just needs to be consumed.
 
-Change:
-- Build a separate `selectableFriendsArr` from the raw `friends` list with no lat/lng filter (still requires `user_id`).
-- Use it for the per-friend visibility list and the gating check on line 1070.
-- Keep `friendsArr` (lat/lng filtered) for map markers — unchanged.
+### C. Auto-hide when keyboard / inputs are focused globally
+`src/components/layout/BottomNav.tsx` (or new small hook)
 
-Also fix the per-friend toggle visual logic so semantics match the section:
-- In `only-these` mode, "selected" should mean visible (not hidden). Current code treats `hiddenFriends` as the universal store, which inverts meaning in `only-these` mode.
-- Add a derived `isVisibleToFriend(friendId)` that returns:
-  - `friends-except`: `!hiddenFriends.has(id)`
-  - `only-these`: `hiddenFriends.has(id)` is repurposed as "included" — rename storage to `selectedFriends` for `only-these` and keep `hiddenFriends` for `friends-except`, OR cleanest: introduce a single `allowedFriends` set used only in `only-these` mode and persist it under a new localStorage key.
-- Toggle button colors and ON-position reflect "included/visible" consistently.
+- Add a global `focusin`/`focusout` listener that hides the nav when `document.activeElement` is `INPUT`, `TEXTAREA`, or `[contenteditable=true]`. Restore on blur.
+- Also listen to `visualViewport` resize: if `window.visualViewport.height < window.innerHeight - 100` → keyboard open → hide nav. This catches iOS where focus event timing is unreliable.
 
-## Files edited
-- `src/components/layout/BottomNav.tsx` — solid card background, no gradient tint.
-- `src/pages/FriendMap.tsx` — fix toggle direction, add `selectableFriendsArr`, split `hiddenFriends` vs `allowedFriends` state with proper toggle semantics.
+### D. Stop reserving blank space when nav is hidden
+`src/components/layout/AppLayout.tsx` (lines ~120–145)
+
+- Subscribe to `navVisibility` (and the scroll/keyboard signal) to drive the bottom padding:
+  - When nav is visible: keep `pb-[calc(5rem+env(safe-area-inset-bottom))]`.
+  - When hidden: drop to `pb-[env(safe-area-inset-bottom)]`.
+- Animate the padding change (CSS `transition: padding 0.3s`) so content gracefully reclaims the space instead of jumping.
+
+### E. Sweep stale full-bleed surfaces near the nav
+- Confirm no `<div className="fixed bottom-0 ... bg-*">` elements other than the nav itself paint a strip. (Quick grep of `fixed bottom-0` to verify.) If found, scope them or remove.
+
+## Files to edit
+- `src/components/layout/BottomNav.tsx` — remove dark shadow/border around pill; consume `useScrollDirection`; add global input/keyboard auto-hide.
+- `src/components/layout/AppLayout.tsx` — make bottom padding follow nav visibility with smooth transition.
+- (If sweep finds extras) any stray `fixed bottom-0` decorative element.
 
 ## Expected result
-- Bottom nav: clean dark pill, no yellow/gray haze, icons sit on solid card.
-- Ghost Mode switch: knob + color match the "visible/hidden" label.
-- Friend selector: lists every friend (not just those sharing GPS); toggles correctly include/exclude per mode.
+- No dim band, no blurred halo, no white hairline behind the bottom nav — just the clean dark pill.
+- Nav slides down on scroll, when typing, and when keyboard opens; slides back up on scroll up / blur.
+- Reserved bottom space collapses smoothly when nav hides — content no longer "blocked" by an empty band.
 
