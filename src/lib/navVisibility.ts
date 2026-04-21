@@ -9,8 +9,10 @@ type HeaderVisibilityListener = (visible: boolean) => void;
 // Global state
 let navVisible = true;
 let headerVisible = true;
+let effectiveNavVisible = true; // Reported by BottomNav (includes scroll/keyboard signals)
 const listeners = new Set<NavVisibilityListener>();
 const headerListeners = new Set<HeaderVisibilityListener>();
+const effectiveListeners = new Set<NavVisibilityListener>();
 let communityInputFocused = false;
 let inCommunityChat = false;
 let inStoryViewer = false;
@@ -31,57 +33,36 @@ function updateVisibility() {
 }
 
 export const navVisibility = {
-  /**
-   * Subscribe to visibility changes
-   */
   subscribe(callback: NavVisibilityListener): () => void {
     listeners.add(callback);
     callback(navVisible);
     return () => listeners.delete(callback);
   },
 
-  /**
-   * Get current visibility state
-   */
   isVisible(): boolean {
     return navVisible;
   },
 
-  /**
-   * Set whether we're inside a community chat (hides nav)
-   */
   setInCommunityChat(inChat: boolean) {
     inCommunityChat = inChat;
     updateVisibility();
   },
 
-  /**
-   * Set whether community input is focused (hides nav)
-   */
   setCommunityInputFocused(focused: boolean) {
     communityInputFocused = focused;
     updateVisibility();
   },
 
-  /**
-   * Set whether we're viewing stories (hides nav)
-   */
   setInStoryViewer(inViewer: boolean) {
     inStoryViewer = inViewer;
     updateVisibility();
   },
 
-  /**
-   * Set whether we're in the designer (hides nav)
-   */
   setInDesigner(inDes: boolean) {
     inDesigner = inDes;
     updateVisibility();
   },
 
-  /**
-   * Force show nav (useful when exiting community or stories)
-   */
   forceShow() {
     inCommunityChat = false;
     communityInputFocused = false;
@@ -91,17 +72,11 @@ export const navVisibility = {
     updateVisibility();
   },
 
-  /**
-   * Set whether we're in home edit mode (hides header)
-   */
   setInEditMode(editing: boolean) {
     inEditMode = editing;
     updateVisibility();
   },
 
-  /**
-   * Subscribe to header visibility changes
-   */
   subscribeHeader(callback: HeaderVisibilityListener): () => void {
     headerListeners.add(callback);
     callback(headerVisible);
@@ -110,5 +85,26 @@ export const navVisibility = {
 
   isHeaderVisible(): boolean {
     return headerVisible;
+  },
+
+  /**
+   * Effective visibility — set by BottomNav, includes scroll/keyboard/focus signals.
+   * AppLayout subscribes to this to collapse reserved bottom padding when nav is hidden.
+   */
+  setEffectiveVisible(visible: boolean) {
+    if (effectiveNavVisible !== visible) {
+      effectiveNavVisible = visible;
+      effectiveListeners.forEach(fn => fn(visible));
+    }
+  },
+
+  subscribeEffective(callback: NavVisibilityListener): () => void {
+    effectiveListeners.add(callback);
+    callback(effectiveNavVisible);
+    return () => effectiveListeners.delete(callback);
+  },
+
+  isEffectiveVisible(): boolean {
+    return effectiveNavVisible;
   },
 };

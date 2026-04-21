@@ -279,8 +279,43 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
   const { mutate: updatePrefs } = useUpdatePreferences();
   const scrollVisible = useScrollDirection();
   const navCentralVisible = useNavVisibility();
-  
-  const isVisible = scrollVisible && navCentralVisible;
+  const [inputFocused, setInputFocused] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  // Hide nav when an input/textarea/contenteditable is focused, or when soft keyboard opens
+  useEffect(() => {
+    const isEditableTarget = (el: EventTarget | null) => {
+      if (!(el instanceof HTMLElement)) return false;
+      const tag = el.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return true;
+      if (el.isContentEditable) return true;
+      return false;
+    };
+    const onFocusIn = (e: FocusEvent) => {
+      if (isEditableTarget(e.target)) setInputFocused(true);
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      if (isEditableTarget(e.target)) setInputFocused(false);
+    };
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+
+    const vv = (window as any).visualViewport as VisualViewport | undefined;
+    const onVVResize = () => {
+      if (!vv) return;
+      setKeyboardOpen(vv.height < window.innerHeight - 100);
+    };
+    vv?.addEventListener('resize', onVVResize);
+    onVVResize();
+
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
+      vv?.removeEventListener('resize', onVVResize);
+    };
+  }, []);
+
+  const isVisible = scrollVisible && navCentralVisible && !inputFocused && !keyboardOpen;
   const onboardingComplete = profile?.onboarding_completed === true;
 
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
@@ -313,6 +348,11 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
   const orderedNavItems = useMemo(() => {
     return navOrder.map(id => navItemsConfig.find(item => item.id === id)!).filter(Boolean);
   }, [navOrder, navItemsConfig]);
+
+  // Report effective visibility to AppLayout (so it can collapse padding)
+  useEffect(() => {
+    navVisibility.setEffectiveVisible(isVisible);
+  }, [isVisible]);
 
   // Tutorial event listeners
   useEffect(() => {
@@ -514,10 +554,10 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
       >
         <div 
           className={cn(
-            "mx-3 mb-2 rounded-[20px] overflow-hidden border transition-all duration-300",
+            "mx-3 mb-2 rounded-[20px] overflow-hidden transition-all duration-300",
             isEditMode 
-              ? "border-primary/60 shadow-[0_0_30px_hsl(var(--primary)/0.5)]" 
-              : "border-white/10"
+              ? "border border-primary/60 shadow-[0_0_30px_hsl(var(--primary)/0.5)]" 
+              : "border-0"
           )}
           style={{
             background: isEditMode 
@@ -525,7 +565,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
               : 'hsl(var(--card))',
             boxShadow: isEditMode 
               ? '0 8px 32px hsl(var(--primary) / 0.5), inset 0 1px 0 hsl(var(--primary) / 0.3)'
-              : '0 4px 12px rgba(0,0,0,0.3)',
+              : 'none',
           }}
         >
           <Reorder.Group
