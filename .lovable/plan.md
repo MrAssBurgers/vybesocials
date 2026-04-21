@@ -1,54 +1,65 @@
 
-The user wants ALL linear/looping animations across the app (not just call overlay) to flow continuously without visible reset frames. Examples called out: login button, create menu button — these have shimmer/gradient/pulse loops that visibly snap back to frame 1.
 
-### Root cause
-Same pattern as before, but app-wide:
-- `backgroundPosition: ['0% 50%', '100% 50%', '0% 50%']` — goes there and back, visible reverse
-- `opacity: [0.5, 1, 0.5]` — pulse-back
-- `scale: [1, 1.1, 1]` — breathe-back
-- `x: [0, 20, 0]` — wander-back
-- Some use `repeatType: 'reverse'` which guarantees a visible turnaround
+## Goal
+Eliminate the yellow tint that appears on resize and ensure the app fits every viewport size cleanly with no colored letterboxing or stray overlays.
 
-Even with `ease: 'linear'`, any keyframe array that returns to the start creates a perceptible "reset" because direction reverses.
+## Likely culprits (will fix all)
 
-### Fix — convert to one-directional seamless loops
+1. **AdSense script auto-injecting placeholder frames.** `index.html` loads `adsbygoogle.js` site-wide, but no `<ins class="adsbygoogle">` slots exist in the app yet. On certain hosts/viewport changes, the script can render yellow/amber "verification" or fallback placeholders. Per the existing comment, ads are gated behind `useShowAds.ts` and disabled until approval — so the script should NOT be loading globally yet.
 
-**1. Gradient/shimmer animations (login button, gradient buttons, CreateMenu)**
-- Replace `backgroundPosition: ['0% 50%', '100% 50%', '0% 50%']` with one-way: `['0% 50%', '200% 50%']` on a 200%-wide gradient — end frame matches start visually.
-- Or use CSS `background-size: 200% 100%` + animate `backgroundPosition: ['0% 0%', '-100% 0%']` for infinite scroll.
+2. **`OfflineBanner` (`src/components/ui/EmptyState.tsx`)** uses a full-width `bg-yellow-500/90` bar. It isn't currently mounted anywhere, but it's a footgun and should be re-skinned to match the app's dark/glass aesthetic.
 
-**2. Pulse/glow loops**
-- Replace `opacity: [0.5, 1, 0.5]` with staggered fade-out waves: each layer goes `opacity: [0.6, 0]` + `scale: [1, 1.4]`, stacked with delays so a new wave starts as the old fades — constant flow, no reset.
+3. **`html, body` background mismatch on resize.** `index.html` inline CSS sets `#0B0B10`, but when the viewport resizes there can be a moment where the React `AppBackground` layer hasn't repainted, exposing whatever the browser/extension/ad iframe paints behind. Also no `html { background }` rule — some browsers fall back to white/yellow accent.
 
-**3. Floating/drift animations**
-- Replace `x: [0, 30, 0]` with one-way translation on tiled/duplicated layers: `x: ['0%', '-50%']` on a doubled-width container — seamless wrap.
+4. **Viewport meta has `maximum-scale=5, user-scalable=yes`.** Combined with `viewport-fit=cover`, iOS Safari can show a yellow accent strip in the safe-area when the user pinch-zooms or rotates. Lock to no-zoom for the app shell.
 
-**4. Scale breathing**
-- Where a "breathing" feel is wanted, keep it but add a second offset layer so the eye always sees outward motion from somewhere — no global reset moment.
+5. **Missing `color-scheme` lock on `html`.** Browsers sometimes paint scrollbars/letterboxing using the OS accent (yellow on some Android themes). Force dark.
 
-### Scope — files to audit and update
+## Fix plan
 
-Primary targets (called out by user + most visible):
-- `src/components/hub/CreateMenu.tsx` — gradient icon backgrounds, header pulse, glow ring
-- Login / auth buttons — find via search (likely `src/pages/Auth.tsx`, `src/components/auth/*`)
-- `src/components/ui/button.tsx` `gradient-animated` class — defined in `tailwind.config.ts` / `index.css`
-- `src/index.css` — `gradient-animated`, `liquid-glass-button`, any `@keyframes` with reverse paths
-- `src/motion/liquidConfig.ts` — add a reusable `seamlessLoop` preset
+### A. Remove the AdSense auto-load until ads ship
+`index.html` — remove the `<script async src="…adsbygoogle.js…">` tag from `<head>`. If/when ads are approved, load it lazily from `useShowAds.ts` only on pages that render an ad slot. This kills the most likely source of an injected yellow placeholder.
 
-Secondary sweep (any persistent loops):
-- `src/components/call/GlobalCallOverlay.tsx` (already partially done — finalize)
-- `src/components/call/MinimizedCallBubble.tsx`
-- Background/ambient: `src/components/AppBackground.tsx` and similar
-- Any `repeatType: 'reverse'` across `src/**` — replace with one-way keyframes
+### B. Re-skin `OfflineBanner`
+`src/components/ui/EmptyState.tsx` — replace `bg-yellow-500/90 text-yellow-900` with a glass card (`bg-card/90 backdrop-blur-xl border border-border/50 text-foreground`) and a small `WifiOff` icon. Matches the rest of the app and removes the yellow even if it ever mounts.
 
-### Approach
-1. Add `seamlessShimmer`, `seamlessDrift`, `seamlessWave` presets to `src/motion/liquidConfig.ts`.
-2. Update `gradient-animated` CSS keyframes in `index.css` to use one-way `background-position` shift on a 200% gradient.
-3. Sweep `src/**/*.tsx` for `repeatType: 'reverse'`, `[x, y, x]` triplet patterns, and `opacity: [a, b, a]` patterns in persistent loops — convert each.
-4. Leave one-shot entrance animations (button tap scale, modal open) alone — those aren't loops.
+### C. Lock global paint to brand dark
+`index.html` inline `<style>`:
+- Add `html { background: #0B0B10; color-scheme: dark; }`.
+- Add `:root { background: #0B0B10; }`.
+- Add `#root { background: #0B0B10; }` (already there — keep).
+- Ensure `body::before, body::after { content: none; }` defensively to prevent injected pseudo overlays.
 
-### Expected result
-- Login button gradient flows continuously in one direction, no visible "snap to start."
-- CreateMenu icons/glow pulse outward in waves, never resetting.
-- All app-wide ambient loops feel like constant flow.
-- One-shot interactions (tap, hover, open) unchanged.
+### D. Fit-every-size hardening
+`index.html` viewport meta — change to:
+`width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no`
+This stops pinch-zoom from exposing yellow safe-area accents on iOS.
+
+`src/index.css` — add a single global rule:
+```css
+html, body, #root {
+  min-height: 100dvh;
+  background: hsl(var(--background));
+}
+```
+Ensures the dvh-based shell tracks the viewport on resize/keyboard with no colored gaps.
+
+### E. Sweep for any other stray yellow overlay
+Audit and confirm none of these render full-screen on resize:
+- `src/components/error/GlobalErrorHandler.tsx` (offline toast — already a toast, fine).
+- `Toybox.tsx` sticker chip (`bg-yellow-500/10` — local chip, fine).
+- `Camera.tsx` flash (`bg-yellow-400/30` — only inside camera UI, fine).
+
+No code changes needed for those — confirmed they're component-local.
+
+## Files to edit
+- `index.html` — remove AdSense, tighten viewport, add dark `html`/`color-scheme`.
+- `src/components/ui/EmptyState.tsx` — re-skin `OfflineBanner` to glass.
+- `src/index.css` — add global `html/body/#root` background + min-height rule.
+
+## Expected result
+- No yellow tint at any viewport size, on resize, on rotate, on keyboard open, or on pinch.
+- App background stays consistent `#0B0B10` / themed background through every reflow.
+- Zero AdSense placeholder frames until ads are formally enabled.
+- All overlays (offline, errors) match the dark/glass aesthetic.
+
