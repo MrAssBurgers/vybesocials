@@ -522,7 +522,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
           style={{
             background: isEditMode 
               ? 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(var(--accent) / 0.4), hsl(var(--primary) / 0.3)), hsl(var(--card))'
-              : 'linear-gradient(135deg, hsl(var(--primary) / 0.15), hsl(var(--accent) / 0.1)), hsl(var(--card))',
+              : 'hsl(var(--card))',
             boxShadow: isEditMode 
               ? '0 8px 32px hsl(var(--primary) / 0.5), inset 0 1px 0 hsl(var(--primary) / 0.3)'
               : '0 4px 12px rgba(0,0,0,0.3)',

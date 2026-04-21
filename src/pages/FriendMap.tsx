@@ -87,6 +87,7 @@ const MY_LOCATION_ZOOM = 16;
 const SHARING_PREF_KEY = 'vybe-map-sharing';
 const MAP_STYLE_KEY = 'vybe-map-style';
 const HIDDEN_FRIENDS_KEY = 'vybe-map-hidden-friends';
+const ALLOWED_FRIENDS_KEY = 'vybe-map-allowed-friends';
 const VISIBILITY_PREF_KEY = 'vybe-map-visibility';
 
 const MAP_TILES: Record<string, { url: string; label: string; icon: string }> = {
@@ -444,12 +445,27 @@ function FriendMapInner() {
       return stored ? new Set(JSON.parse(stored)) : new Set();
     } catch { return new Set(); }
   });
+  const [allowedFriends, setAllowedFriends] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(ALLOWED_FRIENDS_KEY);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
 
   const toggleHiddenFriend = useCallback((friendId: string) => {
     setHiddenFriends(prev => {
       const next = new Set(prev);
       if (next.has(friendId)) next.delete(friendId); else next.add(friendId);
       try { localStorage.setItem(HIDDEN_FRIENDS_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
+
+  const toggleAllowedFriend = useCallback((friendId: string) => {
+    setAllowedFriends(prev => {
+      const next = new Set(prev);
+      if (next.has(friendId)) next.delete(friendId); else next.add(friendId);
+      try { localStorage.setItem(ALLOWED_FRIENDS_KEY, JSON.stringify([...next])); } catch {}
       return next;
     });
   }, []);
@@ -1019,12 +1035,12 @@ function FriendMapInner() {
                         onClick={toggleSharing}
                         className={cn(
                           'relative h-8 w-14 rounded-full transition-all',
-                          !sharing ? 'bg-primary' : 'bg-white/20'
+                          sharing ? 'bg-primary' : 'bg-white/20'
                         )}
                       >
                         <div className={cn(
                           'absolute top-1 h-6 w-6 rounded-full bg-white transition-transform shadow',
-                          !sharing ? 'translate-x-7' : 'translate-x-1'
+                          sharing ? 'translate-x-7' : 'translate-x-1'
                         )} />
                       </button>
                     </div>
@@ -1067,40 +1083,52 @@ function FriendMapInner() {
                   </div>
 
                   {/* Per-friend visibility */}
-                  {allFriendsArr.length > 0 && (visibilityPref === 'friends-except' || visibilityPref === 'only-these') && (
+                  {allFriendProfiles.length > 0 && (visibilityPref === 'friends-except' || visibilityPref === 'only-these') && (
                     <div className="space-y-2">
                       <p className="text-xs font-bold text-white/40 uppercase tracking-wider">
                         {visibilityPref === 'friends-except' ? 'Hide from these friends' : 'Only show to these friends'}
                       </p>
                       <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-hide">
-                        {allFriendsArr.map((f) => (
-                          <button
-                            key={f.user_id}
-                            onClick={() => toggleHiddenFriend(f.user_id)}
-                            className={cn(
-                              'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 transition-all',
-                              hiddenFriends.has(f.user_id) ? 'bg-white/5 opacity-50' : 'bg-white/5'
-                            )}
-                          >
-                            <div className="h-8 w-8 rounded-full overflow-hidden bg-white/10 shrink-0">
-                              {f.profile?.avatar_url ? (
-                                <img src={f.profile.avatar_url} alt="" className="h-full w-full object-cover" />
-                              ) : (
-                                <span className="flex h-full w-full items-center justify-center text-xs font-bold text-white/60">{initial(friendName(f))}</span>
+                        {allFriendProfiles.map((f) => {
+                          const isExceptMode = visibilityPref === 'friends-except';
+                          // "Visible" = included in sharing audience
+                          const isVisible = isExceptMode
+                            ? !hiddenFriends.has(f.id)
+                            : allowedFriends.has(f.id);
+                          const handleToggle = () => {
+                            if (isExceptMode) toggleHiddenFriend(f.id);
+                            else toggleAllowedFriend(f.id);
+                          };
+                          const displayName = f.display_name || f.username || 'Friend';
+                          return (
+                            <button
+                              key={f.id}
+                              onClick={handleToggle}
+                              className={cn(
+                                'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 transition-all',
+                                isVisible ? 'bg-white/5' : 'bg-white/5 opacity-50'
                               )}
-                            </div>
-                            <span className="text-xs font-medium text-white/80 flex-1 text-left truncate">{friendName(f)}</span>
-                            <div className={cn(
-                              'h-5 w-9 rounded-full transition-all flex items-center px-0.5',
-                              hiddenFriends.has(f.user_id) ? 'bg-white/20' : 'bg-primary'
-                            )}>
+                            >
+                              <div className="h-8 w-8 rounded-full overflow-hidden bg-white/10 shrink-0">
+                                {f.avatar_url ? (
+                                  <img src={f.avatar_url} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                  <span className="flex h-full w-full items-center justify-center text-xs font-bold text-white/60">{initial(displayName)}</span>
+                                )}
+                              </div>
+                              <span className="text-xs font-medium text-white/80 flex-1 text-left truncate">{displayName}</span>
                               <div className={cn(
-                                'h-4 w-4 rounded-full bg-white transition-transform',
-                                hiddenFriends.has(f.user_id) ? 'translate-x-0' : 'translate-x-4'
-                              )} />
-                            </div>
-                          </button>
-                        ))}
+                                'h-5 w-9 rounded-full transition-all flex items-center px-0.5',
+                                isVisible ? 'bg-primary' : 'bg-white/20'
+                              )}>
+                                <div className={cn(
+                                  'h-4 w-4 rounded-full bg-white transition-transform',
+                                  isVisible ? 'translate-x-4' : 'translate-x-0'
+                                )} />
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
