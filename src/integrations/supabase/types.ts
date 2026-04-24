@@ -11951,6 +11951,7 @@ export type Database = {
       get_own_sensitive_profile: {
         Args: never
         Returns: {
+          crash_consent: boolean
           date_of_birth: string
           email: string
           phone_number: string
