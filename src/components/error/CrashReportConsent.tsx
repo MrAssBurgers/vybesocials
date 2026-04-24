@@ -29,8 +29,8 @@ export const CrashReportConsent = memo(function CrashReportConsent() {
           .rpc('get_own_sensitive_profile')
           .single();
         const dbVal = (data as any)?.crash_consent;
-        if (dbVal === 'true' || dbVal === 'false' || dbVal === true || dbVal === false) {
-          const consent = dbVal === 'true' || dbVal === true;
+        if (dbVal === true || dbVal === false || dbVal === 'true' || dbVal === 'false') {
+          const consent = dbVal === true || dbVal === 'true';
           localStorage.setItem(CONSENT_KEY, String(consent));
         } else {
           setTimeout(() => setOpen(true), 2500);
@@ -50,7 +50,7 @@ export const CrashReportConsent = memo(function CrashReportConsent() {
     if (profile?.id) {
       await supabase
         .from('profiles')
-        .update({ crash_consent: String(consent) } as any)
+        .update({ crash_consent: consent } as any)
         .eq('id', profile.id);
     }
   };
