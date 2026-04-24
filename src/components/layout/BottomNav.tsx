@@ -554,15 +554,15 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
       >
         <div 
           className={cn(
-            "mx-3 mb-2 rounded-[20px] overflow-hidden transition-all duration-300",
+            "rounded-t-[24px] overflow-hidden transition-all duration-300",
             isEditMode 
               ? "border border-primary/60 shadow-[0_0_30px_hsl(var(--primary)/0.5)]" 
               : "border-0"
           )}
           style={{
             background: isEditMode 
-              ? 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(var(--accent) / 0.4), hsl(var(--primary) / 0.3)), hsl(var(--card))'
-              : 'hsl(var(--card))',
+              ? 'linear-gradient(135deg, hsl(var(--primary) / 0.55), hsl(var(--accent) / 0.45), hsl(var(--primary) / 0.35)), hsl(var(--card))'
+              : 'linear-gradient(135deg, hsl(var(--primary) / 0.95), hsl(var(--accent) / 0.9))',
             boxShadow: isEditMode 
               ? '0 8px 32px hsl(var(--primary) / 0.5), inset 0 1px 0 hsl(var(--primary) / 0.3)'
               : 'none',
