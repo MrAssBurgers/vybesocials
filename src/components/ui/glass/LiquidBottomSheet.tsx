@@ -47,10 +47,13 @@ export const LiquidBottomSheet = memo(forwardRef<HTMLDivElement, LiquidBottomShe
               dragElastic={0.08}
               onDragEnd={handleDragEnd}
               className={cn(
-                'fixed inset-x-0 bottom-0 z-[9999] liquid-glass-depth overflow-hidden rounded-t-3xl',
+                'fixed inset-x-0 z-[9999] liquid-glass-depth overflow-hidden rounded-t-3xl',
                 className
               )}
-              style={{ maxHeight: `${maxHeight}vh` }}
+              style={{
+                bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
+                maxHeight: `${maxHeight}vh`,
+              }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Top edge highlight */}
