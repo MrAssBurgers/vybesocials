@@ -561,11 +561,11 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
           )}
           style={{
             background: isEditMode 
-              ? 'linear-gradient(135deg, hsl(var(--primary) / 0.55), hsl(var(--accent) / 0.45), hsl(var(--primary) / 0.35)), hsl(var(--card))'
-              : 'linear-gradient(135deg, hsl(var(--primary) / 0.95), hsl(var(--accent) / 0.9))',
+              ? 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(var(--accent) / 0.4), hsl(var(--primary) / 0.3)), hsl(var(--card))'
+              : 'linear-gradient(135deg, hsl(var(--primary) / 0.14), hsl(var(--accent) / 0.10) 50%, hsl(var(--card) / 0.98)), hsl(var(--card))',
             boxShadow: isEditMode 
               ? '0 8px 32px hsl(var(--primary) / 0.5), inset 0 1px 0 hsl(var(--primary) / 0.3)'
-              : 'none',
+              : 'inset 0 1px 0 hsl(var(--primary) / 0.08)',
           }}
         >
           <Reorder.Group
