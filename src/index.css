@@ -1353,13 +1353,17 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       radial-gradient(circle at 58% 18%, hsl(var(--neon-cyan) / 0.95), transparent 60%),
       radial-gradient(circle at 30% 80%, hsl(var(--primary) / 0.85), transparent 60%),
       radial-gradient(circle at 75% 35%, hsl(var(--accent) / 0.85), transparent 60%),
-      radial-gradient(circle at 50% 60%, hsl(var(--gradient-mid) / 0.80), transparent 65%);
+      radial-gradient(circle at 50% 60%, hsl(var(--gradient-mid) / 0.80), transparent 65%),
+      radial-gradient(circle at 10% 60%, hsl(var(--neon-yellow) / 0.75), transparent 55%),
+      radial-gradient(circle at 90% 15%, hsl(var(--gradient-start) / 0.85), transparent 60%),
+      radial-gradient(circle at 40% 40%, hsl(310 100% 60% / 0.75), transparent 60%);
     background-size:
       200% 200%, 220% 220%, 200% 200%,
-      230% 230%, 210% 210%, 240% 240%;
+      230% 230%, 210% 210%, 240% 240%,
+      215% 215%, 225% 225%, 205% 205%;
     background-repeat: no-repeat;
-    animation: aurora-drift-multi 28s linear infinite;
-    filter: saturate(1.45) brightness(1.1);
+    animation: aurora-drift-multi 32s linear infinite;
+    filter: saturate(1.5) brightness(1.12);
   }
 
   .seamless-gradient-strip {
@@ -1368,18 +1372,22 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     border-radius: inherit;
     background-color: hsl(var(--background));
     background-image:
-      radial-gradient(ellipse at 15% 50%, hsl(var(--neon-pink) / 1), transparent 65%),
-      radial-gradient(ellipse at 45% 50%, hsl(var(--neon-purple) / 0.95), transparent 65%),
-      radial-gradient(ellipse at 80% 50%, hsl(var(--neon-cyan) / 1), transparent 65%),
-      radial-gradient(ellipse at 30% 50%, hsl(var(--primary) / 0.90), transparent 65%),
-      radial-gradient(ellipse at 65% 50%, hsl(var(--accent) / 0.90), transparent 65%),
-      radial-gradient(ellipse at 95% 50%, hsl(var(--gradient-end) / 0.85), transparent 65%);
+      radial-gradient(ellipse at 10% 50%, hsl(var(--neon-pink) / 1), transparent 65%),
+      radial-gradient(ellipse at 30% 50%, hsl(var(--neon-purple) / 0.95), transparent 65%),
+      radial-gradient(ellipse at 50% 50%, hsl(var(--neon-cyan) / 1), transparent 65%),
+      radial-gradient(ellipse at 70% 50%, hsl(var(--primary) / 0.90), transparent 65%),
+      radial-gradient(ellipse at 85% 50%, hsl(var(--accent) / 0.90), transparent 65%),
+      radial-gradient(ellipse at 95% 50%, hsl(var(--gradient-end) / 0.85), transparent 65%),
+      radial-gradient(ellipse at 20% 50%, hsl(var(--neon-yellow) / 0.80), transparent 60%),
+      radial-gradient(ellipse at 60% 50%, hsl(var(--gradient-start) / 0.85), transparent 65%),
+      radial-gradient(ellipse at 40% 50%, hsl(310 100% 60% / 0.75), transparent 65%);
     background-size:
       300% 300%, 280% 280%, 300% 300%,
-      320% 320%, 290% 290%, 310% 310%;
+      320% 320%, 290% 290%, 310% 310%,
+      295% 295%, 305% 305%, 285% 285%;
     background-repeat: no-repeat;
-    animation: aurora-drift-multi 20s linear infinite;
-    filter: saturate(1.5) brightness(1.12);
+    animation: aurora-drift-multi 22s linear infinite;
+    filter: saturate(1.55) brightness(1.15);
   }
 
   /* Static gradient for non-critical elements */
@@ -1727,7 +1735,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   to { background-position: -100% 50%; }
 }
 
-/* VYBE aurora drift — each of the 6 radial blobs traces its own circular
+/* VYBE aurora drift — each of the 9 radial blobs traces its own circular
    orbit so position is inherently periodic. With `linear` timing this
    produces a perfectly seamless infinite loop with NO snap or restart at
    the cycle boundary (velocity is tangent at every point, including 0%/100%).
@@ -1736,47 +1744,56 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   0% {
     background-position:
       50% 15%, 85% 50%, 15% 50%,
-      50% 85%, 76% 26%, 24% 74%;
+      50% 85%, 76% 26%, 24% 74%,
+      85% 85%, 15% 15%, 50% 50%;
   }
   12.5% {
     background-position:
       75% 25%, 75% 75%, 25% 25%,
-      25% 75%, 90% 50%, 10% 50%;
+      25% 75%, 90% 50%, 10% 50%,
+      90% 50%, 10% 50%, 75% 25%;
   }
   25% {
     background-position:
       85% 50%, 50% 85%, 50% 15%,
-      15% 50%, 76% 74%, 24% 26%;
+      15% 50%, 76% 74%, 24% 26%,
+      85% 15%, 15% 85%, 85% 50%;
   }
   37.5% {
     background-position:
       75% 75%, 25% 75%, 75% 25%,
-      25% 25%, 50% 90%, 50% 10%;
+      25% 25%, 50% 90%, 50% 10%,
+      50% 10%, 50% 90%, 75% 75%;
   }
   50% {
     background-position:
       50% 85%, 15% 50%, 85% 50%,
-      50% 15%, 24% 74%, 76% 26%;
+      50% 15%, 24% 74%, 76% 26%,
+      15% 15%, 85% 85%, 50% 50%;
   }
   62.5% {
     background-position:
       25% 75%, 25% 25%, 75% 75%,
-      75% 25%, 10% 50%, 90% 50%;
+      75% 25%, 10% 50%, 90% 50%,
+      10% 50%, 90% 50%, 25% 75%;
   }
   75% {
     background-position:
       15% 50%, 50% 15%, 50% 85%,
-      85% 50%, 24% 26%, 76% 74%;
+      85% 50%, 24% 26%, 76% 74%,
+      15% 85%, 85% 15%, 15% 50%;
   }
   87.5% {
     background-position:
       25% 25%, 75% 25%, 25% 75%,
-      75% 75%, 50% 10%, 50% 90%;
+      75% 75%, 50% 10%, 50% 90%,
+      50% 90%, 50% 10%, 25% 25%;
   }
   100% {
     background-position:
       50% 15%, 85% 50%, 15% 50%,
-      50% 85%, 76% 26%, 24% 74%;
+      50% 85%, 76% 26%, 24% 74%,
+      85% 85%, 15% 15%, 50% 50%;
   }
 }
 
