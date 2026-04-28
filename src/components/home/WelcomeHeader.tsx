@@ -56,7 +56,7 @@ export function WelcomeHeader() {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="relative overflow-hidden rounded-2xl border border-white/10 bg-card/40 backdrop-blur-xl px-4 py-3 shadow-[0_8px_32px_-12px_hsl(var(--primary)/0.35)]"
+          className="relative overflow-hidden rounded-2xl border border-white/10 bg-card/85 px-4 py-3 shadow-[0_8px_32px_-12px_hsl(var(--primary)/0.35)]"
         >
           {/* Aurora glow blobs */}
           <div className="pointer-events-none absolute -top-12 -left-8 h-32 w-32 rounded-full bg-primary/25 blur-3xl" aria-hidden />
@@ -79,7 +79,7 @@ export function WelcomeHeader() {
           transition={{ duration: 0.25, delay: 0.05 }}
         >
           <div 
-            className="p-2.5 cursor-pointer rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm" 
+            className="p-2.5 cursor-pointer rounded-xl border border-border/50 bg-card/80" 
             onClick={() => navigate('/challenges')}
           >
             <div className="flex items-center gap-3">
