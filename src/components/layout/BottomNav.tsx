@@ -193,7 +193,7 @@ const DraggableNavItem = memo(({
               />
             )}
             <Avatar className={cn(
-              "h-7 w-7 relative z-10 transition-all",
+              "h-7 w-7 relative z-10 transition-[box-shadow,transform]",
               isActive && "ring-2 ring-primary",
               isEditMode && "animate-pulse"
             )}>
@@ -558,7 +558,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
       >
         <div 
           className={cn(
-            "rounded-t-[28px] overflow-hidden transition-all duration-300 relative",
+            "rounded-t-[28px] overflow-hidden transition-[background-color,border-color] duration-300 relative",
             isEditMode 
               ? "border border-primary/60 shadow-[0_0_30px_hsl(var(--primary)/0.5)]" 
               : "border-t border-white/5"
