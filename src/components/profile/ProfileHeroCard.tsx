@@ -260,18 +260,7 @@ export function ProfileHeroCard({
           <div className="flex-1" />
 
           {/* Follow / Premium buttons */}
-          {isOwnProfile ? (
-            isPremium ? (
-              <Link to="/settings?tab=subscription">
-                <Button variant="ghost" size="sm" className="h-8 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold hover:from-amber-500/30 hover:to-orange-500/30">
-                  <Crown className="h-3 w-3 mr-1" />
-                  Premium
-                </Button>
-              </Link>
-            ) : (
-              <UpgradeButton label="Upgrade" variant="ghost" size="sm" />
-            )
-          ) : (
+          {isOwnProfile ? null : (
             <div className="flex gap-1.5">
               <FriendButton userId={profile.id} size="sm" />
               <Button
