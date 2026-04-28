@@ -1727,39 +1727,56 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   to { background-position: -100% 50%; }
 }
 
-/* VYBE aurora drift — six radial blobs (3 brand neon + 3 user theme)
-   morph independently in a single keyframe so they actually compose
-   on the same element. Loops seamlessly (0% == 100%). */
+/* VYBE aurora drift — each of the 6 radial blobs traces its own circular
+   orbit so position is inherently periodic. With `linear` timing this
+   produces a perfectly seamless infinite loop with NO snap or restart at
+   the cycle boundary (velocity is tangent at every point, including 0%/100%).
+   8 waypoints = 45° increments around each circle. */
 @keyframes aurora-drift-multi {
   0% {
     background-position:
-      0% 0%, 100% 100%, 50% 0%,
-      20% 80%, 75% 35%, 50% 60%;
+      50% 15%, 85% 50%, 15% 50%,
+      50% 85%, 76% 26%, 24% 74%;
   }
-  20% {
+  12.5% {
     background-position:
-      30% 20%, 70% 80%, 80% 30%,
-      60% 60%, 20% 70%, 90% 20%;
+      75% 25%, 75% 75%, 25% 25%,
+      25% 75%, 90% 50%, 10% 50%;
   }
-  40% {
+  25% {
     background-position:
-      80% 40%, 20% 60%, 100% 70%,
-      90% 30%, 40% 100%, 10% 80%;
+      85% 50%, 50% 85%, 50% 15%,
+      15% 50%, 76% 74%, 24% 26%;
   }
-  60% {
+  37.5% {
     background-position:
-      60% 90%, 40% 30%, 30% 90%,
-      30% 0%, 80% 60%, 60% 0%;
+      75% 75%, 25% 75%, 75% 25%,
+      25% 25%, 50% 90%, 50% 10%;
   }
-  80% {
+  50% {
     background-position:
-      20% 70%, 90% 50%, 60% 40%,
-      70% 90%, 10% 30%, 30% 50%;
+      50% 85%, 15% 50%, 85% 50%,
+      50% 15%, 24% 74%, 76% 26%;
+  }
+  62.5% {
+    background-position:
+      25% 75%, 25% 25%, 75% 75%,
+      75% 25%, 10% 50%, 90% 50%;
+  }
+  75% {
+    background-position:
+      15% 50%, 50% 15%, 50% 85%,
+      85% 50%, 24% 26%, 76% 74%;
+  }
+  87.5% {
+    background-position:
+      25% 25%, 75% 25%, 25% 75%,
+      75% 75%, 50% 10%, 50% 90%;
   }
   100% {
     background-position:
-      0% 0%, 100% 100%, 50% 0%,
-      20% 80%, 75% 35%, 50% 60%;
+      50% 15%, 85% 50%, 15% 50%,
+      50% 85%, 76% 26%, 24% 74%;
   }
 }
 
