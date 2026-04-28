@@ -4,6 +4,7 @@ import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2,
 import { ReactionPicker, ReactionSummary } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
 import { AnimatePresence, motion } from 'framer-motion';
+import { T, MOTION_CONFIG } from '@/lib/motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -479,7 +480,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
       ref={viewRef}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0, 0, 0.2, 1] }}
+      transition={T.enter}
       className="relative rounded-2xl overflow-hidden bg-card/60 backdrop-blur-md"
     >
       {/* Subtle animated VYBE aurora outline (full perimeter, low opacity) */}
@@ -677,12 +678,12 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0, opacity: 0 }}
-                  transition={{ duration: 0.4, type: 'spring', stiffness: 400, damping: 15 }}
+                  transition={MOTION_CONFIG.spring.bouncy}
                   className="absolute inset-0 flex items-center justify-center pointer-events-none"
                 >
                   <motion.div
                     animate={{ scale: [0, 1.4, 0.9, 1.1, 1], rotate: [0, -15, 15, -5, 0] }}
-                    transition={{ duration: 0.6, type: 'spring', stiffness: 300 }}
+                    transition={{ duration: 0.6, ease: MOTION_CONFIG.ease.expoOut }}
                   >
                     <Heart className="h-28 w-28 text-rose-500 fill-rose-500 drop-shadow-2xl" />
                   </motion.div>

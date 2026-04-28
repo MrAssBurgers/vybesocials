@@ -12,6 +12,7 @@ import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { useAuth } from '@/lib/auth';
 import { navVisibility } from '@/lib/navVisibility';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
+import { T, TAP, MOTION_CONFIG } from '@/lib/motion';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useUserPreferences, useUpdatePreferences } from '@/hooks/useUserPreferences';
 
@@ -171,13 +172,14 @@ const DraggableNavItem = memo(({
         >
           <motion.div 
             className="relative"
-            whileTap={isEditMode ? {} : { scale: 0.9 }}
-            transition={{ duration: 0.1 }}
+            whileTap={isEditMode ? {} : TAP.whileTap}
+            transition={T.press}
           >
             {isEditMode && (
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
+                transition={MOTION_CONFIG.spring.bouncy}
                 className="absolute -top-2 -left-2 z-20"
               >
                 <GripVertical className="h-3 w-3 text-primary" />
@@ -187,7 +189,7 @@ const DraggableNavItem = memo(({
               <motion.div
                 layoutId="nav-indicator"
                 className="absolute -inset-1.5 rounded-xl bg-primary/15"
-                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                transition={T.indicator}
               />
             )}
             <Avatar className={cn(
@@ -220,13 +222,14 @@ const DraggableNavItem = memo(({
       >
         <motion.div 
           className="relative"
-          whileTap={isEditMode ? {} : { scale: 0.9 }}
-          transition={{ duration: 0.1 }}
+          whileTap={isEditMode ? {} : TAP.whileTap}
+          transition={T.press}
         >
           {isEditMode && (
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
+              transition={MOTION_CONFIG.spring.bouncy}
               className="absolute -top-2 -left-2 z-20"
             >
               <GripVertical className="h-3 w-3 text-primary" />
@@ -236,7 +239,7 @@ const DraggableNavItem = memo(({
             <motion.div
               layoutId="nav-indicator"
               className="absolute -inset-1.5 rounded-xl bg-primary/15"
-              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+              transition={T.indicator}
             />
           )}
           {isHighlighted && (
@@ -244,7 +247,7 @@ const DraggableNavItem = memo(({
           )}
           <motion.div
             animate={{ scale: isActive && !isEditMode ? 1.15 : 1 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+            transition={MOTION_CONFIG.spring.snappy}
           >
             <Icon
               className={cn(
@@ -258,6 +261,7 @@ const DraggableNavItem = memo(({
             <motion.span 
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
+              transition={MOTION_CONFIG.spring.bouncy}
               className="absolute -top-1 -right-1.5 h-4 min-w-4 px-1 bg-destructive rounded-full flex items-center justify-center text-[9px] text-destructive-foreground font-bold shadow-md z-20"
             >
               {badge > 9 ? '9+' : badge}
