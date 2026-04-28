@@ -1735,7 +1735,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   to { background-position: -100% 50%; }
 }
 
-/* VYBE aurora drift — each of the 6 radial blobs traces its own circular
+/* VYBE aurora drift — each of the 9 radial blobs traces its own circular
    orbit so position is inherently periodic. With `linear` timing this
    produces a perfectly seamless infinite loop with NO snap or restart at
    the cycle boundary (velocity is tangent at every point, including 0%/100%).
@@ -1744,47 +1744,56 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   0% {
     background-position:
       50% 15%, 85% 50%, 15% 50%,
-      50% 85%, 76% 26%, 24% 74%;
+      50% 85%, 76% 26%, 24% 74%,
+      85% 85%, 15% 15%, 50% 50%;
   }
   12.5% {
     background-position:
       75% 25%, 75% 75%, 25% 25%,
-      25% 75%, 90% 50%, 10% 50%;
+      25% 75%, 90% 50%, 10% 50%,
+      90% 50%, 10% 50%, 75% 25%;
   }
   25% {
     background-position:
       85% 50%, 50% 85%, 50% 15%,
-      15% 50%, 76% 74%, 24% 26%;
+      15% 50%, 76% 74%, 24% 26%,
+      85% 15%, 15% 85%, 85% 50%;
   }
   37.5% {
     background-position:
       75% 75%, 25% 75%, 75% 25%,
-      25% 25%, 50% 90%, 50% 10%;
+      25% 25%, 50% 90%, 50% 10%,
+      50% 10%, 50% 90%, 75% 75%;
   }
   50% {
     background-position:
       50% 85%, 15% 50%, 85% 50%,
-      50% 15%, 24% 74%, 76% 26%;
+      50% 15%, 24% 74%, 76% 26%,
+      15% 15%, 85% 85%, 50% 50%;
   }
   62.5% {
     background-position:
       25% 75%, 25% 25%, 75% 75%,
-      75% 25%, 10% 50%, 90% 50%;
+      75% 25%, 10% 50%, 90% 50%,
+      10% 50%, 90% 50%, 25% 75%;
   }
   75% {
     background-position:
       15% 50%, 50% 15%, 50% 85%,
-      85% 50%, 24% 26%, 76% 74%;
+      85% 50%, 24% 26%, 76% 74%,
+      15% 85%, 85% 15%, 15% 50%;
   }
   87.5% {
     background-position:
       25% 25%, 75% 25%, 25% 75%,
-      75% 75%, 50% 10%, 50% 90%;
+      75% 75%, 50% 10%, 50% 90%,
+      50% 90%, 50% 10%, 25% 25%;
   }
   100% {
     background-position:
       50% 15%, 85% 50%, 15% 50%,
-      50% 85%, 76% 26%, 24% 74%;
+      50% 85%, 76% 26%, 24% 74%,
+      85% 85%, 15% 15%, 50% 50%;
   }
 }
 
