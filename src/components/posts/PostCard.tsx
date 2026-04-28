@@ -480,12 +480,10 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0, 0, 0.2, 1] }}
-      className="relative rounded-2xl overflow-hidden border border-border/10 bg-card/60 backdrop-blur-md"
+      className="relative rounded-2xl overflow-hidden bg-card/60 backdrop-blur-md"
     >
-      {/* Left accent bar — VYBE signature */}
-      <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-full bg-gradient-to-b from-primary/40 via-accent/20 to-transparent" />
-      {/* Aura accent strip */}
-      <div className="h-[3px] w-full rounded-full seamless-gradient-strip" />
+      {/* Subtle animated VYBE aurora outline (full perimeter, low opacity) */}
+      <div aria-hidden className="post-aurora-outline" />
       {/* Header */}
       <div className="flex items-center justify-between p-4">
         <UserProfileHoverCard 
