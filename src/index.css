@@ -1338,23 +1338,34 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       0 4px 12px hsl(var(--neon-purple) / 0.15);
   }
 
-  /* Animated gradient background - VYBE aurora: soft drifting radial blobs */
+  /* Animated gradient background - VYBE aurora: soft drifting radial blobs.
+     Mixes the brand neon trio (pink/purple/cyan) with the user's own theme
+     palette (--primary, --accent, --gradient-start/mid/end) so it adapts to
+     each user's chosen colors while keeping the VYBE feel. */
   .gradient-animated {
     position: relative;
     overflow: hidden;
     border-radius: inherit;
     background-color: hsl(var(--background));
     background-image:
-      radial-gradient(circle at 20% 30%, hsl(var(--neon-pink) / 0.55), transparent 55%),
-      radial-gradient(circle at 80% 70%, hsl(var(--neon-purple) / 0.50), transparent 55%),
-      radial-gradient(circle at 60% 20%, hsl(var(--neon-cyan) / 0.50), transparent 55%);
-    background-size: 200% 200%, 220% 220%, 200% 200%;
+      radial-gradient(circle at 18% 28%, hsl(var(--neon-pink) / 0.55), transparent 55%),
+      radial-gradient(circle at 82% 72%, hsl(var(--neon-purple) / 0.50), transparent 55%),
+      radial-gradient(circle at 58% 18%, hsl(var(--neon-cyan) / 0.50), transparent 55%),
+      radial-gradient(circle at 30% 80%, hsl(var(--primary) / 0.45), transparent 55%),
+      radial-gradient(circle at 75% 35%, hsl(var(--accent) / 0.45), transparent 55%),
+      radial-gradient(circle at 50% 60%, hsl(var(--gradient-mid) / 0.40), transparent 60%);
+    background-size:
+      200% 200%, 220% 220%, 200% 200%,
+      230% 230%, 210% 210%, 240% 240%;
     background-repeat: no-repeat;
     animation:
       aurora-drift-1 18s ease-in-out infinite,
       aurora-drift-2 22s ease-in-out infinite,
-      aurora-drift-3 26s ease-in-out infinite;
-    filter: saturate(1.1);
+      aurora-drift-3 26s ease-in-out infinite,
+      aurora-drift-4 30s ease-in-out infinite,
+      aurora-drift-5 24s ease-in-out infinite,
+      aurora-drift-6 28s ease-in-out infinite;
+    filter: saturate(1.15);
   }
 
   .seamless-gradient-strip {
@@ -1363,16 +1374,24 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     border-radius: inherit;
     background-color: hsl(var(--background));
     background-image:
-      radial-gradient(ellipse at 20% 50%, hsl(var(--neon-pink) / 0.65), transparent 60%),
-      radial-gradient(ellipse at 60% 50%, hsl(var(--neon-purple) / 0.60), transparent 60%),
-      radial-gradient(ellipse at 90% 50%, hsl(var(--neon-cyan) / 0.65), transparent 60%);
-    background-size: 300% 300%, 280% 280%, 300% 300%;
+      radial-gradient(ellipse at 15% 50%, hsl(var(--neon-pink) / 0.65), transparent 60%),
+      radial-gradient(ellipse at 45% 50%, hsl(var(--neon-purple) / 0.60), transparent 60%),
+      radial-gradient(ellipse at 80% 50%, hsl(var(--neon-cyan) / 0.65), transparent 60%),
+      radial-gradient(ellipse at 30% 50%, hsl(var(--primary) / 0.55), transparent 60%),
+      radial-gradient(ellipse at 65% 50%, hsl(var(--accent) / 0.55), transparent 60%),
+      radial-gradient(ellipse at 95% 50%, hsl(var(--gradient-end) / 0.50), transparent 60%);
+    background-size:
+      300% 300%, 280% 280%, 300% 300%,
+      320% 320%, 290% 290%, 310% 310%;
     background-repeat: no-repeat;
     animation:
       aurora-drift-1 12s ease-in-out infinite,
       aurora-drift-2 15s ease-in-out infinite,
-      aurora-drift-3 17s ease-in-out infinite;
-    filter: saturate(1.15);
+      aurora-drift-3 17s ease-in-out infinite,
+      aurora-drift-4 20s ease-in-out infinite,
+      aurora-drift-5 14s ease-in-out infinite,
+      aurora-drift-6 18s ease-in-out infinite;
+    filter: saturate(1.2);
   }
 
   /* Static gradient for non-critical elements */
