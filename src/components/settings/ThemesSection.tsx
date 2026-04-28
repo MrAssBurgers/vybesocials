@@ -14,29 +14,18 @@ import { UpgradeButton } from '@/components/premium/UpgradeButton';
 export function ThemesSection() {
   const [showUIBuilder, setShowUIBuilder] = useState(false);
   const [showVybeDesigner, setShowVybeDesigner] = useState(false);
-  const { hasPremiumCosmetics } = usePremiumStatus();
+  const { hasPremiumCosmetics: _ } = usePremiumStatus();
 
   return (
     <>
       <div className="space-y-6">
-        {hasPremiumCosmetics ? (
-          <Button 
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 text-base shadow-lg shadow-primary/20 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
-            onClick={() => setShowVybeDesigner(true)}
-          >
-            <Wand2 className="w-5 h-5 mr-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-            <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Design Your Own VYBE</span>
-          </Button>
-        ) : (
-          <Button 
-            className="w-full bg-card hover:bg-accent border border-border text-foreground font-semibold py-6 text-base"
-            variant="outline"
-            onClick={() => setShowVybeDesigner(true)}
-          >
-            <Wand2 className="w-5 h-5 mr-2" />
-            <span>Design Your Own VYBE</span>
-          </Button>
-        )}
+        <Button
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 text-base shadow-lg shadow-primary/20 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
+          onClick={() => setShowVybeDesigner(true)}
+        >
+          <Wand2 className="w-5 h-5 mr-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+          <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Design Your Own VYBE</span>
+        </Button>
 
         <Tabs defaultValue="customize" className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-4 bg-card/80 border border-border">
