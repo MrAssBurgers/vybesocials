@@ -554,20 +554,29 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
       >
         <div 
           className={cn(
-            "rounded-t-[24px] overflow-hidden transition-all duration-300",
+            "rounded-t-[28px] overflow-hidden transition-all duration-300 relative",
             isEditMode 
               ? "border border-primary/60 shadow-[0_0_30px_hsl(var(--primary)/0.5)]" 
-              : "border-0"
+              : "border-t border-white/5"
           )}
           style={{
-            background: isEditMode 
-              ? 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(var(--accent) / 0.4), hsl(var(--primary) / 0.3)), hsl(var(--card))'
-              : 'linear-gradient(135deg, hsl(var(--primary) / 0.14), hsl(var(--accent) / 0.10) 50%, hsl(var(--card) / 0.98)), hsl(var(--card))',
+            background: 'hsl(var(--card))',
             boxShadow: isEditMode 
               ? '0 8px 32px hsl(var(--primary) / 0.5), inset 0 1px 0 hsl(var(--primary) / 0.3)'
-              : 'inset 0 1px 0 hsl(var(--primary) / 0.08)',
+              : '0 -8px 24px hsl(var(--background) / 0.6), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
           }}
         >
+          {/* VYBE aurora wash — subtle multi-color tint behind the icons */}
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none gradient-animated"
+            style={{ opacity: isEditMode ? 0.55 : 0.22 }}
+          />
+          {/* Top accent hairline */}
+          <div
+            aria-hidden
+            className="absolute top-0 left-0 right-0 h-px pointer-events-none seamless-gradient-strip opacity-60"
+          />
           <Reorder.Group
             axis="x"
             values={navOrder}

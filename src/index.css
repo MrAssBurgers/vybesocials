@@ -2948,28 +2948,33 @@ img, video {
   to { transform: translateX(150%); }
 }
 
-/* Seamless continuous scroll — no reset jump.
-   Gradient is doubled so end position matches start exactly. */
-@keyframes create-button-gradient-flow {
-  from { background-position: 0% 50%; }
-  to { background-position: 200% 50%; }
-}
-
+/* Create button — VYBE aurora: same drifting multi-color radial blobs as
+   .gradient-animated, tuned for a small round button. Mixes brand neon
+   (pink/purple/cyan/yellow) with the user's own theme (--primary/--accent). */
 .create-button-gradient {
-  background: linear-gradient(
-    90deg,
-    hsl(var(--primary)) 0%,
-    hsl(var(--accent)) 25%,
-    hsl(var(--primary) / 0.92) 50%,
-    hsl(var(--accent)) 75%,
-    hsl(var(--primary)) 100%
-  );
-  background-size: 200% 100%;
-  animation: create-button-gradient-flow 8s linear infinite;
-  box-shadow: 
-    0 4px 24px hsl(var(--primary) / 0.5),
-    0 0 40px hsl(var(--accent) / 0.2),
-    inset 0 1px 0 hsl(0 0% 100% / 0.15);
+  background-color: hsl(var(--primary));
+  background-image:
+    radial-gradient(circle at 18% 28%, hsl(var(--neon-pink) / 1), transparent 60%),
+    radial-gradient(circle at 82% 72%, hsl(var(--neon-purple) / 0.95), transparent 60%),
+    radial-gradient(circle at 58% 18%, hsl(var(--neon-cyan) / 1), transparent 60%),
+    radial-gradient(circle at 30% 80%, hsl(var(--primary) / 0.95), transparent 60%),
+    radial-gradient(circle at 75% 35%, hsl(var(--accent) / 0.95), transparent 60%),
+    radial-gradient(circle at 50% 60%, hsl(var(--gradient-mid) / 0.90), transparent 65%),
+    radial-gradient(circle at 10% 60%, hsl(var(--neon-yellow) / 0.85), transparent 55%),
+    radial-gradient(circle at 90% 15%, hsl(var(--gradient-start) / 0.95), transparent 60%),
+    radial-gradient(circle at 40% 40%, hsl(310 100% 60% / 0.85), transparent 60%);
+  background-size:
+    200% 200%, 220% 220%, 200% 200%,
+    230% 230%, 210% 210%, 240% 240%,
+    215% 215%, 225% 225%, 205% 205%;
+  background-repeat: no-repeat;
+  animation: aurora-drift-multi 14s linear infinite;
+  filter: saturate(1.55) brightness(1.15);
+  box-shadow:
+    0 4px 24px hsl(var(--primary) / 0.55),
+    0 0 40px hsl(var(--accent) / 0.30),
+    0 0 28px hsl(var(--neon-pink) / 0.25),
+    inset 0 1px 0 hsl(0 0% 100% / 0.18);
   transform: translateZ(0);
   will-change: background-position;
   border: none;
