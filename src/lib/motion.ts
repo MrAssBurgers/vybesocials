@@ -10,24 +10,45 @@ export const MOTION_CONFIG = {
     slow: { type: 'spring', stiffness: 180, damping: 22 } as const,
     liquid: { type: 'spring', stiffness: 260, damping: 24, mass: 0.9 } as const,
     liquidSoft: { type: 'spring', stiffness: 180, damping: 22 } as const,
+    // Magnetic = high-stiffness, low-overshoot — for shared layoutId indicators
+    magnetic: { type: 'spring', stiffness: 500, damping: 35, mass: 0.8 } as const,
+    // Tactile = button press feedback
+    tactile: { type: 'spring', stiffness: 600, damping: 30 } as const,
   },
-  
-  // Duration presets (in seconds)
+
+  // Duration presets (in seconds) — three canonical durations
   duration: {
     instant: 0.1,
-    fast: 0.15,
-    normal: 0.25,
-    slow: 0.4,
+    fast: 0.12,   // micro-interactions (taps, hovers)
+    normal: 0.24, // sheets, dropdowns, toasts
+    slow: 0.4,    // page transitions, hero content
     glacial: 0.6,
   },
-  
-  // Easing presets
+
+  // Easing presets — EASE_OUT_EXPO is the project standard
   ease: {
     default: [0.4, 0, 0.2, 1] as const,
     out: [0, 0, 0.2, 1] as const,
     in: [0.4, 0, 1, 1] as const,
     bounce: [0.34, 1.56, 0.64, 1] as const,
+    // Project standard — premium, smooth deceleration
+    expoOut: [0.16, 1, 0.3, 1] as const,
   },
+} as const;
+
+// Common transition shorthands (use directly in `transition={...}`)
+export const T = {
+  tap: { duration: MOTION_CONFIG.duration.fast },
+  press: MOTION_CONFIG.spring.tactile,
+  indicator: MOTION_CONFIG.spring.magnetic,
+  enter: { duration: MOTION_CONFIG.duration.normal, ease: MOTION_CONFIG.ease.expoOut },
+  sheet: MOTION_CONFIG.spring.liquid,
+} as const;
+
+// Whole-button tap interaction — apply via `{...TAP}`
+export const TAP = {
+  whileTap: { scale: 0.94 },
+  transition: T.press,
 } as const;
 
 // Pre-built animation variants for common patterns
