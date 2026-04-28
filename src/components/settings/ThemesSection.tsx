@@ -14,12 +14,12 @@ import { UpgradeButton } from '@/components/premium/UpgradeButton';
 export function ThemesSection() {
   const [showUIBuilder, setShowUIBuilder] = useState(false);
   const [showVybeDesigner, setShowVybeDesigner] = useState(false);
-  const { isPremium } = usePremiumStatus();
+  const { hasPremiumCosmetics } = usePremiumStatus();
 
   return (
     <>
       <div className="space-y-6">
-        {isPremium ? (
+        {hasPremiumCosmetics ? (
           <Button 
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 text-base shadow-lg shadow-primary/20 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
             onClick={() => setShowVybeDesigner(true)}
@@ -28,19 +28,14 @@ export function ThemesSection() {
             <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Design Your Own VYBE</span>
           </Button>
         ) : (
-          <div className="relative">
-            <Button 
-              className="w-full bg-muted hover:bg-muted text-muted-foreground font-semibold py-6 text-base cursor-not-allowed opacity-80"
-              disabled
-            >
-              <Lock className="w-5 h-5 mr-2" />
-              <span>Design Your Own VYBE</span>
-              <Crown className="w-4 h-4 ml-2 text-primary" />
-            </Button>
-            <div className="flex items-center justify-center mt-2">
-              <UpgradeButton label="Unlock with Premium" size="sm" variant="default" className="text-xs" />
-            </div>
-          </div>
+          <Button 
+            className="w-full bg-card hover:bg-accent border border-border text-foreground font-semibold py-6 text-base"
+            variant="outline"
+            onClick={() => setShowVybeDesigner(true)}
+          >
+            <Wand2 className="w-5 h-5 mr-2" />
+            <span>Design Your Own VYBE</span>
+          </Button>
         )}
 
         <Tabs defaultValue="customize" className="w-full">
