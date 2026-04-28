@@ -572,10 +572,14 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
             className="absolute inset-0 pointer-events-none gradient-animated"
             style={{ opacity: isEditMode ? 0.55 : 0.22 }}
           />
-          {/* Top accent hairline */}
+          {/* Top accent hairline — soft brand glow, fades into nav */}
           <div
             aria-hidden
-            className="absolute top-0 left-0 right-0 h-px pointer-events-none seamless-gradient-strip opacity-60"
+            className="absolute top-0 left-0 right-0 h-px pointer-events-none bg-gradient-to-r from-transparent via-primary/35 to-transparent"
+            style={{
+              maskImage: 'linear-gradient(to bottom, hsl(0 0% 0% / 1), transparent)',
+              WebkitMaskImage: 'linear-gradient(to bottom, hsl(0 0% 0% / 1), transparent)',
+            }}
           />
           <Reorder.Group
             axis="x"
