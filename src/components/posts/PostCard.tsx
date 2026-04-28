@@ -4,6 +4,7 @@ import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2,
 import { ReactionPicker, ReactionSummary } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
 import { AnimatePresence, motion } from 'framer-motion';
+import { T, MOTION_CONFIG } from '@/lib/motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -479,7 +480,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
       ref={viewRef}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0, 0, 0.2, 1] }}
+      transition={T.enter}
       className="relative rounded-2xl overflow-hidden bg-card/60 backdrop-blur-md"
     >
       {/* Subtle animated VYBE aurora outline (full perimeter, low opacity) */}
