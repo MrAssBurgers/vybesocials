@@ -1,61 +1,43 @@
-
-
 ## Goal
-Kill the leftover "blurred/dark backdrop" behind the bottom nav and make the nav actually get out of the way (auto-hide on scroll down, on input focus, and stop reserving blank space when hidden).
 
-## Root causes
+The video shows a slow, organic, blurred aurora — large soft color blobs that drift and morph, not a hard left-to-right sweep. Today the project's `.gradient-animated` and `.seamless-gradient-strip` classes use a 1D `linear-gradient` slid horizontally via `gradient-shift`, which gives a banded marquee feel. We'll upgrade them to a multi-layer radial "aurora" using the existing VYBE tokens (`--neon-pink`, `--neon-purple`, `--neon-cyan`) so every place that already uses these classes inherits the new look — no component changes needed.
 
-1. **Persistent backdrop strip behind the pill.** The nav pill (`mx-3 mb-2 rounded-[20px]`) sits on top of a full-width `<motion.nav>` that paints its safe-area padding area. With the dark `boxShadow: '0 4px 12px rgba(0,0,0,0.3)'` + the surrounding margin, you can see a dim band hugging the pill — that's the "blurred background thing." It's also visible even when `y: 120` animates out because the parent nav still occupies layout reserved by `AppLayout`'s `pb-[calc(5rem+env(safe-area-inset-bottom))]`.
+## Changes (single file: `src/index.css`)
 
-2. **Nav doesn't actually go down when it should.** `useNavVisibility` only hides on a few explicit triggers (community chat, story viewer, designer, edit mode). It does NOT respect:
-   - `useScrollDirection` (defined at top of file but **never used** in the render — dead code).
-   - Soft keyboard / input focus on regular pages (only `RoomChat` wires it up).
-   - Modal/sheet open states (DM input, comments full screen, etc.).
-   So on every normal page the nav stays put and overlaps content.
+1. **Rewrite `.gradient-animated`** (lines ~1342-1360)
+   - Replace the single `linear-gradient` + `background-size: 200% 100%` with **3 stacked radial-gradient blobs** (pink, purple, cyan) on a deep navy base.
+   - Use `background-size: 200% 200%` so blobs are larger than the container.
+   - Drive it with a new `aurora-drift` keyframe that animates `background-position` of each layer to **different positions on different timings** (think 18s / 22s / 26s) for an organic morph.
+   - Add a subtle `filter: blur(0.5px) saturate(1.1)` so edges feel soft like the video.
 
-3. **Reserved space stays even when nav is hidden.** `AppLayout` always reserves `pb-[calc(5rem+env(safe-area-inset-bottom))]` regardless of nav visibility. When the nav animates down, you get an empty band where it used to be.
+2. **Rewrite `.seamless-gradient-strip`** (lines ~1362-1380)
+   - Same aurora technique, slightly faster (~14s) and tuned for thin strips (`background-size: 300% 300%` so blobs sweep through narrow bars smoothly).
 
-## Fix plan
+3. **Add new keyframes** (near other `@keyframes` around line 1722)
+   - `@keyframes aurora-drift` — animates `background-position` for 3 comma-separated layers between 4 keyframe stops (0%, 33%, 66%, 100%) so it loops seamlessly.
+   - Keep existing `gradient-shift` keyframe untouched (other classes might use it).
 
-### A. Remove the visible "backdrop" around the pill
-`src/components/layout/BottomNav.tsx`
+4. **Reduced motion safety**
+   - Inside the existing `@media (prefers-reduced-motion: reduce)` block, freeze `.gradient-animated` and `.seamless-gradient-strip` to a static aurora (no animation).
 
-- Drop the dark `boxShadow: '0 4px 12px rgba(0,0,0,0.3)'` on the non-edit-mode pill — replace with a subtle shadow tied to theme (`0 -2px 12px hsl(var(--background) / 0.4)`) or remove entirely. The big drop shadow is what reads as a "blurred background."
-- Remove `border-white/10` border (or soften to `border-white/5`) — the white hairline on a dark page reads as a frame.
-- Make the outer `<motion.nav>` element transparent and only paint the inner pill. Confirm no `bg-*` class leaks onto the parent.
-- Result: just the dark pill floats — no visible band, no blur halo.
+## Visual target
 
-### B. Auto-hide on scroll down (re-enable existing dead code)
-`src/components/layout/BottomNav.tsx`
+```text
+deep navy background
+ + radial blob (neon-pink, ~40% opacity)   drifting top-left ↔ bottom-right
+ + radial blob (neon-purple, ~35% opacity) drifting bottom-left ↔ top-right
+ + radial blob (neon-cyan, ~40% opacity)   drifting right ↔ left
+ = slow VYBE aurora, matches the video's soft morphing feel
+```
 
-- Wire `useScrollDirection()` (already implemented at lines 23–96 but unused) into the visibility calc:
-  `const isVisible = useNavVisibility() && useScrollDirection();`
-- Behavior: scroll down ≥10px past 50 → hide; scroll up or near top → show. Already implemented, just needs to be consumed.
+## What inherits the new look automatically
 
-### C. Auto-hide when keyboard / inputs are focused globally
-`src/components/layout/BottomNav.tsx` (or new small hook)
+Every component already using `.gradient-animated` or `.seamless-gradient-strip` (story rings, badges, animated buttons, banners, etc.) — no component edits required.
 
-- Add a global `focusin`/`focusout` listener that hides the nav when `document.activeElement` is `INPUT`, `TEXTAREA`, or `[contenteditable=true]`. Restore on blur.
-- Also listen to `visualViewport` resize: if `window.visualViewport.height < window.innerHeight - 100` → keyboard open → hide nav. This catches iOS where focus event timing is unreliable.
+## Out of scope
 
-### D. Stop reserving blank space when nav is hidden
-`src/components/layout/AppLayout.tsx` (lines ~120–145)
+- `.gradient-static` (intentionally non-animated) — leave as is.
+- `.gradient-text` and `.story-ring-gradient` — these are pure linear gradients used for text/ring fills where a radial aurora would look wrong.
+- Per-component one-off `linear-gradient(...)` inline styles — they're decorative borders/overlays, not the "animated linear gradients" the user is referring to.
 
-- Subscribe to `navVisibility` (and the scroll/keyboard signal) to drive the bottom padding:
-  - When nav is visible: keep `pb-[calc(5rem+env(safe-area-inset-bottom))]`.
-  - When hidden: drop to `pb-[env(safe-area-inset-bottom)]`.
-- Animate the padding change (CSS `transition: padding 0.3s`) so content gracefully reclaims the space instead of jumping.
-
-### E. Sweep stale full-bleed surfaces near the nav
-- Confirm no `<div className="fixed bottom-0 ... bg-*">` elements other than the nav itself paint a strip. (Quick grep of `fixed bottom-0` to verify.) If found, scope them or remove.
-
-## Files to edit
-- `src/components/layout/BottomNav.tsx` — remove dark shadow/border around pill; consume `useScrollDirection`; add global input/keyboard auto-hide.
-- `src/components/layout/AppLayout.tsx` — make bottom padding follow nav visibility with smooth transition.
-- (If sweep finds extras) any stray `fixed bottom-0` decorative element.
-
-## Expected result
-- No dim band, no blurred halo, no white hairline behind the bottom nav — just the clean dark pill.
-- Nav slides down on scroll, when typing, and when keyboard opens; slides back up on scroll up / blur.
-- Reserved bottom space collapses smoothly when nav hides — content no longer "blocked" by an empty band.
-
+If you'd like the aurora applied to those too (e.g. animated gradient text), say the word and I'll extend it.
