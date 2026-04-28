@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
 import { liquidBouncySpring } from '@/motion/liquidConfig';
+import { MOTION_CONFIG } from '@/lib/motion';
 
 interface PullToRefreshIndicatorProps {
   pullDistance: number;
@@ -8,15 +8,20 @@ interface PullToRefreshIndicatorProps {
   threshold: number;
 }
 
-export function PullToRefreshIndicator({ 
-  pullDistance, 
-  isRefreshing, 
-  threshold 
+/**
+ * Premium pull-to-refresh — aurora ring that swirls and brightens as you pull.
+ * Replaces the static loader spinner with a branded VYBE moment.
+ */
+export function PullToRefreshIndicator({
+  pullDistance,
+  isRefreshing,
+  threshold,
 }: PullToRefreshIndicatorProps) {
   if (pullDistance === 0 && !isRefreshing) return null;
 
   const progress = Math.min(pullDistance / threshold, 1);
   const shouldTrigger = pullDistance >= threshold;
+  const ringSize = 44;
 
   return (
     <div
@@ -24,22 +29,66 @@ export function PullToRefreshIndicator({
       style={{ paddingTop: `${Math.max(pullDistance - 20, 0)}px` }}
     >
       <motion.div
-        className={`flex items-center justify-center w-10 h-10 rounded-full shadow-lg backdrop-blur-sm transition-colors duration-150 ${
-          shouldTrigger || isRefreshing ? 'bg-primary/20' : 'bg-background/80'
-        }`}
+        className="relative flex items-center justify-center"
+        style={{ width: ringSize, height: ringSize }}
         animate={{
-          rotate: isRefreshing ? 360 : shouldTrigger ? 180 : progress * 180,
-          scale: 0.8 + progress * 0.2,
+          scale: 0.7 + progress * 0.3,
         }}
-        transition={isRefreshing ? { duration: 0.8, repeat: Infinity, ease: 'linear' } : liquidBouncySpring}
+        transition={liquidBouncySpring}
       >
-        {isRefreshing ? (
-          <Loader2 className="h-5 w-5 text-primary animate-spin" />
-        ) : (
-          <span className={`text-lg font-black transition-colors duration-150 ${
-            shouldTrigger ? 'text-primary' : 'text-muted-foreground'
-          }`}>V</span>
-        )}
+        {/* Aurora glow halo — intensifies as user pulls */}
+        <motion.div
+          className="absolute inset-0 rounded-full blur-xl"
+          style={{
+            background:
+              'conic-gradient(from 0deg, hsl(var(--neon-pink)), hsl(var(--neon-purple)), hsl(var(--neon-cyan)), hsl(var(--primary)), hsl(var(--neon-pink)))',
+          }}
+          animate={{
+            opacity: shouldTrigger || isRefreshing ? 0.85 : 0.25 + progress * 0.5,
+            rotate: isRefreshing ? 360 : progress * 270,
+          }}
+          transition={
+            isRefreshing
+              ? { rotate: { duration: 2.4, repeat: Infinity, ease: 'linear' }, opacity: { duration: 0.2 } }
+              : { duration: 0.15, ease: MOTION_CONFIG.ease.expoOut }
+          }
+        />
+
+        {/* Spinning conic-gradient ring (the actual aurora swirl) */}
+        <motion.div
+          className="absolute inset-0 rounded-full"
+          style={{
+            background:
+              'conic-gradient(from 0deg, hsl(var(--neon-pink)), hsl(var(--neon-purple)), hsl(var(--neon-cyan)), hsl(var(--primary)), hsl(var(--neon-yellow)), hsl(var(--neon-pink)))',
+            WebkitMask: 'radial-gradient(circle, transparent 55%, #000 57%)',
+            mask: 'radial-gradient(circle, transparent 55%, #000 57%)',
+          }}
+          animate={{ rotate: isRefreshing ? 360 : progress * 360 }}
+          transition={
+            isRefreshing
+              ? { duration: 1.4, repeat: Infinity, ease: 'linear' }
+              : { duration: 0.1, ease: 'linear' }
+          }
+        />
+
+        {/* Inner frosted disc */}
+        <div className="absolute inset-[5px] rounded-full bg-card/80 backdrop-blur-md border border-white/10" />
+
+        {/* VYBE 'V' mark */}
+        <motion.span
+          className="relative z-10 text-base font-black bg-gradient-to-br from-primary via-accent to-primary bg-clip-text text-transparent"
+          animate={{
+            opacity: shouldTrigger || isRefreshing ? 1 : 0.5 + progress * 0.5,
+            scale: isRefreshing ? [1, 1.1, 1] : 1,
+          }}
+          transition={
+            isRefreshing
+              ? { scale: { duration: 1.2, repeat: Infinity, ease: 'easeInOut' } }
+              : { duration: 0.15 }
+          }
+        >
+          V
+        </motion.span>
       </motion.div>
     </div>
   );
