@@ -55,7 +55,17 @@ export function SubscriptionSection() {
           <p className="text-xs text-muted-foreground px-1">
             You have an existing subscription. Manage it below.
           </p>
-          <CustomerCenter />
+          <Button
+            variant="outline"
+            className="w-full justify-between h-12 rounded-2xl"
+            onClick={() => setCenterOpen(true)}
+          >
+            <span className="flex items-center gap-2">
+              <SettingsIcon className="h-4 w-4" />
+              Manage subscription
+            </span>
+          </Button>
+          <CustomerCenter open={centerOpen} onOpenChange={setCenterOpen} />
         </div>
       )}
     </div>
