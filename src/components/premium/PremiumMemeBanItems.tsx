@@ -29,9 +29,9 @@ interface PremiumMemeBanItemsProps {
 const MAX_MINUTES = 5;
 
 export function PremiumMemeBanMenuItem({ userId, username, onOpen }: PremiumMemeBanItemsProps & { onOpen: () => void }) {
-  const { isPremium } = usePremiumStatus();
+  const { hasPremiumCosmetics } = usePremiumStatus();
 
-  if (!isPremium) return null;
+  if (!hasPremiumCosmetics) return null;
 
   return (
     <>

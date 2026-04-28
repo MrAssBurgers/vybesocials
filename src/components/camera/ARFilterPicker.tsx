@@ -38,7 +38,7 @@ export const ARFilterPicker = memo(function ARFilterPicker({
   const [showGallery, setShowGallery] = useState(false);
   const [showAICreate, setShowAICreate] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { isPremium } = usePremiumStatus();
+  const { hasPremiumCosmetics: isPremium } = usePremiumStatus();
   const { generatedFilters } = useAIFilterGenerator();
   const { profile } = useAuth();
 

@@ -39,7 +39,7 @@ export const CATEGORY_LABELS: Record<MarketplaceItem['category'], { label: strin
 };
 
 export function useTokenMarketplace(filterCategory?: MarketplaceItem['category']) {
-  const { isPremium } = usePremiumStatus();
+  const { hasPremiumCosmetics: isPremium } = usePremiumStatus();
   const { data: tokenData } = useTokenBalance();
   const balance = tokenData?.balance ?? 0;
 
