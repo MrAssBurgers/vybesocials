@@ -681,30 +681,61 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                   transition={MOTION_CONFIG.spring.bouncy}
                   className="absolute inset-0 flex items-center justify-center pointer-events-none"
                 >
+                  {/* Aurora pulse ring behind the heart */}
+                  <motion.div
+                    className="absolute h-32 w-32 rounded-full"
+                    style={{
+                      background:
+                        'radial-gradient(circle, hsl(var(--primary) / 0.55) 0%, hsl(var(--accent) / 0.35) 40%, transparent 70%)',
+                    }}
+                    initial={{ scale: 0.4, opacity: 0 }}
+                    animate={{ scale: [0.4, 1.6, 2.2], opacity: [0, 0.9, 0] }}
+                    transition={{ duration: 0.7, ease: MOTION_CONFIG.ease.expoOut }}
+                  />
                   <motion.div
                     animate={{ scale: [0, 1.4, 0.9, 1.1, 1], rotate: [0, -15, 15, -5, 0] }}
                     transition={{ duration: 0.6, ease: MOTION_CONFIG.ease.expoOut }}
+                    style={{ filter: 'drop-shadow(0 0 24px hsl(var(--neon-pink) / 0.7))' }}
                   >
-                    <Heart className="h-28 w-28 text-rose-500 fill-rose-500 drop-shadow-2xl" />
+                    <Heart className="h-28 w-28 text-[hsl(var(--neon-pink))] fill-[hsl(var(--neon-pink))]" />
                   </motion.div>
-                  {[...Array(12)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      className="absolute w-3 h-3 rounded-full bg-rose-400"
-                      initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                      animate={{ scale: [0, 1.5, 0], x: Math.cos(i * 30 * Math.PI / 180) * 80, y: Math.sin(i * 30 * Math.PI / 180) * 80, opacity: [1, 1, 0] }}
-                      transition={{ duration: 0.6, delay: 0.1 }}
-                    />
-                  ))}
+                  {/* Particle burst — uses brand neon palette */}
+                  {[...Array(12)].map((_, i) => {
+                    const colors = ['neon-pink', 'neon-purple', 'neon-cyan', 'primary'];
+                    const color = colors[i % colors.length];
+                    return (
+                      <motion.div
+                        key={i}
+                        className="absolute w-2.5 h-2.5 rounded-full"
+                        style={{ background: `hsl(var(--${color}))`, boxShadow: `0 0 12px hsl(var(--${color}))` }}
+                        initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+                        animate={{
+                          scale: [0, 1.5, 0],
+                          x: Math.cos((i * 30) * Math.PI / 180) * 90,
+                          y: Math.sin((i * 30) * Math.PI / 180) * 90,
+                          opacity: [1, 1, 0],
+                        }}
+                        transition={{ duration: 0.65, delay: 0.08, ease: MOTION_CONFIG.ease.expoOut }}
+                      />
+                    );
+                  })}
                   {[...Array(6)].map((_, i) => (
                     <motion.div
                       key={`heart-${i}`}
                       className="absolute"
                       initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                      animate={{ scale: [0, 1, 0.5], x: Math.cos((i * 60 + 30) * Math.PI / 180) * 60, y: Math.sin((i * 60 + 30) * Math.PI / 180) * 60, opacity: [1, 1, 0] }}
-                      transition={{ duration: 0.7, delay: 0.15 }}
+                      animate={{
+                        scale: [0, 1, 0.5],
+                        x: Math.cos(((i * 60) + 30) * Math.PI / 180) * 65,
+                        y: Math.sin(((i * 60) + 30) * Math.PI / 180) * 65,
+                        opacity: [1, 1, 0],
+                      }}
+                      transition={{ duration: 0.7, delay: 0.15, ease: MOTION_CONFIG.ease.expoOut }}
                     >
-                      <Heart className="h-6 w-6 text-pink-400 fill-pink-400" />
+                      <Heart
+                        className="h-6 w-6 text-[hsl(var(--neon-pink))] fill-[hsl(var(--neon-pink))]"
+                        style={{ filter: 'drop-shadow(0 0 8px hsl(var(--neon-pink)))' }}
+                      />
                     </motion.div>
                   ))}
                 </motion.div>
