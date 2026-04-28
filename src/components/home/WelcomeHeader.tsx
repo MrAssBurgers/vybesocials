@@ -51,16 +51,25 @@ export function WelcomeHeader() {
   return (
     <>
       <div className="px-4 pt-4 pb-2 space-y-3">
-        {/* Welcome Message */}
+        {/* Welcome Message — frosted glass with aurora glow */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
+          className="relative overflow-hidden rounded-2xl border border-white/10 bg-card/40 backdrop-blur-xl px-4 py-3 shadow-[0_8px_32px_-12px_hsl(var(--primary)/0.35)]"
         >
-          <h1 className="text-xl font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-            {greeting}, <span className="text-primary drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]">@{profile.username}</span>
-          </h1>
-          <LiveActivityTicker />
+          {/* Aurora glow blobs */}
+          <div className="pointer-events-none absolute -top-12 -left-8 h-32 w-32 rounded-full bg-primary/25 blur-3xl" aria-hidden />
+          <div className="pointer-events-none absolute -bottom-16 -right-10 h-36 w-36 rounded-full bg-accent/20 blur-3xl" aria-hidden />
+          {/* Top sheen */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" aria-hidden />
+
+          <div className="relative">
+            <h1 className="text-xl font-bold text-foreground">
+              {greeting}, <span className="bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">@{profile.username}</span>
+            </h1>
+            <LiveActivityTicker />
+          </div>
         </motion.div>
 
         {/* Streak + XP Strip — compact retention display */}
