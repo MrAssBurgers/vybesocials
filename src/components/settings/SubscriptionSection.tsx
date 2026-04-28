@@ -12,6 +12,7 @@ import { usePremiumStatus } from '@/hooks/usePremiumStatus';
  */
 export function SubscriptionSection() {
   const { isOwner, isGifted, customerInfo } = usePremiumStatus();
+  const [centerOpen, setCenterOpen] = useState(false);
   const hasLegacySubscription = !!(customerInfo?.entitlements?.active && Object.keys(customerInfo.entitlements.active).length > 0);
 
   return (
