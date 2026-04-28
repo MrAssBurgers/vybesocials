@@ -1720,6 +1720,27 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   to { background-position: -100% 50%; }
 }
 
+/* VYBE aurora drift — three layers move on independent paths/timings
+   for a soft, morphing radial gradient (no hard banding). */
+@keyframes aurora-drift-1 {
+  0%   { background-position: 0% 0%, 100% 100%, 50% 0%; }
+  33%  { background-position: 100% 30%, 100% 100%, 50% 0%; }
+  66%  { background-position: 50% 100%, 100% 100%, 50% 0%; }
+  100% { background-position: 0% 0%, 100% 100%, 50% 0%; }
+}
+@keyframes aurora-drift-2 {
+  0%   { background-position: 0% 0%, 100% 100%, 50% 0%; }
+  33%  { background-position: 0% 0%, 0% 60%, 50% 0%; }
+  66%  { background-position: 0% 0%, 80% 0%, 50% 0%; }
+  100% { background-position: 0% 0%, 100% 100%, 50% 0%; }
+}
+@keyframes aurora-drift-3 {
+  0%   { background-position: 0% 0%, 100% 100%, 50% 0%; }
+  33%  { background-position: 0% 0%, 100% 100%, 0% 100%; }
+  66%  { background-position: 0% 0%, 100% 100%, 100% 50%; }
+  100% { background-position: 0% 0%, 100% 100%, 50% 0%; }
+}
+
 @keyframes shimmer {
   0% {
     transform: translateX(-100%);
