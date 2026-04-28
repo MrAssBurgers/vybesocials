@@ -1727,46 +1727,40 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   to { background-position: -100% 50%; }
 }
 
-/* VYBE aurora drift — six layers move on independent paths/timings,
-   blending the brand neon trio with the user's own theme colors.
-   Each keyframe specifies positions for all 6 background-image layers;
-   the layer it "owns" animates, the others are held in place so the
-   stacked animations on the same element compose cleanly. */
-@keyframes aurora-drift-1 {
-  0%   { background-position: 0% 0%,   50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%; }
-  33%  { background-position: 100% 30%, 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%; }
-  66%  { background-position: 50% 100%, 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%; }
-  100% { background-position: 0% 0%,   50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%; }
-}
-@keyframes aurora-drift-2 {
-  0%   { background-position: 50% 50%, 100% 100%, 50% 50%, 50% 50%, 50% 50%, 50% 50%; }
-  33%  { background-position: 50% 50%, 0% 60%,    50% 50%, 50% 50%, 50% 50%, 50% 50%; }
-  66%  { background-position: 50% 50%, 80% 0%,    50% 50%, 50% 50%, 50% 50%, 50% 50%; }
-  100% { background-position: 50% 50%, 100% 100%, 50% 50%, 50% 50%, 50% 50%, 50% 50%; }
-}
-@keyframes aurora-drift-3 {
-  0%   { background-position: 50% 50%, 50% 50%, 50% 0%,    50% 50%, 50% 50%, 50% 50%; }
-  33%  { background-position: 50% 50%, 50% 50%, 0% 100%,   50% 50%, 50% 50%, 50% 50%; }
-  66%  { background-position: 50% 50%, 50% 50%, 100% 50%,  50% 50%, 50% 50%, 50% 50%; }
-  100% { background-position: 50% 50%, 50% 50%, 50% 0%,    50% 50%, 50% 50%, 50% 50%; }
-}
-@keyframes aurora-drift-4 {
-  0%   { background-position: 50% 50%, 50% 50%, 50% 50%, 20% 80%,  50% 50%, 50% 50%; }
-  33%  { background-position: 50% 50%, 50% 50%, 50% 50%, 90% 20%,  50% 50%, 50% 50%; }
-  66%  { background-position: 50% 50%, 50% 50%, 50% 50%, 40% 100%, 50% 50%, 50% 50%; }
-  100% { background-position: 50% 50%, 50% 50%, 50% 50%, 20% 80%,  50% 50%, 50% 50%; }
-}
-@keyframes aurora-drift-5 {
-  0%   { background-position: 50% 50%, 50% 50%, 50% 50%, 50% 50%, 75% 35%,  50% 50%; }
-  33%  { background-position: 50% 50%, 50% 50%, 50% 50%, 50% 50%, 10% 70%,  50% 50%; }
-  66%  { background-position: 50% 50%, 50% 50%, 50% 50%, 50% 50%, 100% 100%, 50% 50%; }
-  100% { background-position: 50% 50%, 50% 50%, 50% 50%, 50% 50%, 75% 35%,  50% 50%; }
-}
-@keyframes aurora-drift-6 {
-  0%   { background-position: 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 60%; }
-  33%  { background-position: 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%, 100% 0%; }
-  66%  { background-position: 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%, 0% 80%; }
-  100% { background-position: 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 60%; }
+/* VYBE aurora drift — six radial blobs (3 brand neon + 3 user theme)
+   morph independently in a single keyframe so they actually compose
+   on the same element. Loops seamlessly (0% == 100%). */
+@keyframes aurora-drift-multi {
+  0% {
+    background-position:
+      0% 0%, 100% 100%, 50% 0%,
+      20% 80%, 75% 35%, 50% 60%;
+  }
+  20% {
+    background-position:
+      30% 20%, 70% 80%, 80% 30%,
+      60% 60%, 20% 70%, 90% 20%;
+  }
+  40% {
+    background-position:
+      80% 40%, 20% 60%, 100% 70%,
+      90% 30%, 40% 100%, 10% 80%;
+  }
+  60% {
+    background-position:
+      60% 90%, 40% 30%, 30% 90%,
+      30% 0%, 80% 60%, 60% 0%;
+  }
+  80% {
+    background-position:
+      20% 70%, 90% 50%, 60% 40%,
+      70% 90%, 10% 30%, 30% 50%;
+  }
+  100% {
+    background-position:
+      0% 0%, 100% 100%, 50% 0%,
+      20% 80%, 75% 35%, 50% 60%;
+  }
 }
 
 @keyframes shimmer {
