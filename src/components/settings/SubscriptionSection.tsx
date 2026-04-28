@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, Crown, Heart } from 'lucide-react';
+import { Sparkles, Crown, Heart, Settings as SettingsIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { CustomerCenter } from '@/components/premium/CustomerCenter';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 
