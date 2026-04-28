@@ -482,6 +482,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={T.enter}
       className="relative rounded-2xl overflow-hidden bg-card"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '600px' }}
     >
       {/* Subtle animated VYBE aurora outline (full perimeter, low opacity) */}
       <div aria-hidden className="post-aurora-outline" />
