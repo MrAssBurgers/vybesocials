@@ -202,7 +202,7 @@ export function SubscriptionLocker() {
   const [activeTab, setActiveTab] = useState<TabId>('colors');
   const { data } = usePremiumItems();
   const equipItem = useEquipItem();
-  const { isPremium } = usePremiumStatus();
+  const { hasPremiumCosmetics: isPremium } = usePremiumStatus();
 
   const displayName = profile?.display_name || profile?.username || 'You';
 
