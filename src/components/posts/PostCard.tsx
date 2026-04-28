@@ -259,7 +259,7 @@ function NaturalAspectImage({ src, caption }: { src: string; caption?: string })
         src={src}
         alt={caption || ''}
         className={cn(
-          "w-full h-auto transition-all duration-500 ease-out",
+          "w-full h-auto transition-opacity duration-300 ease-out",
           isTall && "max-h-[70vh] w-auto object-contain",
           isWide && "w-full h-auto",
           !isTall && !isWide && "w-full h-auto",
@@ -481,7 +481,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={T.enter}
-      className="relative rounded-2xl overflow-hidden bg-card/60 backdrop-blur-md"
+      className="relative rounded-2xl overflow-hidden bg-card"
     >
       {/* Subtle animated VYBE aurora outline (full perimeter, low opacity) */}
       <div aria-hidden className="post-aurora-outline" />
@@ -794,7 +794,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           >
             <Bookmark
               className={cn(
-                "h-6 w-6 transition-all",
+                "h-6 w-6 transition-[color,transform]",
                 isBookmarked ? "fill-yellow-400 text-yellow-400 scale-110 bookmark-glow" : "hover:text-primary"
               )}
             />
