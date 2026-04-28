@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Layout, Brush, Wand2, Crown, Lock } from 'lucide-react';
+import { Layout, Brush, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeCustomizer } from './ThemeCustomizer';
 import { ThemeGallery } from './ThemeGallery';
@@ -8,13 +8,10 @@ import { UIBuilder } from './UIBuilder';
 import { AIVybeDesigner } from '@/components/onboarding/AIVybeDesigner';
 import { AnimatePresence } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { usePremiumStatus } from '@/hooks/usePremiumStatus';
-import { UpgradeButton } from '@/components/premium/UpgradeButton';
 
 export function ThemesSection() {
   const [showUIBuilder, setShowUIBuilder] = useState(false);
   const [showVybeDesigner, setShowVybeDesigner] = useState(false);
-  const { hasPremiumCosmetics: _ } = usePremiumStatus();
 
   return (
     <>
