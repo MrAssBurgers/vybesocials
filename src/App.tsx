@@ -41,6 +41,7 @@ const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggP
 const GlobalCallOverlay = lazy(() => import("@/components/call/GlobalCallOverlay").then(m => ({ default: m.GlobalCallOverlay })));
 // PushNotificationPrompt removed — was causing floating bell icon
 const GlobalMessageNotifications = lazy(() => import("@/components/notifications/GlobalMessageNotifications").then(m => ({ default: m.GlobalMessageNotifications })));
+const DespiaOneSignalSync = lazy(() => import("@/components/notifications/DespiaOneSignalSync").then(m => ({ default: m.DespiaOneSignalSync })));
 const TabNotificationBadge = lazy(() => import("@/components/notifications/TabNotificationBadge").then(m => ({ default: m.TabNotificationBadge })));
 const TutorialProvider = lazy(() => import("@/components/tutorial/TutorialProvider").then(m => ({ default: m.TutorialProvider })));
 const WarningPopup = lazy(() => import("@/components/moderation/WarningPopup").then(m => ({ default: m.WarningPopup })));
@@ -277,6 +278,7 @@ function AppWithPreloader() {
                                     <Suspense fallback={null}>
                                       {/* PushNotificationPrompt removed */}
                                       <GlobalMessageNotifications />
+                                      <DespiaOneSignalSync />
                                       <TabNotificationBadge />
                                       <GlobalCallOverlay />
                                       <WarningPopup />
