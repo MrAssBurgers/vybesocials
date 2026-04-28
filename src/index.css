@@ -1492,7 +1492,8 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    padding: 1px;
+    /* Consistent hairline thickness across all viewports */
+    padding: 1.25px;
     pointer-events: none;
     background-image:
       radial-gradient(circle at 18% 28%, hsl(var(--neon-pink) / 0.95), transparent 60%),
@@ -1510,8 +1511,46 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
-    opacity: 0.55;
-    filter: saturate(1.3) brightness(1.05);
+    /* Dark surface defaults — slightly punchier glow */
+    opacity: 0.6;
+    filter: saturate(1.25) brightness(1.05)
+      drop-shadow(0 0 4px hsl(var(--primary) / 0.18));
+  }
+
+  /* Light mode: thinner edge, less glow so it doesn't wash out the card */
+  .light .post-aurora-outline {
+    padding: 1px;
+    opacity: 0.7;
+    filter: saturate(1.4) brightness(0.95)
+      drop-shadow(0 0 3px hsl(var(--primary) / 0.12));
+  }
+
+  /* Hi-DPI screens render 1px thinner — bump padding slightly for parity */
+  @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) {
+    .post-aurora-outline {
+      padding: 1.5px;
+    }
+    .light .post-aurora-outline {
+      padding: 1.25px;
+    }
+  }
+
+  /* Small screens: keep outline crisp without overpowering compact cards */
+  @media (max-width: 640px) {
+    .post-aurora-outline {
+      opacity: 0.5;
+      filter: saturate(1.2) brightness(1.02)
+        drop-shadow(0 0 3px hsl(var(--primary) / 0.14));
+    }
+    .light .post-aurora-outline {
+      opacity: 0.6;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .post-aurora-outline {
+      animation: none;
+    }
   }
 
   /* Animated gradient border for nav items */
