@@ -2,6 +2,7 @@ import { lazy, Suspense, memo, useEffect } from 'react';
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { liquidSpring } from '@/motion/liquidConfig';
+import { MOTION_CONFIG } from '@/lib/motion';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
@@ -117,10 +118,10 @@ export function AnimatedRoutes() {
     <AnimatePresence mode="wait">
       <motion.div
         key={location.pathname}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -4 }}
-        transition={{ ...liquidSpring, duration: 0.25 }}
+        initial={{ opacity: 0, y: 8, scale: 0.995 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -4, scale: 0.998 }}
+        transition={{ duration: 0.28, ease: MOTION_CONFIG.ease.expoOut }}
         className="min-h-screen"
         id="main-content"
       >
