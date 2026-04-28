@@ -278,6 +278,7 @@ function AppWithPreloader() {
                                     <Suspense fallback={null}>
                                       {/* PushNotificationPrompt removed */}
                                       <GlobalMessageNotifications />
+                                      <DespiaOneSignalSync />
                                       <TabNotificationBadge />
                                       <GlobalCallOverlay />
                                       <WarningPopup />
