@@ -16,6 +16,7 @@ import { AROverlayCanvas } from './AROverlayCanvas';
 import { ARFilterPicker } from './ARFilterPicker';
 import { ARFilterDef } from '@/lib/arFilters';
 import { useSnapAR } from './SnapARProvider';
+import { useLockPortraitOrientation } from '@/hooks/useLockPortraitOrientation';
 
 interface RecordingSegment {
   blob: Blob;
