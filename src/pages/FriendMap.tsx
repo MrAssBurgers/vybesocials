@@ -813,7 +813,47 @@ function FriendMapInner() {
     map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 14, animate: true });
   }, [safeMyCoords, friendsArr]);
 
+  /* ── Heading-up compass mode (rotates map to follow phone heading) ── */
+  useEffect(() => {
+    if (!headingUp) { setHeading(0); return; }
+    let lastUpdate = 0;
+    const handler = (e: DeviceOrientationEvent) => {
+      const ios = (e as any).webkitCompassHeading as number | undefined;
+      const raw = typeof ios === 'number' ? ios : (e.alpha != null ? 360 - e.alpha : null);
+      if (raw == null) return;
+      const now = performance.now();
+      if (now - lastUpdate < 80) return;
+      lastUpdate = now;
+      setHeading((prev) => {
+        let delta = raw - prev;
+        if (delta > 180) delta -= 360;
+        if (delta < -180) delta += 360;
+        return (prev + delta * 0.25 + 360) % 360;
+      });
+    };
+    const start = async () => {
+      try {
+        const Req = (DeviceOrientationEvent as any).requestPermission;
+        if (typeof Req === 'function') {
+          const res = await Req();
+          if (res !== 'granted') { setHeadingUp(false); toast.error('Compass permission denied'); return; }
+        }
+        window.addEventListener('deviceorientationabsolute', handler as any, true);
+        window.addEventListener('deviceorientation', handler as any, true);
+      } catch (e) {
+        console.warn('[FriendMap] compass start failed:', e);
+        setHeadingUp(false);
+      }
+    };
+    start();
+    return () => {
+      window.removeEventListener('deviceorientationabsolute', handler as any, true);
+      window.removeEventListener('deviceorientation', handler as any, true);
+    };
+  }, [headingUp]);
+
   /* ── render ────────────────────────────────────────── */
+
 
   return (
     <div className="fixed inset-0 w-full h-full overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none', zIndex: 9999 }}>
