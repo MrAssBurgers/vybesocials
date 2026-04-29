@@ -537,7 +537,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
 
       <motion.nav 
         ref={ref}
-        className="fixed left-1/2 -translate-x-1/2 w-[min(420px,calc(100%-1.25rem))] pointer-events-auto"
+        className="fixed inset-x-0 flex justify-center px-2 pointer-events-none"
         initial={false}
         animate={{
           y: isVisible ? 0 : 140,
@@ -558,7 +558,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
       >
         <div 
           className={cn(
-            "rounded-[28px] overflow-hidden transition-[background-color,border-color] duration-300 relative",
+            "w-full max-w-[420px] rounded-[28px] overflow-hidden transition-[background-color,border-color] duration-300 relative pointer-events-auto",
             isEditMode 
               ? "border border-primary/60 shadow-[0_0_30px_hsl(var(--primary)/0.5)]" 
               : "border border-white/5"
