@@ -535,7 +535,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
 
       <motion.nav 
         ref={ref}
-        className="fixed bottom-0 left-0 right-0 w-full pointer-events-auto"
+        className="fixed left-1/2 -translate-x-1/2 w-[min(420px,calc(100%-1.25rem))] pointer-events-auto"
         initial={false}
         animate={{
           y: isVisible ? 0 : 120,
