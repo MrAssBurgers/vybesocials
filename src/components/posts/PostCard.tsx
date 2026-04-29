@@ -340,6 +340,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   // Memoize computed values
   const isOwnPost = useMemo(() => profile?.id === post.author.id, [profile?.id, post.author.id]);
   const isAdmin = useMemo(() => userRole === 'admin' || userRole === 'moderator', [userRole]);
+  const { data: pinnedCount = 0 } = usePinnedPostCount(isOwnPost ? profile?.id : undefined);
+  const atPinCap = isOwnPost && !post.is_pinned && pinnedCount >= PIN_LIMIT;
   const canDelete = isOwnPost || isAdmin;
   
   // Memoize formatted date
