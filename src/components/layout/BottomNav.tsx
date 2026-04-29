@@ -162,7 +162,8 @@ const DraggableNavItem = memo(({
       <Reorder.Item
         value={item.id}
         dragListener={isEditMode}
-        className="relative flex items-center justify-center min-h-[48px]"
+        as="div"
+        className="relative flex flex-1 items-center justify-center min-h-[48px]"
       >
         <Link
           to={path}
@@ -212,7 +213,8 @@ const DraggableNavItem = memo(({
     <Reorder.Item
       value={item.id}
       dragListener={isEditMode}
-      className="relative flex items-center justify-center min-h-[48px]"
+      as="div"
+      className="relative flex flex-1 items-center justify-center min-h-[48px]"
     >
       <Link
         to={path}
@@ -535,7 +537,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
 
       <motion.nav 
         ref={ref}
-        className="fixed left-1/2 -translate-x-1/2 w-[min(420px,calc(100%-1.25rem))] pointer-events-auto lg:hidden"
+        className="fixed left-1/2 -translate-x-1/2 w-[min(420px,calc(100%-1.25rem))] pointer-events-auto"
         initial={false}
         animate={{
           y: isVisible ? 0 : 140,
@@ -587,7 +589,8 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
             axis="x"
             values={navOrder}
             onReorder={handleReorder}
-            className="grid grid-cols-5 h-14 px-1 relative z-10"
+            as="div"
+            className="flex items-stretch h-14 px-1 relative z-10"
           >
             {orderedNavItems.map((item) => {
               const path = item.getPath(profile);
@@ -601,7 +604,8 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                     key={item.id}
                     value={item.id}
                     dragListener={isEditMode}
-                    className="relative flex items-center justify-center"
+                    as="div"
+                    className="relative flex flex-1 items-center justify-center"
                     data-tutorial="create-nav"
                   >
                     <motion.button
