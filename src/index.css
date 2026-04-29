@@ -974,9 +974,37 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     transition: none !important;
   }
 
+  /* CRITICAL PERF: Kill backdrop-filter while scrolling. backdrop-filter forces
+     a full GPU recomposite of every layer below it on every frame, which is the
+     #1 cause of jitter on Safari/Chromium. Motion masks the visual swap. */
+  html.is-scrolling [class*="backdrop-blur"],
+  html.is-scrolling .liquid-glass,
+  html.is-scrolling .liquid-glass-card,
+  html.is-scrolling .liquid-glass-button,
+  html.is-scrolling .liquid-glass-subtle,
+  html.is-scrolling .liquid-glass-depth,
+  html.is-scrolling .glass-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transition: none !important;
+  }
+
   /* Will-change optimization - applied only when needed */
   .will-scroll {
     will-change: scroll-position;
+  }
+
+  /* Smooth-scroll utility: GPU-promoted, contained, with offscreen render skip.
+     Apply to any long scrollable region (feeds, threads, grids). */
+  .scroller {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    transform: translateZ(0);
+    contain: layout paint style;
+  }
+  .scroller > * {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 600px;
   }
 
   /* Enable smooth scrolling everywhere - but not on iOS where it causes issues */
