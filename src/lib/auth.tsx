@@ -612,11 +612,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Invalidate any react-query caches that key off identity fields.
       try {
-        const { queryClient } = await import('@/lib/queryClient');
-        queryClient.invalidateQueries({ queryKey: ['profile'] });
-        queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
-        queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-        queryClient.invalidateQueries({ queryKey: ['profiles'] });
+        const qc = (window as any).__REACT_QUERY_CLIENT__;
+        if (qc) {
+          qc.invalidateQueries({ queryKey: ['profile'] });
+          qc.invalidateQueries({ queryKey: ['profile-by-id'] });
+          qc.invalidateQueries({ queryKey: ['user-profile'] });
+          qc.invalidateQueries({ queryKey: ['profiles'] });
+        }
       } catch {}
 
       return { error: null };
