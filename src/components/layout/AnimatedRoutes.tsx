@@ -51,6 +51,7 @@ const ClipsViewer = lazy(() => import("@/pages/ClipsViewer"));
 const Privacy = lazy(() => import("@/pages/Privacy"));
 const Terms = lazy(() => import("@/pages/Terms"));
 const CookiePolicy = lazy(() => import("@/pages/CookiePolicy"));
+const ChildSafety = lazy(() => import("@/pages/ChildSafety"));
 const About = lazy(() => import("@/pages/About"));
 const Contact = lazy(() => import("@/pages/Contact"));
 const InviteFriends = lazy(() => import("@/pages/InviteFriends"));
@@ -137,6 +138,7 @@ export function AnimatedRoutes() {
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/cookies" element={<CookiePolicy />} />
+            <Route path="/child-safety" element={<ChildSafety />} />
             <Route path="/guidelines" element={<CommunityGuidelines />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
