@@ -167,28 +167,26 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
               {renderContent()}
             </motion.div>
 
-            {/* Account Management */}
-            <div className="mt-6 space-y-4">
-              <div className="h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent" />
-              <AccountDangerZone />
-            </div>
+            {/* Account Management — only inside Privacy & Security tab */}
+            {activeCategory === 'privacy' && (
+              <div className="mt-6 space-y-4">
+                <div className="h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent" />
+                <AccountDangerZone />
 
-            {/* Sign Out & App Info */}
-            <div className="mt-6 space-y-4 pb-4">
-              <div className="h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent" />
-
-              <Button
-                variant="outline"
-                className="w-full justify-between text-sm border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/15 hover:border-destructive/40 hover:shadow-[0_0_15px_hsl(var(--destructive)/0.1)] h-11 backdrop-blur-sm transition-all"
-                onClick={handleSignOut}
-              >
-                <span className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-auto inline-flex gap-2 text-sm border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/15 hover:border-destructive/40 transition-all"
+                  onClick={handleSignOut}
+                >
                   <LogOut className="h-4 w-4" />
                   {t('auth.logout')}
-                </span>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+                </Button>
+              </div>
+            )}
 
+            {/* App Info */}
+            <div className="mt-6 pb-4">
               <div className="text-center py-4 text-muted-foreground">
                 <div className="flex items-center justify-center gap-2 mb-1">
                   <VybeMiniIcon size={28} showSparkles />
