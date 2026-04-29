@@ -523,20 +523,20 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
             style={{
               top: `${overlay.y}%`,
               transform: 'translateY(-50%)',
-              backdropFilter: 'blur(24px)',
-              WebkitBackdropFilter: 'blur(24px)',
-              background: 'rgba(0, 0, 0, 0.35)',
-              borderRadius: '16px',
-              padding: '12px 24px',
-              filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))',
+              // Snapchat-style: thin translucent strip, full width, grows in HEIGHT only
+              background: 'rgba(0, 0, 0, 0.55)',
+              padding: '6px 14px',
             }}
-            whileTap={{ scale: 1.02 }}
+            whileTap={{ scale: 1.01 }}
           >
             <span
-              className="font-bold text-center whitespace-pre-wrap"
+              className="text-center whitespace-pre-wrap break-words font-medium"
               style={{
                 color: overlay.color,
                 fontSize: overlay.fontSize,
+                lineHeight: 1.25,
+                letterSpacing: '-0.01em',
+                maxWidth: '92%',
                 ...getTextStyleCSS(overlay.style, overlay.color),
               }}
             >
