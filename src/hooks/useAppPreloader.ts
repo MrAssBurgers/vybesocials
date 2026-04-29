@@ -89,11 +89,12 @@ export function useAppPreloader() {
       return;
     }
 
-    // Safety timeout - 4 seconds max (slightly longer to allow smooth animation)
+    // Safety timeout - 1.5 seconds max so the splash never blocks the user.
+    // Page-level queries will hydrate behind the scenes via React Query.
     const safetyTimeout = setTimeout(() => {
       console.warn('[Preloader] Safety timeout reached, forcing complete');
       animateTo(100, 'Ready!', true);
-    }, 4000);
+    }, 1500);
 
     const preload = async () => {
       const startTime = performance.now();
@@ -103,25 +104,25 @@ export function useAppPreloader() {
         updateStatus('init');
         await new Promise(r => setTimeout(r, 80)); // tiny delay so user sees first frame
 
-        // Step 2: Check authentication with timeout
+        // Step 2: Check authentication with tight timeout — splash should never wait long.
         updateStatus('auth');
-        
+
         let session = null;
         try {
           const authResult = await Promise.race([
             supabase.auth.getSession(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 3000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 1000))
           ]) as { data: { session: any } };
           session = authResult.data.session;
         } catch {
-          console.warn('[Preloader] Auth check failed, continuing as guest');
+          console.warn('[Preloader] Auth check slow, continuing — page-level queries will hydrate');
         }
 
         if (!session?.user) {
-          // Guest mode - load public content in parallel
+          // Guest mode — fire feed/clips fetches in background, don't block splash.
           updateStatus('feed');
-          
-          const [feedResult, clipsResult] = await Promise.allSettled([
+
+          Promise.allSettled([
             supabase.rpc('get_posts_with_counts', {
               p_type: 'feed_post',
               p_author_id: null,
@@ -136,95 +137,97 @@ export function useAppPreloader() {
               p_offset: 0,
               p_limit: 20,
             }),
-          ]);
+          ]).then(([feedResult, clipsResult]) => {
+            if (feedResult.status === 'fulfilled' && feedResult.value.data) {
+              const posts = feedResult.value.data as any[];
+              cacheFeedData(queryClient, posts, null, 'feed_post');
+              const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+              batchSignUrls(urlsToSign).catch(() => {});
+            }
+            if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
+              const clips = clipsResult.value.data as any[];
+              cacheFeedData(queryClient, clips, null, 'clip');
+              const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+              batchSignUrls(urlsToSign).catch(() => {});
+            }
+          });
 
           updateStatus('clips');
-
-          // Cache feed
-          if (feedResult.status === 'fulfilled' && feedResult.value.data) {
-            const posts = feedResult.value.data as any[];
-            cacheFeedData(queryClient, posts, null, 'feed_post');
-            const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-            batchSignUrls(urlsToSign).catch(() => {});
-          }
-
-          // Cache clips
-          if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
-            const clips = clipsResult.value.data as any[];
-            cacheFeedData(queryClient, clips, null, 'clip');
-            const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-            batchSignUrls(urlsToSign).catch(() => {});
-          }
-
           updateStatus('final');
-          await new Promise(r => setTimeout(r, 120));
 
-          console.log(`[Preloader] Guest mode complete - ${(performance.now() - startTime).toFixed(0)}ms`);
+          console.log(`[Preloader] Guest mode ready (non-blocking) - ${(performance.now() - startTime).toFixed(0)}ms`);
           updateStatus('ready');
           return;
         }
 
         const uid = session.user.id;
 
-        // Step 3: Load profile first (fast, needed for other queries)
+        // Step 3: Kick off profile fetch but cap how long the splash will wait on it.
         updateStatus('profile');
-        const { data: profileData } = await supabase
+
+        const profilePromise = supabase
           .from('profiles')
           .select('*')
           .eq('user_id', uid)
           .maybeSingle();
+
+        let profileData: any = null;
+        try {
+          const result = await Promise.race([
+            profilePromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Profile timeout')), 800)),
+          ]) as any;
+          profileData = result?.data || null;
+        } catch {
+          // Splash continues; the profile query will keep running and hydrate via React Query.
+          console.warn('[Preloader] Profile slow, continuing without blocking');
+        }
 
         const profileId = profileData?.id;
         if (profileData) {
           queryClient.setQueryData(['profile', profileId], profileData);
         }
 
-        // Step 4: Load ONLY feed + clips (critical for first paint)
+        // Step 4: Fire feed + clips in background — DON'T block splash on them.
         updateStatus('feed');
 
-        const [feedResult, clipsResult] = await Promise.allSettled([
-          supabase.rpc('get_posts_with_counts', {
-            p_type: null,
-            p_author_id: null,
-            p_user_id: profileId,
-            p_offset: 0,
-            p_limit: 25,
-          }),
-          supabase.rpc('get_posts_with_counts', {
-            p_type: 'short',
-            p_author_id: null,
-            p_user_id: profileId,
-            p_offset: 0,
-            p_limit: 15,
-          }),
-        ]);
-
-        // Cache feed
-        if (feedResult.status === 'fulfilled' && feedResult.value.data) {
-          const posts = feedResult.value.data as any[];
-          cacheFeedData(queryClient, posts, profileId, null);
-          const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-          batchSignUrls(urlsToSign).catch(() => {});
+        if (profileId) {
+          Promise.allSettled([
+            supabase.rpc('get_posts_with_counts', {
+              p_type: null,
+              p_author_id: null,
+              p_user_id: profileId,
+              p_offset: 0,
+              p_limit: 25,
+            }),
+            supabase.rpc('get_posts_with_counts', {
+              p_type: 'short',
+              p_author_id: null,
+              p_user_id: profileId,
+              p_offset: 0,
+              p_limit: 15,
+            }),
+          ]).then(([feedResult, clipsResult]) => {
+            if (feedResult.status === 'fulfilled' && feedResult.value.data) {
+              const posts = feedResult.value.data as any[];
+              cacheFeedData(queryClient, posts, profileId, null);
+              const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+              batchSignUrls(urlsToSign).catch(() => {});
+            }
+            if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
+              const clips = clipsResult.value.data as any[];
+              cacheFeedData(queryClient, clips, profileId, 'short');
+              const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+              batchSignUrls(urlsToSign).catch(() => {});
+            }
+          });
         }
 
         updateStatus('clips');
-
-        // Cache clips
-        if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
-          const clips = clipsResult.value.data as any[];
-          cacheFeedData(queryClient, clips, profileId, 'short');
-          const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-          batchSignUrls(urlsToSign).catch(() => {});
-        }
-
         updateStatus('final');
-        await new Promise(r => setTimeout(r, 100));
-
-        // Mark ready
         updateStatus('ready');
 
-        // Log performance
-        console.log(`[Preloader] Critical load complete - ${(performance.now() - startTime).toFixed(0)}ms`);
+        console.log(`[Preloader] Splash ready (non-blocking) - ${(performance.now() - startTime).toFixed(0)}ms`);
 
         // DEFERRED: Load social data in background (non-blocking)
         requestAnimationFrame(() => {
