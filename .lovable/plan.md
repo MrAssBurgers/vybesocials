@@ -1,94 +1,29 @@
-# Make VYBE scroll smooth as butter
+## Restore the floating bottom nav
 
-The app feels jittery because of three compounding issues found across the codebase:
+Right now the mobile bottom nav is glued edge-to-edge with only the top corners rounded, which makes it read as a chopped-off bar. Switch it back to the old floating pill that sits above the bottom edge with breathing room on all sides and full corner radius.
 
-1. **400+ `backdrop-blur` usages** (cards, nav, sheets, badges) all repaint every scroll frame. Safari/Chromium can't composite blur, so each frame triggers a full GPU recomposite of overlapping layers.
-2. **169 components use `transition-all`**, which animates every property change (including layout) on hover/state change — expensive and easy to accidentally trigger mid-scroll.
-3. The existing `useScrollOptimization` hook adds `.is-scrolling` to suppress some animations, but **only after a scroll starts** (after the first jank frame) and it doesn't suppress `backdrop-filter` itself — the heaviest cost.
+### Visual changes (`src/components/layout/BottomNav.tsx`)
 
-## Plan
+- Outer `<motion.nav>` wrapper:
+  - Stop stretching the bar full width. Replace `left-0 right-0 w-full` with a centered container that has horizontal margin so the pill floats: `left-1/2 -translate-x-1/2 w-[min(420px,calc(100%-1.25rem))]`.
+  - Lift it off the bottom edge: add `bottom: calc(env(safe-area-inset-bottom, 0px) + 10px)` (replacing the current `bottom-0` + bottom safe-area padding pattern). Keep left/right safe-area padding off — the centered width handles edge insets.
+- Inner pill container:
+  - Change `rounded-t-[28px]` to a fully rounded `rounded-[28px]` so all four corners are curved.
+  - Replace the upward shadow (`0 -8px 24px ...`) with a soft drop shadow on all sides: `0 10px 30px hsl(var(--background) / 0.55), 0 2px 10px hsl(0 0% 0% / 0.35), inset 0 1px 0 hsl(0 0% 100% / 0.06)`.
+  - Swap the top-only border (`border-t border-white/5`) for a full hairline (`border border-white/5`).
+  - Keep the existing solid `bg-card` (per the project's perf rule against backdrop blur on the bottom nav) and the aurora/hairline overlays — they already round-clip via `overflow-hidden`.
+- Hide-on-scroll animation: bump the offscreen translate from `y: 120` to `y: 140` so the floating bar (which now has bottom spacing) clears the screen cleanly when hidden.
 
-### 1. Kill backdrop-blur during scroll (biggest win)
+### Layout padding (`src/components/layout/AppLayout.tsx`)
 
-In `src/index.css`, extend the existing `.is-scrolling` ruleset so all glass surfaces drop their filter while the user is actively scrolling and restore it on idle:
+The mobile main container reserves `5rem + safe-area-inset-bottom` of bottom padding for the nav. Bump that to `6rem + safe-area-inset-bottom` so content doesn't tuck under the now-floating pill (it sits ~10px higher than before and casts a shadow).
 
-```css
-html.is-scrolling [class*="backdrop-blur"],
-html.is-scrolling .liquid-glass,
-html.is-scrolling .liquid-glass-card,
-html.is-scrolling .liquid-glass-button,
-html.is-scrolling .liquid-glass-depth,
-html.is-scrolling .glass-card {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  transition: none !important;
-}
-```
+### What stays the same
 
-This is invisible to the user (motion masks it) and recovers ~40–60% scroll cost on blur-heavy pages (Home, Profile, Messages).
+- 5-column grid, icon sizes, badges, drag-to-reorder, edit-mode aura, create button, scroll-hide behavior, keyboard-open auto-hide.
+- Desktop layout (this nav only renders on mobile/tablet via existing logic).
+- Z-index 5002 and aurora gradient wash.
 
-### 2. Make `useScrollOptimization` proactive + tuned
+### Result
 
-Edit `src/hooks/useScrollOptimization.ts`:
-- Attach the `.is-scrolling` class on `pointerdown` / `touchstart` / `wheel` (not just on the first scroll event) so the **first frame is already optimized**.
-- Replace the 100 ms idle timeout with rAF-based settle (2 idle frames) — feels snappier.
-- Listen on `window`, `document`, and any element with `data-scroller="true"` so internal scroll containers also benefit.
-
-### 3. Promote scrollable containers to their own GPU layer
-
-Add a global utility class `.scroller` and apply it to the main scroll regions (`AppLayout` main, `Messages` thread, `Profile` feed, `Explore` grid):
-
-```css
-.scroller {
-  contain: layout paint style;
-  content-visibility: auto;
-  contain-intrinsic-size: 1px 1000px;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  transform: translateZ(0);
-}
-```
-
-`content-visibility: auto` skips offscreen post rendering — huge win on long feeds.
-
-### 4. Replace `transition-all` in scroll-visible components
-
-Audit the 10 hottest offenders surfaced by ripgrep (`PostCard`, `ShortCard`, `MobileShortCard`, `BottomNav`, `HomeWidgetRenderer`, `Sidebar`, `Explore`, `DesktopRightSidebar`, `PostCarousel`, `AIBriefSheet`) and narrow `transition-all` → `transition-colors`, `transition-transform`, or `transition-opacity` so only the property in motion is animated. (≈30 targeted replacements; not a sweeping refactor.)
-
-### 5. Throttle background-effect particle loops while scrolling
-
-`src/components/effects/BackgroundEffects.tsx` runs CSS keyframe animations on 8–12 absolutely-positioned elements. Add `html.is-scrolling .bg-effect-particle { animation-play-state: paused; }` and tag the elements with that class. Pauses cost 0 frames and resumes the moment scroll stops.
-
-### 6. Remove permanent `will-change` 
-
-`will-change: transform` is left on `.liquid-parallax-*` and several notification overlays even when offscreen. That keeps a GPU layer alive forever. Switch to applying `will-change` only on hover/active and removing it after the transition (`onTransitionEnd`).
-
-### 7. Disable framer-motion layout animations in lists
-
-In `PostCard.tsx`, `ClipsGrid.tsx`, `NotificationList`, replace `<motion.div layout>` with plain `<div>` for the list containers. `layout` re-measures every child every frame during scroll — a known jank source. Keep `layout` only on small interactive areas (reactions tray).
-
-### 8. Cap framer-motion `MotionConfig`
-
-In `src/App.tsx` wrap the tree with:
-```tsx
-<MotionConfig reducedMotion="user" transition={{ type: 'tween', duration: 0.2 }}>
-```
-Using `tween` instead of the default spring removes per-frame physics calculations app-wide.
-
-## Files to edit
-
-- `src/index.css` — add `.is-scrolling` blur kill + `.scroller` utility (sections 1, 3, 5)
-- `src/hooks/useScrollOptimization.ts` — proactive listeners + rAF settle (section 2)
-- `src/components/effects/BackgroundEffects.tsx` — pause class on particles (section 5)
-- `src/styles/liquid.css` — remove unconditional `will-change` (section 6)
-- `src/components/layout/AppLayout.tsx`, `src/pages/Messages.tsx`, `src/pages/Explore.tsx`, `src/pages/Profile.tsx` — add `.scroller` to main scroll regions (section 3)
-- `src/components/posts/PostCard.tsx`, `ShortCard.tsx`, `MobileShortCard.tsx`, `PostCarousel.tsx`, `BottomNav.tsx`, `HomeWidgetRenderer.tsx`, `Sidebar.tsx`, `DesktopRightSidebar.tsx`, `AIBriefSheet.tsx`, `Explore.tsx` — narrow `transition-all` → specific properties; drop `motion.div layout` from list containers (sections 4, 7)
-- `src/App.tsx` — `MotionConfig` defaults (section 8)
-
-## Out of scope
-
-- Reducing the 400+ blur surfaces app-wide (visual identity change — would need your sign-off separately).
-- Replacing framer-motion with CSS for non-list animations.
-- Image/video lazy-loading changes (already tuned in `performanceConfig.ts`).
-
-Expected result: scrolling on Home, Profile, Messages, and Explore should hit 60 fps on iOS Safari and Android Chrome, with no visual regression once scroll stops.
+The bar floats above the bottom edge with rounded corners on every side, a soft ambient shadow, and a small gap from the screen edges — matching the old "floating navigator" look that worked everywhere without looking cut off.
