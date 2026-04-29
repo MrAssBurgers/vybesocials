@@ -89,11 +89,12 @@ export function useAppPreloader() {
       return;
     }
 
-    // Safety timeout - 4 seconds max (slightly longer to allow smooth animation)
+    // Safety timeout - 1.5 seconds max so the splash never blocks the user.
+    // Page-level queries will hydrate behind the scenes via React Query.
     const safetyTimeout = setTimeout(() => {
       console.warn('[Preloader] Safety timeout reached, forcing complete');
       animateTo(100, 'Ready!', true);
-    }, 4000);
+    }, 1500);
 
     const preload = async () => {
       const startTime = performance.now();
