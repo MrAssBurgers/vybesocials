@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User, Car, Footprints, Pause, RefreshCw, Cloud, Sun, CloudRain, Snowflake, Eye, EyeOff, ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User, Car, Footprints, Pause, RefreshCw, Cloud, Sun, CloudRain, Snowflake, Eye, EyeOff, ChevronUp, ChevronDown, Compass } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/lib/auth';
@@ -433,6 +433,9 @@ function FriendMapInner() {
   const [searchSheetOpen, setSearchSheetOpen] = useState(false);
   const [stylesOpen, setStylesOpen] = useState(false);
   const [ghostOpen, setGhostOpen] = useState(false);
+  // Heading-up compass mode: rotates the map so the direction the phone is pointing is "up"
+  const [headingUp, setHeadingUp] = useState(false);
+  const [heading, setHeading] = useState(0); // 0–360, where 0 = North
   const [mapStyle, setMapStyle] = useState<MapStyleKey>(getInitialMapStyle);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [activeFilter, setActiveFilter] = useState('Friends');
@@ -810,7 +813,47 @@ function FriendMapInner() {
     map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 14, animate: true });
   }, [safeMyCoords, friendsArr]);
 
+  /* ── Heading-up compass mode (rotates map to follow phone heading) ── */
+  useEffect(() => {
+    if (!headingUp) { setHeading(0); return; }
+    let lastUpdate = 0;
+    const handler = (e: DeviceOrientationEvent) => {
+      const ios = (e as any).webkitCompassHeading as number | undefined;
+      const raw = typeof ios === 'number' ? ios : (e.alpha != null ? 360 - e.alpha : null);
+      if (raw == null) return;
+      const now = performance.now();
+      if (now - lastUpdate < 80) return;
+      lastUpdate = now;
+      setHeading((prev) => {
+        let delta = raw - prev;
+        if (delta > 180) delta -= 360;
+        if (delta < -180) delta += 360;
+        return (prev + delta * 0.25 + 360) % 360;
+      });
+    };
+    const start = async () => {
+      try {
+        const Req = (DeviceOrientationEvent as any).requestPermission;
+        if (typeof Req === 'function') {
+          const res = await Req();
+          if (res !== 'granted') { setHeadingUp(false); toast.error('Compass permission denied'); return; }
+        }
+        window.addEventListener('deviceorientationabsolute', handler as any, true);
+        window.addEventListener('deviceorientation', handler as any, true);
+      } catch (e) {
+        console.warn('[FriendMap] compass start failed:', e);
+        setHeadingUp(false);
+      }
+    };
+    start();
+    return () => {
+      window.removeEventListener('deviceorientationabsolute', handler as any, true);
+      window.removeEventListener('deviceorientation', handler as any, true);
+    };
+  }, [headingUp]);
+
   /* ── render ────────────────────────────────────────── */
+
 
   return (
     <div className="fixed inset-0 w-full h-full overflow-hidden bg-background" style={{ touchAction: 'none', overscrollBehavior: 'none', zIndex: 9999 }}>
@@ -857,7 +900,16 @@ function FriendMapInner() {
         `}</style>
 
         {/* Map container */}
-        <div ref={mapEl} className="absolute inset-0 block w-full h-full" />
+        <div
+          ref={mapEl}
+          className="absolute inset-0 block w-full h-full"
+          style={{
+            transform: headingUp ? `rotate(${-heading}deg) scale(1.18)` : undefined,
+            transformOrigin: 'center center',
+            transition: 'transform 120ms linear',
+            willChange: headingUp ? 'transform' : undefined,
+          }}
+        />
 
         {/* ── Top bar (Snap Maps style) ───────────────── */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-4 pt-[env(safe-area-inset-top)]">
@@ -968,6 +1020,19 @@ function FriendMapInner() {
             className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-xl"
           >
             <Navigation className="h-4 w-4" />
+          </motion.button>
+
+          {/* Compass / Heading-up toggle */}
+          <motion.button
+            onClick={() => { setHeadingUp(v => !v); triggerHaptic('light'); }}
+            whileTap={{ scale: 0.9 }}
+            className={cn(
+              'pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full backdrop-blur-xl transition-all',
+              headingUp ? 'bg-primary text-primary-foreground shadow-xl' : 'bg-black/50 text-white'
+            )}
+            title={headingUp ? 'Heading-up mode (on)' : 'Heading-up mode'}
+          >
+            <Compass className="h-4 w-4" style={{ transform: headingUp ? `rotate(${heading}deg)` : undefined, transition: 'transform 120ms linear' }} />
           </motion.button>
           
           {/* Ghost Mode FAB */}

@@ -16,6 +16,8 @@ import { INTEREST_CATEGORIES, getSuggestedTagsForInterests, getTagCategories } f
 import { Sound } from '@/hooks/useSounds';
 import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
+import { useComposerDraft } from '@/hooks/useComposerDraft';
+import { DraftBanner } from '@/components/create/DraftBanner';
 
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe },
@@ -57,6 +59,22 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showTags, setShowTags] = useState(true);
+
+  // Draft persistence — survives accidental swipe-outs
+  const draft = useComposerDraft(contentType === 'short' ? 'short' : contentType === 'video' ? 'video' : 'post');
+  useEffect(() => {
+    draft.stage({ caption, tags, visibility, hadMedia: localFiles.length > 0 });
+  }, [caption, tags, visibility, localFiles.length, draft]);
+
+  const resumeDraft = useCallback(() => {
+    const d = draft.existingDraft;
+    if (!d) return;
+    if (d.caption) setCaption(d.caption);
+    if (d.tags) setTags(d.tags);
+    if (d.visibility) setVisibility(d.visibility as 'public' | 'followers' | 'private');
+    draft.dismissExisting();
+    triggerHaptic('light');
+  }, [draft]);
 
   // Sync from props if they change (e.g. parent re-captures)
   useEffect(() => { setLocalFiles(propFiles); }, [propFiles]);
@@ -135,6 +153,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
       if (pi) clearInterval(pi);
       setUploadProgress(100);
       setPublishSuccess(true);
+      draft.clear();
       setTimeout(() => { navigate('/home'); }, 2000);
     } catch (err) {
       console.error('[Composer] Failed:', err);

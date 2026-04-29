@@ -184,10 +184,12 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setFoundUser(null);
     setWasScanned(false);
     setIsScanning(false);
-    setActiveTab('qr');
+    // Auto-select Phone Tap tab when device supports NFC (web NFC, native bridge, or detected support)
+    const tapAvailable = hasWebNFC || nativeFriendDrop.isAvailable || nfcSupported;
+    setActiveTab(tapAvailable ? 'tap' : 'qr');
     const drop = await friendDropSync.createDrop();
     if (drop) setActiveDropId(drop.id);
-  }, [profile?.username, friendDropSync]);
+  }, [profile?.username, friendDropSync, hasWebNFC, nativeFriendDrop.isAvailable, nfcSupported]);
 
   const startScanning = useCallback(async () => {
     setIsScanning(true);
