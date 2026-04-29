@@ -30,6 +30,16 @@ export const AIPhotoEnhancer = memo(function AIPhotoEnhancer({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedType, setSelectedType] = useState('auto');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+  const [sliderPos, setSliderPos] = useState(50); // 0 = original, 100 = enhanced
+
+  // Build a local URL for the original image to power the before/after slider
+  useEffect(() => {
+    if (!imageFile) { setOriginalUrl(null); return; }
+    const url = URL.createObjectURL(imageFile);
+    setOriginalUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
 
   const enhance = useCallback(async (type: string) => {
     if (!imageFile || isLoading) return;
