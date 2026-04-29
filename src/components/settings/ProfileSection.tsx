@@ -28,6 +28,7 @@ export function ProfileSection() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     username: profile?.username || '',
+    display_name: profile?.display_name || '',
     bio: profile?.bio || '',
   });
 
@@ -36,10 +37,11 @@ export function ProfileSection() {
     if (profile) {
       setFormData({
         username: profile.username || '',
+        display_name: profile.display_name || '',
         bio: profile.bio || '',
       });
     }
-  }, [profile?.username, profile?.bio]);
+  }, [profile?.username, profile?.display_name, profile?.bio]);
   
   // Fetch primary badge for display name styling preview
   const { data: primaryBadge } = useUserPrimaryBadge(profile?.id);
@@ -48,15 +50,33 @@ export function ProfileSection() {
     setLoading(true);
     haptics.select();
     try {
+      const trimmedUsername = formData.username.trim();
+      const trimmedDisplay = formData.display_name.trim();
+
+      if (!trimmedUsername) {
+        throw new Error('Username cannot be empty');
+      }
+      if (!/^[a-zA-Z0-9_.]{3,30}$/.test(trimmedUsername)) {
+        throw new Error('Username must be 3-30 chars (letters, numbers, _ or .)');
+      }
+
       const { error } = await updateProfile({
-        username: formData.username,
+        username: trimmedUsername,
+        display_name: trimmedDisplay || null,
         bio: formData.bio,
-      });
+      } as any);
       if (error) throw error;
       
       // Sync challenges after profile update
       await supabase.rpc('force_sync_my_challenges');
       queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
+      // Refresh anything that displays identity (chat, comments, headers, mentions, posts...)
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['comments'] });
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
       
       haptics.success();
       toast.success('Profile updated successfully!');
@@ -69,6 +89,7 @@ export function ProfileSection() {
   };
 
   const hasChanges = formData.username !== (profile?.username || '') || 
+                     formData.display_name !== (profile?.display_name || '') ||
                      formData.bio !== (profile?.bio || '');
 
   return (
