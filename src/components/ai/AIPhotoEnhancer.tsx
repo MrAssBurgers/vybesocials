@@ -172,7 +172,7 @@ export const AIPhotoEnhancer = memo(function AIPhotoEnhancer({
           </motion.div>
         )}
 
-        {/* Preview & Apply */}
+        {/* Before/After slider preview */}
         {previewUrl && !isLoading && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -180,9 +180,54 @@ export const AIPhotoEnhancer = memo(function AIPhotoEnhancer({
             transition={liquidSpring}
             className="space-y-2"
           >
-            <div className="rounded-lg overflow-hidden border border-border/50">
-              <img src={previewUrl} alt="Enhanced preview" className="w-full object-cover max-h-48" />
+            <div
+              className="relative rounded-lg overflow-hidden border border-border/50 select-none touch-none"
+              style={{ aspectRatio: '4 / 3', maxHeight: 280 }}
+              onPointerDown={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const update = (clientX: number) => {
+                  const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+                  setSliderPos(pct);
+                };
+                update(e.clientX);
+                const move = (ev: PointerEvent) => update(ev.clientX);
+                const up = () => {
+                  window.removeEventListener('pointermove', move);
+                  window.removeEventListener('pointerup', up);
+                };
+                window.addEventListener('pointermove', move);
+                window.addEventListener('pointerup', up);
+              }}
+            >
+              {/* Original (background) */}
+              {originalUrl && (
+                <img src={originalUrl} alt="Original" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+              )}
+              {/* Enhanced (clipped overlay) */}
+              <img
+                src={previewUrl}
+                alt="Enhanced"
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+                draggable={false}
+              />
+              {/* Divider */}
+              <div
+                className="absolute top-0 bottom-0 w-[2px] bg-white shadow-[0_0_12px_rgba(0,0,0,0.5)] pointer-events-none"
+                style={{ left: `${sliderPos}%`, transform: 'translateX(-50%)' }}
+              >
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center">
+                  <div className="flex gap-0.5">
+                    <span className="block w-0.5 h-3 bg-foreground/60" />
+                    <span className="block w-0.5 h-3 bg-foreground/60" />
+                  </div>
+                </div>
+              </div>
+              {/* Labels */}
+              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold tracking-wide">BEFORE</span>
+              <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-primary/80 text-primary-foreground text-[10px] font-semibold tracking-wide">AFTER</span>
             </div>
+            <p className="text-[11px] text-muted-foreground text-center">Drag the slider to compare</p>
             <div className="flex gap-2">
               <Button
                 type="button"
