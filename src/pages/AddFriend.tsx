@@ -10,6 +10,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { haptics } from '@/lib/haptics';
+import { SuggestedFriends } from '@/components/friends/SuggestedFriends';
+import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
+import { Link } from 'react-router-dom';
 
 /**
  * Deep link handler for NFC friend adds
