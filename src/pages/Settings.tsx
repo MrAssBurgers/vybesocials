@@ -26,6 +26,17 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountDangerZone } from '@/components/settings/AccountDangerZone';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Loader2 } from 'lucide-react';
 
 // Lazy load developer section (only used in dev)
 const DeveloperSection = lazy(() => import('@/components/settings/DeveloperSection').then(m => ({ default: m.DeveloperSection })));
@@ -38,11 +49,21 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
   const isMobile = useIsMobile();
   const initialTab = searchParams.get('tab') as SettingsCategory | null;
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialTab || 'profile');
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const handleSignOut = async () => {
+    if (isSigningOut) return; // debounce: ignore repeat clicks while in-flight
+    setIsSigningOut(true);
     haptics.impact();
-    await signOut();
-    navigate('/');
+    try {
+      await signOut();
+      navigate('/');
+    } finally {
+      setSignOutOpen(false);
+      // Leave isSigningOut=true if we navigated away; reset if we stayed on page
+      setIsSigningOut(false);
+    }
   };
 
   const getCategoryTitle = () => {
