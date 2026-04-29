@@ -171,7 +171,9 @@ export function ChatView() {
   const deleteForMe = useDeleteForMe();
   const editMessage = useEditMessage();
   // Use new presence hook for Snapchat-style presence + typing
-  const { presentUsers, typingUsers, setTyping } = useChatPresence(conversationId);
+  const { presentUsers: rawPresentUsers, typingUsers: rawTypingUsers, setTyping } = useChatPresence(conversationId);
+  const presentUsers = Array.isArray(rawPresentUsers) ? rawPresentUsers : [];
+  const typingUsers = Array.isArray(rawTypingUsers) ? rawTypingUsers : [];
   // Ultra-fast live activity tracking for DMs
   const { 
     otherUserActivity, 
@@ -179,7 +181,8 @@ export function ChatView() {
     setTyping: setLiveTyping, 
     setRecordingVoice: setLiveRecordingVoice 
   } = useLiveActivity(conversationId);
-  const { notifyScreenshot, notifyCapture, screenshotEvents, isRecording } = useScreenshotNotification(conversationId);
+  const { notifyScreenshot, notifyCapture, screenshotEvents: rawScreenshotEvents, isRecording } = useScreenshotNotification(conversationId);
+  const screenshotEvents = Array.isArray(rawScreenshotEvents) ? rawScreenshotEvents : [];
   
   // v1.1: Instant read clear - marks as read immediately and clears badges
   useInstantReadClear(conversationId);
@@ -2474,7 +2477,7 @@ const MessageBubble = memo(function MessageBubble({
                     className="absolute inset-0"
                     style={{
                       backgroundSize: '200% 100%',
-                      backgroundImage: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 12.5%, hsl(var(--primary)) 25%, hsl(var(--accent)) 37.5%, hsl(var(--primary)) 50%, hsl(var(--accent)) 62.5%, hsl(var(--primary)) 75%, hsl(var(--accent)) 87.5%, hsl(var(--primary)) 100%)'
+                      backgroundImage: 'linear-gradient(90deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-mid)) 12.5%, hsl(var(--gradient-end)) 25%, hsl(var(--gradient-mid)) 37.5%, hsl(var(--gradient-start)) 50%, hsl(var(--gradient-mid)) 62.5%, hsl(var(--gradient-end)) 75%, hsl(var(--gradient-mid)) 87.5%, hsl(var(--gradient-start)) 100%)'
                     }}
                     animate={{ backgroundPosition: ['0% 50%', '-100% 50%'] }}
                     transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
