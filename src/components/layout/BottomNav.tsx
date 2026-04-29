@@ -587,7 +587,8 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
             axis="x"
             values={navOrder}
             onReorder={handleReorder}
-            className="grid grid-cols-5 h-14 px-1 relative z-10"
+            as="div"
+            className="flex items-stretch h-14 px-1 relative z-10"
           >
             {orderedNavItems.map((item) => {
               const path = item.getPath(profile);
