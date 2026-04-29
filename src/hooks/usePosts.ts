@@ -218,7 +218,7 @@ export function useFollowingPosts() {
           )
         `)
         .in('author_id', followingIds)
-        .order('is_pinned', { ascending: false })
+        .neq('author_id', profile.id) // never show your own posts in the Following feed
         .order('created_at', { ascending: false })
         .limit(500);
 
