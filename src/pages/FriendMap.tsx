@@ -900,7 +900,16 @@ function FriendMapInner() {
         `}</style>
 
         {/* Map container */}
-        <div ref={mapEl} className="absolute inset-0 block w-full h-full" />
+        <div
+          ref={mapEl}
+          className="absolute inset-0 block w-full h-full"
+          style={{
+            transform: headingUp ? `rotate(${-heading}deg) scale(1.18)` : undefined,
+            transformOrigin: 'center center',
+            transition: 'transform 120ms linear',
+            willChange: headingUp ? 'transform' : undefined,
+          }}
+        />
 
         {/* ── Top bar (Snap Maps style) ───────────────── */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-4 pt-[env(safe-area-inset-top)]">
