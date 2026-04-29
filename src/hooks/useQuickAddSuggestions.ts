@@ -34,24 +34,44 @@ export function useQuickAddSuggestions(limit = 8) {
 
       const friendIds = friends?.map(f => f.id) || [];
 
-      // Get my interests
+      // Get my interests + DOB for age-based filtering
       const { data: myProfile } = await supabase
         .from('profiles')
-        .select('interests')
+        .select('interests, date_of_birth')
         .eq('id', profile.id)
         .maybeSingle();
       const myInterests = new Set<string>(
         (myProfile?.interests || []).map((i: string) => i.toLowerCase())
       );
 
+      // Compute age window (tighter for minors, wider for adults)
+      const calcAge = (dob?: string | null): number | null => {
+        if (!dob) return null;
+        const b = new Date(dob);
+        if (isNaN(b.getTime())) return null;
+        const n = new Date();
+        let a = n.getFullYear() - b.getFullYear();
+        const m = n.getMonth() - b.getMonth();
+        if (m < 0 || (m === 0 && n.getDate() < b.getDate())) a--;
+        return a;
+      };
+      const myAge = calcAge((myProfile as any)?.date_of_birth);
+      const ageWin = (() => {
+        if (myAge === null) return null;
+        if (myAge < 13) return { min: Math.max(0, myAge - 2), max: myAge + 2 };
+        if (myAge < 18) return { min: Math.max(13, myAge - 2), max: Math.min(17, myAge + 2) };
+        if (myAge < 25) return { min: Math.max(18, myAge - 4), max: myAge + 4 };
+        return { min: Math.max(18, myAge - 7), max: myAge + 7 };
+      })();
+
       // Build query — fetch recent active users excluding self and friends
       let query = supabase
         .from('profiles' as any)
-        .select('id, username, display_name, avatar_url, interests')
+        .select('id, username, display_name, avatar_url, interests, date_of_birth')
         .neq('id', profile.id)
         .not('username', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(80) as any;
+        .limit(120) as any;
 
       if (friendIds.length > 0) {
         query = query.not('id', 'in', `(${friendIds.join(',')})`);
@@ -61,6 +81,12 @@ export function useQuickAddSuggestions(limit = 8) {
       if (!users || users.length === 0) return [];
 
       return (users as any[])
+        .filter((u: any) => {
+          if (!ageWin) return true;
+          const a = calcAge(u.date_of_birth);
+          if (a === null) return true; // unknown age allowed through
+          return a >= ageWin.min && a <= ageWin.max;
+        })
         .map((u: any) => {
           const theirInterests = (u.interests || []).map((i: string) => i.toLowerCase());
           const shared = theirInterests.filter((i: string) => myInterests.has(i));

@@ -32,7 +32,7 @@ export function useProfileById(profileId: string | undefined) {
       
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings')
+        .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth')
         .eq('id', profileId)
         .maybeSingle();
 
