@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
-import { useLockPortraitOrientation } from '@/hooks/useLockPortraitOrientation';
 
 type TextStyle = 'classic' | 'glow' | 'outline' | 'background' | 'neon';
 

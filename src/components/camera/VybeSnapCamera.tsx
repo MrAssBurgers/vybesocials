@@ -16,7 +16,6 @@ import { AROverlayCanvas } from './AROverlayCanvas';
 import { ARFilterPicker } from './ARFilterPicker';
 import { ARFilterDef } from '@/lib/arFilters';
 import { useSnapAR } from './SnapARProvider';
-import { useLockPortraitOrientation } from '@/hooks/useLockPortraitOrientation';
 
 interface RecordingSegment {
   blob: Blob;
@@ -44,9 +43,6 @@ const LENS_FILTERS = [
 ];
 
 export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps) {
-  // Lock to portrait so rotating the phone doesn't invert touch gestures inside Snap
-  useLockPortraitOrientation(isOpen);
-
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [phase, setPhase] = useState<'camera' | 'edit' | 'sending'>('camera');
