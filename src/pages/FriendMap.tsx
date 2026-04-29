@@ -433,6 +433,9 @@ function FriendMapInner() {
   const [searchSheetOpen, setSearchSheetOpen] = useState(false);
   const [stylesOpen, setStylesOpen] = useState(false);
   const [ghostOpen, setGhostOpen] = useState(false);
+  // Heading-up compass mode: rotates the map so the direction the phone is pointing is "up"
+  const [headingUp, setHeadingUp] = useState(false);
+  const [heading, setHeading] = useState(0); // 0–360, where 0 = North
   const [mapStyle, setMapStyle] = useState<MapStyleKey>(getInitialMapStyle);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [activeFilter, setActiveFilter] = useState('Friends');
