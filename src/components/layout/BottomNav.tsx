@@ -162,7 +162,8 @@ const DraggableNavItem = memo(({
       <Reorder.Item
         value={item.id}
         dragListener={isEditMode}
-        className="relative flex items-center justify-center min-h-[48px]"
+        as="div"
+        className="relative flex flex-1 items-center justify-center min-h-[48px]"
       >
         <Link
           to={path}
@@ -212,7 +213,8 @@ const DraggableNavItem = memo(({
     <Reorder.Item
       value={item.id}
       dragListener={isEditMode}
-      className="relative flex items-center justify-center min-h-[48px]"
+      as="div"
+      className="relative flex flex-1 items-center justify-center min-h-[48px]"
     >
       <Link
         to={path}
@@ -602,7 +604,8 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                     key={item.id}
                     value={item.id}
                     dragListener={isEditMode}
-                    className="relative flex items-center justify-center"
+                    as="div"
+                    className="relative flex flex-1 items-center justify-center"
                     data-tutorial="create-nav"
                   >
                     <motion.button
