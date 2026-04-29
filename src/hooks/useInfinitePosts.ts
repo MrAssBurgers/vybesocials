@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useEffect, useRef } from 'react';
 import { batchSignUrls, getCachedSignedUrl, needsSigning } from '@/lib/signedUrlCache';
+import { useBlockedUserIds } from '@/hooks/useBlockedUsers';
 
 export interface Post {
   id: string;
@@ -99,14 +100,16 @@ function preloadSignedMedia(posts: Post[]) {
 
 export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
   const { profile } = useAuth();
+  const blockedIds = useBlockedUserIds();
+  const isProfileView = !!authorId;
 
   const query = useInfiniteQuery({
-    queryKey: ['infinite-posts', type, authorId, profile?.id],
+    queryKey: ['infinite-posts', type, authorId, profile?.id, blockedIds.length],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null; totalLoaded: number }> => {
       const isFirstPage = pageParam === 0;
       const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       const offset = isFirstPage ? 0 : INITIAL_PAGE_SIZE + (pageParam - 1) * PAGE_SIZE;
-      
+
       const { data, error } = await supabase.rpc('get_posts_with_counts', {
         p_type: type || null,
         p_author_id: authorId || null,
@@ -117,8 +120,16 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
 
       if (error) throw error;
 
-      const posts = (data || []).map(transformPost);
-      
+      let posts = (data || []).map(transformPost);
+
+      // For non-profile (feed) views: hide your own posts and posts from blocked users.
+      if (!isProfileView && profile?.id) {
+        const blocked = new Set(blockedIds);
+        posts = posts.filter(
+          (p) => p.author?.id !== profile.id && !blocked.has(p.author?.id)
+        );
+      }
+
       // Non-blocking: sign and preload URLs in background so posts render instantly
       presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
@@ -143,9 +154,10 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
 
 export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
   const { profile } = useAuth();
+  const blockedIds = useBlockedUserIds();
 
   const query = useInfiniteQuery({
-    queryKey: ['infinite-following-posts', type, profile?.id],
+    queryKey: ['infinite-following-posts', type, profile?.id, blockedIds.length],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       if (!profile) return { posts: [], nextPage: null };
 
@@ -162,8 +174,14 @@ export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
 
       if (error) throw error;
 
-      const posts = (data || []).map(transformPost);
-      
+      let posts = (data || []).map(transformPost);
+
+      // Hide your own posts and blocked users from the Following feed.
+      const blocked = new Set(blockedIds);
+      posts = posts.filter(
+        (p) => p.author?.id !== profile.id && !blocked.has(p.author?.id)
+      );
+
       // Non-blocking URL signing
       presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
@@ -229,12 +247,18 @@ export function usePrefetchPosts() {
 // Personalized "For You" feed - server-side ranked discovery algorithm
 export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
   const { profile } = useAuth();
+  const blockedIds = useBlockedUserIds();
 
   const query = useInfiniteQuery({
-    queryKey: ['personalized-feed', type, profile?.id],
+    queryKey: ['personalized-feed', type, profile?.id, blockedIds.length],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       const isFirstPage = pageParam === 0;
       const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
+      const blocked = new Set(blockedIds);
+      const filterFeed = (posts: Post[]) =>
+        profile?.id
+          ? posts.filter((p) => p.author?.id !== profile.id && !blocked.has(p.author?.id))
+          : posts;
 
       if (!profile?.id) {
         // Cold start: use trending feed RPC
@@ -244,7 +268,7 @@ export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
           p_page_size: limit,
         });
         if (error) throw error;
-        const posts = (data || []).map(transformRankedPost);
+        const posts = filterFeed((data || []).map(transformRankedPost));
         presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
         return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
       }
@@ -259,7 +283,7 @@ export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
 
       if (error) throw error;
 
-      const posts = (data || []).map(transformRankedPost);
+      const posts = filterFeed((data || []).map(transformRankedPost));
       presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
       return {

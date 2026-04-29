@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Grid, Film, Bookmark, Package, Play } from 'lucide-react';
+import { Grid, Film, Bookmark, Package, Play, Pin } from 'lucide-react';
 import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
@@ -295,6 +295,11 @@ export default function ProfilePage() {
                           </>
                         ) : (
                           <ProfileGridImage url={post.media_url} alt={post.caption || ''} />
+                        )}
+                        {post.is_pinned && (
+                          <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/55 backdrop-blur-sm ring-1 ring-foreground/10">
+                            <Pin className="h-3 w-3 text-foreground" fill="currentColor" />
+                          </div>
                         )}
                       </motion.div>
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-xl">

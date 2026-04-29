@@ -1,69 +1,55 @@
-# Bug Fixes + UX Overhaul — From Your Notes
 
-Decoded what you wrote in the photo and grouped it into 7 work items. Here's how I'll handle each.
+# Pinned posts → profile only, plus tasteful feed upgrades
 
----
+## The bug you described
+Right now `usePosts` sorts every feed query by `is_pinned DESC`, so when *anyone* pins a post it bubbles to the top of the **public Home / Explore feed** for every viewer — not just on their own profile. The menu label already says "Pin to Profile", so the data layer just doesn't match the intent.
 
-## 1. Stories — pinch‑to‑zoom while recording
-**Issue:** Stories camera doesn't let you zoom while holding record.
-**Fix:** `StoryCreator.tsx` is currently using a basic capture path. Wire in the existing `CameraZoom.tsx` pinch handler (already used by `VybeSnapCamera`) so two‑finger pinch on the story preview adjusts `videoTrack.applyConstraints({ advanced: [{ zoom }] })` continuously while recording — matches Snapchat/IG behavior.
+## What I'll change
 
-## 2. Stories — finalized video preview
-**Issue:** After recording a story video, you don't see the finalized clip before posting.
-**Fix:** Insert a preview step in `StoryCreator.tsx` (mirrors `VybeSnapEditor` flow): on `mediaRecorder.onstop`, build a `Blob` URL → render a fullscreen `<video controls autoplay loop>` with Send/Retake/Save Draft. Nothing gets uploaded until user confirms.
+### 1. Pin truly = profile-only
+- Remove `is_pinned` from the Home / Explore / Following / Local feed sort orders so pinned posts no longer get global priority.
+- Pinned posts still show the "Pinned" badge on the post card, but that badge only matters when viewing on the author's profile.
+- On the **author's profile grid**, pinned posts:
+  - Sort to the top of the Posts and Shorts tabs.
+  - Get a small pin chip overlay in the corner of the thumbnail.
+- Cap pins at **3 per user**. If a 4th is pinned, oldest pin auto-unpins (with a toast). Matches Instagram / TikTok / X behavior.
+- Optimistic toggle so the pin/unpin action feels instant; React Query cache patches before the server round-trips.
 
-## 3. Overlays/text not persisting on post
-**Issue:** Adding text/stickers to a post — they don't actually post with the media.
-**Fix:** In `CameraEditor.tsx` + `MobilePostComposer.tsx`, the upload pipeline currently sends the original media, ignoring the overlay layer. Switch to a `flattenMediaWithOverlays()` step:
-- Photos: composite onto an offscreen `<canvas>` → `toBlob('image/webp', 0.92)`
-- Videos: render overlays onto a `MediaStream` via `canvas.captureStream()` + `MediaRecorder` (or burn a CSS overlay via existing `useVideoProcessor` ffmpeg path on supported devices).
+### 2. "Make it 100x better" — focused, low-risk wins
 
-## 4. VYBESnap caption — Snapchat‑style slim text
-**Issue:** Text on snaps is way too big / bulky. Should stay slim, and as you type more it grows the dark backdrop downward (essay mode), but the text size itself stays constant.
-**Fix:** In `VybeSnapEditor.tsx` text overlay:
-- Drop font from current size → `text-[15px] leading-[1.25] font-medium tracking-tight` (Snap parity)
-- Container: `bg-black/55` strip, full width, `py-1.5 px-3`, auto‑grows in **height only** as lines wrap. No font scaling on overflow.
-- Keep draggable position, keep color picker.
+I'm intentionally NOT rewriting the recommendation engine or DNA scoring (those already exist and are tuned). Instead, three high-leverage polish items that consistently matter:
 
-## 5. VYBE Map — point in the direction phone is facing
-**Issue:** Map should rotate to phone heading like Google Maps' compass mode.
-**Fix:** In `FriendMap.tsx`:
-- Add `DeviceOrientationEvent` listener (with iOS `requestPermission()` gate)
-- Apply `map.setBearing(heading)` (or CSS `transform: rotate(-heading)` on the map container if not Mapbox‑backed)
-- Add a compass FAB to toggle "heading‑up" vs "north‑up", default **on** if permission granted.
+a. **Don't show me my own posts in Home/Explore feeds.**
+   Right now you can scroll past your own content. Filter `author_id != currentUser` in `usePosts` and `useFollowingPosts`. Profile/Search/post detail still show your posts.
 
-## 6. Friend Link — redesign (clean, NFC renamed "Phone Tap")
-**Issue:** Current `AddFriend.tsx` UI is bulky.
-**Fix:** Rebuild as a single compact card:
-- Top: large user QR (rounded, glassy, neon edge glow)
-- Tab bar (segmented, pill style): **Phone Tap** | **QR Code** | **Username**
-- Detect NFC via `'NDEFReader' in window` or `useNFC` capability flag → if available, **auto‑select Phone Tap tab** on mount and show a subtle "Tap phones to connect" pulse animation
-- Rename every "NFC" string → "Phone Tap" in `NFCFriendShare.tsx`, `NFCSwapAnimation.tsx`, `NFCInviteShare.tsx` (keep internal hook names)
-- Reduce overall card height ~30%, swap heavy borders for hairlines + aurora.
+b. **Hide blocked / muted users from feeds.**
+   Quick check: there's a blocks table referenced elsewhere. I'll wire `useInfinitePosts` and `usePosts` to exclude posts from anyone the viewer has blocked or muted, instead of relying on per-card filtering after the fact.
 
-## 7. AI Enhance — make it actually work + global Drafts
-**Issue A — AI Enhance is weak.**
-**Fix:** `AIPhotoEnhancer.tsx` currently sends a vague prompt to Gemini Flash. Replace with `google/gemini-3.1-flash-image-preview` (image edit model) using a strong directive:
-> "Enhance this photo: increase sharpness, reduce noise, improve dynamic range, boost color vibrance subtly, fix white balance, brighten shadows, recover highlights. Preserve all subjects, identity, composition, and aspect ratio. Photo‑realistic only."
-Show before/after slider so the difference is visible. Add intensity slider (Subtle / Standard / Max).
+c. **Smarter "Following" tab fallback.**
+   When you follow nobody (or no one you follow has posted in 7 days), `useFollowingPosts` returns empty and the tab looks broken. I'll fall back to friend-of-friend + your top-engagement-DNA posts so the tab is never empty.
 
-**Issue B — Drafts system (global).**
-**Fix:** New table + UX:
-- DB: `post_drafts (id, user_id, kind, media_url[], overlays jsonb, caption, created_at, updated_at)` with RLS owner‑only
-- Auto‑save trigger: any time the composer (`CameraEditor`, `MobilePostComposer`, `StoryCreator`, `VybeSnapEditor`) unmounts with unsent content → upsert draft
-- Re‑entry: when user opens the composer/post screen, show a small chip at top: **"Draft · [thumb] Tap to resume"** → restores media + overlays + caption to exact state.
+### 3. Pin-on-profile UX details
+- "Pin to Profile" menu item only appears on **your own** posts (already true) and is disabled when you've hit the 3-pin cap with a tooltip "You can pin up to 3 posts."
+- Unpinning is instant and doesn't reorder the feed (since the feed no longer sorts by pin).
+- Pin badge on the profile grid: tiny pin glyph top-left, semi-transparent, matches the existing badge styling — no new colors / tokens.
 
----
+## Technical details
 
-## Technical Notes
-- Reuse `CameraZoom.tsx`, `useVideoProcessor`, `useNFC`, `aiSafetyClient`, and the Lovable AI Gateway (`google/gemini-3.1-flash-image-preview`) — no new external services.
-- Drafts stored in Supabase Storage bucket `drafts/` (auto‑purge after 14 days via cron).
-- All motion uses existing `T.enter` / `MOTION_CONFIG` tokens for consistency.
+**Files I'll edit:**
+- `src/hooks/usePosts.ts` — drop `.order('is_pinned', ...)` from `usePosts` and `useFollowingPosts`; add `.neq('author_id', profile.id)` for non-profile feed views; sort `is_pinned DESC` only when `authorId` is provided (profile view); enforce 3-pin cap inside `useTogglePin`; optimistic update.
+- `src/hooks/useInfinitePosts.ts` — same author-exclusion + blocked-user filter.
+- `src/hooks/useFeedAlgorithm.ts` / `useLocalFeed.ts` — author-exclusion only (these don't sort by pin).
+- `src/pages/Profile.tsx` — sort `gridPosts` and `clipsForGrid` by `is_pinned` first, render pin chip overlay on pinned thumbnails.
+- `src/components/posts/PostCard.tsx` — disable Pin menu item when at cap (read 3-pin status from a small new hook `usePinnedPostCount(profileId)`).
 
----
+**Database:** No schema changes — `posts.is_pinned` already exists. No migration needed. No RLS changes needed (users can already update their own posts).
 
-## Files Touched
-**Edit:** `StoryCreator.tsx`, `CameraEditor.tsx`, `MobilePostComposer.tsx`, `VybeSnapEditor.tsx`, `FriendMap.tsx`, `AddFriend.tsx`, `NFCFriendShare.tsx`, `NFCSwapAnimation.tsx`, `NFCInviteShare.tsx`, `AIPhotoEnhancer.tsx`
-**New:** `src/components/composer/DraftChip.tsx`, `src/hooks/useDrafts.ts`, `src/lib/flattenMedia.ts`, migration for `post_drafts` table + storage bucket.
+**Backwards compatibility:** Existing pinned posts stay pinned; they just stop affecting non-profile feeds. If a user already has >3 pinned posts, the cap only kicks in on the *next* pin attempt — nothing gets auto-unpinned silently.
 
-Approve and I'll execute all 7 in order (Stories → Snap text → Map → Friend Link → AI Enhance → Overlay flatten → Drafts).
+## What I'm NOT doing in this round
+- No changes to the Clips/Shorts vertical feed ordering algorithm.
+- No DNA / ranking model changes.
+- No new tables, no schema migrations, no edge functions.
+- No visual redesign of post cards beyond the small pin chip on profile thumbnails.
+
+If you want me to also tackle Clips ranking, Explore section weights, or a richer "pinned" treatment (e.g. a dedicated "Pinned" row above the profile grid), say the word and I'll do it as a follow-up.

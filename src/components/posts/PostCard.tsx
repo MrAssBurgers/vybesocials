@@ -26,7 +26,8 @@ import { EditPostDialog } from './EditPostDialog';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { ModBadge } from '@/components/ui/ModBadge';
-import { useTogglePin } from '@/hooks/usePosts';
+import { useTogglePin, PIN_LIMIT } from '@/hooks/usePosts';
+import { usePinnedPostCount } from '@/hooks/usePinnedPostCount';
 import { useUserRole } from '@/hooks/useModeration';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
@@ -339,6 +340,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   // Memoize computed values
   const isOwnPost = useMemo(() => profile?.id === post.author.id, [profile?.id, post.author.id]);
   const isAdmin = useMemo(() => userRole === 'admin' || userRole === 'moderator', [userRole]);
+  const { data: pinnedCount = 0 } = usePinnedPostCount(isOwnPost ? profile?.id : undefined);
+  const atPinCap = isOwnPost && !post.is_pinned && pinnedCount >= PIN_LIMIT;
   const canDelete = isOwnPost || isAdmin;
   
   // Memoize formatted date
@@ -572,16 +575,27 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
               )}
               {isOwnPost && (
                 <>
-                  <DropdownMenuItem onClick={handleTogglePin}>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      if (atPinCap) {
+                        e.preventDefault();
+                        toast.info(`You can pin up to ${PIN_LIMIT} posts to your profile`);
+                        return;
+                      }
+                      handleTogglePin();
+                    }}
+                    className={atPinCap ? 'opacity-60' : ''}
+                  >
                     {post.is_pinned ? (
                       <>
                         <PinOff className="h-4 w-4 mr-2" />
-                        Unpin Post
+                        Unpin from Profile
                       </>
                     ) : (
                       <>
                         <Pin className="h-4 w-4 mr-2" />
                         Pin to Profile
+                        {atPinCap && <span className="ml-auto text-xs text-muted-foreground">{pinnedCount}/{PIN_LIMIT}</span>}
                       </>
                     )}
                   </DropdownMenuItem>

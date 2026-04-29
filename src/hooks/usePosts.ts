@@ -48,6 +48,11 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
   return useQuery({
     queryKey: ['posts', type, authorId, profile?.id],
     queryFn: async (): Promise<Post[]> => {
+      // Pinned posts only matter when viewing a specific author's profile.
+      // For global/feed views, sort purely by recency so a user pinning a post
+      // doesn't bubble that post to the top of everyone else's feed.
+      const isProfileView = !!authorId;
+
       let query = supabase
         .from('posts')
         .select(`
@@ -69,8 +74,12 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
             display_name,
             avatar_url
           )
-        `)
-        .order('is_pinned', { ascending: false })
+        `);
+
+      if (isProfileView) {
+        query = query.order('is_pinned', { ascending: false });
+      }
+      query = query
         .order('created_at', { ascending: false })
         .limit(500); // Explicit limit to avoid default 1000 row limit issues
 
@@ -80,8 +89,21 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
       }
 
       // Filter by author if specified
-      if (authorId) {
-        query = query.eq('author_id', authorId);
+      if (isProfileView) {
+        query = query.eq('author_id', authorId!);
+      } else if (profile?.id) {
+        // Hide your own posts from feed/global views (still visible on your profile + post detail).
+        query = query.neq('author_id', profile.id);
+
+        // Hide posts from users you've blocked.
+        const { data: blocks } = await supabase
+          .from('blocked_users')
+          .select('blocked_id')
+          .eq('blocker_id', profile.id);
+        const blockedIds = (blocks || []).map((b: any) => b.blocked_id).filter(Boolean);
+        if (blockedIds.length > 0) {
+          query = query.not('author_id', 'in', `(${blockedIds.join(',')})`);
+        }
       }
 
       const { data: posts, error } = await query;
@@ -196,7 +218,7 @@ export function useFollowingPosts() {
           )
         `)
         .in('author_id', followingIds)
-        .order('is_pinned', { ascending: false })
+        .neq('author_id', profile.id) // never show your own posts in the Following feed
         .order('created_at', { ascending: false })
         .limit(500);
 
@@ -458,23 +480,72 @@ export function useCreatePost() {
   });
 }
 
+export const PIN_LIMIT = 3;
+
 export function useTogglePin() {
   const queryClient = useQueryClient();
+  const { profile } = useAuth();
 
   return useMutation({
     mutationFn: async ({ postId, isPinned }: { postId: string; isPinned: boolean }) => {
+      // When pinning, enforce per-author cap of PIN_LIMIT.
+      // If the user is at the cap, auto-unpin their oldest pinned post so the
+      // newest pin succeeds (matches IG/X/TikTok behavior).
+      if (isPinned && profile?.id) {
+        const { data: existingPins, error: pinErr } = await supabase
+          .from('posts')
+          .select('id, created_at')
+          .eq('author_id', profile.id)
+          .eq('is_pinned', true)
+          .neq('id', postId)
+          .order('created_at', { ascending: true });
+
+        if (pinErr) throw pinErr;
+
+        const pins = existingPins || [];
+        if (pins.length >= PIN_LIMIT) {
+          const toUnpin = pins.slice(0, pins.length - (PIN_LIMIT - 1));
+          if (toUnpin.length > 0) {
+            const { error: unpinErr } = await supabase
+              .from('posts')
+              .update({ is_pinned: false })
+              .in('id', toUnpin.map((p) => p.id));
+            if (unpinErr) throw unpinErr;
+          }
+        }
+      }
+
       const { error } = await supabase
         .from('posts')
         .update({ is_pinned: isPinned })
         .eq('id', postId);
 
       if (error) throw error;
+      return { postId, isPinned };
     },
-    onSuccess: () => {
+    // Optimistic update: flip is_pinned everywhere immediately.
+    onMutate: async ({ postId, isPinned }) => {
+      await queryClient.cancelQueries({ queryKey: ['posts'] });
+      const snapshots = queryClient.getQueriesData<any>({ queryKey: ['posts'] });
+      snapshots.forEach(([key, value]) => {
+        if (!Array.isArray(value)) return;
+        queryClient.setQueryData(
+          key,
+          value.map((p: any) => (p?.id === postId ? { ...p, is_pinned: isPinned } : p))
+        );
+      });
+      return { snapshots };
+    },
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
-      toast.success('Post updated');
+      queryClient.invalidateQueries({ queryKey: ['pinned-post-count'] });
+      toast.success(vars.isPinned ? 'Pinned to your profile' : 'Unpinned');
     },
-    onError: () => {
+    onError: (_err, _vars, ctx) => {
+      // Roll back optimistic update.
+      ctx?.snapshots?.forEach(([key, value]: any) => {
+        queryClient.setQueryData(key, value);
+      });
       toast.error('Failed to update post');
     },
   });
