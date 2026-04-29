@@ -816,21 +816,50 @@ function FriendMapInner() {
   /* ── Heading-up compass mode (rotates map to follow phone heading) ── */
   useEffect(() => {
     if (!headingUp) { setHeading(0); return; }
+
+    // Disable Leaflet panning while the map is rotated — dragging a CSS-rotated
+    // map with the built-in handler feels inverted (swipe up = map goes down).
+    const map = mapRef.current;
+    map?.dragging?.disable();
+
     let lastUpdate = 0;
+    let gotReading = false;
+
+    const screenAngle = (): number => {
+      const a = (window.screen?.orientation as any)?.angle;
+      if (typeof a === 'number') return a;
+      // Fallback for older browsers
+      return (window as any).orientation || 0;
+    };
+
     const handler = (e: DeviceOrientationEvent) => {
+      // iOS Safari exposes a true magnetic compass heading directly.
       const ios = (e as any).webkitCompassHeading as number | undefined;
-      const raw = typeof ios === 'number' ? ios : (e.alpha != null ? 360 - e.alpha : null);
-      if (raw == null) return;
+      let raw: number | null = null;
+      if (typeof ios === 'number') {
+        raw = ios;
+      } else if (e.alpha != null) {
+        // `alpha` is rotation around device Z axis, 0 = device-frame north,
+        // increasing counter-clockwise. Compass heading is clockwise from north
+        // and must also be compensated for current screen orientation so the
+        // arrow stays correct in landscape / upside-down.
+        raw = (360 - e.alpha + screenAngle()) % 360;
+      }
+      if (raw == null || Number.isNaN(raw)) return;
+      gotReading = true;
+
       const now = performance.now();
       if (now - lastUpdate < 80) return;
       lastUpdate = now;
       setHeading((prev) => {
-        let delta = raw - prev;
+        let delta = raw! - prev;
         if (delta > 180) delta -= 360;
         if (delta < -180) delta += 360;
         return (prev + delta * 0.25 + 360) % 360;
       });
     };
+
+    let timeoutId: number | undefined;
     const start = async () => {
       try {
         const Req = (DeviceOrientationEvent as any).requestPermission;
@@ -840,6 +869,15 @@ function FriendMapInner() {
         }
         window.addEventListener('deviceorientationabsolute', handler as any, true);
         window.addEventListener('deviceorientation', handler as any, true);
+
+        // Many laptops (incl. Macs) have no magnetometer — readings never arrive
+        // or `alpha` is null. Bail out gracefully so the map isn't stuck rotated.
+        timeoutId = window.setTimeout(() => {
+          if (!gotReading) {
+            setHeadingUp(false);
+            toast.error('No compass detected on this device');
+          }
+        }, 2500);
       } catch (e) {
         console.warn('[FriendMap] compass start failed:', e);
         setHeadingUp(false);
@@ -847,8 +885,10 @@ function FriendMapInner() {
     };
     start();
     return () => {
+      if (timeoutId) clearTimeout(timeoutId);
       window.removeEventListener('deviceorientationabsolute', handler as any, true);
       window.removeEventListener('deviceorientation', handler as any, true);
+      mapRef.current?.dragging?.enable();
     };
   }, [headingUp]);
 
