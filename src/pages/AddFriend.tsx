@@ -290,4 +290,3 @@ function QuickAddPanel({
     </div>
   );
 }
-}
