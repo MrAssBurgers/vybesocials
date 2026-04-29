@@ -190,20 +190,65 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
 
             {/* Account Management — only inside Privacy & Security tab */}
             {activeCategory === 'privacy' && (
-              <div className="mt-6 space-y-4">
+              <section
+                aria-label="Account management and danger zone"
+                className="mt-6 space-y-4"
+              >
                 <div className="h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent" />
-                <AccountDangerZone />
+                <div aria-label="Danger zone" role="region">
+                  <AccountDangerZone />
+                </div>
 
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-auto inline-flex gap-2 text-sm border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/15 hover:border-destructive/40 transition-all"
-                  onClick={handleSignOut}
+                  type="button"
+                  aria-label={t('auth.logout')}
+                  aria-busy={isSigningOut}
+                  disabled={isSigningOut}
+                  className="w-auto inline-flex gap-2 text-sm border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/15 hover:border-destructive/40 focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:ring-offset-background outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  onClick={() => !isSigningOut && setSignOutOpen(true)}
                 >
-                  <LogOut className="h-4 w-4" />
+                  {isSigningOut ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <LogOut className="h-4 w-4" aria-hidden="true" />
+                  )}
                   {t('auth.logout')}
                 </Button>
-              </div>
+
+                <AlertDialog open={signOutOpen} onOpenChange={(o) => !isSigningOut && setSignOutOpen(o)}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Sign out of VYBE?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        You'll need to sign back in to access your account, messages, and content.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isSigningOut}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleSignOut();
+                        }}
+                        disabled={isSigningOut}
+                        aria-busy={isSigningOut}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2"
+                      >
+                        {isSigningOut ? (
+                          <span className="inline-flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                            Signing out...
+                          </span>
+                        ) : (
+                          'Sign out'
+                        )}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </section>
             )}
 
             {/* App Info */}
