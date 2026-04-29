@@ -573,16 +573,27 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
               )}
               {isOwnPost && (
                 <>
-                  <DropdownMenuItem onClick={handleTogglePin}>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      if (atPinCap) {
+                        e.preventDefault();
+                        toast.info(`You can pin up to ${PIN_LIMIT} posts to your profile`);
+                        return;
+                      }
+                      handleTogglePin();
+                    }}
+                    className={atPinCap ? 'opacity-60' : ''}
+                  >
                     {post.is_pinned ? (
                       <>
                         <PinOff className="h-4 w-4 mr-2" />
-                        Unpin Post
+                        Unpin from Profile
                       </>
                     ) : (
                       <>
                         <Pin className="h-4 w-4 mr-2" />
                         Pin to Profile
+                        {atPinCap && <span className="ml-auto text-xs text-muted-foreground">{pinnedCount}/{PIN_LIMIT}</span>}
                       </>
                     )}
                   </DropdownMenuItem>
