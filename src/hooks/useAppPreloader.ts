@@ -104,18 +104,18 @@ export function useAppPreloader() {
         updateStatus('init');
         await new Promise(r => setTimeout(r, 80)); // tiny delay so user sees first frame
 
-        // Step 2: Check authentication with timeout
+        // Step 2: Check authentication with tight timeout — splash should never wait long.
         updateStatus('auth');
-        
+
         let session = null;
         try {
           const authResult = await Promise.race([
             supabase.auth.getSession(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 3000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 1000))
           ]) as { data: { session: any } };
           session = authResult.data.session;
         } catch {
-          console.warn('[Preloader] Auth check failed, continuing as guest');
+          console.warn('[Preloader] Auth check slow, continuing — page-level queries will hydrate');
         }
 
         if (!session?.user) {
