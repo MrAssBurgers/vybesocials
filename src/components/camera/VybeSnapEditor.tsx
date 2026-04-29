@@ -132,9 +132,10 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
     setTextOverlays(prev => [...prev, {
       id: crypto.randomUUID(),
       text: currentText,
-      x: 50, y: 40,
+      x: 50, y: 50,
       color: currentColor,
-      fontSize: 28,
+      // Snapchat-style slim caption — fixed size, never scales with content length
+      fontSize: 17,
       rotation: 0, scale: 1,
       style: currentStyle,
     }]);
