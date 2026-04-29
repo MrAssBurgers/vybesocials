@@ -3,42 +3,59 @@ import { useEffect, useRef } from 'react';
 // Shared state - singleton pattern
 let scrollListenerAttached = false;
 let isScrolling = false;
+let settleRaf: number | null = null;
+let settleTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function markScrolling() {
+  if (!isScrolling) {
+    isScrolling = true;
+    document.documentElement.classList.add('is-scrolling');
+  }
+  // Schedule settle: wait for input to stop, then 2 idle frames before clearing.
+  if (settleTimeout) clearTimeout(settleTimeout);
+  if (settleRaf !== null) cancelAnimationFrame(settleRaf);
+  settleTimeout = setTimeout(() => {
+    settleRaf = requestAnimationFrame(() => {
+      settleRaf = requestAnimationFrame(() => {
+        isScrolling = false;
+        document.documentElement.classList.remove('is-scrolling');
+      });
+    });
+  }, 90);
+}
 
 /**
- * Lightweight scroll optimization hook - uses passive listeners
- * SINGLETON: Only one listener across all components
- * NOTE: This hook only adds a CSS class during scroll - it does NOT block scrolling
+ * Lightweight scroll optimization hook - uses passive listeners.
+ * SINGLETON: Only one listener set across all components.
+ *
+ * PROACTIVE: We mark `.is-scrolling` on the very first input event
+ * (pointerdown / touchstart / wheel), not after the first scroll frame.
+ * That way the FIRST frame is already optimized — no startup jank.
  */
 export function useScrollOptimization() {
   useEffect(() => {
     if (scrollListenerAttached) return;
     scrollListenerAttached = true;
 
-    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+    const opts: AddEventListenerOptions = { passive: true, capture: true };
 
-    const handleScroll = () => {
-      if (!isScrolling) {
-        isScrolling = true;
-        document.documentElement.classList.add('is-scrolling');
-      }
+    // Kick optimizations the moment input begins.
+    window.addEventListener('touchstart', markScrolling, opts);
+    window.addEventListener('pointerdown', markScrolling, opts);
+    window.addEventListener('wheel', markScrolling, opts);
+    // Also keep refreshing the settle timer while scroll is actually moving.
+    window.addEventListener('scroll', markScrolling, { passive: true, capture: true });
+    window.addEventListener('touchmove', markScrolling, opts);
 
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-      
-      scrollTimeout = setTimeout(() => {
-        isScrolling = false;
-        document.documentElement.classList.remove('is-scrolling');
-      }, 100); // Short timeout for snappy response
-    };
-
-    // CRITICAL: passive: true ensures this listener never blocks scrolling
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    
     return () => {
-      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('touchstart', markScrolling, opts);
+      window.removeEventListener('pointerdown', markScrolling, opts);
+      window.removeEventListener('wheel', markScrolling, opts);
+      window.removeEventListener('scroll', markScrolling, { capture: true } as any);
+      window.removeEventListener('touchmove', markScrolling, opts);
       scrollListenerAttached = false;
-      if (scrollTimeout) {
-        clearTimeout(scrollTimeout);
-      }
+      if (settleTimeout) clearTimeout(settleTimeout);
+      if (settleRaf !== null) cancelAnimationFrame(settleRaf);
       isScrolling = false;
       document.documentElement.classList.remove('is-scrolling');
     };
@@ -52,10 +69,7 @@ export function useGPUAcceleration(ref: React.RefObject<HTMLElement>) {
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
-
-    // Minimal GPU hints - avoid will-change which can cause issues
     element.style.transform = 'translateZ(0)';
-
     return () => {
       element.style.transform = '';
     };
@@ -79,29 +93,23 @@ export function usePrefersReducedMotion() {
 export function useFrameCallback(callback: () => void, enabled = true) {
   const frameRef = useRef<number>();
   const callbackRef = useRef(callback);
-  
+
   useEffect(() => {
     callbackRef.current = callback;
   });
 
   useEffect(() => {
     if (!enabled) return;
-
     let isActive = true;
-
     const tick = () => {
       if (!isActive) return;
       callbackRef.current();
       frameRef.current = requestAnimationFrame(tick);
     };
-
     frameRef.current = requestAnimationFrame(tick);
-
     return () => {
       isActive = false;
-      if (frameRef.current) {
-        cancelAnimationFrame(frameRef.current);
-      }
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
     };
   }, [enabled]);
 }
