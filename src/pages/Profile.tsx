@@ -222,7 +222,7 @@ export default function ProfilePage() {
         {/* About Details (MBTI, height, music, etc.) */}
         <ProfileAboutDetails
           profileId={profile.id}
-          birthday={(profile as any).birthday}
+          birthday={(profile as any).date_of_birth || (profile as any).birthday}
         />
 
         {/* Vibe Board */}
