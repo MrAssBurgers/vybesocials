@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, Camera, AtSign, FileText, Save, Eye } from 'lucide-react';
+import { ChevronRight, Camera, AtSign, FileText, Save, Eye, User } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useAuth } from '@/lib/auth';
