@@ -63,7 +63,33 @@ export function useMutualFriendsCount(targetUserId?: string) {
 }
 
 /**
+ * Calculate age in years from a YYYY-MM-DD date_of_birth string.
+ */
+function calcAge(dob: string | null | undefined): number | null {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  if (isNaN(birth.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const m = now.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+/**
+ * Pick a sensible age window for friend suggestions.
+ * Tighter window for minors (safety), wider for adults.
+ */
+function ageWindow(myAge: number): { min: number; max: number } {
+  if (myAge < 13) return { min: Math.max(0, myAge - 2), max: myAge + 2 };
+  if (myAge < 18) return { min: Math.max(13, myAge - 2), max: Math.min(17, myAge + 2) };
+  if (myAge < 25) return { min: Math.max(18, myAge - 4), max: myAge + 4 };
+  return { min: Math.max(18, myAge - 7), max: myAge + 7 };
+}
+
+/**
  * Get suggested friends (friends of friends who aren't already your friends)
+ * — filtered to a similar age range when the user has a date_of_birth set.
  */
 export function useSuggestedFriends() {
   const { user } = useAuth();
@@ -72,6 +98,16 @@ export function useSuggestedFriends() {
     queryKey: ['suggested-friends', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
+
+      // Resolve my profile id + age from auth.uid()
+      const { data: meProfile } = await supabase
+        .from('profiles')
+        .select('id, date_of_birth')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const myAge = calcAge((meProfile as any)?.date_of_birth);
+      const window = myAge !== null ? ageWindow(myAge) : null;
 
       // Get current user's friends
       const { data: myFriends } = await supabase
@@ -111,25 +147,36 @@ export function useSuggestedFriends() {
         }
       }
 
-      // Sort by mutual count, take top 15
+      // Sort by mutual count, take top 30 (we'll trim after age filtering)
       const sortedFof = [...fofCounts.entries()]
         .sort((a, b) => b[1].count - a[1].count)
-        .slice(0, 15);
+        .slice(0, 30);
 
       if (sortedFof.length === 0) return [];
 
       const fofIds = sortedFof.map(([id]) => id);
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, is_verified')
+        .select('id, username, display_name, avatar_url, is_verified, date_of_birth')
         .in('id', fofIds);
 
+      // Apply age filter if we know the user's age. Profiles with no DOB are
+      // always allowed through (we can't safely exclude them).
+      const filtered = (profiles || []).filter((p: any) => {
+        if (!window) return true;
+        const a = calcAge(p.date_of_birth);
+        if (a === null) return true;
+        return a >= window.min && a <= window.max;
+      });
+
       // Merge with mutual count
-      return (profiles || []).map(p => ({
+      return filtered.map((p: any) => ({
         ...p,
         mutual_count: fofCounts.get(p.id)?.count || 0,
         via_friend_ids: fofCounts.get(p.id)?.viaFriends || [],
-      })).sort((a, b) => b.mutual_count - a.mutual_count);
+      }))
+        .sort((a, b) => b.mutual_count - a.mutual_count)
+        .slice(0, 15);
     },
     enabled: !!user?.id,
     staleTime: 300000, // 5 min cache
