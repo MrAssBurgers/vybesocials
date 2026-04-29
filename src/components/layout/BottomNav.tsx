@@ -558,7 +558,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
       >
         <div 
           className={cn(
-            "w-full max-w-[420px] rounded-[28px] overflow-hidden transition-[background-color,border-color] duration-300 relative pointer-events-auto",
+            "w-full max-w-[420px] sm:max-w-[480px] md:max-w-[560px] rounded-[28px] overflow-hidden transition-[background-color,border-color] duration-300 relative pointer-events-auto",
             isEditMode 
               ? "border border-primary/60 shadow-[0_0_30px_hsl(var(--primary)/0.5)]" 
               : "border border-white/5"
