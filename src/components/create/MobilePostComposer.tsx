@@ -16,6 +16,8 @@ import { INTEREST_CATEGORIES, getSuggestedTagsForInterests, getTagCategories } f
 import { Sound } from '@/hooks/useSounds';
 import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
+import { useComposerDraft } from '@/hooks/useComposerDraft';
+import { DraftBanner } from '@/components/create/DraftBanner';
 
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe },
