@@ -157,6 +157,25 @@ export function ProfileSection() {
         <h3 className="font-semibold mb-6 text-base text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Edit Profile</h3>
 
         <div className="space-y-5">
+          {/* Display Name */}
+          <div className="space-y-2">
+            <Label htmlFor="display_name" className="text-sm font-medium flex items-center gap-2">
+              <User className="w-4 h-4 text-muted-foreground" />
+              Display Name
+            </Label>
+            <Input
+              id="display_name"
+              value={formData.display_name}
+              onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
+              placeholder="Your name"
+              maxLength={40}
+              className="h-11 text-foreground placeholder:text-muted-foreground"
+            />
+            <p className="text-xs text-muted-foreground">
+              This is what others see across VYBE. Leave blank to use your username.
+            </p>
+          </div>
+
           {/* Username */}
           <div className="space-y-2">
             <Label htmlFor="username" className="text-sm font-medium flex items-center gap-2">
@@ -171,7 +190,7 @@ export function ProfileSection() {
               className="h-11 text-foreground placeholder:text-muted-foreground"
             />
             <p className="text-xs text-muted-foreground">
-              This is your unique identifier on VYBE
+              Your unique @handle on VYBE (3–30 chars: letters, numbers, _ or .)
             </p>
           </div>
 
