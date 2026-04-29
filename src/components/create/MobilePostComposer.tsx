@@ -153,6 +153,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
       if (pi) clearInterval(pi);
       setUploadProgress(100);
       setPublishSuccess(true);
+      draft.clear();
       setTimeout(() => { navigate('/home'); }, 2000);
     } catch (err) {
       console.error('[Composer] Failed:', err);
