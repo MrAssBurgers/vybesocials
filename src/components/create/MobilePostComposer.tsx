@@ -352,6 +352,16 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
           )}
         </AnimatePresence>
 
+        {/* Resume Draft Banner */}
+        <DraftBanner
+          show={!!draft.existingDraft}
+          preview={draft.existingDraft?.caption}
+          hadMedia={draft.existingDraft?.hadMedia}
+          onResume={resumeDraft}
+          onDismiss={draft.dismissExisting}
+        />
+
+
         {/* Floating Caption */}
         <div className="px-4 py-2">
           <textarea
