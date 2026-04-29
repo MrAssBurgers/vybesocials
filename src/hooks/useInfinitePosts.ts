@@ -154,9 +154,10 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
 
 export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
   const { profile } = useAuth();
+  const blockedIds = useBlockedUserIds();
 
   const query = useInfiniteQuery({
-    queryKey: ['infinite-following-posts', type, profile?.id],
+    queryKey: ['infinite-following-posts', type, profile?.id, blockedIds.length],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       if (!profile) return { posts: [], nextPage: null };
 
@@ -173,8 +174,14 @@ export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
 
       if (error) throw error;
 
-      const posts = (data || []).map(transformPost);
-      
+      let posts = (data || []).map(transformPost);
+
+      // Hide your own posts and blocked users from the Following feed.
+      const blocked = new Set(blockedIds);
+      posts = posts.filter(
+        (p) => p.author?.id !== profile.id && !blocked.has(p.author?.id)
+      );
+
       // Non-blocking URL signing
       presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
