@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 type UnsendRequest = {
   messageId?: string;
 };
@@ -52,6 +54,13 @@ Deno.serve(async (req) => {
 
     if (!messageId) {
       return new Response(JSON.stringify({ error: "messageId is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!UUID_RE.test(messageId)) {
+      return new Response(JSON.stringify({ error: "Message is still sending" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
