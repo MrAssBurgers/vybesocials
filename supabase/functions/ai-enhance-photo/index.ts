@@ -28,14 +28,15 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Map enhance type to instruction
+    // Map enhance type to instruction. Be EXTREMELY directive — Gemini's image
+    // editor only makes meaningful changes when given very specific, strong cues.
     const instructions: Record<string, string> = {
-      auto: "Enhance this photo: improve lighting, color balance, and sharpness while keeping it natural. Make it look professional but not over-processed.",
-      vibrant: "Make this photo more vibrant and colorful. Boost saturation, enhance colors, and make it pop while keeping it realistic.",
-      portrait: "Enhance this portrait photo: smooth skin subtly, improve lighting on the face, enhance eye clarity, and add a slight warm tone.",
-      aesthetic: "Give this photo a trendy aesthetic look: add a subtle film grain, slightly muted tones with warm highlights, and a dreamy quality.",
-      hdr: "Apply HDR-style enhancement: bring out details in shadows and highlights, increase clarity and dynamic range, make it look dramatic.",
-      clean: "Clean up this photo: reduce noise, sharpen details, fix white balance, and make it look crisp and professional.",
+      auto: "Re-render this photo as a professionally retouched, magazine-quality version of itself. REQUIRED CHANGES (apply all): boost overall sharpness and micro-contrast significantly, lift shadows by ~20% to recover detail, recover blown highlights, neutralize and warm the white balance slightly (toward 5500K), bump global vibrance ~25% (NOT saturation), reduce visible luma + chroma noise, add a subtle clarity pass to eyes/edges. Output must look noticeably crisper, brighter, and more vivid than the input — a person comparing side-by-side should immediately see a clear, dramatic improvement. Preserve identity, framing, aspect ratio, and all subjects exactly. Photorealistic only — no stylization, no filters, no added objects.",
+      vibrant: "Re-render this photo with bold, eye-catching color. REQUIRED CHANGES: increase saturation +35%, vibrance +40%, contrast +20%, deepen blues and greens, push warm tones in skin/highlights, add punchy micro-contrast. Output must look dramatically more colorful and vivid than input. Keep identity and composition exact. Photorealistic — no cartoon look.",
+      portrait: "Re-render this portrait with pro retouching: smooth skin texture meaningfully (not plastic — keep pores), brighten and warm the face by ~15%, add catchlights and clarity to eyes, whiten teeth subtly, lift shadows under eyes, soften background slightly to add depth, warm overall white balance. Result must look noticeably more flattering than input while preserving identity 100%. Photorealistic.",
+      aesthetic: "Re-render this photo with a trendy 'film' aesthetic: faded blacks, lifted shadows, muted but warm midtones, golden highlights, subtle film grain, slight vignette, teal-orange color grading. Make the look strong and obvious — should feel like a 35mm film scan. Preserve subjects and composition exactly.",
+      hdr: "Re-render this photo with strong HDR processing: dramatically increase dynamic range, recover all highlight detail (especially sky), open shadows fully, boost local contrast and clarity heavily, increase saturation +20%, add edge sharpness. Result must look obviously HDR — punchy, detailed, dramatic. Photorealistic.",
+      clean: "Re-render this photo cleaner and crisper: aggressive noise reduction (luma + chroma), strong sharpening pass, fix white balance to neutral, boost clarity, slight contrast bump. Output must look noticeably cleaner and sharper than input — like a pro RAW edit. Preserve everything else exactly.",
     };
 
     const instruction = instructions[enhanceType] || instructions.auto;

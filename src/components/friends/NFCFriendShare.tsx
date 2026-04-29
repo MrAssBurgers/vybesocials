@@ -139,7 +139,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
     }
 
     if (!hasWebNFC) {
-      toast.error('NFC requires Chrome on Android with NFC enabled.');
+      toast.error('Phone Tap requires Chrome on Android with NFC enabled.');
       return;
     }
 
@@ -243,7 +243,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
           onClick={handleNFCButtonClick}
         >
           <Nfc className="h-4 w-4" />
-          <span>NFC Friend</span>
+          <span>Phone Tap</span>
           {!isEnabled && isSupported && (
             <span className="h-2 w-2 rounded-full bg-destructive" />
           )}
@@ -256,7 +256,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
           <SheetHeader className="text-center pb-4">
             <SheetTitle className="flex items-center justify-center gap-2">
               <Zap className="h-5 w-5 text-primary" />
-              Add Friend via NFC
+              Add Friend via Phone Tap
             </SheetTitle>
           </SheetHeader>
 
@@ -272,7 +272,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                   <WifiOff className="h-8 w-8 text-destructive" />
                 </div>
                 <div>
-                  <p className="font-medium">NFC Not Available</p>
+                  <p className="font-medium">Phone Tap Not Available</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     {getStatusMessage()}
                   </p>
@@ -321,7 +321,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                   onClick={handleStartSharing}
                 >
                   <Nfc className="h-5 w-5 mr-2" />
-                  Start NFC Sharing
+                  Start Phone Tap
                 </Button>
               </motion.div>
             )}
@@ -552,7 +552,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                 <div>
                   <p className="font-medium">Something went wrong</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Could not activate NFC. Make sure NFC is enabled on your device.
+                    Could not activate Phone Tap. Make sure NFC is enabled on your device.
                   </p>
                 </div>
 
