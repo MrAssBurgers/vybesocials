@@ -29,6 +29,13 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
   const autoSendRef = useRef(autoSend);
   autoSendRef.current = autoSend;
 
+  const closeAudioContext = useCallback(() => {
+    const ctx = audioContextRef.current;
+    if (!ctx || ctx.state === 'closed') return;
+    audioContextRef.current = null;
+    ctx.close().catch(() => undefined);
+  }, []);
+
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -115,11 +122,9 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
+      closeAudioContext();
     }
-  }, []);
+  }, [closeAudioContext]);
 
   /** Called externally by hold-to-record to stop and auto-send */
   const stopAndSend = useCallback(() => {
@@ -155,9 +160,9 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
-      if (audioContextRef.current) audioContextRef.current.close();
+      closeAudioContext();
     };
-  }, []);
+  }, [closeAudioContext]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
