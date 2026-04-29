@@ -538,7 +538,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         className="fixed left-1/2 -translate-x-1/2 w-[min(420px,calc(100%-1.25rem))] pointer-events-auto"
         initial={false}
         animate={{
-          y: isVisible ? 0 : 120,
+          y: isVisible ? 0 : 140,
           opacity: isVisible ? 1 : 0,
         }}
         transition={{
@@ -549,25 +549,23 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         }}
         style={{
           zIndex: 5002,
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-          paddingLeft: 'env(safe-area-inset-left, 0px)',
-          paddingRight: 'env(safe-area-inset-right, 0px)',
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)',
         }}
         aria-label="Bottom navigation"
         data-tutorial-bottomnav
       >
         <div 
           className={cn(
-            "rounded-t-[28px] overflow-hidden transition-[background-color,border-color] duration-300 relative",
+            "rounded-[28px] overflow-hidden transition-[background-color,border-color] duration-300 relative",
             isEditMode 
               ? "border border-primary/60 shadow-[0_0_30px_hsl(var(--primary)/0.5)]" 
-              : "border-t border-white/5"
+              : "border border-white/5"
           )}
           style={{
             background: 'hsl(var(--card))',
             boxShadow: isEditMode 
               ? '0 8px 32px hsl(var(--primary) / 0.5), inset 0 1px 0 hsl(var(--primary) / 0.3)'
-              : '0 -8px 24px hsl(var(--background) / 0.6), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
+              : '0 10px 30px hsl(var(--background) / 0.55), 0 2px 10px hsl(0 0% 0% / 0.35), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
           }}
         >
           {/* VYBE aurora wash — subtle multi-color tint behind the icons */}
