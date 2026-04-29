@@ -119,10 +119,10 @@ export function useAppPreloader() {
         }
 
         if (!session?.user) {
-          // Guest mode - load public content in parallel
+          // Guest mode — fire feed/clips fetches in background, don't block splash.
           updateStatus('feed');
-          
-          const [feedResult, clipsResult] = await Promise.allSettled([
+
+          Promise.allSettled([
             supabase.rpc('get_posts_with_counts', {
               p_type: 'feed_post',
               p_author_id: null,
@@ -137,30 +137,25 @@ export function useAppPreloader() {
               p_offset: 0,
               p_limit: 20,
             }),
-          ]);
+          ]).then(([feedResult, clipsResult]) => {
+            if (feedResult.status === 'fulfilled' && feedResult.value.data) {
+              const posts = feedResult.value.data as any[];
+              cacheFeedData(queryClient, posts, null, 'feed_post');
+              const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+              batchSignUrls(urlsToSign).catch(() => {});
+            }
+            if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
+              const clips = clipsResult.value.data as any[];
+              cacheFeedData(queryClient, clips, null, 'clip');
+              const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+              batchSignUrls(urlsToSign).catch(() => {});
+            }
+          });
 
           updateStatus('clips');
-
-          // Cache feed
-          if (feedResult.status === 'fulfilled' && feedResult.value.data) {
-            const posts = feedResult.value.data as any[];
-            cacheFeedData(queryClient, posts, null, 'feed_post');
-            const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-            batchSignUrls(urlsToSign).catch(() => {});
-          }
-
-          // Cache clips
-          if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
-            const clips = clipsResult.value.data as any[];
-            cacheFeedData(queryClient, clips, null, 'clip');
-            const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-            batchSignUrls(urlsToSign).catch(() => {});
-          }
-
           updateStatus('final');
-          await new Promise(r => setTimeout(r, 120));
 
-          console.log(`[Preloader] Guest mode complete - ${(performance.now() - startTime).toFixed(0)}ms`);
+          console.log(`[Preloader] Guest mode ready (non-blocking) - ${(performance.now() - startTime).toFixed(0)}ms`);
           updateStatus('ready');
           return;
         }
