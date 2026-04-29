@@ -17,6 +17,18 @@ export function useUnsendForEveryone() {
     mutationFn: async (messageId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
+      if (messageId.startsWith('temp-')) {
+        const cached = queryClient
+          .getQueriesData<Message[]>({ queryKey: ['messages'] })
+          .find(([, msgs]) => Array.isArray(msgs) && msgs.some((m) => m.id === messageId));
+        const queryKey = cached?.[0];
+        const conversationId = Array.isArray(queryKey)
+          ? (queryKey[1] as string | undefined)
+          : undefined;
+        if (!conversationId) throw new Error('Message is still sending');
+        return { messageId, conversationId };
+      }
+
       const { data, error } = await supabase.functions.invoke('unsend-message', {
         body: { messageId },
       });

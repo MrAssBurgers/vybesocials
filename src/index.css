@@ -1338,25 +1338,22 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       0 4px 12px hsl(var(--neon-purple) / 0.15);
   }
 
-  /* Animated gradient background - VYBE aurora: soft drifting radial blobs.
-     Mixes the brand neon trio (pink/purple/cyan) with the user's own theme
-     palette (--primary, --accent, --gradient-mid) so it adapts to each
-     user's chosen colors while keeping the VYBE feel. */
+  /* Animated gradient background - VYBE aurora, driven by the active user's theme tokens. */
   .gradient-animated {
     position: relative;
     overflow: hidden;
     border-radius: inherit;
     background-color: hsl(var(--background));
     background-image:
-      radial-gradient(circle at 18% 28%, hsl(var(--neon-pink) / 0.95), transparent 60%),
-      radial-gradient(circle at 82% 72%, hsl(var(--neon-purple) / 0.90), transparent 60%),
-      radial-gradient(circle at 58% 18%, hsl(var(--neon-cyan) / 0.95), transparent 60%),
+      radial-gradient(circle at 18% 28%, hsl(var(--gradient-start) / 0.95), transparent 60%),
+      radial-gradient(circle at 82% 72%, hsl(var(--gradient-mid) / 0.90), transparent 60%),
+      radial-gradient(circle at 58% 18%, hsl(var(--gradient-end) / 0.95), transparent 60%),
       radial-gradient(circle at 30% 80%, hsl(var(--primary) / 0.85), transparent 60%),
       radial-gradient(circle at 75% 35%, hsl(var(--accent) / 0.85), transparent 60%),
-      radial-gradient(circle at 50% 60%, hsl(var(--gradient-mid) / 0.80), transparent 65%),
-      radial-gradient(circle at 10% 60%, hsl(var(--neon-yellow) / 0.75), transparent 55%),
+      radial-gradient(circle at 50% 60%, hsl(var(--secondary) / 0.80), transparent 65%),
+      radial-gradient(circle at 10% 60%, hsl(var(--gradient-end) / 0.72), transparent 55%),
       radial-gradient(circle at 90% 15%, hsl(var(--gradient-start) / 0.85), transparent 60%),
-      radial-gradient(circle at 40% 40%, hsl(310 100% 60% / 0.75), transparent 60%);
+      radial-gradient(circle at 40% 40%, hsl(var(--gradient-mid) / 0.75), transparent 60%);
     background-size:
       200% 200%, 220% 220%, 200% 200%,
       230% 230%, 210% 210%, 240% 240%,
