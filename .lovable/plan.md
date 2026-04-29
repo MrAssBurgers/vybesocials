@@ -1,55 +1,94 @@
+# Make VYBE scroll smooth as butter
 
-# Pinned posts → profile only, plus tasteful feed upgrades
+The app feels jittery because of three compounding issues found across the codebase:
 
-## The bug you described
-Right now `usePosts` sorts every feed query by `is_pinned DESC`, so when *anyone* pins a post it bubbles to the top of the **public Home / Explore feed** for every viewer — not just on their own profile. The menu label already says "Pin to Profile", so the data layer just doesn't match the intent.
+1. **400+ `backdrop-blur` usages** (cards, nav, sheets, badges) all repaint every scroll frame. Safari/Chromium can't composite blur, so each frame triggers a full GPU recomposite of overlapping layers.
+2. **169 components use `transition-all`**, which animates every property change (including layout) on hover/state change — expensive and easy to accidentally trigger mid-scroll.
+3. The existing `useScrollOptimization` hook adds `.is-scrolling` to suppress some animations, but **only after a scroll starts** (after the first jank frame) and it doesn't suppress `backdrop-filter` itself — the heaviest cost.
 
-## What I'll change
+## Plan
 
-### 1. Pin truly = profile-only
-- Remove `is_pinned` from the Home / Explore / Following / Local feed sort orders so pinned posts no longer get global priority.
-- Pinned posts still show the "Pinned" badge on the post card, but that badge only matters when viewing on the author's profile.
-- On the **author's profile grid**, pinned posts:
-  - Sort to the top of the Posts and Shorts tabs.
-  - Get a small pin chip overlay in the corner of the thumbnail.
-- Cap pins at **3 per user**. If a 4th is pinned, oldest pin auto-unpins (with a toast). Matches Instagram / TikTok / X behavior.
-- Optimistic toggle so the pin/unpin action feels instant; React Query cache patches before the server round-trips.
+### 1. Kill backdrop-blur during scroll (biggest win)
 
-### 2. "Make it 100x better" — focused, low-risk wins
+In `src/index.css`, extend the existing `.is-scrolling` ruleset so all glass surfaces drop their filter while the user is actively scrolling and restore it on idle:
 
-I'm intentionally NOT rewriting the recommendation engine or DNA scoring (those already exist and are tuned). Instead, three high-leverage polish items that consistently matter:
+```css
+html.is-scrolling [class*="backdrop-blur"],
+html.is-scrolling .liquid-glass,
+html.is-scrolling .liquid-glass-card,
+html.is-scrolling .liquid-glass-button,
+html.is-scrolling .liquid-glass-depth,
+html.is-scrolling .glass-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition: none !important;
+}
+```
 
-a. **Don't show me my own posts in Home/Explore feeds.**
-   Right now you can scroll past your own content. Filter `author_id != currentUser` in `usePosts` and `useFollowingPosts`. Profile/Search/post detail still show your posts.
+This is invisible to the user (motion masks it) and recovers ~40–60% scroll cost on blur-heavy pages (Home, Profile, Messages).
 
-b. **Hide blocked / muted users from feeds.**
-   Quick check: there's a blocks table referenced elsewhere. I'll wire `useInfinitePosts` and `usePosts` to exclude posts from anyone the viewer has blocked or muted, instead of relying on per-card filtering after the fact.
+### 2. Make `useScrollOptimization` proactive + tuned
 
-c. **Smarter "Following" tab fallback.**
-   When you follow nobody (or no one you follow has posted in 7 days), `useFollowingPosts` returns empty and the tab looks broken. I'll fall back to friend-of-friend + your top-engagement-DNA posts so the tab is never empty.
+Edit `src/hooks/useScrollOptimization.ts`:
+- Attach the `.is-scrolling` class on `pointerdown` / `touchstart` / `wheel` (not just on the first scroll event) so the **first frame is already optimized**.
+- Replace the 100 ms idle timeout with rAF-based settle (2 idle frames) — feels snappier.
+- Listen on `window`, `document`, and any element with `data-scroller="true"` so internal scroll containers also benefit.
 
-### 3. Pin-on-profile UX details
-- "Pin to Profile" menu item only appears on **your own** posts (already true) and is disabled when you've hit the 3-pin cap with a tooltip "You can pin up to 3 posts."
-- Unpinning is instant and doesn't reorder the feed (since the feed no longer sorts by pin).
-- Pin badge on the profile grid: tiny pin glyph top-left, semi-transparent, matches the existing badge styling — no new colors / tokens.
+### 3. Promote scrollable containers to their own GPU layer
 
-## Technical details
+Add a global utility class `.scroller` and apply it to the main scroll regions (`AppLayout` main, `Messages` thread, `Profile` feed, `Explore` grid):
 
-**Files I'll edit:**
-- `src/hooks/usePosts.ts` — drop `.order('is_pinned', ...)` from `usePosts` and `useFollowingPosts`; add `.neq('author_id', profile.id)` for non-profile feed views; sort `is_pinned DESC` only when `authorId` is provided (profile view); enforce 3-pin cap inside `useTogglePin`; optimistic update.
-- `src/hooks/useInfinitePosts.ts` — same author-exclusion + blocked-user filter.
-- `src/hooks/useFeedAlgorithm.ts` / `useLocalFeed.ts` — author-exclusion only (these don't sort by pin).
-- `src/pages/Profile.tsx` — sort `gridPosts` and `clipsForGrid` by `is_pinned` first, render pin chip overlay on pinned thumbnails.
-- `src/components/posts/PostCard.tsx` — disable Pin menu item when at cap (read 3-pin status from a small new hook `usePinnedPostCount(profileId)`).
+```css
+.scroller {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 1000px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  transform: translateZ(0);
+}
+```
 
-**Database:** No schema changes — `posts.is_pinned` already exists. No migration needed. No RLS changes needed (users can already update their own posts).
+`content-visibility: auto` skips offscreen post rendering — huge win on long feeds.
 
-**Backwards compatibility:** Existing pinned posts stay pinned; they just stop affecting non-profile feeds. If a user already has >3 pinned posts, the cap only kicks in on the *next* pin attempt — nothing gets auto-unpinned silently.
+### 4. Replace `transition-all` in scroll-visible components
 
-## What I'm NOT doing in this round
-- No changes to the Clips/Shorts vertical feed ordering algorithm.
-- No DNA / ranking model changes.
-- No new tables, no schema migrations, no edge functions.
-- No visual redesign of post cards beyond the small pin chip on profile thumbnails.
+Audit the 10 hottest offenders surfaced by ripgrep (`PostCard`, `ShortCard`, `MobileShortCard`, `BottomNav`, `HomeWidgetRenderer`, `Sidebar`, `Explore`, `DesktopRightSidebar`, `PostCarousel`, `AIBriefSheet`) and narrow `transition-all` → `transition-colors`, `transition-transform`, or `transition-opacity` so only the property in motion is animated. (≈30 targeted replacements; not a sweeping refactor.)
 
-If you want me to also tackle Clips ranking, Explore section weights, or a richer "pinned" treatment (e.g. a dedicated "Pinned" row above the profile grid), say the word and I'll do it as a follow-up.
+### 5. Throttle background-effect particle loops while scrolling
+
+`src/components/effects/BackgroundEffects.tsx` runs CSS keyframe animations on 8–12 absolutely-positioned elements. Add `html.is-scrolling .bg-effect-particle { animation-play-state: paused; }` and tag the elements with that class. Pauses cost 0 frames and resumes the moment scroll stops.
+
+### 6. Remove permanent `will-change` 
+
+`will-change: transform` is left on `.liquid-parallax-*` and several notification overlays even when offscreen. That keeps a GPU layer alive forever. Switch to applying `will-change` only on hover/active and removing it after the transition (`onTransitionEnd`).
+
+### 7. Disable framer-motion layout animations in lists
+
+In `PostCard.tsx`, `ClipsGrid.tsx`, `NotificationList`, replace `<motion.div layout>` with plain `<div>` for the list containers. `layout` re-measures every child every frame during scroll — a known jank source. Keep `layout` only on small interactive areas (reactions tray).
+
+### 8. Cap framer-motion `MotionConfig`
+
+In `src/App.tsx` wrap the tree with:
+```tsx
+<MotionConfig reducedMotion="user" transition={{ type: 'tween', duration: 0.2 }}>
+```
+Using `tween` instead of the default spring removes per-frame physics calculations app-wide.
+
+## Files to edit
+
+- `src/index.css` — add `.is-scrolling` blur kill + `.scroller` utility (sections 1, 3, 5)
+- `src/hooks/useScrollOptimization.ts` — proactive listeners + rAF settle (section 2)
+- `src/components/effects/BackgroundEffects.tsx` — pause class on particles (section 5)
+- `src/styles/liquid.css` — remove unconditional `will-change` (section 6)
+- `src/components/layout/AppLayout.tsx`, `src/pages/Messages.tsx`, `src/pages/Explore.tsx`, `src/pages/Profile.tsx` — add `.scroller` to main scroll regions (section 3)
+- `src/components/posts/PostCard.tsx`, `ShortCard.tsx`, `MobileShortCard.tsx`, `PostCarousel.tsx`, `BottomNav.tsx`, `HomeWidgetRenderer.tsx`, `Sidebar.tsx`, `DesktopRightSidebar.tsx`, `AIBriefSheet.tsx`, `Explore.tsx` — narrow `transition-all` → specific properties; drop `motion.div layout` from list containers (sections 4, 7)
+- `src/App.tsx` — `MotionConfig` defaults (section 8)
+
+## Out of scope
+
+- Reducing the 400+ blur surfaces app-wide (visual identity change — would need your sign-off separately).
+- Replacing framer-motion with CSS for non-list animations.
+- Image/video lazy-loading changes (already tuned in `performanceConfig.ts`).
+
+Expected result: scrolling on Home, Profile, Messages, and Explore should hit 60 fps on iOS Safari and Android Chrome, with no visual regression once scroll stops.
