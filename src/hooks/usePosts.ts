@@ -48,6 +48,11 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
   return useQuery({
     queryKey: ['posts', type, authorId, profile?.id],
     queryFn: async (): Promise<Post[]> => {
+      // Pinned posts only matter when viewing a specific author's profile.
+      // For global/feed views, sort purely by recency so a user pinning a post
+      // doesn't bubble that post to the top of everyone else's feed.
+      const isProfileView = !!authorId;
+
       let query = supabase
         .from('posts')
         .select(`
@@ -69,8 +74,12 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
             display_name,
             avatar_url
           )
-        `)
-        .order('is_pinned', { ascending: false })
+        `);
+
+      if (isProfileView) {
+        query = query.order('is_pinned', { ascending: false });
+      }
+      query = query
         .order('created_at', { ascending: false })
         .limit(500); // Explicit limit to avoid default 1000 row limit issues
 
@@ -80,8 +89,21 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
       }
 
       // Filter by author if specified
-      if (authorId) {
-        query = query.eq('author_id', authorId);
+      if (isProfileView) {
+        query = query.eq('author_id', authorId!);
+      } else if (profile?.id) {
+        // Hide your own posts from feed/global views (still visible on your profile + post detail).
+        query = query.neq('author_id', profile.id);
+
+        // Hide posts from users you've blocked.
+        const { data: blocks } = await supabase
+          .from('blocked_users')
+          .select('blocked_id')
+          .eq('blocker_id', profile.id);
+        const blockedIds = (blocks || []).map((b: any) => b.blocked_id).filter(Boolean);
+        if (blockedIds.length > 0) {
+          query = query.not('author_id', 'in', `(${blockedIds.join(',')})`);
+        }
       }
 
       const { data: posts, error } = await query;
