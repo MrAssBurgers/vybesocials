@@ -594,7 +594,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error;
 
-      setProfile({ ...profile, ...updates });
+      const merged = { ...profile, ...updates };
+      setProfile(merged);
+
+      // Sync the global profile cache so identity-aware components (chat, comments,
+      // headers, mentions, etc.) immediately see the new username/display name.
+      try {
+        const { setCachedProfile } = await import('@/lib/profileCache');
+        setCachedProfile({
+          id: merged.id,
+          username: merged.username,
+          display_name: (merged as any).display_name ?? null,
+          avatar_url: merged.avatar_url ?? null,
+          bio: (merged as any).bio,
+        });
+      } catch {}
+
+      // Invalidate any react-query caches that key off identity fields.
+      try {
+        const qc = (window as any).__REACT_QUERY_CLIENT__;
+        if (qc) {
+          qc.invalidateQueries({ queryKey: ['profile'] });
+          qc.invalidateQueries({ queryKey: ['profile-by-id'] });
+          qc.invalidateQueries({ queryKey: ['user-profile'] });
+          qc.invalidateQueries({ queryKey: ['profiles'] });
+        }
+      } catch {}
+
       return { error: null };
     } catch (error) {
       return { error: error as Error };

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, Camera, AtSign, FileText, Save, Eye } from 'lucide-react';
+import { ChevronRight, Camera, AtSign, FileText, Save, Eye, User } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useAuth } from '@/lib/auth';
@@ -28,6 +28,7 @@ export function ProfileSection() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     username: profile?.username || '',
+    display_name: profile?.display_name || '',
     bio: profile?.bio || '',
   });
 
@@ -36,10 +37,11 @@ export function ProfileSection() {
     if (profile) {
       setFormData({
         username: profile.username || '',
+        display_name: profile.display_name || '',
         bio: profile.bio || '',
       });
     }
-  }, [profile?.username, profile?.bio]);
+  }, [profile?.username, profile?.display_name, profile?.bio]);
   
   // Fetch primary badge for display name styling preview
   const { data: primaryBadge } = useUserPrimaryBadge(profile?.id);
@@ -48,15 +50,33 @@ export function ProfileSection() {
     setLoading(true);
     haptics.select();
     try {
+      const trimmedUsername = formData.username.trim();
+      const trimmedDisplay = formData.display_name.trim();
+
+      if (!trimmedUsername) {
+        throw new Error('Username cannot be empty');
+      }
+      if (!/^[a-zA-Z0-9_.]{3,30}$/.test(trimmedUsername)) {
+        throw new Error('Username must be 3-30 chars (letters, numbers, _ or .)');
+      }
+
       const { error } = await updateProfile({
-        username: formData.username,
+        username: trimmedUsername,
+        display_name: trimmedDisplay || null,
         bio: formData.bio,
-      });
+      } as any);
       if (error) throw error;
       
       // Sync challenges after profile update
       await supabase.rpc('force_sync_my_challenges');
       queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
+      // Refresh anything that displays identity (chat, comments, headers, mentions, posts...)
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['comments'] });
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
       
       haptics.success();
       toast.success('Profile updated successfully!');
@@ -69,6 +89,7 @@ export function ProfileSection() {
   };
 
   const hasChanges = formData.username !== (profile?.username || '') || 
+                     formData.display_name !== (profile?.display_name || '') ||
                      formData.bio !== (profile?.bio || '');
 
   return (
@@ -136,6 +157,25 @@ export function ProfileSection() {
         <h3 className="font-semibold mb-6 text-base text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Edit Profile</h3>
 
         <div className="space-y-5">
+          {/* Display Name */}
+          <div className="space-y-2">
+            <Label htmlFor="display_name" className="text-sm font-medium flex items-center gap-2">
+              <User className="w-4 h-4 text-muted-foreground" />
+              Display Name
+            </Label>
+            <Input
+              id="display_name"
+              value={formData.display_name}
+              onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
+              placeholder="Your name"
+              maxLength={40}
+              className="h-11 text-foreground placeholder:text-muted-foreground"
+            />
+            <p className="text-xs text-muted-foreground">
+              This is what others see across VYBE. Leave blank to use your username.
+            </p>
+          </div>
+
           {/* Username */}
           <div className="space-y-2">
             <Label htmlFor="username" className="text-sm font-medium flex items-center gap-2">
@@ -150,7 +190,7 @@ export function ProfileSection() {
               className="h-11 text-foreground placeholder:text-muted-foreground"
             />
             <p className="text-xs text-muted-foreground">
-              This is your unique identifier on VYBE
+              Your unique @handle on VYBE (3–30 chars: letters, numbers, _ or .)
             </p>
           </div>
 
