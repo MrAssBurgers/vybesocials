@@ -480,23 +480,72 @@ export function useCreatePost() {
   });
 }
 
+export const PIN_LIMIT = 3;
+
 export function useTogglePin() {
   const queryClient = useQueryClient();
+  const { profile } = useAuth();
 
   return useMutation({
     mutationFn: async ({ postId, isPinned }: { postId: string; isPinned: boolean }) => {
+      // When pinning, enforce per-author cap of PIN_LIMIT.
+      // If the user is at the cap, auto-unpin their oldest pinned post so the
+      // newest pin succeeds (matches IG/X/TikTok behavior).
+      if (isPinned && profile?.id) {
+        const { data: existingPins, error: pinErr } = await supabase
+          .from('posts')
+          .select('id, created_at')
+          .eq('author_id', profile.id)
+          .eq('is_pinned', true)
+          .neq('id', postId)
+          .order('created_at', { ascending: true });
+
+        if (pinErr) throw pinErr;
+
+        const pins = existingPins || [];
+        if (pins.length >= PIN_LIMIT) {
+          const toUnpin = pins.slice(0, pins.length - (PIN_LIMIT - 1));
+          if (toUnpin.length > 0) {
+            const { error: unpinErr } = await supabase
+              .from('posts')
+              .update({ is_pinned: false })
+              .in('id', toUnpin.map((p) => p.id));
+            if (unpinErr) throw unpinErr;
+          }
+        }
+      }
+
       const { error } = await supabase
         .from('posts')
         .update({ is_pinned: isPinned })
         .eq('id', postId);
 
       if (error) throw error;
+      return { postId, isPinned };
     },
-    onSuccess: () => {
+    // Optimistic update: flip is_pinned everywhere immediately.
+    onMutate: async ({ postId, isPinned }) => {
+      await queryClient.cancelQueries({ queryKey: ['posts'] });
+      const snapshots = queryClient.getQueriesData<any>({ queryKey: ['posts'] });
+      snapshots.forEach(([key, value]) => {
+        if (!Array.isArray(value)) return;
+        queryClient.setQueryData(
+          key,
+          value.map((p: any) => (p?.id === postId ? { ...p, is_pinned: isPinned } : p))
+        );
+      });
+      return { snapshots };
+    },
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
-      toast.success('Post updated');
+      queryClient.invalidateQueries({ queryKey: ['pinned-post-count'] });
+      toast.success(vars.isPinned ? 'Pinned to your profile' : 'Unpinned');
     },
-    onError: () => {
+    onError: (_err, _vars, ctx) => {
+      // Roll back optimistic update.
+      ctx?.snapshots?.forEach(([key, value]: any) => {
+        queryClient.setQueryData(key, value);
+      });
       toast.error('Failed to update post');
     },
   });
