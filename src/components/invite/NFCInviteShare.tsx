@@ -40,7 +40,7 @@ export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
     }
     
     if (!profile?.username) {
-      toast.error('Complete your profile to share invites via NFC');
+      toast.error('Complete your profile to share invites via Phone Tap');
       return;
     }
     
@@ -93,7 +93,7 @@ export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
           
           setPhase('success');
           haptics.success();
-          toast.success('Invite link shared via NFC!');
+          toast.success('Invite link shared via Phone Tap!');
           
           // Auto close after success
           setTimeout(() => {
@@ -107,7 +107,7 @@ export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
           // For phone-to-phone, the other device needs to have NFC active too
           setPhase('success');
           haptics.success();
-          toast.success('NFC detected! Share the link or have them scan your phone.');
+          toast.success('Phone Tap detected! Share the link or have them scan your phone.');
           
           setTimeout(() => {
             setIsOpen(false);
