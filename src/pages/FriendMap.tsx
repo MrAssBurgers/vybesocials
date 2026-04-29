@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User, Car, Footprints, Pause, RefreshCw, Cloud, Sun, CloudRain, Snowflake, Eye, EyeOff, ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircle, ExternalLink, User, Car, Footprints, Pause, RefreshCw, Cloud, Sun, CloudRain, Snowflake, Eye, EyeOff, ChevronUp, ChevronDown, Compass } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/lib/auth';
