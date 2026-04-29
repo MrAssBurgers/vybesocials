@@ -247,12 +247,18 @@ export function usePrefetchPosts() {
 // Personalized "For You" feed - server-side ranked discovery algorithm
 export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
   const { profile } = useAuth();
+  const blockedIds = useBlockedUserIds();
 
   const query = useInfiniteQuery({
-    queryKey: ['personalized-feed', type, profile?.id],
+    queryKey: ['personalized-feed', type, profile?.id, blockedIds.length],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       const isFirstPage = pageParam === 0;
       const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
+      const blocked = new Set(blockedIds);
+      const filterFeed = (posts: Post[]) =>
+        profile?.id
+          ? posts.filter((p) => p.author?.id !== profile.id && !blocked.has(p.author?.id))
+          : posts;
 
       if (!profile?.id) {
         // Cold start: use trending feed RPC
@@ -262,7 +268,7 @@ export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
           p_page_size: limit,
         });
         if (error) throw error;
-        const posts = (data || []).map(transformRankedPost);
+        const posts = filterFeed((data || []).map(transformRankedPost));
         presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
         return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
       }
@@ -277,7 +283,7 @@ export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
 
       if (error) throw error;
 
-      const posts = (data || []).map(transformRankedPost);
+      const posts = filterFeed((data || []).map(transformRankedPost));
       presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
       return {
