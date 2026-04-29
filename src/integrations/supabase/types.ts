@@ -11729,6 +11729,14 @@ export type Database = {
       bump_reaction_streak: { Args: { p_other_user: string }; Returns: Json }
       calculate_creator_earnings: { Args: never; Returns: Json }
       calculate_level_from_xp: { Args: { p_xp: number }; Returns: number }
+      can_access_conversation: {
+        Args: { _conversation_id: string; _profile_id?: string }
+        Returns: boolean
+      }
+      can_access_message: {
+        Args: { _conversation_id: string; _deleted_for_users?: string[] }
+        Returns: boolean
+      }
       can_send_dm: {
         Args: { receiver_id: string; sender_id: string }
         Returns: boolean
