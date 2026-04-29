@@ -1021,6 +1021,19 @@ function FriendMapInner() {
           >
             <Navigation className="h-4 w-4" />
           </motion.button>
+
+          {/* Compass / Heading-up toggle */}
+          <motion.button
+            onClick={() => { setHeadingUp(v => !v); triggerHaptic('light'); }}
+            whileTap={{ scale: 0.9 }}
+            className={cn(
+              'pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full backdrop-blur-xl transition-all',
+              headingUp ? 'bg-primary text-primary-foreground shadow-xl' : 'bg-black/50 text-white'
+            )}
+            title={headingUp ? 'Heading-up mode (on)' : 'Heading-up mode'}
+          >
+            <Compass className="h-4 w-4" style={{ transform: headingUp ? `rotate(${heading}deg)` : undefined, transition: 'transform 120ms linear' }} />
+          </motion.button>
           
           {/* Ghost Mode FAB */}
           <motion.button
