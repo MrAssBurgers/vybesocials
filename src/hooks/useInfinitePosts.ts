@@ -99,14 +99,16 @@ function preloadSignedMedia(posts: Post[]) {
 
 export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
   const { profile } = useAuth();
+  const blockedIds = useBlockedUserIds();
+  const isProfileView = !!authorId;
 
   const query = useInfiniteQuery({
-    queryKey: ['infinite-posts', type, authorId, profile?.id],
+    queryKey: ['infinite-posts', type, authorId, profile?.id, blockedIds.length],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null; totalLoaded: number }> => {
       const isFirstPage = pageParam === 0;
       const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       const offset = isFirstPage ? 0 : INITIAL_PAGE_SIZE + (pageParam - 1) * PAGE_SIZE;
-      
+
       const { data, error } = await supabase.rpc('get_posts_with_counts', {
         p_type: type || null,
         p_author_id: authorId || null,
@@ -117,8 +119,16 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
 
       if (error) throw error;
 
-      const posts = (data || []).map(transformPost);
-      
+      let posts = (data || []).map(transformPost);
+
+      // For non-profile (feed) views: hide your own posts and posts from blocked users.
+      if (!isProfileView && profile?.id) {
+        const blocked = new Set(blockedIds);
+        posts = posts.filter(
+          (p) => p.author?.id !== profile.id && !blocked.has(p.author?.id)
+        );
+      }
+
       // Non-blocking: sign and preload URLs in background so posts render instantly
       presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
