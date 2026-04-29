@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useEffect, useRef } from 'react';
 import { batchSignUrls, getCachedSignedUrl, needsSigning } from '@/lib/signedUrlCache';
+import { useBlockedUserIds } from '@/hooks/useBlockedUsers';
 
 export interface Post {
   id: string;
