@@ -57,32 +57,73 @@ export function useBackgroundLocation(userId?: string): LocationState {
       } as any, { onConflict: 'user_id' });
   }, [userId, sharing]);
 
-  // watchPosition
+  // Always watch position (so the user can see their own dot on the map even
+  // before enabling sharing). Only `upsertLocation` gates writes by `sharing`.
+  // On desktops without GPS, `enableHighAccuracy: true` often times out — fall
+  // back to a coarser request automatically.
   useEffect(() => {
-    if (!sharing) return;
+    if (!('geolocation' in navigator)) return;
     let watchId: number | undefined;
+    let fallbackWatchId: number | undefined;
+    let fellBack = false;
+
+    const onSuccess = (pos: GeolocationPosition) => {
+      const c: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+      setCoords(c);
+      setAccuracy(pos.coords.accuracy);
+      const spd = pos.coords.speed;
+      setSpeed(spd);
+      lastSpeed.current = spd;
+      upsertLocation(c[0], c[1], pos.coords.accuracy, spd);
+    };
+
+    const onError = (err: GeolocationPositionError) => {
+      console.warn('[Geolocation] error:', err.code, err.message);
+      if (err.code === 1) {
+        // Permission denied — only toast/disable sharing if user had it on.
+        if (sharing) {
+          toast.error('Location permission denied');
+          setSharing(false);
+        }
+        return;
+      }
+      // TIMEOUT (3) or POSITION_UNAVAILABLE (2): retry with low accuracy.
+      // Common on Macs / desktops without GPS where high-accuracy WiFi lookup stalls.
+      if (!fellBack && (err.code === 2 || err.code === 3)) {
+        fellBack = true;
+        try {
+          // One-shot first to populate quickly
+          navigator.geolocation.getCurrentPosition(onSuccess, (e) => {
+            console.warn('[Geolocation] fallback one-shot failed:', e.code, e.message);
+          }, { enableHighAccuracy: false, timeout: 30000, maximumAge: 5 * 60 * 1000 });
+          // Then keep watching at low accuracy
+          fallbackWatchId = navigator.geolocation.watchPosition(onSuccess, (e) => {
+            console.warn('[Geolocation] fallback watch error:', e.code, e.message);
+          }, { enableHighAccuracy: false, maximumAge: 60_000, timeout: 30000 });
+        } catch (e) {
+          console.warn('[Geolocation] fallback threw:', e);
+        }
+      }
+    };
+
     try {
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          const c: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-          setCoords(c);
-          setAccuracy(pos.coords.accuracy);
-          const spd = pos.coords.speed;
-          setSpeed(spd);
-          lastSpeed.current = spd;
-          upsertLocation(c[0], c[1], pos.coords.accuracy, spd);
-        },
-        (err) => {
-          console.warn('Geolocation error:', err.message);
-          if (err.code === 1) {
-            toast.error('Location permission denied');
-            setSharing(false);
-          }
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-      );
+      // Quick one-shot so the dot appears ASAP
+      navigator.geolocation.getCurrentPosition(onSuccess, onError, {
+        enableHighAccuracy: false,
+        timeout: 10000,
+        maximumAge: 5 * 60 * 1000,
+      });
+      watchId = navigator.geolocation.watchPosition(onSuccess, onError, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15000,
+      });
     } catch { /* geolocation not available */ }
-    return () => { if (watchId !== undefined) navigator.geolocation.clearWatch(watchId); };
+
+    return () => {
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+      if (fallbackWatchId !== undefined) navigator.geolocation.clearWatch(fallbackWatchId);
+    };
   }, [sharing, upsertLocation, setSharing]);
 
   // Disable sharing in DB when toggled off
