@@ -162,65 +162,72 @@ export function useAppPreloader() {
 
         const uid = session.user.id;
 
-        // Step 3: Load profile first (fast, needed for other queries)
+        // Step 3: Kick off profile fetch but cap how long the splash will wait on it.
         updateStatus('profile');
-        const { data: profileData } = await supabase
+
+        const profilePromise = supabase
           .from('profiles')
           .select('*')
           .eq('user_id', uid)
           .maybeSingle();
+
+        let profileData: any = null;
+        try {
+          const result = await Promise.race([
+            profilePromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Profile timeout')), 800)),
+          ]) as any;
+          profileData = result?.data || null;
+        } catch {
+          // Splash continues; the profile query will keep running and hydrate via React Query.
+          console.warn('[Preloader] Profile slow, continuing without blocking');
+        }
 
         const profileId = profileData?.id;
         if (profileData) {
           queryClient.setQueryData(['profile', profileId], profileData);
         }
 
-        // Step 4: Load ONLY feed + clips (critical for first paint)
+        // Step 4: Fire feed + clips in background — DON'T block splash on them.
         updateStatus('feed');
 
-        const [feedResult, clipsResult] = await Promise.allSettled([
-          supabase.rpc('get_posts_with_counts', {
-            p_type: null,
-            p_author_id: null,
-            p_user_id: profileId,
-            p_offset: 0,
-            p_limit: 25,
-          }),
-          supabase.rpc('get_posts_with_counts', {
-            p_type: 'short',
-            p_author_id: null,
-            p_user_id: profileId,
-            p_offset: 0,
-            p_limit: 15,
-          }),
-        ]);
-
-        // Cache feed
-        if (feedResult.status === 'fulfilled' && feedResult.value.data) {
-          const posts = feedResult.value.data as any[];
-          cacheFeedData(queryClient, posts, profileId, null);
-          const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-          batchSignUrls(urlsToSign).catch(() => {});
+        if (profileId) {
+          Promise.allSettled([
+            supabase.rpc('get_posts_with_counts', {
+              p_type: null,
+              p_author_id: null,
+              p_user_id: profileId,
+              p_offset: 0,
+              p_limit: 25,
+            }),
+            supabase.rpc('get_posts_with_counts', {
+              p_type: 'short',
+              p_author_id: null,
+              p_user_id: profileId,
+              p_offset: 0,
+              p_limit: 15,
+            }),
+          ]).then(([feedResult, clipsResult]) => {
+            if (feedResult.status === 'fulfilled' && feedResult.value.data) {
+              const posts = feedResult.value.data as any[];
+              cacheFeedData(queryClient, posts, profileId, null);
+              const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+              batchSignUrls(urlsToSign).catch(() => {});
+            }
+            if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
+              const clips = clipsResult.value.data as any[];
+              cacheFeedData(queryClient, clips, profileId, 'short');
+              const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
+              batchSignUrls(urlsToSign).catch(() => {});
+            }
+          });
         }
 
         updateStatus('clips');
-
-        // Cache clips
-        if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
-          const clips = clipsResult.value.data as any[];
-          cacheFeedData(queryClient, clips, profileId, 'short');
-          const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-          batchSignUrls(urlsToSign).catch(() => {});
-        }
-
         updateStatus('final');
-        await new Promise(r => setTimeout(r, 100));
-
-        // Mark ready
         updateStatus('ready');
 
-        // Log performance
-        console.log(`[Preloader] Critical load complete - ${(performance.now() - startTime).toFixed(0)}ms`);
+        console.log(`[Preloader] Splash ready (non-blocking) - ${(performance.now() - startTime).toFixed(0)}ms`);
 
         // DEFERRED: Load social data in background (non-blocking)
         requestAnimationFrame(() => {
