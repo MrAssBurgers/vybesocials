@@ -257,6 +257,19 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
               <img src={preview} alt="Preview" className="w-full h-full object-cover" />
             )}
 
+            {/* Re-take button — only when idle (no upload in flight) */}
+            {uploadState === 'idle' && !isProcessing && (
+              <button
+                type="button"
+                onClick={resetState}
+                className="absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-full bg-black/55 backdrop-blur-md border border-white/15 px-3 py-1.5 text-xs font-semibold text-white active:scale-95 transition-transform"
+                aria-label="Re-take"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Re-take
+              </button>
+            )}
+
             {/* Upload overlay */}
             <AnimatePresence>
               {isProcessing && (
