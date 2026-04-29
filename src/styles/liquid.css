@@ -44,19 +44,20 @@
   z-index: 50;
 }
 
-/* Parallax depth layers */
+/* Parallax depth layers — `will-change` only while user is actively scrolling.
+   Permanent will-change keeps a GPU layer alive forever (memory + paint cost). */
 .liquid-parallax-bg {
   transform: translateZ(-2px) scale(1.2);
-  will-change: transform;
 }
-
 .liquid-parallax-mid {
   transform: translateZ(-1px) scale(1.1);
-  will-change: transform;
 }
-
 .liquid-parallax-fg {
   transform: translateZ(0);
+}
+html.is-scrolling .liquid-parallax-bg,
+html.is-scrolling .liquid-parallax-mid,
+html.is-scrolling .liquid-parallax-fg {
   will-change: transform;
 }
 
