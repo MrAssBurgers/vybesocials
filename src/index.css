@@ -976,7 +976,9 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 
   /* CRITICAL PERF: Kill backdrop-filter while scrolling. backdrop-filter forces
      a full GPU recomposite of every layer below it on every frame, which is the
-     #1 cause of jitter on Safari/Chromium. Motion masks the visual swap. */
+     #1 cause of jitter on Safari/Chromium. We swap to a SOLID bg-card so the
+     element doesn't go transparent (which produced the "frosted glass glitch"
+     of content showing through fixed headers/nav while scrolling). */
   html.is-scrolling [class*="backdrop-blur"],
   html.is-scrolling .liquid-glass,
   html.is-scrolling .liquid-glass-card,
@@ -986,6 +988,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   html.is-scrolling .glass-card {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
+    background-color: hsl(var(--card)) !important;
     transition: none !important;
   }
 
