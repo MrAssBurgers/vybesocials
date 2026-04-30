@@ -272,7 +272,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   }
 
   return (
-    <div className="min-h-[100dvh] bg-background overflow-y-auto relative flex items-center justify-center px-4 py-8">
+    <div className="min-h-[100dvh] bg-background relative flex items-start sm:items-center justify-center px-4 py-8 overflow-x-hidden">
       {/* Smooth blended background — no hard edges */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div 
