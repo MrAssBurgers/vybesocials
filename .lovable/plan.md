@@ -1,66 +1,33 @@
-## Bug Found: `update_trending_scores` SQL Function
+## Bug: Frosted Glass Header Goes See-Through During Scroll
 
-The `calculate-earnings` edge function (runs every 5 minutes) is failing with:
-```
-column tu.sound_id does not exist
-```
+The fixed `MobileHeader` (and any other liquid-glass surface) uses `backdrop-filter: blur(...)` for its frosted look. There's already a perf optimization in `src/index.css` that strips `backdrop-filter` while the page is scrolling (because backdrop-filter is the #1 cause of scroll jitter on Safari/Chromium):
 
-### Root Cause
-
-The DB function `public.update_trending_scores()` references columns that do not exist on the actual tables:
-
-| Reference in function | Actual column |
-|---|---|
-| `sounds.id` | `sounds.sound_id` (PK) |
-| `track_usage.sound_id` | `track_usage.track_id` |
-| `track_usage.used_at` | `track_usage.last_updated` |
-
-`track_usage` is keyed by free-form `track_id` (text), not the `sounds.sound_id` UUID, so it can't reliably join to `sounds` anyway. The `sound_play_events` table is the correct source for "recent usage in last 24h" — it has `sound_id` (uuid) + `created_at`.
-
-### Fix
-
-Replace the function body to:
-1. Use `sounds.sound_id` instead of `sounds.id`.
-2. Pull recent usage from `sound_play_events` (correct semantic source for plays).
-3. Keep the existing 1.5x boost for sounds <7 days old, weight (5x) for recent plays, and the `RETURNS jsonb` shape so the edge function still logs `sounds_updated`.
-
-### Implementation
-
-Single migration that recreates `public.update_trending_scores()` with the corrected column references, preserving `SECURITY DEFINER` and `SET search_path = public` (per project standards).
-
-```sql
-CREATE OR REPLACE FUNCTION public.update_trending_scores()
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  updated_count INTEGER := 0;
-BEGIN
-  UPDATE sounds SET
-    trend_score = (
-      usage_count * 1.0 +
-      COALESCE((
-        SELECT COUNT(*) FROM sound_play_events spe
-        WHERE spe.sound_id = sounds.sound_id
-          AND spe.created_at > NOW() - INTERVAL '24 hours'
-      ), 0) * 5.0
-    ) * CASE WHEN created_at > NOW() - INTERVAL '7 days' THEN 1.5 ELSE 1.0 END,
-    updated_at = NOW()
-  WHERE usage_count > 0 OR created_at > NOW() - INTERVAL '7 days';
-
-  GET DIAGNOSTICS updated_count = ROW_COUNT;
-  RETURN jsonb_build_object('sounds_updated', updated_count, 'timestamp', NOW());
-END;
-$$;
+```css
+html.is-scrolling .liquid-glass, ... {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
 ```
 
-### Other Checks Performed
+But it never replaces the lost background — so the header momentarily becomes transparent and post content visibly slides through it. That's the "glitch" in the recording.
 
-- Runtime errors: none captured this session.
-- Browser console / network: clean.
-- Bottom nav centering: already resolved in prior turns.
-- No other failing edge functions in current logs (`process-email-queue` boots cleanly).
+## Fix
 
-If you want, I can also run the Supabase linter after the fix to surface any additional latent DB warnings — but no other active bug is currently visible.
+In `src/index.css` (the existing `html.is-scrolling` rule near line 977), add a solid `background-color: hsl(var(--card))` fallback so the surface stays opaque while blur is suspended. Aligns with the project Core rule: "Use solid 'bg-card' for high-frequency UI instead of backdrop-blur."
+
+```css
+html.is-scrolling [class*="backdrop-blur"],
+html.is-scrolling .liquid-glass,
+html.is-scrolling .liquid-glass-card,
+html.is-scrolling .liquid-glass-button,
+html.is-scrolling .liquid-glass-subtle,
+html.is-scrolling .liquid-glass-depth,
+html.is-scrolling .glass-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-color: hsl(var(--card)) !important;  /* NEW */
+  transition: none !important;
+}
+```
+
+Single CSS change. No component edits needed — this fixes the header, bottom nav, and every other liquid-glass surface at once. When scrolling stops, the rule is removed, blur returns, and the original translucent look comes back.
