@@ -272,7 +272,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   }
 
   return (
-    <div className="min-h-[100dvh] bg-background overflow-y-auto relative flex items-center justify-center px-4 py-8">
+    <div className="min-h-[100dvh] bg-background relative flex items-start sm:items-center justify-center px-4 py-8 overflow-x-hidden">
       {/* Smooth blended background — no hard edges */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div 
@@ -299,7 +299,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       </div>
 
       {/* Public content section for SEO — visible to crawlers */}
-      <div className="relative z-10 w-full max-w-[400px] flex flex-col gap-6">
+      <div className="relative z-10 w-full max-w-[400px] flex flex-col gap-6 my-auto">
         {/* Hero text above the form */}
         <div className="text-center space-y-2 px-2">
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">The Social Platform for Real Connection</h2>
