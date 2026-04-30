@@ -299,7 +299,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       </div>
 
       {/* Public content section for SEO — visible to crawlers */}
-      <div className="relative z-10 w-full max-w-[400px] flex flex-col gap-6">
+      <div className="relative z-10 w-full max-w-[400px] flex flex-col gap-6 my-auto">
         {/* Hero text above the form */}
         <div className="text-center space-y-2 px-2">
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">The Social Platform for Real Connection</h2>
