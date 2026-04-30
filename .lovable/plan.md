@@ -1,29 +1,66 @@
-## Restore the floating bottom nav
+## Bug Found: `update_trending_scores` SQL Function
 
-Right now the mobile bottom nav is glued edge-to-edge with only the top corners rounded, which makes it read as a chopped-off bar. Switch it back to the old floating pill that sits above the bottom edge with breathing room on all sides and full corner radius.
+The `calculate-earnings` edge function (runs every 5 minutes) is failing with:
+```
+column tu.sound_id does not exist
+```
 
-### Visual changes (`src/components/layout/BottomNav.tsx`)
+### Root Cause
 
-- Outer `<motion.nav>` wrapper:
-  - Stop stretching the bar full width. Replace `left-0 right-0 w-full` with a centered container that has horizontal margin so the pill floats: `left-1/2 -translate-x-1/2 w-[min(420px,calc(100%-1.25rem))]`.
-  - Lift it off the bottom edge: add `bottom: calc(env(safe-area-inset-bottom, 0px) + 10px)` (replacing the current `bottom-0` + bottom safe-area padding pattern). Keep left/right safe-area padding off — the centered width handles edge insets.
-- Inner pill container:
-  - Change `rounded-t-[28px]` to a fully rounded `rounded-[28px]` so all four corners are curved.
-  - Replace the upward shadow (`0 -8px 24px ...`) with a soft drop shadow on all sides: `0 10px 30px hsl(var(--background) / 0.55), 0 2px 10px hsl(0 0% 0% / 0.35), inset 0 1px 0 hsl(0 0% 100% / 0.06)`.
-  - Swap the top-only border (`border-t border-white/5`) for a full hairline (`border border-white/5`).
-  - Keep the existing solid `bg-card` (per the project's perf rule against backdrop blur on the bottom nav) and the aurora/hairline overlays — they already round-clip via `overflow-hidden`.
-- Hide-on-scroll animation: bump the offscreen translate from `y: 120` to `y: 140` so the floating bar (which now has bottom spacing) clears the screen cleanly when hidden.
+The DB function `public.update_trending_scores()` references columns that do not exist on the actual tables:
 
-### Layout padding (`src/components/layout/AppLayout.tsx`)
+| Reference in function | Actual column |
+|---|---|
+| `sounds.id` | `sounds.sound_id` (PK) |
+| `track_usage.sound_id` | `track_usage.track_id` |
+| `track_usage.used_at` | `track_usage.last_updated` |
 
-The mobile main container reserves `5rem + safe-area-inset-bottom` of bottom padding for the nav. Bump that to `6rem + safe-area-inset-bottom` so content doesn't tuck under the now-floating pill (it sits ~10px higher than before and casts a shadow).
+`track_usage` is keyed by free-form `track_id` (text), not the `sounds.sound_id` UUID, so it can't reliably join to `sounds` anyway. The `sound_play_events` table is the correct source for "recent usage in last 24h" — it has `sound_id` (uuid) + `created_at`.
 
-### What stays the same
+### Fix
 
-- 5-column grid, icon sizes, badges, drag-to-reorder, edit-mode aura, create button, scroll-hide behavior, keyboard-open auto-hide.
-- Desktop layout (this nav only renders on mobile/tablet via existing logic).
-- Z-index 5002 and aurora gradient wash.
+Replace the function body to:
+1. Use `sounds.sound_id` instead of `sounds.id`.
+2. Pull recent usage from `sound_play_events` (correct semantic source for plays).
+3. Keep the existing 1.5x boost for sounds <7 days old, weight (5x) for recent plays, and the `RETURNS jsonb` shape so the edge function still logs `sounds_updated`.
 
-### Result
+### Implementation
 
-The bar floats above the bottom edge with rounded corners on every side, a soft ambient shadow, and a small gap from the screen edges — matching the old "floating navigator" look that worked everywhere without looking cut off.
+Single migration that recreates `public.update_trending_scores()` with the corrected column references, preserving `SECURITY DEFINER` and `SET search_path = public` (per project standards).
+
+```sql
+CREATE OR REPLACE FUNCTION public.update_trending_scores()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  updated_count INTEGER := 0;
+BEGIN
+  UPDATE sounds SET
+    trend_score = (
+      usage_count * 1.0 +
+      COALESCE((
+        SELECT COUNT(*) FROM sound_play_events spe
+        WHERE spe.sound_id = sounds.sound_id
+          AND spe.created_at > NOW() - INTERVAL '24 hours'
+      ), 0) * 5.0
+    ) * CASE WHEN created_at > NOW() - INTERVAL '7 days' THEN 1.5 ELSE 1.0 END,
+    updated_at = NOW()
+  WHERE usage_count > 0 OR created_at > NOW() - INTERVAL '7 days';
+
+  GET DIAGNOSTICS updated_count = ROW_COUNT;
+  RETURN jsonb_build_object('sounds_updated', updated_count, 'timestamp', NOW());
+END;
+$$;
+```
+
+### Other Checks Performed
+
+- Runtime errors: none captured this session.
+- Browser console / network: clean.
+- Bottom nav centering: already resolved in prior turns.
+- No other failing edge functions in current logs (`process-email-queue` boots cleanly).
+
+If you want, I can also run the Supabase linter after the fix to surface any additional latent DB warnings — but no other active bug is currently visible.
