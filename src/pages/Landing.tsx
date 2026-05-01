@@ -20,7 +20,7 @@ import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 import { FounderCounter } from '@/components/growth/FounderCounter';
-import { PublicFooter } from '@/components/marketing/PublicFooter';
+
 
 // Hide bottom nav on landing page
 function useHideBottomNav() {
@@ -627,24 +627,34 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           </p>
         </div>
 
-        {/* Footer links */}
-        <div className="flex flex-wrap justify-center gap-3 mt-4 text-xs text-muted-foreground">
+        {/* Footer links — slim row, includes all SEO targets for crawlability */}
+        <nav aria-label="Footer" className="flex flex-wrap justify-center gap-x-3 gap-y-2 mt-4 text-xs text-muted-foreground">
+          <a href="/features" className="hover:text-foreground transition-colors">Features</a>
+          <span aria-hidden>•</span>
+          <a href="/safety" className="hover:text-foreground transition-colors">Safety</a>
+          <span aria-hidden>•</span>
+          <a href="/faq" className="hover:text-foreground transition-colors">FAQ</a>
+          <span aria-hidden>•</span>
+          <a href="/blog" className="hover:text-foreground transition-colors">Blog</a>
+          <span aria-hidden>•</span>
           <a href="/about" className="hover:text-foreground transition-colors">About</a>
-          <span>•</span>
+          <span aria-hidden>•</span>
           <a href="/contact" className="hover:text-foreground transition-colors">Contact</a>
-          <span>•</span>
+          <span aria-hidden>•</span>
           <a href="/privacy" className="hover:text-foreground transition-colors">Privacy</a>
-          <span>•</span>
+          <span aria-hidden>•</span>
           <a href="/terms" className="hover:text-foreground transition-colors">Terms</a>
-          <span>•</span>
+          <span aria-hidden>•</span>
+          <a href="/cookies" className="hover:text-foreground transition-colors">Cookies</a>
+          <span aria-hidden>•</span>
+          <a href="/child-safety" className="hover:text-foreground transition-colors">Child Safety</a>
+          <span aria-hidden>•</span>
           <a href="/guidelines" className="hover:text-foreground transition-colors">Guidelines</a>
-        </div>
+          <span aria-hidden>•</span>
+          <a href="/delete-account" className="hover:text-foreground transition-colors">Delete account</a>
+        </nav>
+        <p className="text-center text-[10px] text-muted-foreground/60 mt-3">© 2026 VYBE Social</p>
       </motion.div>
-      </div>
-
-      {/* Public footer — critical for SEO and AdSense crawlability */}
-      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pb-8">
-        <PublicFooter />
       </div>
 
       <ForgotPasswordDialog 
