@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import App from "./App.tsx";
 import "./index.css";
 import { initializeNativePlugins, isNativePlatform, isWeb } from "./lib/capacitor";
+import { initializeAdMob } from "./lib/admob";
 import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled } from "./lib/serviceWorker";
 import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
 
@@ -28,6 +29,8 @@ console.error = (...args: unknown[]) => {
 if (isNativePlatform) {
   initializeNativePlugins().then(() => {
     console.log('[VYBE] Native platform initialized');
+    // Initialize AdMob after native plugins are ready
+    initializeAdMob();
   });
 }
 
