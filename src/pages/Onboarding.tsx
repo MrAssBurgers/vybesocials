@@ -44,8 +44,8 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const { profile, user } = useAuth();
   
   const needsUsername = !profile?.username;
-  // 5 core steps (or 6 if username needed)
-  const TOTAL_STEPS = needsUsername ? 6 : 5;
+  // 4 core steps (or 5 if username needed): Username? → Birthday → Interests → Profile → Terms
+  const TOTAL_STEPS = needsUsername ? 5 : 4;
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -88,7 +88,6 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       case 3: return interests.length >= 3; // Interests
       case 4: return profileData.firstName.length > 0 && profileData.lastName.length > 0; // Profile
       case 5: return legalAccepted; // Legal
-      case 6: return legalAccepted; // Legal (when username step exists)
       default: return true;
     }
   }, [step, needsUsername, usernameValid, dateOfBirth, userAge, interests.length, profileData.firstName.length, profileData.lastName.length, legalAccepted]);
@@ -313,7 +312,6 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           />
         );
       case 5:
-      case 6:
         return <LegalAcceptance accepted={legalAccepted} onChange={setLegalAccepted} />;
       default:
         return null;
