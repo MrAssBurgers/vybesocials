@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Trash2, ArrowLeft, Mail, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Helmet } from 'react-helmet-async';
 
 const CONTACT_EMAIL = 'vybesocial.info@gmail.com';
 
 export default function DeleteAccountPage() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const prevTitle = document.title;
+    document.title = 'Delete Your VYBE Account | Account Deletion Request';
+    return () => { document.title = prevTitle; };
+  }, []);
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [reason, setReason] = useState('');
