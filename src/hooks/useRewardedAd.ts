@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import despia from 'despia-native';
 import { showRewarded } from '@/lib/admob';
 import { isNativePlatform } from '@/lib/capacitor';
 import { useEarnTokens } from '@/hooks/useVybeTokens';
@@ -9,6 +10,14 @@ import { hapticNotification } from '@/lib/capacitor';
 
 /**
  * Watch & Earn rewarded-ad system.
+ *
+ * Two delivery paths, picked automatically:
+ *   1. Despia Native Runtime (if `navigator.userAgent` contains "despia")
+ *      Triggered with despia("displayrewardedad://"), the native runtime calls
+ *      back into a global `updateRewardedStatus(status)` function. We only grant
+ *      the reward when status === 'true' (per Despia spec).
+ *   2. Capacitor + AdMob interstitial-rewarded (existing path) for native builds
+ *      that aren't running inside Despia.
  *
  * Limits keep the economy healthy and protect users:
  *   - REWARD_PER_AD       VYBE Tokens granted per completed ad
@@ -55,6 +64,19 @@ function saveState(userId: string, s: RewardState) {
   }
 }
 
+// True when the app is running inside the Despia native runtime.
+function isDespiaRuntime(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return navigator.userAgent.toLowerCase().includes('despia');
+}
+
+// Augment the window type for the Despia callback.
+declare global {
+  interface Window {
+    updateRewardedStatus?: (status: string) => void;
+  }
+}
+
 export function useRewardedAd() {
   const { user } = useAuth();
   const earn = useEarnTokens();
@@ -64,6 +86,12 @@ export function useRewardedAd() {
   );
   const [now, setNow] = useState(Date.now());
   const [isLoading, setIsLoading] = useState(false);
+
+  // Pending Despia request: resolves when updateRewardedStatus fires.
+  const despiaPendingRef = useRef<{
+    resolve: (granted: boolean) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  } | null>(null);
 
   // Reload state when user changes
   useEffect(() => {
@@ -78,10 +106,54 @@ export function useRewardedAd() {
     return () => clearInterval(t);
   }, [cooldownRemaining]);
 
+  // Register the global Despia callback exactly once per app lifetime.
+  // Per Despia security guidance: only act when the user agent includes "despia".
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.updateRewardedStatus) return; // already registered
+
+    window.updateRewardedStatus = (status: string) => {
+      // Hard gate: refuse calls from contexts that aren't the Despia runtime.
+      if (!isDespiaRuntime()) {
+        console.warn('[Despia] updateRewardedStatus called outside Despia runtime — ignored');
+        return;
+      }
+      const granted = status === 'true';
+      const pending = despiaPendingRef.current;
+      if (pending) {
+        clearTimeout(pending.timeout);
+        despiaPendingRef.current = null;
+        pending.resolve(granted);
+      }
+    };
+  }, []);
+
   const remainingToday = Math.max(0, DAILY_AD_LIMIT - state.count);
   const onCooldown = cooldownRemaining > 0;
   const capReached = remainingToday <= 0;
   const canWatch = !!user?.id && !onCooldown && !capReached && !isLoading;
+
+  // Run a Despia rewarded ad and wait for the native callback.
+  const runDespiaRewarded = useCallback((): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      // 2-minute safety timeout — if the runtime never calls back, treat as no reward.
+      const timeout = setTimeout(() => {
+        if (despiaPendingRef.current) {
+          despiaPendingRef.current = null;
+          resolve(false);
+        }
+      }, 120_000);
+      despiaPendingRef.current = { resolve, timeout };
+      try {
+        despia('displayrewardedad://');
+      } catch (err) {
+        clearTimeout(timeout);
+        despiaPendingRef.current = null;
+        console.error('[Despia] displayrewardedad failed', err);
+        resolve(false);
+      }
+    });
+  }, []);
 
   const watchAd = useCallback(async () => {
     if (!user?.id) {
@@ -100,16 +172,23 @@ export function useRewardedAd() {
 
     setIsLoading(true);
     try {
-      if (!isNativePlatform) {
-        // Web fallback: simulate so flow can be tested in browser preview.
-        // Real users on the installed app will see a real Google ad.
+      let granted = false;
+
+      if (isDespiaRuntime()) {
+        // Path 1 — Despia Native Runtime
+        granted = await runDespiaRewarded();
+      } else if (isNativePlatform) {
+        // Path 2 — Capacitor + AdMob
+        const reward = await showRewarded();
+        granted = !!reward;
+      } else {
+        // Web preview — no real ad available
         toast.info('Rewarded ads are only available in the mobile app');
         return;
       }
 
-      const reward = await showRewarded();
-      if (!reward) {
-        // User skipped or ad failed to complete — no reward
+      if (!granted) {
+        // Per Despia/AdMob spec: status !== 'true' or no reward object → no credit.
         toast.info('Ad was not completed — no reward this time');
         return;
       }
@@ -139,7 +218,7 @@ export function useRewardedAd() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, state, capReached, onCooldown, cooldownRemaining, earn]);
+  }, [user?.id, state, capReached, onCooldown, cooldownRemaining, earn, tokens2x, runDespiaRewarded]);
 
   return {
     watchAd,
@@ -152,6 +231,7 @@ export function useRewardedAd() {
     dailyLimit: DAILY_AD_LIMIT,
     rewardPerAd: REWARD_PER_AD,
     watchedToday: state.count,
-    isNative: isNativePlatform,
+    // True if either delivery path can serve a real ad on this device.
+    isNative: isNativePlatform || isDespiaRuntime(),
   };
 }
