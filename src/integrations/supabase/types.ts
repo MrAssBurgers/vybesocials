@@ -9603,6 +9603,42 @@ export type Database = {
           },
         ]
       }
+      user_active_boosts: {
+        Row: {
+          activated_at: string
+          boost_type: string
+          consumed: boolean
+          created_at: string
+          expires_at: string | null
+          id: string
+          source_item_id: string | null
+          user_id: string
+          uses_remaining: number | null
+        }
+        Insert: {
+          activated_at?: string
+          boost_type: string
+          consumed?: boolean
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          source_item_id?: string | null
+          user_id: string
+          uses_remaining?: number | null
+        }
+        Update: {
+          activated_at?: string
+          boost_type?: string
+          consumed?: boolean
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          source_item_id?: string | null
+          user_id?: string
+          uses_remaining?: number | null
+        }
+        Relationships: []
+      }
       user_ai_keys: {
         Row: {
           api_key: string
@@ -11744,6 +11780,7 @@ export type Database = {
       }
     }
     Functions: {
+      activate_user_boost: { Args: { p_item_id: string }; Returns: Json }
       add_user_xp:
         | { Args: { p_user_id: string; p_xp: number }; Returns: Json }
         | {
@@ -11809,6 +11846,8 @@ export type Database = {
         }
         Returns: Json
       }
+      consume_boost_use: { Args: { p_boost_type: string }; Returns: boolean }
+      consume_streak_shield: { Args: { p_user_id: string }; Returns: boolean }
       create_default_rooms: {
         Args: { p_server_id: string }
         Returns: undefined
@@ -12235,6 +12274,10 @@ export type Database = {
       grant_post_xp: {
         Args: { p_content_type?: string; p_user_id: string }
         Returns: Json
+      }
+      has_active_boost: {
+        Args: { p_boost_type: string; p_user_id: string }
+        Returns: boolean
       }
       has_gifted_premium: { Args: { p_user_id: string }; Returns: boolean }
       has_role: {
