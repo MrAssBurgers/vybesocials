@@ -44,6 +44,7 @@ import { useViewTracking } from '@/hooks/useViewTracking';
 import { useInteractionFeedback } from '@/hooks/useInteractionFeedback';
 import { AIBadge } from './AIBadge';
 import { ProductTagBadge } from './ProductTagBadge';
+import { useVideoAds } from '@/hooks/useVideoAds';
 // Video player component - maintains the video's native aspect ratio (no cropping)
 // NEVER shows broken placeholder - graceful degradation
 function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
