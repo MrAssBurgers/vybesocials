@@ -231,6 +231,21 @@ export function useContrastAutoGuard(enabled = true) {
     window.addEventListener('themechange', onTheme);
     document.addEventListener('visibilitychange', onTheme);
 
+    // Re-scan when overlays / sheets / dialogs finish animating in.
+    // The mobile drawer (Radix Sheet) animates a translucent panel into view —
+    // before the animation ends the effective background isn't representative,
+    // so we scan once it settles.
+    const onAnimEnd = (e: Event) => {
+      const target = e.target as Element | null;
+      if (!target || target.nodeType !== Node.ELEMENT_NODE) return;
+      const overlay = target.closest?.(
+        '[data-radix-portal], [role="dialog"], [data-state="open"], [data-sonner-toaster], aside, header, nav',
+      );
+      if (overlay) scheduleScan([overlay]);
+    };
+    document.addEventListener('animationend', onAnimEnd, true);
+    document.addEventListener('transitionend', onAnimEnd, true);
+
     return () => {
       window.clearTimeout(initialId);
       window.clearTimeout(debounceTimer);
@@ -242,6 +257,8 @@ export function useContrastAutoGuard(enabled = true) {
       window.removeEventListener('touchmove', pauseDuringScroll, removeScrollOptions);
       window.removeEventListener('themechange', onTheme);
       document.removeEventListener('visibilitychange', onTheme);
+      document.removeEventListener('animationend', onAnimEnd, true);
+      document.removeEventListener('transitionend', onAnimEnd, true);
     };
   }, [enabled]);
 }
