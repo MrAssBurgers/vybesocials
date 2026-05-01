@@ -329,43 +329,104 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         exit: { opacity: 0, y: -10, transition: { duration: 0.25, ease: EASE_OUT_EXPO } },
       };
 
+  // Step ordering for HUD
+  const stepOrder = ['vibe', 'style', 'building', 'preview'] as const;
+  const stepIndex = step === 'building' ? 2 : stepOrder.indexOf(step);
+  const stepLabels = ['VIBE', 'STYLE', 'PREVIEW'] as const;
+
+  // Particle positions (stable across renders)
+  const particles = useMemo(
+    () => Array.from({ length: 10 }, (_, i) => ({
+      id: i,
+      top: `${(i * 9.7) % 100}%`,
+      left: `${(i * 17.3) % 100}%`,
+      delay: `${(i * 0.7) % 5}s`,
+      duration: `${5 + (i % 4)}s`,
+    })),
+    []
+  );
+
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-hidden">
-      {/* Aurora background — single subtle layer */}
+      {/* === FORGE BACKDROP === */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
-        <motion.div
-          className="absolute -top-1/3 -left-1/3 w-[150%] h-[150%] rounded-full blur-[120px] opacity-30"
+        {/* Deep space gradient */}
+        <div
+          className="absolute inset-0"
           style={{
-            background: 'conic-gradient(from 90deg at 50% 50%, hsl(var(--primary) / 0.6), hsl(var(--accent) / 0.4), hsl(var(--primary) / 0.6))',
+            background:
+              'radial-gradient(ellipse at 50% 0%, hsl(var(--primary) / 0.18), transparent 60%), radial-gradient(ellipse at 50% 100%, hsl(var(--accent) / 0.14), transparent 55%), hsl(var(--background))',
+          }}
+        />
+        {/* Perspective grid floor */}
+        {!reduceMotion && (
+          <div className="absolute inset-x-0 bottom-0 h-1/2 overflow-hidden opacity-60">
+            <div className="vybe-forge-grid" />
+          </div>
+        )}
+        {/* Counter-rotating conic auroras */}
+        <motion.div
+          className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] rounded-full blur-[120px] opacity-25"
+          style={{
+            background:
+              'conic-gradient(from 0deg, hsl(var(--primary) / 0.7), transparent 40%, hsl(var(--accent) / 0.5), transparent 80%, hsl(var(--primary) / 0.7))',
           }}
           animate={reduceMotion ? undefined : { rotate: 360 }}
-          transition={{ duration: 60, repeat: Infinity, ease: 'linear' }}
+          transition={{ duration: 80, repeat: Infinity, ease: 'linear' }}
         />
-        <div className="absolute inset-0 bg-background/40" />
+        <motion.div
+          className="absolute -bottom-1/4 -right-1/4 w-[120%] h-[120%] rounded-full blur-[120px] opacity-20"
+          style={{
+            background:
+              'conic-gradient(from 180deg, hsl(var(--accent) / 0.6), transparent 50%, hsl(var(--primary) / 0.4))',
+          }}
+          animate={reduceMotion ? undefined : { rotate: -360 }}
+          transition={{ duration: 100, repeat: Infinity, ease: 'linear' }}
+        />
+        {/* Floating particles */}
+        {!reduceMotion && particles.map(p => (
+          <span
+            key={p.id}
+            className="vybe-forge-particle"
+            style={{ top: p.top, left: p.left, animationDelay: p.delay, animationDuration: p.duration }}
+          />
+        ))}
+        {/* Scan line during build */}
+        {step === 'building' && !reduceMotion && <div className="vybe-forge-scan" />}
+        {/* Vignette */}
+        <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-transparent to-background/60" />
       </div>
 
-      {/* Top progress bar */}
-      <div className="absolute top-0 inset-x-0 z-20 px-6 pt-[max(env(safe-area-inset-top),1rem)]">
-        <div className="max-w-md mx-auto flex items-center gap-2">
-          {(['vibe', 'style', 'preview'] as const).map((s, i) => {
-            const order = ['vibe', 'style', 'building', 'preview'] as const;
-            const currentIdx = step === 'building' ? 2 : order.indexOf(step);
-            const myIdx = s === 'preview' ? 2 : i;
-            const active = myIdx === currentIdx;
-            const passed = myIdx < currentIdx;
-            return (
-              <motion.div
-                key={s}
-                layout
-                className={cn(
-                  'h-1 rounded-full flex-1 transition-colors',
-                  active ? 'bg-primary' : passed ? 'bg-primary/50' : 'bg-muted/40'
-                )}
-                animate={{ scaleY: active ? 1.4 : 1 }}
-                transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
-              />
-            );
-          })}
+      {/* === HUD: top progress chevrons === */}
+      <div className="absolute top-0 inset-x-0 z-20 px-5 pt-[max(env(safe-area-inset-top),1rem)]">
+        <div className="max-w-md mx-auto flex items-center justify-between gap-2">
+          <span className="vybe-forge-chip shrink-0">VYBE · FORGE</span>
+          <div className="flex-1 flex items-center gap-1.5">
+            {stepLabels.map((label, i) => {
+              const active = i === Math.min(stepIndex, 2);
+              const passed = i < Math.min(stepIndex, 2);
+              return (
+                <div key={label} className="flex-1 flex items-center gap-1.5">
+                  <motion.div
+                    layout
+                    className={cn(
+                      'h-1.5 flex-1 rounded-sm transition-all',
+                      active
+                        ? 'bg-gradient-to-r from-primary to-accent shadow-[0_0_10px_hsl(var(--primary)/0.7)]'
+                        : passed
+                        ? 'bg-primary/60'
+                        : 'bg-muted/30'
+                    )}
+                    animate={{ scaleY: active ? 1.6 : 1 }}
+                    transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <span className="vybe-forge-chip shrink-0 tabular-nums">
+            {String(Math.min(stepIndex + 1, 3)).padStart(2, '0')}/03
+          </span>
         </div>
       </div>
 
