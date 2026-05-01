@@ -976,10 +976,9 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 
   /* CRITICAL PERF: Kill backdrop-filter while scrolling. backdrop-filter forces
      a full GPU recomposite of every layer below it on every frame, which is the
-     #1 cause of jitter on Safari/Chromium. We swap to a SOLID bg-card so the
-     element doesn't go transparent (which produced the "frosted glass glitch"
-     of content showing through fixed headers/nav while scrolling). */
-  html.is-scrolling [class*="backdrop-blur"],
+     #1 cause of jitter on Safari/Chromium. Each surface keeps its OWN
+     gradient/background so content doesn't go transparent AND doesn't darken
+     into a flat solid bg-card while scrolling. */
   html.is-scrolling .liquid-glass,
   html.is-scrolling .liquid-glass-card,
   html.is-scrolling .liquid-glass-button,
@@ -988,9 +987,49 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   html.is-scrolling .glass-card {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    background-color: hsl(var(--card)) !important;
     transition: none !important;
   }
+  /* Per-surface opaque-ish fallbacks that PRESERVE the original look. */
+  html.is-scrolling .liquid-glass {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--glass) / 0.96),
+      hsl(var(--glass) / 0.92),
+      hsl(var(--glass) / 0.94)
+    ) !important;
+  }
+  html.is-scrolling .liquid-glass-card {
+    background: linear-gradient(
+      160deg,
+      hsl(var(--card) / 0.98),
+      hsl(var(--neon-purple) / 0.06),
+      hsl(var(--card) / 0.96)
+    ) !important;
+  }
+  html.is-scrolling .liquid-glass-subtle {
+    background: linear-gradient(
+      160deg,
+      hsl(var(--glass) / 0.85),
+      hsl(var(--glass) / 0.7)
+    ) !important;
+  }
+  html.is-scrolling .liquid-glass-depth {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary) / 0.06),
+      hsl(var(--glass) / 0.95),
+      hsl(var(--accent) / 0.04)
+    ) !important;
+  }
+  html.is-scrolling .glass-card {
+    background: linear-gradient(
+      145deg,
+      hsl(var(--glass) / 0.85),
+      hsl(var(--glass) / 0.7)
+    ) !important;
+  }
+  /* liquid-glass-button is mostly translucent — keep it transparent during scroll
+     so it doesn't darken; the parent surface already handles opacity. */
 
   /* Will-change optimization - applied only when needed */
   .will-scroll {
