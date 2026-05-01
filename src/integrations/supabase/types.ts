@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_deletion_requests: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          ip_address: string | null
+          processed_at: string | null
+          reason: string | null
+          status: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          ip_address?: string | null
+          processed_at?: string | null
+          reason?: string | null
+          status?: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          ip_address?: string | null
+          processed_at?: string | null
+          reason?: string | null
+          status?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
       ad_campaigns: {
         Row: {
           advertiser_id: string
