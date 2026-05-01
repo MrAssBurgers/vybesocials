@@ -653,7 +653,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           <span aria-hidden>•</span>
           <a href="/delete-account" className="hover:text-foreground transition-colors">Delete account</a>
         </nav>
-        <p className="text-center text-[10px] text-muted-foreground/60 mt-3">© 2026 VYBE Social</p>
+        <p className="text-center text-[10px] text-muted-foreground/60 mt-3">© 2026 Vybe Studios</p>
       </motion.div>
       </div>
 
