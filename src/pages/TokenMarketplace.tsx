@@ -1,5 +1,5 @@
 import { useState, memo, useCallback } from 'react';
-import { Coins, Crown, Lock, Check, ShoppingBag, Zap } from 'lucide-react';
+import { Coins, Lock, Check, ShoppingBag, Zap, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageTransition } from '@/components/ui/PageTransition';
@@ -10,11 +10,20 @@ import { cn } from '@/lib/utils';
 import { useTokenMarketplace, CATEGORY_LABELS, type MarketplaceItem } from '@/hooks/useTokenMarketplace';
 import { useMarketplacePurchase } from '@/hooks/useMarketplacePurchase';
 import { useActivateBoost } from '@/hooks/useActiveBoosts';
+import { useEquipItem } from '@/hooks/useLockerItems';
 import { ActiveBoostsBanner } from '@/components/tokens/ActiveBoostsBanner';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+// Maps marketplace item ids -> { equip type, equip value } for permanent cosmetics
+const PERMANENT_EQUIP_MAP: Record<string, { type: 'frame' | 'profile_theme'; value: string }> = {
+  avatar_frame_gold: { type: 'frame', value: 'avatar_frame_gold' },
+  avatar_frame_fire: { type: 'frame', value: 'avatar_frame_fire' },
+  theme_neon: { type: 'profile_theme', value: 'theme_neon' },
+  theme_ocean: { type: 'profile_theme', value: 'theme_ocean' },
+};
 
 // Visual preview component showing how items look on a profile
 const ItemPreview = memo(({ item }: { item: MarketplaceItem }) => {
