@@ -205,6 +205,7 @@ export default function TokenMarketplace() {
   const filterCat = tab === 'all' ? undefined : tab as MarketplaceItem['category'];
   const { items, balance, canAfford, isPremium } = useTokenMarketplace(filterCat);
   const purchase = useMarketplacePurchase();
+  const activate = useActivateBoost();
   const { data: purchasedIds = [] } = usePurchasedItems();
 
   const handleBuy = useCallback((item: MarketplaceItem) => {
@@ -215,6 +216,10 @@ export default function TokenMarketplace() {
       },
     });
   }, [purchase]);
+
+  const handleActivate = useCallback((item: MarketplaceItem) => {
+    activate.mutate({ itemId: item.id, name: item.name });
+  }, [activate]);
 
   return (
     <AppLayout>
@@ -281,7 +286,7 @@ export default function TokenMarketplace() {
             </div>
           )}
 
-          {/* Category Tabs */}
+          <ActiveBoostsBanner />
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="w-full h-10 p-1 bg-muted/50 rounded-xl">
               <TabsTrigger value="all" className="flex-1 rounded-lg text-xs">All</TabsTrigger>
