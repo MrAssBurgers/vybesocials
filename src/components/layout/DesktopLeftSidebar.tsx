@@ -214,11 +214,11 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
             </Link>
             
             {/* Quick Actions */}
-            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-muted/30">
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-card/70 border border-foreground/5">
               <Link
                 to="/notifications"
                 onClick={triggerNavFeedback}
-                className="relative flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                className="relative flex items-center justify-center gap-1.5 py-2 rounded-lg text-foreground/85 hover:bg-background/50 hover:text-foreground transition-all"
               >
                 <Bell className="h-4 w-4" />
                 <span className="text-xs font-medium">{t('sidebar.alerts')}</span>
@@ -232,7 +232,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               <Link
                 to="/challenges"
                 onClick={triggerNavFeedback}
-                className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-foreground/85 hover:bg-background/50 hover:text-foreground transition-all"
               >
                 <Trophy className="h-4 w-4" />
                 <span className="text-xs font-medium">{t('sidebar.quests')}</span>
@@ -241,7 +241,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               <Link
                 to="/invite-friends"
                 onClick={triggerNavFeedback}
-                className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-foreground/85 hover:bg-background/50 hover:text-foreground transition-all"
               >
                 <Gift className="h-4 w-4" />
                 <span className="text-xs font-medium">{t('sidebar.referrals')}</span>
@@ -250,7 +250,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               <Link
                 to="/settings"
                 onClick={triggerNavFeedback}
-                className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-foreground/85 hover:bg-background/50 hover:text-foreground transition-all"
               >
                 <Settings className="h-4 w-4" />
                 <span className="text-xs font-medium">{t('nav.settings')}</span>
