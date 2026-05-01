@@ -20,6 +20,7 @@ import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 import { FounderCounter } from '@/components/growth/FounderCounter';
+import { PublicFooter } from '@/components/marketing/PublicFooter';
 
 // Hide bottom nav on landing page
 function useHideBottomNav() {
@@ -641,7 +642,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       </motion.div>
       </div>
 
-      {/* Forgot Password Dialog */}
+      {/* Public footer — critical for SEO and AdSense crawlability */}
+      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pb-8">
+        <PublicFooter />
+      </div>
+
       <ForgotPasswordDialog 
         open={showForgotPassword} 
         onClose={() => setShowForgotPassword(false)} 
