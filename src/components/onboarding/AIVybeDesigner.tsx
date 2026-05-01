@@ -103,11 +103,14 @@ const SNAPSHOT_PROPS = [
 
 function isValidTheme(t: any): t is GeneratedTheme {
   if (!t || typeof t !== 'object') return false;
-  // Require at minimum a primary token; tolerate either key style
+  // Accept the edge function's camelCase shape (colorPrimary/bgMain/textPrimary)
+  // as well as legacy CSS-var/nested shapes.
   const hasPrimary =
+    typeof t.colorPrimary === 'string' ||
     typeof t['--primary'] === 'string' ||
     typeof t.primary === 'string' ||
-    typeof t.tokens?.['--primary'] === 'string';
+    typeof t.tokens?.['--primary'] === 'string' ||
+    typeof t.tokens?.colorPrimary === 'string';
   return hasPrimary;
 }
 
