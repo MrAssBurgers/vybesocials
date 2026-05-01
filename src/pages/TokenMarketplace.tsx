@@ -207,7 +207,7 @@ const ItemCard = memo(({ item, canAfford, isPremium, onBuy, onActivate, isPurcha
           ) : isPurchased ? (
             <><Check className="h-3 w-3 mr-1" /> Owned</>
           ) : locked ? (
-            <><Lock className="h-3 w-3 mr-1" /> PRO Only</>
+            <><Lock className="h-3 w-3 mr-1" /> Locked</>
           ) : canAfford ? (
             isPurchasing ? 'Buying...' : 'Buy'
           ) : 'Not enough'}
