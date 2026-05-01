@@ -306,8 +306,10 @@ export default function TokenMarketplace() {
                     canAfford={canAfford(item.cost)}
                     isPremium={isPremium}
                     onBuy={handleBuy}
+                    onActivate={handleActivate}
                     isPurchased={purchasedIds.includes(item.id)}
                     isPurchasing={purchase.isPending}
+                    isActivating={activate.isPending}
                   />
                 ))}
               </div>
