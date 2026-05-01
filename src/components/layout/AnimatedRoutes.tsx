@@ -52,6 +52,7 @@ const Privacy = lazy(() => import("@/pages/Privacy"));
 const Terms = lazy(() => import("@/pages/Terms"));
 const CookiePolicy = lazy(() => import("@/pages/CookiePolicy"));
 const ChildSafety = lazy(() => import("@/pages/ChildSafety"));
+const DeleteAccount = lazy(() => import("@/pages/DeleteAccount"));
 const About = lazy(() => import("@/pages/About"));
 const Contact = lazy(() => import("@/pages/Contact"));
 const InviteFriends = lazy(() => import("@/pages/InviteFriends"));
