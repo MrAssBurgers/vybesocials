@@ -1,79 +1,77 @@
-# Redesign: Design Your Own VYBE — "Holographic Forge"
+# Fix: Sidebar text blending into pink theme background
 
-Transform `AIVybeDesigner.tsx` from a standard 4-step form into a futuristic, sci-fi "VYBE Forge" experience that feels like calibrating a personal hologram.
+## What's happening
 
-## Visual Direction
+In your screenshot, sidebar items ("Explore", "DM's", "VybeMap", "Communities", "Market", "Events", and the Audio/Quests/Records/Settings quick-action grid) are rendered in `text-muted-foreground` (light gray). On your dark theme this normally has good contrast — but you've applied a custom **pink/peach background image** to the page. The pink shows through the glass sidebar via `backdrop-filter: blur`, so visually the text sits on a light surface, but the contrast guard reads the underlying body color (still dark) and decides nothing needs fixing.
 
-**Concept:** A glassy holographic console floating in deep space. Neon orbital rings, scanning grid backdrop, drifting particles, chromatic aberration glow, and a live morphing "VYBE Orb" at the center that reacts to every choice in real time.
+So this isn't a missing feature — the guard exists (`useContrastAutoGuard` in `src/hooks/useContrastAutoGuard.ts`) but it's blind to:
 
-**Palette:** Driven by current `--primary` / `--accent` tokens so it adapts to whatever theme is active.
+1. Background **images** and **gradients** (it only reads `background-color`).
+2. Backgrounds painted by `::before` / `::after` pseudo-elements (your themed body uses one).
+3. `position: fixed` background layers behind the body.
+4. Heavily-blurred glass surfaces — currently boosts alpha by only +0.25, not enough when the underlying surface is essentially fully visible through the blur.
 
-## Step-by-Step Changes
+## The plan
 
-### 1. Background (replaces single conic gradient)
-- Animated **starfield/grid layer** (CSS perspective grid that scrolls toward viewer — pure CSS, no JS).
-- Two slow counter-rotating conic gradients with chromatic offset.
-- Floating particle dots (8-12 small `motion.div`s with randomized drift, GPU-only transforms).
-- Subtle vignette + film grain overlay (SVG turbulence, `opacity-[0.03]`).
-- All layers respect `prefers-reduced-motion`.
+### 1. Upgrade the contrast guard (`src/lib/contrastGuard.ts` + `src/hooks/useContrastAutoGuard.ts`)
 
-### 2. The VYBE Orb (new centerpiece)
-A persistent ~140px hovering sphere at the top of every step:
-- Layered radial gradients using `--primary` and `--accent`.
-- Inner pulsing core + 2 orbital rings rotating opposite directions.
-- Hue/intensity morphs as user picks vibe (mapped from `vibe.gradient`).
-- On generate: orb expands, ring spins faster, then settles with the new theme color.
+Make `getEffectiveBg` actually see what the user sees:
 
-### 3. Step 1 — VIBE selection (most dramatic upgrade)
-- Replace 2-column rectangular cards with a **radial/honeycomb arrangement** of 8 vibe orbs around the central VYBE Orb (or a fanned arc on small viewports — fall back to 2-col grid below 360px).
-- Each vibe = circular gradient chip with glow, icon centered, label underneath.
-- Selected: orbital ring traces around it + connecting beam to the center orb.
-- Custom prompt textarea restyled as a **"// neural input"** terminal field with a blinking caret and monospace placeholder.
+- **Sample background images / gradients.** When a layer has a `background-image` (gradient or image) and not a solid color, take a representative sample of its dominant color. For gradients, parse the CSS string and average the listed color stops. For raster images, fall back to a mid-luminance neutral so we don't crash on remote images.
+- **Read pseudo-element backdrops.** When walking up the ancestor chain, also call `getComputedStyle(node, '::before')` and `::after`. If they paint a full-bleed background (covers the element via `inset:0` / `position:absolute` with non-zero size), composite that color too.
+- **Treat strong blur as "background-dominated."** When `backdrop-filter` contains `blur(>= 12px)` on a low-alpha surface, weight the underlying background heavily (e.g., 70% underlying + 30% surface tint) instead of the current flat +0.25 alpha bump. This matches how the eye actually sees a frosted panel.
+- **Honor full-bleed fixed layers.** Before falling back to body color, look for `position: fixed` elements with `inset: 0` (theme background layers) and use their effective color first.
 
-### 4. Step 2 — STYLE
-- Header label as `[ 02 / CALIBRATION ]` chrome chip.
-- Typography & Motion sections wrapped in glass panels with corner brackets (┌ ┐ └ ┘ via pseudo-elements).
-- Section icons get neon glow rings.
+These changes are pure logic in `contrastGuard.ts`; the existing scanner in `useContrastAutoGuard.ts` will automatically pick up better readings on its next pass.
 
-### 5. Step 3 — BUILDING
-- Keep `VybeGenerationAnimation` but overlay a **HUD frame**: scanning line sweeping top→bottom, phase counter `[ 03 / 05 ]`, and the orb at full intensity with rapid ring rotation.
+### 2. Re-scan after route / sheet transitions
 
-### 6. Step 4 — PREVIEW
-- "Reveal" sequence: orb cracks open with a flash, preview cards slide in with staggered tilt.
-- Cards get glass + neon edge treatment matching theme color.
-- Buttons: "Try Again" → `[ RECALIBRATE ]`, "Keep It" → `[ DEPLOY VYBE ]` (still readable, not gimmicky).
+The mobile sidebar opens via a Radix Sheet (animated portal). During the open animation the guard pauses (`is-scrolling`-style throttle) and may miss the final state. Add:
 
-### 7. Progress Bar (top)
-Replace flat bars with **segmented chevrons** (`◢◣`) that fill with neon gradient and pulse when active. Shows step number + label: `01 VIBE → 02 STYLE → 03 PREVIEW`.
+- A `themechange`-style custom event already exists; also re-trigger a scan on `transitionend` / `animationend` for elements with `[data-radix-portal]`, `[data-state="open"]`, or `role="dialog"` ancestors.
+- Reduce the post-mutation debounce from 150ms → 80ms specifically for newly-mounted portal subtrees so the first frame the user sees is already corrected.
 
-## Technical Section
+### 3. Harden sidebar text so it can't blend even before the guard kicks in
 
-**Files modified:**
-- `src/components/onboarding/AIVybeDesigner.tsx` — full JSX/styling overhaul, logic untouched (snapshot, generate, save flow stays identical).
-- `src/index.css` — add new keyframes & utility classes scoped under `.vybe-forge-*`:
-  - `@keyframes forge-grid-scroll`, `forge-orb-pulse`, `forge-ring-spin`, `forge-scan-line`, `forge-particle-drift`, `forge-flash`.
-  - `.vybe-forge-orb`, `.vybe-forge-grid`, `.vybe-forge-panel`, `.vybe-forge-chip`, `.vybe-forge-corner-brackets`.
+Even with a perfect guard there's a flash before correction. So in the sidebar components, swap `text-muted-foreground` (which is theme-relative gray) for the **adaptive token** the guard uses, or wrap the labels with a class that picks readable foreground from the *visible* surface:
 
-**No new dependencies.** Uses existing framer-motion + Tailwind + CSS variables.
+- `src/components/layout/Sidebar.tsx` (desktop)
+- `src/components/layout/DesktopLeftSidebar.tsx`
+- `src/components/layout/MobileHeader.tsx` (the drawer in your screenshot)
 
-**Preserved behavior:**
-- All state (`selectedVibe`, `selectedFont`, `selectedAnimation`, `customPrompt`, `step`, `buildPhase`, `generatedTheme`).
-- `generateTheme`, `handleKeep`, `handleTryAgain`, `handleRevert`, snapshot/restore, `navVisibility.setInDesigner`.
-- `VybeGenerationAnimation`, `FontSelector`, `AnimationSelector` components reused as-is.
-- `isValidTheme` validator unchanged (recent fix preserved).
+Replace the inactive-state classes:
 
-**Performance:**
-- All animated layers use `transform`/`opacity` only.
-- `will-change` only on actively-animating elements (orb, rings).
-- Particles capped at 12, grid is single CSS layer.
-- Full `prefers-reduced-motion` fallback: static orb, no rotation, no particle drift, no grid scroll.
+```text
+text-muted-foreground  →  text-foreground/85   (always readable on glass)
+hover:text-sidebar-foreground (kept)
+```
 
-**Mobile:**
-- Designed against 985×649 viewport and smaller (375×812 baseline).
-- Honeycomb vibe layout collapses to 2-col grid below 360px.
-- Safe-area insets respected on top + bottom.
-- Touch targets stay ≥44px.
+And add `data-auto-contrast` to the `<span>` labels so the guard prioritizes them.
 
-**Theme safety:**
-- All neon colors derived from `hsl(var(--primary))` / `hsl(var(--accent))` so the forge looks correct in light mode too.
-- Glass panels use `bg-card/60` + `backdrop-blur` — falls back cleanly without backdrop-filter support.
+For the small "Alerts / Quests / Records / Settings" grid (which also vanishes in your screenshot), give that pill bar a more opaque surface (`bg-card/70` instead of `bg-muted/30`) so it stops being see-through.
+
+### 4. Add a one-line developer escape hatch
+
+Document in `src/lib/contrastGuard.ts`:
+
+- `data-no-auto-contrast` on any ancestor still disables the guard (already supported).
+- New: `data-force-contrast="dark|light"` to manually pin a region's foreground choice (useful for branded gradients where neither readable shade looks great and you want to lock one).
+
+## Files touched
+
+- `src/lib/contrastGuard.ts` — gradient/pseudo-element/blur logic
+- `src/hooks/useContrastAutoGuard.ts` — portal/animation re-scan trigger
+- `src/components/layout/Sidebar.tsx`
+- `src/components/layout/DesktopLeftSidebar.tsx`
+- `src/components/layout/MobileHeader.tsx`
+- `src/index.css` — minor: ensure `[data-contrast-fixed]` rule has `transition: color .15s` so the correction doesn't pop
+
+## Out of scope
+
+- No backend / DB changes.
+- Not touching theme tokens themselves — your custom theme stays exactly as designed.
+- Not auto-changing icon colors yet (icons inherit `currentColor` so they'll follow the text fix automatically).
+
+## How you'll verify
+
+After approval and implementation, open the sidebar over your pink theme — every label should immediately be legible (dark text on the pink-tinted glass), and switching back to a dark wallpaper should snap them back to light text within ~150ms.
