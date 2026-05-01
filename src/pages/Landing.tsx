@@ -638,10 +638,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           <span>•</span>
           <a href="/guidelines" className="hover:text-foreground transition-colors">Guidelines</a>
         </div>
-      </motion.div>
       </div>
 
-      {/* Forgot Password Dialog */}
+      {/* Public footer — critical for SEO and AdSense crawlability */}
+      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pb-8">
+        <PublicFooter />
+      </div>
+
       <ForgotPasswordDialog 
         open={showForgotPassword} 
         onClose={() => setShowForgotPassword(false)} 
