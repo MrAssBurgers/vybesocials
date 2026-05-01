@@ -6,6 +6,7 @@ import { useTokenBalance, useTokenTransactions, TOKEN_RATES } from '@/hooks/useV
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { WatchAndEarnCard } from '@/components/tokens/WatchAndEarnCard';
 
 function TransactionItem({ amount, type, description, created_at }: {
   amount: number;
@@ -102,6 +103,9 @@ export default function TokenWallet() {
             </div>
           </div>
         </Card>
+
+        {/* Watch & Earn — rewarded ads */}
+        <WatchAndEarnCard />
 
         {/* Quick Actions */}
         <Button
