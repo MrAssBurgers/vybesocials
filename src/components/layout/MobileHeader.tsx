@@ -62,15 +62,6 @@ export const MobileHeader = React.forwardRef<HTMLElement, {}>(function MobileHea
             >
               <VYBELogo size="sm" showText={false} />
             </Link>
-            {!isPremium && (
-              <Link
-                to="/settings?tab=subscription"
-                className="flex items-center gap-1 h-7 px-2 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-yellow-500/30 transition-all"
-              >
-                <Crown className="h-3 w-3 text-amber-500" />
-                <span className="text-[10px] font-bold text-amber-500">PRO</span>
-              </Link>
-            )}
           </div>
 
           {/* Center - Search - clean styling */}
