@@ -141,6 +141,11 @@ export const FRAME_CLASS_MAP: Record<string, string> = {
   'Lightning Frame': 'ring-[3px] ring-yellow-300/80 shadow-[0_0_28px_8px_rgba(253,224,71,0.4)] animate-[lightning-flash_2s_ease-in-out_infinite]',
   'Obsidian Frame': 'ring-[3px] ring-gray-800/90 shadow-[0_0_20px_4px_rgba(0,0,0,0.5),0_0_40px_8px_rgba(88,28,135,0.2)]',
   'Holographic Frame': 'ring-[3px] ring-pink-400/60 shadow-[0_0_24px_6px_rgba(236,72,153,0.3)] animate-[holographic-shift_3s_linear_infinite]',
+  // Discord-style firey ring (used for marketplace Fire Ring / avatar_frame_fire)
+  'Fire Ring': 'ring-[3px] ring-orange-400/90 animate-[fire-ring-flicker_1.4s_ease-in-out_infinite]',
+  // Marketplace item-id aliases so equipping by item id works directly
+  avatar_frame_fire: 'ring-[3px] ring-orange-400/90 animate-[fire-ring-flicker_1.4s_ease-in-out_infinite]',
+  avatar_frame_gold: 'ring-[3px] ring-yellow-400/80 shadow-[0_0_24px_6px_rgba(250,204,21,0.45)] animate-[sunset-halo_2.4s_ease-in-out_infinite]',
 };
 
 // ── Frame colors for locker preview ─────────────────────────────

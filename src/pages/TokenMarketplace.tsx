@@ -1,5 +1,5 @@
 import { useState, memo, useCallback } from 'react';
-import { Coins, Crown, Lock, Check, ShoppingBag, Zap } from 'lucide-react';
+import { Coins, Lock, Check, ShoppingBag, Zap, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageTransition } from '@/components/ui/PageTransition';
@@ -10,11 +10,20 @@ import { cn } from '@/lib/utils';
 import { useTokenMarketplace, CATEGORY_LABELS, type MarketplaceItem } from '@/hooks/useTokenMarketplace';
 import { useMarketplacePurchase } from '@/hooks/useMarketplacePurchase';
 import { useActivateBoost } from '@/hooks/useActiveBoosts';
+import { useEquipItem } from '@/hooks/useLockerItems';
 import { ActiveBoostsBanner } from '@/components/tokens/ActiveBoostsBanner';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+// Maps marketplace item ids -> { equip type, equip value } for permanent cosmetics
+const PERMANENT_EQUIP_MAP: Record<string, { type: 'frame' | 'profile_theme'; value: string }> = {
+  avatar_frame_gold: { type: 'frame', value: 'avatar_frame_gold' },
+  avatar_frame_fire: { type: 'frame', value: 'avatar_frame_fire' },
+  theme_neon: { type: 'profile_theme', value: 'theme_neon' },
+  theme_ocean: { type: 'profile_theme', value: 'theme_ocean' },
+};
 
 // Visual preview component showing how items look on a profile
 const ItemPreview = memo(({ item }: { item: MarketplaceItem }) => {
@@ -42,16 +51,25 @@ const ItemPreview = memo(({ item }: { item: MarketplaceItem }) => {
     avatar_frame_gold: (
       <div className="flex items-center justify-center h-16">
         <div className="relative">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-muted to-muted-foreground/20" />
-          <div className="absolute -inset-1 rounded-full border-[2.5px] border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]" />
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-muted to-muted-foreground/20 ring-[3px] ring-yellow-400/80 animate-[sunset-halo_2.4s_ease-in-out_infinite]" />
         </div>
       </div>
     ),
     avatar_frame_fire: (
       <div className="flex items-center justify-center h-16">
         <div className="relative">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-muted to-muted-foreground/20" />
-          <div className="absolute -inset-1 rounded-full border-[2.5px] border-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]" />
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-muted to-muted-foreground/20 ring-[3px] ring-orange-400/90 animate-[fire-ring-flicker_1.4s_ease-in-out_infinite]" />
+          {/* Floating ember particles */}
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="absolute left-1/2 bottom-0 w-1 h-1 rounded-full bg-orange-400 blur-[1px]"
+              style={{
+                animation: `fire-ember 1.6s ${i * 0.4}s ease-in infinite`,
+                transform: `translateX(${(i - 1) * 6}px)`,
+              }}
+            />
+          ))}
         </div>
       </div>
     ),
@@ -141,7 +159,7 @@ const ItemCard = memo(({ item, canAfford, isPremium, onBuy, onActivate, isPurcha
   const handleClick = () => {
     if (showActivate) { onActivate(item); return; }
     if (isPurchased) { toast.info('Already owned — check your Locker'); return; }
-    if (locked) { toast.error('This item requires VYBE Pro'); return; }
+    if (locked) { toast.error('This item is locked'); return; }
     if (!canAfford) { toast.error('Not enough tokens'); return; }
     onBuy(item);
   };
@@ -189,7 +207,7 @@ const ItemCard = memo(({ item, canAfford, isPremium, onBuy, onActivate, isPurcha
           ) : isPurchased ? (
             <><Check className="h-3 w-3 mr-1" /> Owned</>
           ) : locked ? (
-            <><Lock className="h-3 w-3 mr-1" /> PRO Only</>
+            <><Lock className="h-3 w-3 mr-1" /> Locked</>
           ) : canAfford ? (
             isPurchasing ? 'Buying...' : 'Buy'
           ) : 'Not enough'}
@@ -202,23 +220,46 @@ const ItemCard = memo(({ item, canAfford, isPremium, onBuy, onActivate, isPurcha
 export default function TokenMarketplace() {
   const [tab, setTab] = useState<string>('all');
   const [showConfetti, setShowConfetti] = useState(false);
+  const [showRoulette, setShowRoulette] = useState(false);
   const filterCat = tab === 'all' ? undefined : tab as MarketplaceItem['category'];
   const { items, balance, canAfford, isPremium } = useTokenMarketplace(filterCat);
   const purchase = useMarketplacePurchase();
   const activate = useActivateBoost();
+  const equip = useEquipItem();
   const { data: purchasedIds = [] } = usePurchasedItems();
 
   const handleBuy = useCallback((item: MarketplaceItem) => {
     purchase.mutate({ itemId: item.id, cost: item.cost, name: item.name }, {
-      onSuccess: () => {
+      onSuccess: async () => {
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 2000);
+
+        // Auto-equip permanent cosmetics so the user instantly sees what they bought
+        const equipSpec = PERMANENT_EQUIP_MAP[item.id];
+        if (equipSpec) {
+          try {
+            await equip.mutateAsync(equipSpec);
+            toast.success(`${item.name} equipped!`);
+          } catch {
+            toast.info(`${item.name} added to your locker`);
+          }
+        }
       },
     });
-  }, [purchase]);
+  }, [purchase, equip]);
 
   const handleActivate = useCallback((item: MarketplaceItem) => {
-    activate.mutate({ itemId: item.id, name: item.name });
+    // Show the spinning roulette animation for the roulette pack
+    if (item.id === 'roulette_pack') {
+      setShowRoulette(true);
+    }
+    activate.mutate({ itemId: item.id, name: item.name }, {
+      onSettled: () => {
+        if (item.id === 'roulette_pack') {
+          setTimeout(() => setShowRoulette(false), 2400);
+        }
+      },
+    });
   }, [activate]);
 
   return (
@@ -261,6 +302,50 @@ export default function TokenMarketplace() {
           )}
         </AnimatePresence>
 
+        {/* Roulette spin overlay */}
+        <AnimatePresence>
+          {showRoulette && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.4, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.6, opacity: 0 }}
+                className="relative flex flex-col items-center gap-4"
+              >
+                <div className="relative h-44 w-44">
+                  {/* Outer glow */}
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-fuchsia-500 to-amber-400 blur-2xl opacity-60" />
+                  {/* Spinning roulette */}
+                  <motion.div
+                    animate={{ rotate: [0, 1440] }}
+                    transition={{ duration: 2.2, ease: [0.16, 0.9, 0.3, 1] }}
+                    className="absolute inset-0 rounded-full border-[6px] border-foreground/10"
+                    style={{
+                      background:
+                        'conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #8b5cf6, #ec4899, #ef4444)',
+                    }}
+                  />
+                  {/* Center hub */}
+                  <div className="absolute inset-1/3 rounded-full bg-card border border-white/10 flex items-center justify-center text-3xl">
+                    🎰
+                  </div>
+                  {/* Pointer */}
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[10px] border-r-[10px] border-b-[16px] border-l-transparent border-r-transparent border-b-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]" />
+                </div>
+                <div className="text-center">
+                  <p className="text-base font-bold text-foreground">+5 Roulette Spins!</p>
+                  <p className="text-xs text-muted-foreground">Added to your VYBE Roulette balance</p>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
           {/* Header */}
           <div className="flex items-center justify-between">
@@ -276,15 +361,6 @@ export default function TokenMarketplace() {
               <span className="font-bold text-amber-500">{balance}</span>
             </div>
           </div>
-
-          {!isPremium && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-primary/5 border border-primary/10">
-              <Crown className="h-5 w-5 text-primary shrink-0" />
-              <p className="text-xs text-muted-foreground">
-                <span className="font-semibold text-primary">VYBE Pro</span> unlocks exclusive items marked with 👑
-              </p>
-            </div>
-          )}
 
           <ActiveBoostsBanner />
           <Tabs value={tab} onValueChange={setTab}>
@@ -311,6 +387,24 @@ export default function TokenMarketplace() {
                     isPurchasing={purchase.isPending}
                     isActivating={activate.isPending}
                   />
+                ))}
+
+                {/* "More coming soon" placeholder cards */}
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Card
+                    key={`soon-${i}`}
+                    className="liquid-glass border-dashed border-white/10 overflow-hidden opacity-70"
+                  >
+                    <CardContent className="p-3 flex flex-col items-center text-center gap-1.5 min-h-[180px] justify-center">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                        <Sparkles className="h-6 w-6 text-primary animate-pulse" />
+                      </div>
+                      <h3 className="font-semibold text-xs text-foreground leading-tight">More coming soon</h3>
+                      <p className="text-[10px] text-muted-foreground leading-snug">
+                        New cosmetics & boosts dropping every season
+                      </p>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
               {items.length === 0 && (
