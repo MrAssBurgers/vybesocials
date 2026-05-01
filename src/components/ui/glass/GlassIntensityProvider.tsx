@@ -74,36 +74,20 @@ export function GlassIntensityProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute('data-contrast', contrast);
   }, [contrast]);
 
-  // Track scrolling to pause animations - optimized with RAF
+  // Scroll-state class management is handled centrally by useScrollOptimization
+  // (mounted in AppLayout). We intentionally do NOT add a second listener here
+  // — having two systems toggling `is-scrolling` caused timing conflicts and
+  // visible flicker/darkening during scroll.
+  // `isScrolling` is kept in state purely for any consumer that reads it.
   useEffect(() => {
-    let scrollTimeout: ReturnType<typeof setTimeout>;
-    let rafId: number;
-    let isCurrentlyScrolling = false;
-    
-    const handleScroll = () => {
-      if (!isCurrentlyScrolling) {
-        isCurrentlyScrolling = true;
-        rafId = requestAnimationFrame(() => {
-          setIsScrolling(true);
-          document.documentElement.classList.add('is-scrolling');
-        });
-      }
-      
-      clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        isCurrentlyScrolling = false;
-        setIsScrolling(false);
-        document.documentElement.classList.remove('is-scrolling');
-      }, isIOS ? 100 : 150); // Faster reset on iOS
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      clearTimeout(scrollTimeout);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, [isIOS]);
+    const html = document.documentElement;
+    const observer = new MutationObserver(() => {
+      const active = html.classList.contains('is-scrolling');
+      setIsScrolling((prev) => (prev === active ? prev : active));
+    });
+    observer.observe(html, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   const setIntensity = useCallback((newIntensity: GlassIntensity) => {
     setIntensityState(newIntensity);
