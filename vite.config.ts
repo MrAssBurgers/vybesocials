@@ -55,6 +55,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [previewSupabaseClientShimPlugin(), react(), mode === "development" && componentTagger()].filter(Boolean),
     resolve: {
+      dedupe: ['react', 'react-dom'],
       alias: [
         {
           find: /^@\/integrations\/supabase\/client$/,

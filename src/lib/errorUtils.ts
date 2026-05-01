@@ -26,6 +26,14 @@ export function getUserFriendlyError(error: any): string {
   if (message.includes('Password should be at least') || message.includes('password should be at least')) {
     return 'Password must be at least 6 characters.';
   }
+  if (
+    error?.code === 'weak_password' ||
+    message.includes('known to be weak') ||
+    message.includes('easy to guess') ||
+    message.includes('pwned')
+  ) {
+    return 'Choose a stronger password that has not been used in a data breach.';
+  }
   if (message.includes('password') && message.includes('leaked') || message.includes('HIBP')) {
     return 'This password has been found in a data breach. Please choose a different one.';
   }
