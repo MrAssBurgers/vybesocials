@@ -23,6 +23,10 @@ const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'SVG', 'IMG', 'VIDEO', 'CANVAS', '
 const AA_BODY = 4.5;
 const AA_LARGE = 3;
 
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number;
+};
+
 interface CacheEntry {
   fgKey: string;
   bgKey: string;
@@ -88,8 +92,11 @@ function processElement(el: Element) {
     htmlEl.style.setProperty('--auto-contrast-color', readable);
     htmlEl.setAttribute('data-contrast-fixed', ratio.toFixed(2));
   } else if (htmlEl.hasAttribute('data-contrast-fixed')) {
-    htmlEl.style.removeProperty('--auto-contrast-color');
-    htmlEl.removeAttribute('data-contrast-fixed');
+    // Keep an already-fixed element stable. The CSS rule changes computed
+    // color, so removing the attribute here would immediately make it fail
+    // again and create a mutation/layout loop that can freeze scrolling.
+    cache.set(el, { fgKey, bgKey, ratio });
+    return;
   }
 
   cache.set(el, { fgKey, bgKey, ratio });
@@ -134,8 +141,9 @@ function scheduleScan(roots?: Element[]) {
       scheduleScan();
     }
   };
-  if ('requestIdleCallback' in window) {
-    (window as any).requestIdleCallback(run, { timeout: 300 });
+  const idleWindow = window as IdleWindow;
+  if (idleWindow.requestIdleCallback) {
+    idleWindow.requestIdleCallback(run, { timeout: 300 });
   } else {
     setTimeout(run, 16);
   }
@@ -147,13 +155,23 @@ export function useContrastAutoGuard(enabled = true) {
     if (typeof window === 'undefined') return;
 
     // Disable on very low-memory devices
-    const dm = (navigator as any).deviceMemory;
+    const dm = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     if (typeof dm === 'number' && dm < 2) return;
 
     let debounceTimer: number | undefined;
+    let scrollTimer: number | undefined;
+    let isScrolling = false;
     const debouncedFullScan = () => {
       window.clearTimeout(debounceTimer);
       debounceTimer = window.setTimeout(() => scheduleScan(), 150);
+    };
+    const pauseDuringScroll = () => {
+      isScrolling = true;
+      window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => {
+        isScrolling = false;
+        scheduleScan();
+      }, 180);
     };
 
     // Initial scan after first paint
@@ -161,6 +179,7 @@ export function useContrastAutoGuard(enabled = true) {
 
     // Observe DOM changes
     const observer = new MutationObserver((mutations) => {
+      if (isScrolling || document.documentElement.classList.contains('is-scrolling')) return;
       const roots: Element[] = [];
       for (const m of mutations) {
         if (m.type === 'childList') {
@@ -184,14 +203,23 @@ export function useContrastAutoGuard(enabled = true) {
     const onResize = () => debouncedFullScan();
     const onTheme = () => debouncedFullScan();
     window.addEventListener('resize', onResize, { passive: true });
+    const scrollOptions: AddEventListenerOptions = { passive: true, capture: true };
+    const removeScrollOptions: EventListenerOptions = { capture: true };
+    window.addEventListener('scroll', pauseDuringScroll, scrollOptions);
+    window.addEventListener('wheel', pauseDuringScroll, scrollOptions);
+    window.addEventListener('touchmove', pauseDuringScroll, scrollOptions);
     window.addEventListener('themechange', onTheme);
     document.addEventListener('visibilitychange', onTheme);
 
     return () => {
       window.clearTimeout(initialId);
       window.clearTimeout(debounceTimer);
+      window.clearTimeout(scrollTimer);
       observer.disconnect();
       window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', pauseDuringScroll, removeScrollOptions);
+      window.removeEventListener('wheel', pauseDuringScroll, removeScrollOptions);
+      window.removeEventListener('touchmove', pauseDuringScroll, removeScrollOptions);
       window.removeEventListener('themechange', onTheme);
       document.removeEventListener('visibilitychange', onTheme);
     };
