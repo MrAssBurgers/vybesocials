@@ -55,6 +55,8 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   const [hasError, setHasError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
+  const adShownRef = useRef(false);
+  const { showVideoAd } = useVideoAds();
 
   // Retry loading up to 2 times
   useEffect(() => {
@@ -111,10 +113,16 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
     setHasError(true);
   };
 
-  const handleClick = () => {
+  const handleClick = async () => {
     if (!videoRef.current || hasError) return;
 
     if (!isPlaying) {
+      // YouTube-style pre-video ad on first manual play (frequency-capped inside the hook)
+      if (!adShownRef.current) {
+        adShownRef.current = true;
+        try { await showVideoAd('pre_video'); } catch {}
+        if (!videoRef.current) return;
+      }
       videoRef.current.currentTime = 0;
       videoRef.current.play().catch(() => {});
       setIsPlaying(true);
