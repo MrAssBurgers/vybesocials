@@ -51,16 +51,25 @@ const ItemPreview = memo(({ item }: { item: MarketplaceItem }) => {
     avatar_frame_gold: (
       <div className="flex items-center justify-center h-16">
         <div className="relative">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-muted to-muted-foreground/20" />
-          <div className="absolute -inset-1 rounded-full border-[2.5px] border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]" />
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-muted to-muted-foreground/20 ring-[3px] ring-yellow-400/80 animate-[sunset-halo_2.4s_ease-in-out_infinite]" />
         </div>
       </div>
     ),
     avatar_frame_fire: (
       <div className="flex items-center justify-center h-16">
         <div className="relative">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-muted to-muted-foreground/20" />
-          <div className="absolute -inset-1 rounded-full border-[2.5px] border-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]" />
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-muted to-muted-foreground/20 ring-[3px] ring-orange-400/90 animate-[fire-ring-flicker_1.4s_ease-in-out_infinite]" />
+          {/* Floating ember particles */}
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="absolute left-1/2 bottom-0 w-1 h-1 rounded-full bg-orange-400 blur-[1px]"
+              style={{
+                animation: `fire-ember 1.6s ${i * 0.4}s ease-in infinite`,
+                transform: `translateX(${(i - 1) * 6}px)`,
+              }}
+            />
+          ))}
         </div>
       </div>
     ),
