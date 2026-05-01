@@ -1,5 +1,5 @@
 import { useState, memo, useCallback } from 'react';
-import { Coins, Crown, Lock, Check, ShoppingBag } from 'lucide-react';
+import { Coins, Crown, Lock, Check, ShoppingBag, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageTransition } from '@/components/ui/PageTransition';
@@ -9,6 +9,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useTokenMarketplace, CATEGORY_LABELS, type MarketplaceItem } from '@/hooks/useTokenMarketplace';
 import { useMarketplacePurchase } from '@/hooks/useMarketplacePurchase';
+import { useActivateBoost } from '@/hooks/useActiveBoosts';
+import { ActiveBoostsBanner } from '@/components/tokens/ActiveBoostsBanner';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -126,13 +128,18 @@ function usePurchasedItems() {
   });
 }
 
-const ItemCard = memo(({ item, canAfford, isPremium, onBuy, isPurchased, isPurchasing }: { 
-  item: MarketplaceItem; canAfford: boolean; isPremium: boolean; onBuy: (item: MarketplaceItem) => void; 
-  isPurchased: boolean; isPurchasing: boolean;
+const ItemCard = memo(({ item, canAfford, isPremium, onBuy, onActivate, isPurchased, isPurchasing, isActivating }: {
+  item: MarketplaceItem; canAfford: boolean; isPremium: boolean;
+  onBuy: (item: MarketplaceItem) => void;
+  onActivate: (item: MarketplaceItem) => void;
+  isPurchased: boolean; isPurchasing: boolean; isActivating: boolean;
 }) => {
   const locked = item.premiumOnly && !isPremium;
+  const isConsumable = item.kind === 'consumable';
+  const showActivate = isPurchased && isConsumable;
 
-  const handleBuy = () => {
+  const handleClick = () => {
+    if (showActivate) { onActivate(item); return; }
     if (isPurchased) { toast.info('Already owned — check your Locker'); return; }
     if (locked) { toast.error('This item requires VYBE Pro'); return; }
     if (!canAfford) { toast.error('Not enough tokens'); return; }
@@ -143,17 +150,18 @@ const ItemCard = memo(({ item, canAfford, isPremium, onBuy, isPurchased, isPurch
     <Card className={cn(
       "liquid-glass border-white/10 overflow-hidden transition-all duration-300 hover:scale-[1.02] active:scale-[0.97]",
       locked && "opacity-60",
-      isPurchased && "ring-1 ring-primary/30"
+      isPurchased && !showActivate && "ring-1 ring-primary/30",
+      showActivate && "ring-1 ring-amber-400/50"
     )}>
       <CardContent className="p-3 flex flex-col items-center text-center gap-1.5">
-        {/* Visual preview instead of just emoji */}
         <div className="w-full">
           <ItemPreview item={item} />
         </div>
 
         <h3 className="font-semibold text-xs text-foreground leading-tight">{item.name}</h3>
         <p className="text-[10px] text-muted-foreground line-clamp-2 leading-snug">{item.description}</p>
-        
+        <p className="text-[9px] text-primary/80 font-medium leading-tight line-clamp-1">{item.perk}</p>
+
         <div className="flex items-center gap-1 text-amber-500 font-bold text-xs mt-0.5">
           <Coins className="h-3 w-3" />
           {item.cost}
@@ -161,20 +169,24 @@ const ItemCard = memo(({ item, canAfford, isPremium, onBuy, isPurchased, isPurch
 
         <Button
           size="sm"
-          onClick={handleBuy}
-          disabled={isPurchasing || (isPurchased) || (!canAfford && !locked)}
+          onClick={handleClick}
+          disabled={isPurchasing || isActivating || (isPurchased && !isConsumable) || (!isPurchased && !canAfford && !locked)}
           className={cn(
             "w-full mt-0.5 text-[11px] h-7",
-            isPurchased
-              ? "bg-primary/10 text-primary border border-primary/20"
-              : locked
-                ? "bg-muted text-muted-foreground"
-                : canAfford
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                  : "bg-muted/50 text-muted-foreground"
+            showActivate
+              ? "bg-amber-500 text-black hover:bg-amber-400"
+              : isPurchased
+                ? "bg-primary/10 text-primary border border-primary/20"
+                : locked
+                  ? "bg-muted text-muted-foreground"
+                  : canAfford
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                    : "bg-muted/50 text-muted-foreground"
           )}
         >
-          {isPurchased ? (
+          {showActivate ? (
+            isActivating ? 'Activating…' : <><Zap className="h-3 w-3 mr-1" /> Activate</>
+          ) : isPurchased ? (
             <><Check className="h-3 w-3 mr-1" /> Owned</>
           ) : locked ? (
             <><Lock className="h-3 w-3 mr-1" /> PRO Only</>
