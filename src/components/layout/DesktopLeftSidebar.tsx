@@ -185,15 +185,6 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
           <Link to="/home" className="flex items-center gap-2 group" onClick={() => debugPanel?.handleLogoTap()}>
             <VYBELogo size={collapsed ? "sm" : "md"} showText={!collapsed} />
           </Link>
-          {!collapsed && (
-            <Link
-              to="/settings?tab=subscription"
-              className="flex items-center gap-1 h-6 px-2 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-yellow-500/30 transition-all"
-            >
-              <Crown className="h-3 w-3 text-amber-500" />
-              <span className="text-[10px] font-bold text-amber-500">PRO</span>
-            </Link>
-          )}
         </div>
         {!collapsed && profile && (
           <div className="mx-3 mb-3 space-y-2" data-tutorial="sidebar-profile">
