@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useDNAPerks } from '@/hooks/useDNAPerks';
+import { useHasBoost } from '@/hooks/useActiveBoosts';
 
 export interface TokenBalance {
   id: string;
@@ -134,9 +135,11 @@ export function useEarnTokens() {
 export function useTokenReward() {
   const earn = useEarnTokens();
   const perks = useDNAPerks();
+  const tokens2x = useHasBoost('tokens_2x');
 
-  // Apply DNA token multiplier to all earnings
-  const applyMultiplier = (base: number) => Math.round(base * perks.tokenMultiplier);
+  // DNA multiplier × active 2x token boost from token shop
+  const applyMultiplier = (base: number) =>
+    Math.round(base * perks.tokenMultiplier * (tokens2x ? 2 : 1));
 
   return {
     rewardPost: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.post_created), type: 'post_created', description: 'Created a post' }),

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { showRewarded } from '@/lib/admob';
 import { isNativePlatform } from '@/lib/capacitor';
 import { useEarnTokens } from '@/hooks/useVybeTokens';
+import { useHasBoost } from '@/hooks/useActiveBoosts';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { hapticNotification } from '@/lib/capacitor';
@@ -57,6 +58,7 @@ function saveState(userId: string, s: RewardState) {
 export function useRewardedAd() {
   const { user } = useAuth();
   const earn = useEarnTokens();
+  const tokens2x = useHasBoost('tokens_2x');
   const [state, setState] = useState<RewardState>(() =>
     user?.id ? loadState(user.id) : { date: todayKey(), count: 0, lastAt: 0 }
   );
@@ -113,10 +115,11 @@ export function useRewardedAd() {
       }
 
       // Credit tokens server-side
+      const earned = REWARD_PER_AD * (tokens2x ? 2 : 1);
       await earn.mutateAsync({
-        amount: REWARD_PER_AD,
+        amount: earned,
         type: 'rewarded_ad',
-        description: 'Watched a rewarded ad',
+        description: tokens2x ? 'Rewarded ad (2× boost)' : 'Watched a rewarded ad',
       });
 
       const next: RewardState = {
@@ -129,7 +132,7 @@ export function useRewardedAd() {
       setNow(Date.now());
 
       hapticNotification('success');
-      toast.success(`+${REWARD_PER_AD} VYBE Tokens earned! 💎`);
+      toast.success(`+${earned} VYBE Tokens earned! 💎`);
     } catch (err: any) {
       console.error('[RewardedAd] Failed:', err);
       toast.error('Could not load ad. Please try again later.');
