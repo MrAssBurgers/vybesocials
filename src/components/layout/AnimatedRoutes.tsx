@@ -53,6 +53,11 @@ const Terms = lazy(() => import("@/pages/Terms"));
 const CookiePolicy = lazy(() => import("@/pages/CookiePolicy"));
 const ChildSafety = lazy(() => import("@/pages/ChildSafety"));
 const DeleteAccount = lazy(() => import("@/pages/DeleteAccount"));
+const Features = lazy(() => import("@/pages/Features"));
+const Safety = lazy(() => import("@/pages/Safety"));
+const FAQ = lazy(() => import("@/pages/FAQ"));
+const Blog = lazy(() => import("@/pages/Blog"));
+const BlogPost = lazy(() => import("@/pages/BlogPost"));
 const About = lazy(() => import("@/pages/About"));
 const Contact = lazy(() => import("@/pages/Contact"));
 const InviteFriends = lazy(() => import("@/pages/InviteFriends"));
@@ -142,6 +147,11 @@ export function AnimatedRoutes() {
             <Route path="/child-safety" element={<ChildSafety />} />
             <Route path="/delete-account" element={<DeleteAccount />} />
             <Route path="/account-deletion" element={<DeleteAccount />} />
+            <Route path="/features" element={<Features />} />
+            <Route path="/safety" element={<Safety />} />
+            <Route path="/faq" element={<FAQ />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/blog/:slug" element={<BlogPost />} />
             <Route path="/guidelines" element={<CommunityGuidelines />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
