@@ -140,6 +140,8 @@ export function AnimatedRoutes() {
             <Route path="/terms" element={<Terms />} />
             <Route path="/cookies" element={<CookiePolicy />} />
             <Route path="/child-safety" element={<ChildSafety />} />
+            <Route path="/delete-account" element={<DeleteAccount />} />
+            <Route path="/account-deletion" element={<DeleteAccount />} />
             <Route path="/guidelines" element={<CommunityGuidelines />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
