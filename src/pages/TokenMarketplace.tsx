@@ -159,7 +159,7 @@ const ItemCard = memo(({ item, canAfford, isPremium, onBuy, onActivate, isPurcha
   const handleClick = () => {
     if (showActivate) { onActivate(item); return; }
     if (isPurchased) { toast.info('Already owned — check your Locker'); return; }
-    if (locked) { toast.error('This item requires VYBE Pro'); return; }
+    if (locked) { toast.error('This item is locked'); return; }
     if (!canAfford) { toast.error('Not enough tokens'); return; }
     onBuy(item);
   };
