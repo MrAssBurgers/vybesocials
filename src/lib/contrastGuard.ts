@@ -144,8 +144,98 @@ export function contrastRatio(fg: RGBA, bg: RGBA): number {
 }
 
 /**
- * Walk up ancestors compositing semi-transparent backgrounds until a fully
- * opaque color is found. Falls back to the body background, then white.
+ * Average the color stops in a CSS gradient string. Returns null if no
+ * parseable color stops are found. Crude but effective for "what's the
+ * dominant tint of this gradient" decisions.
+ */
+function averageGradientColor(bgImage: string): RGBA | null {
+  if (!bgImage || bgImage === 'none') return null;
+  // Match rgb()/rgba()/hsl()/hsla()/#hex tokens inside the gradient string.
+  const tokens = bgImage.match(
+    /rgba?\([^)]+\)|hsla?\([^)]+\)|#[0-9a-fA-F]{3,8}/g,
+  );
+  if (!tokens || !tokens.length) return null;
+  let r = 0, g = 0, b = 0, a = 0, n = 0;
+  for (const t of tokens) {
+    const c = parseColor(t);
+    if (!c || c.a < 0.05) continue;
+    r += c.r; g += c.g; b += c.b; a += c.a; n++;
+  }
+  if (!n) return null;
+  return {
+    r: Math.round(r / n),
+    g: Math.round(g / n),
+    b: Math.round(b / n),
+    a: Math.min(1, a / n),
+  };
+}
+
+/**
+ * Read a pseudo-element's background color/gradient if it appears to paint
+ * a full-bleed surface behind the host element (common pattern for themed
+ * body backgrounds via ::before / ::after).
+ */
+function getPseudoBg(node: Element, pseudo: '::before' | '::after'): RGBA | null {
+  let cs: CSSStyleDeclaration;
+  try {
+    cs = window.getComputedStyle(node, pseudo);
+  } catch {
+    return null;
+  }
+  if (!cs || cs.content === 'none' || cs.content === 'normal') {
+    // No content set → pseudo not rendered at all
+    return null;
+  }
+  const bgColor = parseColor(cs.backgroundColor);
+  const gradient = averageGradientColor(cs.backgroundImage || '');
+  // Prefer the gradient if the solid color is transparent
+  const candidate =
+    bgColor && bgColor.a > 0.05
+      ? bgColor
+      : gradient
+      ? { ...gradient, a: Math.max(gradient.a, 0.95) }
+      : null;
+  if (!candidate) return null;
+  // Heuristic: the pseudo must visually cover the host. Most "theme background"
+  // pseudos use position:absolute/fixed with inset:0. Anything inline is skipped.
+  const pos = cs.position;
+  if (pos !== 'absolute' && pos !== 'fixed') return null;
+  return candidate;
+}
+
+/**
+ * Find the topmost full-bleed fixed background layer in the document
+ * (e.g. a themed wallpaper element with `position:fixed; inset:0`).
+ * Returns the dominant color or null.
+ */
+function getFullBleedFixedBg(): RGBA | null {
+  // Cheap check: only inspect direct children of <body> — themed wallpapers
+  // are almost always mounted there to avoid affecting layout.
+  const candidates = Array.from(document.body.children) as Element[];
+  for (const el of candidates) {
+    const cs = window.getComputedStyle(el);
+    if (cs.position !== 'fixed') continue;
+    if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+    const rect = (el as HTMLElement).getBoundingClientRect?.();
+    if (!rect) continue;
+    // Must roughly cover the viewport
+    if (rect.width < window.innerWidth * 0.9) continue;
+    if (rect.height < window.innerHeight * 0.9) continue;
+    const solid = parseColor(cs.backgroundColor);
+    if (solid && solid.a > 0.5) return { ...solid, a: 1 };
+    const gradient = averageGradientColor(cs.backgroundImage || '');
+    if (gradient) return { ...gradient, a: 1 };
+  }
+  return null;
+}
+
+const BLUR_RE = /blur\(\s*([\d.]+)px\s*\)/i;
+
+/**
+ * Walk up ancestors compositing semi-transparent backgrounds (including
+ * gradient images and pseudo-element backdrops) until a fully opaque color
+ * is found. Falls back to the dominant fixed wallpaper, then body, then a
+ * theme-aware canvas color.
  */
 export function getEffectiveBg(el: Element | null): RGBA {
   let result: RGBA = TRANSPARENT;
@@ -154,29 +244,88 @@ export function getEffectiveBg(el: Element | null): RGBA {
   let safety = 25;
   while (node && safety-- > 0) {
     const cs = window.getComputedStyle(node);
+    const bf = cs.backdropFilter || (cs as any).webkitBackdropFilter || '';
+    const blurMatch = bf && bf !== 'none' ? bf.match(BLUR_RE) : null;
+    const blurAmount = blurMatch ? parseFloat(blurMatch[1]) : 0;
+
+    // 1. Solid background-color on this node (with optional blur boost).
     const bgColor = parseColor(cs.backgroundColor);
-    // Treat backdrop-filter / filter as making background effectively opaque-ish:
-    // we still need to look upward, but the blurred surface usually contributes
-    // ~70% of itself. Approximate by boosting alpha.
     if (bgColor && bgColor.a > 0) {
-      const bf = cs.backdropFilter || (cs as any).webkitBackdropFilter || '';
-      const boosted =
-        bf && bf !== 'none' && bgColor.a < 0.95
-          ? { ...bgColor, a: Math.min(1, bgColor.a + 0.25) }
-          : bgColor;
-      // result is stacked ON TOP of boosted (we're walking outward),
-      // so existing result is `over`, ancestor is `under`.
+      // A heavy backdrop-filter blur visually mixes most of the underlying
+      // surface into this layer — but the layer's own tint still dominates
+      // when it's near-opaque. Cap the boost so an opaque card stays opaque.
+      let boosted = bgColor;
+      if (bf && bf !== 'none' && bgColor.a < 0.95) {
+        // Stronger blurs reveal less of what's underneath. Map blur 0→+0.15,
+        // blur 12px→+0.30, blur 24px+→+0.45. Tuned so frosted glass surfaces
+        // still register as having SOME opacity, instead of 5% pass-through.
+        const boost = Math.min(0.45, 0.15 + blurAmount * 0.0125);
+        boosted = { ...bgColor, a: Math.min(1, bgColor.a + boost) };
+      }
       result = composite(result, boosted);
       if (result.a >= 0.99) return { ...result, a: 1 };
     }
+
+    // 2. Background-image gradient on this node.
+    const bgImage = cs.backgroundImage || '';
+    if (bgImage && bgImage !== 'none') {
+      const grad = averageGradientColor(bgImage);
+      if (grad && grad.a > 0.05) {
+        result = composite(result, { ...grad, a: Math.max(grad.a, 0.9) });
+        if (result.a >= 0.99) return { ...result, a: 1 };
+      }
+    }
+
+    // 3. Pseudo-element backdrops (themed body backgrounds, glass overlays).
+    const pBefore = getPseudoBg(node, '::before');
+    if (pBefore) {
+      result = composite(result, pBefore);
+      if (result.a >= 0.99) return { ...result, a: 1 };
+    }
+    const pAfter = getPseudoBg(node, '::after');
+    if (pAfter) {
+      result = composite(result, pAfter);
+      if (result.a >= 0.99) return { ...result, a: 1 };
+    }
+
+    // 4. If this layer has heavy blur and we still haven't hit opacity,
+    // the visual reality is that what's *behind* dominates. Sample the
+    // top-level fixed wallpaper now rather than walking through the
+    // (likely transparent) ancestor chain.
+    if (blurAmount >= 12 && result.a < 0.85) {
+      const wallpaper = getFullBleedFixedBg();
+      if (wallpaper) {
+        result = composite(result, wallpaper);
+        if (result.a >= 0.99) return { ...result, a: 1 };
+      }
+    }
+
     node = node.parentElement;
   }
+
+  // Fallback: dominant fixed wallpaper layer (themed background image)
+  if (result.a < 0.99) {
+    const wallpaper = getFullBleedFixedBg();
+    if (wallpaper) {
+      result = composite(result, wallpaper);
+    }
+  }
   // Body / html fallback
-  const bodyBg =
-    parseColor(window.getComputedStyle(document.body).backgroundColor) ||
-    parseColor(window.getComputedStyle(document.documentElement).backgroundColor);
-  if (bodyBg && bodyBg.a > 0) {
-    result = composite(result, { ...bodyBg, a: 1 });
+  if (result.a < 0.99) {
+    const bodyCs = window.getComputedStyle(document.body);
+    const htmlCs = window.getComputedStyle(document.documentElement);
+    const bodyBg = parseColor(bodyCs.backgroundColor);
+    const bodyGrad = averageGradientColor(bodyCs.backgroundImage || '');
+    const htmlBg = parseColor(htmlCs.backgroundColor);
+    const htmlGrad = averageGradientColor(htmlCs.backgroundImage || '');
+    const pick =
+      (bodyBg && bodyBg.a > 0 && bodyBg) ||
+      (bodyGrad && { ...bodyGrad, a: 1 }) ||
+      (htmlBg && htmlBg.a > 0 && htmlBg) ||
+      (htmlGrad && { ...htmlGrad, a: 1 });
+    if (pick) {
+      result = composite(result, { ...pick, a: 1 });
+    }
   }
   if (result.a < 0.99) {
     // Final canvas fallback: assume white in light mode, near-black in dark.
