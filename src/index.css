@@ -2243,6 +2243,11 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   outline-offset: 2px;
 }
 
+/* Contrast Auto-Guard: applied at runtime when text fails WCAG AA on its surface */
+[data-contrast-fixed] {
+  color: var(--auto-contrast-color, inherit) !important;
+}
+
 /* Skip to content link */
 .skip-link {
   position: absolute;

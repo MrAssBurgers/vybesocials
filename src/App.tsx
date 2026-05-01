@@ -20,6 +20,7 @@ import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProv
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
 import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
+import { useContrastAutoGuard } from "@/hooks/useContrastAutoGuard";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
@@ -187,6 +188,9 @@ function AppWithPreloader() {
 
   // Auto-update checker
   useAutoUpdate();
+
+  // Auto-detect low-contrast text and fix it on the fly
+  useContrastAutoGuard();
 
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
