@@ -83,6 +83,20 @@ function processElement(el: Element) {
   const cached = cache.get(el);
   if (cached && cached.fgKey === fgKey && cached.bgKey === bgKey) return;
 
+  // Honor a manual override placed on the element or any ancestor:
+  //   data-force-contrast="dark"  → pin near-black foreground
+  //   data-force-contrast="light" → pin near-white foreground
+  const forced = el.closest('[data-force-contrast]') as HTMLElement | null;
+  if (forced) {
+    const mode = forced.getAttribute('data-force-contrast');
+    const htmlEl = el as HTMLElement;
+    const color = mode === 'light' ? 'rgb(245, 245, 247)' : 'rgb(14, 14, 18)';
+    htmlEl.style.setProperty('--auto-contrast-color', color);
+    htmlEl.setAttribute('data-contrast-fixed', 'forced');
+    cache.set(el, { fgKey, bgKey, ratio: 21 });
+    return;
+  }
+
   const ratio = contrastRatio(fg, bg);
   const threshold = isLargeText(el) ? AA_LARGE : AA_BODY;
 
@@ -92,9 +106,15 @@ function processElement(el: Element) {
     htmlEl.style.setProperty('--auto-contrast-color', readable);
     htmlEl.setAttribute('data-contrast-fixed', ratio.toFixed(2));
   } else if (htmlEl.hasAttribute('data-contrast-fixed')) {
-    // Keep an already-fixed element stable. The CSS rule changes computed
-    // color, so removing the attribute here would immediately make it fail
-    // again and create a mutation/layout loop that can freeze scrolling.
+    // If the underlying surface has changed enough that the *original* color
+    // would now pass cleanly with margin, release the override so the element
+    // returns to its themed color. Hysteresis prevents flicker loops.
+    if (ratio >= threshold + 1.5) {
+      htmlEl.style.removeProperty('--auto-contrast-color');
+      htmlEl.removeAttribute('data-contrast-fixed');
+      cache.set(el, { fgKey, bgKey, ratio });
+      return;
+    }
     cache.set(el, { fgKey, bgKey, ratio });
     return;
   }
