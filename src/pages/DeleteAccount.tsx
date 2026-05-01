@@ -69,14 +69,6 @@ export default function DeleteAccountPage() {
 
   return (
     <div className="min-h-screen bg-background relative z-10">
-      <Helmet>
-        <title>Delete Your VYBE Account | Account Deletion Request</title>
-        <meta
-          name="description"
-          content="Request deletion of your VYBE account and personal data. Submit a deletion request directly from this page — no login required."
-        />
-        <link rel="canonical" href="https://vybehub.app/delete-account" />
-      </Helmet>
 
       <div className="max-w-2xl mx-auto p-4 sm:p-6">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="mb-4">
