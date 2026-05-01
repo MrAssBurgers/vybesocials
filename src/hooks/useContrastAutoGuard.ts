@@ -23,6 +23,10 @@ const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'SVG', 'IMG', 'VIDEO', 'CANVAS', '
 const AA_BODY = 4.5;
 const AA_LARGE = 3;
 
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number;
+};
+
 interface CacheEntry {
   fgKey: string;
   bgKey: string;
@@ -137,8 +141,9 @@ function scheduleScan(roots?: Element[]) {
       scheduleScan();
     }
   };
-  if ('requestIdleCallback' in window) {
-    (window as any).requestIdleCallback(run, { timeout: 300 });
+  const idleWindow = window as IdleWindow;
+  if (idleWindow.requestIdleCallback) {
+    idleWindow.requestIdleCallback(run, { timeout: 300 });
   } else {
     setTimeout(run, 16);
   }
@@ -150,7 +155,7 @@ export function useContrastAutoGuard(enabled = true) {
     if (typeof window === 'undefined') return;
 
     // Disable on very low-memory devices
-    const dm = (navigator as any).deviceMemory;
+    const dm = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     if (typeof dm === 'number' && dm < 2) return;
 
     let debounceTimer: number | undefined;
@@ -198,9 +203,11 @@ export function useContrastAutoGuard(enabled = true) {
     const onResize = () => debouncedFullScan();
     const onTheme = () => debouncedFullScan();
     window.addEventListener('resize', onResize, { passive: true });
-    window.addEventListener('scroll', pauseDuringScroll, { passive: true, capture: true });
-    window.addEventListener('wheel', pauseDuringScroll, { passive: true, capture: true });
-    window.addEventListener('touchmove', pauseDuringScroll, { passive: true, capture: true });
+    const scrollOptions: AddEventListenerOptions = { passive: true, capture: true };
+    const removeScrollOptions: EventListenerOptions = { capture: true };
+    window.addEventListener('scroll', pauseDuringScroll, scrollOptions);
+    window.addEventListener('wheel', pauseDuringScroll, scrollOptions);
+    window.addEventListener('touchmove', pauseDuringScroll, scrollOptions);
     window.addEventListener('themechange', onTheme);
     document.addEventListener('visibilitychange', onTheme);
 
@@ -210,9 +217,9 @@ export function useContrastAutoGuard(enabled = true) {
       window.clearTimeout(scrollTimer);
       observer.disconnect();
       window.removeEventListener('resize', onResize);
-      window.removeEventListener('scroll', pauseDuringScroll, { capture: true } as any);
-      window.removeEventListener('wheel', pauseDuringScroll, { capture: true } as any);
-      window.removeEventListener('touchmove', pauseDuringScroll, { capture: true } as any);
+      window.removeEventListener('scroll', pauseDuringScroll, removeScrollOptions);
+      window.removeEventListener('wheel', pauseDuringScroll, removeScrollOptions);
+      window.removeEventListener('touchmove', pauseDuringScroll, removeScrollOptions);
       window.removeEventListener('themechange', onTheme);
       document.removeEventListener('visibilitychange', onTheme);
     };
