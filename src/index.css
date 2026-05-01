@@ -3434,7 +3434,46 @@ img, video {
   100% { box-shadow: 0 0 20px 4px rgba(236, 72, 153, 0.3), 0 0 40px 8px rgba(139, 92, 246, 0.15); }
 }
 
-/* ── Effect Animation Classes (for locker & VybePass) ──── */
+/* ── Discord-style Fire Ring (for avatar frame) ── */
+@keyframes fire-ring-flicker {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgba(255, 180, 60, 0.95),
+      0 0 12px 4px rgba(255, 120, 30, 0.85),
+      0 0 26px 8px rgba(255, 80, 10, 0.55),
+      0 0 48px 14px rgba(220, 40, 0, 0.35),
+      0 -6px 24px 4px rgba(255, 200, 80, 0.45);
+  }
+  20% {
+    box-shadow:
+      0 0 0 2px rgba(255, 200, 80, 1),
+      0 0 16px 6px rgba(255, 140, 40, 0.95),
+      0 0 32px 12px rgba(255, 70, 0, 0.65),
+      0 0 56px 18px rgba(200, 30, 0, 0.4),
+      0 -10px 32px 6px rgba(255, 220, 100, 0.55);
+  }
+  45% {
+    box-shadow:
+      0 0 0 2px rgba(255, 160, 50, 0.9),
+      0 0 10px 3px rgba(255, 110, 20, 0.8),
+      0 0 22px 7px rgba(240, 60, 0, 0.5),
+      0 0 42px 12px rgba(180, 30, 0, 0.3),
+      0 -4px 18px 3px rgba(255, 190, 70, 0.4);
+  }
+  70% {
+    box-shadow:
+      0 0 0 2px rgba(255, 210, 90, 1),
+      0 0 18px 7px rgba(255, 150, 40, 1),
+      0 0 36px 14px rgba(255, 80, 10, 0.7),
+      0 0 60px 20px rgba(220, 40, 0, 0.45),
+      0 -12px 36px 8px rgba(255, 230, 120, 0.6);
+  }
+}
+@keyframes fire-ring-rotate {
+  to { transform: rotate(360deg); }
+}
+
+
 .sparkle-name {
   animation: sparkle-name 1.8s ease-in-out infinite;
 }
