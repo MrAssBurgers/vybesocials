@@ -13,6 +13,7 @@ import { useAheadMediaPreload } from '@/hooks/useAheadMediaPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { useVideoAds } from '@/hooks/useVideoAds';
 
 // Bottom nav height - accounts for safe area on all devices
 const BOTTOM_NAV_HEIGHT = 80; // px (including safe area padding)
