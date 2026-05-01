@@ -1,91 +1,79 @@
-# Redesign "Design Your VYBE" + fix duplicate Terms step
+# Redesign: Design Your Own VYBE — "Holographic Forge"
 
-## Problems found
+Transform `AIVybeDesigner.tsx` from a standard 4-step form into a futuristic, sci-fi "VYBE Forge" experience that feels like calibrating a personal hologram.
 
-**Duplicate Terms step (real bug):** `src/pages/Onboarding.tsx` renders the same `LegalAcceptance` component for both `case 5` and `case 6` of `renderStep()`. Whether the user has a username or not, the math (`getActualStep = step + 1` when no username, `TOTAL_STEPS = 6` when they do) lands users on the Terms screen on **two consecutive steps**. They have to accept and click Next twice on what looks like the exact same page.
+## Visual Direction
 
-**"Design Your VYBE" (`AIVybeDesigner.tsx`) issues:**
-- 917-line monolith with 7 step states (`intro` → `vibe-select` → `font-select` → `animation-select` → `prompt` → `building` → `confirm` → `preview`). Way too long to design through.
-- Crash risk: theme "revert" stores a JSON string of computed CSS values, then writes them back via `style.setProperty`. If anything throws between the snapshot and the apply (network failure, malformed AI response), the user is stuck with a broken theme and no way out except a manual settings reset.
-- Visual noise: every text node has `drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]` hardcoded — looks muddy on light themes and competes with the gradient glow background.
-- Phase animation uses chained `setTimeout` with no cleanup — if the user backs out mid-build, timers keep firing and call `setBuildPhase` on an unmounted-but-remounted component.
-- "Try Different Style" resets to `vibe-select` but keeps the previous applied theme on screen for a frame, causing a flash.
-- Confirm step is redundant: user already picked everything, watched a 4-second build animation, and now has to confirm before the *preview* — which is itself another confirm step.
+**Concept:** A glassy holographic console floating in deep space. Neon orbital rings, scanning grid backdrop, drifting particles, chromatic aberration glow, and a live morphing "VYBE Orb" at the center that reacts to every choice in real time.
 
-## What we'll build
+**Palette:** Driven by current `--primary` / `--accent` tokens so it adapts to whatever theme is active.
 
-### 1. Fix the Onboarding terms duplication
+## Step-by-Step Changes
 
-In `src/pages/Onboarding.tsx`:
-- Drop one of the duplicate Terms cases. Make Terms the final step exactly once.
-- Recompute `TOTAL_STEPS` (5 with username, 4 without) and the `stepLabels` array to match.
-- Update `getActualStep` and `canProceed` so step 5 (or 4) is the only Terms step.
+### 1. Background (replaces single conic gradient)
+- Animated **starfield/grid layer** (CSS perspective grid that scrolls toward viewer — pure CSS, no JS).
+- Two slow counter-rotating conic gradients with chromatic offset.
+- Floating particle dots (8-12 small `motion.div`s with randomized drift, GPU-only transforms).
+- Subtle vignette + film grain overlay (SVG turbulence, `opacity-[0.03]`).
+- All layers respect `prefers-reduced-motion`.
 
-Net effect: users see Terms exactly once, at the end.
+### 2. The VYBE Orb (new centerpiece)
+A persistent ~140px hovering sphere at the top of every step:
+- Layered radial gradients using `--primary` and `--accent`.
+- Inner pulsing core + 2 orbital rings rotating opposite directions.
+- Hue/intensity morphs as user picks vibe (mapped from `vibe.gradient`).
+- On generate: orb expands, ring spins faster, then settles with the new theme color.
 
-### 2. Rewrite Design Your VYBE as a clean 3-step flow
+### 3. Step 1 — VIBE selection (most dramatic upgrade)
+- Replace 2-column rectangular cards with a **radial/honeycomb arrangement** of 8 vibe orbs around the central VYBE Orb (or a fanned arc on small viewports — fall back to 2-col grid below 360px).
+- Each vibe = circular gradient chip with glow, icon centered, label underneath.
+- Selected: orbital ring traces around it + connecting beam to the center orb.
+- Custom prompt textarea restyled as a **"// neural input"** terminal field with a blinking caret and monospace placeholder.
 
-New file: `src/components/onboarding/AIVybeDesigner.tsx` (full rewrite, replacing the 917-line version).
+### 4. Step 2 — STYLE
+- Header label as `[ 02 / CALIBRATION ]` chrome chip.
+- Typography & Motion sections wrapped in glass panels with corner brackets (┌ ┐ └ ┘ via pseudo-elements).
+- Section icons get neon glow rings.
 
-The new flow:
+### 5. Step 3 — BUILDING
+- Keep `VybeGenerationAnimation` but overlay a **HUD frame**: scanning line sweeping top→bottom, phase counter `[ 03 / 05 ]`, and the orb at full intensity with rapid ring rotation.
 
-```text
-┌──────────────────────────────────────────┐
-│ STEP 1 — VIBE                            │
-│  • Pick a personality (8 options)        │
-│  • Tap a preset OR type your own prompt  │
-│    in the same panel (no separate step)  │
-└──────────────────────────────────────────┘
-                  ↓
-┌──────────────────────────────────────────┐
-│ STEP 2 — STYLE                           │
-│  • Font pairing                          │
-│  • Motion preset                         │
-│  Both on one screen (segmented controls) │
-└──────────────────────────────────────────┘
-                  ↓
-┌──────────────────────────────────────────┐
-│ STEP 3 — PREVIEW                         │
-│  • Build animation plays inline          │
-│  • Live preview cards appear under it    │
-│  • Two buttons: Keep / Try Again         │
-│  • Subtle "Revert" link if needed        │
-└──────────────────────────────────────────┘
-```
+### 6. Step 4 — PREVIEW
+- "Reveal" sequence: orb cracks open with a flash, preview cards slide in with staggered tilt.
+- Cards get glass + neon edge treatment matching theme color.
+- Buttons: "Try Again" → `[ RECALIBRATE ]`, "Keep It" → `[ DEPLOY VYBE ]` (still readable, not gimmicky).
 
-Drops `intro`, `prompt`, and `confirm` as separate steps (intro becomes the first paragraph of step 1, prompt is inline, confirm is removed because preview already lets you back out).
+### 7. Progress Bar (top)
+Replace flat bars with **segmented chevrons** (`◢◣`) that fill with neon gradient and pulse when active. Shows step number + label: `01 VIBE → 02 STYLE → 03 PREVIEW`.
 
-### 3. Premium animations & visuals
+## Technical Section
 
-- **Aurora background:** single subtle conic gradient that gently pans (one `transform` animation, no chained spinners). Replaces the heavy rotating ring around the VybeMiniIcon.
-- **Step transitions:** unified 350ms `EASE_OUT_EXPO` slide+fade (matches the Premium Motion Standards memory).
-- **Vibe tiles:** soft scale + glow on selection using a single Framer Motion `layoutId` so the highlight ring smoothly travels between tiles instead of toggling.
-- **Build phase:** progress arc that fills in real time around the VYBE icon, phase labels cross-fade on top. Replaces the current progress-rings + separate label stack.
-- **Preview reveal:** mock cards stagger-in (50ms each) using `motion.div` with `initial/animate` derived from a single parent variant.
-- **Removed:** every hardcoded `drop-shadow-[...]` — text uses `text-foreground` / `text-muted-foreground` so it adapts to whatever theme is being previewed.
+**Files modified:**
+- `src/components/onboarding/AIVybeDesigner.tsx` — full JSX/styling overhaul, logic untouched (snapshot, generate, save flow stays identical).
+- `src/index.css` — add new keyframes & utility classes scoped under `.vybe-forge-*`:
+  - `@keyframes forge-grid-scroll`, `forge-orb-pulse`, `forge-ring-spin`, `forge-scan-line`, `forge-particle-drift`, `forge-flash`.
+  - `.vybe-forge-orb`, `.vybe-forge-grid`, `.vybe-forge-panel`, `.vybe-forge-chip`, `.vybe-forge-corner-brackets`.
 
-### 4. Crash-proofing
+**No new dependencies.** Uses existing framer-motion + Tailwind + CSS variables.
 
-- **Snapshot safety:** wrap the snapshot capture and revert in try/catch. If revert fails, call `themeReset.resetToDefault()` (already exists in `src/lib/themeReset.ts`) as a guaranteed fallback.
-- **Cleanup phase timers:** replace the chained `setTimeout` recursion with a single `useEffect` that schedules an interval and clears it on unmount or when `step !== 'building'`.
-- **AbortController on unmount:** the existing `abortControllerRef` is created but never aborted on unmount — wire it into the cleanup function so leaving mid-generation cancels the edge-function call.
-- **Defensive AI parsing:** if `data.theme` is missing required tokens (`--background`, `--foreground`, `--primary`), don't apply it — show "Try again" with a toast instead of writing garbage CSS variables that could brick the screen.
-- **Reduced-motion respect:** check `prefers-reduced-motion` once and short-circuit decorative animations (background pan, build rings) to fades. Prevents jank on low-end Android devices.
+**Preserved behavior:**
+- All state (`selectedVibe`, `selectedFont`, `selectedAnimation`, `customPrompt`, `step`, `buildPhase`, `generatedTheme`).
+- `generateTheme`, `handleKeep`, `handleTryAgain`, `handleRevert`, snapshot/restore, `navVisibility.setInDesigner`.
+- `VybeGenerationAnimation`, `FontSelector`, `AnimationSelector` components reused as-is.
+- `isValidTheme` validator unchanged (recent fix preserved).
 
-### 5. Files touched
+**Performance:**
+- All animated layers use `transform`/`opacity` only.
+- `will-change` only on actively-animating elements (orb, rings).
+- Particles capped at 12, grid is single CSS layer.
+- Full `prefers-reduced-motion` fallback: static orb, no rotation, no particle drift, no grid scroll.
 
-| File | Change |
-|---|---|
-| `src/pages/Onboarding.tsx` | Remove duplicate Terms case in `renderStep`, fix `TOTAL_STEPS`, `getActualStep`, `canProceed`, and `stepLabels`. |
-| `src/components/onboarding/AIVybeDesigner.tsx` | Full rewrite (~917 lines → ~450 lines). |
-| `src/components/onboarding/VybeGenerationAnimation.tsx` | Simplify to a single progress arc + phase label; drop the multi-ring overlap. |
-| `src/components/onboarding/FontSelector.tsx` | No code change — gets reused inside the new combined Style step (cleaner spacing only if needed). |
-| `src/components/onboarding/AnimationSelector.tsx` | Same — reused inside Style step. |
+**Mobile:**
+- Designed against 985×649 viewport and smaller (375×812 baseline).
+- Honeycomb vibe layout collapses to 2-col grid below 360px.
+- Safe-area insets respected on top + bottom.
+- Touch targets stay ≥44px.
 
-Nothing else needs to change. The two unused legacy files (`src/components/onboarding/DesignYourVybe.tsx` and `src/components/settings/DesignYourVybe.tsx`) are referenced nowhere — they're dead code, but I'll leave them alone unless you want them deleted.
-
-### Out of scope
-
-- The settings-page customizer (`UIBuilder.tsx`) — separate component, not what users see during onboarding.
-- The edge function that generates themes (`generate-advanced-theme`) — keeping the same contract.
-- Backend / DB — pure client-side rewrite.
+**Theme safety:**
+- All neon colors derived from `hsl(var(--primary))` / `hsl(var(--accent))` so the forge looks correct in light mode too.
+- Glass panels use `bg-card/60` + `backdrop-blur` — falls back cleanly without backdrop-filter support.
