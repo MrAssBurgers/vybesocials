@@ -681,12 +681,10 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     pointer-events: none;
   }
 
-  /* iOS: Pause ALL animations during scroll for 60fps */
-  .platform-ios.is-scrolling *,
-  .platform-ios.is-scrolling *::before,
-  .platform-ios.is-scrolling *::after {
+  /* iOS: pause heavy keyframe animations during scroll, but keep transitions
+     intact so the UI doesn't appear to "freeze" or darken on touch. */
+  .platform-ios.is-scrolling [class*="animate-"] {
     animation-play-state: paused !important;
-    transition: none !important;
   }
 
   /* Performance: Use contain for layout isolation */
