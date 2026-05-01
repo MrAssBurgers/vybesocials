@@ -3742,3 +3742,148 @@ html[data-has-bg-image="true"] nav[aria-label="Bottom navigation"] .liquid-glass
 .animate-pulse-ring {
   animation: pulse-ring 2s ease-in-out infinite;
 }
+
+/* =============================================
+   VYBE Forge — futuristic AIVybeDesigner overlay
+   ============================================= */
+@keyframes forge-grid-scroll {
+  0% { transform: perspective(600px) rotateX(60deg) translateY(0); }
+  100% { transform: perspective(600px) rotateX(60deg) translateY(60px); }
+}
+@keyframes forge-orb-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 40px 8px hsl(var(--primary) / 0.45),
+      0 0 80px 20px hsl(var(--accent) / 0.25),
+      inset 0 0 40px hsl(var(--primary) / 0.5);
+  }
+  50% {
+    box-shadow:
+      0 0 60px 14px hsl(var(--primary) / 0.65),
+      0 0 120px 30px hsl(var(--accent) / 0.35),
+      inset 0 0 60px hsl(var(--primary) / 0.7);
+  }
+}
+@keyframes forge-ring-spin { to { transform: rotate(360deg); } }
+@keyframes forge-ring-spin-rev { to { transform: rotate(-360deg); } }
+@keyframes forge-scan-line {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+@keyframes forge-particle-drift {
+  0%, 100% { transform: translate(0, 0); opacity: 0.4; }
+  50% { transform: translate(20px, -30px); opacity: 0.9; }
+}
+@keyframes forge-flash {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes forge-caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+.vybe-forge-grid {
+  position: absolute;
+  inset: -50% -50% 0 -50%;
+  height: 100%;
+  background-image:
+    linear-gradient(hsl(var(--primary) / 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--primary) / 0.18) 1px, transparent 1px);
+  background-size: 60px 60px;
+  transform: perspective(600px) rotateX(60deg);
+  transform-origin: center top;
+  animation: forge-grid-scroll 4s linear infinite;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 70%, transparent 100%);
+}
+.vybe-forge-orb {
+  background:
+    radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.95), transparent 55%),
+    radial-gradient(circle at 70% 70%, hsl(var(--accent) / 0.85), transparent 60%),
+    radial-gradient(circle at 50% 50%, hsl(var(--background)) 0%, hsl(var(--primary) / 0.4) 100%);
+  animation: forge-orb-pulse 3.2s ease-in-out infinite;
+}
+.vybe-forge-ring {
+  border: 1px solid hsl(var(--primary) / 0.45);
+  border-top-color: hsl(var(--accent));
+  border-radius: 9999px;
+  animation: forge-ring-spin 8s linear infinite;
+}
+.vybe-forge-ring-rev {
+  border: 1px solid hsl(var(--accent) / 0.4);
+  border-bottom-color: hsl(var(--primary));
+  border-radius: 9999px;
+  animation: forge-ring-spin-rev 11s linear infinite;
+}
+.vybe-forge-panel {
+  background: linear-gradient(135deg, hsl(var(--card) / 0.6), hsl(var(--card) / 0.3));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid hsl(var(--primary) / 0.2);
+  position: relative;
+}
+.vybe-forge-panel::before,
+.vybe-forge-panel::after {
+  content: '';
+  position: absolute;
+  width: 12px; height: 12px;
+  border: 1.5px solid hsl(var(--primary) / 0.7);
+  pointer-events: none;
+}
+.vybe-forge-panel::before { top: 6px; left: 6px; border-right: none; border-bottom: none; }
+.vybe-forge-panel::after { bottom: 6px; right: 6px; border-left: none; border-top: none; }
+
+.vybe-forge-chip {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid hsl(var(--primary) / 0.4);
+  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--primary));
+}
+.vybe-forge-caret::after {
+  content: '▮';
+  margin-left: 2px;
+  color: hsl(var(--primary));
+  animation: forge-caret 1s steps(1) infinite;
+}
+.vybe-forge-scan {
+  position: absolute;
+  left: 0; right: 0;
+  height: 80px;
+  background: linear-gradient(to bottom, transparent, hsl(var(--primary) / 0.18), transparent);
+  pointer-events: none;
+  animation: forge-scan-line 2.4s linear infinite;
+}
+.vybe-forge-particle {
+  position: absolute;
+  width: 3px; height: 3px;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  box-shadow: 0 0 8px hsl(var(--primary)), 0 0 16px hsl(var(--accent) / 0.6);
+  animation: forge-particle-drift 6s ease-in-out infinite;
+}
+.vybe-forge-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, hsl(var(--primary) / 0.7), transparent 60%);
+  animation: forge-flash 0.9s ease-out forwards;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vybe-forge-grid,
+  .vybe-forge-orb,
+  .vybe-forge-ring,
+  .vybe-forge-ring-rev,
+  .vybe-forge-scan,
+  .vybe-forge-particle,
+  .vybe-forge-caret::after,
+  .vybe-forge-flash {
+    animation: none !important;
+  }
+}
