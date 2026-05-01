@@ -39,19 +39,16 @@ export function useScrollOptimization() {
 
     const opts: AddEventListenerOptions = { passive: true, capture: true };
 
-    // Kick optimizations the moment input begins.
-    window.addEventListener('touchstart', markScrolling, opts);
-    window.addEventListener('pointerdown', markScrolling, opts);
+    // Only mark scrolling on actual scroll movement (or wheel/touchmove which
+    // imply imminent scroll). Plain pointerdown/touchstart should NOT toggle
+    // scroll mode — that caused taps to flash the UI into a darkened state.
+    window.addEventListener('scroll', markScrolling, opts);
     window.addEventListener('wheel', markScrolling, opts);
-    // Also keep refreshing the settle timer while scroll is actually moving.
-    window.addEventListener('scroll', markScrolling, { passive: true, capture: true });
     window.addEventListener('touchmove', markScrolling, opts);
 
     return () => {
-      window.removeEventListener('touchstart', markScrolling, opts);
-      window.removeEventListener('pointerdown', markScrolling, opts);
-      window.removeEventListener('wheel', markScrolling, opts);
       window.removeEventListener('scroll', markScrolling, { capture: true } as any);
+      window.removeEventListener('wheel', markScrolling, opts);
       window.removeEventListener('touchmove', markScrolling, opts);
       scrollListenerAttached = false;
       if (settleTimeout) clearTimeout(settleTimeout);
