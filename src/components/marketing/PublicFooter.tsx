@@ -50,7 +50,7 @@ export function PublicFooter() {
           <VybeMiniIcon className="w-5 h-5" />
           <span className="font-semibold">VYBE</span>
         </Link>
-        <p className="text-xs">© {year} VYBE Social. All rights reserved.</p>
+        <p className="text-xs">© {year} Vybe Studios. All rights reserved.</p>
       </div>
     </footer>
   );

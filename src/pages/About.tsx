@@ -159,7 +159,7 @@ export default function About() {
             <Link to="/guidelines" className="hover:text-foreground transition-colors">Community Guidelines</Link>
             <Link to="/cookies" className="hover:text-foreground transition-colors">Cookie Policy</Link>
           </div>
-          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} VYBE Social. All rights reserved.</p>
+          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Vybe Studios. All rights reserved.</p>
         </div>
       </footer>
     </div>
