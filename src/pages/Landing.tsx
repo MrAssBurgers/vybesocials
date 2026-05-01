@@ -638,6 +638,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           <span>•</span>
           <a href="/guidelines" className="hover:text-foreground transition-colors">Guidelines</a>
         </div>
+      </motion.div>
       </div>
 
       {/* Public footer — critical for SEO and AdSense crawlability */}
