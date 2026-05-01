@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { showRewarded } from '@/lib/admob';
 import { isNativePlatform } from '@/lib/capacitor';
 import { useEarnTokens } from '@/hooks/useVybeTokens';
+import { useHasBoost } from '@/hooks/useActiveBoosts';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { hapticNotification } from '@/lib/capacitor';
