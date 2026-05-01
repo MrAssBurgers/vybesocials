@@ -329,43 +329,104 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         exit: { opacity: 0, y: -10, transition: { duration: 0.25, ease: EASE_OUT_EXPO } },
       };
 
+  // Step ordering for HUD
+  const stepOrder = ['vibe', 'style', 'building', 'preview'] as const;
+  const stepIndex = step === 'building' ? 2 : stepOrder.indexOf(step);
+  const stepLabels = ['VIBE', 'STYLE', 'PREVIEW'] as const;
+
+  // Particle positions (stable across renders)
+  const particles = useMemo(
+    () => Array.from({ length: 10 }, (_, i) => ({
+      id: i,
+      top: `${(i * 9.7) % 100}%`,
+      left: `${(i * 17.3) % 100}%`,
+      delay: `${(i * 0.7) % 5}s`,
+      duration: `${5 + (i % 4)}s`,
+    })),
+    []
+  );
+
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-hidden">
-      {/* Aurora background — single subtle layer */}
+      {/* === FORGE BACKDROP === */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
-        <motion.div
-          className="absolute -top-1/3 -left-1/3 w-[150%] h-[150%] rounded-full blur-[120px] opacity-30"
+        {/* Deep space gradient */}
+        <div
+          className="absolute inset-0"
           style={{
-            background: 'conic-gradient(from 90deg at 50% 50%, hsl(var(--primary) / 0.6), hsl(var(--accent) / 0.4), hsl(var(--primary) / 0.6))',
+            background:
+              'radial-gradient(ellipse at 50% 0%, hsl(var(--primary) / 0.18), transparent 60%), radial-gradient(ellipse at 50% 100%, hsl(var(--accent) / 0.14), transparent 55%), hsl(var(--background))',
+          }}
+        />
+        {/* Perspective grid floor */}
+        {!reduceMotion && (
+          <div className="absolute inset-x-0 bottom-0 h-1/2 overflow-hidden opacity-60">
+            <div className="vybe-forge-grid" />
+          </div>
+        )}
+        {/* Counter-rotating conic auroras */}
+        <motion.div
+          className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] rounded-full blur-[120px] opacity-25"
+          style={{
+            background:
+              'conic-gradient(from 0deg, hsl(var(--primary) / 0.7), transparent 40%, hsl(var(--accent) / 0.5), transparent 80%, hsl(var(--primary) / 0.7))',
           }}
           animate={reduceMotion ? undefined : { rotate: 360 }}
-          transition={{ duration: 60, repeat: Infinity, ease: 'linear' }}
+          transition={{ duration: 80, repeat: Infinity, ease: 'linear' }}
         />
-        <div className="absolute inset-0 bg-background/40" />
+        <motion.div
+          className="absolute -bottom-1/4 -right-1/4 w-[120%] h-[120%] rounded-full blur-[120px] opacity-20"
+          style={{
+            background:
+              'conic-gradient(from 180deg, hsl(var(--accent) / 0.6), transparent 50%, hsl(var(--primary) / 0.4))',
+          }}
+          animate={reduceMotion ? undefined : { rotate: -360 }}
+          transition={{ duration: 100, repeat: Infinity, ease: 'linear' }}
+        />
+        {/* Floating particles */}
+        {!reduceMotion && particles.map(p => (
+          <span
+            key={p.id}
+            className="vybe-forge-particle"
+            style={{ top: p.top, left: p.left, animationDelay: p.delay, animationDuration: p.duration }}
+          />
+        ))}
+        {/* Scan line during build */}
+        {step === 'building' && !reduceMotion && <div className="vybe-forge-scan" />}
+        {/* Vignette */}
+        <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-transparent to-background/60" />
       </div>
 
-      {/* Top progress bar */}
-      <div className="absolute top-0 inset-x-0 z-20 px-6 pt-[max(env(safe-area-inset-top),1rem)]">
-        <div className="max-w-md mx-auto flex items-center gap-2">
-          {(['vibe', 'style', 'preview'] as const).map((s, i) => {
-            const order = ['vibe', 'style', 'building', 'preview'] as const;
-            const currentIdx = step === 'building' ? 2 : order.indexOf(step);
-            const myIdx = s === 'preview' ? 2 : i;
-            const active = myIdx === currentIdx;
-            const passed = myIdx < currentIdx;
-            return (
-              <motion.div
-                key={s}
-                layout
-                className={cn(
-                  'h-1 rounded-full flex-1 transition-colors',
-                  active ? 'bg-primary' : passed ? 'bg-primary/50' : 'bg-muted/40'
-                )}
-                animate={{ scaleY: active ? 1.4 : 1 }}
-                transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
-              />
-            );
-          })}
+      {/* === HUD: top progress chevrons === */}
+      <div className="absolute top-0 inset-x-0 z-20 px-5 pt-[max(env(safe-area-inset-top),1rem)]">
+        <div className="max-w-md mx-auto flex items-center justify-between gap-2">
+          <span className="vybe-forge-chip shrink-0">VYBE · FORGE</span>
+          <div className="flex-1 flex items-center gap-1.5">
+            {stepLabels.map((label, i) => {
+              const active = i === Math.min(stepIndex, 2);
+              const passed = i < Math.min(stepIndex, 2);
+              return (
+                <div key={label} className="flex-1 flex items-center gap-1.5">
+                  <motion.div
+                    layout
+                    className={cn(
+                      'h-1.5 flex-1 rounded-sm transition-all',
+                      active
+                        ? 'bg-gradient-to-r from-primary to-accent shadow-[0_0_10px_hsl(var(--primary)/0.7)]'
+                        : passed
+                        ? 'bg-primary/60'
+                        : 'bg-muted/30'
+                    )}
+                    animate={{ scaleY: active ? 1.6 : 1 }}
+                    transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <span className="vybe-forge-chip shrink-0 tabular-nums">
+            {String(Math.min(stepIndex + 1, 3)).padStart(2, '0')}/03
+          </span>
         </div>
       </div>
 
@@ -377,25 +438,39 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             {...stepVariants}
             className="relative z-10 h-full flex flex-col px-5 pt-20 pb-5 max-w-md mx-auto w-full"
           >
-            <div className="text-center mb-6">
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
-                className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 mb-4"
-              >
-                <Wand2 className="h-6 w-6 text-primary" />
-              </motion.div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1.5 tracking-tight">
-                Design Your VYBE
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Pick a feeling. We'll craft the rest.
-              </p>
+            {/* === HERO ORB === */}
+            <div className="relative flex flex-col items-center mb-5 mt-1">
+              <div className="relative w-[120px] h-[120px] flex items-center justify-center">
+                {/* Orbital rings */}
+                {!reduceMotion && (
+                  <>
+                    <div className="absolute inset-[-14px] vybe-forge-ring" />
+                    <div className="absolute inset-[-26px] vybe-forge-ring-rev" />
+                  </>
+                )}
+                {/* Orb */}
+                <motion.div
+                  layoutId="vybe-orb"
+                  className="vybe-forge-orb w-[110px] h-[110px] rounded-full flex items-center justify-center"
+                  transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
+                >
+                  <Wand2 className="h-7 w-7 text-primary-foreground drop-shadow-[0_0_8px_hsl(var(--primary))]" />
+                </motion.div>
+              </div>
+              <div className="text-center mt-4">
+                <span className="vybe-forge-chip">[ 01 / SIGNAL ]</span>
+                <h1 className="text-2xl sm:text-[28px] font-bold text-foreground mt-2 tracking-tight">
+                  Design Your VYBE
+                </h1>
+                <p className="text-xs text-muted-foreground mt-1 font-mono tracking-wide">
+                  // select a frequency to tune the system
+                </p>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto overscroll-contain -mx-1 px-1">
-              <div className="grid grid-cols-2 gap-2.5 mb-4">
+              {/* Vibe constellation */}
+              <div className="grid grid-cols-4 gap-2 mb-4">
                 {PERSONALITY_VIBES.map((vibe, idx) => {
                   const Icon = vibe.icon;
                   const isSelected = selectedVibe === vibe.id;
@@ -403,50 +478,63 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                     <motion.button
                       key={vibe.id}
                       type="button"
-                      initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.04, duration: 0.35, ease: EASE_OUT_EXPO }}
-                      whileTap={{ scale: 0.96 }}
+                      initial={reduceMotion ? false : { opacity: 0, scale: 0.6 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: idx * 0.04, duration: 0.4, ease: EASE_OUT_EXPO }}
+                      whileTap={{ scale: 0.92 }}
                       onClick={() => setSelectedVibe(isSelected ? null : vibe.id)}
                       className={cn(
-                        'relative p-3.5 rounded-2xl border bg-card/40 backdrop-blur-sm',
-                        'flex items-center gap-3 text-left transition-colors',
-                        isSelected
-                          ? 'border-primary/60 bg-primary/5'
-                          : 'border-border/40 hover:border-border'
+                        'group relative flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all min-h-[78px]',
+                        isSelected ? 'bg-primary/10' : 'hover:bg-card/40'
                       )}
                     >
-                      {isSelected && (
+                      {/* Orbital ring on selection */}
+                      {isSelected && !reduceMotion && (
                         <motion.div
-                          layoutId="vibe-glow"
-                          className="absolute inset-0 rounded-2xl ring-2 ring-primary/40 shadow-[0_0_30px_-5px_hsl(var(--primary)/0.6)] pointer-events-none"
+                          layoutId="vibe-select-ring"
+                          className="absolute inset-x-2 top-1.5 h-12 rounded-full ring-2 ring-primary shadow-[0_0_18px_hsl(var(--primary)/0.7)] pointer-events-none"
                           transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
                         />
                       )}
-                      <div className={cn(
-                        'shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br',
-                        vibe.gradient
-                      )}>
-                        <Icon className="h-5 w-5 text-white" />
+                      <div
+                        className={cn(
+                          'w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br shadow-lg transition-transform',
+                          vibe.gradient,
+                          isSelected ? 'scale-110' : 'group-hover:scale-105'
+                        )}
+                        style={{
+                          boxShadow: isSelected
+                            ? '0 0 24px hsl(var(--primary) / 0.5), inset 0 0 12px rgba(255,255,255,0.2)'
+                            : '0 4px 16px rgba(0,0,0,0.3)',
+                        }}
+                      >
+                        <Icon className="h-5 w-5 text-white drop-shadow-md" />
                       </div>
-                      <span className="text-sm font-semibold text-foreground">{vibe.label}</span>
+                      <span className={cn(
+                        'text-[10px] font-mono uppercase tracking-wider transition-colors',
+                        isSelected ? 'text-primary font-bold' : 'text-muted-foreground'
+                      )}>
+                        {vibe.label}
+                      </span>
                     </motion.button>
                   );
                 })}
               </div>
 
-              <div className="mt-2">
-                <label className="text-xs font-medium text-muted-foreground px-1 mb-2 block">
-                  Or describe it (optional)
+              {/* Neural input terminal */}
+              <div className="mt-3 vybe-forge-panel rounded-xl p-3.5">
+                <label className="text-[10px] font-mono uppercase tracking-[0.18em] text-primary/80 mb-2 flex items-center gap-1.5">
+                  <span className="vybe-forge-caret">// neural input</span>
+                  <span className="ml-auto text-muted-foreground/60">optional</span>
                 </label>
                 <Textarea
                   value={customPrompt}
                   onChange={e => setCustomPrompt(e.target.value.slice(0, 200))}
-                  placeholder="e.g. Sunset over the ocean, soft and warm"
-                  className="min-h-[80px] resize-none bg-card/40 border-border/40 backdrop-blur-sm text-sm"
+                  placeholder="describe your dream vybe..."
+                  className="min-h-[70px] resize-none bg-background/40 border-primary/20 focus-visible:border-primary/60 focus-visible:ring-primary/30 text-sm font-mono"
                 />
-                <div className="text-[10px] text-muted-foreground/70 text-right mt-1">
-                  {customPrompt.length}/200
+                <div className="text-[10px] font-mono text-muted-foreground/70 text-right mt-1 tabular-nums">
+                  {String(customPrompt.length).padStart(3, '0')} / 200
                 </div>
               </div>
             </div>
@@ -456,7 +544,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                 <Button
                   variant="ghost"
                   onClick={onSkip}
-                  className="text-muted-foreground rounded-full h-11 px-5"
+                  className="text-muted-foreground rounded-full h-11 px-5 font-mono text-xs uppercase tracking-wider"
                 >
                   Skip
                 </Button>
@@ -464,10 +552,10 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               <Button
                 onClick={() => setStep('style')}
                 disabled={!selectedVibe && !customPrompt.trim()}
-                className="flex-1 rounded-full h-11 font-semibold"
+                className="flex-1 rounded-full h-11 font-mono text-xs uppercase tracking-[0.2em] bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[0_0_24px_-4px_hsl(var(--primary)/0.7)] border border-primary/40"
               >
                 Continue
-                <ArrowRight className="ml-1.5 h-4 w-4" />
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </motion.div>
@@ -480,26 +568,43 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             {...stepVariants}
             className="relative z-10 h-full flex flex-col px-5 pt-20 pb-5 max-w-md mx-auto w-full"
           >
-            <div className="text-center mb-5">
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1.5 tracking-tight">
-                Make it yours
+            <div className="flex flex-col items-center mb-5">
+              <div className="relative w-[88px] h-[88px] flex items-center justify-center mb-3">
+                {!reduceMotion && <div className="absolute inset-[-10px] vybe-forge-ring" />}
+                <motion.div
+                  layoutId="vybe-orb"
+                  className="vybe-forge-orb w-[78px] h-[78px] rounded-full flex items-center justify-center"
+                  transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
+                >
+                  <Sparkles className="h-5 w-5 text-primary-foreground drop-shadow-[0_0_8px_hsl(var(--primary))]" />
+                </motion.div>
+              </div>
+              <span className="vybe-forge-chip">[ 02 / CALIBRATION ]</span>
+              <h1 className="text-2xl sm:text-[28px] font-bold text-foreground tracking-tight mt-2">
+                Calibrate the system
               </h1>
-              <p className="text-sm text-muted-foreground">Pick a font and how it should move.</p>
+              <p className="text-xs text-muted-foreground mt-1 font-mono tracking-wide">
+                // tune typography &amp; motion signature
+              </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain -mx-1 px-1 space-y-5">
-              <section>
-                <div className="flex items-center gap-2 mb-2.5 px-1">
-                  <Type className="h-4 w-4 text-primary" />
-                  <h2 className="text-sm font-semibold text-foreground">Typography</h2>
+            <div className="flex-1 overflow-y-auto overscroll-contain -mx-1 px-1 space-y-4">
+              <section className="vybe-forge-panel rounded-xl p-3.5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shadow-[0_0_12px_hsl(var(--primary)/0.4)]">
+                    <Type className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-foreground">Typography</h2>
                 </div>
                 <FontSelector selectedFont={selectedFont} onSelect={setSelectedFont} />
               </section>
 
-              <section>
-                <div className="flex items-center gap-2 mb-2.5 px-1">
-                  <Zap className="h-4 w-4 text-primary" />
-                  <h2 className="text-sm font-semibold text-foreground">Motion</h2>
+              <section className="vybe-forge-panel rounded-xl p-3.5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center shadow-[0_0_12px_hsl(var(--accent)/0.4)]">
+                    <Zap className="h-3.5 w-3.5 text-accent" />
+                  </div>
+                  <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-foreground">Motion Signature</h2>
                 </div>
                 <AnimationSelector selectedAnimation={selectedAnimation} onSelect={setSelectedAnimation} />
               </section>
@@ -509,17 +614,17 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               <Button
                 variant="ghost"
                 onClick={() => setStep('vibe')}
-                className="rounded-full h-11 px-5 text-muted-foreground"
+                className="rounded-full h-11 px-5 text-muted-foreground font-mono text-xs uppercase tracking-wider"
               >
                 <ArrowLeft className="mr-1.5 h-4 w-4" />
                 Back
               </Button>
               <Button
                 onClick={generateTheme}
-                className="flex-1 rounded-full h-11 font-semibold"
+                className="flex-1 rounded-full h-11 font-mono text-xs uppercase tracking-[0.2em] bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[0_0_28px_-4px_hsl(var(--primary)/0.8)] border border-primary/40"
               >
-                <Sparkles className="mr-1.5 h-4 w-4" />
-                Generate
+                <Sparkles className="mr-2 h-4 w-4" />
+                Forge VYBE
               </Button>
             </div>
           </motion.div>
@@ -547,44 +652,57 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             {...stepVariants}
             className="relative z-10 h-full flex flex-col px-5 pt-20 pb-5 max-w-md mx-auto w-full"
           >
-            <div className="text-center mb-4">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', stiffness: 220, damping: 18 }}
-                className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/15 border border-primary/30 mb-3"
-              >
-                <Check className="h-6 w-6 text-primary" />
-              </motion.div>
-              <h1 className="text-2xl font-bold text-foreground mb-1 tracking-tight">
+            <div className="text-center mb-4 relative">
+              {/* Reveal flash */}
+              <div className="vybe-forge-flash absolute inset-0 pointer-events-none" />
+              <div className="relative w-[110px] h-[110px] mx-auto flex items-center justify-center mb-3">
+                {!reduceMotion && (
+                  <>
+                    <div className="absolute inset-[-12px] vybe-forge-ring" />
+                    <div className="absolute inset-[-22px] vybe-forge-ring-rev" />
+                  </>
+                )}
+                <motion.div
+                  layoutId="vybe-orb"
+                  className="vybe-forge-orb w-[100px] h-[100px] rounded-full flex items-center justify-center"
+                  transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
+                >
+                  <Check className="h-7 w-7 text-primary-foreground drop-shadow-[0_0_10px_hsl(var(--primary))]" strokeWidth={3} />
+                </motion.div>
+              </div>
+              <span className="vybe-forge-chip">[ 03 / DEPLOYED ]</span>
+              <h1 className="text-2xl font-bold text-foreground mt-2 tracking-tight">
                 {generatedTheme?.themeName || 'Your VYBE'}
               </h1>
-              <p className="text-sm text-muted-foreground">Live preview — try it on for size.</p>
+              <p className="text-xs text-muted-foreground mt-1 font-mono tracking-wide">
+                // signal locked — preview live
+              </p>
             </div>
 
             <div className="flex-1 overflow-y-auto overscroll-contain space-y-3">
               {/* Mock feed card */}
               <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={showPreviewElements ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
-                className="rounded-2xl p-4 bg-card border border-border/40"
+                initial={{ opacity: 0, y: 16, rotateX: -6 }}
+                animate={showPreviewElements ? { opacity: 1, y: 0, rotateX: 0 } : {}}
+                transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
+                className="vybe-forge-panel rounded-2xl p-4"
+                style={{ boxShadow: '0 0 30px -10px hsl(var(--primary) / 0.4)' }}
               >
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent" />
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent shadow-[0_0_18px_hsl(var(--primary)/0.6)]" />
                   <div className="flex-1">
                     <div className="text-sm font-semibold text-foreground">Your Feed</div>
-                    <div className="text-xs text-muted-foreground">Looks great</div>
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">// preview · live</div>
                   </div>
                 </div>
-                <div className="h-20 rounded-xl bg-gradient-to-br from-primary/25 to-accent/25" />
+                <div className="h-20 rounded-xl bg-gradient-to-br from-primary/30 to-accent/30 border border-primary/20" />
               </motion.div>
 
               {/* Mock buttons */}
               <motion.div
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 16 }}
                 animate={showPreviewElements ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.4, delay: 0.05, ease: EASE_OUT_EXPO }}
+                transition={{ duration: 0.5, delay: 0.08, ease: EASE_OUT_EXPO }}
                 className="flex gap-2"
               >
                 <Button className="flex-1 font-semibold">Primary</Button>
@@ -593,12 +711,12 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
 
               {/* Color palette */}
               <motion.div
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 16 }}
                 animate={showPreviewElements ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.4, delay: 0.1, ease: EASE_OUT_EXPO }}
-                className="rounded-2xl p-4 bg-card border border-border/40"
+                transition={{ duration: 0.5, delay: 0.16, ease: EASE_OUT_EXPO }}
+                className="vybe-forge-panel rounded-2xl p-4"
               >
-                <div className="text-xs font-medium text-muted-foreground mb-2.5">Palette</div>
+                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-2.5">// palette</div>
                 <div className="flex gap-2">
                   {[
                     { c: 'bg-primary', label: 'Primary' },
@@ -607,8 +725,8 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                     { c: 'bg-muted', label: 'Muted' },
                   ].map(s => (
                     <div key={s.label} className="flex-1 flex flex-col items-center gap-1.5">
-                      <div className={cn('w-full h-10 rounded-xl shadow-sm', s.c)} />
-                      <span className="text-[10px] text-muted-foreground">{s.label}</span>
+                      <div className={cn('w-full h-10 rounded-xl shadow-sm ring-1 ring-foreground/10', s.c)} />
+                      <span className="text-[9px] font-mono uppercase text-muted-foreground tracking-wider">{s.label}</span>
                     </div>
                   ))}
                 </div>
@@ -617,12 +735,12 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               {/* Font preview */}
               {generatedTheme?.fontFamily && (
                 <motion.div
-                  initial={{ opacity: 0, y: 12 }}
+                  initial={{ opacity: 0, y: 16 }}
                   animate={showPreviewElements ? { opacity: 1, y: 0 } : {}}
-                  transition={{ duration: 0.4, delay: 0.15, ease: EASE_OUT_EXPO }}
-                  className="rounded-2xl p-4 bg-card border border-border/40 text-center"
+                  transition={{ duration: 0.5, delay: 0.24, ease: EASE_OUT_EXPO }}
+                  className="vybe-forge-panel rounded-2xl p-4 text-center"
                 >
-                  <div className="text-xs text-muted-foreground mb-1">Typography</div>
+                  <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-1">// typography</div>
                   <div
                     className="text-xl font-bold text-foreground"
                     style={{ fontFamily: `'${generatedTheme.fontDisplay || generatedTheme.fontFamily}', system-ui` }}
@@ -638,25 +756,25 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                 <Button
                   variant="outline"
                   onClick={handleTryAgain}
-                  className="flex-1 rounded-full h-11 font-semibold"
+                  className="flex-1 rounded-full h-11 font-mono text-[11px] uppercase tracking-[0.18em] border-primary/30"
                 >
                   <RotateCcw className="mr-1.5 h-4 w-4" />
-                  Try Again
+                  Recalibrate
                 </Button>
                 <Button
                   onClick={handleKeep}
                   disabled={saveTheme.isPending}
-                  className="flex-[2] rounded-full h-11 font-semibold"
+                  className="flex-[2] rounded-full h-11 font-mono text-[11px] uppercase tracking-[0.2em] bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[0_0_28px_-4px_hsl(var(--primary)/0.8)] border border-primary/40"
                 >
                   <Check className="mr-1.5 h-4 w-4" />
-                  {saveTheme.isPending ? 'Saving…' : 'Keep It'}
+                  {saveTheme.isPending ? 'Deploying…' : 'Deploy VYBE'}
                 </Button>
               </div>
               <button
                 onClick={handleRevert}
-                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+                className="w-full text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors py-1"
               >
-                Revert to previous theme
+                // revert to previous theme
               </button>
             </div>
           </motion.div>
