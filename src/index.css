@@ -2247,6 +2247,8 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 [data-contrast-fixed] {
   color: var(--auto-contrast-color, inherit) !important;
 }
+
+/* Skip to content link */
 .skip-link {
   position: absolute;
   left: -9999px;
