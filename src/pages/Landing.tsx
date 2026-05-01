@@ -20,6 +20,7 @@ import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 import { FounderCounter } from '@/components/growth/FounderCounter';
+import { PublicFooter } from '@/components/marketing/PublicFooter';
 
 // Hide bottom nav on landing page
 function useHideBottomNav() {
