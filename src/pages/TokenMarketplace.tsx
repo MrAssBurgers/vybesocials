@@ -220,23 +220,46 @@ const ItemCard = memo(({ item, canAfford, isPremium, onBuy, onActivate, isPurcha
 export default function TokenMarketplace() {
   const [tab, setTab] = useState<string>('all');
   const [showConfetti, setShowConfetti] = useState(false);
+  const [showRoulette, setShowRoulette] = useState(false);
   const filterCat = tab === 'all' ? undefined : tab as MarketplaceItem['category'];
   const { items, balance, canAfford, isPremium } = useTokenMarketplace(filterCat);
   const purchase = useMarketplacePurchase();
   const activate = useActivateBoost();
+  const equip = useEquipItem();
   const { data: purchasedIds = [] } = usePurchasedItems();
 
   const handleBuy = useCallback((item: MarketplaceItem) => {
     purchase.mutate({ itemId: item.id, cost: item.cost, name: item.name }, {
-      onSuccess: () => {
+      onSuccess: async () => {
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 2000);
+
+        // Auto-equip permanent cosmetics so the user instantly sees what they bought
+        const equipSpec = PERMANENT_EQUIP_MAP[item.id];
+        if (equipSpec) {
+          try {
+            await equip.mutateAsync(equipSpec);
+            toast.success(`${item.name} equipped!`);
+          } catch {
+            toast.info(`${item.name} added to your locker`);
+          }
+        }
       },
     });
-  }, [purchase]);
+  }, [purchase, equip]);
 
   const handleActivate = useCallback((item: MarketplaceItem) => {
-    activate.mutate({ itemId: item.id, name: item.name });
+    // Show the spinning roulette animation for the roulette pack
+    if (item.id === 'roulette_pack') {
+      setShowRoulette(true);
+    }
+    activate.mutate({ itemId: item.id, name: item.name }, {
+      onSettled: () => {
+        if (item.id === 'roulette_pack') {
+          setTimeout(() => setShowRoulette(false), 2400);
+        }
+      },
+    });
   }, [activate]);
 
   return (
@@ -279,6 +302,50 @@ export default function TokenMarketplace() {
           )}
         </AnimatePresence>
 
+        {/* Roulette spin overlay */}
+        <AnimatePresence>
+          {showRoulette && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.4, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.6, opacity: 0 }}
+                className="relative flex flex-col items-center gap-4"
+              >
+                <div className="relative h-44 w-44">
+                  {/* Outer glow */}
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-fuchsia-500 to-amber-400 blur-2xl opacity-60" />
+                  {/* Spinning roulette */}
+                  <motion.div
+                    animate={{ rotate: [0, 1440] }}
+                    transition={{ duration: 2.2, ease: [0.16, 0.9, 0.3, 1] }}
+                    className="absolute inset-0 rounded-full border-[6px] border-foreground/10"
+                    style={{
+                      background:
+                        'conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #8b5cf6, #ec4899, #ef4444)',
+                    }}
+                  />
+                  {/* Center hub */}
+                  <div className="absolute inset-1/3 rounded-full bg-card border border-white/10 flex items-center justify-center text-3xl">
+                    🎰
+                  </div>
+                  {/* Pointer */}
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[10px] border-r-[10px] border-b-[16px] border-l-transparent border-r-transparent border-b-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]" />
+                </div>
+                <div className="text-center">
+                  <p className="text-base font-bold text-foreground">+5 Roulette Spins!</p>
+                  <p className="text-xs text-muted-foreground">Added to your VYBE Roulette balance</p>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
           {/* Header */}
           <div className="flex items-center justify-between">
@@ -294,15 +361,6 @@ export default function TokenMarketplace() {
               <span className="font-bold text-amber-500">{balance}</span>
             </div>
           </div>
-
-          {!isPremium && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-primary/5 border border-primary/10">
-              <Crown className="h-5 w-5 text-primary shrink-0" />
-              <p className="text-xs text-muted-foreground">
-                <span className="font-semibold text-primary">VYBE Pro</span> unlocks exclusive items marked with 👑
-              </p>
-            </div>
-          )}
 
           <ActiveBoostsBanner />
           <Tabs value={tab} onValueChange={setTab}>
@@ -329,6 +387,24 @@ export default function TokenMarketplace() {
                     isPurchasing={purchase.isPending}
                     isActivating={activate.isPending}
                   />
+                ))}
+
+                {/* "More coming soon" placeholder cards */}
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Card
+                    key={`soon-${i}`}
+                    className="liquid-glass border-dashed border-white/10 overflow-hidden opacity-70"
+                  >
+                    <CardContent className="p-3 flex flex-col items-center text-center gap-1.5 min-h-[180px] justify-center">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                        <Sparkles className="h-6 w-6 text-primary animate-pulse" />
+                      </div>
+                      <h3 className="font-semibold text-xs text-foreground leading-tight">More coming soon</h3>
+                      <p className="text-[10px] text-muted-foreground leading-snug">
+                        New cosmetics & boosts dropping every season
+                      </p>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
               {items.length === 0 && (
