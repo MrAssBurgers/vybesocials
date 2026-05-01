@@ -59,7 +59,10 @@ export function usePublicThemes(searchQuery?: string) {
       if (error) throw error;
       return (data || []) as unknown as SharedTheme[];
     },
-    staleTime: 60000,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    placeholderData: (prev) => prev,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -89,7 +92,10 @@ export function useSavedThemes() {
       return (data?.map(d => ({ ...d.shared_theme, saved_id: d.id })) || []) as unknown as (SharedTheme & { saved_id: string })[];
     },
     enabled: !!profile?.id,
-    staleTime: 60000,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    placeholderData: (prev) => prev,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -112,7 +118,10 @@ export function useMySharedThemes() {
       return (data || []) as unknown as SharedTheme[];
     },
     enabled: !!profile?.id,
-    staleTime: 60000,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    placeholderData: (prev) => prev,
+    refetchOnWindowFocus: false,
   });
 }
 

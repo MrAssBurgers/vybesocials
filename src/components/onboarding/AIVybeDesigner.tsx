@@ -397,8 +397,20 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-transparent to-background/60" />
       </div>
 
+      {/* === Close button (top-left) === */}
+      {onSkip && (
+        <button
+          type="button"
+          onClick={onSkip}
+          aria-label="Close"
+          className="absolute z-30 left-4 top-[max(env(safe-area-inset-top),1rem)] h-10 w-10 rounded-full border border-primary/30 bg-background/60 backdrop-blur-md flex items-center justify-center text-foreground hover:bg-background/80 active:scale-95 transition"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+      )}
+
       {/* === HUD: top progress chevrons === */}
-      <div className="absolute top-0 inset-x-0 z-20 px-5 pt-[max(env(safe-area-inset-top),1rem)]">
+      <div className="absolute top-0 inset-x-0 z-20 px-5 pt-[max(env(safe-area-inset-top),1rem)] pl-16">
         <div className="max-w-md mx-auto flex items-center justify-between gap-2">
           <span className="vybe-forge-chip shrink-0">VYBE · FORGE</span>
           <div className="flex-1 flex items-center gap-1.5">
