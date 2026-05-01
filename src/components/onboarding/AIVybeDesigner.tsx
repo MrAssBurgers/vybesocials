@@ -438,25 +438,39 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             {...stepVariants}
             className="relative z-10 h-full flex flex-col px-5 pt-20 pb-5 max-w-md mx-auto w-full"
           >
-            <div className="text-center mb-6">
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
-                className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 mb-4"
-              >
-                <Wand2 className="h-6 w-6 text-primary" />
-              </motion.div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1.5 tracking-tight">
-                Design Your VYBE
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Pick a feeling. We'll craft the rest.
-              </p>
+            {/* === HERO ORB === */}
+            <div className="relative flex flex-col items-center mb-5 mt-1">
+              <div className="relative w-[120px] h-[120px] flex items-center justify-center">
+                {/* Orbital rings */}
+                {!reduceMotion && (
+                  <>
+                    <div className="absolute inset-[-14px] vybe-forge-ring" />
+                    <div className="absolute inset-[-26px] vybe-forge-ring-rev" />
+                  </>
+                )}
+                {/* Orb */}
+                <motion.div
+                  layoutId="vybe-orb"
+                  className="vybe-forge-orb w-[110px] h-[110px] rounded-full flex items-center justify-center"
+                  transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
+                >
+                  <Wand2 className="h-7 w-7 text-primary-foreground drop-shadow-[0_0_8px_hsl(var(--primary))]" />
+                </motion.div>
+              </div>
+              <div className="text-center mt-4">
+                <span className="vybe-forge-chip">[ 01 / SIGNAL ]</span>
+                <h1 className="text-2xl sm:text-[28px] font-bold text-foreground mt-2 tracking-tight">
+                  Design Your VYBE
+                </h1>
+                <p className="text-xs text-muted-foreground mt-1 font-mono tracking-wide">
+                  // select a frequency to tune the system
+                </p>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto overscroll-contain -mx-1 px-1">
-              <div className="grid grid-cols-2 gap-2.5 mb-4">
+              {/* Vibe constellation */}
+              <div className="grid grid-cols-4 gap-2 mb-4">
                 {PERSONALITY_VIBES.map((vibe, idx) => {
                   const Icon = vibe.icon;
                   const isSelected = selectedVibe === vibe.id;
@@ -464,50 +478,63 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                     <motion.button
                       key={vibe.id}
                       type="button"
-                      initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.04, duration: 0.35, ease: EASE_OUT_EXPO }}
-                      whileTap={{ scale: 0.96 }}
+                      initial={reduceMotion ? false : { opacity: 0, scale: 0.6 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: idx * 0.04, duration: 0.4, ease: EASE_OUT_EXPO }}
+                      whileTap={{ scale: 0.92 }}
                       onClick={() => setSelectedVibe(isSelected ? null : vibe.id)}
                       className={cn(
-                        'relative p-3.5 rounded-2xl border bg-card/40 backdrop-blur-sm',
-                        'flex items-center gap-3 text-left transition-colors',
-                        isSelected
-                          ? 'border-primary/60 bg-primary/5'
-                          : 'border-border/40 hover:border-border'
+                        'group relative flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all min-h-[78px]',
+                        isSelected ? 'bg-primary/10' : 'hover:bg-card/40'
                       )}
                     >
-                      {isSelected && (
+                      {/* Orbital ring on selection */}
+                      {isSelected && !reduceMotion && (
                         <motion.div
-                          layoutId="vibe-glow"
-                          className="absolute inset-0 rounded-2xl ring-2 ring-primary/40 shadow-[0_0_30px_-5px_hsl(var(--primary)/0.6)] pointer-events-none"
+                          layoutId="vibe-select-ring"
+                          className="absolute inset-x-2 top-1.5 h-12 rounded-full ring-2 ring-primary shadow-[0_0_18px_hsl(var(--primary)/0.7)] pointer-events-none"
                           transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
                         />
                       )}
-                      <div className={cn(
-                        'shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br',
-                        vibe.gradient
-                      )}>
-                        <Icon className="h-5 w-5 text-white" />
+                      <div
+                        className={cn(
+                          'w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br shadow-lg transition-transform',
+                          vibe.gradient,
+                          isSelected ? 'scale-110' : 'group-hover:scale-105'
+                        )}
+                        style={{
+                          boxShadow: isSelected
+                            ? '0 0 24px hsl(var(--primary) / 0.5), inset 0 0 12px rgba(255,255,255,0.2)'
+                            : '0 4px 16px rgba(0,0,0,0.3)',
+                        }}
+                      >
+                        <Icon className="h-5 w-5 text-white drop-shadow-md" />
                       </div>
-                      <span className="text-sm font-semibold text-foreground">{vibe.label}</span>
+                      <span className={cn(
+                        'text-[10px] font-mono uppercase tracking-wider transition-colors',
+                        isSelected ? 'text-primary font-bold' : 'text-muted-foreground'
+                      )}>
+                        {vibe.label}
+                      </span>
                     </motion.button>
                   );
                 })}
               </div>
 
-              <div className="mt-2">
-                <label className="text-xs font-medium text-muted-foreground px-1 mb-2 block">
-                  Or describe it (optional)
+              {/* Neural input terminal */}
+              <div className="mt-3 vybe-forge-panel rounded-xl p-3.5">
+                <label className="text-[10px] font-mono uppercase tracking-[0.18em] text-primary/80 mb-2 flex items-center gap-1.5">
+                  <span className="vybe-forge-caret">// neural input</span>
+                  <span className="ml-auto text-muted-foreground/60">optional</span>
                 </label>
                 <Textarea
                   value={customPrompt}
                   onChange={e => setCustomPrompt(e.target.value.slice(0, 200))}
-                  placeholder="e.g. Sunset over the ocean, soft and warm"
-                  className="min-h-[80px] resize-none bg-card/40 border-border/40 backdrop-blur-sm text-sm"
+                  placeholder="describe your dream vybe..."
+                  className="min-h-[70px] resize-none bg-background/40 border-primary/20 focus-visible:border-primary/60 focus-visible:ring-primary/30 text-sm font-mono"
                 />
-                <div className="text-[10px] text-muted-foreground/70 text-right mt-1">
-                  {customPrompt.length}/200
+                <div className="text-[10px] font-mono text-muted-foreground/70 text-right mt-1 tabular-nums">
+                  {String(customPrompt.length).padStart(3, '0')} / 200
                 </div>
               </div>
             </div>
