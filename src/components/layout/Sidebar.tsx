@@ -68,7 +68,7 @@ export function Sidebar() {
                 "flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group",
                 isActive
                   ? "text-sidebar-foreground"
-                  : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  : "text-foreground/85 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               )}
             >
               {/* Animated gradient outline for active state */}
