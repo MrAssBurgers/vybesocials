@@ -13,6 +13,7 @@ import { useAheadMediaPreload } from '@/hooks/useAheadMediaPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { useVideoAds } from '@/hooks/useVideoAds';
 
 // Bottom nav height - accounts for safe area on all devices
 const BOTTOM_NAV_HEIGHT = 80; // px (including safe area padding)
@@ -117,6 +118,29 @@ export default function ClipsPage() {
       observerRef.current?.disconnect();
     };
   }, [shorts?.length, currentIndex]);
+
+  // YouTube-style ads: pre-roll once when Clips opens, then mid-feed every N clips.
+  const { showVideoAd, isMidFeedAdSlot } = useVideoAds();
+  const preRollFiredRef = useRef(false);
+  const lastAdIndexRef = useRef(-1);
+
+  // Pre-roll: fire once after the first clip is ready
+  useEffect(() => {
+    if (preRollFiredRef.current) return;
+    if (!shorts || shorts.length === 0) return;
+    preRollFiredRef.current = true;
+    // Small delay so the first clip can paint behind the ad
+    const t = setTimeout(() => { showVideoAd('pre_roll'); }, 800);
+    return () => clearTimeout(t);
+  }, [shorts, showVideoAd]);
+
+  // Mid-feed: when the user lands on a slot index, fire an interstitial
+  useEffect(() => {
+    if (currentIndex === lastAdIndexRef.current) return;
+    if (!isMidFeedAdSlot(currentIndex)) return;
+    lastAdIndexRef.current = currentIndex;
+    showVideoAd('mid_feed');
+  }, [currentIndex, isMidFeedAdSlot, showVideoAd]);
 
   // Keyboard navigation (desktop only)
   useEffect(() => {
