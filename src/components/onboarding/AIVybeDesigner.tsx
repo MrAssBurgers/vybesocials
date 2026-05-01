@@ -568,26 +568,43 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             {...stepVariants}
             className="relative z-10 h-full flex flex-col px-5 pt-20 pb-5 max-w-md mx-auto w-full"
           >
-            <div className="text-center mb-5">
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1.5 tracking-tight">
-                Make it yours
+            <div className="flex flex-col items-center mb-5">
+              <div className="relative w-[88px] h-[88px] flex items-center justify-center mb-3">
+                {!reduceMotion && <div className="absolute inset-[-10px] vybe-forge-ring" />}
+                <motion.div
+                  layoutId="vybe-orb"
+                  className="vybe-forge-orb w-[78px] h-[78px] rounded-full flex items-center justify-center"
+                  transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
+                >
+                  <Sparkles className="h-5 w-5 text-primary-foreground drop-shadow-[0_0_8px_hsl(var(--primary))]" />
+                </motion.div>
+              </div>
+              <span className="vybe-forge-chip">[ 02 / CALIBRATION ]</span>
+              <h1 className="text-2xl sm:text-[28px] font-bold text-foreground tracking-tight mt-2">
+                Calibrate the system
               </h1>
-              <p className="text-sm text-muted-foreground">Pick a font and how it should move.</p>
+              <p className="text-xs text-muted-foreground mt-1 font-mono tracking-wide">
+                // tune typography &amp; motion signature
+              </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain -mx-1 px-1 space-y-5">
-              <section>
-                <div className="flex items-center gap-2 mb-2.5 px-1">
-                  <Type className="h-4 w-4 text-primary" />
-                  <h2 className="text-sm font-semibold text-foreground">Typography</h2>
+            <div className="flex-1 overflow-y-auto overscroll-contain -mx-1 px-1 space-y-4">
+              <section className="vybe-forge-panel rounded-xl p-3.5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shadow-[0_0_12px_hsl(var(--primary)/0.4)]">
+                    <Type className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-foreground">Typography</h2>
                 </div>
                 <FontSelector selectedFont={selectedFont} onSelect={setSelectedFont} />
               </section>
 
-              <section>
-                <div className="flex items-center gap-2 mb-2.5 px-1">
-                  <Zap className="h-4 w-4 text-primary" />
-                  <h2 className="text-sm font-semibold text-foreground">Motion</h2>
+              <section className="vybe-forge-panel rounded-xl p-3.5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center shadow-[0_0_12px_hsl(var(--accent)/0.4)]">
+                    <Zap className="h-3.5 w-3.5 text-accent" />
+                  </div>
+                  <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-foreground">Motion Signature</h2>
                 </div>
                 <AnimationSelector selectedAnimation={selectedAnimation} onSelect={setSelectedAnimation} />
               </section>
@@ -597,17 +614,17 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               <Button
                 variant="ghost"
                 onClick={() => setStep('vibe')}
-                className="rounded-full h-11 px-5 text-muted-foreground"
+                className="rounded-full h-11 px-5 text-muted-foreground font-mono text-xs uppercase tracking-wider"
               >
                 <ArrowLeft className="mr-1.5 h-4 w-4" />
                 Back
               </Button>
               <Button
                 onClick={generateTheme}
-                className="flex-1 rounded-full h-11 font-semibold"
+                className="flex-1 rounded-full h-11 font-mono text-xs uppercase tracking-[0.2em] bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[0_0_28px_-4px_hsl(var(--primary)/0.8)] border border-primary/40"
               >
-                <Sparkles className="mr-1.5 h-4 w-4" />
-                Generate
+                <Sparkles className="mr-2 h-4 w-4" />
+                Forge VYBE
               </Button>
             </div>
           </motion.div>
