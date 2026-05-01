@@ -544,7 +544,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                 <Button
                   variant="ghost"
                   onClick={onSkip}
-                  className="text-muted-foreground rounded-full h-11 px-5"
+                  className="text-muted-foreground rounded-full h-11 px-5 font-mono text-xs uppercase tracking-wider"
                 >
                   Skip
                 </Button>
@@ -552,10 +552,10 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               <Button
                 onClick={() => setStep('style')}
                 disabled={!selectedVibe && !customPrompt.trim()}
-                className="flex-1 rounded-full h-11 font-semibold"
+                className="flex-1 rounded-full h-11 font-mono text-xs uppercase tracking-[0.2em] bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[0_0_24px_-4px_hsl(var(--primary)/0.7)] border border-primary/40"
               >
                 Continue
-                <ArrowRight className="ml-1.5 h-4 w-4" />
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </motion.div>
