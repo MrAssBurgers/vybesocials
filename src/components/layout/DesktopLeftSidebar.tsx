@@ -261,7 +261,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
         )}
 
         {!collapsed && !profile && (
-          <div className="mx-3 mb-3 p-3 rounded-xl liquid-glass-subtle">
+          <div className="mx-3 mb-3 p-3 rounded-xl bg-muted/30 border border-border/30">
             <p className="text-sm text-muted-foreground text-center">{t('sidebar.notSignedIn')}</p>
           </div>
         )}
@@ -289,7 +289,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                   <Link
                     to="/notifications"
                     onClick={triggerNavFeedback}
-                    className="relative p-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                    className="relative p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground transition-colors"
                   >
                     <Bell className="h-4 w-4" />
                     {unreadNotifications > 0 && (
@@ -307,7 +307,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                   <Link
                     to="/challenges"
                     onClick={triggerNavFeedback}
-                    className="p-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                    className="p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground transition-colors"
                   >
                     <Trophy className="h-4 w-4" />
                   </Link>
@@ -320,7 +320,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                   <Link
                     to="/invite-friends"
                     onClick={triggerNavFeedback}
-                    className="p-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                    className="p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground transition-colors"
                   >
                     <Gift className="h-4 w-4" />
                   </Link>
@@ -333,7 +333,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                   <Link
                     to="/settings"
                     onClick={triggerNavFeedback}
-                    className="p-2 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+                    className="p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground transition-colors"
                   >
                     <Settings className="h-4 w-4" />
                   </Link>
@@ -403,7 +403,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                   <Link
                     key={server.id}
                     to={`/community?server=${server.id}`}
-                    className="flex items-center gap-2 p-2 rounded-xl hover:bg-sidebar-accent/30 transition-all"
+                    className="flex items-center gap-2 p-2 rounded-xl hover:bg-sidebar-accent/50 transition-colors"
                   >
                     <Avatar className="h-8 w-8">
                       {server.icon_url ? (
@@ -424,7 +424,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                 )}
               </div>
             ) : (
-              <div className="p-3 rounded-xl liquid-glass-subtle text-center">
+              <div className="p-3 rounded-xl bg-muted/30 border border-border/30 text-center">
                 <Users className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
                 <p className="text-xs text-muted-foreground">
                   {t('sidebar.noHubs')}
