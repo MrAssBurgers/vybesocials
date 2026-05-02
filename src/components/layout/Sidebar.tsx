@@ -45,7 +45,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside data-no-auto-contrast className="hidden lg:flex fixed left-0 top-0 h-screen w-64 flex-col bg-card border-r border-border/40 shadow-2xl shadow-background/30 p-4 z-40">
+    <aside data-no-auto-contrast className="hidden lg:flex fixed left-0 top-0 h-screen w-64 flex-col stable-sidebar-surface border-r border-border/40 shadow-2xl shadow-background/30 p-4 z-40">
       {/* Logo */}
       <div className="flex items-center gap-2 px-2 py-4">
         <Link to="/home" className="group">

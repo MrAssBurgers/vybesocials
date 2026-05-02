@@ -23,6 +23,12 @@ label {
   -webkit-touch-callout: none;
 }
 
+@property --aurora-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
 /* Hide bottom nav on splash, landing, and intro pages */
 body.splash-visible nav[aria-label="Bottom navigation"],
 body.splash-visible [data-tutorial-bottomnav],
@@ -558,6 +564,13 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
   body.has-custom-bg [data-app-scroll-container] {
     background-color: transparent !important;
+  }
+  body.has-custom-bg .stable-sidebar-surface,
+  html[data-has-bg-image="true"] .stable-sidebar-surface {
+    background-color: hsl(var(--card)) !important;
+    background-image: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
   
   /* Bottom nav must always be on top */
@@ -1361,7 +1374,9 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     overflow: hidden;
     border-radius: inherit;
     background-color: hsl(var(--background));
+    --aurora-angle: 0deg;
     background-image:
+      conic-gradient(from var(--aurora-angle) at 50% 50%, hsl(var(--gradient-start) / 0.22), hsl(var(--gradient-mid) / 0.18), hsl(var(--gradient-end) / 0.22), hsl(var(--gradient-start) / 0.22)),
       radial-gradient(circle at 18% 28%, hsl(var(--gradient-start) / 0.95), transparent 60%),
       radial-gradient(circle at 82% 72%, hsl(var(--gradient-mid) / 0.90), transparent 60%),
       radial-gradient(circle at 58% 18%, hsl(var(--gradient-end) / 0.95), transparent 60%),
@@ -1372,12 +1387,12 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       radial-gradient(circle at 90% 15%, hsl(var(--gradient-start) / 0.85), transparent 60%),
       radial-gradient(circle at 40% 40%, hsl(var(--gradient-mid) / 0.75), transparent 60%);
     background-size:
-      200% 200%, 220% 220%, 200% 200%,
-      230% 230%, 210% 210%, 240% 240%,
-      215% 215%, 225% 225%, 205% 205%;
+      180% 180%, 260% 260%, 285% 285%, 255% 255%,
+      300% 300%, 275% 275%, 315% 315%,
+      280% 280%, 295% 295%, 265% 265%;
     background-repeat: no-repeat;
-    animation: aurora-drift-multi 32s linear infinite;
-    filter: saturate(1.5) brightness(1.12);
+    animation: aurora-drift-multi 16s linear infinite, aurora-angle-spin 18s linear infinite;
+    filter: saturate(1.75) brightness(1.18);
   }
 
   .seamless-gradient-strip {
@@ -1400,8 +1415,15 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       320% 320%, 290% 290%, 310% 310%,
       295% 295%, 305% 305%, 285% 285%;
     background-repeat: no-repeat;
-    animation: aurora-drift-multi 22s linear infinite;
-    filter: saturate(1.55) brightness(1.15);
+    animation: aurora-drift-multi 12s linear infinite;
+    filter: saturate(1.8) brightness(1.2);
+  }
+
+  .stable-sidebar-surface {
+    background-color: hsl(var(--card)) !important;
+    background-image: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
   /* Static gradient for non-critical elements */
@@ -1520,15 +1542,15 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       220% 220%, 240% 240%, 220% 220%,
       230% 230%, 250% 250%, 210% 210%;
     background-repeat: no-repeat;
-    animation: aurora-drift-multi 28s linear infinite;
+    animation: aurora-drift-multi 14s linear infinite;
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     /* Dark surface defaults — slightly punchier glow */
-    opacity: 0.6;
-    filter: saturate(1.25) brightness(1.05)
-      drop-shadow(0 0 4px hsl(var(--primary) / 0.18));
+    opacity: 0.85;
+    filter: saturate(1.65) brightness(1.18)
+      drop-shadow(0 0 7px hsl(var(--primary) / 0.28));
   }
 
   /* Light mode: thinner edge, less glow so it doesn't wash out the card */
@@ -1694,7 +1716,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
   
   .perf-medium .gradient-animated {
-    animation-duration: 16s !important;
+    animation-duration: 12s !important;
   }
 
   /* Glass intensity levels */
@@ -1817,6 +1839,11 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   to { background-position: -100% 50%; }
 }
 
+@keyframes aurora-angle-spin {
+  from { --aurora-angle: 0deg; }
+  to { --aurora-angle: 360deg; }
+}
+
 /* VYBE aurora drift — each of the 9 radial blobs traces its own circular
    orbit so position is inherently periodic. With `linear` timing this
    produces a perfectly seamless infinite loop with NO snap or restart at
@@ -1825,55 +1852,55 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 @keyframes aurora-drift-multi {
   0% {
     background-position:
-      50% 15%, 85% 50%, 15% 50%,
+      50% 50%, 50% 15%, 85% 50%, 15% 50%,
       50% 85%, 76% 26%, 24% 74%,
       85% 85%, 15% 15%, 50% 50%;
   }
   12.5% {
     background-position:
-      75% 25%, 75% 75%, 25% 25%,
+      50% 50%, 75% 25%, 75% 75%, 25% 25%,
       25% 75%, 90% 50%, 10% 50%,
       90% 50%, 10% 50%, 75% 25%;
   }
   25% {
     background-position:
-      85% 50%, 50% 85%, 50% 15%,
+      50% 50%, 85% 50%, 50% 85%, 50% 15%,
       15% 50%, 76% 74%, 24% 26%,
       85% 15%, 15% 85%, 85% 50%;
   }
   37.5% {
     background-position:
-      75% 75%, 25% 75%, 75% 25%,
+      50% 50%, 75% 75%, 25% 75%, 75% 25%,
       25% 25%, 50% 90%, 50% 10%,
       50% 10%, 50% 90%, 75% 75%;
   }
   50% {
     background-position:
-      50% 85%, 15% 50%, 85% 50%,
+      50% 50%, 50% 85%, 15% 50%, 85% 50%,
       50% 15%, 24% 74%, 76% 26%,
       15% 15%, 85% 85%, 50% 50%;
   }
   62.5% {
     background-position:
-      25% 75%, 25% 25%, 75% 75%,
+      50% 50%, 25% 75%, 25% 25%, 75% 75%,
       75% 25%, 10% 50%, 90% 50%,
       10% 50%, 90% 50%, 25% 75%;
   }
   75% {
     background-position:
-      15% 50%, 50% 15%, 50% 85%,
+      50% 50%, 15% 50%, 50% 15%, 50% 85%,
       85% 50%, 24% 26%, 76% 74%,
       15% 85%, 85% 15%, 15% 50%;
   }
   87.5% {
     background-position:
-      25% 25%, 75% 25%, 25% 75%,
+      50% 50%, 25% 25%, 75% 25%, 25% 75%,
       75% 75%, 50% 10%, 50% 90%,
       50% 90%, 50% 10%, 25% 25%;
   }
   100% {
     background-position:
-      50% 15%, 85% 50%, 15% 50%,
+      50% 50%, 50% 15%, 85% 50%, 15% 50%,
       50% 85%, 76% 26%, 24% 74%,
       85% 85%, 15% 15%, 50% 50%;
   }
