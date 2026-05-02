@@ -107,9 +107,10 @@ function processElement(el: Element) {
     htmlEl.setAttribute('data-contrast-fixed', ratio.toFixed(2));
   } else if (htmlEl.hasAttribute('data-contrast-fixed')) {
     // If the underlying surface has changed enough that the *original* color
-    // would now pass cleanly with margin, release the override so the element
-    // returns to its themed color. Hysteresis prevents flicker loops.
-    if (ratio >= threshold + 1.5) {
+    // would now pass cleanly with a comfortable margin, release the override.
+    // Wider margin (+2.5) prevents flicker loops on themed pages where the
+    // sampled background can jiggle slightly between scans.
+    if (ratio >= threshold + 2.5) {
       htmlEl.style.removeProperty('--auto-contrast-color');
       htmlEl.removeAttribute('data-contrast-fixed');
       cache.set(el, { fgKey, bgKey, ratio });
