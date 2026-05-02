@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useActivityStats } from '@/hooks/useActivityStats';
 
 /**
@@ -50,20 +49,11 @@ export function LiveActivityTicker() {
   const current = messages[currentIndex % messages.length];
 
   return (
-    <div className="h-5 overflow-hidden relative" data-no-auto-contrast>
-      <AnimatePresence mode="wait">
-        <motion.p
-          key={currentIndex}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.25 }}
-          className="text-xs text-muted-foreground absolute inset-0 flex items-center"
-        >
-          <span className="mr-1.5">{current.emoji}</span>
-          <span>{current.text}</span>
-        </motion.p>
-      </AnimatePresence>
+    <div className="h-5 overflow-hidden" data-no-auto-contrast>
+      <p className="text-xs text-foreground/90 flex items-center drop-shadow-sm">
+        <span className="mr-1.5">{current.emoji}</span>
+        <span className="truncate">{current.text}</span>
+      </p>
     </div>
   );
 }
