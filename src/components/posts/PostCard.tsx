@@ -787,86 +787,127 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         );
       })()}
 
-      {/* Actions - 44px touch targets */}
-      <div className="p-4 space-y-3">
-        <div className="flex items-center justify-between h-11">
-          {/* Left action buttons */}
-          <div className="flex items-center gap-4">
+      {/* Caption — now ABOVE the action bar so the user's words lead */}
+      {post.caption && (
+        <div className="px-4 pt-4">
+          <p className="text-[15px] leading-relaxed text-foreground/95">
+            <UserProfileHoverCard username={post.author.username} userId={post.author.id}>
+              <Link
+                to={`/u/${post.author.username}`}
+                className="font-bold mr-1.5 bg-gradient-to-r from-[hsl(var(--neon-pink))] via-[hsl(var(--neon-purple))] to-[hsl(var(--neon-cyan))] bg-clip-text text-transparent hover:opacity-80 transition-opacity"
+              >
+                {post.author.username}
+              </Link>
+            </UserProfileHoverCard>
+            <span className="whitespace-pre-wrap break-words">{post.caption}</span>
+          </p>
+        </div>
+      )}
+
+      {/* Premium action bar — gradient-bordered glass pill */}
+      <div className="px-4 pt-3">
+        <div
+          className="relative flex items-center justify-between rounded-2xl px-3 py-2 bg-card/60 backdrop-blur-md border border-border/40 overflow-hidden"
+          data-no-auto-contrast
+        >
+          {/* Soft neon backdrop wash */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-50"
+            style={{
+              background:
+                'linear-gradient(120deg, hsl(var(--neon-pink) / 0.10), hsl(var(--neon-purple) / 0.06) 45%, hsl(var(--neon-cyan) / 0.10))',
+            }}
+          />
+          <div className="relative flex items-center gap-1.5">
             <ReactionPicker
               currentReaction={currentReaction}
               onReact={handleReaction}
               likeCount={likeCount}
             />
-
-            <button onClick={() => { feedback.onComment(); setShowCommentSheet(true); }} className="flex flex-col items-center justify-center h-11 w-11 active:scale-90 transition-transform">
-              <MessageCircle className="h-6 w-6 hover:text-primary transition-colors" />
-              {post.comment_count > 0 && <span className="text-[10px] text-muted-foreground leading-none mt-0.5">{post.comment_count}</span>}
-            </button>
-            
-            <button 
-              onClick={() => { feedback.onShare(); handleShare(); }}
-              className="flex items-center justify-center h-11 w-11 active:scale-90 transition-transform"
+            <button
+              onClick={() => { feedback.onComment(); setShowCommentSheet(true); }}
+              className="group relative flex items-center gap-1 h-10 px-2.5 rounded-xl active:scale-90 transition-all hover:bg-foreground/5"
+              aria-label="Comment"
             >
-              <Share2 className="h-6 w-6 hover:text-primary transition-colors" />
+              <MessageCircle className="h-[22px] w-[22px] group-hover:text-[hsl(var(--neon-cyan))] transition-colors" />
+              {post.comment_count > 0 && (
+                <span className="text-xs font-semibold text-foreground/80 tabular-nums">
+                  {post.comment_count}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => { feedback.onShare(); handleShare(); }}
+              className="group flex items-center justify-center h-10 w-10 rounded-xl active:scale-90 transition-all hover:bg-foreground/5"
+              aria-label="Share"
+            >
+              <Share2 className="h-[22px] w-[22px] group-hover:text-[hsl(var(--neon-purple))] transition-colors" />
             </button>
           </div>
-          
-          {/* Bookmark button */}
-          <button 
+
+          <button
             onClick={handleBookmark}
-            className="flex items-center justify-center h-11 w-11 active:scale-90 transition-transform"
+            className="relative flex items-center justify-center h-10 w-10 rounded-xl active:scale-90 transition-all hover:bg-foreground/5"
+            aria-label="Save"
           >
             <Bookmark
               className={cn(
-                "h-6 w-6 transition-[color,transform]",
-                isBookmarked ? "fill-yellow-400 text-yellow-400 scale-110 bookmark-glow" : "hover:text-primary"
+                'h-[22px] w-[22px] transition-[color,transform]',
+                isBookmarked
+                  ? 'fill-yellow-400 text-yellow-400 scale-110 bookmark-glow'
+                  : 'hover:text-yellow-400',
               )}
             />
           </button>
         </div>
+      </div>
 
-        {/* Reaction Summary */}
-        {likeCount > 0 ? (
-          <ReactionSummary
-            reactions={currentReaction ? [currentReaction] : []}
-            totalCount={likeCount}
-          />
-        ) : null}
+      {/* Reaction summary + comments link */}
+      {(likeCount > 0 || post.comment_count > 0) && (
+        <div className="px-5 pt-2.5 flex items-center gap-3 text-xs text-muted-foreground">
+          {likeCount > 0 && (
+            <ReactionSummary
+              reactions={currentReaction ? [currentReaction] : []}
+              totalCount={likeCount}
+            />
+          )}
+          {post.comment_count > 0 && (
+            <button
+              onClick={() => setShowCommentSheet(true)}
+              className="hover:text-foreground transition-colors"
+            >
+              View all {post.comment_count} comments
+            </button>
+          )}
+        </div>
+      )}
 
-        {/* Caption */}
-        {post.caption && (
-          <p className="text-sm">
-            <UserProfileHoverCard username={post.author.username} userId={post.author.id}>
-              <Link to={`/u/${post.author.username}`} className="font-semibold mr-2 hover:underline">
-                {post.author.username}
-              </Link>
-            </UserProfileHoverCard>
-            {post.caption}
-          </p>
-        )}
-
-        {/* Tags */}
-        {post.tags && post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {post.tags.map((tag) => (
+      {/* Tags — BELOW everything, as glowing neon pills */}
+      {post.tags && post.tags.length > 0 && (
+        <div className="px-4 pt-3 pb-4 flex flex-wrap gap-1.5">
+          {post.tags.map((tag, i) => {
+            const palette = ['neon-pink', 'neon-purple', 'neon-cyan', 'neon-yellow'];
+            const color = palette[i % palette.length];
+            return (
               <Link
                 key={tag}
                 to={`/explore?tag=${tag}`}
-                className="text-xs text-accent hover:underline"
+                className="group relative inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full border border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-all hover:scale-[1.04]"
+                style={{
+                  color: `hsl(var(--${color}))`,
+                  boxShadow: `inset 0 0 0 1px hsl(var(--${color}) / 0.25), 0 0 12px hsl(var(--${color}) / 0.10)`,
+                }}
               >
-                #{tag}
+                <span className="opacity-70 mr-0.5">#</span>{tag}
               </Link>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
+      )}
 
-        {/* Comment preview — shows top comment for curiosity */}
-        {post.comment_count > 0 && (
-          <button onClick={() => setShowCommentSheet(true)} className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left">
-            View all {post.comment_count} comments
-          </button>
-        )}
-      </div>
+      {/* Bottom spacing if no tags */}
+      {(!post.tags || post.tags.length === 0) && <div className="pb-4" />}
 
       {/* Edit Post Dialog */}
       {isEditOpen && (
