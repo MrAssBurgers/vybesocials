@@ -176,6 +176,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
             : "w-[200px] xl:w-[220px] 2xl:w-[240px]"
         )}
         data-tutorial-sidebar
+        data-no-auto-contrast
       >
         {/* Brand Row */}
         <div className={cn(

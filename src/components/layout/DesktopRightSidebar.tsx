@@ -183,6 +183,7 @@ export function DesktopRightSidebar() {
 
   return (
     <aside 
+      data-no-auto-contrast
       className={cn(
         "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-40",
         "w-[240px] 2xl:w-[280px] overflow-hidden",

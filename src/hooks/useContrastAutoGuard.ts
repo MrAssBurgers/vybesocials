@@ -107,9 +107,10 @@ function processElement(el: Element) {
     htmlEl.setAttribute('data-contrast-fixed', ratio.toFixed(2));
   } else if (htmlEl.hasAttribute('data-contrast-fixed')) {
     // If the underlying surface has changed enough that the *original* color
-    // would now pass cleanly with margin, release the override so the element
-    // returns to its themed color. Hysteresis prevents flicker loops.
-    if (ratio >= threshold + 1.5) {
+    // would now pass cleanly with a comfortable margin, release the override.
+    // Wider margin (+2.5) prevents flicker loops on themed pages where the
+    // sampled background can jiggle slightly between scans.
+    if (ratio >= threshold + 2.5) {
       htmlEl.style.removeProperty('--auto-contrast-color');
       htmlEl.removeAttribute('data-contrast-fixed');
       cache.set(el, { fgKey, bgKey, ratio });
@@ -231,20 +232,19 @@ export function useContrastAutoGuard(enabled = true) {
     window.addEventListener('themechange', onTheme);
     document.addEventListener('visibilitychange', onTheme);
 
-    // Re-scan when overlays / sheets / dialogs finish animating in.
-    // The mobile drawer (Radix Sheet) animates a translucent panel into view —
-    // before the animation ends the effective background isn't representative,
-    // so we scan once it settles.
+    // Re-scan ONLY when overlay portals finish their open animation. We
+    // intentionally skip `transitionend` (fires constantly on hover, marquees,
+    // pulses) and skip animationend on plain decorative animations to avoid
+    // re-running the scan on every keyframe loop.
     const onAnimEnd = (e: Event) => {
       const target = e.target as Element | null;
       if (!target || target.nodeType !== Node.ELEMENT_NODE) return;
       const overlay = target.closest?.(
-        '[data-radix-portal], [role="dialog"], [data-state="open"], [data-sonner-toaster], aside, header, nav',
+        '[data-radix-portal] [data-state="open"], [role="dialog"][data-state="open"]',
       );
       if (overlay) scheduleScan([overlay]);
     };
     document.addEventListener('animationend', onAnimEnd, true);
-    document.addEventListener('transitionend', onAnimEnd, true);
 
     return () => {
       window.clearTimeout(initialId);
@@ -258,7 +258,6 @@ export function useContrastAutoGuard(enabled = true) {
       window.removeEventListener('themechange', onTheme);
       document.removeEventListener('visibilitychange', onTheme);
       document.removeEventListener('animationend', onAnimEnd, true);
-      document.removeEventListener('transitionend', onAnimEnd, true);
     };
   }, [enabled]);
 }
