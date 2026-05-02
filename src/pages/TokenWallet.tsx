@@ -132,6 +132,20 @@ export default function TokenWallet() {
           Visit Token Shop
         </Button>
 
+        {nfc.isAvailable && (
+          <Button
+            onClick={() => (nfc.isScanning ? nfc.stop() : nfc.start())}
+            variant="outline"
+            className="w-full font-semibold h-12 rounded-xl"
+          >
+            <Nfc className="h-5 w-5 mr-2" />
+            {nfc.isScanning ? 'Listening for NFC tag…' : 'Tap an NFC tag'}
+          </Button>
+        )}
+        {nfc.error && (
+          <p className="text-xs text-destructive text-center">{nfc.error}</p>
+        )}
+
         {/* How to Earn */}
         <Card>
           <CardHeader>
