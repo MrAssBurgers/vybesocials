@@ -122,7 +122,7 @@ export function WelcomeHeader() {
             <VybeMiniIcon size={22} showSparkles animated />
             <span className="text-sm">Your Daily Brief</span>
             <Globe className="h-3.5 w-3.5 text-accent ml-1" />
-            <span className="text-xs text-muted-foreground ml-1">• Live</span>
+            <span className="text-xs ml-1 live-indicator" data-no-auto-contrast>• Live</span>
           </Button>
         </motion.div>
       </div>
