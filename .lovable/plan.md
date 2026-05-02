@@ -1,77 +1,70 @@
-# Fix: Sidebar text blending into pink theme background
+# Fix: Sidebar text going dark-on-dark (and "fixing itself" only when scrolling)
 
-## What's happening
+## What's actually happening
 
-In your screenshot, sidebar items ("Explore", "DM's", "VybeMap", "Communities", "Market", "Events", and the Audio/Quests/Records/Settings quick-action grid) are rendered in `text-muted-foreground` (light gray). On your dark theme this normally has good contrast — but you've applied a custom **pink/peach background image** to the page. The pink shows through the glass sidebar via `backdrop-filter: blur`, so visually the text sits on a light surface, but the contrast guard reads the underlying body color (still dark) and decides nothing needs fixing.
+In your screen recording, every sidebar label ("Explore", "DM's", "VybeMap", "Communities", "Market", "Events", "Alerts/Quests/Referrals/Settings", and even the right-rail "ONLINE (0)" / "TRENDING") flips to dark text on the **dark** sidebar — invisible. When you scroll, the contrast-fix pass is paused, so the original light text briefly reappears, which is why it looks glitchy / "stops on scroll".
 
-So this isn't a missing feature — the guard exists (`useContrastAutoGuard` in `src/hooks/useContrastAutoGuard.ts`) but it's blind to:
+The cause is the upgrade I shipped last round to `src/lib/contrastGuard.ts`. The new "see what the user sees" logic is too aggressive on a themed page:
 
-1. Background **images** and **gradients** (it only reads `background-color`).
-2. Backgrounds painted by `::before` / `::after` pseudo-elements (your themed body uses one).
-3. `position: fixed` background layers behind the body.
-4. Heavily-blurred glass surfaces — currently boosts alpha by only +0.25, not enough when the underlying surface is essentially fully visible through the blur.
+1. **Wallpaper leaks through opaque ancestors.** When a small blurred chip (e.g. a pill, badge, glass surface) is found, the new `blurAmount >= 12` short-circuit jumps straight to the page's pink wallpaper, **skipping the opaque dark sidebar that sits between them**. So the guard thinks the chip is on pink and forces dark text — but it's actually on dark.
+2. **Gradient layers are inflated to ~0.9 alpha.** Lots of UI overlays use 5–15% gradient tints. The guard now treats them as nearly opaque, so the composited "background" ends up being the gradient color instead of the real surface underneath.
+3. **Pseudo-element bgs are pinned to ~0.95 alpha.** Same problem — a `::before` glow halo gets read as a solid wash of pink/purple, hiding the actual card color below.
+4. **Body fallback returns the themed gradient.** Your body has the pink theme gradient applied, so any text whose ancestor walk doesn't terminate at an opaque card falls all the way through to "page is pink" — even when the sidebar is rendered with `bg-card` (opaque dark).
 
-## The plan
+Net result: most of the chrome goes dark-on-dark on themed accounts.
 
-### 1. Upgrade the contrast guard (`src/lib/contrastGuard.ts` + `src/hooks/useContrastAutoGuard.ts`)
+## The fix
 
-Make `getEffectiveBg` actually see what the user sees:
+Targeted, surgical rollback of the parts that overreach. Keep the parts that were genuinely useful (gradient sampling on truly transparent ancestors, manual `data-force-contrast` override).
 
-- **Sample background images / gradients.** When a layer has a `background-image` (gradient or image) and not a solid color, take a representative sample of its dominant color. For gradients, parse the CSS string and average the listed color stops. For raster images, fall back to a mid-luminance neutral so we don't crash on remote images.
-- **Read pseudo-element backdrops.** When walking up the ancestor chain, also call `getComputedStyle(node, '::before')` and `::after`. If they paint a full-bleed background (covers the element via `inset:0` / `position:absolute` with non-zero size), composite that color too.
-- **Treat strong blur as "background-dominated."** When `backdrop-filter` contains `blur(>= 12px)` on a low-alpha surface, weight the underlying background heavily (e.g., 70% underlying + 30% surface tint) instead of the current flat +0.25 alpha bump. This matches how the eye actually sees a frosted panel.
-- **Honor full-bleed fixed layers.** Before falling back to body color, look for `position: fixed` elements with `inset: 0` (theme background layers) and use their effective color first.
+### 1. `src/lib/contrastGuard.ts` — make ancestor walk respect opaque surfaces
 
-These changes are pure logic in `contrastGuard.ts`; the existing scanner in `useContrastAutoGuard.ts` will automatically pick up better readings on its next pass.
+- **Stop walking the moment we hit an opaque ancestor.** Inside the `while` loop, after compositing this node's solid `background-color`, if `bgColor.a >= 0.85` treat it as fully opaque and `return` immediately. This is the single biggest fix — the dark sidebar will correctly terminate the walk before we ever consult pseudo-elements, blur boosts, or wallpaper layers.
+- **Remove the `blurAmount >= 12` wallpaper short-circuit.** Heavy blur inside an opaque card must still resolve against the card, not the page. If we want to keep any blur awareness it should be a small alpha bump on the *current* layer only (≤0.1), never a jump to wallpaper.
+- **Drastically downweight pseudo-element and gradient layers.** They are tints, not surfaces:
+  - `getPseudoBg` should return the gradient with its **actual** averaged alpha (don't bump to 0.95). Cap at 0.6.
+  - The gradient branch inside `getEffectiveBg` (step 2) should composite at the gradient's natural alpha, capped at 0.5, not boosted to ≥0.9.
+- **Don't fall back to the wallpaper unless we genuinely never hit anything opaque.** Today every text node ends up sampling the wallpaper because the body itself is themed. Solution: only call `getFullBleedFixedBg()` when `result.a < 0.2` after the walk (meaning the entire ancestor chain was transparent), AND skip it if the body computed background-color is itself near-opaque.
+- **Body fallback uses `background-color` only**, not the gradient image. The gradient is a wallpaper effect; for contrast purposes, treat the body as its solid base color so cards/sidebars-with-no-bg fall back to a sensible neutral, not pink.
 
-### 2. Re-scan after route / sheet transitions
+### 2. `src/hooks/useContrastAutoGuard.ts` — softer hysteresis and ignore self-painted overrides
 
-The mobile sidebar opens via a Radix Sheet (animated portal). During the open animation the guard pauses (`is-scrolling`-style throttle) and may miss the final state. Add:
+- **Increase the release hysteresis from `+1.5` to `+2.5`.** When our applied color now passes "cleanly", we release. Bigger margin prevents the flicker loop on themed pages where the sampled bg jiggles between scans.
+- **Skip elements whose computed `color` is already near-white on a dark surface or near-black on a light surface** (cheap pre-check before sampling) — saves work and avoids touching elements that are clearly fine.
+- **Stop re-scanning on every `transitionend` / `animationend`.** That listener fires constantly on this app (hover transitions, pulses, marquee) and re-runs the (now-faulty) scan over the same nodes. Keep only `animationend` filtered to `data-state="open"` portals (drawers/sheets), not transitions.
 
-- A `themechange`-style custom event already exists; also re-trigger a scan on `transitionend` / `animationend` for elements with `[data-radix-portal]`, `[data-state="open"]`, or `role="dialog"` ancestors.
-- Reduce the post-mutation debounce from 150ms → 80ms specifically for newly-mounted portal subtrees so the first frame the user sees is already corrected.
+### 3. Sidebar text — drop the `data-auto-contrast` opt-in
 
-### 3. Harden sidebar text so it can't blend even before the guard kicks in
+Last round we added `data-auto-contrast` markers to sidebar labels to *force* the guard to evaluate them. That's now actively harmful while the guard is misreading the bg. Remove those markers from:
 
-Even with a perfect guard there's a flash before correction. So in the sidebar components, swap `text-muted-foreground` (which is theme-relative gray) for the **adaptive token** the guard uses, or wrap the labels with a class that picks readable foreground from the *visible* surface:
-
-- `src/components/layout/Sidebar.tsx` (desktop)
-- `src/components/layout/DesktopLeftSidebar.tsx`
-- `src/components/layout/MobileHeader.tsx` (the drawer in your screenshot)
-
-Replace the inactive-state classes:
-
-```text
-text-muted-foreground  →  text-foreground/85   (always readable on glass)
-hover:text-sidebar-foreground (kept)
-```
-
-And add `data-auto-contrast` to the `<span>` labels so the guard prioritizes them.
-
-For the small "Alerts / Quests / Records / Settings" grid (which also vanishes in your screenshot), give that pill bar a more opaque surface (`bg-card/70` instead of `bg-muted/30`) so it stops being see-through.
-
-### 4. Add a one-line developer escape hatch
-
-Document in `src/lib/contrastGuard.ts`:
-
-- `data-no-auto-contrast` on any ancestor still disables the guard (already supported).
-- New: `data-force-contrast="dark|light"` to manually pin a region's foreground choice (useful for branded gradients where neither readable shade looks great and you want to lock one).
-
-## Files touched
-
-- `src/lib/contrastGuard.ts` — gradient/pseudo-element/blur logic
-- `src/hooks/useContrastAutoGuard.ts` — portal/animation re-scan trigger
 - `src/components/layout/Sidebar.tsx`
 - `src/components/layout/DesktopLeftSidebar.tsx`
 - `src/components/layout/MobileHeader.tsx`
-- `src/index.css` — minor: ensure `[data-contrast-fixed]` rule has `transition: color .15s` so the correction doesn't pop
 
-## Out of scope
+Keep the readability change to `text-foreground/85` (it's good baseline contrast on glass) but wrap the sidebar `<aside>` / drawer `<nav>` with `data-no-auto-contrast` so the guard never touches sidebar chrome again. The sidebar's own theme tokens already guarantee contrast — we don't need runtime correction there.
 
-- No backend / DB changes.
-- Not touching theme tokens themselves — your custom theme stays exactly as designed.
-- Not auto-changing icon colors yet (icons inherit `currentColor` so they'll follow the text fix automatically).
+### 4. CSS — keep the soft transition but scope the override
+
+In `src/index.css`, ensure `[data-contrast-fixed]` only sets `color: var(--auto-contrast-color)` when `--auto-contrast-color` is actually defined (use `@supports` or a fallback) so a stale attribute can't strand an element on the wrong color after we release it.
+
+## Files touched
+
+- `src/lib/contrastGuard.ts` — opaque-stop, remove blur-wallpaper jump, downweight pseudo + gradient, restrict wallpaper fallback
+- `src/hooks/useContrastAutoGuard.ts` — bigger release hysteresis, drop transitionend, narrow animationend filter
+- `src/components/layout/Sidebar.tsx` — remove `data-auto-contrast`, add `data-no-auto-contrast` on root
+- `src/components/layout/DesktopLeftSidebar.tsx` — same
+- `src/components/layout/MobileHeader.tsx` — same on the drawer root
+- `src/index.css` — defensive `[data-contrast-fixed]` rule
 
 ## How you'll verify
 
-After approval and implementation, open the sidebar over your pink theme — every label should immediately be legible (dark text on the pink-tinted glass), and switching back to a dark wallpaper should snap them back to light text within ~150ms.
+1. With the pink theme active, every sidebar label is legible immediately on page load — no flash of dark-on-dark, no change while scrolling.
+2. The right rail ("ONLINE", "TRENDING", chat list) stays white text.
+3. Switch back to the default dark wallpaper and the same labels stay light — no over-correction.
+4. Open a Sheet (mobile drawer) — labels inside are readable from frame 1, not after a re-scan.
+
+## Out of scope
+
+- No DB / backend changes.
+- Not touching theme tokens.
+- The custom theme wallpaper rendering itself is unchanged — only how we measure it for contrast decisions.
