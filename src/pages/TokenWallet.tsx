@@ -1,5 +1,8 @@
 import { motion } from 'framer-motion';
-import { Coins, TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles, ShoppingBag } from 'lucide-react';
+import { useEffect } from 'react';
+import { Coins, TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles, ShoppingBag, Nfc } from 'lucide-react';
+import { useWebNFC } from '@/hooks/useWebNFC';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useTokenBalance, useTokenTransactions, TOKEN_RATES } from '@/hooks/useVybeTokens';
@@ -19,8 +22,8 @@ function TransactionItem({ amount, type, description, created_at }: {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       className="flex items-center justify-between py-3 border-b border-border/50 last:border-0"
     >
       <div className="flex items-center gap-3">
@@ -64,12 +67,23 @@ export default function TokenWallet() {
   const { data: balance, isLoading: balanceLoading } = useTokenBalance();
   const { data: transactions = [], isLoading: txLoading } = useTokenTransactions();
   const navigate = useNavigate();
+  const nfc = useWebNFC({
+    onRead: (event) => {
+      const payload = event.records.map(r => r.data).join(' ').trim();
+      toast.success('NFC tag detected', { description: payload || event.serialNumber });
+      // Generic dispatch so other parts of the app can react to wallet NFC events
+      window.dispatchEvent(new CustomEvent('vybe:nfc-wallet-tag', { detail: { ...event, payload } }));
+    },
+  });
 
   const purchases = transactions.filter(tx => tx.transaction_type === 'purchase');
 
   return (
     <AppLayout>
-      <div className="p-4">
+      <div
+        className="p-4"
+        style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
+      >
         <div className="max-w-lg mx-auto space-y-6">
         {/* Balance Card */}
         <Card className="overflow-hidden">
@@ -117,6 +131,20 @@ export default function TokenWallet() {
           <ShoppingBag className="h-5 w-5 mr-2" />
           Visit Token Shop
         </Button>
+
+        {nfc.isAvailable && (
+          <Button
+            onClick={() => (nfc.isScanning ? nfc.stop() : nfc.start())}
+            variant="outline"
+            className="w-full font-semibold h-12 rounded-xl"
+          >
+            <Nfc className="h-5 w-5 mr-2" />
+            {nfc.isScanning ? 'Listening for NFC tag…' : 'Tap an NFC tag'}
+          </Button>
+        )}
+        {nfc.error && (
+          <p className="text-xs text-destructive text-center">{nfc.error}</p>
+        )}
 
         {/* How to Earn */}
         <Card>
