@@ -258,7 +258,6 @@ export function useContrastAutoGuard(enabled = true) {
       window.removeEventListener('themechange', onTheme);
       document.removeEventListener('visibilitychange', onTheme);
       document.removeEventListener('animationend', onAnimEnd, true);
-      document.removeEventListener('transitionend', onAnimEnd, true);
     };
   }, [enabled]);
 }
