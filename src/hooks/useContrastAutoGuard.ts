@@ -200,9 +200,12 @@ export function useContrastAutoGuard(enabled = true) {
     // Initial scan after first paint
     const initialId = window.setTimeout(() => scheduleScan(), 250);
 
-    // Observe DOM changes
+    // Observe DOM changes. We deliberately do NOT watch `style` mutations:
+    // Framer Motion / CSS animations rewrite inline styles every frame which
+    // would trigger a scan storm (visible as flickering text on hover and on
+    // animated badges like the Live ticker).
     const observer = new MutationObserver((mutations) => {
-      if (isScrolling || document.documentElement.classList.contains('is-scrolling')) return;
+      if (isBusy || document.documentElement.classList.contains('is-scrolling')) return;
       const roots: Element[] = [];
       for (const m of mutations) {
         if (m.type === 'childList') {
@@ -219,18 +222,19 @@ export function useContrastAutoGuard(enabled = true) {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class', 'style', 'data-theme'],
+      attributeFilter: ['class', 'data-theme'],
     });
 
     // Theme / resize triggers
     const onResize = () => debouncedFullScan();
     const onTheme = () => debouncedFullScan();
     window.addEventListener('resize', onResize, { passive: true });
-    const scrollOptions: AddEventListenerOptions = { passive: true, capture: true };
-    const removeScrollOptions: EventListenerOptions = { capture: true };
-    window.addEventListener('scroll', pauseDuringScroll, scrollOptions);
-    window.addEventListener('wheel', pauseDuringScroll, scrollOptions);
-    window.addEventListener('touchmove', pauseDuringScroll, scrollOptions);
+    const activityOptions: AddEventListenerOptions = { passive: true, capture: true };
+    const removeActivityOptions: EventListenerOptions = { capture: true };
+    window.addEventListener('scroll', pauseDuringActivity, activityOptions);
+    window.addEventListener('wheel', pauseDuringActivity, activityOptions);
+    window.addEventListener('touchmove', pauseDuringActivity, activityOptions);
+    window.addEventListener('pointermove', pauseDuringActivity, activityOptions);
     window.addEventListener('themechange', onTheme);
     document.addEventListener('visibilitychange', onTheme);
 
@@ -251,12 +255,13 @@ export function useContrastAutoGuard(enabled = true) {
     return () => {
       window.clearTimeout(initialId);
       window.clearTimeout(debounceTimer);
-      window.clearTimeout(scrollTimer);
+      window.clearTimeout(activityTimer);
       observer.disconnect();
       window.removeEventListener('resize', onResize);
-      window.removeEventListener('scroll', pauseDuringScroll, removeScrollOptions);
-      window.removeEventListener('wheel', pauseDuringScroll, removeScrollOptions);
-      window.removeEventListener('touchmove', pauseDuringScroll, removeScrollOptions);
+      window.removeEventListener('scroll', pauseDuringActivity, removeActivityOptions);
+      window.removeEventListener('wheel', pauseDuringActivity, removeActivityOptions);
+      window.removeEventListener('touchmove', pauseDuringActivity, removeActivityOptions);
+      window.removeEventListener('pointermove', pauseDuringActivity, removeActivityOptions);
       window.removeEventListener('themechange', onTheme);
       document.removeEventListener('visibilitychange', onTheme);
       document.removeEventListener('animationend', onAnimEnd, true);
