@@ -3888,3 +3888,17 @@ html[data-has-bg-image="true"] nav[aria-label="Bottom navigation"] .liquid-glass
     animation: none !important;
   }
 }
+
+/* Live indicator: subtle green brightness pulse, no color shift, no layout flicker */
+@keyframes live-breathe {
+  0%, 100% { filter: brightness(0.75); }
+  50% { filter: brightness(1.25); }
+}
+.live-indicator {
+  color: hsl(142 71% 55%);
+  animation: live-breathe 2.4s ease-in-out infinite;
+  will-change: filter;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-indicator { animation: none; }
+}
