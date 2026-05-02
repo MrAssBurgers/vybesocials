@@ -232,20 +232,19 @@ export function useContrastAutoGuard(enabled = true) {
     window.addEventListener('themechange', onTheme);
     document.addEventListener('visibilitychange', onTheme);
 
-    // Re-scan when overlays / sheets / dialogs finish animating in.
-    // The mobile drawer (Radix Sheet) animates a translucent panel into view —
-    // before the animation ends the effective background isn't representative,
-    // so we scan once it settles.
+    // Re-scan ONLY when overlay portals finish their open animation. We
+    // intentionally skip `transitionend` (fires constantly on hover, marquees,
+    // pulses) and skip animationend on plain decorative animations to avoid
+    // re-running the scan on every keyframe loop.
     const onAnimEnd = (e: Event) => {
       const target = e.target as Element | null;
       if (!target || target.nodeType !== Node.ELEMENT_NODE) return;
       const overlay = target.closest?.(
-        '[data-radix-portal], [role="dialog"], [data-state="open"], [data-sonner-toaster], aside, header, nav',
+        '[data-radix-portal] [data-state="open"], [role="dialog"][data-state="open"]',
       );
       if (overlay) scheduleScan([overlay]);
     };
     document.addEventListener('animationend', onAnimEnd, true);
-    document.addEventListener('transitionend', onAnimEnd, true);
 
     return () => {
       window.clearTimeout(initialId);
