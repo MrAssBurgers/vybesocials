@@ -232,7 +232,7 @@ function FeedSection({
     <div className="pb-6" data-tutorial="feed-area">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex items-center gap-2 mb-5">
-          <TabsList data-no-auto-contrast className="relative flex-1 h-12 p-1 bg-card/60 backdrop-blur-xl rounded-2xl border border-border/20 shadow-[inset_0_1px_0_hsl(var(--foreground)/0.05)]">
+          <TabsList data-no-auto-contrast className="relative flex-1 h-12 p-1 bg-card rounded-2xl border border-border/40 shadow-lg shadow-background/20">
             {['foryou', 'local', 'global'].map((tab) => {
               const isActive = activeTab === tab;
               const icons: Record<string, typeof Sparkles> = { foryou: Sparkles, local: MapPin, global: Globe };
@@ -252,7 +252,7 @@ function FeedSection({
                   {isActive && (
                     <motion.div
                       layoutId="feed-tab-capsule"
-                      className="absolute inset-0.5 rounded-xl bg-gradient-to-r from-primary/15 via-primary/10 to-accent/15 border border-primary/20 shadow-[0_0_20px_hsl(var(--primary)/0.25),0_0_8px_hsl(var(--accent)/0.15),inset_0_1px_0_hsl(var(--foreground)/0.05)]"
+                      className="absolute inset-0.5 rounded-xl bg-sidebar-accent border border-primary/30 shadow-[0_0_16px_hsl(var(--primary)/0.18)]"
                       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     />
                   )}
