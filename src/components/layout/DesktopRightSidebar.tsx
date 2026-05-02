@@ -185,9 +185,9 @@ export function DesktopRightSidebar() {
     <aside 
       data-no-auto-contrast
       className={cn(
-        "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-40",
+        "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-40 stable-sidebar-surface",
         "w-[240px] 2xl:w-[280px] overflow-hidden",
-        "bg-card shadow-2xl shadow-background/30",
+        "shadow-2xl shadow-background/30",
         "border-l border-border/40"
       )}
     >
