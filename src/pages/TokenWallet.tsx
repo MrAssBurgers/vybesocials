@@ -67,12 +67,23 @@ export default function TokenWallet() {
   const { data: balance, isLoading: balanceLoading } = useTokenBalance();
   const { data: transactions = [], isLoading: txLoading } = useTokenTransactions();
   const navigate = useNavigate();
+  const nfc = useWebNFC({
+    onRead: (event) => {
+      const payload = event.records.map(r => r.data).join(' ').trim();
+      toast.success('NFC tag detected', { description: payload || event.serialNumber });
+      // Generic dispatch so other parts of the app can react to wallet NFC events
+      window.dispatchEvent(new CustomEvent('vybe:nfc-wallet-tag', { detail: { ...event, payload } }));
+    },
+  });
 
   const purchases = transactions.filter(tx => tx.transaction_type === 'purchase');
 
   return (
     <AppLayout>
-      <div className="p-4">
+      <div
+        className="p-4"
+        style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
+      >
         <div className="max-w-lg mx-auto space-y-6">
         {/* Balance Card */}
         <Card className="overflow-hidden">
