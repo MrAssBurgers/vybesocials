@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { WatchAndEarnCard } from '@/components/tokens/WatchAndEarnCard';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 function TransactionItem({ amount, type, description, created_at }: {
   amount: number;
