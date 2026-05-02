@@ -89,14 +89,41 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   arReadyRef.current = arReady;
 
   const startCamera = useCallback(async () => {
+    const tryGetStream = async (constraints: MediaStreamConstraints) =>
+      navigator.mediaDevices.getUserMedia(constraints);
+
     try {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
+
+      let stream: MediaStream | null = null;
+      const idealConstraints: MediaStreamConstraints = {
         video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: mode === 'video',
-      });
+      };
+      try {
+        stream = await tryGetStream(idealConstraints);
+      } catch (firstErr: any) {
+        // Common transient cases: NotReadableError ("Could not start video source")
+        // happen when the device is briefly busy (preview iframe re-mount, another tab).
+        // Wait a tick and retry with looser constraints before surfacing.
+        await new Promise(r => setTimeout(r, 350));
+        try {
+          stream = await tryGetStream({ video: { facingMode }, audio: mode === 'video' });
+        } catch (secondErr: any) {
+          const name = secondErr?.name || firstErr?.name;
+          if (name === 'NotReadableError' || name === 'AbortError') {
+            // Silent — camera is in use elsewhere; user can retry.
+            console.warn('[MobileCreateStudio] Camera busy, will retry on next mount');
+            return;
+          }
+          throw secondErr;
+        }
+      }
+
+      if (!stream) return;
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -119,6 +146,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       console.error('[MobileCreateStudio] Camera error:', err);
     }
   }, [facingMode, mode, startTracking]);
+
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach(t => t.stop());
