@@ -180,19 +180,21 @@ export function useContrastAutoGuard(enabled = true) {
     if (typeof dm === 'number' && dm < 2) return;
 
     let debounceTimer: number | undefined;
-    let scrollTimer: number | undefined;
-    let isScrolling = false;
+    let activityTimer: number | undefined;
+    let isBusy = false;
     const debouncedFullScan = () => {
       window.clearTimeout(debounceTimer);
-      debounceTimer = window.setTimeout(() => scheduleScan(), 150);
+      debounceTimer = window.setTimeout(() => scheduleScan(), 250);
     };
-    const pauseDuringScroll = () => {
-      isScrolling = true;
-      window.clearTimeout(scrollTimer);
-      scrollTimer = window.setTimeout(() => {
-        isScrolling = false;
-        scheduleScan();
-      }, 180);
+    // Pause scans during ANY user activity (scroll, hover, drag). Hover-driven
+    // class/style changes were causing scan storms that flickered the sidebar
+    // text and emoji popovers between dark/light on every mouse move.
+    const pauseDuringActivity = () => {
+      isBusy = true;
+      window.clearTimeout(activityTimer);
+      activityTimer = window.setTimeout(() => {
+        isBusy = false;
+      }, 220);
     };
 
     // Initial scan after first paint
