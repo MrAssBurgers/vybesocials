@@ -22,8 +22,8 @@ function TransactionItem({ amount, type, description, created_at }: {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       className="flex items-center justify-between py-3 border-b border-border/50 last:border-0"
     >
       <div className="flex items-center gap-3">
