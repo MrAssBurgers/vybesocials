@@ -232,7 +232,7 @@ function FeedSection({
     <div className="pb-6" data-tutorial="feed-area">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex items-center gap-2 mb-5">
-          <TabsList className="relative flex-1 h-12 p-1 bg-card/60 backdrop-blur-xl rounded-2xl border border-border/20 shadow-[inset_0_1px_0_hsl(var(--foreground)/0.05)]">
+          <TabsList data-no-auto-contrast className="relative flex-1 h-12 p-1 bg-card/60 backdrop-blur-xl rounded-2xl border border-border/20 shadow-[inset_0_1px_0_hsl(var(--foreground)/0.05)]">
             {['foryou', 'local', 'global'].map((tab) => {
               const isActive = activeTab === tab;
               const icons: Record<string, typeof Sparkles> = { foryou: Sparkles, local: MapPin, global: Globe };
