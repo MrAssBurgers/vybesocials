@@ -68,8 +68,9 @@ export default function TokenWallet() {
   const purchases = transactions.filter(tx => tx.transaction_type === 'purchase');
 
   return (
-    <div className="min-h-screen bg-background p-4 pb-24">
-      <div className="max-w-lg mx-auto space-y-6">
+    <AppLayout>
+      <div className="p-4">
+        <div className="max-w-lg mx-auto space-y-6">
         {/* Balance Card */}
         <Card className="overflow-hidden">
           <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6">
@@ -185,7 +186,8 @@ export default function TokenWallet() {
             </CardContent>
           </Card>
         )}
+        </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }
