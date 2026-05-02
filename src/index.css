@@ -559,6 +559,13 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   body.has-custom-bg [data-app-scroll-container] {
     background-color: transparent !important;
   }
+  body.has-custom-bg .stable-sidebar-surface,
+  html[data-has-bg-image="true"] .stable-sidebar-surface {
+    background-color: hsl(var(--card)) !important;
+    background-image: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
   
   /* Bottom nav must always be on top */
   nav[aria-label="Bottom navigation"] {
