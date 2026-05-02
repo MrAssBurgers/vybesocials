@@ -23,6 +23,12 @@ label {
   -webkit-touch-callout: none;
 }
 
+@property --aurora-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
 /* Hide bottom nav on splash, landing, and intro pages */
 body.splash-visible nav[aria-label="Bottom navigation"],
 body.splash-visible [data-tutorial-bottomnav],
