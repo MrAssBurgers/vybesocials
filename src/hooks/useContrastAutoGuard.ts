@@ -34,6 +34,11 @@ interface CacheEntry {
 }
 
 const cache = new WeakMap<Element, CacheEntry>();
+// Pending decision: tracks how many consecutive scans agree on a desired state.
+// Prevents flicker when the sampled background hovers near the WCAG threshold
+// (e.g. when an animated capsule slides under the text).
+const pendingDecision = new WeakMap<Element, { wantsOverride: boolean; count: number }>();
+const STABLE_FRAMES = 2;
 
 function isLargeText(el: Element) {
   const cs = window.getComputedStyle(el);
@@ -49,6 +54,25 @@ function shouldSkip(el: Element): boolean {
   if (SKIP_TAGS.has(el.tagName)) return true;
   if (el.closest('[data-no-auto-contrast]')) return true;
   if (el.closest('[data-auto-contrast="off"]')) return true;
+  // Skip inside Framer Motion layout-animated containers. Their absolute
+  // capsule sibling slides under the text every frame, causing the sampled
+  // background to oscillate around the WCAG threshold (the flicker the user
+  // reports on the For You / Local / Global tabs and similar nav pills).
+  // Heuristic: walk up to 3 ancestors; if any ancestor contains a child with
+  // position:absolute AND an inline transform that is not identity, treat the
+  // whole subtree as animated and skip recoloring.
+  let probe: Element | null = el;
+  for (let i = 0; i < 3 && probe; i++, probe = probe.parentElement) {
+    const kids = (probe as HTMLElement).children;
+    for (let k = 0; k < kids.length; k++) {
+      const child = kids[k] as HTMLElement;
+      if (child === el || child.contains(el)) continue;
+      const inlineTransform = child.style?.transform;
+      if (!inlineTransform || inlineTransform === 'none') continue;
+      const childPos = window.getComputedStyle(child).position;
+      if (childPos === 'absolute' || childPos === 'fixed') return true;
+    }
+  }
   // Skip if element uses transparent text-fill (gradient text effects)
   const cs = window.getComputedStyle(el);
   if (
@@ -101,23 +125,39 @@ function processElement(el: Element) {
   const threshold = isLargeText(el) ? AA_LARGE : AA_BODY;
 
   const htmlEl = el as HTMLElement;
-  if (ratio < threshold) {
+  const hasOverride = htmlEl.hasAttribute('data-contrast-fixed');
+  // Determine the desired action with hysteresis bands so we don't oscillate.
+  // - want override ON  : ratio is clearly bad (< threshold)
+  // - want override OFF : ratio is comfortably good (>= threshold + 2.5)
+  // Anything in between → keep current state (no change).
+  let desired: 'on' | 'off' | 'keep';
+  if (ratio < threshold) desired = 'on';
+  else if (ratio >= threshold + 2.5) desired = hasOverride ? 'off' : 'keep';
+  else desired = 'keep';
+
+  if (desired === 'keep') {
+    pendingDecision.delete(el);
+    cache.set(el, { fgKey, bgKey, ratio });
+    return;
+  }
+
+  // Require N consecutive scans agreeing before applying.
+  const wantsOverride = desired === 'on';
+  const prev = pendingDecision.get(el);
+  const count = prev && prev.wantsOverride === wantsOverride ? prev.count + 1 : 1;
+  if (count < STABLE_FRAMES) {
+    pendingDecision.set(el, { wantsOverride, count });
+    return;
+  }
+  pendingDecision.delete(el);
+
+  if (wantsOverride) {
     const readable = pickReadable(bg);
     htmlEl.style.setProperty('--auto-contrast-color', readable);
     htmlEl.setAttribute('data-contrast-fixed', ratio.toFixed(2));
-  } else if (htmlEl.hasAttribute('data-contrast-fixed')) {
-    // If the underlying surface has changed enough that the *original* color
-    // would now pass cleanly with a comfortable margin, release the override.
-    // Wider margin (+2.5) prevents flicker loops on themed pages where the
-    // sampled background can jiggle slightly between scans.
-    if (ratio >= threshold + 2.5) {
-      htmlEl.style.removeProperty('--auto-contrast-color');
-      htmlEl.removeAttribute('data-contrast-fixed');
-      cache.set(el, { fgKey, bgKey, ratio });
-      return;
-    }
-    cache.set(el, { fgKey, bgKey, ratio });
-    return;
+  } else {
+    htmlEl.style.removeProperty('--auto-contrast-color');
+    htmlEl.removeAttribute('data-contrast-fixed');
   }
 
   cache.set(el, { fgKey, bgKey, ratio });
