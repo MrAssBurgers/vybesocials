@@ -1,5 +1,8 @@
 import { motion } from 'framer-motion';
-import { Coins, TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles, ShoppingBag } from 'lucide-react';
+import { useEffect } from 'react';
+import { Coins, TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles, ShoppingBag, Nfc } from 'lucide-react';
+import { useWebNFC } from '@/hooks/useWebNFC';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useTokenBalance, useTokenTransactions, TOKEN_RATES } from '@/hooks/useVybeTokens';
