@@ -1374,7 +1374,9 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     overflow: hidden;
     border-radius: inherit;
     background-color: hsl(var(--background));
+    --aurora-angle: 0deg;
     background-image:
+      conic-gradient(from var(--aurora-angle) at 50% 50%, hsl(var(--gradient-start) / 0.22), hsl(var(--gradient-mid) / 0.18), hsl(var(--gradient-end) / 0.22), hsl(var(--gradient-start) / 0.22)),
       radial-gradient(circle at 18% 28%, hsl(var(--gradient-start) / 0.95), transparent 60%),
       radial-gradient(circle at 82% 72%, hsl(var(--gradient-mid) / 0.90), transparent 60%),
       radial-gradient(circle at 58% 18%, hsl(var(--gradient-end) / 0.95), transparent 60%),
@@ -1385,11 +1387,11 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       radial-gradient(circle at 90% 15%, hsl(var(--gradient-start) / 0.85), transparent 60%),
       radial-gradient(circle at 40% 40%, hsl(var(--gradient-mid) / 0.75), transparent 60%);
     background-size:
-      260% 260%, 285% 285%, 255% 255%,
+      180% 180%, 260% 260%, 285% 285%, 255% 255%,
       300% 300%, 275% 275%, 315% 315%,
       280% 280%, 295% 295%, 265% 265%;
     background-repeat: no-repeat;
-    animation: aurora-drift-multi 16s linear infinite;
+    animation: aurora-drift-multi 16s linear infinite, aurora-angle-spin 18s linear infinite;
     filter: saturate(1.75) brightness(1.18);
   }
 
