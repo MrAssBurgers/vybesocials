@@ -50,7 +50,7 @@ export function LiveActivityTicker() {
   const current = messages[currentIndex % messages.length];
 
   return (
-    <div className="h-5 overflow-hidden relative">
+    <div className="h-5 overflow-hidden relative" data-no-auto-contrast>
       <AnimatePresence mode="wait">
         <motion.p
           key={currentIndex}

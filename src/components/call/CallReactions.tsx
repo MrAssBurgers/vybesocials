@@ -99,6 +99,7 @@ export function CallReactions({ onReaction, incomingReaction }: CallReactionsPro
             exit={{ opacity: 0, y: 10, scale: 0.9 }}
             transition={{ type: 'spring', damping: 25, stiffness: 400 }}
             className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 flex items-center gap-1 p-2 rounded-2xl backdrop-blur-2xl bg-black/60 border border-white/10 shadow-2xl"
+            data-no-auto-contrast
           >
             {REACTIONS.map(r => (
               <motion.button

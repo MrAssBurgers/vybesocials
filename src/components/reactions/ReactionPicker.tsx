@@ -298,6 +298,7 @@ export const ReactionPicker = memo(function ReactionPicker({
             vertical ? "flex-col rounded-2xl" : "flex-row rounded-full",
           )}
           style={pickerStyle}
+          data-no-auto-contrast
           onMouseLeave={() => {
             if (!isDragging.current) setHoveredIndex(null);
           }}
