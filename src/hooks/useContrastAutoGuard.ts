@@ -34,6 +34,11 @@ interface CacheEntry {
 }
 
 const cache = new WeakMap<Element, CacheEntry>();
+// Pending decision: tracks how many consecutive scans agree on a desired state.
+// Prevents flicker when the sampled background hovers near the WCAG threshold
+// (e.g. when an animated capsule slides under the text).
+const pendingDecision = new WeakMap<Element, { wantsOverride: boolean; count: number }>();
+const STABLE_FRAMES = 2;
 
 function isLargeText(el: Element) {
   const cs = window.getComputedStyle(el);
