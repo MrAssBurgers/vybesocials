@@ -19,12 +19,19 @@ export async function initializeNativePlugins() {
     // Hide splash screen after app is ready
     await SplashScreen.hide({ fadeOutDuration: 500 });
 
-    // Configure status bar
+    // Configure status bar — overlay so the WebView extends edge-to-edge
     if (isAndroid) {
       await StatusBar.setStyle({ style: Style.Dark });
-      await StatusBar.setBackgroundColor({ color: '#0a0a0b' });
+      try {
+        await StatusBar.setOverlaysWebView({ overlay: true });
+      } catch (e) {
+        console.warn('[Capacitor] setOverlaysWebView not available:', e);
+      }
     } else if (isIOS) {
       await StatusBar.setStyle({ style: Style.Dark });
+      try {
+        await StatusBar.setOverlaysWebView({ overlay: true });
+      } catch {}
     }
 
     // Setup keyboard listeners
