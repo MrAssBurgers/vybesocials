@@ -2193,7 +2193,6 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 /* Contrast Auto-Guard: applied at runtime when text fails WCAG AA on its surface */
 [data-contrast-fixed] {
   color: var(--auto-contrast-color, inherit) !important;
-  transition: color 0.18s ease-out;
 }
 
 /* Skip to content link */
