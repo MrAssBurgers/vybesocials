@@ -1839,6 +1839,11 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   to { background-position: -100% 50%; }
 }
 
+@keyframes aurora-angle-spin {
+  from { --aurora-angle: 0deg; }
+  to { --aurora-angle: 360deg; }
+}
+
 /* VYBE aurora drift — each of the 9 radial blobs traces its own circular
    orbit so position is inherently periodic. With `linear` timing this
    produces a perfectly seamless infinite loop with NO snap or restart at
@@ -1847,13 +1852,13 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 @keyframes aurora-drift-multi {
   0% {
     background-position:
-      50% 15%, 85% 50%, 15% 50%,
+      50% 50%, 50% 15%, 85% 50%, 15% 50%,
       50% 85%, 76% 26%, 24% 74%,
       85% 85%, 15% 15%, 50% 50%;
   }
   12.5% {
     background-position:
-      75% 25%, 75% 75%, 25% 25%,
+      50% 50%, 75% 25%, 75% 75%, 25% 25%,
       25% 75%, 90% 50%, 10% 50%,
       90% 50%, 10% 50%, 75% 25%;
   }
