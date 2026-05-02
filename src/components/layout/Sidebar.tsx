@@ -45,7 +45,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside data-no-auto-contrast className="hidden lg:flex fixed left-0 top-0 h-screen w-64 flex-col liquid-glass border-r border-white/10 p-4 z-40">
+    <aside data-no-auto-contrast className="hidden lg:flex fixed left-0 top-0 h-screen w-64 flex-col bg-card border-r border-border/40 shadow-2xl shadow-background/30 p-4 z-40">
       {/* Logo */}
       <div className="flex items-center gap-2 px-2 py-4">
         <Link to="/home" className="group">
@@ -71,20 +71,15 @@ export function Sidebar() {
                   : "text-foreground/85 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               )}
             >
-              {/* Animated gradient outline for active state */}
+              {/* Static active state: avoids hover/background shimmer */}
               {isActive && (
                 <motion.div
                   layoutId="sidebarNavOutline"
-                  className="absolute inset-0 rounded-xl overflow-hidden"
+                  className="absolute inset-0 rounded-xl bg-sidebar-accent border border-primary/20"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                >
-                  {/* Animated gradient border */}
-                  <div className="absolute inset-0 gradient-border-animated animate-glow-pulse" />
-                  {/* Inner background to create border effect */}
-                  <div className="absolute inset-[2px] rounded-[10px] liquid-glass-subtle" />
-                </motion.div>
+                />
               )}
               <div className="relative">
                 <Icon className="h-5 w-5 relative z-10" />
@@ -150,7 +145,7 @@ export function Sidebar() {
         {/* Profile Card */}
         <Link
           to={profile ? `/u/${profile.username}` : '/profile'}
-          className="flex items-center gap-3 mx-2 px-3 py-2.5 rounded-xl liquid-glass-subtle hover:bg-white/10 transition-all group"
+          className="flex items-center gap-3 mx-2 px-3 py-2.5 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors group"
         >
           <Avatar className="h-9 w-9 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
             <AvatarImage src={profile?.avatar_url || undefined} />
@@ -181,7 +176,7 @@ export function Sidebar() {
           <Link
             to="/notifications"
             onClick={triggerNavFeedback}
-            className="relative flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+            className="relative flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground transition-colors"
           >
             <Bell className="h-4 w-4" />
             <span className="text-xs font-medium">Alerts</span>
@@ -205,7 +200,7 @@ export function Sidebar() {
           <Link
             to="/settings"
             onClick={triggerNavFeedback}
-            className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-muted-foreground hover:bg-background/50 hover:text-foreground transition-all"
+            className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground transition-colors"
           >
             <Settings className="h-4 w-4" />
             <span className="text-xs font-medium">Settings</span>
