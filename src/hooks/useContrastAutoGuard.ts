@@ -49,6 +49,14 @@ function shouldSkip(el: Element): boolean {
   if (SKIP_TAGS.has(el.tagName)) return true;
   if (el.closest('[data-no-auto-contrast]')) return true;
   if (el.closest('[data-auto-contrast="off"]')) return true;
+  // Skip inside Framer Motion layout-animated containers. Their transform/
+  // background composition changes every frame, which causes the contrast
+  // sampler to flip back and forth — the visible "flicker" the user reports.
+  // We detect by climbing to a parent that has an animated capsule sibling
+  // (a sibling element with `data-projection-id` or `[style*="transform"]`
+  // and `position:absolute`).
+  const animatedAncestor = el.closest('[data-projection-id], [data-framer-component-type]');
+  if (animatedAncestor) return true;
   // Skip if element uses transparent text-fill (gradient text effects)
   const cs = window.getComputedStyle(el);
   if (
