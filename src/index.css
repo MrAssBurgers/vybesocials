@@ -1701,7 +1701,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
   
   .perf-medium .gradient-animated {
-    animation-duration: 16s !important;
+    animation-duration: 12s !important;
   }
 
   /* Glass intensity levels */
