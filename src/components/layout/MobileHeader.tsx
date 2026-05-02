@@ -46,9 +46,10 @@ export const MobileHeader = React.forwardRef<HTMLElement, {}>(function MobileHea
   }
 
   return (
-    <header data-no-auto-contrast className="fixed top-0 left-0 right-0 z-50 safe-area-top">
-      <div className="liquid-glass border-b border-foreground/5">
+    <header data-no-auto-contrast className="fixed top-0 left-0 right-0 z-50 liquid-glass border-b border-foreground/5">
+      <div className="safe-area-top">
         <div className="flex items-center justify-between h-14 px-3 relative z-10">
+
           {/* Logo - clean and minimal */}
           <div className="flex items-center gap-1 flex-shrink-0">
             <Link 
