@@ -227,7 +227,7 @@ function getFullBleedFixedBg(): RGBA | null {
   return null;
 }
 
-const BLUR_RE = /blur\(\s*([\d.]+)px\s*\)/i;
+
 
 /**
  * Walk up ancestors compositing semi-transparent backgrounds (including
