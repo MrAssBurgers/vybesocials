@@ -1404,6 +1404,13 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     filter: saturate(1.55) brightness(1.15);
   }
 
+  .stable-sidebar-surface {
+    background-color: hsl(var(--card)) !important;
+    background-image: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
   /* Static gradient for non-critical elements */
   .gradient-static {
     background: linear-gradient(
@@ -1520,15 +1527,15 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       220% 220%, 240% 240%, 220% 220%,
       230% 230%, 250% 250%, 210% 210%;
     background-repeat: no-repeat;
-    animation: aurora-drift-multi 28s linear infinite;
+    animation: aurora-drift-multi 14s linear infinite;
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     /* Dark surface defaults — slightly punchier glow */
-    opacity: 0.6;
-    filter: saturate(1.25) brightness(1.05)
-      drop-shadow(0 0 4px hsl(var(--primary) / 0.18));
+    opacity: 0.85;
+    filter: saturate(1.65) brightness(1.18)
+      drop-shadow(0 0 7px hsl(var(--primary) / 0.28));
   }
 
   /* Light mode: thinner edge, less glow so it doesn't wash out the card */
