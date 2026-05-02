@@ -186,21 +186,19 @@ function getPseudoBg(node: Element, pseudo: '::before' | '::after'): RGBA | null
     // No content set → pseudo not rendered at all
     return null;
   }
-  const bgColor = parseColor(cs.backgroundColor);
-  const gradient = averageGradientColor(cs.backgroundImage || '');
-  // Prefer the gradient if the solid color is transparent
-  const candidate =
-    bgColor && bgColor.a > 0.05
-      ? bgColor
-      : gradient
-      ? { ...gradient, a: Math.max(gradient.a, 0.95) }
-      : null;
-  if (!candidate) return null;
-  // Heuristic: the pseudo must visually cover the host. Most "theme background"
-  // pseudos use position:absolute/fixed with inset:0. Anything inline is skipped.
   const pos = cs.position;
   if (pos !== 'absolute' && pos !== 'fixed') return null;
-  return candidate;
+  const bgColor = parseColor(cs.backgroundColor);
+  const gradient = averageGradientColor(cs.backgroundImage || '');
+  // Pseudo-elements are TINTS, not surfaces. Use their actual alpha capped low
+  // so they can't masquerade as the dominant background of the host.
+  if (bgColor && bgColor.a > 0.05) {
+    return { ...bgColor, a: Math.min(bgColor.a, 0.6) };
+  }
+  if (gradient && gradient.a > 0.05) {
+    return { ...gradient, a: Math.min(gradient.a, 0.5) };
+  }
+  return null;
 }
 
 /**
