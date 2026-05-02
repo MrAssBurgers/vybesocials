@@ -114,23 +114,39 @@ function processElement(el: Element) {
   const threshold = isLargeText(el) ? AA_LARGE : AA_BODY;
 
   const htmlEl = el as HTMLElement;
-  if (ratio < threshold) {
+  const hasOverride = htmlEl.hasAttribute('data-contrast-fixed');
+  // Determine the desired action with hysteresis bands so we don't oscillate.
+  // - want override ON  : ratio is clearly bad (< threshold)
+  // - want override OFF : ratio is comfortably good (>= threshold + 2.5)
+  // Anything in between → keep current state (no change).
+  let desired: 'on' | 'off' | 'keep';
+  if (ratio < threshold) desired = 'on';
+  else if (ratio >= threshold + 2.5) desired = hasOverride ? 'off' : 'keep';
+  else desired = 'keep';
+
+  if (desired === 'keep') {
+    pendingDecision.delete(el);
+    cache.set(el, { fgKey, bgKey, ratio });
+    return;
+  }
+
+  // Require N consecutive scans agreeing before applying.
+  const wantsOverride = desired === 'on';
+  const prev = pendingDecision.get(el);
+  const count = prev && prev.wantsOverride === wantsOverride ? prev.count + 1 : 1;
+  if (count < STABLE_FRAMES) {
+    pendingDecision.set(el, { wantsOverride, count });
+    return;
+  }
+  pendingDecision.delete(el);
+
+  if (wantsOverride) {
     const readable = pickReadable(bg);
     htmlEl.style.setProperty('--auto-contrast-color', readable);
     htmlEl.setAttribute('data-contrast-fixed', ratio.toFixed(2));
-  } else if (htmlEl.hasAttribute('data-contrast-fixed')) {
-    // If the underlying surface has changed enough that the *original* color
-    // would now pass cleanly with a comfortable margin, release the override.
-    // Wider margin (+2.5) prevents flicker loops on themed pages where the
-    // sampled background can jiggle slightly between scans.
-    if (ratio >= threshold + 2.5) {
-      htmlEl.style.removeProperty('--auto-contrast-color');
-      htmlEl.removeAttribute('data-contrast-fixed');
-      cache.set(el, { fgKey, bgKey, ratio });
-      return;
-    }
-    cache.set(el, { fgKey, bgKey, ratio });
-    return;
+  } else {
+    htmlEl.style.removeProperty('--auto-contrast-color');
+    htmlEl.removeAttribute('data-contrast-fixed');
   }
 
   cache.set(el, { fgKey, bgKey, ratio });
