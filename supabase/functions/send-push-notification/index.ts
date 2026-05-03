@@ -214,12 +214,13 @@ Deno.serve(async (req) => {
     const cleanedCount = results.filter(r => r.cleaned).length;
 
     return new Response(
-      JSON.stringify({ 
-        success: successCount > 0, 
+      JSON.stringify({
+        success: successCount > 0 || !!onesignalResult,
         sent: successCount,
         cleaned: cleanedCount,
         total: tokens.length,
-        results 
+        onesignal: onesignalResult,
+        results,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
