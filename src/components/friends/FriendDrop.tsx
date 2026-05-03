@@ -197,14 +197,22 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setIsScanning(true);
     haptics.tap();
     try {
+      // Use the stream we already requested in handleOpen if it's ready —
+      // skips the getUserMedia round-trip so the camera appears instantly.
       let stream = getPreloadedStream();
       if (!stream) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
-        });
+        stream = await requestCameraStream({ facingMode: 'environment', width: 640, height: 480 });
+      }
+      if (!stream) {
+        toast.error('Could not access camera');
+        setIsScanning(false);
+        return;
       }
       streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
