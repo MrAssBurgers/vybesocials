@@ -17,6 +17,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { getPreloadedStream } from '@/hooks/useCameraPreload';
 import jsQR from 'jsqr';
 import { getPrimaryHex } from '@/lib/themeColor';
+import { navVisibility } from '@/lib/navVisibility';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 
