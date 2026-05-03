@@ -178,7 +178,9 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
   const handleOpen = useCallback(async () => {
     if (!profile?.username) { toast.error('Complete your profile first'); return; }
-    preloadCameraStream();
+    // Kick off camera request immediately from this user gesture so it's
+    // already streaming by the time the sheet finishes opening.
+    requestCameraStream({ facingMode: 'environment', width: 640, height: 480 });
     setIsOpen(true);
     setPhase('idle');
     setFoundUser(null);
