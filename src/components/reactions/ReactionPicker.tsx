@@ -317,7 +317,10 @@ export const ReactionPicker = memo(function ReactionPicker({
             <div
               key={reaction.type}
               onMouseEnter={() => { if (!isDragging.current) setHoveredIndex(index); }}
-              onClick={() => handleSelectReaction(reaction.type)}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); handleSelectReaction(reaction.type); }}
             >
               <ReactionBubble
                 reaction={reaction}
