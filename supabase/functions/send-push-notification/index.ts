@@ -105,8 +105,9 @@ Deno.serve(async (req) => {
     }
     
     if (!tokens || tokens.length === 0) {
+      // Web Push has no targets, but OneSignal may have already delivered to native devices.
       return new Response(
-        JSON.stringify({ success: false, error: "No push tokens found" }),
+        JSON.stringify({ success: !!onesignalResult, sent: 0, onesignal: onesignalResult, error: onesignalResult ? undefined : "No push tokens found" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
