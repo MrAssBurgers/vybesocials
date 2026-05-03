@@ -514,6 +514,7 @@ export function AutoFriendDrop() {
                 </TabsContent>
               </Tabs>
             )}
+            </div>
 
           </div>
         </>
