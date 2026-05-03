@@ -93,10 +93,14 @@ export const ReactionPicker = memo(function ReactionPicker({
     if (!showPicker) return;
     const handleClick = (e: MouseEvent | TouchEvent) => {
       if (isDragging.current) return;
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setShowPicker(false);
-        setHoveredIndex(null);
-      }
+      const target = e.target as Node;
+      // Ignore clicks inside the trigger OR inside the portal'd picker itself —
+      // otherwise the picker closes before the bubble's onClick fires and only
+      // the default 'like' tap ever saves.
+      if (containerRef.current?.contains(target)) return;
+      if (pickerRef.current?.contains(target)) return;
+      setShowPicker(false);
+      setHoveredIndex(null);
     };
     document.addEventListener('mousedown', handleClick);
     document.addEventListener('touchstart', handleClick);
@@ -313,7 +317,10 @@ export const ReactionPicker = memo(function ReactionPicker({
             <div
               key={reaction.type}
               onMouseEnter={() => { if (!isDragging.current) setHoveredIndex(index); }}
-              onClick={() => handleSelectReaction(reaction.type)}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); handleSelectReaction(reaction.type); }}
             >
               <ReactionBubble
                 reaction={reaction}

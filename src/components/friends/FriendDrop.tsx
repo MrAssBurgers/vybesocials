@@ -16,7 +16,7 @@ import jsQR from 'jsqr';
 import { getPrimaryHex } from '@/lib/themeColor';
 import { useNFC } from '@/hooks/useNFC';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
-import { preloadCameraStream, getPreloadedStream } from '@/hooks/useCameraPreload';
+import { getPreloadedStream, requestCameraStream } from '@/hooks/useCameraPreload';
 import { LiquidBottomSheet } from '@/components/ui/glass/LiquidBottomSheet';
 
 interface FriendDropProps {
@@ -39,13 +39,13 @@ const smoothSpring = { type: "spring" as const, stiffness: 400, damping: 30 };
 // ===== RADAR ANIMATION =====
 function PhoneTapRadar({ active }: { active: boolean }) {
   return (
-    <div className="relative flex items-center justify-center w-48 h-48 mx-auto">
+    <div className="relative flex items-center justify-center w-36 h-36 mx-auto">
       {/* Radar rings */}
       {[1, 2, 3].map((i) => (
         <motion.div
           key={i}
           className="absolute rounded-full border border-primary/20"
-          style={{ width: `${i * 60}px`, height: `${i * 60}px` }}
+          style={{ width: `${i * 44}px`, height: `${i * 44}px` }}
           animate={active ? {
             scale: [1, 1.15, 1],
             opacity: [0.3, 0.1, 0.3],
@@ -61,7 +61,7 @@ function PhoneTapRadar({ active }: { active: boolean }) {
       {/* Sweeping line */}
       {active && (
         <motion.div
-          className="absolute w-[1px] h-[90px] origin-bottom bg-gradient-to-t from-primary/40 to-transparent"
+          className="absolute w-[1px] h-[66px] origin-bottom bg-gradient-to-t from-primary/40 to-transparent"
           style={{ bottom: '50%' }}
           animate={{ rotate: 360 }}
           transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
@@ -69,11 +69,11 @@ function PhoneTapRadar({ active }: { active: boolean }) {
       )}
       {/* Center icon */}
       <motion.div
-        className="relative z-10 w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center"
+        className="relative z-10 w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center"
         animate={active ? { scale: [1, 1.06, 1] } : {}}
         transition={{ duration: 1.5, repeat: Infinity }}
       >
-        <Smartphone className="h-7 w-7 text-primary" />
+        <Smartphone className="h-5 w-5 text-primary" />
       </motion.div>
       {/* Pulse dot */}
       {active && (
@@ -141,7 +141,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   
   const primaryHex = getPrimaryHex();
   const qrCodeUrl = myProfileUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=${primaryHex}&format=svg&ecc=H&margin=2`
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=${primaryHex}&format=svg&ecc=H&margin=2`
     : '';
 
   const stopScanning = useCallback(() => {
@@ -178,7 +178,9 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
   const handleOpen = useCallback(async () => {
     if (!profile?.username) { toast.error('Complete your profile first'); return; }
-    preloadCameraStream();
+    // Kick off camera request immediately from this user gesture so it's
+    // already streaming by the time the sheet finishes opening.
+    requestCameraStream({ facingMode: 'environment', width: 640, height: 480 });
     setIsOpen(true);
     setPhase('idle');
     setFoundUser(null);
@@ -195,14 +197,22 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setIsScanning(true);
     haptics.tap();
     try {
+      // Use the stream we already requested in handleOpen if it's ready —
+      // skips the getUserMedia round-trip so the camera appears instantly.
       let stream = getPreloadedStream();
       if (!stream) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
-        });
+        stream = await requestCameraStream({ facingMode: 'environment', width: 640, height: 480 });
+      }
+      if (!stream) {
+        toast.error('Could not access camera');
+        setIsScanning(false);
+        return;
       }
       streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -417,20 +427,20 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       </AnimatePresence>
 
       {/* QR Code - compact */}
-      <div className="bg-white rounded-xl p-2.5 shadow-sm">
-        <img src={qrCodeUrl} alt="Your QR Code" className="w-36 h-36 rounded-lg" style={{ imageRendering: 'crisp-edges' }} />
+      <div className="bg-white rounded-xl p-2 shadow-sm">
+        <img src={qrCodeUrl} alt="Your QR Code" className="w-28 h-28 rounded-lg" style={{ imageRendering: 'crisp-edges' }} />
         <p className="text-[10px] text-black/40 text-center mt-1 font-medium">@{profile?.username?.trim()}</p>
       </div>
 
       {/* Copy & Share pills */}
       <div className="flex gap-2 w-full">
         <button onClick={copyLink}
-          className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl bg-secondary/50 hover:bg-secondary/80 transition-colors text-[11px] font-medium"
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-secondary/50 hover:bg-secondary/80 transition-colors text-[10px] font-medium"
         >
           <Copy className="h-3 w-3 text-muted-foreground" /> Copy
         </button>
         <button onClick={shareLink}
-          className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl bg-secondary/50 hover:bg-secondary/80 transition-colors text-[11px] font-medium"
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-secondary/50 hover:bg-secondary/80 transition-colors text-[10px] font-medium"
         >
           <Share2 className="h-3 w-3 text-muted-foreground" /> Share
         </button>
@@ -545,9 +555,9 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
         isOpen={isOpen}
         onClose={handleClose}
         title="Add Friend"
-        maxHeight={70}
+        maxHeight={58}
       >
-        <div className="px-4 pb-5">
+        <div className="px-3 pb-3">
           <AnimatePresence mode="wait">
             {showOverlay ? (
               renderOverlay()
