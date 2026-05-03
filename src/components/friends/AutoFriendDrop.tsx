@@ -17,6 +17,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { getPreloadedStream } from '@/hooks/useCameraPreload';
 import jsQR from 'jsqr';
 import { getPrimaryHex } from '@/lib/themeColor';
+import { navVisibility } from '@/lib/navVisibility';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 
@@ -267,6 +268,21 @@ export function AutoFriendDrop() {
 
   useEffect(() => { return () => { stopScanning(); }; }, [stopScanning]);
 
+  // While Friend Link is open: hide bottom nav + lock body scroll
+  useEffect(() => {
+    if (!isActive) return;
+    navVisibility.setInDesigner(true);
+    const prevOverflow = document.body.style.overflow;
+    const prevTouch = document.body.style.touchAction;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    return () => {
+      navVisibility.setInDesigner(false);
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouch;
+    };
+  }, [isActive]);
+
   // Start NFC when switching to NFC tab
   useEffect(() => {
     if (isActive && activeTab === 'nfc' && nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
@@ -314,7 +330,7 @@ export function AutoFriendDrop() {
             className="fixed inset-x-0 mx-auto w-full max-w-sm bg-card rounded-t-2xl sm:rounded-2xl border border-border/40 shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300"
             style={{
               zIndex: 9999,
-              bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
+              bottom: 'env(safe-area-inset-bottom, 0px)',
               maxHeight: '85vh',
             }}
           >
