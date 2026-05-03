@@ -580,6 +580,43 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
       premiumSounds.stopAllCallSounds();
       setState({ phase: 'joining', call: callData, error: null });
+
+      // Fan out a push notification so the receiver(s) hear the ring even
+      // when the app is backgrounded. Fire-and-forget — call should never
+      // crash if push fails.
+      try {
+        const targetIds = params.isGroupCall
+          ? (params.participantIds || []).filter((id) => id && id !== profile.id)
+          : [params.receiverId];
+
+        const callerName = profile.username || 'Someone';
+        const callTypeLabel = params.callType === 'video' ? 'FaceTime' : 'audio call';
+        const title = params.isGroupCall
+          ? `${params.groupName || 'Group'} • Incoming ${callTypeLabel}`
+          : `Incoming ${callTypeLabel}`;
+        const body = `${callerName} is calling…`;
+
+        await Promise.all(
+          targetIds.map((userId) =>
+            supabase.functions.invoke('n', {
+              body: {
+                userId,
+                title,
+                body,
+                data: {
+                  type: 'incoming_call',
+                  callId: callSession.id,
+                  conversationId: params.conversationId,
+                  callType: params.callType,
+                },
+                priority: 'high',
+              },
+            }).catch((e) => console.warn('[CallStore] push notification failed:', e))
+          )
+        );
+      } catch (pushErr) {
+        console.warn('[CallStore] push fan-out failed:', pushErr);
+      }
     } catch (err: any) {
       console.error('[CallStore] Failed to start call:', err);
       premiumSounds.stopAllCallSounds();
