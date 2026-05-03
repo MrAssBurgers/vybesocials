@@ -330,7 +330,7 @@ export function AutoFriendDrop() {
             className="fixed inset-x-0 mx-auto w-full max-w-sm bg-card rounded-t-2xl sm:rounded-2xl border border-border/40 shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300"
             style={{
               zIndex: 9999,
-              bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
+              bottom: 'env(safe-area-inset-bottom, 0px)',
               maxHeight: '85vh',
             }}
           >
