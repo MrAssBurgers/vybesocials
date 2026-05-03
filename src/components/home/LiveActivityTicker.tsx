@@ -15,16 +15,40 @@ export function LiveActivityTicker() {
     const msgs: { emoji: string; text: string }[] = [];
 
     if (stats.activeLevelUps > 0) {
-      msgs.push({ emoji: '🔥', text: `${stats.activeLevelUps} people leveling up today` });
+      msgs.push({
+        emoji: '🔥',
+        text:
+          stats.activeLevelUps === 1
+            ? '1 person is leveling up today'
+            : `${stats.activeLevelUps} people are leveling up today`,
+      });
     }
     if (stats.activeChats > 0) {
-      msgs.push({ emoji: '💬', text: `${stats.activeChats} active chats right now` });
+      msgs.push({
+        emoji: '💬',
+        text:
+          stats.activeChats === 1
+            ? '1 active chat right now'
+            : `${stats.activeChats} active chats right now`,
+      });
     }
     if (stats.recentPosts > 0) {
-      msgs.push({ emoji: '⚡', text: `${stats.recentPosts} new posts in the last 5 min` });
+      msgs.push({
+        emoji: '⚡',
+        text:
+          stats.recentPosts === 1
+            ? '1 new post in the last 5 min'
+            : `${stats.recentPosts} new posts in the last 5 min`,
+      });
     }
     if (stats.badgesClaimed > 0) {
-      msgs.push({ emoji: '💎', text: `${stats.badgesClaimed} rewards claimed today` });
+      msgs.push({
+        emoji: '💎',
+        text:
+          stats.badgesClaimed === 1
+            ? '1 reward claimed today'
+            : `${stats.badgesClaimed} rewards claimed today`,
+      });
     }
 
     // Fallback if no live data

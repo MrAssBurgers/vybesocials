@@ -1,38 +1,42 @@
-## Problems
+## What the videos show
 
-1. **Friend Link sheet content doesn't scroll** — `LiquidBottomSheet` has `drag="y"` on the same motion.div that wraps the scrollable content. Framer Motion's vertical drag swallows touch events, so internal scrolling is dead. The user remembers it scrolling like a normal page, and also wants the panel slimmer.
-2. **Camera takes too long to appear** — `preloadCameraStream()` is fired in `handleOpen`, but the `<video>` is only mounted after the user taps "Scan QR Code" and `startScanning()` runs `getUserMedia`/`play()`. Result: 1–2 s lag.
-3. **Reactions other than 👍 aren't saved** — Confirmed via DB (`likes` table only contains `like` + a few `haha`). Root cause is in `ReactionPicker`: the picker is rendered through `createPortal` to `document.body`, but the outside‑click listener only checks `containerRef` (the trigger button). Tapping a reaction bubble fires `touchstart` first → the listener sees the target is *outside* `containerRef`, so it unmounts the picker before the bubble's `onClick` can fire. Only the trigger‑button single‑tap (`'like'`) ever lands.
+1. **Greeting ticker grammar** — reads "1 **people** leveling up today". Should pluralize correctly.
+2. **Username overflow** — `@Bakrix` (and any longer handle) extends past the right edge of the greeting card because the `<h1>` has no `min-w-0` / `truncate` and the gradient `<span>` is inline.
+3. **VYBE AI Designer placeholder clipped** — "Tell me how to redesign your VY…". The `<Input>` sits in a flex row next to a Send button without `min-w-0`, so on narrow phones the placeholder text is cut off.
 
-## Fix Plan
+## Reactions verification (no code change)
 
-### 1. `src/components/ui/glass/LiquidBottomSheet.tsx`
-- Move `drag="y"` / `dragConstraints` / `dragElastic` / `onDragEnd` off the main sheet `motion.div` and apply them only to the small drag‑handle area at the top. Body scroll then works normally.
-- On the inner scroll container add `style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}` to guarantee native momentum scrolling on Despia/Android.
+- Last turn fixed the real bug: portal'd ReactionPicker bubbles were dismissing themselves before `onClick` fired. Now love/haha/wow/sad/angry/care all reach `handleReaction → likes.upsert({ reaction_type })`.
+- Round-trip after refresh is already correct:
+  - `get_posts_with_counts` RPC returns `reaction_type` per user.
+  - `useInfinitePosts.transformPost` and `usePosts` map it onto `Post.reaction_type`.
+  - `PostCard` seeds `currentReaction` from `post.reaction_type` so the heart button shows the saved emoji.
+- DB shows only `like` + `haha` because no new taps have happened since the picker fix. Will populate as soon as you tap. No further work needed.
 
-### 2. `src/components/reactions/ReactionPicker.tsx` (the real "only thumbs‑up saves" bug)
-- In the outside‑click effect, also bail out when the event target is inside `pickerRef.current` (the portal'd popup). Picker stays open long enough for the bubble's `onClick → handleSelectReaction` to fire, so love / haha / wow / sad / angry / care all save.
-- Also make the bubble wrappers call `e.stopPropagation()` on `onTouchStart`/`onPointerDown` as a belt‑and‑suspenders guard.
-- Verified DB column `likes.reaction_type` already supports all 7 types and `usePosts`/`useInfinitePosts`/`get_posts_with_counts` already round‑trip it — no DB or query change needed.
+## Fixes
 
-### 3. `src/components/friends/FriendDrop.tsx` — slim redesign + instant camera
-- **Sheet height**: drop `maxHeight` from `70` → `58` and tighten paddings (`px-4 pb-5` → `px-3 pb-3`, gaps `gap-3` → `gap-2`).
-- **Smaller QR**: `w-36 h-36` → `w-28 h-28`, QR API size `240x240` → `200x200`, surrounding white card padding `p-2.5` → `p-2`.
-- **Smaller radar**: PhoneTapRadar `w-48 h-48` → `w-36 h-36`, ring widths scaled accordingly, center icon `w-16 h-16` → `w-12 h-12`.
-- **Tighter copy/share pills**: `py-2` → `py-1.5`, font `text-[11px]` → `text-[10px]`.
-- **Instant camera**:
-  - Always mount the `<video>` element (hidden behind the QR until scanning starts) and attach the preloaded stream via a `useEffect` that watches `getPreloadedStream()` so the feed is already running before the user taps Scan.
-  - Switch `handleOpen` to call `preloadCameraStream({ facingMode: 'environment', width: 640, height: 480 })` and `await` the resulting stream so it's live by the time the sheet finishes its open animation.
-  - In `startScanning`, skip the `getUserMedia` round‑trip whenever `getPreloadedStream()` returns an active stream — just start the `requestAnimationFrame` jsQR loop. Visible camera in <100 ms.
+### 1. `src/components/home/LiveActivityTicker.tsx`
+Pluralize all four messages based on count:
+- `1 person is leveling up today` / `N people are leveling up today`
+- `1 active chat right now` / `N active chats right now`
+- `1 new post in the last 5 min` / `N new posts in the last 5 min`
+- `1 reward claimed today` / `N rewards claimed today`
 
-### 4. Sanity sweep
-- Quick `rg` for any other place using `LiquidBottomSheet` to make sure removing top‑level drag doesn't regress them (drag handle still gives swipe‑to‑close).
-- No DB migration, no edge function change, no Capacitor change.
+### 2. `src/components/home/WelcomeHeader.tsx`
+Stop the username from overflowing the greeting card:
+- Wrap greeting + username in a flex row with `min-w-0`.
+- Add `truncate` to the username `<span>` and `whitespace-nowrap` to the "Good evening," prefix so only the handle elides with `…` if it's too long.
+
+### 3. `src/components/ai/VYBECommandBar.tsx`
+Fix the clipped placeholder:
+- Wrap the `<Input>` in a `flex-1 min-w-0` div so it actually shrinks/grows correctly next to the Send button.
+- Shorten the placeholder to "Redesign your VYBE…" so even on a 320px viewport it never clips.
+
+## Out of scope
+- The faint top‑edge sheen line (`h-px via-white/30`) inside the greeting card is intentional design — leaving it.
+- Aurora gradients, status bar gap, wallet, NFC/push — already shipped previously.
 
 ## Files Touched
-- `src/components/ui/glass/LiquidBottomSheet.tsx`
-- `src/components/reactions/ReactionPicker.tsx`
-- `src/components/friends/FriendDrop.tsx`
-
-## Out of Scope
-- Aurora gradients, top status‑bar gap, wallet scroll, Despia push/NFC native bridges (already shipped previously).
+- `src/components/home/LiveActivityTicker.tsx`
+- `src/components/home/WelcomeHeader.tsx`
+- `src/components/ai/VYBECommandBar.tsx`

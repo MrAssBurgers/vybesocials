@@ -257,16 +257,18 @@ export function VYBECommandBar() {
 
           {/* Input Area */}
           <div className="mt-auto pt-3 shrink-0">
-            <div className="flex gap-2">
-              <Input
-                ref={inputRef}
-                value={command}
-                onChange={(e) => setCommand(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
-                placeholder="Tell me how to redesign your VYBE..."
-                className="flex-1"
-                disabled={isProcessing}
-              />
+            <div className="flex gap-2 items-center">
+              <div className="flex-1 min-w-0">
+                <Input
+                  ref={inputRef}
+                  value={command}
+                  onChange={(e) => setCommand(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
+                  placeholder="Redesign your VYBE…"
+                  className="w-full"
+                  disabled={isProcessing}
+                />
+              </div>
               <Button
                 onClick={handleSubmit}
                 disabled={!command.trim() || isProcessing}
