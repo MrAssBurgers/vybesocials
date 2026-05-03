@@ -39,13 +39,13 @@ const smoothSpring = { type: "spring" as const, stiffness: 400, damping: 30 };
 // ===== RADAR ANIMATION =====
 function PhoneTapRadar({ active }: { active: boolean }) {
   return (
-    <div className="relative flex items-center justify-center w-48 h-48 mx-auto">
+    <div className="relative flex items-center justify-center w-36 h-36 mx-auto">
       {/* Radar rings */}
       {[1, 2, 3].map((i) => (
         <motion.div
           key={i}
           className="absolute rounded-full border border-primary/20"
-          style={{ width: `${i * 60}px`, height: `${i * 60}px` }}
+          style={{ width: `${i * 44}px`, height: `${i * 44}px` }}
           animate={active ? {
             scale: [1, 1.15, 1],
             opacity: [0.3, 0.1, 0.3],
@@ -61,7 +61,7 @@ function PhoneTapRadar({ active }: { active: boolean }) {
       {/* Sweeping line */}
       {active && (
         <motion.div
-          className="absolute w-[1px] h-[90px] origin-bottom bg-gradient-to-t from-primary/40 to-transparent"
+          className="absolute w-[1px] h-[66px] origin-bottom bg-gradient-to-t from-primary/40 to-transparent"
           style={{ bottom: '50%' }}
           animate={{ rotate: 360 }}
           transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
@@ -69,11 +69,11 @@ function PhoneTapRadar({ active }: { active: boolean }) {
       )}
       {/* Center icon */}
       <motion.div
-        className="relative z-10 w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center"
+        className="relative z-10 w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center"
         animate={active ? { scale: [1, 1.06, 1] } : {}}
         transition={{ duration: 1.5, repeat: Infinity }}
       >
-        <Smartphone className="h-7 w-7 text-primary" />
+        <Smartphone className="h-5 w-5 text-primary" />
       </motion.div>
       {/* Pulse dot */}
       {active && (
