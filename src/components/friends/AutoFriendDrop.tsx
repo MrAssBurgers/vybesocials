@@ -268,6 +268,21 @@ export function AutoFriendDrop() {
 
   useEffect(() => { return () => { stopScanning(); }; }, [stopScanning]);
 
+  // While Friend Link is open: hide bottom nav + lock body scroll
+  useEffect(() => {
+    if (!isActive) return;
+    navVisibility.setInDesigner(true);
+    const prevOverflow = document.body.style.overflow;
+    const prevTouch = document.body.style.touchAction;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    return () => {
+      navVisibility.setInDesigner(false);
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouch;
+    };
+  }, [isActive]);
+
   // Start NFC when switching to NFC tab
   useEffect(() => {
     if (isActive && activeTab === 'nfc' && nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
