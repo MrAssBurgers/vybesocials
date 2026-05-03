@@ -78,7 +78,9 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
     );
   }
 
-  const ratio = dimensions ? dimensions.width / dimensions.height : 9 / 16;
+  // Default to a balanced 4/5 portrait until real dimensions resolve — avoids giant
+  // letterbox gaps when the video metadata is still loading.
+  const ratio = dimensions ? dimensions.width / dimensions.height : 4 / 5;
   const isTall = ratio < 0.9;
 
   const handleLoadedMetadata = () => {
