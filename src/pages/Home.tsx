@@ -377,9 +377,11 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       </HomeEditModeProvider>
 
       {/* AI Command Bar */}
-      <Suspense fallback={null}>
-        <VYBECommandBar />
-      </Suspense>
+      <SmartErrorBoundary fallback={null}>
+        <Suspense fallback={null}>
+          <VYBECommandBar />
+        </Suspense>
+      </SmartErrorBoundary>
       
       {/* Weekly Recap */}
       <Suspense fallback={null}>
