@@ -598,7 +598,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
         await Promise.all(
           targetIds.map((userId) =>
-            supabase.functions.invoke('n', {
+            supabase.functions.invoke('send-push-notification', {
               body: {
                 userId,
                 title,
