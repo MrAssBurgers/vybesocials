@@ -292,9 +292,11 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   return (
     <AppLayout>
       {/* Lazy-loaded deferred components */}
-      <Suspense fallback={null}>
-        <AutoFriendDrop />
-      </Suspense>
+      <SmartErrorBoundary fallback={null}>
+        <Suspense fallback={null}>
+          <AutoFriendDrop />
+        </Suspense>
+      </SmartErrorBoundary>
       
       {/* Pull to refresh indicator */}
       <PullToRefreshIndicator 
