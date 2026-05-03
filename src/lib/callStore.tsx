@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/auth';
 import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { toast } from 'sonner';
+import { stopCameraStream } from '@/hooks/useCameraPreload';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
@@ -497,6 +498,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     setState({ phase: 'creating', call: null, error: null });
     callSounds.startRingback();
 
+    // CRITICAL: release any preloaded camera stream (Friend Link / preview)
+    // before the call requests its own stream. Holding the camera elsewhere
+    // makes getUserMedia fail and crashes the call.
+    try { stopCameraStream(); } catch {}
+
     try {
       const roomName = `call-${params.conversationId}`;
 
@@ -574,6 +580,43 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
       premiumSounds.stopAllCallSounds();
       setState({ phase: 'joining', call: callData, error: null });
+
+      // Fan out a push notification so the receiver(s) hear the ring even
+      // when the app is backgrounded. Fire-and-forget — call should never
+      // crash if push fails.
+      try {
+        const targetIds = params.isGroupCall
+          ? (params.participantIds || []).filter((id) => id && id !== profile.id)
+          : [params.receiverId];
+
+        const callerName = profile.username || 'Someone';
+        const callTypeLabel = params.callType === 'video' ? 'FaceTime' : 'audio call';
+        const title = params.isGroupCall
+          ? `${params.groupName || 'Group'} • Incoming ${callTypeLabel}`
+          : `Incoming ${callTypeLabel}`;
+        const body = `${callerName} is calling…`;
+
+        await Promise.all(
+          targetIds.map((userId) =>
+            supabase.functions.invoke('n', {
+              body: {
+                userId,
+                title,
+                body,
+                data: {
+                  type: 'incoming_call',
+                  callId: callSession.id,
+                  conversationId: params.conversationId,
+                  callType: params.callType,
+                },
+                priority: 'high',
+              },
+            }).catch((e) => console.warn('[CallStore] push notification failed:', e))
+          )
+        );
+      } catch (pushErr) {
+        console.warn('[CallStore] push fan-out failed:', pushErr);
+      }
     } catch (err: any) {
       console.error('[CallStore] Failed to start call:', err);
       premiumSounds.stopAllCallSounds();
