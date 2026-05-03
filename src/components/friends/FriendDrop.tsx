@@ -555,9 +555,9 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
         isOpen={isOpen}
         onClose={handleClose}
         title="Add Friend"
-        maxHeight={70}
+        maxHeight={58}
       >
-        <div className="px-4 pb-5">
+        <div className="px-3 pb-3">
           <AnimatePresence mode="wait">
             {showOverlay ? (
               renderOverlay()
