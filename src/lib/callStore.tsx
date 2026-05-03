@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/auth';
 import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { toast } from 'sonner';
+import { stopCameraStream } from '@/hooks/useCameraPreload';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
