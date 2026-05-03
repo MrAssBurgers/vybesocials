@@ -57,7 +57,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get user's push tokens
+    // ── OneSignal fan-out (covers Despia APK + iOS native shells) ─────────────
+    // Fire-and-forget; runs in parallel with Web Push below.
+    const onesignalAppId = Deno.env.get("ONESIGNAL_APP_ID");
+    const onesignalRestKey = Deno.env.get("ONESIGNAL_REST_API_KEY");
+    let onesignalResult: unknown = null;
+    if (onesignalAppId && onesignalRestKey) {
+      try {
+        const res = await fetch("https://api.onesignal.com/notifications", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Key ${onesignalRestKey}`,
+          },
+          body: JSON.stringify({
+            app_id: onesignalAppId,
+            include_aliases: { external_id: [userId] },
+            target_channel: "push",
+            headings: { en: title },
+            contents: { en: body },
+            data: { type: type || "general", url: url || "/notifications", ...(data || {}) },
+            ios_sound: type === "call" ? "ringtone.caf" : undefined,
+            android_channel_id: type === "call" ? "calls" : undefined,
+            priority: 10,
+            ttl: type === "call" ? 30 : 86400,
+          }),
+        });
+        onesignalResult = { status: res.status, ok: res.ok };
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          console.warn("[push] OneSignal non-OK", res.status, txt.slice(0, 200));
+        }
+      } catch (err) {
+        console.warn("[push] OneSignal send failed:", err);
+      }
+    }
+
+    // Get user's web-push tokens (browser/PWA)
     const { data: tokens, error: tokenError } = await supabase
       .from("push_tokens")
       .select("id, token, platform")
