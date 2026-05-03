@@ -249,7 +249,7 @@ serve(async (req) => {
       supabase.from('login_streaks').select('current_streak, longest_streak').eq('user_id', user.id).single(),
       supabase.from('challenges').select(`id, title, requirement_count, reward_xp, type, challenge_progress!inner(current_count, is_completed)`).eq('is_active', true).eq('challenge_progress.user_id', profileId).eq('challenge_progress.is_completed', false).limit(5),
       supabase.from('user_levels').select('current_level, total_xp').eq('user_id', user.id).single(),
-      supabase.from('notifications').select('id, type, message, created_at, sender_id, post_id, read').eq('user_id', profileId).eq('read', false).order('created_at', { ascending: false }).limit(10),
+      supabase.from('notifications').select('id, type, reason, created_at, actor_id, post_id, read').eq('user_id', profileId).eq('read', false).order('created_at', { ascending: false }).limit(10),
       supabase.from('conversation_members').select(`conversation_id, last_read_at, conversations!inner(id, updated_at, name, is_group, messages(id, content, created_at, media_type, sender_id, profiles:sender_id(username, display_name)))`).eq('user_id', profileId).order('conversations(updated_at)', { ascending: false }).limit(10),
       // Gemini news fetch runs in parallel with DB queries
       fetchGeminiNews(allInterests, latitude, longitude),
