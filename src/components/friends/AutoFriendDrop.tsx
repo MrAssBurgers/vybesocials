@@ -511,10 +511,8 @@ export function AutoFriendDrop() {
               </Tabs>
             )}
 
-            {/* Safe area padding for bottom sheet on mobile */}
-            <div className="h-safe-area-inset-bottom" />
           </div>
-        </div>
+        </>
       )}
     </>
   );
