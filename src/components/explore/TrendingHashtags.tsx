@@ -12,7 +12,7 @@ export const TrendingHashtags = memo(function TrendingHashtags({ tags, selectedT
   if (!tags.length) return null;
 
   return (
-    <div className="px-4 py-2">
+    <div className="px-4 py-2" data-no-auto-contrast>
       <div className="flex items-center gap-1.5 mb-2">
         <Hash className="h-4 w-4 text-accent" />
         <span className="text-sm font-bold text-foreground">Trending Tags</span>
