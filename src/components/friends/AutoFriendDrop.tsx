@@ -319,12 +319,16 @@ export function AutoFriendDrop() {
             }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 pt-4 pb-2">
+            <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
               <h2 className="text-base font-semibold text-foreground">Friend Link</h2>
               <button onClick={handleClose} className="p-1.5 rounded-full hover:bg-muted/60 transition-colors">
                 <X className="h-4 w-4 text-muted-foreground" />
               </button>
             </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+
 
             {/* Phases: found / exchanging / success override tabs */}
             {phase === 'found' && foundUser && (
