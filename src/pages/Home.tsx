@@ -19,6 +19,7 @@ import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
 import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMode';
 import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
 import { useGridLayout } from '@/hooks/useGridLayout';
+import SmartErrorBoundary from '@/components/error/SmartErrorBoundary';
 
 // Lazy load heavy components that aren't needed for initial render
 const AutoFriendDrop = lazy(() => import('@/components/friends/AutoFriendDrop').then(m => ({ default: m.AutoFriendDrop })));
