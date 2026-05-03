@@ -1,42 +1,47 @@
-## What the videos show
+## Goal
+Fix the bugs visible in the screen recording: Friend Link sheet sitting behind the bottom nav, flickering/animating header text, "Customize Home" pill jiggle, and an Android APK crash.
 
-1. **Greeting ticker grammar** — reads "1 **people** leveling up today". Should pluralize correctly.
-2. **Username overflow** — `@Bakrix` (and any longer handle) extends past the right edge of the greeting card because the `<h1>` has no `min-w-0` / `truncate` and the gradient `<span>` is inline.
-3. **VYBE AI Designer placeholder clipped** — "Tell me how to redesign your VY…". The `<Input>` sits in a flex row next to a Send button without `min-w-0`, so on narrow phones the placeholder text is cut off.
+## Changes
 
-## Reactions verification (no code change)
+### 1. Friend Link modal — always above the bottom nav
+File: `src/components/friends/AutoFriendDrop.tsx` (lines ~305–510)
+- Replace the full-screen `fixed inset-0 z-50 flex items-end` overlay with the same anchoring used by `LiquidBottomSheet`:
+  - Backdrop stays full-screen at `z-[9998]`.
+  - Sheet container is `fixed inset-x-0 z-[9999]` with
+    `bottom: calc(5rem + env(safe-area-inset-bottom, 0px))` so it floats above the bottom nav, and `maxHeight: 85vh` with `overflow-y-auto` so the QR + scanner scroll inside the sheet instead of being clipped.
+  - Drop the bottom safe-area spacer (`<div className="h-safe-area-inset-bottom" />`) — replaced by the new offset.
+- Tighten internal spacing so QR + scanner fit on a 6"–6.5" Android screen without needing to scroll past the nav.
 
-- Last turn fixed the real bug: portal'd ReactionPicker bubbles were dismissing themselves before `onClick` fired. Now love/haha/wow/sad/angry/care all reach `handleReaction → likes.upsert({ reaction_type })`.
-- Round-trip after refresh is already correct:
-  - `get_posts_with_counts` RPC returns `reaction_type` per user.
-  - `useInfinitePosts.transformPost` and `usePosts` map it onto `Post.reaction_type`.
-  - `PostCard` seeds `currentReaction` from `post.reaction_type` so the heart button shows the saved emoji.
-- DB shows only `like` + `haha` because no new taps have happened since the picker fix. Will populate as soon as you tap. No further work needed.
+### 2. Stop the header / trending text from "freaking out"
+File: `src/components/home/WelcomeHeader.tsx`
+- Add `data-no-auto-contrast` to the `<h1>` containing the gradient `@username` so the global contrast guard stops repainting the bg-clip-text every frame (this is the "shifting colors" flicker on the username).
+- Wrap the gradient `@username` span in `will-change-transform` removed and add `style={{ backgroundClip: 'text', WebkitBackgroundClip: 'text' }}` explicitly to avoid Android WebView re-rasterizing each paint.
 
-## Fixes
+File: `src/pages/Home.tsx` (Customize Home pill, ~lines 322–343)
+- Remove the infinite `animate={{ scale: [1, 1.02, 1] }}` loop. Replace with a one-shot fade-in (`initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}`) so the pill stops pulsing.
+- Keep the hover shimmer; remove the constant scale.
 
-### 1. `src/components/home/LiveActivityTicker.tsx`
-Pluralize all four messages based on count:
-- `1 person is leveling up today` / `N people are leveling up today`
-- `1 active chat right now` / `N active chats right now`
-- `1 new post in the last 5 min` / `N new posts in the last 5 min`
-- `1 reward claimed today` / `N rewards claimed today`
+File: `src/components/home/LiveActivityTicker.tsx`
+- Wrap the rotating message in `<AnimatePresence mode="wait">` with a 250ms fade so it cross-fades instead of snapping mid-frame (the snap looks like text "freaking out" on a 60Hz Android display).
 
-### 2. `src/components/home/WelcomeHeader.tsx`
-Stop the username from overflowing the greeting card:
-- Wrap greeting + username in a flex row with `min-w-0`.
-- Add `truncate` to the username `<span>` and `whitespace-nowrap` to the "Good evening," prefix so only the handle elides with `…` if it's too long.
+File: `src/components/explore/TrendingHashtags.tsx`
+- Remove the per-chip `transition={{ delay: i * 0.03 }}` stagger. Render chips statically; only animate on first mount via a single parent fade. Stops the row of `#tags` from re-staggering on each re-render of the parent feed.
 
-### 3. `src/components/ai/VYBECommandBar.tsx`
-Fix the clipped placeholder:
-- Wrap the `<Input>` in a `flex-1 min-w-0` div so it actually shrinks/grows correctly next to the Send button.
-- Shorten the placeholder to "Redesign your VYBE…" so even on a 320px viewport it never clips.
+### 3. Android APK crash hardening
+- Wrap `<AutoFriendDrop />` in a small `<ErrorBoundary>` (using existing util in `src/lib/errorLogger.ts` / `useAutoBugReporter`) in `src/pages/Home.tsx` so a Friend Link/QR/camera failure can't crash the whole APK shell. The boundary just renders `null` and reports via `useAutoBugReporter`.
+- Same boundary around `<VYBECommandBar />` (already lazy) — both touch the camera/native plugins which are the most common APK crashers.
+
+### 4. Sanity pass
+- Build, then re-test on the live preview at the same Android viewport (360×800) used in the recording, and verify:
+  - Friend Link sheet's bottom edge is fully visible above the bottom nav.
+  - Username/Customize Home/ticker no longer animate continuously.
 
 ## Out of scope
-- The faint top‑edge sheen line (`h-px via-white/30`) inside the greeting card is intentional design — leaving it.
-- Aurora gradients, status bar gap, wallet, NFC/push — already shipped previously.
+- Native NFC and full APK runtime errors require the actual APK bundle + Logcat to root-cause; the error boundary above is the safe web-side mitigation.
 
-## Files Touched
-- `src/components/home/LiveActivityTicker.tsx`
+## Files changed
+- `src/components/friends/AutoFriendDrop.tsx`
 - `src/components/home/WelcomeHeader.tsx`
-- `src/components/ai/VYBECommandBar.tsx`
+- `src/components/home/LiveActivityTicker.tsx`
+- `src/components/explore/TrendingHashtags.tsx`
+- `src/pages/Home.tsx`

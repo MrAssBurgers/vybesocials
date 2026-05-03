@@ -302,12 +302,22 @@ export function AutoFriendDrop() {
         </div>
       )}
 
-      {/* Full-screen modal */}
+      {/* Bottom sheet — anchored above the bottom nav */}
       {isActive && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
-
-          <div className="relative z-10 w-full max-w-sm mx-auto bg-card rounded-t-2xl sm:rounded-2xl border border-border/40 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            style={{ zIndex: 9998 }}
+            onClick={handleClose}
+          />
+          <div
+            className="fixed inset-x-0 mx-auto w-full max-w-sm bg-card rounded-t-2xl sm:rounded-2xl border border-border/40 shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300"
+            style={{
+              zIndex: 9999,
+              bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
+              maxHeight: '85vh',
+            }}
+          >
             {/* Header */}
             <div className="flex items-center justify-between px-4 pt-4 pb-2">
               <h2 className="text-base font-semibold text-foreground">Friend Link</h2>
