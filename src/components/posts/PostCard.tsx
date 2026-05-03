@@ -158,7 +158,7 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
           "relative overflow-hidden bg-muted",
           isTall ? "h-[70vh] w-auto max-w-full" : "w-full"
         )}
-        style={{ aspectRatio: dimensions ? `${dimensions.width} / ${dimensions.height}` : '9 / 16' }}
+        style={{ aspectRatio: dimensions ? `${dimensions.width} / ${dimensions.height}` : '4 / 5' }}
       >
         {/* Loading skeleton */}
         {!isLoaded && <MediaSkeleton className="absolute inset-0" />}
