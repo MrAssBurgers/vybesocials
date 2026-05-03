@@ -498,6 +498,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     setState({ phase: 'creating', call: null, error: null });
     callSounds.startRingback();
 
+    // CRITICAL: release any preloaded camera stream (Friend Link / preview)
+    // before the call requests its own stream. Holding the camera elsewhere
+    // makes getUserMedia fail and crashes the call.
+    try { stopCameraStream(); } catch {}
+
     try {
       const roomName = `call-${params.conversationId}`;
 
