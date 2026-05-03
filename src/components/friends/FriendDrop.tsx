@@ -16,7 +16,7 @@ import jsQR from 'jsqr';
 import { getPrimaryHex } from '@/lib/themeColor';
 import { useNFC } from '@/hooks/useNFC';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
-import { preloadCameraStream, getPreloadedStream, requestCameraStream } from '@/hooks/useCameraPreload';
+import { getPreloadedStream, requestCameraStream } from '@/hooks/useCameraPreload';
 import { LiquidBottomSheet } from '@/components/ui/glass/LiquidBottomSheet';
 
 interface FriendDropProps {
