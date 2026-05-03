@@ -141,7 +141,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   
   const primaryHex = getPrimaryHex();
   const qrCodeUrl = myProfileUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=${primaryHex}&format=svg&ecc=H&margin=2`
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=${primaryHex}&format=svg&ecc=H&margin=2`
     : '';
 
   const stopScanning = useCallback(() => {
