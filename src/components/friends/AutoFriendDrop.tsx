@@ -302,19 +302,33 @@ export function AutoFriendDrop() {
         </div>
       )}
 
-      {/* Full-screen modal */}
+      {/* Bottom sheet — anchored above the bottom nav */}
       {isActive && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
-
-          <div className="relative z-10 w-full max-w-sm mx-auto bg-card rounded-t-2xl sm:rounded-2xl border border-border/40 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            style={{ zIndex: 9998 }}
+            onClick={handleClose}
+          />
+          <div
+            className="fixed inset-x-0 mx-auto w-full max-w-sm bg-card rounded-t-2xl sm:rounded-2xl border border-border/40 shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300"
+            style={{
+              zIndex: 9999,
+              bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
+              maxHeight: '85vh',
+            }}
+          >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 pt-4 pb-2">
+            <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
               <h2 className="text-base font-semibold text-foreground">Friend Link</h2>
               <button onClick={handleClose} className="p-1.5 rounded-full hover:bg-muted/60 transition-colors">
                 <X className="h-4 w-4 text-muted-foreground" />
               </button>
             </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+
 
             {/* Phases: found / exchanging / success override tabs */}
             {phase === 'found' && foundUser && (
@@ -500,11 +514,10 @@ export function AutoFriendDrop() {
                 </TabsContent>
               </Tabs>
             )}
+            </div>
 
-            {/* Safe area padding for bottom sheet on mobile */}
-            <div className="h-safe-area-inset-bottom" />
           </div>
-        </div>
+        </>
       )}
     </>
   );

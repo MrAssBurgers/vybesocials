@@ -19,6 +19,7 @@ import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
 import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMode';
 import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
 import { useGridLayout } from '@/hooks/useGridLayout';
+import SmartErrorBoundary from '@/components/error/SmartErrorBoundary';
 
 // Lazy load heavy components that aren't needed for initial render
 const AutoFriendDrop = lazy(() => import('@/components/friends/AutoFriendDrop').then(m => ({ default: m.AutoFriendDrop })));
@@ -292,9 +293,11 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   return (
     <AppLayout>
       {/* Lazy-loaded deferred components */}
-      <Suspense fallback={null}>
-        <AutoFriendDrop />
-      </Suspense>
+      <SmartErrorBoundary fallback={null}>
+        <Suspense fallback={null}>
+          <AutoFriendDrop />
+        </Suspense>
+      </SmartErrorBoundary>
       
       {/* Pull to refresh indicator */}
       <PullToRefreshIndicator 
@@ -325,8 +328,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
               <motion.button
                 onClick={() => setCustomizerOpen(true)}
                 className="relative group rounded-full px-5 py-2.5 flex items-center gap-2.5 overflow-hidden border border-primary/20 bg-primary/5 backdrop-blur-xl shadow-[0_0_20px_hsl(var(--primary)/0.1)] hover:shadow-[0_0_30px_hsl(var(--primary)/0.2)] transition-shadow"
-                animate={{ scale: [1, 1.02, 1] }}
-                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
               >
                 {/* Shimmer sweep */}
                 <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-primary/10 to-transparent" />
@@ -373,9 +377,11 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       </HomeEditModeProvider>
 
       {/* AI Command Bar */}
-      <Suspense fallback={null}>
-        <VYBECommandBar />
-      </Suspense>
+      <SmartErrorBoundary fallback={null}>
+        <Suspense fallback={null}>
+          <VYBECommandBar />
+        </Suspense>
+      </SmartErrorBoundary>
       
       {/* Weekly Recap */}
       <Suspense fallback={null}>

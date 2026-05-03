@@ -65,9 +65,9 @@ export function WelcomeHeader() {
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" aria-hidden />
 
           <div className="relative min-w-0">
-            <h1 className="text-xl font-bold text-foreground flex items-baseline gap-1 min-w-0">
+            <h1 className="text-xl font-bold text-foreground flex items-baseline gap-1 min-w-0" data-no-auto-contrast>
               <span className="whitespace-nowrap">{greeting},</span>
-              <span className="truncate bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">@{profile.username}</span>
+              <span className="truncate bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent" data-no-auto-contrast>@{profile.username}</span>
             </h1>
             <LiveActivityTicker />
           </div>

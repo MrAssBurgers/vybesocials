@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import { motion } from 'framer-motion';
 import { Hash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -19,15 +18,12 @@ export const TrendingHashtags = memo(function TrendingHashtags({ tags, selectedT
         <span className="text-sm font-bold text-foreground">Trending Tags</span>
       </div>
       <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
-        {tags.map((item, i) => (
-          <motion.button
+        {tags.map((item) => (
+          <button
             key={item.tag}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: i * 0.03 }}
             onClick={() => onSelect(item.tag)}
             className={cn(
-              "flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex-shrink-0 border",
+              "flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors flex-shrink-0 border",
               selectedTag === item.tag
                 ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20"
                 : "bg-card/60 text-foreground border-border/40 hover:bg-accent/20"
@@ -35,7 +31,7 @@ export const TrendingHashtags = memo(function TrendingHashtags({ tags, selectedT
           >
             <span>#{item.tag}</span>
             <span className="text-[10px] opacity-60">{item.count}</span>
-          </motion.button>
+          </button>
         ))}
       </div>
     </div>
