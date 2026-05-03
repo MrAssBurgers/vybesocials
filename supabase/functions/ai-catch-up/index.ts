@@ -337,7 +337,7 @@ serve(async (req) => {
     const notificationDetails: Array<{ type: string; message: string; time: string }> = [];
     if (unreadNotifsResult.data) {
       for (const notif of unreadNotifsResult.data) {
-        notificationDetails.push({ type: notif.type || 'general', message: notif.message || '', time: notif.created_at });
+        notificationDetails.push({ type: notif.type || 'general', message: notif.reason || '', time: notif.created_at });
       }
     }
 
