@@ -24,6 +24,13 @@
       (function () {
         const hostname = window.location.hostname;
         const params = new URLSearchParams(window.location.search);
+        const ua = (navigator.userAgent || '').toLowerCase();
+        // Detect native wrappers (Despia APK, Capacitor, Cordova, generic Android WebView, iOS WKWebView shells)
+        const isNativeWrapper =
+          /despia|capacitor|cordova|median|gonative|wv\)|; wv\b/.test(ua) ||
+          !!(window).Capacitor ||
+          !!(window).cordova ||
+          !!(window).Despia;
         const isPreviewHost =
           hostname.includes('preview') ||
           hostname.endsWith('.lovableproject.com') ||
@@ -33,10 +40,11 @@
 
         window.OneSignalDeferred = window.OneSignalDeferred || [];
 
-        if (isPreviewHost || !isAllowedHost) {
+        if (isNativeWrapper || isPreviewHost || !isAllowedHost) {
           console.info('[VYBE] OneSignal disabled on this host');
           return;
         }
+
 
         window.OneSignalDeferred.push(async function (OneSignal) {
           try {
