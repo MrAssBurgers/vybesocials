@@ -427,20 +427,20 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       </AnimatePresence>
 
       {/* QR Code - compact */}
-      <div className="bg-white rounded-xl p-2.5 shadow-sm">
-        <img src={qrCodeUrl} alt="Your QR Code" className="w-36 h-36 rounded-lg" style={{ imageRendering: 'crisp-edges' }} />
+      <div className="bg-white rounded-xl p-2 shadow-sm">
+        <img src={qrCodeUrl} alt="Your QR Code" className="w-28 h-28 rounded-lg" style={{ imageRendering: 'crisp-edges' }} />
         <p className="text-[10px] text-black/40 text-center mt-1 font-medium">@{profile?.username?.trim()}</p>
       </div>
 
       {/* Copy & Share pills */}
       <div className="flex gap-2 w-full">
         <button onClick={copyLink}
-          className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl bg-secondary/50 hover:bg-secondary/80 transition-colors text-[11px] font-medium"
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-secondary/50 hover:bg-secondary/80 transition-colors text-[10px] font-medium"
         >
           <Copy className="h-3 w-3 text-muted-foreground" /> Copy
         </button>
         <button onClick={shareLink}
-          className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl bg-secondary/50 hover:bg-secondary/80 transition-colors text-[11px] font-medium"
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-secondary/50 hover:bg-secondary/80 transition-colors text-[10px] font-medium"
         >
           <Share2 className="h-3 w-3 text-muted-foreground" /> Share
         </button>
