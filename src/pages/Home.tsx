@@ -331,6 +331,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
+                data-no-auto-contrast
               >
                 {/* Shimmer sweep */}
                 <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-primary/10 to-transparent" />
