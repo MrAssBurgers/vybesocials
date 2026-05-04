@@ -230,22 +230,25 @@ export function ChatView() {
     return latest;
   }, [messages, profile?.id]);
 
-  // Load draft from localStorage on mount / conversation change
-  const [messageText, setMessageText] = useState(() => {
-    if (!conversationId) return '';
-    try {
-      return localStorage.getItem(`draft:${conversationId}`) || '';
-    } catch { return ''; }
-  });
+  // Live input value lives in a ref so keystrokes don't re-render the
+  // 2700-line ChatView tree. Parent state only flips when the empty/
+  // non-empty boundary changes (which is what gates the send button).
+  const messageTextRef = useRef<string>('');
+  const [hasText, setHasText] = useState(false);
 
-  // Restore draft when switching conversations
+  // Initial draft load + restore on conversation switch
   useEffect(() => {
-    if (!conversationId) return;
-    try {
-      const saved = localStorage.getItem(`draft:${conversationId}`) || '';
-      setMessageText(saved);
-    } catch { /* ignore */ }
+    if (!conversationId) {
+      messageTextRef.current = '';
+      setHasText(false);
+      return;
+    }
+    let saved = '';
+    try { saved = localStorage.getItem(`draft:${conversationId}`) || ''; } catch { /* ignore */ }
+    messageTextRef.current = saved;
+    setHasText(saved.length > 0);
   }, [conversationId]);
+
   const [viewMode, setViewMode] = useState<ViewMode>('permanent');
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
