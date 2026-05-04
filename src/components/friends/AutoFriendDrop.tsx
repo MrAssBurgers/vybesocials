@@ -284,18 +284,26 @@ export function AutoFriendDrop() {
 
   useEffect(() => { return () => { stopScanning(); }; }, [stopScanning]);
 
-  // While Friend Link is open: hide bottom nav + lock body scroll
+  // While Friend Link is open: hide bottom nav + lock body scroll (iOS-safe)
   useEffect(() => {
     if (!isActive) return;
     navVisibility.setInDesigner(true);
+    const scrollY = window.scrollY;
     const prevOverflow = document.body.style.overflow;
-    const prevTouch = document.body.style.touchAction;
+    const prevPosition = document.body.style.position;
+    const prevTop = document.body.style.top;
+    const prevWidth = document.body.style.width;
     document.body.style.overflow = 'hidden';
-    document.body.style.touchAction = 'none';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
     return () => {
       navVisibility.setInDesigner(false);
       document.body.style.overflow = prevOverflow;
-      document.body.style.touchAction = prevTouch;
+      document.body.style.position = prevPosition;
+      document.body.style.top = prevTop;
+      document.body.style.width = prevWidth;
+      window.scrollTo(0, scrollY);
     };
   }, [isActive]);
 
@@ -359,7 +367,7 @@ export function AutoFriendDrop() {
             style={{
               zIndex: 9999,
               bottom: 'env(safe-area-inset-bottom, 0px)',
-              maxHeight: '85vh',
+              maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 24px)',
             }}
           >
             {/* Header */}
@@ -475,7 +483,7 @@ export function AutoFriendDrop() {
                       exit={{ opacity: 0, y: -8 }}
                       className="flex flex-col items-center gap-4 py-2"
                     >
-                      <div className="relative flex h-56 w-full items-center justify-center overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-accent/10">
+                      <div className="relative flex h-44 w-full items-center justify-center overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-accent/10">
                         {[0, 1, 2, 3].map((i) => (
                           <motion.div
                             key={i}
@@ -563,8 +571,8 @@ export function AutoFriendDrop() {
                       exit={{ opacity: 0, y: -8 }}
                       className="grid gap-3"
                     >
-                      <div className="rounded-[28px] bg-white p-5 shadow-2xl">
-                        <div className="relative mx-auto aspect-square w-full max-w-[220px] overflow-hidden rounded-2xl bg-white">
+                      <div className="rounded-[24px] bg-white p-4 shadow-2xl">
+                        <div className="relative mx-auto aspect-square w-full max-w-[180px] overflow-hidden rounded-2xl bg-white">
                           {qrSvg ? (
                             <div className="h-full w-full [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: qrSvg }} />
                           ) : (
@@ -572,7 +580,7 @@ export function AutoFriendDrop() {
                           )}
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="rounded-2xl bg-white p-1 shadow-lg">
-                              <Avatar className="h-12 w-12 rounded-xl">
+                              <Avatar className="h-10 w-10 rounded-xl">
                                 <AvatarImage src={profile?.avatar_url || ''} className="rounded-xl object-cover" />
                                 <AvatarFallback className="rounded-xl bg-gradient-to-br from-primary to-accent font-black text-primary-foreground">
                                   {profile?.username?.[0]?.toUpperCase()}
@@ -584,7 +592,7 @@ export function AutoFriendDrop() {
                         <p className="mt-2 text-center text-sm font-black text-card">@{profile?.username}</p>
                       </div>
 
-                      <div className="relative aspect-square overflow-hidden rounded-[24px] border border-primary/20 bg-card">
+                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[24px] border border-primary/20 bg-card">
                         <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
                         <canvas ref={canvasRef} className="hidden" />
                         {!cameraActive && (
