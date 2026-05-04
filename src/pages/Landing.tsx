@@ -52,7 +52,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   
   // Check URL params for mode (login vs signup) and intro reset
   const modeParam = searchParams.get('mode');
-  const [isLogin, setIsLogin] = useState(() => modeParam === 'login' || searchParams.get('signup') !== 'true');
+  const pathLower = (typeof window !== 'undefined' ? window.location.pathname : '').toLowerCase();
+  const pathSaysSignup = pathLower.includes('signup') || pathLower.includes('sign-up');
+  const pathSaysLogin = pathLower.includes('login') || pathLower.includes('signin') || pathLower.includes('sign-in');
+  const [isLogin, setIsLogin] = useState(() =>
+    pathSaysSignup ? false :
+    pathSaysLogin ? true :
+    modeParam === 'login' || searchParams.get('signup') !== 'true'
+  );
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
@@ -274,6 +281,18 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   return (
     <div className="min-h-[100dvh] bg-background relative flex items-start sm:items-center justify-center px-4 py-8 overflow-x-hidden overflow-y-auto scroll-mobile-safe">
+      {/* Back to home (web marketing page) — hidden on native APK */}
+      {!user && typeof window !== 'undefined' && !(window as any).Capacitor?.isNativePlatform?.() && (
+        <button
+          type="button"
+          onClick={() => navigate('/vybe-home')}
+          className="fixed top-4 left-4 z-30 flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-foreground/80 hover:text-foreground backdrop-blur transition"
+          aria-label="Back to home"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          Home
+        </button>
+      )}
       {/* Smooth blended background — no hard edges */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div 

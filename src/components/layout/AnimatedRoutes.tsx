@@ -15,6 +15,7 @@ import { useAutoBugReporter } from '@/hooks/useAutoBugReporter';
 // Lazy-load all pages to reduce unused JavaScript in the initial bundle
 const Landing = lazy(() => import("@/pages/Landing"));
 const VybeHome = lazy(() => import("@/pages/VybeHome"));
+const RootGate = lazy(() => import("@/components/auth/RootGate"));
 const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 
 // High-priority but lazy-loaded to reduce main-thread work
@@ -137,14 +138,16 @@ export function AnimatedRoutes() {
       <Suspense fallback={<PageFallback />}>
         <Routes location={location}>
             {/* Public routes - no authentication required */}
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={<RootGate />} />
             <Route path="/vybe-home" element={<PublicOnlyRoute><VybeHome /></PublicOnlyRoute>} />
             <Route path="/tour" element={<PublicOnlyRoute><VybeHome /></PublicOnlyRoute>} />
-            {/* Common sign-in URL aliases → redirect to landing (which hosts auth) */}
-            <Route path="/login" element={<Navigate to="/" replace />} />
-            <Route path="/signin" element={<Navigate to="/" replace />} />
-            <Route path="/sign-in" element={<Navigate to="/" replace />} />
-            <Route path="/auth" element={<Navigate to="/" replace />} />
+            {/* Auth entry — explicit Landing routes for sign-in / sign-up */}
+            <Route path="/login" element={<Landing />} />
+            <Route path="/signin" element={<Landing />} />
+            <Route path="/sign-in" element={<Landing />} />
+            <Route path="/signup" element={<Landing />} />
+            <Route path="/sign-up" element={<Landing />} />
+            <Route path="/auth" element={<Landing />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/cookies" element={<CookiePolicy />} />
