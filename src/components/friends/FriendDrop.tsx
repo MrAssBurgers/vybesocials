@@ -596,9 +596,9 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
         isOpen={isOpen}
         onClose={handleClose}
         title="Friend Link"
-        maxHeight={72}
+        maxHeight={82}
       >
-        <div className="px-4 pb-4">
+        <div className="px-4 pb-4 min-h-[480px] overflow-hidden touch-none select-none">
           <AnimatePresence mode="wait">
             {showOverlay ? (
               renderOverlay()
