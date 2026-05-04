@@ -334,6 +334,7 @@ self.addEventListener('push', (event) => {
     body,
     icon,
     badge,
+    image: data.image || data.image_url || undefined,
     vibrate,
     tag,
     renotify: true,
@@ -344,7 +345,8 @@ self.addEventListener('push', (event) => {
       type: notificationType,
       conversationId: data.conversationId,
       callId: data.callId,
-      postId: data.postId,
+      postId: data.postId || data.post_id,
+      subtype: data.subtype,
       timestamp: Date.now(),
     },
     // iOS/Safari specific - silent must be false to make sound
