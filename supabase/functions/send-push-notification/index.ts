@@ -76,6 +76,9 @@ Deno.serve(async (req) => {
             target_channel: "push",
             headings: { en: title },
             contents: { en: body },
+            big_picture: (data as any)?.image_url,
+            ios_attachments: (data as any)?.image_url ? { id1: (data as any).image_url } : undefined,
+            chrome_web_image: (data as any)?.image_url,
             data: { type: type || "general", url: url || "/notifications", ...(data || {}) },
             ios_sound: type === "call" ? "ringtone.caf" : undefined,
             android_channel_id: type === "call" ? "calls" : undefined,
@@ -113,6 +116,7 @@ Deno.serve(async (req) => {
     }
 
     // Build push payload
+    const dataAny = (data || {}) as Record<string, unknown>;
     const pushPayload = JSON.stringify({
       title,
       body,
@@ -121,7 +125,8 @@ Deno.serve(async (req) => {
       type: type || "general",
       icon: "/icons/icon-192x192.png",
       badge: "/icons/icon-96x96.png",
-      ...data,
+      image: (dataAny.image_url as string | undefined) || undefined,
+      ...dataAny,
     });
 
     // Send push to all registered devices

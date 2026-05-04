@@ -30,7 +30,7 @@ function showNativeNotification(title: string, body: string, url?: string) {
   };
 }
 
-export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention' | 'missed_call' | 'announcement' | 'content_removed';
+export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention' | 'missed_call' | 'announcement' | 'content_removed' | 'smart_ping';
 
 interface Notification {
   id: string;
@@ -39,6 +39,13 @@ interface Notification {
   created_at: string;
   post_id: string | null;
   reason: string | null;
+  // Smart-ping fields
+  title?: string | null;
+  body?: string | null;
+  image_url?: string | null;
+  deep_link?: string | null;
+  subtype?: string | null;
+  meta?: any;
   actor: {
     id: string;
     username: string;
@@ -66,11 +73,17 @@ export function useNotifications() {
           created_at,
           post_id,
           actor_id,
-          reason
+          reason,
+          title,
+          body,
+          image_url,
+          deep_link,
+          subtype,
+          meta
         `)
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
-        .limit(30); // Reduced limit for faster initial load
+        .limit(30);
 
       if (error) throw error;
       if (!data || data.length === 0) return [];
@@ -91,6 +104,12 @@ export function useNotifications() {
         created_at: n.created_at,
         post_id: n.post_id,
         reason: (n as any).reason || null,
+        title: (n as any).title || null,
+        body: (n as any).body || null,
+        image_url: (n as any).image_url || null,
+        deep_link: (n as any).deep_link || null,
+        subtype: (n as any).subtype || null,
+        meta: (n as any).meta || null,
         actor: actorMap.get(n.actor_id) || {
           id: n.actor_id,
           username: 'unknown',
@@ -148,6 +167,7 @@ export function useNotifications() {
             missed_call: 'tried to call you',
             announcement: 'posted an announcement',
             content_removed: 'removed your content',
+            smart_ping: 'sent you a smart ping',
           };
 
           const message = `${actor?.username || 'Someone'} ${messages[type] || 'interacted with you'}`;

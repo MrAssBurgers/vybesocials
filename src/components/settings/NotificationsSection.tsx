@@ -25,7 +25,7 @@ export function NotificationsSection() {
     unsubscribe: unsubscribePush 
   } = usePushNotifications();
 
-  const handleToggle = async (key: 'announcements_enabled', value: boolean) => {
+  const handleToggle = async (key: any, value: boolean) => {
     haptics.tap();
     updatePref.mutate({ key, value });
     
@@ -190,6 +190,46 @@ export function NotificationsSection() {
               />
             </div>
           </div>
+        </div>
+      </motion.div>
+
+      {/* Smart Pings */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="liquid-glass-card p-4 sm:p-6"
+      >
+        <div className="flex items-start gap-4 mb-4">
+          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <BellRing className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-base mb-1">Smart Pings ✨</h3>
+            <p className="text-sm text-muted-foreground">
+              Clean, contextual alerts about what's happening near you and from your Daily Brief. Capped daily so it never feels spammy.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {[
+            { key: 'nearby_enabled', label: '📍 Happenings near you', desc: 'Posts and moments within your radius' },
+            { key: 'friend_activity_enabled', label: '👀 Friend activity', desc: 'When friends post or go live nearby' },
+            { key: 'trending_local_enabled', label: '🔥 Trending locally', desc: "What's blowing up around you" },
+            { key: 'brief_pings_enabled', label: '🧠 Daily Brief stories', desc: 'Top story alerts based on your interests' },
+          ].map(({ key, label, desc }) => (
+            <div key={key} className="p-3 rounded-xl bg-muted/30 border border-border/50 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium text-sm">{label}</p>
+                <p className="text-xs text-muted-foreground">{desc}</p>
+              </div>
+              <Switch
+                checked={(prefs as any)?.[key] ?? true}
+                onCheckedChange={(v) => handleToggle(key, v)}
+              />
+            </div>
+          ))}
         </div>
       </motion.div>
 

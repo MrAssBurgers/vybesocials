@@ -23,6 +23,7 @@ import { useChatPrefetch, useNotificationChatPrefetch } from '@/hooks/useChatPre
 import { MouthZoomProvider, useMouthZoom } from '@/components/notifications/MouthZoomTransition';
 import { NotificationTransitionProvider, useNotificationTransition } from '@/components/notifications/NotificationTransitionProvider';
 import { useNotificationHoverPrefetch } from '@/hooks/useMouthZoomTransition';
+import { SmartPingCard } from '@/components/notifications/SmartPingCard';
 
 // ─── Icon color mapping ───
 const ICON_CONFIG: Record<NotificationType, { icon: React.ElementType; color: string; bg: string }> = {
@@ -37,6 +38,7 @@ const ICON_CONFIG: Record<NotificationType, { icon: React.ElementType; color: st
   missed_call: { icon: PhoneMissed, color: 'text-destructive', bg: 'bg-destructive/10' },
   announcement: { icon: BellRing, color: 'text-primary', bg: 'bg-primary/10' },
   content_removed: { icon: ShieldAlert, color: 'text-destructive', bg: 'bg-destructive/10' },
+  smart_ping: { icon: Sparkles, color: 'text-primary', bg: 'bg-primary/10' },
 };
 
 const NOTIFICATION_TEXT: Record<NotificationType, string> = {
@@ -51,6 +53,7 @@ const NOTIFICATION_TEXT: Record<NotificationType, string> = {
   missed_call: 'tried to call you',
   announcement: 'posted an announcement',
   content_removed: 'removed your content',
+  smart_ping: '',
 };
 
 function compactTime(dateStr: string): string {
@@ -661,6 +664,12 @@ interface NotificationRowProps {
     created_at: string;
     post_id: string | null;
     reason?: string | null;
+    title?: string | null;
+    body?: string | null;
+    image_url?: string | null;
+    deep_link?: string | null;
+    subtype?: string | null;
+    meta?: any;
     actor: {
       id: string;
       username: string;
@@ -677,6 +686,25 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
   const { startTransition: startChatTransition } = useMouthZoom();
   const { triggerTransition } = useNotificationTransition();
   const { onHover } = useNotificationHoverPrefetch();
+
+  // Smart pings get their own rich card UI
+  if (notification.type === 'smart_ping') {
+    return (
+      <div className="px-2 py-1.5">
+        <SmartPingCard
+          id={notification.id}
+          subtype={notification.subtype}
+          title={notification.title}
+          body={notification.body}
+          imageUrl={notification.image_url}
+          deepLink={notification.deep_link}
+          meta={notification.meta}
+          createdAt={notification.created_at}
+          read={notification.read}
+        />
+      </div>
+    );
+  }
 
   const config = ICON_CONFIG[notification.type] || ICON_CONFIG.announcement;
   const Icon = config.icon;

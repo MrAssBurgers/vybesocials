@@ -311,7 +311,19 @@ self.addEventListener('push', (event) => {
       tag = `vybe-missed-${data.callId || Date.now()}`;
       vibrate = isIOS() ? [] : [200, 100, 200];
       break;
-      
+
+    case 'smart_ping':
+      // Rich contextual ping (nearby, brief, friend activity)
+      tag = `vybe-smart-${data.subtype || 'ping'}-${data.post_id || Date.now()}`;
+      vibrate = isIOS() ? [] : [60, 40, 60];
+      if (!isIOS()) {
+        actions = [
+          { action: 'open', title: 'Open', icon: APP_ICON },
+          { action: 'mute1h', title: 'Mute 1h', icon: APP_ICON },
+        ];
+      }
+      break;
+
     default:
       // General notification
       vibrate = isIOS() ? [] : [100, 50, 100];
@@ -322,6 +334,7 @@ self.addEventListener('push', (event) => {
     body,
     icon,
     badge,
+    image: data.image || data.image_url || undefined,
     vibrate,
     tag,
     renotify: true,
@@ -332,7 +345,8 @@ self.addEventListener('push', (event) => {
       type: notificationType,
       conversationId: data.conversationId,
       callId: data.callId,
-      postId: data.postId,
+      postId: data.postId || data.post_id,
+      subtype: data.subtype,
       timestamp: Date.now(),
     },
     // iOS/Safari specific - silent must be false to make sound
@@ -370,6 +384,18 @@ self.addEventListener('notificationclick', (event) => {
     targetUrl = '/notifications';
   } else if (data.type === 'like' || data.type === 'comment') {
     targetUrl = data.postId ? `/p/${data.postId}` : '/notifications';
+  } else if (data.type === 'smart_ping') {
+    if (action === 'mute1h') {
+      // Fire-and-forget mute via edge function (uses any open client's session)
+      event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+          const c = list[0];
+          if (c) c.postMessage({ type: 'MUTE_SMART_PINGS', hours: 1 });
+        })
+      );
+      return;
+    }
+    targetUrl = data.url || '/notifications';
   }
 
   event.waitUntil(

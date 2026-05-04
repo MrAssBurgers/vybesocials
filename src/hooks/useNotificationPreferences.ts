@@ -15,6 +15,12 @@ export interface NotificationPreferences {
   events_enabled: boolean;
   system_enabled: boolean;
   announcements_enabled: boolean;
+  nearby_enabled?: boolean;
+  brief_pings_enabled?: boolean;
+  friend_activity_enabled?: boolean;
+  trending_local_enabled?: boolean;
+  smart_ping_radius_miles?: number;
+  smart_ping_max_per_day?: number;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
 }
@@ -49,6 +55,12 @@ export function useNotificationPreferences() {
           events_enabled: true,
           system_enabled: true,
           announcements_enabled: true,
+          nearby_enabled: true,
+          brief_pings_enabled: true,
+          friend_activity_enabled: true,
+          trending_local_enabled: true,
+          smart_ping_radius_miles: 5,
+          smart_ping_max_per_day: 6,
           quiet_hours_start: null,
           quiet_hours_end: null,
         } as NotificationPreferences;
