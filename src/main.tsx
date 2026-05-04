@@ -6,10 +6,14 @@ import { initializeNativePlugins, isNativePlatform, isWeb } from "./lib/capacito
 import { initializeAdMob } from "./lib/admob";
 import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled } from "./lib/serviceWorker";
 import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
+import { installFlickerGuardCheck } from "./lib/flickerGuardCheck";
 
 // Warm up keyframes and preload Framer Motion at idle so first animations are jank-free
 warmupAnimations();
 preloadFramerMotion();
+
+// Dev-only regression check: warns if any gradient-text element lacks a fallback color
+installFlickerGuardCheck();
 
 function isPreviewOneSignalDomainError(message: unknown) {
   return typeof message === 'string' && message.includes('Can only be used on: https://vybehub.app');
