@@ -86,18 +86,22 @@ export class P2PConnection {
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private cachedOffer: RTCSessionDescriptionInit | null = null;
 
+  private onLocalStream?: (stream: MediaStream) => void;
+
   constructor(params: {
     conversationId: string;
     userId: string;
     isInitiator: boolean;
     callType: 'audio' | 'video';
     onEvent: P2PEventHandler;
+    onLocalStream?: (stream: MediaStream) => void;
   }) {
     this.conversationId = params.conversationId;
     this.userId = params.userId;
     this.isInitiator = params.isInitiator;
     this.callType = params.callType;
     this.onEvent = params.onEvent;
+    this.onLocalStream = params.onLocalStream;
   }
 
   // ── Public API ─────────────────────────────────────────────
