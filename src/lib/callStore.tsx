@@ -579,25 +579,26 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       };
 
       premiumSounds.stopAllCallSounds();
+      // Paint the overlay IMMEDIATELY — overlay/camera mount happens here.
       setState({ phase: 'joining', call: callData, error: null });
 
-      // Fan out a push notification so the receiver(s) hear the ring even
-      // when the app is backgrounded. Fire-and-forget — call should never
-      // crash if push fails.
-      try {
-        const targetIds = params.isGroupCall
-          ? (params.participantIds || []).filter((id) => id && id !== profile.id)
-          : [params.receiverId];
+      // Fan out push notifications truly fire-and-forget. Receiver also has
+      // realtime + 2-5s polling fallback in this same file (lines 285-333),
+      // so push delays/failures never block the caller's UI.
+      void (async () => {
+        try {
+          const targetIds = params.isGroupCall
+            ? (params.participantIds || []).filter((id) => id && id !== profile.id)
+            : [params.receiverId];
 
-        const callerName = profile.username || 'Someone';
-        const callTypeLabel = params.callType === 'video' ? 'FaceTime' : 'audio call';
-        const title = params.isGroupCall
-          ? `${params.groupName || 'Group'} • Incoming ${callTypeLabel}`
-          : `Incoming ${callTypeLabel}`;
-        const body = `${callerName} is calling…`;
+          const callerName = profile.username || 'Someone';
+          const callTypeLabel = params.callType === 'video' ? 'FaceTime' : 'audio call';
+          const title = params.isGroupCall
+            ? `${params.groupName || 'Group'} • Incoming ${callTypeLabel}`
+            : `Incoming ${callTypeLabel}`;
+          const body = `${callerName} is calling…`;
 
-        await Promise.all(
-          targetIds.map((userId) =>
+          for (const userId of targetIds) {
             supabase.functions.invoke('send-push-notification', {
               body: {
                 userId,
@@ -611,12 +612,12 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
                 },
                 priority: 'high',
               },
-            }).catch((e) => console.warn('[CallStore] push notification failed:', e))
-          )
-        );
-      } catch (pushErr) {
-        console.warn('[CallStore] push fan-out failed:', pushErr);
-      }
+            }).catch((e) => console.warn('[CallStore] push notification failed:', e));
+          }
+        } catch (pushErr) {
+          console.warn('[CallStore] push fan-out failed:', pushErr);
+        }
+      })();
     } catch (err: any) {
       console.error('[CallStore] Failed to start call:', err);
       premiumSounds.stopAllCallSounds();
