@@ -109,73 +109,62 @@ export const StyledUsername = memo(forwardRef<HTMLSpanElement, StyledUsernamePro
     return supports('background-image', gradient);
   }, [gradient]);
 
-  // If equipped name color is set, it takes priority over badge styling
-  if (resolvedNameColor) {
-    const isGrad = resolvedNameColor.startsWith('linear');
-    if (isGrad) {
-      return (
-        <span
-          ref={ref}
-          className={className}
-          style={{
-            backgroundImage: resolvedNameColor,
-            backgroundSize: '200% 100%',
-            backgroundClip: 'text',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            color: 'transparent',
-            display: 'inline-block',
-            animation: 'gradient-shift 3.2s linear infinite',
-            textShadow: 'none',
-          }}
-        >
-          {nameToShow}
-        </span>
-      );
+  // Compute the final style object — using a single <span> across loading & loaded
+  // states prevents React from remounting and the browser from repainting (flicker).
+  const computedStyle: React.CSSProperties = useMemo(() => {
+    // Equipped name color takes priority
+    if (resolvedNameColor) {
+      const isGrad = resolvedNameColor.startsWith('linear');
+      if (isGrad) {
+        return {
+          backgroundImage: resolvedNameColor,
+          backgroundSize: '200% 100%',
+          backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          color: 'transparent',
+          display: 'inline-block',
+          animation: 'gradient-shift 3.2s linear infinite',
+          textShadow: 'none',
+          contain: 'paint',
+        };
+      }
+      return {
+        color: resolvedNameColor,
+        textShadow: `0 0 10px ${resolvedNameColor}40`,
+        display: 'inline-block',
+        contain: 'paint',
+      };
     }
-    return (
-      <span
-        ref={ref}
-        className={className}
-        style={{ color: resolvedNameColor, textShadow: `0 0 10px ${resolvedNameColor}40` }}
-      >
-        {nameToShow}
-      </span>
-    );
-  }
 
-  // No badge styling OR unsupported/invalid gradient => render plain text (fully opaque)
-  if (!gradient || !canUseGradientText) {
-    return <span ref={ref} className={className}>{nameToShow}</span>;
-  }
+    // Badge gradient styling
+    if (gradient && canUseGradientText) {
+      const style: React.CSSProperties = {
+        backgroundImage: gradient,
+        backgroundClip: 'text',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        color: 'transparent',
+        backgroundColor: 'transparent',
+        boxShadow: 'none',
+        display: 'inline-block',
+        padding: 0,
+        margin: 0,
+        contain: 'paint',
+      };
+      if (badge?.effect === 'shine') {
+        style.textShadow = '0 1px 1px rgba(255,255,255,0.2)';
+      }
+      return style;
+    }
 
-  // Base style for gradient text - MUST have all these properties to prevent background leakage
-  const gradientStyle: React.CSSProperties = {
-    backgroundImage: gradient,
-    backgroundClip: 'text',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    color: 'transparent',
-    // Ensure no box background shows through
-    backgroundColor: 'transparent',
-    boxShadow: 'none',
-    // Prevent inheritance issues
-    display: 'inline-block',
-    padding: 0,
-    margin: 0,
-  };
-
-  // Add text shadow for shine effect (no filter to avoid artifacts)
-  if (badge?.effect === 'shine') {
-    gradientStyle.textShadow = '0 1px 1px rgba(255,255,255,0.2)';
-  }
+    // Plain fallback — keep inline-block so layout matches the styled state,
+    // preventing layout shift when badge data later resolves.
+    return { display: 'inline-block' };
+  }, [resolvedNameColor, gradient, canUseGradientText, badge?.effect]);
 
   return (
-    <span
-      ref={ref}
-      style={gradientStyle}
-      className={cn(className)}
-    >
+    <span ref={ref} className={className} style={computedStyle}>
       {nameToShow}
     </span>
   );
