@@ -1,6 +1,5 @@
-import { memo } from 'react';
+import { memo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 import {
   Dna, Sparkles, MapPin, MessageCircle, Radio, ShoppingBag, Wallet, Bot,
