@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 /**
  * Web NFC hook — works on Android Chrome (and Despia Android WebView).
@@ -7,6 +8,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * Permissions required: the hosting native shell (Despia) must enable NFC
  * in its app capability settings AND the user must grant runtime permission.
  */
+
+function isDespiaWebView(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.includes('despia') || ua.includes('vybeapp');
+}
+
+function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
 
 export interface NFCRecord {
   recordType: string;
