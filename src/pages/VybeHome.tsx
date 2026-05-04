@@ -9,6 +9,7 @@ import {
   Globe, Mic, Smile,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePublicUserCount } from '@/hooks/usePublicUserCount';
 
 /* ---------- Reusable bits ---------- */
 
