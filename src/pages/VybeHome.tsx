@@ -53,99 +53,176 @@ const FadeIn = ({ children, delay = 0, className }: { children: React.ReactNode;
 
 /* ---------- Phone mockups (stylized in-browser) ---------- */
 
+/* Stylized to mirror real VYBE screens — all users/content are fake. */
+
 const DNAPhone = () => (
-  <div className="w-full h-full bg-gradient-to-br from-[#0B0B10] via-[#1a0d2e] to-[#0B0B10] p-4 pt-8 flex flex-col gap-3">
-    <div className="text-[10px] uppercase tracking-widest text-violet-300/70 font-semibold">Your VYBE DNA</div>
-    <div className="text-white text-lg font-bold leading-tight">The Night Owl ✦ Creator</div>
-    <div className="relative aspect-square w-full mt-2 rounded-2xl bg-gradient-to-br from-violet-500/30 to-cyan-400/20 border border-white/10 overflow-hidden flex items-center justify-center">
+  <div className="w-full h-full bg-[#0B0B10] p-3 pt-8 flex flex-col gap-2.5 relative overflow-hidden">
+    {/* ambient aura */}
+    <div className="absolute -top-20 -left-10 w-56 h-56 rounded-full blur-3xl opacity-50" style={{background:'radial-gradient(circle, #8B5CF6, transparent 70%)'}} />
+    <div className="absolute -bottom-16 -right-10 w-56 h-56 rounded-full blur-3xl opacity-40" style={{background:'radial-gradient(circle, #06B6D4, transparent 70%)'}} />
+    <div className="relative flex items-center justify-between">
+      <div className="text-[10px] uppercase tracking-widest text-violet-300/80 font-semibold">VYBE DNA</div>
+      <div className="text-[9px] text-white/40">Day 23 / 30</div>
+    </div>
+    <div className="relative aspect-[3/4] w-full mt-1 rounded-2xl border border-white/10 overflow-hidden"
+      style={{background:'linear-gradient(155deg, rgba(139,92,246,0.35), rgba(6,182,212,0.25))'}}>
       <div className="absolute inset-0">
-        {[...Array(40)].map((_, i) => (
-          <div key={i} className="absolute rounded-full bg-violet-300/40" style={{
-            top: `${Math.random()*100}%`, left: `${Math.random()*100}%`,
-            width: 2+Math.random()*3, height: 2+Math.random()*3,
+        {[...Array(28)].map((_, i) => (
+          <div key={i} className="absolute rounded-full bg-white/60" style={{
+            top: `${(i*37)%100}%`, left: `${(i*53)%100}%`,
+            width: 2+(i%3), height: 2+(i%3), opacity: 0.3 + (i%5)/10,
           }} />
         ))}
       </div>
-      <Dna className="w-20 h-20 text-violet-200 relative z-10 drop-shadow-[0_0_20px_rgba(139,92,246,0.7)]" />
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <Dna className="w-16 h-16 text-white drop-shadow-[0_0_24px_rgba(139,92,246,0.9)]" />
+        <div className="mt-3 text-white font-bold text-base">Maya R.</div>
+        <div className="text-[10px] text-white/70 mt-0.5">The Night Owl · Creator</div>
+      </div>
+      <div className="absolute bottom-2 left-2 right-2 flex justify-between text-[9px] text-white/70">
+        <span>VYBE-7F2A</span>
+        <span>87% match · @jordan</span>
+      </div>
     </div>
-    <div className="grid grid-cols-3 gap-2 mt-1">
-      {['Curious','Bold','Chill'].map(t => (
-        <div key={t} className="text-center text-[10px] py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/80">{t}</div>
+    <div className="grid grid-cols-3 gap-1.5">
+      {[['Curious','82'],['Bold','71'],['Chill','64']].map(([t,v]) => (
+        <div key={t} className="rounded-lg bg-white/5 border border-white/10 p-1.5 text-center">
+          <div className="text-[9px] text-white/50 uppercase tracking-wider">{t}</div>
+          <div className="text-[11px] text-white font-bold">{v}</div>
+        </div>
       ))}
     </div>
-    <div className="mt-auto text-[10px] text-white/40 text-center">Evolves every 30 days</div>
   </div>
 );
 
 const FeedPhone = () => (
-  <div className="w-full h-full bg-[#0B0B10] p-3 pt-8 flex flex-col gap-2.5">
+  <div className="w-full h-full bg-[#0B0B10] p-2.5 pt-8 flex flex-col gap-2">
     <div className="flex items-center justify-between px-1">
-      <div className="text-white font-bold text-base">VYBE</div>
-      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-cyan-400" />
+      <div className="font-display font-black text-base bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">VYBE</div>
+      <div className="flex gap-1.5">
+        <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center"><Bell className="w-3 h-3 text-white/70" /></div>
+        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-500 to-violet-500" />
+      </div>
     </div>
-    <div className="flex gap-2 overflow-hidden">
-      {['#8B5CF6','#06B6D4','#EC4899','#F59E0B','#10B981'].map((c,i)=>(
-        <div key={i} className="w-12 h-12 shrink-0 rounded-full p-0.5" style={{background:`linear-gradient(135deg, ${c}, transparent)`}}>
-          <div className="w-full h-full rounded-full bg-[#1a1a22]" />
+    {/* stories row */}
+    <div className="flex gap-1.5 overflow-hidden">
+      {[
+        {c:'#8B5CF6',n:'You'},
+        {c:'#EC4899',n:'sky'},
+        {c:'#06B6D4',n:'leo'},
+        {c:'#F59E0B',n:'mia'},
+        {c:'#10B981',n:'kai'},
+      ].map((s,i)=>(
+        <div key={i} className="flex flex-col items-center gap-0.5">
+          <div className="w-11 h-11 rounded-full p-[1.5px]" style={{background:`conic-gradient(from 0deg, ${s.c}, #06B6D4, ${s.c})`}}>
+            <div className="w-full h-full rounded-full bg-[#1a1a22] border-2 border-[#0B0B10]" />
+          </div>
+          <div className="text-[8px] text-white/60">{s.n}</div>
         </div>
       ))}
     </div>
-    <div className="rounded-2xl overflow-hidden bg-gradient-to-br from-violet-600/30 to-cyan-500/20 border border-white/10 flex-1">
-      <div className="aspect-square bg-gradient-to-br from-fuchsia-500/40 via-violet-500/30 to-cyan-400/30 relative">
-        <div className="absolute bottom-2 left-2 text-white text-xs font-medium">@maya · 2m</div>
+    {/* post card */}
+    <div className="rounded-2xl overflow-hidden bg-white/[0.03] border border-white/10 flex-1">
+      <div className="flex items-center gap-2 p-2">
+        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-fuchsia-500 to-violet-500" />
+        <div className="flex-1">
+          <div className="text-white text-xs font-semibold">@maya.rae</div>
+          <div className="text-white/40 text-[9px]">2m · Brooklyn</div>
+        </div>
+        <div className="text-white/40 text-sm">···</div>
       </div>
-      <div className="p-2 flex gap-2 text-white/80 text-xs">
-        <Heart className="w-4 h-4" /><span>1.2k</span>
-        <MessageCircle className="w-4 h-4 ml-2" /><span>89</span>
+      <div className="aspect-square relative" style={{background:'linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #06b6d4 100%)'}}>
+        <div className="absolute inset-0" style={{backgroundImage:'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3), transparent 40%)'}} />
+        <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-black/40 text-[9px] text-white">✦ aura</div>
+      </div>
+      <div className="p-2 flex items-center gap-3 text-white/80 text-[11px]">
+        <div className="flex items-center gap-1"><Heart className="w-3.5 h-3.5 text-pink-400 fill-pink-400" /><span>1.2k</span></div>
+        <div className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" /><span>89</span></div>
+        <div className="flex items-center gap-1 ml-auto text-amber-400"><Flame className="w-3.5 h-3.5" /><span>12</span></div>
       </div>
     </div>
   </div>
 );
 
 const MapPhone = () => (
-  <div className="w-full h-full bg-[#0B0B10] p-3 pt-8 flex flex-col gap-2 relative">
-    <div className="text-white font-bold text-base px-1">Friends Near You</div>
-    <div className="flex-1 rounded-2xl bg-gradient-to-br from-cyan-500/20 via-[#0B0B10] to-violet-500/20 border border-white/10 relative overflow-hidden">
+  <div className="w-full h-full bg-[#0B0B10] p-2.5 pt-8 flex flex-col gap-2 relative">
+    <div className="flex items-center justify-between px-1">
+      <div className="text-white font-bold text-sm flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-cyan-400" /> Friend Map</div>
+      <div className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">4 nearby</div>
+    </div>
+    <div className="flex-1 rounded-2xl border border-white/10 relative overflow-hidden"
+      style={{background:'radial-gradient(ellipse at 50% 50%, rgba(6,182,212,0.18), transparent 60%), linear-gradient(135deg, #0a1428, #0B0B10)'}}>
+      {/* grid lines */}
+      <div className="absolute inset-0 opacity-20" style={{backgroundImage:'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)', backgroundSize:'24px 24px'}} />
+      {/* you */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <div className="relative">
+          <div className="absolute inset-0 rounded-full bg-cyan-400/30 animate-ping" style={{width:48,height:48,left:-16,top:-16}} />
+          <div className="w-4 h-4 rounded-full bg-cyan-400 border-2 border-white shadow-lg" />
+        </div>
+      </div>
+      {/* friends */}
       {[
-        {t:'20%',l:'30%',c:'#8B5CF6'},
-        {t:'55%',l:'60%',c:'#06B6D4'},
-        {t:'70%',l:'25%',c:'#EC4899'},
-        {t:'35%',l:'70%',c:'#F59E0B'},
+        {t:'22%',l:'28%',c:'#8B5CF6',n:'sky',e:'🌙'},
+        {t:'62%',l:'68%',c:'#EC4899',n:'leo',e:'☕'},
+        {t:'72%',l:'22%',c:'#F59E0B',n:'mia',e:'🎧'},
+        {t:'30%',l:'74%',c:'#10B981',n:'kai',e:'🏀'},
       ].map((p,i)=>(
-        <div key={i} className="absolute -translate-x-1/2 -translate-y-1/2" style={{top:p.t,left:p.l}}>
-          <div className="w-8 h-8 rounded-full border-2 border-white shadow-lg animate-pulse" style={{background:p.c}} />
+        <div key={i} className="absolute -translate-x-1/2 -translate-y-full" style={{top:p.t,left:p.l}}>
+          <div className="flex flex-col items-center">
+            <div className="w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-[11px]" style={{background:p.c}}>{p.e}</div>
+            <div className="mt-0.5 px-1 py-0.5 rounded text-[8px] bg-black/60 text-white">{p.n}</div>
+          </div>
         </div>
       ))}
-      <div className="absolute inset-0" style={{
-        backgroundImage: 'radial-gradient(circle at 50% 50%, transparent 30%, rgba(0,0,0,0.4) 100%)',
-      }} />
     </div>
-    <div className="rounded-xl bg-white/5 border border-white/10 p-2 text-white/80 text-[11px]">
-      <div className="flex items-center gap-1.5"><MapPin className="w-3 h-3 text-cyan-400"/>4 friends within 2 miles</div>
+    <div className="rounded-xl bg-white/5 border border-white/10 p-2 text-white/80 text-[10px] flex items-center gap-2">
+      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-500 to-violet-500" />
+      <div className="flex-1">
+        <div className="text-white text-[11px] font-semibold">@leo.k is 0.4 mi away</div>
+        <div className="text-white/50">Sunny 72° · at Café Mile</div>
+      </div>
+      <div className="text-cyan-400 text-[10px] font-semibold">Bump</div>
     </div>
   </div>
 );
 
 const ChatPhone = () => (
-  <div className="w-full h-full bg-[#0B0B10] p-3 pt-8 flex flex-col gap-2">
+  <div className="w-full h-full bg-[#0B0B10] p-2.5 pt-8 flex flex-col gap-2">
     <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-violet-500" />
-      <div>
-        <div className="text-white text-sm font-semibold">@jordan</div>
-        <div className="text-emerald-400 text-[10px] flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> active now
+      <div className="relative">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-pink-500" />
+        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#0B0B10]" />
+      </div>
+      <div className="flex-1">
+        <div className="text-white text-sm font-semibold">@jordan.w</div>
+        <div className="text-white/50 text-[10px] flex items-center gap-1">
+          <Flame className="w-2.5 h-2.5 text-amber-400" /> 14d streak · typing…
         </div>
       </div>
-    </div>
-    <div className="flex-1 flex flex-col gap-2 justify-end">
-      <div className="self-start max-w-[75%] bg-white/10 rounded-2xl rounded-bl-sm px-3 py-2 text-white text-xs">yo you up?</div>
-      <div className="self-end max-w-[75%] bg-gradient-to-br from-violet-500 to-cyan-500 rounded-2xl rounded-br-sm px-3 py-2 text-white text-xs">always 🌙</div>
-      <div className="self-start max-w-[75%] bg-white/10 rounded-2xl rounded-bl-sm px-3 py-2 text-white text-xs">vibe check?</div>
-      <div className="self-end flex items-center gap-1">
-        <div className="text-[10px] text-white/40">typing...</div>
+      <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+        <Camera className="w-3.5 h-3.5 text-white/70" />
       </div>
     </div>
-    <div className="rounded-full bg-white/5 border border-white/10 px-3 py-2 text-white/40 text-xs">Message...</div>
+    <div className="flex-1 flex flex-col gap-1.5 justify-end">
+      <div className="self-start max-w-[78%] bg-white/[0.07] rounded-2xl rounded-bl-md px-3 py-1.5 text-white text-[11px]">yo you up?</div>
+      <div className="self-end max-w-[78%] rounded-2xl rounded-br-md px-3 py-1.5 text-white text-[11px]" style={{background:'linear-gradient(135deg, #8B5CF6, #06B6D4)'}}>always 🌙</div>
+      <div className="self-start relative max-w-[78%]">
+        <div className="bg-white/[0.07] rounded-2xl rounded-bl-md px-3 py-1.5 text-white text-[11px]">vibe check?</div>
+        <div className="absolute -bottom-2 left-2 flex gap-0.5 px-1 py-0.5 rounded-full bg-[#1a1a22] border border-white/10 text-[10px]">
+          <span>🔥</span><span className="text-white/60 text-[8px] self-center">3</span>
+        </div>
+      </div>
+      <div className="self-end mt-2 max-w-[78%] rounded-2xl overflow-hidden border border-white/10">
+        <div className="aspect-[4/3]" style={{background:'linear-gradient(135deg, #f59e0b, #ec4899)'}} />
+        <div className="bg-white/5 px-2 py-1 text-[9px] text-white/60">VYBE Snap · tap to view</div>
+      </div>
+    </div>
+    <div className="rounded-full bg-white/5 border border-white/10 px-3 py-2 flex items-center gap-2">
+      <div className="text-white/40 text-xs flex-1">Message @jordan…</div>
+      <Heart className="w-3.5 h-3.5 text-white/40" />
+      <Camera className="w-3.5 h-3.5 text-white/40" />
+    </div>
   </div>
 );
 
