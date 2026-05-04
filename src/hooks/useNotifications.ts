@@ -104,6 +104,12 @@ export function useNotifications() {
         created_at: n.created_at,
         post_id: n.post_id,
         reason: (n as any).reason || null,
+        title: (n as any).title || null,
+        body: (n as any).body || null,
+        image_url: (n as any).image_url || null,
+        deep_link: (n as any).deep_link || null,
+        subtype: (n as any).subtype || null,
+        meta: (n as any).meta || null,
         actor: actorMap.get(n.actor_id) || {
           id: n.actor_id,
           username: 'unknown',
