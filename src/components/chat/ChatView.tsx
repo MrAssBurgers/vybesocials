@@ -2014,7 +2014,7 @@ const MessageInputArea = memo(function MessageInputArea({
         ) : (
           <div ref={inputContainerRef} className="flex items-center gap-1 sm:gap-2">
             {/* Toybox - far left */}
-            {!messageText.trim() && (
+            {!hasText && (
               <Toybox
                 onImageSelect={async (file) => {
                   const dt = new DataTransfer();
@@ -2032,7 +2032,7 @@ const MessageInputArea = memo(function MessageInputArea({
                   onLiveRecordingChange?.(true);
                 }}
                 onEmojiSelect={(emoji) => {
-                  handleInputChange(messageText + emoji);
+                  appendToInput(emoji);
                   inputRef.current?.focus();
                 }}
                 isUploading={isUploadingMedia}
@@ -2051,7 +2051,7 @@ const MessageInputArea = memo(function MessageInputArea({
             <div className="flex-1 relative">
               <Input
                 ref={inputRef}
-                value={messageText}
+                defaultValue={getMessageText()}
                 onChange={(e) => handleInputChange(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder={t('messages.typeMessage')}
@@ -2060,7 +2060,7 @@ const MessageInputArea = memo(function MessageInputArea({
               <div className="absolute right-1 top-1/2 -translate-y-1/2">
                 <EmojiPicker
                   onEmojiSelect={(emoji) => {
-                    handleInputChange(messageText + emoji);
+                    appendToInput(emoji);
                     inputRef.current?.focus();
                   }}
                 />
