@@ -128,26 +128,32 @@ export function usePushNotifications() {
   const subscribeDespia = async (): Promise<boolean> => {
     if (!profile) return false;
     try {
-      // Trigger native push permission prompt
-      try { despia('registerpush://'); } catch {}
-      // Bind OneSignal external_user_id to our user
-      try { despia(`setonesignalplayerid://?user_id=${profile.id}`); } catch {}
+      // Despia auto-registers the device with OneSignal at native launch.
+      // We just bind OneSignal external_user_id to our user. We do NOT call
+      // any unsupported schemes (e.g. registerpush://) — those can hang the
+      // native bridge or look like a crash on Android.
+      try { despia(`setonesignalplayerid://?user_id=${profile.id}`); } catch (err) {
+        console.warn('[Push] setonesignalplayerid failed', err);
+      }
 
-      // Check permission state
+      // Best-effort permission check. Don't block enabling if it doesn't respond.
       let granted = true;
       try {
-        const result: any = await despia('checkNativePushPermissions://', ['nativePushEnabled']);
+        const result: any = await Promise.race([
+          despia('checkNativePushPermissions://', ['nativePushEnabled']),
+          new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
+        ]);
         const v = result?.nativePushEnabled;
-        granted = !(v === false || v === 'false');
+        if (v === false || v === 'false') granted = false;
       } catch {}
 
       if (!granted) {
-        toast.error('Enable notifications in your phone settings to receive pings.');
-        try { despia('settingsapp://'); } catch {}
+        toast.error('Notifications are off. Enable them in your phone settings, then try again.');
+        // Do NOT auto-open settings — let the user choose.
         return false;
       }
 
-      // Persist a marker row so the toggle reflects subscribed state
+      // Persist a marker row so the toggle reflects subscribed state.
       await supabase.from('push_tokens').delete()
         .eq('user_id', profile.id).eq('platform', 'despia');
       const { error } = await supabase.from('push_tokens').insert({

@@ -131,7 +131,11 @@ Deno.serve(async (req) => {
 
     // Send push to all registered devices
     const results = await Promise.all(
-      tokens.map(async ({ id, token }) => {
+      tokens.map(async ({ id, token, platform }: any) => {
+        // Despia native rows are markers only — OneSignal handled delivery above.
+        if (platform === "despia" || (typeof token === "string" && token.startsWith("despia:"))) {
+          return { success: true, native: true };
+        }
         try {
           let subscription;
           try {
