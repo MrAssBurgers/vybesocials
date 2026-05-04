@@ -3,6 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled } from '@/lib/serviceWorker';
+import despia from 'despia-native';
+
+function isDespiaWebView(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.includes('despia') || ua.includes('vybeapp');
+}
 
 // VAPID public key - this must match the VAPID_PUBLIC_KEY secret in Supabase
 // Generate a new key pair with: npx web-push generate-vapid-keys
@@ -33,21 +40,23 @@ export function usePushNotifications() {
 
   // Check if push notifications are supported
   useEffect(() => {
-    const supported = 'serviceWorker' in navigator && 
-                     'PushManager' in window && 
-                     'Notification' in window &&
-                     !isPreviewServiceWorkerDisabled();
+    const onDespia = isDespiaWebView();
+    const supported = onDespia || (
+      'serviceWorker' in navigator &&
+      'PushManager' in window &&
+      'Notification' in window &&
+      !isPreviewServiceWorkerDisabled()
+    );
     setIsSupported(supported);
-    
-    if (supported) {
+
+    if (!onDespia && supported) {
       setPermission(Notification.permission);
     }
 
     if (supported && profile) {
-      registerServiceWorker();
+      if (!onDespia) registerServiceWorker();
       checkSubscription();
     } else if (!profile) {
-      // No profile yet, mark as done checking
       setIsCheckingSubscription(false);
     }
   }, [profile]);
@@ -79,27 +88,28 @@ export function usePushNotifications() {
         setIsCheckingSubscription(false);
         return;
       }
-      
+
+      const platform = isDespiaWebView() ? 'despia' : 'web';
+
       const { data, error } = await supabase
         .from('push_tokens')
         .select('id')
         .eq('user_id', profile.id)
-        .eq('platform', 'web')
+        .eq('platform', platform)
         .maybeSingle();
-      
+
       if (error) {
         console.error('[Push] Error checking subscription:', error);
         setIsCheckingSubscription(false);
         return;
       }
-      
+
       setIsSubscribed(!!data);
-      
-      // Also check browser subscription status
-      if (registrationRef.current) {
+
+      // Web-only: reconcile with browser subscription
+      if (!isDespiaWebView() && registrationRef.current) {
         const subscription = await (registrationRef.current as any).pushManager.getSubscription();
         if (!subscription && data) {
-          // DB says subscribed but browser isn't - clean up
           await supabase
             .from('push_tokens')
             .delete()
@@ -112,6 +122,49 @@ export function usePushNotifications() {
       console.error('[Push] Error checking subscription:', error);
     } finally {
       setIsCheckingSubscription(false);
+    }
+  };
+
+  const subscribeDespia = async (): Promise<boolean> => {
+    if (!profile) return false;
+    try {
+      // Trigger native push permission prompt
+      try { despia('registerpush://'); } catch {}
+      // Bind OneSignal external_user_id to our user
+      try { despia(`setonesignalplayerid://?user_id=${profile.id}`); } catch {}
+
+      // Check permission state
+      let granted = true;
+      try {
+        const result: any = await despia('checkNativePushPermissions://', ['nativePushEnabled']);
+        const v = result?.nativePushEnabled;
+        granted = !(v === false || v === 'false');
+      } catch {}
+
+      if (!granted) {
+        toast.error('Enable notifications in your phone settings to receive pings.');
+        try { despia('settingsapp://'); } catch {}
+        return false;
+      }
+
+      // Persist a marker row so the toggle reflects subscribed state
+      await supabase.from('push_tokens').delete()
+        .eq('user_id', profile.id).eq('platform', 'despia');
+      const { error } = await supabase.from('push_tokens').insert({
+        user_id: profile.id,
+        token: `despia:${profile.id}`,
+        platform: 'despia',
+      });
+      if (error) throw error;
+
+      setIsSubscribed(true);
+      setPermission('granted');
+      toast.success('Push notifications enabled!');
+      return true;
+    } catch (e: any) {
+      console.error('[Push] Despia subscribe failed:', e);
+      toast.error(e?.message || 'Failed to enable notifications');
+      return false;
     }
   };
 
@@ -128,6 +181,10 @@ export function usePushNotifications() {
 
     setIsLoading(true);
     try {
+      if (isDespiaWebView()) {
+        const ok = await subscribeDespia();
+        return ok;
+      }
       // Request notification permission
       const permissionResult = await Notification.requestPermission();
       setPermission(permissionResult);
@@ -199,8 +256,9 @@ export function usePushNotifications() {
 
     setIsLoading(true);
     try {
-      // Unsubscribe from push
-      if (registrationRef.current) {
+      const onDespia = isDespiaWebView();
+
+      if (!onDespia && registrationRef.current) {
         const subscription = await (registrationRef.current as any).pushManager.getSubscription();
         if (subscription) {
           await subscription.unsubscribe();
@@ -208,12 +266,11 @@ export function usePushNotifications() {
         }
       }
 
-      // Remove from database
       const { error } = await supabase
         .from('push_tokens')
         .delete()
         .eq('user_id', profile.id)
-        .eq('platform', 'web');
+        .eq('platform', onDespia ? 'despia' : 'web');
 
       if (error) {
         console.error('[Push] Error removing token:', error);
