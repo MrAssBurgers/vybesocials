@@ -37,6 +37,7 @@ const ICON_CONFIG: Record<NotificationType, { icon: React.ElementType; color: st
   missed_call: { icon: PhoneMissed, color: 'text-destructive', bg: 'bg-destructive/10' },
   announcement: { icon: BellRing, color: 'text-primary', bg: 'bg-primary/10' },
   content_removed: { icon: ShieldAlert, color: 'text-destructive', bg: 'bg-destructive/10' },
+  smart_ping: { icon: Sparkles, color: 'text-primary', bg: 'bg-primary/10' },
 };
 
 const NOTIFICATION_TEXT: Record<NotificationType, string> = {
