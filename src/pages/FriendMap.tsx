@@ -436,6 +436,8 @@ function FriendMapInner() {
   // Heading-up compass mode: rotates the map so the direction the phone is pointing is "up"
   const [headingUp, setHeadingUp] = useState(false);
   const [heading, setHeading] = useState(0); // 0–360, where 0 = North
+  // Manual rotation when compass is OFF — two-finger twist gesture lets the user spin the map 360°.
+  const [manualRotation, setManualRotation] = useState(0);
   const [mapStyle, setMapStyle] = useState<MapStyleKey>(getInitialMapStyle);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [activeFilter, setActiveFilter] = useState('Friends');
