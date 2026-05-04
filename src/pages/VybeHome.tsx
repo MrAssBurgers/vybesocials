@@ -173,13 +173,7 @@ const features = [
 const VybeHome = memo(function VybeHome() {
   return (
     <div className="min-h-screen bg-[#0B0B10] text-white overflow-x-hidden">
-      <Helmet>
-        <title>VYBE — The social app that becomes you</title>
-        <meta name="description" content="VYBE is the next-gen social app. Evolving DNA, custom Aura, real friends nearby, ephemeral moments, and creator tools — all in one beautiful place." />
-        <meta property="og:title" content="VYBE — The social app that becomes you" />
-        <meta property="og:description" content="Evolving DNA, custom Aura, real friends nearby. Welcome to your vibe." />
-        <link rel="canonical" href="https://vybehub.app/vybe-home" />
-      </Helmet>
+      {/* SEO handled via useEffect below */}
 
       {/* Sticky nav */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#0B0B10]/80 border-b border-white/5">
