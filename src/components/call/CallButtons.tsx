@@ -15,7 +15,7 @@ import { Phone, Video, Loader2, PhoneCall } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCallStore, CallType, getLingeringCall } from '@/lib/callStore';
 import { toast } from 'sonner';
-import { requestCallMediaPermissions } from '@/lib/mediaPermissions';
+
 
 interface CallButtonsProps {
   conversationId: string;
