@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { liquidSpring } from '@/motion/liquidConfig';
 import { MOTION_CONFIG } from '@/lib/motion';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { PublicOnlyRoute } from '@/components/auth/PublicOnlyRoute';
 import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 import { usePageTitle } from '@/hooks/usePageTitle';
