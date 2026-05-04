@@ -31,8 +31,31 @@ async function checkPermissionStatus(name: 'microphone' | 'camera'): Promise<boo
  * 
  * Daily.js will handle the actual stream creation with its own constraints.
  */
+const SESSION_CACHE_KEY = 'vybe-media-perms-granted';
+
+function readPermCache(): { mic?: boolean; cam?: boolean } {
+  try {
+    const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function writePermCache(patch: { mic?: boolean; cam?: boolean }) {
+  try {
+    const cur = readPermCache();
+    sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ ...cur, ...patch }));
+  } catch {}
+}
+
 export async function requestCallMediaPermissions(callType: CallMediaType): Promise<void> {
   assertMediaSupported();
+
+  // Fast path: session cache (skip the full probe entirely on subsequent calls)
+  const cached = readPermCache();
+  if (cached.mic && (callType === 'audio' || cached.cam)) {
+    console.log('[mediaPermissions] Session cache hit — skipping probe');
+    return;
+  }
 
   console.log('[mediaPermissions] Checking permissions for:', callType);
 
