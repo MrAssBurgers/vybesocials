@@ -30,7 +30,7 @@ function showNativeNotification(title: string, body: string, url?: string) {
   };
 }
 
-export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention' | 'missed_call' | 'announcement' | 'content_removed';
+export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention' | 'missed_call' | 'announcement' | 'content_removed' | 'smart_ping';
 
 interface Notification {
   id: string;
@@ -39,6 +39,13 @@ interface Notification {
   created_at: string;
   post_id: string | null;
   reason: string | null;
+  // Smart-ping fields
+  title?: string | null;
+  body?: string | null;
+  image_url?: string | null;
+  deep_link?: string | null;
+  subtype?: string | null;
+  meta?: any;
   actor: {
     id: string;
     username: string;
