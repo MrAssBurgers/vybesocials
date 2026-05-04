@@ -160,6 +160,8 @@ export function Sidebar() {
                   userId={profile.id}
                   username={profile.username}
                   displayName={profile.display_name}
+                  preferDisplayName={false}
+                  showAtSymbol
                   className="truncate"
                 />
               ) : (

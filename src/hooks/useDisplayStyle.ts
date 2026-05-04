@@ -43,6 +43,9 @@ export function useDisplayStyle(userId: string | undefined) {
     enabled: !!userId,
     staleTime: 1000 * 60 * 10, // Cache for 10 minutes
     gcTime: 1000 * 60 * 30, // Keep in memory for 30 minutes
+    placeholderData: (prev) => prev,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 
