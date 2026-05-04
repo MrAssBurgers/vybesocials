@@ -13,6 +13,7 @@ import { useAutoBugReporter } from '@/hooks/useAutoBugReporter';
 
 // Lazy-load all pages to reduce unused JavaScript in the initial bundle
 const Landing = lazy(() => import("@/pages/Landing"));
+const VybeHome = lazy(() => import("@/pages/VybeHome"));
 const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 
 // High-priority but lazy-loaded to reduce main-thread work
