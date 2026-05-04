@@ -88,27 +88,28 @@ export function usePushNotifications() {
         setIsCheckingSubscription(false);
         return;
       }
-      
+
+      const platform = isDespiaWebView() ? 'despia' : 'web';
+
       const { data, error } = await supabase
         .from('push_tokens')
         .select('id')
         .eq('user_id', profile.id)
-        .eq('platform', 'web')
+        .eq('platform', platform)
         .maybeSingle();
-      
+
       if (error) {
         console.error('[Push] Error checking subscription:', error);
         setIsCheckingSubscription(false);
         return;
       }
-      
+
       setIsSubscribed(!!data);
-      
-      // Also check browser subscription status
-      if (registrationRef.current) {
+
+      // Web-only: reconcile with browser subscription
+      if (!isDespiaWebView() && registrationRef.current) {
         const subscription = await (registrationRef.current as any).pushManager.getSubscription();
         if (!subscription && data) {
-          // DB says subscribed but browser isn't - clean up
           await supabase
             .from('push_tokens')
             .delete()
@@ -121,6 +122,49 @@ export function usePushNotifications() {
       console.error('[Push] Error checking subscription:', error);
     } finally {
       setIsCheckingSubscription(false);
+    }
+  };
+
+  const subscribeDespia = async (): Promise<boolean> => {
+    if (!profile) return false;
+    try {
+      // Trigger native push permission prompt
+      try { despia('registerpush://'); } catch {}
+      // Bind OneSignal external_user_id to our user
+      try { despia(`setonesignalplayerid://?user_id=${profile.id}`); } catch {}
+
+      // Check permission state
+      let granted = true;
+      try {
+        const result: any = await despia('checkNativePushPermissions://', ['nativePushEnabled']);
+        const v = result?.nativePushEnabled;
+        granted = !(v === false || v === 'false');
+      } catch {}
+
+      if (!granted) {
+        toast.error('Enable notifications in your phone settings to receive pings.');
+        try { despia('settingsapp://'); } catch {}
+        return false;
+      }
+
+      // Persist a marker row so the toggle reflects subscribed state
+      await supabase.from('push_tokens').delete()
+        .eq('user_id', profile.id).eq('platform', 'despia');
+      const { error } = await supabase.from('push_tokens').insert({
+        user_id: profile.id,
+        token: `despia:${profile.id}`,
+        platform: 'despia',
+      });
+      if (error) throw error;
+
+      setIsSubscribed(true);
+      setPermission('granted');
+      toast.success('Push notifications enabled!');
+      return true;
+    } catch (e: any) {
+      console.error('[Push] Despia subscribe failed:', e);
+      toast.error(e?.message || 'Failed to enable notifications');
+      return false;
     }
   };
 
