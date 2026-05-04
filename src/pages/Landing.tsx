@@ -280,7 +280,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   }
 
   return (
-    <div className="min-h-[100dvh] bg-background relative flex items-start sm:items-center justify-center px-4 py-8 overflow-x-hidden overflow-y-auto scroll-mobile-safe">
+    <div className="page-scroll-fix bg-background relative flex flex-col items-center justify-start sm:justify-center px-4 py-8">
       {/* Back to home (web marketing page) — hidden on native APK */}
       {!user && typeof window !== 'undefined' && !(window as any).Capacitor?.isNativePlatform?.() && (
         <button
