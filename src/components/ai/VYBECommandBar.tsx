@@ -184,7 +184,7 @@ export function VYBECommandBar() {
         {!open && (
           <motion.button
             initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
+            animate={{ scale: 1, opacity: 1, y: controlVisible ? 0 : 112 }}
             exit={{ scale: 0, opacity: 0 }}
             onClick={handleOpen}
             className={cn(
@@ -194,7 +194,7 @@ export function VYBECommandBar() {
               "hover:scale-105 active:scale-95 transition-transform",
               "bottom-[calc(5rem+env(safe-area-inset-bottom)+12px)] right-4",
               "lg:bottom-8 lg:right-8",
-              controlVisible ? "translate-y-0" : "translate-y-28 pointer-events-none"
+              !controlVisible && "pointer-events-none"
             )}
             aria-label="Open VYBE AI Commander"
           >
