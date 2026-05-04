@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { liquidSpring } from '@/motion/liquidConfig';
 import { MOTION_CONFIG } from '@/lib/motion';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { PublicOnlyRoute } from '@/components/auth/PublicOnlyRoute';
 import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -137,8 +138,8 @@ export function AnimatedRoutes() {
         <Routes location={location}>
             {/* Public routes - no authentication required */}
             <Route path="/" element={<Landing />} />
-            <Route path="/vybe-home" element={<VybeHome />} />
-            <Route path="/tour" element={<VybeHome />} />
+            <Route path="/vybe-home" element={<PublicOnlyRoute><VybeHome /></PublicOnlyRoute>} />
+            <Route path="/tour" element={<PublicOnlyRoute><VybeHome /></PublicOnlyRoute>} />
             {/* Common sign-in URL aliases → redirect to landing (which hosts auth) */}
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="/signin" element={<Navigate to="/" replace />} />
