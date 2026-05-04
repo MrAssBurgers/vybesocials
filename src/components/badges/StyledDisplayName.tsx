@@ -16,12 +16,23 @@ interface StyledDisplayNameProps {
   as?: 'span' | 'h1' | 'h2' | 'p';
 }
 
+// Accept raw HSL parts ("330 100% 70%"), full CSS colors, or hex.
+const normalizeCssColor = (value: string) => {
+  const v = value.trim();
+  if (
+    v.startsWith('hsl(') || v.startsWith('hsla(') ||
+    v.startsWith('rgb(') || v.startsWith('rgba(') ||
+    v.startsWith('#') || v.startsWith('var(')
+  ) return v;
+  const raw = v.includes('/') ? v.split('/')[0].trim() : v;
+  return `hsl(${raw})`;
+};
+
 /**
  * StyledDisplayName - Renders a user's display name with badge-based styling
- * Includes gradient colors and effects based on their highest priority badge
- * 
- * On desktop: Uses CSS gradient with background-clip for premium effect
- * On mobile/tablet: Falls back to solid color + drop-shadow (matches WelcomeHeader)
+ *
+ * Uses a SINGLE element across loading & loaded states (no early-return swap)
+ * to prevent React remounts and the visible flicker that comes with them.
  */
 export const StyledDisplayName = memo(function StyledDisplayName({
   name,
@@ -29,49 +40,51 @@ export const StyledDisplayName = memo(function StyledDisplayName({
   className,
   as: Component = 'span',
 }: StyledDisplayNameProps) {
-  // Generate a unique ID for this element to apply mobile styles (must be before early return)
-  const elementId = useMemo(() => `styled-display-${Math.random().toString(36).slice(2, 9)}`, []);
+  const hasGradient = !!(badge?.gradient_from && badge?.gradient_to);
 
-  const hasGradient = badge?.gradient_from && badge?.gradient_to;
+  const gradient = useMemo(() => {
+    if (!hasGradient) return null;
+    const from = normalizeCssColor(badge!.gradient_from!);
+    const to = normalizeCssColor(badge!.gradient_to!);
+    const via = badge?.gradient_via ? normalizeCssColor(badge.gradient_via) : null;
+    return via
+      ? `linear-gradient(135deg, ${from}, ${via}, ${to})`
+      : `linear-gradient(135deg, ${from}, ${to})`;
+  }, [hasGradient, badge?.gradient_from, badge?.gradient_to, badge?.gradient_via]);
 
-  // No gradient - render plain text
-  if (!hasGradient) {
-    return (
-      <Component className={className}>
-        {name}
-      </Component>
-    );
-  }
+  const canUseGradientText = useMemo(() => {
+    if (!gradient) return false;
+    if (typeof window === 'undefined') return true;
+    const supports = (window as any).CSS?.supports;
+    if (typeof supports !== 'function') return true;
+    return supports('background-image', gradient);
+  }, [gradient]);
 
-  const from = `hsl(${badge.gradient_from})`;
-  const to = `hsl(${badge.gradient_to})`;
-  const via = badge.gradient_via ? `hsl(${badge.gradient_via})` : null;
-  
-  const gradient = via 
-    ? `linear-gradient(135deg, ${from}, ${via}, ${to})`
-    : `linear-gradient(135deg, ${from}, ${to})`;
-
-  // Desktop: gradient text with background-clip
-  // Mobile: solid color from gradient start + drop-shadow (like WelcomeHeader)
-  const gradientStyle: React.CSSProperties = {
-    background: gradient,
-    backgroundClip: 'text',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    color: 'transparent',
-    backgroundColor: 'transparent',
-    boxShadow: 'none',
-  };
-
-  // Add text shadow for shine effect (no filter to avoid artifacts)
-  if (badge?.effect === 'shine') {
-    gradientStyle.textShadow = '0 1px 1px rgba(255,255,255,0.2)';
-  }
+  const computedStyle: React.CSSProperties = useMemo(() => {
+    if (gradient && canUseGradientText) {
+      const style: React.CSSProperties = {
+        backgroundImage: gradient,
+        backgroundClip: 'text',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        color: 'transparent',
+        backgroundColor: 'transparent',
+        boxShadow: 'none',
+        display: 'inline-block',
+        contain: 'paint',
+      };
+      if (badge?.effect === 'shine') {
+        style.textShadow = '0 1px 1px rgba(255,255,255,0.2)';
+      }
+      return style;
+    }
+    return { display: 'inline-block' };
+  }, [gradient, canUseGradientText, badge?.effect]);
 
   return (
-    <Component 
-      style={gradientStyle} 
-      className={cn('font-bold inline', className)}
+    <Component
+      style={computedStyle}
+      className={cn(hasGradient && 'font-bold', className)}
     >
       {name}
     </Component>
