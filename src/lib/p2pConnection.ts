@@ -113,11 +113,12 @@ export class P2PConnection {
   async connect(): Promise<void> {
     console.log('[P2P] Connecting as', this.isInitiator ? 'initiator' : 'responder');
 
-    // 0. Release any existing camera stream (e.g. from VybeSnapCamera) to avoid NotReadableError on mobile
+    // 0. Release any existing camera stream (e.g. from VybeSnapCamera).
+    //    Tracks are stopped synchronously — no artificial wait needed.
     stopCameraStream();
-    await new Promise(r => setTimeout(r, 150));
 
-    // 1. Get local media with HD constraints
+    // 1. Build constraints. Start at SD for FAST camera open on mobile;
+    //    we can upgrade to HD via applyConstraints after the call connects.
     const audioConstraints: MediaTrackConstraints = {
       echoCancellation: true,
       noiseSuppression: true,
@@ -128,81 +129,85 @@ export class P2PConnection {
     const videoConstraints: MediaTrackConstraints | boolean = this.callType === 'video'
       ? {
           facingMode: 'user',
-          width: { ideal: 1280, min: 640 },
-          height: { ideal: 720, min: 480 },
-          frameRate: { ideal: 30, max: 30 },
+          width: { ideal: 640, min: 320 },
+          height: { ideal: 480, min: 240 },
+          frameRate: { ideal: 24, max: 30 },
         }
       : false;
 
-    // Despia/Android WebViews crash hard if we ask for HD video at the same time as audio
-    // on the very first getUserMedia() call. Detect Despia/old-Android and request audio
-    // first, then upgrade to video once audio is live. This drastically reduces "call opens
-    // and the app instantly closes" reports on the APK.
+    // Despia/old-Android still needs staged init to avoid hard crashes.
     const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
     const isDespia = /despia|vybeapp/i.test(ua);
     const isOldAndroid = /Android\s([0-9]|10|11)\b/i.test(ua);
     const useStaged = (isDespia || isOldAndroid) && this.callType === 'video';
 
-    try {
-      if (useStaged) {
-        console.log('[P2P] Despia/Android detected — staged audio-first init');
-        this.localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
-        try {
-          const videoOnly = await navigator.mediaDevices.getUserMedia({ video: videoConstraints as MediaTrackConstraints });
-          videoOnly.getVideoTracks().forEach(t => this.localStream!.addTrack(t));
-        } catch (videoErr: any) {
-          console.warn('[P2P] Staged video upgrade failed, continuing audio-only:', videoErr?.message);
+    // 2. Kick off getUserMedia and signaling subscription IN PARALLEL.
+    //    This is the biggest single win: today they run sequentially, so the
+    //    user waits ~Realtime-RTT longer than necessary before camera shows.
+    const signalingPromise = this.setupSignaling();
+
+    const mediaPromise: Promise<MediaStream> = (async () => {
+      try {
+        if (useStaged) {
+          console.log('[P2P] Despia/Android detected — staged audio-first init');
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+          try {
+            const videoOnly = await navigator.mediaDevices.getUserMedia({ video: videoConstraints as MediaTrackConstraints });
+            videoOnly.getVideoTracks().forEach(t => stream.addTrack(t));
+          } catch (videoErr: any) {
+            console.warn('[P2P] Staged video upgrade failed, continuing audio-only:', videoErr?.message);
+          }
+          return stream;
         }
-      } else {
-        this.localStream = await navigator.mediaDevices.getUserMedia({
+        return await navigator.mediaDevices.getUserMedia({
           audio: audioConstraints,
           video: videoConstraints,
         });
-      }
-      console.log('[P2P] Got local media:', this.localStream.getTracks().map(t => `${t.kind}:${t.readyState}`).join(', '));
-    } catch (mediaErr: any) {
-      console.error('[P2P] getUserMedia failed:', mediaErr.name, mediaErr.message);
-      // On Safari/iPad/Despia, retry with simpler constraints
-      if (mediaErr.name === 'NotAllowedError' || mediaErr.name === 'NotReadableError' || mediaErr.name === 'OverconstrainedError') {
-        try {
-          console.log('[P2P] Retrying with simple constraints...');
-          this.localStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: this.callType === 'video',
-          });
-          console.log('[P2P] Retry succeeded with simple constraints');
-        } catch (retryErr: any) {
-          console.error('[P2P] Retry also failed:', retryErr.name, retryErr.message);
-          // Final audio-only fallback so the call at least connects
-          if (this.callType === 'video') {
-            try {
-              this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-              console.log('[P2P] Final fallback: audio-only call');
-            } catch (audioErr: any) {
-              this.onEvent({ type: 'disconnected', reason: `Media access failed: ${audioErr.message}` });
-              throw audioErr;
+      } catch (mediaErr: any) {
+        console.error('[P2P] getUserMedia failed:', mediaErr.name, mediaErr.message);
+        if (mediaErr.name === 'NotAllowedError' || mediaErr.name === 'NotReadableError' || mediaErr.name === 'OverconstrainedError') {
+          try {
+            console.log('[P2P] Retrying with simple constraints...');
+            return await navigator.mediaDevices.getUserMedia({
+              audio: true,
+              video: this.callType === 'video',
+            });
+          } catch (retryErr: any) {
+            console.error('[P2P] Retry also failed:', retryErr.name, retryErr.message);
+            if (this.callType === 'video') {
+              try {
+                return await navigator.mediaDevices.getUserMedia({ audio: true });
+              } catch (audioErr: any) {
+                this.onEvent({ type: 'disconnected', reason: `Media access failed: ${audioErr.message}` });
+                throw audioErr;
+              }
+            } else {
+              this.onEvent({ type: 'disconnected', reason: `Media access failed: ${retryErr.message}` });
+              throw retryErr;
             }
-          } else {
-            this.onEvent({ type: 'disconnected', reason: `Media access failed: ${retryErr.message}` });
-            throw retryErr;
           }
         }
-      } else {
         this.onEvent({ type: 'disconnected', reason: `Media access failed: ${mediaErr.message}` });
         throw mediaErr;
       }
-    }
+    })();
 
-    // 2. Create peer connection
+    // Notify overlay the moment local media is ready (don't wait on signaling).
+    mediaPromise.then(stream => {
+      this.localStream = stream;
+      console.log('[P2P] Got local media:', stream.getTracks().map(t => `${t.kind}:${t.readyState}`).join(', '));
+      try { this.onLocalStream?.(stream); } catch {}
+    }).catch(() => { /* error path already reported via onEvent */ });
+
+    // 3. Wait for both to be ready before continuing
+    const [stream] = await Promise.all([mediaPromise, signalingPromise]);
+    this.localStream = stream;
+
+    // 4. Create peer connection + add tracks
     this.createPeerConnection();
-
-    // 3. Add local tracks
     this.localStream.getTracks().forEach(track => {
       this.pc!.addTrack(track, this.localStream!);
     });
-
-    // 4. Setup signaling channel — waits for SUBSCRIBED
-    await this.setupSignaling();
 
     // 5. Start keepalive
     this.startKeepalive();
