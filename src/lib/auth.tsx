@@ -586,19 +586,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!profile) return { error: new Error('No profile') };
 
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates as Record<string, unknown>)
-        .eq('id', profile.id);
+    // Optimistic update — flip local state immediately so UI feels instant.
+    const previousProfile = profile;
+    const merged = { ...profile, ...updates };
+    setProfile(merged);
 
-      if (error) throw error;
-
-      const merged = { ...profile, ...updates };
-      setProfile(merged);
-
-      // Sync the global profile cache so identity-aware components (chat, comments,
-      // headers, mentions, etc.) immediately see the new username/display name.
+    // Update profile cache + invalidate queries optimistically too.
+    void (async () => {
       try {
         const { setCachedProfile } = await import('@/lib/profileCache');
         setCachedProfile({
@@ -609,8 +603,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           bio: (merged as any).bio,
         });
       } catch {}
-
-      // Invalidate any react-query caches that key off identity fields.
       try {
         const qc = (window as any).__REACT_QUERY_CLIENT__;
         if (qc) {
@@ -620,9 +612,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           qc.invalidateQueries({ queryKey: ['profiles'] });
         }
       } catch {}
+    })();
 
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates as Record<string, unknown>)
+        .eq('id', profile.id);
+
+      if (error) throw error;
       return { error: null };
     } catch (error) {
+      // Roll back on failure
+      setProfile(previousProfile);
       return { error: error as Error };
     }
   };
