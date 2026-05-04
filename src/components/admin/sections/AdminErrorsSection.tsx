@@ -54,7 +54,7 @@ export function AdminErrorsSection() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bug_reports')
-        .select('id, error_stack, browser_info, user_agent')
+        .select('id, error_stack, component_stack, user_agent')
         .eq('id', expandedId!)
         .maybeSingle();
       if (error) throw error;
