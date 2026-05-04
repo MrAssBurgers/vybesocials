@@ -20,6 +20,7 @@ import jsQR from 'jsqr';
 import { getPrimaryHex } from '@/lib/themeColor';
 import { navVisibility } from '@/lib/navVisibility';
 import { cn } from '@/lib/utils';
+import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 type ActiveTab = 'tap' | 'qr';
@@ -37,6 +38,7 @@ export function AutoFriendDrop() {
   const isMobile = useIsMobile();
   const sendRequest = useSendFriendRequest();
   const createConversation = useCreateConversation();
+  const controlVisible = useFloatingControlVisibility();
   const [isActive, setIsActive] = useState(false);
   const [phase, setPhase] = useState<DropPhase>('idle');
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
@@ -335,7 +337,12 @@ export function AutoFriendDrop() {
     <>
       {/* Floating pill — tap to open */}
       {!isActive && isMobile && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fade-in">
+        <div
+          className={cn(
+            'fixed bottom-24 left-1/2 z-40 animate-fade-in transition-transform duration-300 ease-out',
+            controlVisible ? '-translate-x-1/2 translate-y-0' : '-translate-x-1/2 translate-y-28 pointer-events-none'
+          )}
+        >
           <button
             onClick={handleBump}
             className="group relative flex items-center gap-2.5 px-5 py-3 rounded-full active:scale-[0.95] transition-all duration-200"
