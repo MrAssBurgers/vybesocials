@@ -114,11 +114,13 @@ export async function requestCallMediaPermissions(callType: CallMediaType): Prom
         camStream.getTracks().forEach(t => t.stop());
         await new Promise(r => setTimeout(r, 100));
         console.log('[mediaPermissions] Camera permission granted');
+        writePermCache({ cam: true });
       } catch (err: any) {
         console.warn('[mediaPermissions] Camera access denied, continuing with audio only:', err);
         // Don't throw for camera - allow audio-only fallback
       }
     } else {
+      writePermCache({ cam: true });
       console.log('[mediaPermissions] Camera already granted (skipping getUserMedia)');
     }
   }
