@@ -946,10 +946,12 @@ function FriendMapInner() {
           ref={mapEl}
           className="absolute inset-0 block w-full h-full"
           style={{
-            transform: headingUp ? `rotate(${-heading}deg) scale(1.18)` : undefined,
+            transform: headingUp
+              ? `rotate(${-heading}deg) scale(1.18)`
+              : (manualRotation !== 0 ? `rotate(${manualRotation}deg) scale(1.05)` : undefined),
             transformOrigin: 'center center',
             transition: 'transform 120ms linear',
-            willChange: headingUp ? 'transform' : undefined,
+            willChange: (headingUp || manualRotation !== 0) ? 'transform' : undefined,
           }}
         />
 
