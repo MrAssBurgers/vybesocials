@@ -1568,7 +1568,9 @@ export function ChatView() {
                     onEdit={() => {
                       setEditingMessageId(message.id);
                       setEditText(message.content || '');
-                      setMessageText(message.content || '');
+                      messageTextRef.current = message.content || '';
+                      writeInputDom(message.content || '');
+                      setHasText((message.content || '').length > 0);
                       inputRef.current?.focus();
                     }}
                     onSaveSticker={(url) => addSticker.mutate(url)}
