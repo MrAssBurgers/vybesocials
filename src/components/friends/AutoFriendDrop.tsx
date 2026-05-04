@@ -293,16 +293,19 @@ export function AutoFriendDrop() {
     const prevPosition = document.body.style.position;
     const prevTop = document.body.style.top;
     const prevWidth = document.body.style.width;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
     document.body.style.top = `-${scrollY}px`;
     document.body.style.width = '100%';
+    document.documentElement.style.overflow = 'hidden';
     return () => {
       navVisibility.setInDesigner(false);
       document.body.style.overflow = prevOverflow;
       document.body.style.position = prevPosition;
       document.body.style.top = prevTop;
       document.body.style.width = prevWidth;
+      document.documentElement.style.overflow = prevHtmlOverflow;
       window.scrollTo(0, scrollY);
     };
   }, [isActive]);
@@ -359,8 +362,10 @@ export function AutoFriendDrop() {
         <>
           <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-            style={{ zIndex: 9998 }}
+            style={{ zIndex: 9998, touchAction: 'none', overscrollBehavior: 'contain' }}
             onClick={handleClose}
+            onTouchMove={(e) => e.preventDefault()}
+            onWheel={(e) => e.preventDefault()}
           />
           <div
             className="fixed inset-x-0 mx-auto w-full max-w-sm bg-card rounded-t-2xl sm:rounded-2xl border border-border/40 shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300"
