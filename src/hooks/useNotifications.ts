@@ -73,11 +73,17 @@ export function useNotifications() {
           created_at,
           post_id,
           actor_id,
-          reason
+          reason,
+          title,
+          body,
+          image_url,
+          deep_link,
+          subtype,
+          meta
         `)
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
-        .limit(30); // Reduced limit for faster initial load
+        .limit(30);
 
       if (error) throw error;
       if (!data || data.length === 0) return [];
