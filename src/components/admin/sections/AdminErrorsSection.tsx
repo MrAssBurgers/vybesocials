@@ -24,11 +24,13 @@ export function AdminErrorsSection() {
   const { data: bugs = [], isLoading, refetch } = useQuery({
     queryKey: ['admin-bug-reports-inline', filter],
     queryFn: async () => {
+      // Slim list query — skip heavy fields (error_stack, browser_info, user_agent)
+      // to keep payload tiny. Full record is fetched lazily on row expand.
       let query = supabase
         .from('bug_reports')
-        .select('*, reporter:profiles!bug_reports_reporter_id_fkey(username, display_name, avatar_url)')
+        .select('id, error_message, page_url, status, created_at, ai_analysis, ai_severity, reporter_id, reporter:profiles!bug_reports_reporter_id_fkey(username, display_name, avatar_url)')
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(50);
 
       if (filter !== 'all') {
         query = query.eq('status', filter);
@@ -38,7 +40,26 @@ export function AdminErrorsSection() {
       if (error) throw error;
       return data || [];
     },
-    staleTime: 30_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    placeholderData: (prev) => prev,
+  });
+
+  // Lazy fetch full payload (error_stack) only when a row is expanded.
+  const { data: expandedDetail } = useQuery({
+    queryKey: ['admin-bug-report-detail', expandedId],
+    enabled: !!expandedId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bug_reports')
+        .select('id, error_stack, component_stack, user_agent')
+        .eq('id', expandedId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
   });
 
   const updateStatus = useMutation({
@@ -202,11 +223,11 @@ export function AdminErrorsSection() {
                       <p className="text-xs text-foreground font-mono break-all">{bug.error_message}</p>
                     </div>
 
-                    {bug.error_stack && (
+                    {expandedDetail?.error_stack && (
                       <div className="bg-muted/50 rounded-xl p-2.5">
                         <p className="text-xs font-semibold text-muted-foreground mb-1">Stack Trace</p>
                         <pre className="text-[10px] text-muted-foreground font-mono break-all whitespace-pre-wrap max-h-32 overflow-auto">
-                          {bug.error_stack}
+                          {expandedDetail.error_stack}
                         </pre>
                       </div>
                     )}

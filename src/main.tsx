@@ -19,14 +19,23 @@ function isPreviewOneSignalDomainError(message: unknown) {
   return typeof message === 'string' && message.includes('Can only be used on: https://vybehub.app');
 }
 
-// Suppress benign third-party service worker postMessage warnings
+// Suppress benign third-party service worker postMessage warnings (web-monetization
+// shim emits these on every navigation when no SW is present — harmless noise).
+const noisyPatterns = [
+  '[WM] No SW registration for postMessage',
+];
+const isNoisy = (args: unknown[]) =>
+  typeof args[0] === 'string' && noisyPatterns.some((p) => (args[0] as string).includes(p));
+
 const originalConsoleError = console.error;
 console.error = (...args: unknown[]) => {
-  const first = args[0];
-  if (typeof first === 'string' && first.includes('[WM] No SW registration for postMessage')) {
-    return;
-  }
+  if (isNoisy(args)) return;
   originalConsoleError.apply(console, args);
+};
+const originalConsoleWarn = console.warn;
+console.warn = (...args: unknown[]) => {
+  if (isNoisy(args)) return;
+  originalConsoleWarn.apply(console, args);
 };
 
 // Initialize native plugins if running on native platform
