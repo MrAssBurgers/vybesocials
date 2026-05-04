@@ -52,6 +52,7 @@ const NOTIFICATION_TEXT: Record<NotificationType, string> = {
   missed_call: 'tried to call you',
   announcement: 'posted an announcement',
   content_removed: 'removed your content',
+  smart_ping: '',
 };
 
 function compactTime(dateStr: string): string {
