@@ -407,6 +407,103 @@ const MapPhone = () => (
   </div>
 );
 
+// === FRIEND LINK — mirrors redesigned FriendDrop.tsx (QR + Tap radar) ===
+const FriendLinkPhone = () => (
+  <div className="w-full h-full bg-[#0B0B10] relative overflow-hidden">
+    {/* Ambient glow */}
+    <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[260px] h-[260px] rounded-full blur-3xl opacity-40"
+        style={{background:'radial-gradient(circle, #8B5CF6 0%, transparent 70%)'}} />
+      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-[200px] h-[200px] rounded-full blur-3xl opacity-30"
+        style={{background:'radial-gradient(circle, #06B6D4 0%, transparent 70%)'}} />
+    </div>
+    <StatusBar />
+    {/* Header */}
+    <div className="absolute top-7 inset-x-0 px-3 h-10 flex items-center gap-2 z-10">
+      <ArrowLeft className="w-4 h-4 text-white/70" />
+      <div className="flex-1 text-center">
+        <div className="text-white text-[12px] font-bold">Add Friend</div>
+        <div className="text-[7.5px] text-white/45">Scan or tap phones</div>
+      </div>
+      <div className="w-4 h-4" />
+    </div>
+
+    {/* Segmented tabs (QR / Tap) */}
+    <div className="absolute top-[60px] inset-x-6 z-10">
+      <div className="h-7 rounded-full bg-white/[0.05] border border-white/10 p-[2px] flex relative">
+        <div className="absolute top-[2px] left-[2px] bottom-[2px] w-[calc(50%-2px)] rounded-full bg-gradient-to-r from-violet-500 to-cyan-500 shadow-[0_0_12px_rgba(139,92,246,0.6)]" />
+        <div className="relative flex-1 flex items-center justify-center gap-1 text-[9px] font-bold text-white">
+          <div className="w-2 h-2 rounded-[1px] border border-white" />
+          QR Code
+        </div>
+        <div className="relative flex-1 flex items-center justify-center gap-1 text-[9px] font-semibold text-white/55">
+          <Zap className="w-2.5 h-2.5" />
+          Phone Tap
+        </div>
+      </div>
+    </div>
+
+    {/* QR Code area */}
+    <div className="absolute top-[108px] left-1/2 -translate-x-1/2 z-10">
+      <div className="relative">
+        {/* Glow */}
+        <div className="absolute -inset-3 rounded-3xl blur-xl opacity-50"
+          style={{background:'linear-gradient(135deg, #8B5CF6, #06B6D4)'}} />
+        {/* Card */}
+        <div className="relative w-[150px] h-[150px] rounded-2xl bg-white p-2 shadow-2xl">
+          {/* Fake QR pattern */}
+          <div className="relative w-full h-full rounded-lg overflow-hidden bg-white">
+            <div className="absolute inset-0 grid grid-cols-[repeat(13,1fr)] grid-rows-[repeat(13,1fr)] gap-[1px] p-1">
+              {Array.from({length: 169}).map((_, i) => {
+                // Pseudo-random but deterministic QR-ish pattern
+                const on = ((i * 37 + (i % 7) * 13 + Math.floor(i / 13) * 17) % 5) < 2;
+                return <div key={i} className={on ? 'bg-[#0B0B10] rounded-[1px]' : ''} />;
+              })}
+            </div>
+            {/* Three corner finders */}
+            {[
+              'top-1 left-1','top-1 right-1','bottom-1 left-1',
+            ].map(pos => (
+              <div key={pos} className={cn('absolute w-5 h-5 bg-white', pos)}>
+                <div className="w-full h-full border-[2px] border-[#0B0B10] rounded-[3px] flex items-center justify-center">
+                  <div className="w-2 h-2 bg-[#0B0B10] rounded-[1px]" />
+                </div>
+              </div>
+            ))}
+            {/* Center avatar */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="relative">
+                <div className="absolute -inset-1 rounded-full bg-white" />
+                <div className="relative w-9 h-9 rounded-full p-[2px]"
+                  style={{background:'conic-gradient(from 0deg, #8B5CF6, #EC4899, #06B6D4, #8B5CF6)'}}>
+                  <Img src={PEOPLE.maya.img} className="w-full h-full rounded-full" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Username chip */}
+        <div className="mt-2 flex justify-center">
+          <div className="px-2.5 py-0.5 rounded-full text-[8.5px] font-bold text-violet-300 bg-violet-500/15 border border-violet-400/30">
+            @maya.rae
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Bottom action: Scan a code */}
+    <div className="absolute bottom-3 inset-x-3 z-10 space-y-1.5">
+      <div className="h-9 rounded-2xl border border-white/10 bg-white/[0.04] flex items-center justify-center gap-1.5 backdrop-blur">
+        <Camera className="w-3 h-3 text-white/70" />
+        <span className="text-[9.5px] font-semibold text-white/85">Scan a code</span>
+      </div>
+      <div className="text-[7.5px] text-white/40 text-center flex items-center justify-center gap-1">
+        <Zap className="w-2 h-2 text-cyan-300" /> NFC ready · hold phones together
+      </div>
+    </div>
+  </div>
+);
+
 // === CHAT — mirrors ChatView.tsx ===
 const ChatPhone = () => (
   <div className="w-full h-full bg-[#0B0B10] relative overflow-hidden">
@@ -635,11 +732,11 @@ const VybeHome = memo(function VybeHome() {
       <SectionWrap>
         <FadeIn>
           <FeatureRow
-            tag="Friend Map · Bump · NFC"
-            title="Built for your real friends, IRL."
-            desc="See where your people are right now (Ghost Mode anytime). Bump phones to add. Tap NFC to swap. The first social app that respects the physical world."
-            bullets={['Live friend map with weather','Bump-to-add via swing detection','One-tap NFC pairing']}
-            phone={<MapPhone />}
+            tag="Friend Link · QR · NFC"
+            title="Add friends in one tap. Literally."
+            desc="A sleek Friend Link sheet with an instant QR code and a live tap radar. Hold phones together for NFC. Scan in under a second. No usernames, no typing, no friction."
+            bullets={['Instant local QR with your avatar inset','Tap-to-add via NFC + native bridge','Realtime sync — both phones celebrate together']}
+            phone={<FriendLinkPhone />}
           />
         </FadeIn>
       </SectionWrap>

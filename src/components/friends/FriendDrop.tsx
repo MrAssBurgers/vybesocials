@@ -405,7 +405,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   /* ── QR Tab ── */
   const renderQRTab = () => (
     <motion.div key="qr-tab" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-      className="flex flex-col items-center gap-4"
+      className="flex flex-col items-center gap-3"
     >
       {/* "Scanned" pulse */}
       <AnimatePresence>
@@ -420,7 +420,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       </AnimatePresence>
 
       {/* QR card with avatar centered */}
-      <div className="relative w-full max-w-[260px]">
+      <div className="relative w-full max-w-[220px]">
         <div className="absolute inset-0 -m-1 rounded-[28px] bg-gradient-to-br from-primary/40 via-accent/30 to-primary/40 blur-xl opacity-60" />
         <motion.div
           initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={smoothSpring}
@@ -596,9 +596,10 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
         isOpen={isOpen}
         onClose={handleClose}
         title="Friend Link"
-        maxHeight={72}
+        maxHeight={82}
       >
-        <div className="px-4 pb-4">
+        <div className="px-4 pb-4 min-h-[480px] overflow-hidden">
+          {/* Lock inner scroll so the sheet doesn't visually shift on press */}
           <AnimatePresence mode="wait">
             {showOverlay ? (
               renderOverlay()
