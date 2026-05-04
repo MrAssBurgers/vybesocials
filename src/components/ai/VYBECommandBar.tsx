@@ -16,6 +16,7 @@ import {
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
+import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
 
 interface CommandAction {
   type: 'apply_theme' | 'generate_theme' | 'widget_toggle' | 'widget_reorder';
@@ -46,6 +47,7 @@ export function VYBECommandBar() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [response, setResponse] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const controlVisible = useFloatingControlVisibility();
 
   const { layout, toggleWidget, reorderWidgets, applyLayout } = useHomeLayout();
   const generateTheme = useGenerateTheme();
@@ -182,7 +184,7 @@ export function VYBECommandBar() {
         {!open && (
           <motion.button
             initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
+            animate={{ scale: 1, opacity: 1, y: controlVisible ? 0 : 112 }}
             exit={{ scale: 0, opacity: 0 }}
             onClick={handleOpen}
             className={cn(
@@ -191,7 +193,8 @@ export function VYBECommandBar() {
               "flex items-center justify-center",
               "hover:scale-105 active:scale-95 transition-transform",
               "bottom-[calc(5rem+env(safe-area-inset-bottom)+12px)] right-4",
-              "lg:bottom-8 lg:right-8"
+              "lg:bottom-8 lg:right-8",
+              !controlVisible && "pointer-events-none"
             )}
             aria-label="Open VYBE AI Commander"
           >
