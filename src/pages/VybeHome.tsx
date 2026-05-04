@@ -79,13 +79,13 @@ const Img = ({ src, className, alt = '' }: { src: string; className?: string; al
 /* ---------- Phone mockups (mirror the real app screens) ---------- */
 
 const PhoneBottomNav = ({ active }: { active: 'home' | 'map' | 'create' | 'chat' | 'profile' }) => {
-  const items = [
+  const items: { k: 'home' | 'map' | 'create' | 'chat' | 'profile'; icon: typeof Home; accent?: boolean }[] = [
     { k: 'home', icon: Home },
     { k: 'map', icon: MapPin },
     { k: 'create', icon: Plus, accent: true },
     { k: 'chat', icon: MessageCircle },
     { k: 'profile', icon: User },
-  ] as const;
+  ];
   return (
     <div className="absolute bottom-0 inset-x-0 h-12 bg-[#0B0B10]/90 backdrop-blur-xl border-t border-white/5 flex items-center justify-around px-2 z-10">
       {items.map(({ k, icon: Icon, accent }) => (
