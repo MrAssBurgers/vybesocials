@@ -75,14 +75,18 @@ export function useDMConversations(searchQuery: string = '') {
       if (convError) throw convError;
       if (!conversationsData?.length) return [];
 
-      // Batch fetch last messages for all conversations
+      // Batch fetch last messages for all conversations.
+      // Slim payload: only the fields the conversation list actually renders.
+      // Hard cap at 200 rows total — enough to find the most recent per chat
+      // without dragging the entire message history across the wire.
       const convIds = conversationsData.map(c => c.id);
       const { data: allMessages } = await supabase
         .from('messages')
-        .select('*')
+        .select('id, conversation_id, sender_id, content, media_type, viewed_at, created_at')
         .in('conversation_id', convIds)
         .eq('is_deleted', false)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(Math.max(200, convIds.length * 3));
 
       // Group messages by conversation and get the latest one
       const lastMessageMap = new Map<string, any>();

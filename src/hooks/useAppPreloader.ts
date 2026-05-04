@@ -257,7 +257,8 @@ export function useAppPreloader() {
                     profile:profiles(id, username, avatar_url, display_name)
                   )
                 `).in('id', convIds).order('updated_at', { ascending: false }),
-                supabase.from('messages').select('*')
+                supabase.from('messages')
+                  .select('id, conversation_id, sender_id, content, media_type, viewed_at, created_at')
                   .in('conversation_id', convIds)
                   .eq('is_deleted', false)
                   .order('created_at', { ascending: false })
