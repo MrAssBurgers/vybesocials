@@ -476,17 +476,11 @@ export function GlobalCallOverlay() {
     let cancelled = false;
 
     const doJoin = async () => {
-      // For P2P: skip requestCallMediaPermissions — P2PConnection.connect() 
-      // calls getUserMedia itself. Double-requesting causes iOS failures.
-      if (state.call!.callMode === 'persistent') {
-        try {
-          await requestCallMediaPermissions(state.call!.callType);
-        } catch (err: any) {
-          toast.error(err.message || 'Microphone permission required');
-          endCall();
-          return;
-        }
-      }
+      // NOTE: We intentionally skip requestCallMediaPermissions here for
+      // BOTH p2p AND persistent. P2PConnection.connect() and LiveKit's
+      // setMicrophoneEnabled/setCameraEnabled both call getUserMedia
+      // themselves and trigger the OS prompt inline — pre-probing here
+      // just doubles the cost and (on iOS) can cause NotReadableError.
       if (cancelled) return;
 
       clearJoinTimeout();
@@ -500,7 +494,25 @@ export function GlobalCallOverlay() {
       }, timeout);
 
       if (state.call!.callMode === 'persistent') {
-        await connectToRoom(state.call!);
+        // Persistent mode needs a LiveKit token. For accepted persistent calls,
+        // acceptCall fetches the token asynchronously after flipping to 'joining',
+        // so the token may not be present yet. Wait for it (up to 8s) before
+        // calling room.connect().
+        if (!state.call!.token || !state.call!.livekitUrl) {
+          const waitStart = Date.now();
+          while (!cancelled && (!stateRef.current.call?.token || !stateRef.current.call?.livekitUrl)) {
+            if (Date.now() - waitStart > 8000) break;
+            await new Promise(r => setTimeout(r, 100));
+          }
+          if (cancelled) return;
+        }
+        const ready = stateRef.current.call;
+        if (!ready?.token || !ready?.livekitUrl) {
+          toast.error('Failed to start call');
+          endCall();
+          return;
+        }
+        await connectToRoom(ready);
       } else {
         await connectP2P(state.call!);
       }
