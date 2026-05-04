@@ -367,7 +367,7 @@ export function AutoFriendDrop() {
             style={{
               zIndex: 9999,
               bottom: 'env(safe-area-inset-bottom, 0px)',
-              maxHeight: '85vh',
+              maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 24px)',
             }}
           >
             {/* Header */}
