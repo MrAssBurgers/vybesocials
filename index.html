@@ -2,7 +2,29 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    
+
+    <!-- Global font-loading guard: forces gradient/transparent text to fall back
+         to currentColor until web fonts are ready, eliminating the flash of
+         invisible / mis-styled text (FOUT/FOIT) for bg-clip-text utilities.
+         The matching CSS lives in src/index.css under html[data-theme-loading]. -->
+    <script>
+      (function () {
+        try {
+          document.documentElement.setAttribute('data-theme-loading', 'true');
+          var clear = function () {
+            document.documentElement.removeAttribute('data-theme-loading');
+          };
+          if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+            document.fonts.ready.then(clear, clear);
+            // Hard cap: never block visible text for more than 1.2s.
+            setTimeout(clear, 1200);
+          } else {
+            setTimeout(clear, 400);
+          }
+        } catch (e) { /* fail open */ }
+      })();
+    </script>
+
     <!-- Preconnect to external origins for faster loading -->
     <link rel="preconnect" href="https://cdn.gpteng.co" crossorigin />
     <link rel="preconnect" href="https://agtcyxjxgkdyoxwxkjth.supabase.co" crossorigin />
