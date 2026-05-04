@@ -421,6 +421,9 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   /* ── Overlay phases ── */
   const renderOverlay = () => {
     if (phase === 'detected') {
+      if (activeTab === 'tap') {
+        return <PhonesConnected myAvatar={profile?.avatar_url} myFallback={profile?.username || ''} />;
+      }
       return (
         <motion.div key="detected" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           className="flex flex-col items-center gap-3 py-10"
