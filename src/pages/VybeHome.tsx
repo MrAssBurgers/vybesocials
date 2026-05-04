@@ -207,75 +207,112 @@ const DNAPhone = () => (
   </div>
 );
 
-// === HOME FEED — mirrors src/pages/Home.tsx ===
+// === HOME — mirrors src/pages/Home.tsx (real screenshot layout) ===
 const FeedPhone = () => (
   <div className="w-full h-full bg-[#0B0B10] relative overflow-hidden">
     <StatusBar />
-    <div className="absolute top-7 inset-x-0 px-3 h-10 flex items-center justify-between z-10">
-      <div className="font-display font-black text-base bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">VYBE</div>
-      <div className="flex gap-1.5 items-center">
-        <Search className="w-4 h-4 text-white/60" />
-        <Bell className="w-4 h-4 text-white/60" />
-        <Img src={PEOPLE.maya.img} className="w-6 h-6 rounded-full ring-1 ring-white/20" />
+    {/* Top header: V logo, search bar, bell, target */}
+    <div className="absolute top-7 inset-x-0 px-3 h-11 flex items-center gap-2 z-10 bg-[#0B0B10]/90 backdrop-blur-xl border-b border-white/5">
+      <div className="font-display font-black text-lg leading-none bg-gradient-to-b from-violet-400 to-pink-400 bg-clip-text text-transparent">V</div>
+      <div className="flex-1 h-7 rounded-full bg-white/[0.06] border border-white/5 flex items-center px-2.5">
+        <Search className="w-3 h-3 text-white/40" />
+      </div>
+      <Bell className="w-4 h-4 text-white/60" />
+      <div className="relative">
+        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-pink-500/30 to-cyan-500/30 border border-pink-400/40 flex items-center justify-center">
+          <Trophy className="w-3 h-3 text-pink-300" />
+        </div>
+        <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-gradient-to-br from-orange-500 to-pink-500 text-white text-[7px] font-black flex items-center justify-center">4</div>
       </div>
     </div>
-    <div className="absolute top-[68px] inset-x-0 px-3 flex gap-1.5 z-10">
-      {[
-        { k: 'For You', active: true },
-        { k: 'Following' },
-        { k: 'Global' },
-        { k: 'Local' },
-      ].map(t => (
-        <div key={t.k} className={cn(
-          'px-2.5 py-1 rounded-full text-[9px] font-semibold border',
-          t.active ? 'bg-white text-[#0B0B10] border-white' : 'bg-white/5 text-white/60 border-white/10'
-        )}>{t.k}</div>
-      ))}
-    </div>
-    <div className="absolute inset-0 pt-[100px] pb-12 px-2 overflow-hidden">
-      <div className="flex gap-2 px-1 mb-2">
-        {[
-          {p:PEOPLE.maya, n:'You'},
-          {p:PEOPLE.sky, n:'sky'},
-          {p:PEOPLE.leo, n:'leo'},
-          {p:PEOPLE.mia, n:'mia'},
-          {p:PEOPLE.kai, n:'kai'},
-        ].map((s,i)=>(
-          <div key={i} className="flex flex-col items-center gap-0.5 shrink-0">
-            <div className="w-10 h-10 rounded-full p-[1.5px]" style={{background:'conic-gradient(from 0deg, #8B5CF6, #EC4899, #06B6D4, #8B5CF6)'}}>
-              <div className="w-full h-full rounded-full bg-[#0B0B10] p-[1px]">
-                <Img src={s.p.img} className="w-full h-full rounded-full" />
-              </div>
+
+    {/* Scroll body */}
+    <div className="absolute inset-0 pt-[68px] pb-16 overflow-hidden">
+      {/* Customize Home pill */}
+      <div className="flex justify-center mb-3">
+        <div className="px-3 py-1.5 rounded-full border border-pink-400/40 bg-pink-500/5 flex items-center gap-1.5">
+          <div className="w-3.5 h-3.5 rounded-md bg-white/10 flex items-center justify-center">
+            <div className="grid grid-cols-2 gap-[1px]">
+              {[0,1,2,3].map(i => <div key={i} className="w-[2px] h-[2px] bg-pink-300 rounded-[0.5px]" />)}
             </div>
-            <div className="text-[7px] text-white/60 truncate max-w-[36px]">{s.n}</div>
+          </div>
+          <span className="text-[8px] font-semibold text-pink-300">Customize Home</span>
+        </div>
+      </div>
+
+      {/* Greeting row with avatar + level */}
+      <div className="px-3 flex items-center gap-2 mb-2">
+        <div className="relative shrink-0">
+          <div className="w-9 h-9 rounded-full p-[1.5px] bg-gradient-to-br from-pink-500 to-violet-500">
+            <Img src={PEOPLE.maya.img} className="w-full h-full rounded-full" />
+          </div>
+          <div className="absolute -bottom-1 -right-1 px-1 min-w-[14px] h-3.5 rounded-full bg-pink-500 text-white text-[7px] font-black flex items-center justify-center border border-[#0B0B10]">49</div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] leading-tight">
+            <span className="text-white/90 font-medium">Good morning, </span>
+            <span className="font-black text-pink-400">@you</span>
+          </div>
+          <div className="mt-0.5 h-[1.5px] w-full rounded-full bg-gradient-to-r from-pink-500/60 via-violet-500/60 to-cyan-500/60" />
+          <div className="text-[7.5px] text-white/50 mt-0.5 flex items-center gap-1">🔥 1 person leveling up today</div>
+        </div>
+      </div>
+
+      {/* Your story */}
+      <div className="px-3 mb-2 mt-1">
+        <div className="flex flex-col items-start gap-0.5">
+          <div className="relative w-10 h-10">
+            <Img src={PEOPLE.sky.img} className="w-full h-full rounded-full" />
+            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-cyan-400 border-2 border-[#0B0B10] flex items-center justify-center"><Plus className="w-2 h-2 text-white" /></div>
+          </div>
+          <div className="text-[7px] text-white/80 font-semibold">Your story</div>
+        </div>
+      </div>
+
+      {/* TOP XP TODAY */}
+      <div className="px-3 mb-2">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-1.5 flex items-center gap-1.5">
+          <Trophy className="w-3 h-3 text-white/40" />
+          <span className="text-[7px] font-bold text-white/40 tracking-wider">TOP XP TODAY</span>
+          <span className="text-[8px] text-white/80 ml-1 truncate">@leo.k · 2,013 XP</span>
+        </div>
+      </div>
+
+      {/* Daily Brief */}
+      <div className="px-3 mb-2">
+        <div className="h-7 rounded-full border border-violet-400/20 flex items-center justify-center gap-1.5"
+          style={{background:'linear-gradient(90deg, rgba(139,92,246,0.18), rgba(6,182,212,0.18), rgba(139,92,246,0.18))'}}>
+          <span className="text-[10px] font-display font-black bg-gradient-to-b from-violet-400 to-pink-400 bg-clip-text text-transparent">V</span>
+          <span className="text-[8.5px] text-white font-medium">Your Daily Brief</span>
+          <Globe className="w-2.5 h-2.5 text-cyan-300" />
+          <span className="text-[7px] text-emerald-400">• Live</span>
+        </div>
+      </div>
+
+      {/* Quick action grid */}
+      <div className="px-3 grid grid-cols-2 gap-1.5 mb-2">
+        {[
+          { icon: Sparkles, label: 'VYBE DNA', tint: 'from-violet-500/30 to-pink-500/20', ring: 'ring-violet-400/30', iconBg: 'bg-violet-500' },
+          { icon: ShoppingBag, label: 'Shop', tint: 'from-emerald-500/20 to-teal-500/10', ring: 'ring-emerald-400/20', iconBg: 'bg-emerald-500' },
+          { icon: Radio, label: 'Communities', tint: 'from-cyan-500/20 to-blue-500/10', ring: 'ring-cyan-400/20', iconBg: 'bg-cyan-500' },
+          { icon: Trophy, label: 'Challenges', tint: 'from-pink-500/25 to-orange-500/15', ring: 'ring-pink-400/30', iconBg: 'bg-pink-500' },
+        ].map((q) => (
+          <div key={q.label} className={cn('rounded-xl border border-white/10 px-2 py-2 bg-gradient-to-br', q.tint, 'ring-1', q.ring)}>
+            <div className={cn('w-5 h-5 rounded-full flex items-center justify-center mb-1', q.iconBg)}>
+              <q.icon className="w-2.5 h-2.5 text-white" />
+            </div>
+            <div className="text-[8px] font-bold text-white/85 text-center">{q.label}</div>
           </div>
         ))}
       </div>
-      <div className="rounded-2xl overflow-hidden bg-white/[0.04] border border-white/10">
-        <div className="flex items-center gap-2 p-2">
-          <Img src={PEOPLE.maya.img} className="w-7 h-7 rounded-full" />
-          <div className="flex-1">
-            <div className="text-white text-[11px] font-semibold leading-tight">{PEOPLE.maya.handle}</div>
-            <div className="text-white/40 text-[8px]">2m · Brooklyn</div>
-          </div>
-          <MoreHorizontal className="w-3.5 h-3.5 text-white/40" />
+
+      {/* Tabs */}
+      <div className="px-3 flex items-center gap-3 text-[8.5px]">
+        <div className="px-2 py-1 rounded-full border border-pink-400/40 text-pink-300 font-bold flex items-center gap-1">
+          <Sparkles className="w-2.5 h-2.5" /> For You
         </div>
-        <div className="aspect-square relative overflow-hidden">
-          <Img src={SCENES.rooftop} alt="Friends rooftop" className="absolute inset-0 w-full h-full" />
-        </div>
-        <div className="p-2">
-          <div className="flex items-center gap-3 text-white/85">
-            <Heart className="w-4 h-4 text-pink-400 fill-pink-400" />
-            <MessageCircle className="w-4 h-4" />
-            <Send className="w-4 h-4" />
-            <Bookmark className="w-4 h-4 ml-auto" />
-          </div>
-          <div className="text-[10px] text-white/85 mt-1.5 leading-snug">
-            <span className="font-semibold">{PEOPLE.maya.handle}</span>{' '}
-            <span className="text-white/65">rooftop nights with the crew 🌃</span>
-          </div>
-          <div className="text-[8px] text-white/40 mt-0.5">View all 89 comments</div>
-        </div>
+        <div className="text-white/45 flex items-center gap-1"><MapPin className="w-2.5 h-2.5" /> Local</div>
+        <div className="text-white/45 flex items-center gap-1"><Globe className="w-2.5 h-2.5" /> Global</div>
       </div>
     </div>
     <PhoneBottomNav active="home" />
