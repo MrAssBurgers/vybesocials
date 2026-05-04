@@ -154,17 +154,32 @@ export function loadGoogleFonts(fonts: string[]): Promise<void> {
  */
 export function applyFontFamily(bodyFont: string, displayFont?: string) {
   const root = document.documentElement;
-  
-  // Set CSS variables
-  root.style.setProperty('--font-body', `'${bodyFont}', system-ui, sans-serif`);
-  root.style.setProperty('--font-display', `'${displayFont || bodyFont}', system-ui, sans-serif`);
-  
-  // Update root font-family directly
-  root.style.fontFamily = `'${bodyFont}', system-ui, sans-serif`;
-  
-  // Store in localStorage for persistence
+  const display = displayFont || bodyFont;
+
+  // Mark loading so other code can avoid restyling mid-swap
+  root.dataset.themeLoading = 'true';
+
+  const apply = () => {
+    // Batch all CSS variable writes synchronously to avoid mid-frame repaints
+    root.style.setProperty('--font-body', `'${bodyFont}', system-ui, sans-serif`);
+    root.style.setProperty('--font-display', `'${display}', system-ui, sans-serif`);
+    root.style.fontFamily = `'${bodyFont}', system-ui, sans-serif`;
+    delete root.dataset.themeLoading;
+  };
+
+  // Wait for fonts to actually be ready before swapping — prevents flicker/FOUT.
+  if ('fonts' in document) {
+    Promise.all([
+      (document as any).fonts.load(`1em "${bodyFont}"`),
+      (document as any).fonts.load(`1em "${display}"`),
+    ]).then(apply).catch(apply);
+  } else {
+    apply();
+  }
+
+  // Persist
   localStorage.setItem('vybe-font-body', bodyFont);
-  localStorage.setItem('vybe-font-display', displayFont || bodyFont);
+  localStorage.setItem('vybe-font-display', display);
 }
 
 /**
