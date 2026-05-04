@@ -598,7 +598,8 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
         title="Friend Link"
         maxHeight={82}
       >
-        <div className="px-4 pb-4 min-h-[480px] overflow-hidden touch-none select-none">
+        <div className="px-4 pb-4 min-h-[480px] overflow-hidden">
+          {/* Lock inner scroll so the sheet doesn't visually shift on press */}
           <AnimatePresence mode="wait">
             {showOverlay ? (
               renderOverlay()
