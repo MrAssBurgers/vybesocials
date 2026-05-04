@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { X, Check, Smartphone, QrCode, Nfc, MessageCircle } from 'lucide-react';
+import { X, Check, Smartphone, QrCode, MessageCircle, Radio, Wifi, Loader2, ScanLine } from 'lucide-react';
+import QRCode from 'qrcode';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 import { useFriendDropSync } from '@/hooks/useFriendDropSync';
@@ -18,8 +19,10 @@ import { getPreloadedStream } from '@/hooks/useCameraPreload';
 import jsQR from 'jsqr';
 import { getPrimaryHex } from '@/lib/themeColor';
 import { navVisibility } from '@/lib/navVisibility';
+import { cn } from '@/lib/utils';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
+type ActiveTab = 'tap' | 'qr';
 
 interface FoundUser {
   id: string;
@@ -38,7 +41,9 @@ export function AutoFriendDrop() {
   const [phase, setPhase] = useState<DropPhase>('idle');
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
   const [activeDropId, setActiveDropId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('qr');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('tap');
+  const [qrSvg, setQrSvg] = useState('');
+  const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -111,7 +116,7 @@ export function AutoFriendDrop() {
   });
 
   const nativeFriendDrop = useNativeFriendDrop({
-    enabled: isActive && activeTab === 'nfc',
+    enabled: isActive && activeTab === 'tap',
     onPeerFound: (peer) => {
       setFoundUser({ id: peer.userId, username: peer.username, display_name: peer.displayName, avatar_url: peer.avatarUrl });
       setPhase('found');
@@ -124,9 +129,19 @@ export function AutoFriendDrop() {
   const myProfileUrl = activeDropId
     ? `https://vybehub.app/friend-drop/${activeDropId}`
     : profile?.username ? `https://vybehub.app/add-friend/${user?.id}` : '';
-  const qrCodeUrl = myProfileUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=${primaryHex}&format=svg&ecc=H&margin=2`
-    : '';
+
+  useEffect(() => {
+    if (!myProfileUrl) { setQrSvg(''); return; }
+    let cancelled = false;
+    QRCode.toString(myProfileUrl, {
+      type: 'svg',
+      errorCorrectionLevel: 'H',
+      margin: 1,
+      width: 280,
+      color: { dark: primaryHex, light: '#00000000' },
+    }).then((svg) => { if (!cancelled) setQrSvg(svg); }).catch(() => { if (!cancelled) setQrSvg(''); });
+    return () => { cancelled = true; };
+  }, [myProfileUrl, primaryHex]);
 
   const handleAutoAdd = useCallback(async (userId: string) => {
     if (phase === 'exchanging' || phase === 'success') return;
@@ -148,6 +163,7 @@ export function AutoFriendDrop() {
   const stopScanning = useCallback(() => {
     if (animationFrameRef.current) { cancelAnimationFrame(animationFrameRef.current); animationFrameRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    setCameraActive(false);
   }, []);
 
   const handleDropScan = useCallback(async (dropId: string) => {
@@ -214,6 +230,7 @@ export function AutoFriendDrop() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
+        setCameraActive(true);
         startScanLoopRef.current();
       }
     } catch (err) {
@@ -224,13 +241,12 @@ export function AutoFriendDrop() {
   const handleBump = useCallback(async () => {
     if (!profile?.username || !user) return;
     setIsActive(true);
+    setActiveTab('tap');
     haptics.impact();
     setPhase('activated');
     setTimeout(() => haptics.success(), 300);
     friendDropSync.createDrop().then((drop) => { if (drop) setActiveDropId(drop.id); });
-    // Start camera after entrance animation
-    setTimeout(startCamera, 350);
-  }, [profile?.username, user, friendDropSync, startCamera]);
+  }, [profile?.username, user, friendDropSync]);
 
   useSwingDetection({
     enabled: !isActive && !!profile?.username,
@@ -283,12 +299,24 @@ export function AutoFriendDrop() {
     };
   }, [isActive]);
 
-  // Start NFC when switching to NFC tab
+  // Start camera only when QR scanning is visible, so Friend Link opens instantly.
   useEffect(() => {
-    if (isActive && activeTab === 'nfc' && nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
+    if (!isActive || phase !== 'activated') return;
+    if (activeTab === 'qr') {
+      const timer = window.setTimeout(startCamera, 120);
+      return () => { window.clearTimeout(timer); stopScanning(); };
+    }
+    stopScanning();
+  }, [isActive, phase, activeTab, startCamera, stopScanning]);
+
+  // Start NFC/native tap when switching to Phone Tap.
+  useEffect(() => {
+    if (isActive && activeTab === 'tap' && nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
       nativeFriendDrop.startSession();
     }
   }, [isActive, activeTab, nativeFriendDrop]);
+
+  const tapLive = activeTab === 'tap' && (nativeFriendDrop.isActive || !nativeFriendDrop.isAvailable);
 
   if (!profile?.username) return null;
 
@@ -413,122 +441,190 @@ export function AutoFriendDrop() {
               </div>
             )}
 
-            {/* Tabbed scanner — only show during activated phase */}
+            {/* Tap-first Friend Link — only show during activated phase */}
             {phase === 'activated' && (
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="px-4 pb-4">
-                <TabsList className="w-full mb-3">
-                  <TabsTrigger value="qr" className="flex-1 gap-1.5 text-xs">
-                    <QrCode className="h-3.5 w-3.5" /> QR Code
-                  </TabsTrigger>
-                  <TabsTrigger value="nfc" className="flex-1 gap-1.5 text-xs">
-                    <Nfc className="h-3.5 w-3.5" /> NFC
-                  </TabsTrigger>
-                </TabsList>
+              <div className="px-4 pb-4 space-y-4 overflow-hidden">
+                <div className="relative grid grid-cols-2 gap-1 rounded-full bg-secondary/60 p-1">
+                  {(['tap', 'qr'] as ActiveTab[]).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={cn(
+                        'relative z-10 flex h-10 items-center justify-center gap-1.5 rounded-full text-xs font-bold transition-colors active:scale-[0.98]',
+                        activeTab === tab ? 'text-primary-foreground' : 'text-muted-foreground'
+                      )}
+                    >
+                      {tab === 'tap' ? <Radio className="h-3.5 w-3.5" /> : <QrCode className="h-3.5 w-3.5" />}
+                      {tab === 'tap' ? 'Phone Tap' : 'QR Scan'}
+                    </button>
+                  ))}
+                  <motion.div
+                    layout
+                    className="absolute bottom-1 top-1 w-[calc(50%-4px)] rounded-full bg-gradient-to-r from-primary to-accent shadow-lg shadow-primary/25"
+                    style={{ left: activeTab === 'tap' ? 4 : 'calc(50% + 0px)' }}
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                  />
+                </div>
 
-                {/* QR Tab */}
-                <TabsContent value="qr" className="space-y-3">
-                  {/* My QR code */}
-                  <div className="flex flex-col items-center p-4 bg-white rounded-xl">
-                    <div className="relative">
-                      <img src={qrCodeUrl} alt="My QR Code" className="w-48 h-48" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-10 h-10 rounded-lg bg-white border-2 border-primary/20 overflow-hidden shadow-sm">
-                          {profile?.avatar_url ? (
-                            <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-primary text-primary-foreground text-sm font-bold">
-                              {profile?.username?.[0]?.toUpperCase()}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <p className="text-xs text-black/60 mt-2 font-medium">@{profile?.username}</p>
-                  </div>
-
-                  {/* Scanner */}
-                  <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-black/5 border border-border/40">
-                    <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-                    <canvas ref={canvasRef} className="hidden" />
-                    {/* Corner brackets */}
-                    <div className="absolute inset-0 pointer-events-none p-3">
-                      {[0, 1, 2, 3].map((i) => (
-                        <div
-                          key={i}
-                          className="absolute w-5 h-5"
-                          style={{
-                            top: i < 2 ? 12 : 'auto',
-                            bottom: i >= 2 ? 12 : 'auto',
-                            left: i % 2 === 0 ? 12 : 'auto',
-                            right: i % 2 === 1 ? 12 : 'auto',
-                            borderColor: 'hsl(var(--primary))',
-                            borderTopWidth: i < 2 ? 3 : 0,
-                            borderBottomWidth: i >= 2 ? 3 : 0,
-                            borderLeftWidth: i % 2 === 0 ? 3 : 0,
-                            borderRightWidth: i % 2 === 1 ? 3 : 0,
-                            borderRadius: 2,
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <div className="absolute bottom-3 left-0 right-0 text-center">
-                      <span className="text-[11px] text-white/80 bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
-                        Point at a friend's QR code
-                      </span>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                {/* NFC Tab */}
-                <TabsContent value="nfc" className="space-y-3">
-                  <div className="flex flex-col items-center py-8 gap-4">
-                    {/* Phone illustration */}
-                    <div className="relative">
-                      <div className="flex items-center gap-1">
-                        <Smartphone className="h-16 w-16 text-primary/40 -rotate-12 transition-transform" />
-                        <div className="flex flex-col items-center gap-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-ping" />
-                          <div className="w-1 h-1 rounded-full bg-primary/40 animate-ping" style={{ animationDelay: '150ms' }} />
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-ping" style={{ animationDelay: '300ms' }} />
-                        </div>
-                        <Smartphone className="h-16 w-16 text-primary/40 rotate-12 transition-transform" />
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <h3 className="text-sm font-semibold text-foreground">Hold phones together</h3>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {nativeFriendDrop.isAvailable
-                          ? 'NFC is ready — tap phones to connect'
-                          : 'NFC is not available on this device'}
-                      </p>
-                    </div>
-
-                    {/* Nearby peers */}
-                    {nativeFriendDrop.nearbyPeers.length > 0 && (
-                      <div className="w-full space-y-1.5">
-                        <p className="text-[11px] text-muted-foreground font-medium px-1">Nearby</p>
-                        {nativeFriendDrop.nearbyPeers.map((peer) => (
-                          <button
-                            key={peer.peerId}
-                            className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-border/40 hover:bg-muted/40 transition-colors"
-                            onClick={() => {
-                              setFoundUser({ id: peer.userId, username: peer.username, display_name: peer.displayName, avatar_url: peer.avatarUrl });
-                              setPhase('found');
-                            }}
-                          >
-                            <Avatar className="h-9 w-9">
-                              <AvatarImage src={peer.avatarUrl || ''} />
-                              <AvatarFallback className="text-sm font-semibold">{peer.username[0]?.toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm font-medium flex-1 text-left truncate">{peer.displayName || peer.username}</span>
-                            <Nfc className="h-3.5 w-3.5 text-primary" />
-                          </button>
+                <AnimatePresence mode="wait">
+                  {activeTab === 'tap' ? (
+                    <motion.div
+                      key="tap"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="flex flex-col items-center gap-4 py-2"
+                    >
+                      <div className="relative flex h-56 w-full items-center justify-center overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-accent/10">
+                        {[0, 1, 2, 3].map((i) => (
+                          <motion.div
+                            key={i}
+                            className="absolute h-24 w-24 rounded-full border border-primary/35"
+                            initial={false}
+                            animate={{ scale: [0.55, 2.45], opacity: [0.7, 0] }}
+                            transition={{ duration: 2.8, repeat: Infinity, delay: i * 0.62, ease: [0.22, 1, 0.36, 1] }}
+                          />
                         ))}
+                        <motion.div
+                          className="absolute h-44 w-44 rounded-full"
+                          style={{
+                            background: 'conic-gradient(from 0deg, transparent 0deg, hsl(var(--primary)/0.5) 44deg, transparent 92deg)',
+                            mask: 'radial-gradient(circle, transparent 28%, black 30%, black 70%, transparent 72%)',
+                            WebkitMask: 'radial-gradient(circle, transparent 28%, black 30%, black 70%, transparent 72%)',
+                          }}
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 2.6, repeat: Infinity, ease: 'linear' }}
+                        />
+                        <div className="relative flex items-center justify-center gap-4">
+                          <motion.div animate={{ x: tapLive ? [0, 10, 0] : 0, rotate: -7 }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}>
+                            <div className="relative h-24 w-14 rounded-[18px] border border-primary/35 bg-card shadow-2xl shadow-primary/20">
+                              <div className="absolute left-1/2 top-1 h-3 w-5 -translate-x-1/2 rounded-b-lg bg-muted" />
+                              <div className="absolute inset-x-2 bottom-3 top-5 overflow-hidden rounded-xl bg-secondary">
+                                <Avatar className="h-full w-full rounded-xl">
+                                  <AvatarImage src={profile?.avatar_url || ''} className="h-full w-full object-cover" />
+                                  <AvatarFallback className="rounded-xl bg-gradient-to-br from-primary to-accent text-lg font-black text-primary-foreground">
+                                    {profile?.username?.[0]?.toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                              </div>
+                            </div>
+                          </motion.div>
+                          <motion.div className="flex flex-col items-center gap-1" animate={{ scale: tapLive ? [1, 1.12, 1] : 1 }} transition={{ duration: 1.2, repeat: Infinity }}>
+                            <Wifi className="h-5 w-5 text-primary" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                          </motion.div>
+                          <motion.div animate={{ x: tapLive ? [0, -10, 0] : 0, rotate: 7 }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}>
+                            <div className="relative flex h-24 w-14 items-center justify-center rounded-[18px] border border-accent/35 bg-card shadow-2xl shadow-accent/20">
+                              <div className="absolute left-1/2 top-1 h-3 w-5 -translate-x-1/2 rounded-b-lg bg-muted" />
+                              <Smartphone className="h-8 w-8 text-accent" />
+                            </div>
+                          </motion.div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </TabsContent>
-              </Tabs>
+
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                          <h3 className="text-base font-black text-foreground">Ready to tap</h3>
+                          <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">LIVE</span>
+                        </div>
+                        <p className="mx-auto mt-1 max-w-[280px] text-xs leading-relaxed text-muted-foreground">
+                          Hold phones together. Friend Link keeps scanning instantly and confirms the connection when a nearby phone is found.
+                        </p>
+                      </div>
+
+                      {nativeFriendDrop.nearbyPeers.length > 0 && (
+                        <div className="w-full space-y-2">
+                          {nativeFriendDrop.nearbyPeers.map((peer) => (
+                            <button
+                              key={peer.peerId}
+                              className="flex w-full items-center gap-3 rounded-2xl border border-primary/20 bg-primary/10 p-3 text-left active:scale-[0.98]"
+                              onClick={() => {
+                                setFoundUser({ id: peer.userId, username: peer.username, display_name: peer.displayName, avatar_url: peer.avatarUrl });
+                                setPhase('found');
+                              }}
+                            >
+                              <Avatar className="h-10 w-10 shrink-0">
+                                <AvatarImage src={peer.avatarUrl || ''} className="object-cover" />
+                                <AvatarFallback className="font-bold">{peer.username[0]?.toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <span className="min-w-0 flex-1 truncate text-sm font-bold">{peer.displayName || peer.username}</span>
+                              <Check className="h-4 w-4 text-primary" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="qr"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="grid gap-3"
+                    >
+                      <div className="rounded-[28px] bg-white p-5 shadow-2xl">
+                        <div className="relative mx-auto aspect-square w-full max-w-[220px] overflow-hidden rounded-2xl bg-white">
+                          {qrSvg ? (
+                            <div className="h-full w-full [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: qrSvg }} />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                          )}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="rounded-2xl bg-white p-1 shadow-lg">
+                              <Avatar className="h-12 w-12 rounded-xl">
+                                <AvatarImage src={profile?.avatar_url || ''} className="rounded-xl object-cover" />
+                                <AvatarFallback className="rounded-xl bg-gradient-to-br from-primary to-accent font-black text-primary-foreground">
+                                  {profile?.username?.[0]?.toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="mt-2 text-center text-sm font-black text-card">@{profile?.username}</p>
+                      </div>
+
+                      <div className="relative aspect-square overflow-hidden rounded-[24px] border border-primary/20 bg-card">
+                        <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
+                        <canvas ref={canvasRef} className="hidden" />
+                        {!cameraActive && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-secondary/60">
+                            <ScanLine className="h-7 w-7 text-primary" />
+                            <span className="text-xs font-bold text-muted-foreground">Camera warming up…</span>
+                          </div>
+                        )}
+                        <div className="pointer-events-none absolute inset-0 p-5">
+                          {[0, 1, 2, 3].map((i) => (
+                            <div
+                              key={i}
+                              className="absolute h-8 w-8 rounded-md"
+                              style={{
+                                top: i < 2 ? 18 : 'auto',
+                                bottom: i >= 2 ? 18 : 'auto',
+                                left: i % 2 === 0 ? 18 : 'auto',
+                                right: i % 2 === 1 ? 18 : 'auto',
+                                borderColor: 'hsl(var(--primary))',
+                                borderTopWidth: i < 2 ? 4 : 0,
+                                borderBottomWidth: i >= 2 ? 4 : 0,
+                                borderLeftWidth: i % 2 === 0 ? 4 : 0,
+                                borderRightWidth: i % 2 === 1 ? 4 : 0,
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <motion.div
+                          className="absolute left-6 right-6 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent shadow-lg shadow-primary"
+                          animate={{ top: ['22px', 'calc(100% - 24px)', '22px'] }}
+                          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                        />
+                        <div className="absolute bottom-4 inset-x-0 flex justify-center">
+                          <span className="rounded-full bg-card/90 px-4 py-1.5 text-xs font-bold text-foreground backdrop-blur-sm">Point at a friend's QR</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             )}
             </div>
 
