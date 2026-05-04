@@ -6342,6 +6342,7 @@ export type Database = {
       notification_preferences: {
         Row: {
           announcements_enabled: boolean | null
+          brief_pings_enabled: boolean | null
           comments_enabled: boolean | null
           created_at: string
           dms_enabled: boolean | null
@@ -6349,18 +6350,24 @@ export type Database = {
           dnd_until: string | null
           events_enabled: boolean | null
           follows_enabled: boolean | null
+          friend_activity_enabled: boolean | null
           id: string
           likes_enabled: boolean | null
           marketplace_enabled: boolean | null
           mentions_enabled: boolean | null
+          nearby_enabled: boolean | null
           quiet_hours_end: string | null
           quiet_hours_start: string | null
+          smart_ping_max_per_day: number | null
+          smart_ping_radius_miles: number | null
           system_enabled: boolean | null
+          trending_local_enabled: boolean | null
           updated_at: string
           user_id: string
         }
         Insert: {
           announcements_enabled?: boolean | null
+          brief_pings_enabled?: boolean | null
           comments_enabled?: boolean | null
           created_at?: string
           dms_enabled?: boolean | null
@@ -6368,18 +6375,24 @@ export type Database = {
           dnd_until?: string | null
           events_enabled?: boolean | null
           follows_enabled?: boolean | null
+          friend_activity_enabled?: boolean | null
           id?: string
           likes_enabled?: boolean | null
           marketplace_enabled?: boolean | null
           mentions_enabled?: boolean | null
+          nearby_enabled?: boolean | null
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
+          smart_ping_max_per_day?: number | null
+          smart_ping_radius_miles?: number | null
           system_enabled?: boolean | null
+          trending_local_enabled?: boolean | null
           updated_at?: string
           user_id: string
         }
         Update: {
           announcements_enabled?: boolean | null
+          brief_pings_enabled?: boolean | null
           comments_enabled?: boolean | null
           created_at?: string
           dms_enabled?: boolean | null
@@ -6387,13 +6400,18 @@ export type Database = {
           dnd_until?: string | null
           events_enabled?: boolean | null
           follows_enabled?: boolean | null
+          friend_activity_enabled?: boolean | null
           id?: string
           likes_enabled?: boolean | null
           marketplace_enabled?: boolean | null
           mentions_enabled?: boolean | null
+          nearby_enabled?: boolean | null
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
+          smart_ping_max_per_day?: number | null
+          smart_ping_radius_miles?: number | null
           system_enabled?: boolean | null
+          trending_local_enabled?: boolean | null
           updated_at?: string
           user_id?: string
         }
@@ -6431,31 +6449,49 @@ export type Database = {
       notifications: {
         Row: {
           actor_id: string
+          body: string | null
           created_at: string
+          deep_link: string | null
           id: string
+          image_url: string | null
+          meta: Json | null
           post_id: string | null
           read: boolean
           reason: string | null
+          subtype: string | null
+          title: string | null
           type: string
           user_id: string
         }
         Insert: {
           actor_id: string
+          body?: string | null
           created_at?: string
+          deep_link?: string | null
           id?: string
+          image_url?: string | null
+          meta?: Json | null
           post_id?: string | null
           read?: boolean
           reason?: string | null
+          subtype?: string | null
+          title?: string | null
           type: string
           user_id: string
         }
         Update: {
           actor_id?: string
+          body?: string | null
           created_at?: string
+          deep_link?: string | null
           id?: string
+          image_url?: string | null
+          meta?: Json | null
           post_id?: string | null
           read?: boolean
           reason?: string | null
+          subtype?: string | null
+          title?: string | null
           type?: string
           user_id?: string
         }
@@ -11848,6 +11884,7 @@ export type Database = {
       }
       consume_boost_use: { Args: { p_boost_type: string }; Returns: boolean }
       consume_streak_shield: { Args: { p_user_id: string }; Returns: boolean }
+      count_smart_pings_today: { Args: { _user_id: string }; Returns: number }
       create_default_rooms: {
         Args: { p_server_id: string }
         Returns: undefined
@@ -12338,6 +12375,7 @@ export type Database = {
         }
         Returns: number
       }
+      mute_smart_pings: { Args: { _hours: number }; Returns: undefined }
       process_due_scheduled_messages: {
         Args: { limit_count?: number }
         Returns: number
