@@ -223,11 +223,11 @@ export function AdminErrorsSection() {
                       <p className="text-xs text-foreground font-mono break-all">{bug.error_message}</p>
                     </div>
 
-                    {bug.error_stack && (
+                    {expandedDetail?.error_stack && (
                       <div className="bg-muted/50 rounded-xl p-2.5">
                         <p className="text-xs font-semibold text-muted-foreground mb-1">Stack Trace</p>
                         <pre className="text-[10px] text-muted-foreground font-mono break-all whitespace-pre-wrap max-h-32 overflow-auto">
-                          {bug.error_stack}
+                          {expandedDetail.error_stack}
                         </pre>
                       </div>
                     )}
