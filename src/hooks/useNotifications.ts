@@ -167,6 +167,7 @@ export function useNotifications() {
             missed_call: 'tried to call you',
             announcement: 'posted an announcement',
             content_removed: 'removed your content',
+            smart_ping: 'sent you a smart ping',
           };
 
           const message = `${actor?.username || 'Someone'} ${messages[type] || 'interacted with you'}`;
