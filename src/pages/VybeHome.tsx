@@ -118,23 +118,25 @@ const Img = ({ src, className, alt = '' }: { src: string; className?: string; al
 /* ---------- Phone mockups (mirror the real app screens) ---------- */
 
 const PhoneBottomNav = ({ active }: { active: 'home' | 'map' | 'create' | 'chat' | 'profile' }) => {
-  const items: { k: 'home' | 'map' | 'create' | 'chat' | 'profile'; icon: typeof Home; accent?: boolean }[] = [
-    { k: 'home', icon: Home },
-    { k: 'map', icon: MapPin },
-    { k: 'create', icon: Plus, accent: true },
-    { k: 'chat', icon: MessageCircle },
-    { k: 'profile', icon: User },
-  ];
+  // Mirrors real BottomNav: pill bg-card with Home (active=ring), Compass, big + (gradient), Chat bubble, profile avatar
   return (
-    <div className="absolute bottom-0 inset-x-0 h-12 bg-[#0B0B10]/90 backdrop-blur-xl border-t border-white/5 flex items-center justify-around px-2 z-10">
-      {items.map(({ k, icon: Icon, accent }) => (
-        <div key={k} className={cn(
-          'flex items-center justify-center rounded-full transition',
-          accent ? 'w-8 h-8 bg-gradient-to-br from-violet-500 to-cyan-500 shadow-[0_0_12px_rgba(139,92,246,0.6)]' : 'w-7 h-7',
-        )}>
-          <Icon className={cn('w-4 h-4', accent ? 'text-white' : active === k ? 'text-white' : 'text-white/40')} />
-        </div>
-      ))}
+    <div className="absolute bottom-2 inset-x-3 h-12 rounded-full bg-[#15151c]/95 backdrop-blur-xl border border-white/5 flex items-center justify-around px-3 z-10 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+      <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', active === 'home' && 'ring-1 ring-pink-400/70 shadow-[0_0_10px_rgba(236,72,153,0.5)]')}>
+        <Home className={cn('w-4 h-4', active === 'home' ? 'text-pink-400' : 'text-white/45')} />
+      </div>
+      <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', active === 'map' && 'ring-1 ring-cyan-400/70')}>
+        <Search className={cn('w-4 h-4', active === 'map' ? 'text-cyan-300' : 'text-white/45')} />
+      </div>
+      <div className="-mt-5 w-11 h-11 rounded-2xl flex items-center justify-center shadow-[0_0_18px_rgba(236,72,153,0.6)]"
+        style={{background:'linear-gradient(135deg, #EC4899, #8B5CF6)'}}>
+        <Plus className="w-5 h-5 text-white" />
+      </div>
+      <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', active === 'chat' && 'ring-1 ring-cyan-400/70')}>
+        <MessageCircle className={cn('w-4 h-4', active === 'chat' ? 'text-cyan-300' : 'text-white/45')} />
+      </div>
+      <div className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-white/10">
+        <Img src={PEOPLE.maya.img} className="w-full h-full rounded-full" />
+      </div>
     </div>
   );
 };
@@ -205,75 +207,112 @@ const DNAPhone = () => (
   </div>
 );
 
-// === HOME FEED — mirrors src/pages/Home.tsx ===
+// === HOME — mirrors src/pages/Home.tsx (real screenshot layout) ===
 const FeedPhone = () => (
   <div className="w-full h-full bg-[#0B0B10] relative overflow-hidden">
     <StatusBar />
-    <div className="absolute top-7 inset-x-0 px-3 h-10 flex items-center justify-between z-10">
-      <div className="font-display font-black text-base bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">VYBE</div>
-      <div className="flex gap-1.5 items-center">
-        <Search className="w-4 h-4 text-white/60" />
-        <Bell className="w-4 h-4 text-white/60" />
-        <Img src={PEOPLE.maya.img} className="w-6 h-6 rounded-full ring-1 ring-white/20" />
+    {/* Top header: V logo, search bar, bell, target */}
+    <div className="absolute top-7 inset-x-0 px-3 h-11 flex items-center gap-2 z-10 bg-[#0B0B10]/90 backdrop-blur-xl border-b border-white/5">
+      <div className="font-display font-black text-lg leading-none bg-gradient-to-b from-violet-400 to-pink-400 bg-clip-text text-transparent">V</div>
+      <div className="flex-1 h-7 rounded-full bg-white/[0.06] border border-white/5 flex items-center px-2.5">
+        <Search className="w-3 h-3 text-white/40" />
+      </div>
+      <Bell className="w-4 h-4 text-white/60" />
+      <div className="relative">
+        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-pink-500/30 to-cyan-500/30 border border-pink-400/40 flex items-center justify-center">
+          <Trophy className="w-3 h-3 text-pink-300" />
+        </div>
+        <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-gradient-to-br from-orange-500 to-pink-500 text-white text-[7px] font-black flex items-center justify-center">4</div>
       </div>
     </div>
-    <div className="absolute top-[68px] inset-x-0 px-3 flex gap-1.5 z-10">
-      {[
-        { k: 'For You', active: true },
-        { k: 'Following' },
-        { k: 'Global' },
-        { k: 'Local' },
-      ].map(t => (
-        <div key={t.k} className={cn(
-          'px-2.5 py-1 rounded-full text-[9px] font-semibold border',
-          t.active ? 'bg-white text-[#0B0B10] border-white' : 'bg-white/5 text-white/60 border-white/10'
-        )}>{t.k}</div>
-      ))}
-    </div>
-    <div className="absolute inset-0 pt-[100px] pb-12 px-2 overflow-hidden">
-      <div className="flex gap-2 px-1 mb-2">
-        {[
-          {p:PEOPLE.maya, n:'You'},
-          {p:PEOPLE.sky, n:'sky'},
-          {p:PEOPLE.leo, n:'leo'},
-          {p:PEOPLE.mia, n:'mia'},
-          {p:PEOPLE.kai, n:'kai'},
-        ].map((s,i)=>(
-          <div key={i} className="flex flex-col items-center gap-0.5 shrink-0">
-            <div className="w-10 h-10 rounded-full p-[1.5px]" style={{background:'conic-gradient(from 0deg, #8B5CF6, #EC4899, #06B6D4, #8B5CF6)'}}>
-              <div className="w-full h-full rounded-full bg-[#0B0B10] p-[1px]">
-                <Img src={s.p.img} className="w-full h-full rounded-full" />
-              </div>
+
+    {/* Scroll body */}
+    <div className="absolute inset-0 pt-[68px] pb-16 overflow-hidden">
+      {/* Customize Home pill */}
+      <div className="flex justify-center mb-3">
+        <div className="px-3 py-1.5 rounded-full border border-pink-400/40 bg-pink-500/5 flex items-center gap-1.5">
+          <div className="w-3.5 h-3.5 rounded-md bg-white/10 flex items-center justify-center">
+            <div className="grid grid-cols-2 gap-[1px]">
+              {[0,1,2,3].map(i => <div key={i} className="w-[2px] h-[2px] bg-pink-300 rounded-[0.5px]" />)}
             </div>
-            <div className="text-[7px] text-white/60 truncate max-w-[36px]">{s.n}</div>
+          </div>
+          <span className="text-[8px] font-semibold text-pink-300">Customize Home</span>
+        </div>
+      </div>
+
+      {/* Greeting row with avatar + level */}
+      <div className="px-3 flex items-center gap-2 mb-2">
+        <div className="relative shrink-0">
+          <div className="w-9 h-9 rounded-full p-[1.5px] bg-gradient-to-br from-pink-500 to-violet-500">
+            <Img src={PEOPLE.maya.img} className="w-full h-full rounded-full" />
+          </div>
+          <div className="absolute -bottom-1 -right-1 px-1 min-w-[14px] h-3.5 rounded-full bg-pink-500 text-white text-[7px] font-black flex items-center justify-center border border-[#0B0B10]">49</div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] leading-tight">
+            <span className="text-white/90 font-medium">Good morning, </span>
+            <span className="font-black text-pink-400">@you</span>
+          </div>
+          <div className="mt-0.5 h-[1.5px] w-full rounded-full bg-gradient-to-r from-pink-500/60 via-violet-500/60 to-cyan-500/60" />
+          <div className="text-[7.5px] text-white/50 mt-0.5 flex items-center gap-1">🔥 1 person leveling up today</div>
+        </div>
+      </div>
+
+      {/* Your story */}
+      <div className="px-3 mb-2 mt-1">
+        <div className="flex flex-col items-start gap-0.5">
+          <div className="relative w-10 h-10">
+            <Img src={PEOPLE.sky.img} className="w-full h-full rounded-full" />
+            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-cyan-400 border-2 border-[#0B0B10] flex items-center justify-center"><Plus className="w-2 h-2 text-white" /></div>
+          </div>
+          <div className="text-[7px] text-white/80 font-semibold">Your story</div>
+        </div>
+      </div>
+
+      {/* TOP XP TODAY */}
+      <div className="px-3 mb-2">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-1.5 flex items-center gap-1.5">
+          <Trophy className="w-3 h-3 text-white/40" />
+          <span className="text-[7px] font-bold text-white/40 tracking-wider">TOP XP TODAY</span>
+          <span className="text-[8px] text-white/80 ml-1 truncate">@leo.k · 2,013 XP</span>
+        </div>
+      </div>
+
+      {/* Daily Brief */}
+      <div className="px-3 mb-2">
+        <div className="h-7 rounded-full border border-violet-400/20 flex items-center justify-center gap-1.5"
+          style={{background:'linear-gradient(90deg, rgba(139,92,246,0.18), rgba(6,182,212,0.18), rgba(139,92,246,0.18))'}}>
+          <span className="text-[10px] font-display font-black bg-gradient-to-b from-violet-400 to-pink-400 bg-clip-text text-transparent">V</span>
+          <span className="text-[8.5px] text-white font-medium">Your Daily Brief</span>
+          <Globe className="w-2.5 h-2.5 text-cyan-300" />
+          <span className="text-[7px] text-emerald-400">• Live</span>
+        </div>
+      </div>
+
+      {/* Quick action grid */}
+      <div className="px-3 grid grid-cols-2 gap-1.5 mb-2">
+        {[
+          { icon: Sparkles, label: 'VYBE DNA', tint: 'from-violet-500/30 to-pink-500/20', ring: 'ring-violet-400/30', iconBg: 'bg-violet-500' },
+          { icon: ShoppingBag, label: 'Shop', tint: 'from-emerald-500/20 to-teal-500/10', ring: 'ring-emerald-400/20', iconBg: 'bg-emerald-500' },
+          { icon: Radio, label: 'Communities', tint: 'from-cyan-500/20 to-blue-500/10', ring: 'ring-cyan-400/20', iconBg: 'bg-cyan-500' },
+          { icon: Trophy, label: 'Challenges', tint: 'from-pink-500/25 to-orange-500/15', ring: 'ring-pink-400/30', iconBg: 'bg-pink-500' },
+        ].map((q) => (
+          <div key={q.label} className={cn('rounded-xl border border-white/10 px-2 py-2 bg-gradient-to-br', q.tint, 'ring-1', q.ring)}>
+            <div className={cn('w-5 h-5 rounded-full flex items-center justify-center mb-1', q.iconBg)}>
+              <q.icon className="w-2.5 h-2.5 text-white" />
+            </div>
+            <div className="text-[8px] font-bold text-white/85 text-center">{q.label}</div>
           </div>
         ))}
       </div>
-      <div className="rounded-2xl overflow-hidden bg-white/[0.04] border border-white/10">
-        <div className="flex items-center gap-2 p-2">
-          <Img src={PEOPLE.maya.img} className="w-7 h-7 rounded-full" />
-          <div className="flex-1">
-            <div className="text-white text-[11px] font-semibold leading-tight">{PEOPLE.maya.handle}</div>
-            <div className="text-white/40 text-[8px]">2m · Brooklyn</div>
-          </div>
-          <MoreHorizontal className="w-3.5 h-3.5 text-white/40" />
+
+      {/* Tabs */}
+      <div className="px-3 flex items-center gap-3 text-[8.5px]">
+        <div className="px-2 py-1 rounded-full border border-pink-400/40 text-pink-300 font-bold flex items-center gap-1">
+          <Sparkles className="w-2.5 h-2.5" /> For You
         </div>
-        <div className="aspect-square relative overflow-hidden">
-          <Img src={SCENES.rooftop} alt="Friends rooftop" className="absolute inset-0 w-full h-full" />
-        </div>
-        <div className="p-2">
-          <div className="flex items-center gap-3 text-white/85">
-            <Heart className="w-4 h-4 text-pink-400 fill-pink-400" />
-            <MessageCircle className="w-4 h-4" />
-            <Send className="w-4 h-4" />
-            <Bookmark className="w-4 h-4 ml-auto" />
-          </div>
-          <div className="text-[10px] text-white/85 mt-1.5 leading-snug">
-            <span className="font-semibold">{PEOPLE.maya.handle}</span>{' '}
-            <span className="text-white/65">rooftop nights with the crew 🌃</span>
-          </div>
-          <div className="text-[8px] text-white/40 mt-0.5">View all 89 comments</div>
-        </div>
+        <div className="text-white/45 flex items-center gap-1"><MapPin className="w-2.5 h-2.5" /> Local</div>
+        <div className="text-white/45 flex items-center gap-1"><Globe className="w-2.5 h-2.5" /> Global</div>
       </div>
     </div>
     <PhoneBottomNav active="home" />
@@ -284,47 +323,85 @@ const FeedPhone = () => (
 const MapPhone = () => (
   <div className="w-full h-full bg-[#0B0B10] relative overflow-hidden">
     <StatusBar />
-    <div className="absolute top-7 inset-x-0 px-3 h-10 flex items-center justify-between z-10">
-      <div className="text-white font-bold text-[12px] flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-cyan-400" /> Friend Map</div>
-      <div className="flex gap-1 items-center">
-        <div className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">4 nearby</div>
-        <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center"><Globe className="w-3 h-3 text-white/70" /></div>
+    {/* Top: back, avatar, weather pill, layers */}
+    <div className="absolute top-7 inset-x-0 px-2.5 h-11 flex items-center gap-2 z-10">
+      <div className="w-7 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center justify-center">
+        <ArrowLeft className="w-3.5 h-3.5 text-white/80" />
+      </div>
+      <div className="w-8 h-8 rounded-full p-[1.5px] bg-gradient-to-br from-pink-500 to-violet-500">
+        <Img src={PEOPLE.maya.img} className="w-full h-full rounded-full" />
+      </div>
+      <div className="flex-1" />
+      <div className="px-2 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center gap-1 text-[9px] text-white">
+        <span>☀️</span> Sanger, 73°F
+      </div>
+      <div className="w-7 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center justify-center">
+        <div className="grid grid-cols-2 gap-[1px]">
+          {[0,1,2,3].map(i => <div key={i} className="w-[3px] h-[3px] bg-white/70 rounded-[0.5px]" />)}
+        </div>
       </div>
     </div>
-    <div className="absolute inset-0 top-[60px] bottom-12">
-      <div className="absolute inset-0"
-        style={{background:'radial-gradient(ellipse at 50% 40%, rgba(6,182,212,0.18), transparent 60%), linear-gradient(135deg, #0a1428, #0B0B10)'}} />
-      <div className="absolute inset-0 opacity-25" style={{backgroundImage:'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)', backgroundSize:'22px 22px'}} />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <div className="relative">
-          <div className="absolute rounded-full bg-cyan-400/30 animate-ping" style={{width:48,height:48,left:-22,top:-22}} />
-          <Img src={PEOPLE.maya.img} className="w-7 h-7 rounded-full border-2 border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.7)]" />
-        </div>
-      </div>
+
+    {/* Tabs */}
+    <div className="absolute top-[68px] inset-x-0 px-2.5 flex items-center gap-1.5 z-10 overflow-hidden">
       {[
-        {t:'18%',l:'24%',p:PEOPLE.sky,e:'🌙'},
-        {t:'58%',l:'72%',p:PEOPLE.leo,e:'☕'},
-        {t:'72%',l:'18%',p:PEOPLE.mia,e:'🎧'},
-        {t:'26%',l:'76%',p:PEOPLE.kai,e:'🏀'},
-      ].map((p,i)=>(
-        <div key={i} className="absolute -translate-x-1/2 -translate-y-full" style={{top:p.t,left:p.l}}>
-          <div className="flex flex-col items-center">
-            <div className="relative">
-              <Img src={p.p.img} className="w-7 h-7 rounded-full border-2 border-white shadow-lg" />
-              <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#0B0B10] border border-white/20 flex items-center justify-center text-[8px]">{p.e}</div>
-            </div>
-            <div className="mt-0.5 px-1 py-0.5 rounded text-[7px] bg-black/70 text-white whitespace-nowrap">{p.p.handle.slice(1)}</div>
+        { k: 'Friends', active: true },
+        { k: 'Trending' },
+        { k: 'Memories' },
+        { k: 'Popular' },
+      ].map(t => (
+        <div key={t.k} className={cn(
+          'px-2.5 py-1 rounded-full text-[9px] font-semibold whitespace-nowrap',
+          t.active ? 'bg-pink-500 text-white' : 'text-white/55'
+        )}>{t.k}</div>
+      ))}
+    </div>
+
+    {/* Map area */}
+    <div className="absolute inset-x-0 top-[100px] bottom-[88px]">
+      <div className="absolute inset-0" style={{background:'linear-gradient(135deg, #0a0a12, #0B0B10)'}} />
+      {/* Subtle road lines */}
+      <div className="absolute inset-0 opacity-30">
+        <div className="absolute top-[28%] left-[10%] w-[55%] h-[1px] bg-white/15 rotate-[8deg]" />
+        <div className="absolute top-[42%] left-0 w-[80%] h-[1px] bg-white/15 -rotate-[3deg]" />
+        <div className="absolute top-[10%] left-[45%] w-[1px] h-[60%] bg-white/15" />
+        <div className="absolute top-[60%] left-[20%] w-[1px] h-[35%] bg-white/12 rotate-[20deg]" />
+      </div>
+      {/* Buildings */}
+      {[
+        {t:'30%',l:'62%'},{t:'34%',l:'70%'},{t:'58%',l:'82%'},{t:'72%',l:'78%'},{t:'80%',l:'30%'},
+      ].map((b,i)=>(<div key={i} className="absolute w-1.5 h-1.5 bg-white/10 rounded-[1px]" style={{top:b.t,left:b.l}} />))}
+      {/* Pulse marker (you) */}
+      <div className="absolute left-[42%] top-[55%]">
+        <div className="absolute w-12 h-12 rounded-full bg-blue-500/20 -left-[18px] -top-[18px] animate-ping" />
+        <div className="w-3 h-3 rounded-full bg-blue-400 border-2 border-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.8)]" />
+      </div>
+      {/* Right action stack */}
+      <div className="absolute right-2 top-[20%] flex flex-col gap-1.5">
+        {[Send, Globe, Sparkles].map((I,i) => (
+          <div key={i} className="w-7 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center justify-center">
+            <I className="w-3 h-3 text-white/70" />
           </div>
+        ))}
+      </div>
+    </div>
+
+    {/* Friend strip */}
+    <div className="absolute bottom-[60px] inset-x-0 px-2 flex gap-1.5 z-10">
+      {[PEOPLE.sky, PEOPLE.leo, PEOPLE.mia, PEOPLE.kai, PEOPLE.ren, PEOPLE.jordan].map((p,i)=>(
+        <div key={i} className="flex flex-col items-center gap-0.5 shrink-0">
+          <div className="w-7 h-7 rounded-full ring-1 ring-white/15 overflow-hidden">
+            <Img src={p.img} className="w-full h-full rounded-full" />
+          </div>
+          <div className="text-[6px] text-white/55 truncate max-w-[28px]">{p.handle.slice(1,7)}</div>
         </div>
       ))}
-      <div className="absolute bottom-2 left-2 right-2 rounded-xl bg-[#15151c]/90 backdrop-blur-xl border border-white/10 p-2 flex items-center gap-2">
-        <Img src={PEOPLE.leo.img} className="w-8 h-8 rounded-full" />
-        <div className="flex-1">
-          <div className="text-white text-[11px] font-semibold leading-tight">{PEOPLE.leo.name}</div>
-          <div className="text-white/50 text-[8px]">0.4 mi · Sunny 72° · Café Mile</div>
-        </div>
-        <div className="px-2 py-1 rounded-full bg-gradient-to-r from-violet-500 to-cyan-500 text-white text-[8px] font-semibold">Bump</div>
-      </div>
+    </div>
+
+    {/* Search bar */}
+    <div className="absolute bottom-[14px] inset-x-3 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center gap-1.5 px-2.5 z-10">
+      <Search className="w-3 h-3 text-white/45" />
+      <span className="text-[8px] text-white/40">Search for places</span>
     </div>
     <PhoneBottomNav active="map" />
   </div>
@@ -398,7 +475,7 @@ const features = [
   { icon: Palette, label: 'Themes', desc: 'Share your look' },
   { icon: Flame, label: 'Streaks', desc: '48h reaction chains' },
   { icon: Shuffle, label: 'Roulette', desc: 'Meet someone new' },
-  { icon: Trophy, label: 'Battle Pass', desc: 'Level up daily' },
+  { icon: Trophy, label: 'Challenges', desc: 'Daily & weekly XP quests' },
   { icon: Crown, label: 'VYBE Pro', desc: 'Coming soon', soon: true },
   { icon: ShieldCheck, label: 'Vybe Check', desc: 'Real-time safety AI' },
   { icon: Bell, label: 'Smart Notifs', desc: 'Quiet by default' },
