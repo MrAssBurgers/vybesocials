@@ -323,47 +323,85 @@ const FeedPhone = () => (
 const MapPhone = () => (
   <div className="w-full h-full bg-[#0B0B10] relative overflow-hidden">
     <StatusBar />
-    <div className="absolute top-7 inset-x-0 px-3 h-10 flex items-center justify-between z-10">
-      <div className="text-white font-bold text-[12px] flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-cyan-400" /> Friend Map</div>
-      <div className="flex gap-1 items-center">
-        <div className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">4 nearby</div>
-        <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center"><Globe className="w-3 h-3 text-white/70" /></div>
+    {/* Top: back, avatar, weather pill, layers */}
+    <div className="absolute top-7 inset-x-0 px-2.5 h-11 flex items-center gap-2 z-10">
+      <div className="w-7 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center justify-center">
+        <ArrowLeft className="w-3.5 h-3.5 text-white/80" />
+      </div>
+      <div className="w-8 h-8 rounded-full p-[1.5px] bg-gradient-to-br from-pink-500 to-violet-500">
+        <Img src={PEOPLE.maya.img} className="w-full h-full rounded-full" />
+      </div>
+      <div className="flex-1" />
+      <div className="px-2 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center gap-1 text-[9px] text-white">
+        <span>☀️</span> Sanger, 73°F
+      </div>
+      <div className="w-7 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center justify-center">
+        <div className="grid grid-cols-2 gap-[1px]">
+          {[0,1,2,3].map(i => <div key={i} className="w-[3px] h-[3px] bg-white/70 rounded-[0.5px]" />)}
+        </div>
       </div>
     </div>
-    <div className="absolute inset-0 top-[60px] bottom-12">
-      <div className="absolute inset-0"
-        style={{background:'radial-gradient(ellipse at 50% 40%, rgba(6,182,212,0.18), transparent 60%), linear-gradient(135deg, #0a1428, #0B0B10)'}} />
-      <div className="absolute inset-0 opacity-25" style={{backgroundImage:'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)', backgroundSize:'22px 22px'}} />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <div className="relative">
-          <div className="absolute rounded-full bg-cyan-400/30 animate-ping" style={{width:48,height:48,left:-22,top:-22}} />
-          <Img src={PEOPLE.maya.img} className="w-7 h-7 rounded-full border-2 border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.7)]" />
-        </div>
-      </div>
+
+    {/* Tabs */}
+    <div className="absolute top-[68px] inset-x-0 px-2.5 flex items-center gap-1.5 z-10 overflow-hidden">
       {[
-        {t:'18%',l:'24%',p:PEOPLE.sky,e:'🌙'},
-        {t:'58%',l:'72%',p:PEOPLE.leo,e:'☕'},
-        {t:'72%',l:'18%',p:PEOPLE.mia,e:'🎧'},
-        {t:'26%',l:'76%',p:PEOPLE.kai,e:'🏀'},
-      ].map((p,i)=>(
-        <div key={i} className="absolute -translate-x-1/2 -translate-y-full" style={{top:p.t,left:p.l}}>
-          <div className="flex flex-col items-center">
-            <div className="relative">
-              <Img src={p.p.img} className="w-7 h-7 rounded-full border-2 border-white shadow-lg" />
-              <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#0B0B10] border border-white/20 flex items-center justify-center text-[8px]">{p.e}</div>
-            </div>
-            <div className="mt-0.5 px-1 py-0.5 rounded text-[7px] bg-black/70 text-white whitespace-nowrap">{p.p.handle.slice(1)}</div>
+        { k: 'Friends', active: true },
+        { k: 'Trending' },
+        { k: 'Memories' },
+        { k: 'Popular' },
+      ].map(t => (
+        <div key={t.k} className={cn(
+          'px-2.5 py-1 rounded-full text-[9px] font-semibold whitespace-nowrap',
+          t.active ? 'bg-pink-500 text-white' : 'text-white/55'
+        )}>{t.k}</div>
+      ))}
+    </div>
+
+    {/* Map area */}
+    <div className="absolute inset-x-0 top-[100px] bottom-[88px]">
+      <div className="absolute inset-0" style={{background:'linear-gradient(135deg, #0a0a12, #0B0B10)'}} />
+      {/* Subtle road lines */}
+      <div className="absolute inset-0 opacity-30">
+        <div className="absolute top-[28%] left-[10%] w-[55%] h-[1px] bg-white/15 rotate-[8deg]" />
+        <div className="absolute top-[42%] left-0 w-[80%] h-[1px] bg-white/15 -rotate-[3deg]" />
+        <div className="absolute top-[10%] left-[45%] w-[1px] h-[60%] bg-white/15" />
+        <div className="absolute top-[60%] left-[20%] w-[1px] h-[35%] bg-white/12 rotate-[20deg]" />
+      </div>
+      {/* Buildings */}
+      {[
+        {t:'30%',l:'62%'},{t:'34%',l:'70%'},{t:'58%',l:'82%'},{t:'72%',l:'78%'},{t:'80%',l:'30%'},
+      ].map((b,i)=>(<div key={i} className="absolute w-1.5 h-1.5 bg-white/10 rounded-[1px]" style={{top:b.t,left:b.l}} />))}
+      {/* Pulse marker (you) */}
+      <div className="absolute left-[42%] top-[55%]">
+        <div className="absolute w-12 h-12 rounded-full bg-blue-500/20 -left-[18px] -top-[18px] animate-ping" />
+        <div className="w-3 h-3 rounded-full bg-blue-400 border-2 border-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.8)]" />
+      </div>
+      {/* Right action stack */}
+      <div className="absolute right-2 top-[20%] flex flex-col gap-1.5">
+        {[Send, Globe, Sparkles].map((I,i) => (
+          <div key={i} className="w-7 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center justify-center">
+            <I className="w-3 h-3 text-white/70" />
           </div>
+        ))}
+      </div>
+    </div>
+
+    {/* Friend strip */}
+    <div className="absolute bottom-[60px] inset-x-0 px-2 flex gap-1.5 z-10">
+      {[PEOPLE.sky, PEOPLE.leo, PEOPLE.mia, PEOPLE.kai, PEOPLE.ren, PEOPLE.jordan].map((p,i)=>(
+        <div key={i} className="flex flex-col items-center gap-0.5 shrink-0">
+          <div className="w-7 h-7 rounded-full ring-1 ring-white/15 overflow-hidden">
+            <Img src={p.img} className="w-full h-full rounded-full" />
+          </div>
+          <div className="text-[6px] text-white/55 truncate max-w-[28px]">{p.handle.slice(1,7)}</div>
         </div>
       ))}
-      <div className="absolute bottom-2 left-2 right-2 rounded-xl bg-[#15151c]/90 backdrop-blur-xl border border-white/10 p-2 flex items-center gap-2">
-        <Img src={PEOPLE.leo.img} className="w-8 h-8 rounded-full" />
-        <div className="flex-1">
-          <div className="text-white text-[11px] font-semibold leading-tight">{PEOPLE.leo.name}</div>
-          <div className="text-white/50 text-[8px]">0.4 mi · Sunny 72° · Café Mile</div>
-        </div>
-        <div className="px-2 py-1 rounded-full bg-gradient-to-r from-violet-500 to-cyan-500 text-white text-[8px] font-semibold">Bump</div>
-      </div>
+    </div>
+
+    {/* Search bar */}
+    <div className="absolute bottom-[14px] inset-x-3 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center gap-1.5 px-2.5 z-10">
+      <Search className="w-3 h-3 text-white/45" />
+      <span className="text-[8px] text-white/40">Search for places</span>
     </div>
     <PhoneBottomNav active="map" />
   </div>
