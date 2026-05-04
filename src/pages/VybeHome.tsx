@@ -171,6 +171,15 @@ const features = [
 ];
 
 const VybeHome = memo(function VybeHome() {
+  useEffect(() => {
+    const prev = document.title;
+    document.title = 'VYBE — The social app that becomes you';
+    let meta = document.querySelector('meta[name="description"]');
+    const prevDesc = meta?.getAttribute('content') ?? '';
+    if (!meta) { meta = document.createElement('meta'); meta.setAttribute('name','description'); document.head.appendChild(meta); }
+    meta.setAttribute('content', 'Evolving DNA, custom Aura, real friends nearby, ephemeral snaps, and creator tools — VYBE is the social app that becomes you.');
+    return () => { document.title = prev; meta?.setAttribute('content', prevDesc); };
+  }, []);
   return (
     <div className="min-h-screen bg-[#0B0B10] text-white overflow-x-hidden">
       {/* SEO handled via useEffect below */}
