@@ -256,8 +256,9 @@ export function usePushNotifications() {
 
     setIsLoading(true);
     try {
-      // Unsubscribe from push
-      if (registrationRef.current) {
+      const onDespia = isDespiaWebView();
+
+      if (!onDespia && registrationRef.current) {
         const subscription = await (registrationRef.current as any).pushManager.getSubscription();
         if (subscription) {
           await subscription.unsubscribe();
@@ -265,12 +266,11 @@ export function usePushNotifications() {
         }
       }
 
-      // Remove from database
       const { error } = await supabase
         .from('push_tokens')
         .delete()
         .eq('user_id', profile.id)
-        .eq('platform', 'web');
+        .eq('platform', onDespia ? 'despia' : 'web');
 
       if (error) {
         console.error('[Push] Error removing token:', error);
