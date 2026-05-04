@@ -87,11 +87,13 @@ export async function requestCallMediaPermissions(callType: CallMediaType): Prom
       // Small delay to let OS release the device before Daily requests it
       await new Promise(r => setTimeout(r, 100));
       console.log('[mediaPermissions] Microphone permission granted');
+      writePermCache({ mic: true });
     } catch (err: any) {
       console.error('[mediaPermissions] Microphone access denied:', err);
       throw new Error(callType === 'video' ? 'Microphone/Camera permission required' : 'Microphone permission required');
     }
   } else {
+    writePermCache({ mic: true });
     console.log('[mediaPermissions] Microphone already granted (skipping getUserMedia)');
   }
 
