@@ -1041,6 +1041,18 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     touch-action: pan-y;
   }
 
+  /* VYBE scroll-fix — fixes the bug where users had to drag the scrollbar
+     instead of scrolling with finger/trackpad on full-page marketing/auth
+     screens that live OUTSIDE AppLayout. Use on the outer page wrapper. */
+  .page-scroll-fix {
+    height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+  }
+
   /* Hide scrollbar utility */
   .scrollbar-hide {
     -ms-overflow-style: none;
