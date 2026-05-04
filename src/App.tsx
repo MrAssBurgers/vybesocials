@@ -284,6 +284,7 @@ function AppWithPreloader() {
                                       {/* PushNotificationPrompt removed */}
                                       <GlobalMessageNotifications />
                                       <DespiaOneSignalSync />
+                                      <SmartPingBridge />
                                       <TabNotificationBadge />
                                       <GlobalCallOverlay />
                                       <WarningPopup />
