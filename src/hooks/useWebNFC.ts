@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 /**
  * Web NFC hook — works on Android Chrome (and Despia Android WebView).
@@ -7,6 +8,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * Permissions required: the hosting native shell (Despia) must enable NFC
  * in its app capability settings AND the user must grant runtime permission.
  */
+
+function isDespiaWebView(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.includes('despia') || ua.includes('vybeapp');
+}
+
+function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
 
 export interface NFCRecord {
   recordType: string;
@@ -50,7 +62,13 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
   const start = useCallback(async () => {
     setError(null);
     if (!('NDEFReader' in window)) {
-      setError('NFC is not supported on this device');
+      const msg = isIOS()
+        ? 'NFC isn\'t supported on iOS — use the QR code instead'
+        : isDespiaWebView()
+          ? 'NFC unavailable in this app build — open in Chrome to scan'
+          : 'NFC isn\'t supported on this device';
+      setError(msg);
+      toast.error(msg);
       return false;
     }
     try {
@@ -62,9 +80,11 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
 
       await reader.scan({ signal: ctrl.signal });
       setIsScanning(true);
+      toast.success('Hold a tag near your phone…', { duration: 3000 });
 
       reader.onreadingerror = (e: any) => {
         console.warn('[NFC] reading error', e);
+        toast.error('Couldn\'t read that tag — try again');
       };
 
       reader.onreading = (event: any) => {
@@ -83,7 +103,15 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
       return true;
     } catch (err: any) {
       console.error('[NFC] start failed', err);
-      setError(err?.message || 'Failed to start NFC');
+      const name = err?.name || '';
+      const msg =
+        name === 'NotAllowedError'
+          ? 'NFC permission denied — enable it in app settings'
+          : name === 'NotSupportedError'
+            ? 'NFC is disabled or unavailable on this device'
+            : err?.message || 'Failed to start NFC';
+      setError(msg);
+      toast.error(msg);
       setIsScanning(false);
       return false;
     }

@@ -182,8 +182,18 @@ export function AdminErrorsSection() {
                         <p className="text-xs font-semibold text-primary mb-1 flex items-center gap-1.5">
                           <MessageSquare className="w-3.5 h-3.5" />
                           AI Analysis
+                          {bug.ai_severity && bug.ai_severity !== 'auto' && bug.ai_severity !== 'unknown' && (
+                            <span className={`ml-auto px-1.5 py-0.5 rounded-md text-[10px] uppercase tracking-wide ${
+                              bug.ai_severity === 'critical' ? 'bg-destructive/20 text-destructive' :
+                              bug.ai_severity === 'high' ? 'bg-orange-500/20 text-orange-500' :
+                              bug.ai_severity === 'medium' ? 'bg-yellow-500/20 text-yellow-500' :
+                              'bg-muted text-muted-foreground'
+                            }`}>
+                              {bug.ai_severity}
+                            </span>
+                          )}
                         </p>
-                        <p className="text-xs text-foreground/80 leading-relaxed">{bug.ai_analysis}</p>
+                        <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-wrap">{bug.ai_analysis}</p>
                       </div>
                     )}
 
