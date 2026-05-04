@@ -122,13 +122,13 @@ export function AnimatedRoutes() {
   useAutoBugReporter();
   
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence mode="popLayout" initial={false}>
       <motion.div
         key={location.pathname}
-        initial={{ opacity: 0, y: 8, scale: 0.995 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -4, scale: 0.998 }}
-        transition={{ duration: 0.28, ease: MOTION_CONFIG.ease.expoOut }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.12, ease: 'linear' }}
         className="min-h-screen"
         id="main-content"
       >
