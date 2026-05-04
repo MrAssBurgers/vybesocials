@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { X, Check, Smartphone, QrCode, Nfc, MessageCircle } from 'lucide-react';
+import { X, Check, Smartphone, QrCode, Nfc, MessageCircle, Radio, Wifi, Loader2, ScanLine } from 'lucide-react';
+import QRCode from 'qrcode';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 import { useFriendDropSync } from '@/hooks/useFriendDropSync';
@@ -20,6 +21,7 @@ import { getPrimaryHex } from '@/lib/themeColor';
 import { navVisibility } from '@/lib/navVisibility';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
+type ActiveTab = 'tap' | 'qr';
 
 interface FoundUser {
   id: string;
@@ -38,7 +40,9 @@ export function AutoFriendDrop() {
   const [phase, setPhase] = useState<DropPhase>('idle');
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
   const [activeDropId, setActiveDropId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('qr');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('tap');
+  const [qrSvg, setQrSvg] = useState('');
+  const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -111,7 +115,7 @@ export function AutoFriendDrop() {
   });
 
   const nativeFriendDrop = useNativeFriendDrop({
-    enabled: isActive && activeTab === 'nfc',
+    enabled: isActive && activeTab === 'tap',
     onPeerFound: (peer) => {
       setFoundUser({ id: peer.userId, username: peer.username, display_name: peer.displayName, avatar_url: peer.avatarUrl });
       setPhase('found');
@@ -124,9 +128,19 @@ export function AutoFriendDrop() {
   const myProfileUrl = activeDropId
     ? `https://vybehub.app/friend-drop/${activeDropId}`
     : profile?.username ? `https://vybehub.app/add-friend/${user?.id}` : '';
-  const qrCodeUrl = myProfileUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(myProfileUrl)}&bgcolor=ffffff&color=${primaryHex}&format=svg&ecc=H&margin=2`
-    : '';
+
+  useEffect(() => {
+    if (!myProfileUrl) { setQrSvg(''); return; }
+    let cancelled = false;
+    QRCode.toString(myProfileUrl, {
+      type: 'svg',
+      errorCorrectionLevel: 'H',
+      margin: 1,
+      width: 280,
+      color: { dark: primaryHex, light: '#00000000' },
+    }).then((svg) => { if (!cancelled) setQrSvg(svg); }).catch(() => { if (!cancelled) setQrSvg(''); });
+    return () => { cancelled = true; };
+  }, [myProfileUrl, primaryHex]);
 
   const handleAutoAdd = useCallback(async (userId: string) => {
     if (phase === 'exchanging' || phase === 'success') return;
@@ -148,6 +162,7 @@ export function AutoFriendDrop() {
   const stopScanning = useCallback(() => {
     if (animationFrameRef.current) { cancelAnimationFrame(animationFrameRef.current); animationFrameRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    setCameraActive(false);
   }, []);
 
   const handleDropScan = useCallback(async (dropId: string) => {
@@ -214,6 +229,7 @@ export function AutoFriendDrop() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
+        setCameraActive(true);
         startScanLoopRef.current();
       }
     } catch (err) {
@@ -224,13 +240,12 @@ export function AutoFriendDrop() {
   const handleBump = useCallback(async () => {
     if (!profile?.username || !user) return;
     setIsActive(true);
+    setActiveTab('tap');
     haptics.impact();
     setPhase('activated');
     setTimeout(() => haptics.success(), 300);
     friendDropSync.createDrop().then((drop) => { if (drop) setActiveDropId(drop.id); });
-    // Start camera after entrance animation
-    setTimeout(startCamera, 350);
-  }, [profile?.username, user, friendDropSync, startCamera]);
+  }, [profile?.username, user, friendDropSync]);
 
   useSwingDetection({
     enabled: !isActive && !!profile?.username,
@@ -283,12 +298,24 @@ export function AutoFriendDrop() {
     };
   }, [isActive]);
 
-  // Start NFC when switching to NFC tab
+  // Start camera only when QR scanning is visible, so Friend Link opens instantly.
   useEffect(() => {
-    if (isActive && activeTab === 'nfc' && nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
+    if (!isActive || phase !== 'activated') return;
+    if (activeTab === 'qr') {
+      const timer = window.setTimeout(startCamera, 120);
+      return () => { window.clearTimeout(timer); stopScanning(); };
+    }
+    stopScanning();
+  }, [isActive, phase, activeTab, startCamera, stopScanning]);
+
+  // Start NFC/native tap when switching to Phone Tap.
+  useEffect(() => {
+    if (isActive && activeTab === 'tap' && nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
       nativeFriendDrop.startSession();
     }
   }, [isActive, activeTab, nativeFriendDrop]);
+
+  const tapLive = activeTab === 'tap' && (nativeFriendDrop.isActive || !nativeFriendDrop.isAvailable);
 
   if (!profile?.username) return null;
 
