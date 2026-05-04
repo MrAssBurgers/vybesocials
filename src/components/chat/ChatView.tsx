@@ -512,10 +512,24 @@ export function ChatView() {
   // Handle typing indicator - instant input, deferred typing updates
   const typingUpdateScheduledRef = useRef(false);
   
+  // Imperatively writes to the input DOM node so we can clear/append
+  // without forcing a parent re-render.
+  const writeInputDom = useCallback((value: string) => {
+    const el = inputRef.current as HTMLInputElement | null;
+    if (el && el.value !== value) {
+      el.value = value;
+    }
+  }, []);
+
   const handleInputChange = useCallback((value: string) => {
-    // Update text IMMEDIATELY - this is the critical path
-    setMessageText(value);
-    
+    // Update ref IMMEDIATELY (no re-render).
+    messageTextRef.current = value;
+
+    // Only flip parent state when the empty boundary changes — this is
+    // what gates the send button vs. the sticker/voice cluster.
+    const nowHas = value.length > 0;
+    setHasText(prev => prev === nowHas ? prev : nowHas);
+
     // Auto-save draft to localStorage
     try {
       if (conversationId) {
@@ -526,22 +540,20 @@ export function ChatView() {
         }
       }
     } catch { /* quota exceeded or private browsing */ }
-    
+
     // Schedule typing indicator update (non-blocking)
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
-    
+
     if (value.length > 0) {
-      // Send typing indicator on every keystroke for accurate real-time feedback
-      // Non-blocking: deferred via microtask so input stays responsive
+      // Fire-and-forget — never block keystrokes
       queueMicrotask(() => {
         setTyping(true);
         setLiveTyping(true);
       });
       typingUpdateScheduledRef.current = true;
-      
-      // Reset typing indicator after 3s pause (matches PRESENCE.TYPING_TIMEOUT_MS)
+
       typingTimeoutRef.current = setTimeout(() => {
         typingUpdateScheduledRef.current = false;
         setTyping(false);
@@ -554,37 +566,50 @@ export function ChatView() {
         setLiveTyping(false);
       });
     }
-  }, [setTyping, setLiveTyping]);
+  }, [setTyping, setLiveTyping, conversationId]);
+
+  // Append helper used by emoji pickers (still needs to update the DOM input).
+  const appendToInput = useCallback((appended: string) => {
+    const next = (messageTextRef.current || '') + appended;
+    writeInputDom(next);
+    handleInputChange(next);
+  }, [writeInputDom, handleInputChange]);
 
   const handleSend = useCallback(() => {
-    if (!messageText.trim() || !conversationId) return;
-    
+    const raw = messageTextRef.current;
+    if (!raw.trim() || !conversationId) return;
+
     // Clear draft on send
     try { localStorage.removeItem(`draft:${conversationId}`); } catch { /* */ }
 
-    const text = messageText.trim();
-    
+    const text = raw.trim();
+
     // If we're in edit mode, update the message instead of sending a new one
     if (editingMessageId) {
       editMessage.mutate({ messageId: editingMessageId, newContent: text });
       setEditingMessageId(null);
       setEditText('');
-      setMessageText('');
+      messageTextRef.current = '';
+      writeInputDom('');
+      setHasText(false);
       setTyping(false);
       return;
     }
-    
-    setMessageText('');
+
+    messageTextRef.current = '';
+    writeInputDom('');
+    setHasText(false);
     setTyping(false);
 
     sendText(text, viewMode, replyingTo?.id);
     setReplyingTo(null);
-    
+
     // Bump reaction streak with recipient (for DMs only)
     if (!isGroupChat && otherMember?.id) {
       bumpStreak(otherMember.id);
     }
-  }, [messageText, conversationId, viewMode, replyingTo, setTyping, sendText, editingMessageId, editMessage, isGroupChat, otherMember?.id, bumpStreak]);
+  }, [conversationId, viewMode, replyingTo, setTyping, sendText, editingMessageId, editMessage, isGroupChat, otherMember?.id, bumpStreak, writeInputDom]);
+
 
   // sendWithReply is now handled by useInstantSend's sendText
 
