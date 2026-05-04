@@ -40,21 +40,23 @@ export function usePushNotifications() {
 
   // Check if push notifications are supported
   useEffect(() => {
-    const supported = 'serviceWorker' in navigator && 
-                     'PushManager' in window && 
-                     'Notification' in window &&
-                     !isPreviewServiceWorkerDisabled();
+    const onDespia = isDespiaWebView();
+    const supported = onDespia || (
+      'serviceWorker' in navigator &&
+      'PushManager' in window &&
+      'Notification' in window &&
+      !isPreviewServiceWorkerDisabled()
+    );
     setIsSupported(supported);
-    
-    if (supported) {
+
+    if (!onDespia && supported) {
       setPermission(Notification.permission);
     }
 
     if (supported && profile) {
-      registerServiceWorker();
+      if (!onDespia) registerServiceWorker();
       checkSubscription();
     } else if (!profile) {
-      // No profile yet, mark as done checking
       setIsCheckingSubscription(false);
     }
   }, [profile]);
