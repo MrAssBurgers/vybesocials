@@ -359,8 +359,10 @@ export function AutoFriendDrop() {
         <>
           <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-            style={{ zIndex: 9998 }}
+            style={{ zIndex: 9998, touchAction: 'none', overscrollBehavior: 'contain' }}
             onClick={handleClose}
+            onTouchMove={(e) => e.preventDefault()}
+            onWheel={(e) => e.preventDefault()}
           />
           <div
             className="fixed inset-x-0 mx-auto w-full max-w-sm bg-card rounded-t-2xl sm:rounded-2xl border border-border/40 shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300"
