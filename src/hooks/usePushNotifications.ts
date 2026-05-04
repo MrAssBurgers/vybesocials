@@ -3,6 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled } from '@/lib/serviceWorker';
+import despia from 'despia-native';
+
+function isDespiaWebView(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.includes('despia') || ua.includes('vybeapp');
+}
 
 // VAPID public key - this must match the VAPID_PUBLIC_KEY secret in Supabase
 // Generate a new key pair with: npx web-push generate-vapid-keys
