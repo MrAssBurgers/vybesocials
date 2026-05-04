@@ -23,6 +23,7 @@ import { useChatPrefetch, useNotificationChatPrefetch } from '@/hooks/useChatPre
 import { MouthZoomProvider, useMouthZoom } from '@/components/notifications/MouthZoomTransition';
 import { NotificationTransitionProvider, useNotificationTransition } from '@/components/notifications/NotificationTransitionProvider';
 import { useNotificationHoverPrefetch } from '@/hooks/useMouthZoomTransition';
+import { SmartPingCard } from '@/components/notifications/SmartPingCard';
 
 // ─── Icon color mapping ───
 const ICON_CONFIG: Record<NotificationType, { icon: React.ElementType; color: string; bg: string }> = {
