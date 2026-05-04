@@ -680,6 +680,25 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
   const { triggerTransition } = useNotificationTransition();
   const { onHover } = useNotificationHoverPrefetch();
 
+  // Smart pings get their own rich card UI
+  if (notification.type === 'smart_ping') {
+    return (
+      <div className="px-2 py-1.5">
+        <SmartPingCard
+          id={notification.id}
+          subtype={notification.subtype}
+          title={notification.title}
+          body={notification.body}
+          imageUrl={notification.image_url}
+          deepLink={notification.deep_link}
+          meta={notification.meta}
+          createdAt={notification.created_at}
+          read={notification.read}
+        />
+      </div>
+    );
+  }
+
   const config = ICON_CONFIG[notification.type] || ICON_CONFIG.announcement;
   const Icon = config.icon;
 
