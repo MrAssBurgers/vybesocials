@@ -861,16 +861,8 @@ export function GlobalCallOverlay() {
   // Accept incoming call
   const handleAccept = useCallback(async () => {
     if (!state.call) return;
-    // For P2P mode, skip requestCallMediaPermissions — P2PConnection.connect()
-    // calls getUserMedia itself. Double-requesting causes iOS camera failures.
-    if (state.call.callMode !== 'p2p') {
-      try {
-        await requestCallMediaPermissions(state.call.callType);
-      } catch (err: any) {
-        toast.error(err.message || 'Microphone permission required');
-        return;
-      }
-    }
+    // Skip permission probe for both modes — getUserMedia is called inline
+    // by P2PConnection / LiveKit and prompts the user from this gesture.
     try {
       await acceptCall(state.call);
     } catch (err: any) {
