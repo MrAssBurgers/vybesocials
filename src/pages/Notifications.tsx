@@ -663,6 +663,12 @@ interface NotificationRowProps {
     created_at: string;
     post_id: string | null;
     reason?: string | null;
+    title?: string | null;
+    body?: string | null;
+    image_url?: string | null;
+    deep_link?: string | null;
+    subtype?: string | null;
+    meta?: any;
     actor: {
       id: string;
       username: string;
