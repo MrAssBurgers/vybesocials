@@ -41,30 +41,55 @@ const smoothSpring = { type: 'spring' as const, stiffness: 380, damping: 28 };
 function TapRadar({ active, avatarUrl, fallback }: { active: boolean; avatarUrl?: string | null; fallback?: string }) {
   return (
     <div className="relative flex items-center justify-center w-44 h-44 mx-auto">
-      {/* Outer rings */}
-      {[0, 1, 2].map((i) => (
+      {/* Outer expanding rings */}
+      {[0, 1, 2, 3].map((i) => (
         <motion.div
           key={i}
-          className="absolute rounded-full border border-primary/30"
+          className="absolute rounded-full border border-primary/40"
           style={{ width: '100%', height: '100%' }}
-          animate={active ? { scale: [0.4, 1.1], opacity: [0.6, 0] } : { scale: 0.4, opacity: 0 }}
-          transition={{ duration: 2.4, repeat: Infinity, delay: i * 0.8, ease: 'easeOut' }}
+          animate={active ? { scale: [0.35, 1.15], opacity: [0.7, 0] } : { scale: 0.35, opacity: 0 }}
+          transition={{ duration: 2.6, repeat: Infinity, delay: i * 0.65, ease: [0.22, 1, 0.36, 1] }}
         />
       ))}
-      {/* Glow */}
+      {/* Sweeping radar arm */}
+      {active && (
+        <motion.div
+          className="absolute inset-0 rounded-full"
+          style={{
+            background: 'conic-gradient(from 0deg, transparent 0deg, hsl(var(--primary)/0.45) 40deg, transparent 80deg)',
+            mask: 'radial-gradient(circle, transparent 28%, black 30%, black 70%, transparent 72%)',
+            WebkitMask: 'radial-gradient(circle, transparent 28%, black 30%, black 70%, transparent 72%)',
+          }}
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
+        />
+      )}
+      {/* Inner glow */}
       <motion.div
         className="absolute inset-4 rounded-full"
-        style={{ background: 'radial-gradient(circle, hsl(var(--primary)/0.35), transparent 70%)' }}
-        animate={active ? { opacity: [0.5, 0.9, 0.5], scale: [0.95, 1.05, 0.95] } : { opacity: 0.3 }}
+        style={{ background: 'radial-gradient(circle, hsl(var(--primary)/0.4), transparent 70%)' }}
+        animate={active ? { opacity: [0.5, 0.95, 0.5], scale: [0.95, 1.06, 0.95] } : { opacity: 0.25 }}
         transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
       />
+      {/* Orbiting dots */}
+      {active && [0, 1, 2].map((i) => (
+        <motion.div
+          key={`dot-${i}`}
+          className="absolute top-1/2 left-1/2 w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]"
+          style={{ marginTop: -3, marginLeft: -3 }}
+          animate={{ rotate: 360 }}
+          transition={{ duration: 4 + i * 0.6, repeat: Infinity, ease: 'linear' }}
+        >
+          <div style={{ transform: `translateX(${72 + i * 4}px)` }} className="w-1.5 h-1.5 rounded-full bg-primary" />
+        </motion.div>
+      ))}
       {/* Center avatar */}
       <motion.div
         className="relative z-10"
-        animate={active ? { scale: [1, 1.04, 1] } : {}}
+        animate={active ? { scale: [1, 1.05, 1] } : {}}
         transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <Avatar className="h-20 w-20 ring-4 ring-primary/40 shadow-[0_0_24px_hsl(var(--primary)/0.5)]">
+        <Avatar className="h-20 w-20 ring-4 ring-primary/40 shadow-[0_0_28px_hsl(var(--primary)/0.55)]">
           <AvatarImage src={avatarUrl || undefined} />
           <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-primary/20 to-accent/20">
             {fallback?.[0]?.toUpperCase() || '?'}
@@ -80,6 +105,95 @@ function TapRadar({ active, avatarUrl, fallback }: { active: boolean; avatarUrl?
         )}
       </motion.div>
     </div>
+  );
+}
+
+/* ─── Phones Connected Splash ─── */
+function PhonesConnected({ myAvatar, myFallback }: { myAvatar?: string | null; myFallback?: string }) {
+  return (
+    <motion.div
+      key="connected"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="flex flex-col items-center gap-5 py-8"
+    >
+      <div className="relative h-28 w-56 flex items-center justify-center">
+        {/* Connection arc */}
+        <motion.div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-1 rounded-full"
+          style={{ background: 'linear-gradient(90deg, transparent, hsl(var(--primary)), hsl(var(--accent)), transparent)' }}
+          initial={{ scaleX: 0, opacity: 0 }}
+          animate={{ scaleX: 1, opacity: [0, 1, 1] }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        />
+        {/* Spark pulses traveling */}
+        {[0, 1, 2].map((i) => (
+          <motion.div
+            key={i}
+            className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary shadow-[0_0_12px_hsl(var(--primary))]"
+            initial={{ left: '20%', opacity: 0 }}
+            animate={{ left: ['20%', '80%'], opacity: [0, 1, 0] }}
+            transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.25, ease: 'easeInOut' }}
+          />
+        ))}
+
+        {/* Left phone */}
+        <motion.div
+          initial={{ x: -40, opacity: 0, rotate: -8 }}
+          animate={{ x: -36, opacity: 1, rotate: -6 }}
+          transition={{ ...smoothSpring }}
+          className="absolute left-0 top-1/2 -translate-y-1/2"
+        >
+          <div className="relative w-12 h-20 rounded-xl bg-card border-2 border-primary/40 shadow-[0_0_20px_hsl(var(--primary)/0.4)] flex items-center justify-center">
+            <Avatar className="h-7 w-7">
+              <AvatarImage src={myAvatar || undefined} />
+              <AvatarFallback className="text-[10px] font-bold">{myFallback?.[0]?.toUpperCase() || '?'}</AvatarFallback>
+            </Avatar>
+            <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full bg-foreground/30" />
+          </div>
+        </motion.div>
+
+        {/* Right phone */}
+        <motion.div
+          initial={{ x: 40, opacity: 0, rotate: 8 }}
+          animate={{ x: 36, opacity: 1, rotate: 6 }}
+          transition={{ ...smoothSpring }}
+          className="absolute right-0 top-1/2 -translate-y-1/2"
+        >
+          <div className="relative w-12 h-20 rounded-xl bg-card border-2 border-accent/40 shadow-[0_0_20px_hsl(var(--accent)/0.4)] flex items-center justify-center">
+            <motion.div
+              animate={{ scale: [1, 1.15, 1] }}
+              transition={{ duration: 1.2, repeat: Infinity }}
+            >
+              <Wifi className="h-4 w-4 text-accent" />
+            </motion.div>
+            <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full bg-foreground/30" />
+          </div>
+        </motion.div>
+
+        {/* Central pulse */}
+        <motion.div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/30"
+          initial={{ width: 0, height: 0, opacity: 0 }}
+          animate={{ width: [0, 80], height: [0, 80], opacity: [0.6, 0] }}
+          transition={{ duration: 1.2, repeat: Infinity, ease: 'easeOut' }}
+        />
+      </div>
+
+      <div className="text-center">
+        <motion.div
+          initial={{ y: 6, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.15 }}
+          className="flex items-center justify-center gap-2"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <h3 className="text-base font-bold text-foreground">Phones connected!</h3>
+        </motion.div>
+        <p className="text-xs text-muted-foreground mt-1">Pulling profile…</p>
+      </div>
+    </motion.div>
   );
 }
 
@@ -307,6 +421,9 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   /* ── Overlay phases ── */
   const renderOverlay = () => {
     if (phase === 'detected') {
+      if (activeTab === 'tap') {
+        return <PhonesConnected myAvatar={profile?.avatar_url} myFallback={profile?.username || ''} />;
+      }
       return (
         <motion.div key="detected" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           className="flex flex-col items-center gap-3 py-10"
