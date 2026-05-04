@@ -27,7 +27,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useCallStore, CallData, CallMode } from '@/lib/callStore';
-import { requestCallMediaPermissions } from '@/lib/mediaPermissions';
+
 import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { supabase } from '@/integrations/supabase/client';
@@ -292,16 +292,24 @@ export function GlobalCallOverlay() {
       isInitiator: call.isInitiator,
       callType: call.callType,
       onEvent: (evt) => handleP2PEventRef.current(evt),
+      // Attach the local preview the INSTANT the camera opens —
+      // don't wait for signaling/handshake to complete.
+      onLocalStream: (stream) => {
+        if (call.callType === 'video') {
+          const videoTrack = stream.getVideoTracks()[0];
+          if (videoTrack) attachLocalVideo(videoTrack);
+        }
+      },
     });
 
     p2pRef.current = p2p;
 
     try {
       await p2p.connect();
-
-      // Attach local video if video call
+      // Safety net: if onLocalStream didn't fire (e.g. callback errored),
+      // still try to attach now.
       const localStream = p2p.getLocalStream();
-      if (localStream && call.callType === 'video') {
+      if (localStream && call.callType === 'video' && !localVideoRef.current?.srcObject) {
         const videoTrack = localStream.getVideoTracks()[0];
         if (videoTrack) attachLocalVideo(videoTrack);
       }
@@ -468,17 +476,11 @@ export function GlobalCallOverlay() {
     let cancelled = false;
 
     const doJoin = async () => {
-      // For P2P: skip requestCallMediaPermissions — P2PConnection.connect() 
-      // calls getUserMedia itself. Double-requesting causes iOS failures.
-      if (state.call!.callMode === 'persistent') {
-        try {
-          await requestCallMediaPermissions(state.call!.callType);
-        } catch (err: any) {
-          toast.error(err.message || 'Microphone permission required');
-          endCall();
-          return;
-        }
-      }
+      // NOTE: We intentionally skip requestCallMediaPermissions here for
+      // BOTH p2p AND persistent. P2PConnection.connect() and LiveKit's
+      // setMicrophoneEnabled/setCameraEnabled both call getUserMedia
+      // themselves and trigger the OS prompt inline — pre-probing here
+      // just doubles the cost and (on iOS) can cause NotReadableError.
       if (cancelled) return;
 
       clearJoinTimeout();
@@ -492,7 +494,25 @@ export function GlobalCallOverlay() {
       }, timeout);
 
       if (state.call!.callMode === 'persistent') {
-        await connectToRoom(state.call!);
+        // Persistent mode needs a LiveKit token. For accepted persistent calls,
+        // acceptCall fetches the token asynchronously after flipping to 'joining',
+        // so the token may not be present yet. Wait for it (up to 8s) before
+        // calling room.connect().
+        if (!state.call!.token || !state.call!.livekitUrl) {
+          const waitStart = Date.now();
+          while (!cancelled && (!stateRef.current.call?.token || !stateRef.current.call?.livekitUrl)) {
+            if (Date.now() - waitStart > 8000) break;
+            await new Promise(r => setTimeout(r, 100));
+          }
+          if (cancelled) return;
+        }
+        const ready = stateRef.current.call;
+        if (!ready?.token || !ready?.livekitUrl) {
+          toast.error('Failed to start call');
+          endCall();
+          return;
+        }
+        await connectToRoom(ready);
       } else {
         await connectP2P(state.call!);
       }
@@ -841,16 +861,8 @@ export function GlobalCallOverlay() {
   // Accept incoming call
   const handleAccept = useCallback(async () => {
     if (!state.call) return;
-    // For P2P mode, skip requestCallMediaPermissions — P2PConnection.connect()
-    // calls getUserMedia itself. Double-requesting causes iOS camera failures.
-    if (state.call.callMode !== 'p2p') {
-      try {
-        await requestCallMediaPermissions(state.call.callType);
-      } catch (err: any) {
-        toast.error(err.message || 'Microphone permission required');
-        return;
-      }
-    }
+    // Skip permission probe for both modes — getUserMedia is called inline
+    // by P2PConnection / LiveKit and prompts the user from this gesture.
     try {
       await acceptCall(state.call);
     } catch (err: any) {

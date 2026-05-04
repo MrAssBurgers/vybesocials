@@ -31,8 +31,31 @@ async function checkPermissionStatus(name: 'microphone' | 'camera'): Promise<boo
  * 
  * Daily.js will handle the actual stream creation with its own constraints.
  */
+const SESSION_CACHE_KEY = 'vybe-media-perms-granted';
+
+function readPermCache(): { mic?: boolean; cam?: boolean } {
+  try {
+    const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function writePermCache(patch: { mic?: boolean; cam?: boolean }) {
+  try {
+    const cur = readPermCache();
+    sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ ...cur, ...patch }));
+  } catch {}
+}
+
 export async function requestCallMediaPermissions(callType: CallMediaType): Promise<void> {
   assertMediaSupported();
+
+  // Fast path: session cache (skip the full probe entirely on subsequent calls)
+  const cached = readPermCache();
+  if (cached.mic && (callType === 'audio' || cached.cam)) {
+    console.log('[mediaPermissions] Session cache hit — skipping probe');
+    return;
+  }
 
   console.log('[mediaPermissions] Checking permissions for:', callType);
 
@@ -64,11 +87,13 @@ export async function requestCallMediaPermissions(callType: CallMediaType): Prom
       // Small delay to let OS release the device before Daily requests it
       await new Promise(r => setTimeout(r, 100));
       console.log('[mediaPermissions] Microphone permission granted');
+      writePermCache({ mic: true });
     } catch (err: any) {
       console.error('[mediaPermissions] Microphone access denied:', err);
       throw new Error(callType === 'video' ? 'Microphone/Camera permission required' : 'Microphone permission required');
     }
   } else {
+    writePermCache({ mic: true });
     console.log('[mediaPermissions] Microphone already granted (skipping getUserMedia)');
   }
 
@@ -89,11 +114,13 @@ export async function requestCallMediaPermissions(callType: CallMediaType): Prom
         camStream.getTracks().forEach(t => t.stop());
         await new Promise(r => setTimeout(r, 100));
         console.log('[mediaPermissions] Camera permission granted');
+        writePermCache({ cam: true });
       } catch (err: any) {
         console.warn('[mediaPermissions] Camera access denied, continuing with audio only:', err);
         // Don't throw for camera - allow audio-only fallback
       }
     } else {
+      writePermCache({ cam: true });
       console.log('[mediaPermissions] Camera already granted (skipping getUserMedia)');
     }
   }
