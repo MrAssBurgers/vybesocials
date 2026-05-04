@@ -311,7 +311,19 @@ self.addEventListener('push', (event) => {
       tag = `vybe-missed-${data.callId || Date.now()}`;
       vibrate = isIOS() ? [] : [200, 100, 200];
       break;
-      
+
+    case 'smart_ping':
+      // Rich contextual ping (nearby, brief, friend activity)
+      tag = `vybe-smart-${data.subtype || 'ping'}-${data.post_id || Date.now()}`;
+      vibrate = isIOS() ? [] : [60, 40, 60];
+      if (!isIOS()) {
+        actions = [
+          { action: 'open', title: 'Open', icon: APP_ICON },
+          { action: 'mute1h', title: 'Mute 1h', icon: APP_ICON },
+        ];
+      }
+      break;
+
     default:
       // General notification
       vibrate = isIOS() ? [] : [100, 50, 100];
