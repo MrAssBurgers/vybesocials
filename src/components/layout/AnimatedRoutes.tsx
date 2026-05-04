@@ -15,6 +15,7 @@ import { useAutoBugReporter } from '@/hooks/useAutoBugReporter';
 // Lazy-load all pages to reduce unused JavaScript in the initial bundle
 const Landing = lazy(() => import("@/pages/Landing"));
 const VybeHome = lazy(() => import("@/pages/VybeHome"));
+const DevMockupCompare = lazy(() => import("@/pages/DevMockupCompare"));
 const RootGate = lazy(() => import("@/components/auth/RootGate"));
 const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 
@@ -141,6 +142,9 @@ export function AnimatedRoutes() {
             <Route path="/" element={<RootGate />} />
             <Route path="/vybe-home" element={<PublicOnlyRoute><VybeHome /></PublicOnlyRoute>} />
             <Route path="/tour" element={<PublicOnlyRoute><VybeHome /></PublicOnlyRoute>} />
+            {import.meta.env.DEV && (
+              <Route path="/dev/mockup-compare" element={<DevMockupCompare />} />
+            )}
             {/* Auth entry — explicit Landing routes for sign-in / sign-up */}
             <Route path="/login" element={<Landing />} />
             <Route path="/signin" element={<Landing />} />

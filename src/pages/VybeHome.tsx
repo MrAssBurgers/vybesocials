@@ -73,9 +73,47 @@ const SCENES = {
   cafe:     'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=600&q=80&auto=format&fit=crop',
 };
 
-const Img = ({ src, className, alt = '' }: { src: string; className?: string; alt?: string }) => (
-  <img src={src} alt={alt} loading="lazy" decoding="async" className={cn('object-cover bg-white/5', className)} />
+/**
+ * Avatar — square, object-cover, exactly like the real <AvatarImage> in src/components/ui/avatar.tsx
+ * Use for ALL person photos in mockups so they look screenshot-cropped.
+ */
+const Avatar = ({ src, className, alt = '' }: { src: string; className?: string; alt?: string }) => (
+  <span className={cn('relative inline-block shrink-0 overflow-hidden rounded-full bg-white/5', className)}>
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      className="absolute inset-0 aspect-square h-full w-full object-cover"
+    />
+  </span>
 );
+
+/**
+ * Thumb — fixed-aspect media tile (square by default), matches real PostCard / ChatMediaBubble crop rules.
+ */
+const Thumb = ({
+  src,
+  className,
+  alt = '',
+  ratio = 'aspect-square',
+}: { src: string; className?: string; alt?: string; ratio?: string }) => (
+  <span className={cn('relative block overflow-hidden bg-white/5', ratio, className)}>
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      className="absolute inset-0 h-full w-full object-cover"
+    />
+  </span>
+);
+
+// Back-compat alias used throughout this file.
+const Img = ({ src, className, alt = '' }: { src: string; className?: string; alt?: string }) =>
+  className?.includes('rounded-full')
+    ? <Avatar src={src} className={className} alt={alt} />
+    : <img src={src} alt={alt} loading="lazy" decoding="async" className={cn('object-cover bg-white/5', className)} />;
 
 /* ---------- Phone mockups (mirror the real app screens) ---------- */
 
