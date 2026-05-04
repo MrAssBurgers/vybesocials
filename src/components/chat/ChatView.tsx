@@ -1719,7 +1719,9 @@ export function ChatView() {
       {!isGroupChat && otherMember?.id ? (
         <DMSafetyGate targetUserId={otherMember.id} targetUsername={otherMember.username || ''}>
           <MessageInputArea
-            messageText={messageText}
+            hasText={hasText}
+            getMessageText={() => messageTextRef.current}
+            appendToInput={appendToInput}
             viewMode={viewMode}
             showViewModeMenu={showViewModeMenu}
             setShowViewModeMenu={setShowViewModeMenu}
@@ -1774,7 +1776,9 @@ export function ChatView() {
         </DMSafetyGate>
       ) : (
         <MessageInputArea
-          messageText={messageText}
+          hasText={hasText}
+          getMessageText={() => messageTextRef.current}
+          appendToInput={appendToInput}
           viewMode={viewMode}
           showViewModeMenu={showViewModeMenu}
           setShowViewModeMenu={setShowViewModeMenu}
@@ -1845,7 +1849,9 @@ export function ChatView() {
 
 // Extracted MessageInputArea component for reuse
 const MessageInputArea = memo(function MessageInputArea({
-  messageText,
+  hasText,
+  getMessageText,
+  appendToInput,
   viewMode,
   showViewModeMenu,
   setShowViewModeMenu,
@@ -1888,7 +1894,9 @@ const MessageInputArea = memo(function MessageInputArea({
   voiceLockStartYRef,
   safetyFilterNode,
 }: {
-  messageText: string;
+  hasText: boolean;
+  getMessageText: () => string;
+  appendToInput: (s: string) => void;
   viewMode: ViewMode;
   showViewModeMenu: boolean;
   setShowViewModeMenu: (open: boolean) => void;
@@ -2067,7 +2075,7 @@ const MessageInputArea = memo(function MessageInputArea({
               </div>
             </div>
 
-            {!messageText.trim() ? (
+            {!hasText ? (
               <div className="flex items-center gap-0.5">
                 {setShowStickerPanel && (
                   <Button 
@@ -2130,7 +2138,7 @@ const MessageInputArea = memo(function MessageInputArea({
             ) : (
               <Button 
                 onClick={handleSend}
-                disabled={!messageText.trim() || isPending}
+                disabled={!hasText || isPending}
                 size="icon"
                 className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10 rounded-full"
               >
