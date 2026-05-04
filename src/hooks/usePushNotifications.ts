@@ -181,6 +181,10 @@ export function usePushNotifications() {
 
     setIsLoading(true);
     try {
+      if (isDespiaWebView()) {
+        const ok = await subscribeDespia();
+        return ok;
+      }
       // Request notification permission
       const permissionResult = await Notification.requestPermission();
       setPermission(permissionResult);
