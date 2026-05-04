@@ -405,7 +405,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   /* ── QR Tab ── */
   const renderQRTab = () => (
     <motion.div key="qr-tab" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-      className="flex flex-col items-center gap-4"
+      className="flex flex-col items-center gap-3"
     >
       {/* "Scanned" pulse */}
       <AnimatePresence>
