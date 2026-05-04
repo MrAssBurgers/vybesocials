@@ -384,6 +384,18 @@ self.addEventListener('notificationclick', (event) => {
     targetUrl = '/notifications';
   } else if (data.type === 'like' || data.type === 'comment') {
     targetUrl = data.postId ? `/p/${data.postId}` : '/notifications';
+  } else if (data.type === 'smart_ping') {
+    if (action === 'mute1h') {
+      // Fire-and-forget mute via edge function (uses any open client's session)
+      event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+          const c = list[0];
+          if (c) c.postMessage({ type: 'MUTE_SMART_PINGS', hours: 1 });
+        })
+      );
+      return;
+    }
+    targetUrl = data.url || '/notifications';
   }
 
   event.waitUntil(
