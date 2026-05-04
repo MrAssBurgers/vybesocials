@@ -635,15 +635,21 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     premiumSounds.stopAllCallSounds();
     setIncomingCall(null);
 
-    try {
-      // Update call status
-      await supabase
-        .from('calls')
-        .update({ status: 'accepted', started_at: new Date().toISOString() })
-        .eq('id', call.id);
+    // Fire-and-forget DB status update — never block the UI on this
+    void supabase
+      .from('calls')
+      .update({ status: 'accepted', started_at: new Date().toISOString() })
+      .eq('id', call.id)
+      .then(({ error }) => {
+        if (error) console.warn('[CallStore] accept status update failed:', error);
+      });
 
-      if (call.callMode === 'persistent') {
-        // Get LiveKit token for persistent mode
+    if (call.callMode === 'persistent') {
+      // For persistent: still need the LiveKit token before joining the room.
+      // Flip to 'joining' immediately so overlay paints; overlay will wait
+      // until call.token is set before calling room.connect().
+      setState({ phase: 'joining', call: { ...call }, error: null });
+      try {
         const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
           body: {
             conversationId: call.conversationId,
@@ -656,22 +662,17 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           throw new Error(tokenError?.message || tokenData?.error || 'Failed to get token');
         }
 
-        const callData: CallData = {
-          ...call,
-          token: tokenData.token,
-          livekitUrl: tokenData.url,
-          roomName: tokenData.roomName,
-        };
-
-        setState({ phase: 'joining', call: callData, error: null });
-      } else {
-        // P2P mode — just set joining, GlobalCallOverlay will handle WebRTC
-        setState({ phase: 'joining', call: { ...call }, error: null });
+        setState(prev => prev.call?.id === call.id
+          ? { ...prev, call: { ...prev.call, token: tokenData.token, livekitUrl: tokenData.url, roomName: tokenData.roomName } }
+          : prev);
+      } catch (err: any) {
+        console.error('[CallStore] Failed to accept call:', err);
+        premiumSounds.stopAllCallSounds();
+        setState({ phase: 'error', call: null, error: err.message });
       }
-    } catch (err: any) {
-      console.error('[CallStore] Failed to accept call:', err);
-      premiumSounds.stopAllCallSounds();
-      setState({ phase: 'error', call: null, error: err.message });
+    } else {
+      // P2P mode — overlay starts WebRTC the moment we flip phase
+      setState({ phase: 'joining', call: { ...call }, error: null });
     }
   }, [setState, setIncomingCall]);
 
