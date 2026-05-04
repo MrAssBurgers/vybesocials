@@ -4,7 +4,9 @@ import { motion } from 'framer-motion';
 import {
   Dna, Sparkles, MapPin, MessageCircle, Radio, ShoppingBag, Wallet, Bot,
   Palette, Flame, Shuffle, Trophy, Camera, ShieldCheck, Heart, Users,
-  Zap, Crown, Bell, PlayCircle, ArrowRight, Check, X,
+  Zap, Crown, Bell, PlayCircle, ArrowRight, Check, X, Home, Plus, User,
+  Search, Send, Bookmark, Share2, MoreHorizontal, ArrowLeft, Lightbulb,
+  Globe, Mic, Smile,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
