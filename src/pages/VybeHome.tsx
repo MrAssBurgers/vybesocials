@@ -282,17 +282,7 @@ const VybeHome = memo(function VybeHome() {
     return () => { document.title = prev; meta?.setAttribute('content', prevDesc); };
   }, []);
   return (
-    <div
-      className="vybe-home-scroll bg-[#0B0B10] text-white"
-      style={{
-        height: '100dvh',
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        WebkitOverflowScrolling: 'touch',
-        overscrollBehaviorY: 'contain',
-        touchAction: 'pan-y',
-      }}
-    >
+    <div className="page-scroll-fix bg-[#0B0B10] text-white">
       {/* SEO handled via useEffect below */}
 
       {/* Sticky nav */}
