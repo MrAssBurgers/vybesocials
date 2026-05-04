@@ -1,84 +1,60 @@
 ## Goal
 
-Make `/vybe-home` look genuinely real (not AI-mocked) by swapping flat gradient placeholders for actual photos of fake people and group shots, and apply our **VybeHome scroll fix** pattern to every public marketing/auth page that has the same finger-scroll bug — starting with `/login` and `/signup` (Landing).
+Make the marketing page (`/vybe-home`) phones look **identical** to the real app — not hand-drawn approximations. Pull the live signup count from the database instead of the fake "12,000+ in early access".
 
-## 1. Real fake-people imagery
+## Approach
 
-Add curated Unsplash photo URLs (free CC0, no attribution required for app use) for:
+### 1. Use the real app's UI primitives, not hand-rolled clones
+Currently `VybeHome.tsx` re-implements `DNAPhone`, `FeedPhone`, `MapPhone`, `ChatPhone` from scratch with custom Tailwind. They drift from the real screens (real app uses tokens like `bg-background`, `text-foreground`, real `Avatar`, `Card`, sticky headers w/ specific paddings).
 
-**Avatars (fake people pfps)** — used in stories row, post header, friend map pins, chat header, comparison table, testimonials. We'll use `i.pravatar.cc/300?img=N` with locked seeds so they stay consistent — these are real photos of real models from the Pravatar set, but they are not VYBE users (they're fake "Maya R.", "Jordan W.", "Leo K.", etc.).
+I'll replace each phone mockup with **a slim, reusable preview component that imports the actual real components** wrapped in a fake-data provider:
 
-Seed map (locked so it never reshuffles):
-- `maya.rae` → img=47 · `jordan.w` → img=12 · `leo.k` → img=33 · `sky.m` → img=49 · `mia.z` → img=44 · `kai.t` → img=15
+- `DNAPhonePreview` — uses real `DNAOrb`, `PersonalityArchetype`, `DNATraitBars`, `DNAColorPalette` from `src/components/dna/*` with a hardcoded `dna` prop (no hook calls). Same sticky header markup as `VybeDNA.tsx` (back arrow + "VYBE DNA / Evolves with your activity" + Share icon, `bg-background/80 backdrop-blur-xl border-b border-border/30`).
+- `FeedPhonePreview` — reuses real story-ring + post-card layout. Header is the real `VYBE` wordmark + Search/Bell/Avatar row, tab pills For You/Following/Global/Local exactly like `Home.tsx`. Renders a static `Post`-shaped object through the real `PostCard` component (or a thin wrapper if `PostCard` requires too many providers — I'll check first and fall back to a pixel-faithful copy that uses the real `Avatar`, `Card`, and Tailwind tokens).
+- `MapPhonePreview` — copies the actual `FriendMap` header (`MapPin` + "Friend Map" + nearby pill) and the bump bottom-sheet card markup verbatim, wrapped over a CSS map background (the real map uses Mapbox which we can't render in a tiny preview, so a stylized grid is acceptable — but pin avatars, status emojis, and the bottom card use the real component classes).
+- `ChatPhonePreview` — mirrors `ChatView.tsx`'s header, message bubbles, reactions chip, snap card, and composer using the real Tailwind classes from that file.
 
-**Post media** — every fake post that currently shows a flat gradient gets a real "group of people chilling" photo from Unsplash:
-- Hero feed post: rooftop friends laughing
-- Post-detail mock: friends at a sunset picnic
-- Story thumbnails: candid group shots, café table, concert crowd
-- VYBE Snap card in chat: two friends on a couch laughing
+All previews render inside the existing `PhoneFrame` (260px wide, 9:19.5, `#0B0B10` border) with the real iOS-style status bar and the real `BottomNav` markup (5 tabs, gradient center button) copied from `src/components/layout/BottomNav.tsx` so spacing/sizing matches exactly.
 
-Implementation: a small `FAKE_PEOPLE` and `FAKE_SCENES` constant at the top of `VybeHome.tsx` so all references stay consistent. Wrap each `<img>` in a tiny `<PhotoFill>` helper that does `object-cover`, `loading="lazy"`, blurred placeholder, and gracefully falls back to the existing gradient if the image fails.
+### 2. Screenshot-cropped looking assets
 
-**Where current gradients become real photos:**
+- **Avatars**: keep the Pravatar URLs but render them through the real `Avatar`/`AvatarImage` component with the same ring + size classes used in the app (e.g. `h-10 w-10 ring-2 ring-primary/20`).
+- **Post media / chat snap**: keep current Unsplash group photos but constrain them with the real post card's `aspect-square` + `object-cover` and the same overlay gradient used in `ChatMediaBubble.tsx`.
+- **Icons**: switch any custom SVG/emoji shortcuts to the exact `lucide-react` icons the real screens use (already mostly correct — will audit each header).
 
-| Component | Was | Becomes |
-|---|---|---|
-| `FeedPhone` post body | pink→violet→cyan gradient | Unsplash group-of-friends photo, with the existing aura badge overlaid |
-| `FeedPhone` story rings | empty colored circles | Real avatars inside the conic gradient ring |
-| `FeedPhone` post header avatar | gradient circle | Pravatar `maya.rae` |
-| `MapPhone` friend pins | colored circles with emoji | Small circular real avatars + emoji status badge |
-| `MapPhone` "0.4 mi away" card | gradient circle | Pravatar `leo.k` |
-| `ChatPhone` header avatar | gradient circle | Pravatar `jordan.w` + green online dot kept |
-| `ChatPhone` VYBE Snap card | flat gradient | Real "two friends laughing on a couch" photo |
-| Hero "Now in early access" pill | nothing | Add 3 stacked overlapping real avatars next to it for social proof |
-| Final CTA section | nothing | Add a faint, low-opacity group photo as background layer behind the radial gradients |
+### 3. Live user count (no fake "12,000+")
 
-All photos use stable Unsplash photo IDs (e.g. `https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=600&q=80`) so they don't rotate and we can verify each one looks right.
+Replace the hardcoded "12,000+ in early access" pill in the hero with a small hook:
 
-## 2. New "Real people" testimonial strip
+```ts
+// src/hooks/usePublicUserCount.ts
+export function usePublicUserCount() {
+  return useQuery({
+    queryKey: ['public-user-count'],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true });
+      return count ?? 0;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+```
 
-Insert a new section between "Why VYBE" and the Safety strip:
+Render: `"{count} early members"` (with the green pulse dot). Today this would show **145**. While loading, show "Joining a small, growing crew" so we never lie. The 4-up stat strip ("120+ Features / ∞ Themes / <200ms / 24/7") stays — those aren't user-count claims.
 
-- 3 testimonial cards, each with a real Pravatar headshot, fake handle, fake location, and a short quote
-- Centered headline: "Built for actual humans."
-- Cards use the same `bg-white/[0.03]` glass treatment as the feature grid for visual consistency
+### 4. Files touched
 
-This single section does most of the "make it look real not AI" work because it adds faces.
+- `src/pages/VybeHome.tsx` — replace the four `*Phone` components with the new previews, swap the hero pill for the live counter.
+- `src/hooks/usePublicUserCount.ts` — new.
+- (If the real `PostCard` is import-safe without auth/providers) no other files. Otherwise I'll create `src/components/marketing/previews/{Dna,Feed,Map,Chat}PhonePreview.tsx` that re-use the lowest-level real subcomponents (`Avatar`, `DNAOrb`, `PersonalityArchetype`, etc.) plus pixel-faithful header/composer markup pulled directly from `VybeDNA.tsx`, `Home.tsx`, `FriendMap.tsx`, `ChatView.tsx`.
 
-## 3. Scroll fix — apply the VybeHome pattern everywhere it's broken
+### 5. Out of scope
 
-The `vybe-home-scroll` style block (`height: 100dvh; overflowY: auto; WebkitOverflowScrolling: touch; overscrollBehaviorY: contain; touchAction: pan-y`) is what fixed the trackpad/finger scrolling for marketing pages. Auth pages have the same bug because they use `min-h-[100dvh]` (which lets content grow past the viewport without constraining a real scroll container).
+- No changes to login/signup, routing, or the scroll fix (already shipped).
+- No changes to the real app screens themselves.
 
-**Rename the helper** so it's reusable and named after the issue:
+## Result
 
-- Promote the inline style block in `VybeHome.tsx` to a single shared CSS class **`.page-scroll-fix`** in `src/index.css` (alongside the existing `scroll-mobile-safe` block at line 1037). Document it as: *"VYBE scroll-fix — fixes the bug where users had to drag the scrollbar instead of scrolling with finger/trackpad on full-page marketing/auth screens."*
-- Replace the inline style on `VybeHome.tsx` with `className="page-scroll-fix"`.
-
-**Apply `.page-scroll-fix` to:**
-
-1. `src/pages/Landing.tsx` — the `/login` and `/signup` page (line 283 wrapper). Change `min-h-[100dvh] … overflow-y-auto scroll-mobile-safe` → `page-scroll-fix … flex items-start sm:items-center justify-center px-4 py-8`. Keep flex layout for the centered card.
-2. Spot-check and apply the same fix to other public pages already reported to have the bug: `src/pages/About.tsx`, `src/pages/Features.tsx`, `src/pages/Safety.tsx`, `src/pages/Blog.tsx`, `src/pages/FAQ.tsx`, `src/pages/Contact.tsx`, `src/pages/Privacy.tsx`, `src/pages/Terms.tsx` — only where the page wrapper currently uses `min-h-screen` / `min-h-[100dvh]` without an inner scroll container.
-
-Authenticated app routes (under `AppLayout`) are NOT touched — they already have their own scroller at line 84/136 of `AppLayout.tsx`.
-
-## 4. Memory
-
-After implementation, save a `mem://technical/ui-interaction/page-scroll-fix` memory:
-
-> "Public/marketing/auth pages outside AppLayout must use `.page-scroll-fix` (height: 100dvh + overflow-y: auto + touch-action: pan-y + WebkitOverflowScrolling). `min-h-[100dvh]` alone causes the 'have-to-drag-the-scrollbar' bug on trackpads and touch."
-
-Add a one-liner to the index referencing it.
-
-## Out of scope
-
-- Real screenshots of the live VYBE app (user said keep current in-browser mockups, just make the people fake/real-looking)
-- Any change to native APK behavior — RootGate already routes Capacitor builds straight to Landing
-- Stripe / Cloud / DB changes
-
-## Files touched
-
-- `src/pages/VybeHome.tsx` (image swaps + testimonial section + remove inline scroll style)
-- `src/pages/Landing.tsx` (apply `page-scroll-fix`)
-- `src/index.css` (add `.page-scroll-fix` class)
-- `src/pages/About.tsx`, `Features.tsx`, `Safety.tsx`, `Blog.tsx`, `FAQ.tsx`, `Contact.tsx`, `Privacy.tsx`, `Terms.tsx` (wrapper class swap where applicable)
-- `mem://technical/ui-interaction/page-scroll-fix` + index update
+Each mockup phone will look like a real screenshot of the running app (real components, real spacing, real header bars, real bottom nav), only the people/handles/photos are fake. The hero shows the **actual** signup count from the database.
