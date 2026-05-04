@@ -475,7 +475,7 @@ const features = [
   { icon: Palette, label: 'Themes', desc: 'Share your look' },
   { icon: Flame, label: 'Streaks', desc: '48h reaction chains' },
   { icon: Shuffle, label: 'Roulette', desc: 'Meet someone new' },
-  { icon: Trophy, label: 'Battle Pass', desc: 'Level up daily' },
+  { icon: Trophy, label: 'Challenges', desc: 'Daily & weekly XP quests' },
   { icon: Crown, label: 'VYBE Pro', desc: 'Coming soon', soon: true },
   { icon: ShieldCheck, label: 'Vybe Check', desc: 'Real-time safety AI' },
   { icon: Bell, label: 'Smart Notifs', desc: 'Quiet by default' },
