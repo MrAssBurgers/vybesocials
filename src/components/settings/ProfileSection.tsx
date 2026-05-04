@@ -66,20 +66,23 @@ export function ProfileSection() {
         bio: formData.bio,
       } as any);
       if (error) throw error;
-      
-      // Sync challenges after profile update
-      await supabase.rpc('force_sync_my_challenges');
-      queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
-      // Refresh anything that displays identity (chat, comments, headers, mentions, posts...)
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-      queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
-      queryClient.invalidateQueries({ queryKey: ['comments'] });
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      
+
+      // Show success immediately — the rest is background work.
       haptics.success();
       toast.success('Profile updated successfully!');
+
+      // Fire-and-forget: challenge sync + cache invalidation should never
+      // block the user from seeing their save complete.
+      void (async () => {
+        try { await supabase.rpc('force_sync_my_challenges'); } catch {}
+        queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
+        queryClient.invalidateQueries({ queryKey: ['profile'] });
+        queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
+        queryClient.invalidateQueries({ queryKey: ['posts'] });
+        queryClient.invalidateQueries({ queryKey: ['comments'] });
+        queryClient.invalidateQueries({ queryKey: ['messages'] });
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      })();
     } catch (error: any) {
       haptics.error();
       toast.error(getUserFriendlyError(error));
