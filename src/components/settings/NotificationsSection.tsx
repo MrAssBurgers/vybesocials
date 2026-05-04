@@ -25,7 +25,7 @@ export function NotificationsSection() {
     unsubscribe: unsubscribePush 
   } = usePushNotifications();
 
-  const handleToggle = async (key: 'announcements_enabled', value: boolean) => {
+  const handleToggle = async (key: any, value: boolean) => {
     haptics.tap();
     updatePref.mutate({ key, value });
     
