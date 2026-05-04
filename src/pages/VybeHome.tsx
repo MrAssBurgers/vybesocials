@@ -197,8 +197,8 @@ const VybeHome = memo(function VybeHome() {
             <Link to="/blog" className="hover:text-white transition">Blog</Link>
           </nav>
           <div className="flex items-center gap-2">
-            <Link to="/" className="hidden sm:block px-4 py-2 text-sm text-white/80 hover:text-white transition">Sign in</Link>
-            <Link to="/" className="px-4 py-2 rounded-full text-sm font-semibold bg-white text-[#0B0B10] hover:scale-105 transition">
+            <Link to="/login" className="hidden sm:block px-4 py-2 text-sm text-white/80 hover:text-white transition">Sign in</Link>
+            <Link to="/signup" className="px-4 py-2 rounded-full text-sm font-semibold bg-white text-[#0B0B10] hover:scale-105 transition">
               Get VYBE
             </Link>
           </div>
@@ -231,7 +231,7 @@ const VybeHome = memo(function VybeHome() {
               custom themes, creator tools, and AI — all wrapped in a UI that morphs to match your vibe.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/" className="px-6 py-3.5 rounded-full bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-semibold flex items-center gap-2 hover:scale-105 transition shadow-lg shadow-violet-500/30">
+              <Link to="/signup" className="px-6 py-3.5 rounded-full bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-semibold flex items-center gap-2 hover:scale-105 transition shadow-lg shadow-violet-500/30">
                 Create your VYBE <ArrowRight className="w-4 h-4" />
               </Link>
               <a href="#features" className="px-6 py-3.5 rounded-full bg-white/5 border border-white/10 text-white font-semibold hover:bg-white/10 transition">
@@ -446,10 +446,10 @@ const VybeHome = memo(function VybeHome() {
                 Join the people building a social app that finally feels like them.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
-                <Link to="/" className="px-8 py-4 rounded-full bg-white text-[#0B0B10] font-bold hover:scale-105 transition flex items-center gap-2">
+                <Link to="/signup" className="px-8 py-4 rounded-full bg-white text-[#0B0B10] font-bold hover:scale-105 transition flex items-center gap-2">
                   Create your VYBE <ArrowRight className="w-4 h-4" />
                 </Link>
-                <Link to="/" className="px-8 py-4 rounded-full bg-white/10 border border-white/20 text-white font-semibold hover:bg-white/20 transition">
+                <Link to="/login" className="px-8 py-4 rounded-full bg-white/10 border border-white/20 text-white font-semibold hover:bg-white/20 transition">
                   Open web app
                 </Link>
               </div>
