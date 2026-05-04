@@ -141,6 +141,19 @@ export function AnimatedRoutes() {
             <Route path="/" element={<RootGate />} />
             <Route path="/vybe-home" element={<PublicOnlyRoute><VybeHome /></PublicOnlyRoute>} />
             <Route path="/tour" element={<PublicOnlyRoute><VybeHome /></PublicOnlyRoute>} />
+            {import.meta.env.DEV && (
+              <Route
+                path="/dev/mockup-compare"
+                element={
+                  <Suspense fallback={null}>
+                    {(() => {
+                      const DevMockupCompare = lazy(() => import('@/pages/DevMockupCompare'));
+                      return <DevMockupCompare />;
+                    })()}
+                  </Suspense>
+                }
+              />
+            )}
             {/* Auth entry — explicit Landing routes for sign-in / sign-up */}
             <Route path="/login" element={<Landing />} />
             <Route path="/signin" element={<Landing />} />
