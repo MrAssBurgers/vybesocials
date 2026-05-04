@@ -571,8 +571,8 @@ export function AutoFriendDrop() {
                       exit={{ opacity: 0, y: -8 }}
                       className="grid gap-3"
                     >
-                      <div className="rounded-[28px] bg-white p-5 shadow-2xl">
-                        <div className="relative mx-auto aspect-square w-full max-w-[220px] overflow-hidden rounded-2xl bg-white">
+                      <div className="rounded-[24px] bg-white p-4 shadow-2xl">
+                        <div className="relative mx-auto aspect-square w-full max-w-[180px] overflow-hidden rounded-2xl bg-white">
                           {qrSvg ? (
                             <div className="h-full w-full [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: qrSvg }} />
                           ) : (
@@ -580,7 +580,7 @@ export function AutoFriendDrop() {
                           )}
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="rounded-2xl bg-white p-1 shadow-lg">
-                              <Avatar className="h-12 w-12 rounded-xl">
+                              <Avatar className="h-10 w-10 rounded-xl">
                                 <AvatarImage src={profile?.avatar_url || ''} className="rounded-xl object-cover" />
                                 <AvatarFallback className="rounded-xl bg-gradient-to-br from-primary to-accent font-black text-primary-foreground">
                                   {profile?.username?.[0]?.toUpperCase()}
