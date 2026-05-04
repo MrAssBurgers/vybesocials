@@ -113,6 +113,7 @@ Deno.serve(async (req) => {
     }
 
     // Build push payload
+    const dataAny = (data || {}) as Record<string, unknown>;
     const pushPayload = JSON.stringify({
       title,
       body,
@@ -121,7 +122,8 @@ Deno.serve(async (req) => {
       type: type || "general",
       icon: "/icons/icon-192x192.png",
       badge: "/icons/icon-96x96.png",
-      ...data,
+      image: (dataAny.image_url as string | undefined) || undefined,
+      ...dataAny,
     });
 
     // Send push to all registered devices
