@@ -146,6 +146,14 @@ export class P2PConnection {
     //    user waits ~Realtime-RTT longer than necessary before camera shows.
     const signalingPromise = this.setupSignaling();
 
+    // Guard: WebView/older Android can lack mediaDevices entirely. Fail fast
+    // with a clear message instead of a TypeError that crashes the overlay.
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      const msg = 'Microphone/Camera not available on this device';
+      this.onEvent({ type: 'disconnected', reason: msg });
+      throw new Error(msg);
+    }
+
     const mediaPromise: Promise<MediaStream> = (async () => {
       try {
         if (useStaged) {

@@ -68,11 +68,16 @@ Deno.serve(async (req) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Key ${onesignalRestKey}`,
+            // OneSignal accepts both "Basic <key>" (legacy) and "Key <key>" (new).
+            // Despia docs show "Basic"; keep that for maximum compatibility.
+            Authorization: `Basic ${onesignalRestKey}`,
           },
           body: JSON.stringify({
             app_id: onesignalAppId,
+            // Send to BOTH new (aliases) and legacy (external_user_ids) targeting
+            // so this works regardless of which OneSignal SDK Despia is using.
             include_aliases: { external_id: [userId] },
+            include_external_user_ids: [userId],
             target_channel: "push",
             headings: { en: title },
             contents: { en: body },
@@ -131,7 +136,11 @@ Deno.serve(async (req) => {
 
     // Send push to all registered devices
     const results = await Promise.all(
-      tokens.map(async ({ id, token }) => {
+      tokens.map(async ({ id, token, platform }: any) => {
+        // Despia native rows are markers only — OneSignal handled delivery above.
+        if (platform === "despia" || (typeof token === "string" && token.startsWith("despia:"))) {
+          return { success: true, native: true };
+        }
         try {
           let subscription;
           try {

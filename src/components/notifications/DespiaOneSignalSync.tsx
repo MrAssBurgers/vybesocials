@@ -28,25 +28,13 @@ export function DespiaOneSignalSync() {
       }
     };
 
-    const ensurePushPermission = async () => {
-      if (!isDespiaRuntime()) return;
-      try {
-        const result: any = await despia('checkNativePushPermissions://', [
-          'nativePushEnabled',
-        ]);
-        if (result?.nativePushEnabled === false || result?.nativePushEnabled === 'false') {
-          // Trigger the system prompt / settings deep link
-          try { despia('settingsapp://'); } catch {}
-        }
-      } catch (err) {
-        console.warn('[Despia] checkNativePushPermissions failed', err);
-      }
-    };
-
+    // NOTE: Despia auto-registers the device with OneSignal at native launch.
+    // We ONLY link the user via setonesignalplayerid:// here. We do NOT
+    // auto-call checkNativePushPermissions:// or settingsapp:// on boot —
+    // doing so could background the WebView and look like a crash on Android.
     supabase.auth.getUser().then(({ data }) => {
       setPlayerId(data.user?.id);
-      if (data.user?.id) ensurePushPermission();
-    });
+    }).catch(() => {});
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setPlayerId(session?.user?.id);

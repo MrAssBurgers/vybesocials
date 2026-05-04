@@ -1,92 +1,54 @@
-## Goal
+I found the most likely crash source: the recent APK push fix calls native Despia push commands too aggressively. Despia’s current docs say native push registration happens automatically at launch; the app should only link the logged-in user with `setonesignalplayerid://`. Our code currently also calls `registerpush://` and can auto-open phone settings from app boot, which can make the APK look like it crashes or instantly exits.
 
-Turn notifications into the coolest, most useful part of VYBE. Instead of generic "you got a like", users get short, contextual, personalized push pings like:
+Do I know what the issue is? Yes, enough to make a targeted fix: remove the unsupported/unsafe native push bridge call and stop launching settings automatically on boot. Then harden the calling path separately so video/audio call setup is safer on Android.
 
-- "📍 Something's happening 0.3 mi from you — 12 people just checked in at Roosevelt Park"
-- "🧠 From your morning brief: Lakers just signed a new coach — tap to read"
-- "👀 alex_p just posted in your neighborhood"
-- "🔥 3 friends are live on VYBE right now"
-- "🎵 New track from an artist you follow is trending near you"
+Plan:
 
-Clean, rich, Alexa-card style — never spammy.
+1. Fix APK crash from push setup
+   - Remove `despia('registerpush://')` from the push toggle flow.
+   - Keep only the documented `setonesignalplayerid://?user_id=...` call on authenticated loads.
+   - Stop `DespiaOneSignalSync` from opening Android settings automatically during app startup.
+   - Make the push toggle explicitly check permission and show a clean message if disabled, without force-opening settings unless the user taps enable from settings.
+   - Make Despia detection consistent (`despia` or `vybeapp`) and wrap all native bridge calls with safe guards/timeouts so a native bridge failure cannot crash React.
 
-## What gets built
+2. Fix native push delivery targeting
+   - Update the backend push sender to use Despia’s documented OneSignal targeting format for native APK users: `include_external_user_ids: [userId]`.
+   - Keep web push delivery for browser/PWA tokens.
+   - Ensure fake marker tokens like `despia:<id>` are not parsed as web push JSON or deleted as invalid web tokens.
+   - Keep Smart Pings / Daily Brief notifications deep-linking into `/p/:id`, stories, or the brief view.
 
-### 1. New "Smart Pings" notification type
-- Add notification category `smart_ping` (sub-types: `nearby_post`, `nearby_event`, `brief_item`, `friend_activity`, `trending_local`, `creator_drop`).
-- New columns on `notifications`: `title`, `body`, `image_url`, `deep_link`, `subtype`, `meta jsonb`. (Existing rows untouched; nullable.)
-- Add the type to the CHECK constraint.
+3. Harden call connection for APK smoothness
+   - Keep `stopCameraStream()` before call startup.
+   - Add defensive checks before `navigator.mediaDevices.getUserMedia` so unsupported/missing Android WebView media APIs fail gracefully instead of crashing.
+   - Keep Android/Despia staged media startup: audio first, then video upgrade.
+   - Reduce video upgrade constraints on APK to mobile-safe defaults instead of jumping to 1280x720 immediately.
+   - Add clearer call connection states and timeout handling so users see “connecting/retrying” instead of a dead screen.
 
-### 2. New preferences (per-toggle, default ON, respects quiet hours)
-Added to `notification_preferences`:
-- `nearby_enabled` — happenings near me
-- `brief_pings_enabled` — individual story alerts from Daily Brief
-- `friend_activity_enabled` — when close friends post / go live
-- `trending_local_enabled` — what's blowing up nearby
-- `smart_ping_radius_miles` (default 5)
-- `smart_ping_max_per_day` (default 6) — hard cap so it never feels spammy
+4. Verify call signaling and fallback behavior
+   - Check P2P signaling setup for race conditions around ready/offer/answer.
+   - Ensure incoming call records, realtime subscriptions, and polling fallback all still work.
+   - Keep LiveKit/persistent fallback for failed P2P where configured, but show a clean error if backend call-room secrets are missing.
 
-Wire these into `NotificationsSection.tsx` with the existing toggle pattern (Smartphone/Bell icons, glass card section titled "Smart Pings ✨").
+5. Add lightweight crash diagnostics for native-only failures
+   - Add safe console/error breadcrumbs around native push setup and call media setup.
+   - Ensure these errors are captured by the existing bug report system without causing another crash.
 
-### 3. Edge functions
+Testing I can run after approval:
+   - Browser/app regression checks for settings push toggle UI.
+   - Static verification of the Despia/native bridge calls.
+   - Backend function checks for push payload shape.
+   - Call flow code checks for audio/video media setup and signaling.
 
-**`smart-ping-dispatcher`** (cron every 15 min)
-- Pulls users with `nearby_enabled` and a recent location (`profiles.last_lat/lng` or friend_map).
-- For each, runs:
-  - **Nearby posts**: posts created in last 30 min within radius, ranked by engagement_score (existing ranked-discovery formula).
-  - **Friend activity**: posts/lives by accepted friends in last 20 min near user.
-  - **Trending local**: posts with sudden engagement spike within radius in last hour.
-- Picks top 1 candidate per user per run, dedupes against `notifications` last 6h, respects daily cap + quiet hours + DND.
-- Generates a short Alexa-style line via Lovable AI Gateway (`google/gemini-2.5-flash-lite`) with a strict system prompt: ≤90 chars, friendly, no emoji spam (max 1), action-oriented.
-- Writes row to `notifications` and calls `send-push-notification` with `image_url` + `deep_link`.
+What I cannot fully test from the sandbox:
+   - A real two-device APK call connection with microphone/camera hardware.
+   - Android OS-level notification permission prompt behavior.
 
-**`smart-brief-pings`** (runs after `ai-catch-up` finishes a brief)
-- Takes the highest-priority brief item (from `daily_briefs` rows) and sends ONE individual push per user: e.g. "🧠 Top story for you: <headline>". Tap → opens that brief slide.
-- Respects `brief_pings_enabled` and daily cap.
+After I apply this, you’ll need to rebuild/hot-update the APK in Despia. If using a local Capacitor build, pull the latest code and run `npx cap sync` before rebuilding.
 
-Both reuse existing OneSignal + Web Push fan-out in `send-push-notification` (already supports `image_url`/`data.url`).
+<lov-actions>
+  <lov-open-history>View History</lov-open-history>
+</lov-actions>
 
-### 4. Rich notification UI
-
-**Service worker** (`public/sw.js` — verify path):
-- Render notifications with `image`, `badge`, `actions: [{action:'open', title:'Open'},{action:'mute', title:'Mute 1h'}]`. Mute action calls a tiny edge function `mute-smart-pings` that sets `dnd_until = now()+1h`.
-
-**In-app `/notifications` page card**:
-- New `SmartPingCard` component: glass card, 56px rounded image on left, title bold, body muted, small chip showing distance ("0.3 mi") or category ("Brief"), tap navigates to `deep_link`.
-- Group consecutive smart pings under a "Near you" header.
-
-### 5. Anti-spam guardrails (the "clean" part)
-- Hard daily cap per user (`smart_ping_max_per_day`).
-- 6-hour dedupe window on (user, subtype, target_id).
-- Quiet hours and DND fully respected.
-- One-tap "Mute smart pings 1h / 24h / off" from any smart ping (long-press in `DMHoldMenu` style, matches existing notification interaction memory).
-
-## Technical notes
-
-- Distance calc: existing 25-mile Haversine helper used for local feed (per memory) — reuse for the radius filter.
-- Engagement score: reuse weights from ranked discovery (Shares 5, Saves 4, Comments 3, Likes 1, Views 0.1).
-- AI copy: small Gemini Flash Lite call, cached by content hash to avoid re-billing for duplicate posts.
-- Cron: add two `pg_cron` schedules — `smart-ping-dispatcher` every 15 min, `smart-brief-pings` triggered at the end of `ai-catch-up`.
-- All RLS: notifications table policies already correct; new columns inherit.
-- Identity mapping: writes use `profiles.id` (per Identity Mapping memory), pushes use `auth.uid()` external_id which `send-push-notification` already handles.
-
-## Out of scope (ask later)
-- Lock-screen Live Activity (iOS native shell) — needs Despia config update.
-- Group/co-post pings.
-
-## Files
-
-New:
-- `supabase/functions/smart-ping-dispatcher/index.ts`
-- `supabase/functions/smart-brief-pings/index.ts`
-- `supabase/functions/mute-smart-pings/index.ts`
-- `src/components/notifications/SmartPingCard.tsx`
-- migration: add columns + new prefs + CHECK update + cron schedules
-
-Edited:
-- `public/sw.js` — rich rendering + actions
-- `src/components/settings/NotificationsSection.tsx` — Smart Pings section
-- `src/components/notifications/*` list page — render `SmartPingCard` for `smart_ping` rows
-- `supabase/functions/send-push-notification/index.ts` — pass through `image_url`, action buttons
-
-After approval I'll implement in this order: migration → dispatcher fn → brief pings fn → service worker rich UI → settings toggles → in-app card.
+<lov-actions>
+<lov-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</lov-link>
+</lov-actions>
