@@ -436,6 +436,8 @@ function FriendMapInner() {
   // Heading-up compass mode: rotates the map so the direction the phone is pointing is "up"
   const [headingUp, setHeadingUp] = useState(false);
   const [heading, setHeading] = useState(0); // 0–360, where 0 = North
+  // Manual rotation when compass is OFF — two-finger twist gesture lets the user spin the map 360°.
+  const [manualRotation, setManualRotation] = useState(0);
   const [mapStyle, setMapStyle] = useState<MapStyleKey>(getInitialMapStyle);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [activeFilter, setActiveFilter] = useState('Friends');
@@ -892,6 +894,47 @@ function FriendMapInner() {
     };
   }, [headingUp]);
 
+  /* ── Two-finger twist gesture for manual 360° map rotation (when compass is OFF) ── */
+  useEffect(() => {
+    if (headingUp) return; // compass mode owns rotation
+    const el = mapEl.current;
+    if (!el) return;
+    let startAngle: number | null = null;
+    let baseRotation = 0;
+
+    const angleBetween = (t1: Touch, t2: Touch) =>
+      (Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX) * 180) / Math.PI;
+
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        startAngle = angleBetween(e.touches[0], e.touches[1]);
+        baseRotation = manualRotation;
+      } else {
+        startAngle = null;
+      }
+    };
+    const onMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || startAngle == null) return;
+      const a = angleBetween(e.touches[0], e.touches[1]);
+      const delta = a - startAngle;
+      setManualRotation(((baseRotation + delta) % 360 + 360) % 360);
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) startAngle = null;
+    };
+
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: true });
+    el.addEventListener('touchend', onEnd, { passive: true });
+    el.addEventListener('touchcancel', onEnd, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
+      el.removeEventListener('touchcancel', onEnd);
+    };
+  }, [headingUp, manualRotation]);
+
   /* ── render ────────────────────────────────────────── */
 
 
@@ -944,10 +987,12 @@ function FriendMapInner() {
           ref={mapEl}
           className="absolute inset-0 block w-full h-full"
           style={{
-            transform: headingUp ? `rotate(${-heading}deg) scale(1.18)` : undefined,
+            transform: headingUp
+              ? `rotate(${-heading}deg) scale(1.18)`
+              : (manualRotation !== 0 ? `rotate(${manualRotation}deg) scale(1.05)` : undefined),
             transformOrigin: 'center center',
             transition: 'transform 120ms linear',
-            willChange: headingUp ? 'transform' : undefined,
+            willChange: (headingUp || manualRotation !== 0) ? 'transform' : undefined,
           }}
         />
 
@@ -1062,17 +1107,24 @@ function FriendMapInner() {
             <Navigation className="h-4 w-4" />
           </motion.button>
 
-          {/* Compass / Heading-up toggle */}
+          {/* Compass / Heading-up toggle (long-press to reset rotation) */}
           <motion.button
             onClick={() => { setHeadingUp(v => !v); triggerHaptic('light'); }}
+            onContextMenu={(e) => { e.preventDefault(); setManualRotation(0); setHeadingUp(false); triggerHaptic('medium'); }}
             whileTap={{ scale: 0.9 }}
             className={cn(
               'pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full backdrop-blur-xl transition-all',
               headingUp ? 'bg-primary text-primary-foreground shadow-xl' : 'bg-black/50 text-white'
             )}
-            title={headingUp ? 'Heading-up mode (on)' : 'Heading-up mode'}
+            title={headingUp ? 'Heading-up (tap off · hold to reset)' : 'Heading-up (tap on · two-finger twist to rotate)'}
           >
-            <Compass className="h-4 w-4" style={{ transform: headingUp ? `rotate(${heading}deg)` : undefined, transition: 'transform 120ms linear' }} />
+            <Compass
+              className="h-4 w-4"
+              style={{
+                transform: headingUp ? `rotate(${heading}deg)` : (manualRotation !== 0 ? `rotate(${-manualRotation}deg)` : undefined),
+                transition: 'transform 120ms linear',
+              }}
+            />
           </motion.button>
           
           {/* Ghost Mode FAB */}

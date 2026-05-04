@@ -127,7 +127,21 @@ async function flushReports() {
       ai_severity: 'auto',
     }));
 
-    await supabase.from('bug_reports').insert(rows);
+    const { data: inserted } = await supabase
+      .from('bug_reports')
+      .insert(rows)
+      .select('id');
+
+    // Fire-and-forget AI triage so admins see root-cause + suggested fix in the panel.
+    if (inserted && inserted.length) {
+      for (const row of inserted) {
+        try {
+          void supabase.functions.invoke('analyze-bug-report', { body: { bugId: row.id } });
+        } catch {
+          // Silent — analysis is best-effort.
+        }
+      }
+    }
   } catch {
     // Silent fail — never interrupt the user
   }

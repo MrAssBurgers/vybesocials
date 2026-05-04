@@ -3,12 +3,21 @@ import { usePremiumStatus } from './usePremiumStatus';
 import { getTrackingConsent } from '@/components/app/TrackingConsentDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { isNativePlatform } from '@/lib/capacitor';
 
 /**
- * Global kill switch for ads.
- * Set to `true` once the site passes AdSense review and real slot IDs are configured.
+ * Global kill switch for AdSense (web only).
+ * Set to `true` AFTER AdSense approval AND public content pages have real long-form copy.
+ * Native platforms (Capacitor + Despia APK) NEVER show AdSense — they use AdMob via useVideoAds.
  */
 const ADS_ENABLED = false;
+
+/** Despia WebView UA sniff so we can hide AdSense even when running inside the APK shell. */
+function isDespiaWebView(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.includes('despia') || ua.includes('vybeapp');
+}
 
 function calculateAge(dob: string): number {
   const birth = new Date(dob);
@@ -50,7 +59,9 @@ export function useShowAds() {
 
   const isUnder13 = typeof userAge === 'number' && userAge < 13;
   const trackingAllowed = getTrackingConsent() === 'allowed';
-  const showAds = ADS_ENABLED && !isLoading && !isPremium && trackingAllowed && !isUnder13;
+  // AdSense is web-only. Native (Capacitor) and Despia APK use AdMob (see useVideoAds).
+  const onWebOnly = !isNativePlatform && !isDespiaWebView();
+  const showAds = ADS_ENABLED && onWebOnly && !isLoading && !isPremium && trackingAllowed && !isUnder13;
 
   return { showAds, isPremium, isLoading, childDirected: isUnder13 };
 }

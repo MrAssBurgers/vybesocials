@@ -130,16 +130,36 @@ export class P2PConnection {
         }
       : false;
 
+    // Despia/Android WebViews crash hard if we ask for HD video at the same time as audio
+    // on the very first getUserMedia() call. Detect Despia/old-Android and request audio
+    // first, then upgrade to video once audio is live. This drastically reduces "call opens
+    // and the app instantly closes" reports on the APK.
+    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+    const isDespia = /despia|vybeapp/i.test(ua);
+    const isOldAndroid = /Android\s([0-9]|10|11)\b/i.test(ua);
+    const useStaged = (isDespia || isOldAndroid) && this.callType === 'video';
+
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints,
-        video: videoConstraints,
-      });
+      if (useStaged) {
+        console.log('[P2P] Despia/Android detected — staged audio-first init');
+        this.localStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+        try {
+          const videoOnly = await navigator.mediaDevices.getUserMedia({ video: videoConstraints as MediaTrackConstraints });
+          videoOnly.getVideoTracks().forEach(t => this.localStream!.addTrack(t));
+        } catch (videoErr: any) {
+          console.warn('[P2P] Staged video upgrade failed, continuing audio-only:', videoErr?.message);
+        }
+      } else {
+        this.localStream = await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraints,
+          video: videoConstraints,
+        });
+      }
       console.log('[P2P] Got local media:', this.localStream.getTracks().map(t => `${t.kind}:${t.readyState}`).join(', '));
     } catch (mediaErr: any) {
       console.error('[P2P] getUserMedia failed:', mediaErr.name, mediaErr.message);
-      // On Safari/iPad, retry with simpler constraints
-      if (mediaErr.name === 'NotAllowedError' || mediaErr.name === 'NotReadableError') {
+      // On Safari/iPad/Despia, retry with simpler constraints
+      if (mediaErr.name === 'NotAllowedError' || mediaErr.name === 'NotReadableError' || mediaErr.name === 'OverconstrainedError') {
         try {
           console.log('[P2P] Retrying with simple constraints...');
           this.localStream = await navigator.mediaDevices.getUserMedia({
@@ -149,8 +169,19 @@ export class P2PConnection {
           console.log('[P2P] Retry succeeded with simple constraints');
         } catch (retryErr: any) {
           console.error('[P2P] Retry also failed:', retryErr.name, retryErr.message);
-          this.onEvent({ type: 'disconnected', reason: `Media access failed: ${retryErr.message}` });
-          throw retryErr;
+          // Final audio-only fallback so the call at least connects
+          if (this.callType === 'video') {
+            try {
+              this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+              console.log('[P2P] Final fallback: audio-only call');
+            } catch (audioErr: any) {
+              this.onEvent({ type: 'disconnected', reason: `Media access failed: ${audioErr.message}` });
+              throw audioErr;
+            }
+          } else {
+            this.onEvent({ type: 'disconnected', reason: `Media access failed: ${retryErr.message}` });
+            throw retryErr;
+          }
         }
       } else {
         this.onEvent({ type: 'disconnected', reason: `Media access failed: ${mediaErr.message}` });
