@@ -894,6 +894,47 @@ function FriendMapInner() {
     };
   }, [headingUp]);
 
+  /* ── Two-finger twist gesture for manual 360° map rotation (when compass is OFF) ── */
+  useEffect(() => {
+    if (headingUp) return; // compass mode owns rotation
+    const el = mapEl.current;
+    if (!el) return;
+    let startAngle: number | null = null;
+    let baseRotation = 0;
+
+    const angleBetween = (t1: Touch, t2: Touch) =>
+      (Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX) * 180) / Math.PI;
+
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        startAngle = angleBetween(e.touches[0], e.touches[1]);
+        baseRotation = manualRotation;
+      } else {
+        startAngle = null;
+      }
+    };
+    const onMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || startAngle == null) return;
+      const a = angleBetween(e.touches[0], e.touches[1]);
+      const delta = a - startAngle;
+      setManualRotation(((baseRotation + delta) % 360 + 360) % 360);
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) startAngle = null;
+    };
+
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: true });
+    el.addEventListener('touchend', onEnd, { passive: true });
+    el.addEventListener('touchcancel', onEnd, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
+      el.removeEventListener('touchcancel', onEnd);
+    };
+  }, [headingUp, manualRotation]);
+
   /* ── render ────────────────────────────────────────── */
 
 
