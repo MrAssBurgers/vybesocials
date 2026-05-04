@@ -59,7 +59,9 @@ export function useShowAds() {
 
   const isUnder13 = typeof userAge === 'number' && userAge < 13;
   const trackingAllowed = getTrackingConsent() === 'allowed';
-  const showAds = ADS_ENABLED && !isLoading && !isPremium && trackingAllowed && !isUnder13;
+  // AdSense is web-only. Native (Capacitor) and Despia APK use AdMob (see useVideoAds).
+  const onWebOnly = !isNativePlatform && !isDespiaWebView();
+  const showAds = ADS_ENABLED && onWebOnly && !isLoading && !isPremium && trackingAllowed && !isUnder13;
 
   return { showAds, isPremium, isLoading, childDirected: isUnder13 };
 }
