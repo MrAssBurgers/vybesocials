@@ -3948,7 +3948,9 @@ html[data-has-bg-image="true"] nav[aria-label="Bottom navigation"] .liquid-glass
   contain: paint;
 }
 
-html[data-theme-loading="true"] .bg-clip-text.text-transparent {
+html[data-theme-loading="true"] .bg-clip-text.text-transparent,
+html[data-theme-loading="true"] [style*="background-clip: text"],
+html[data-theme-loading="true"] [style*="-webkit-background-clip: text"] {
   -webkit-text-fill-color: currentColor !important;
   color: inherit !important;
   background: none !important;
