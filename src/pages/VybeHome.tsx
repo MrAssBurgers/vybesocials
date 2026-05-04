@@ -317,9 +317,13 @@ const VybeHome = memo(function VybeHome() {
         </div>
         <div className="max-w-7xl mx-auto relative grid lg:grid-cols-2 gap-12 items-center">
           <FadeIn>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/70 mb-6">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Now in early access
+            <div className="inline-flex items-center gap-3 pl-1.5 pr-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/70 mb-6">
+              <div className="flex -space-x-2">
+                {[PEOPLE.maya, PEOPLE.jordan, PEOPLE.leo, PEOPLE.sky].map(p => (
+                  <Img key={p.handle} src={p.img} className="w-6 h-6 rounded-full border-2 border-[#0B0B10]" />
+                ))}
+              </div>
+              <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> 12,000+ in early access</span>
             </div>
             <h1 className="font-display font-black text-5xl sm:text-6xl lg:text-7xl leading-[1.05] tracking-tight">
               The social app that
