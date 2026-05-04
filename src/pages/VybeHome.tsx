@@ -367,6 +367,7 @@ const features = [
 ];
 
 const VybeHome = memo(function VybeHome() {
+  const { data: liveUserCount, isLoading: countLoading } = usePublicUserCount();
   useEffect(() => {
     const prev = document.title;
     document.title = 'VYBE — The social app that becomes you';
@@ -418,7 +419,12 @@ const VybeHome = memo(function VybeHome() {
                   <Img key={p.handle} src={p.img} className="w-6 h-6 rounded-full border-2 border-[#0B0B10]" />
                 ))}
               </div>
-              <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> 12,000+ in early access</span>
+              <span className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                {countLoading
+                  ? 'Joining a small, growing crew'
+                  : `${(liveUserCount ?? 0).toLocaleString()} ${liveUserCount === 1 ? 'early member' : 'early members'}`}
+              </span>
             </div>
             <h1 className="font-display font-black text-5xl sm:text-6xl lg:text-7xl leading-[1.05] tracking-tight">
               The social app that
