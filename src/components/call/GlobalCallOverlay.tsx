@@ -292,16 +292,24 @@ export function GlobalCallOverlay() {
       isInitiator: call.isInitiator,
       callType: call.callType,
       onEvent: (evt) => handleP2PEventRef.current(evt),
+      // Attach the local preview the INSTANT the camera opens —
+      // don't wait for signaling/handshake to complete.
+      onLocalStream: (stream) => {
+        if (call.callType === 'video') {
+          const videoTrack = stream.getVideoTracks()[0];
+          if (videoTrack) attachLocalVideo(videoTrack);
+        }
+      },
     });
 
     p2pRef.current = p2p;
 
     try {
       await p2p.connect();
-
-      // Attach local video if video call
+      // Safety net: if onLocalStream didn't fire (e.g. callback errored),
+      // still try to attach now.
       const localStream = p2p.getLocalStream();
-      if (localStream && call.callType === 'video') {
+      if (localStream && call.callType === 'video' && !localVideoRef.current?.srcObject) {
         const videoTrack = localStream.getVideoTracks()[0];
         if (videoTrack) attachLocalVideo(videoTrack);
       }
