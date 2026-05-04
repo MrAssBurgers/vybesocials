@@ -517,6 +517,36 @@ const VybeHome = memo(function VybeHome() {
         </div>
       </SectionWrap>
 
+      {/* TESTIMONIALS */}
+      <SectionWrap>
+        <FadeIn>
+          <div className="text-center mb-12">
+            <div className="text-xs uppercase tracking-widest text-violet-400 mb-3 font-semibold">Real people</div>
+            <h2 className="font-display font-black text-4xl sm:text-5xl">Built for actual humans.</h2>
+          </div>
+        </FadeIn>
+        <div className="grid md:grid-cols-3 gap-5 max-w-5xl mx-auto">
+          {[
+            { p: PEOPLE.maya, loc: 'Brooklyn, NY', q: 'My DNA card actually shifts every week — I\'ve never seen an app that gets me this fast.' },
+            { p: PEOPLE.jordan, loc: 'Austin, TX', q: 'Bumping phones to add friends is the most fun I\'ve had on a social app in years. My group went all-in in a week.' },
+            { p: PEOPLE.ren, loc: 'Los Angeles, CA', q: 'Themes I made for friends went viral inside our circle. Feels like MySpace energy but actually polished.' },
+          ].map((t, i) => (
+            <FadeIn key={t.p.handle} delay={i * 0.08}>
+              <div className="h-full p-6 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-violet-400/30 transition">
+                <p className="text-white/85 text-[15px] leading-relaxed">"{t.q}"</p>
+                <div className="mt-5 flex items-center gap-3">
+                  <Img src={t.p.img} className="w-10 h-10 rounded-full" />
+                  <div>
+                    <div className="text-white text-sm font-semibold">{t.p.name}</div>
+                    <div className="text-white/50 text-xs">{t.p.handle} · {t.loc}</div>
+                  </div>
+                </div>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+      </SectionWrap>
+
       {/* SAFETY STRIP */}
       <SectionWrap>
         <FadeIn>
