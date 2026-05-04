@@ -3931,3 +3931,25 @@ html[data-has-bg-image="true"] nav[aria-label="Bottom navigation"] .liquid-glass
 @media (prefers-reduced-motion: reduce) {
   .live-indicator { animation: none; }
 }
+
+/* ----------------------------------------------------------------------
+ * Anti-flicker guard for gradient text (bg-clip-text + text-transparent)
+ *
+ * While custom theme fonts are loading (root[data-theme-loading]),
+ * fall back to the inherited foreground color so transparent glyphs
+ * never flash blank. After fonts are ready, the original gradient
+ * styles take over. Using `contain: paint` prevents the gradient text
+ * box from forcing repaints of surrounding lines.
+ * ---------------------------------------------------------------------- */
+.bg-clip-text.text-transparent,
+[style*="background-clip: text"],
+[style*="-webkit-background-clip: text"] {
+  display: inline-block;
+  contain: paint;
+}
+
+html[data-theme-loading="true"] .bg-clip-text.text-transparent {
+  -webkit-text-fill-color: currentColor !important;
+  color: inherit !important;
+  background: none !important;
+}
