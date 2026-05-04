@@ -359,7 +359,10 @@ const VybeHome = memo(function VybeHome() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {features.map((f, i) => (
             <FadeIn key={f.label} delay={i * 0.03}>
-              <div className="group h-full p-5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-violet-400/40 hover:bg-white/[0.06] transition-all hover:-translate-y-1">
+              <div className="group relative h-full p-5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-violet-400/40 hover:bg-white/[0.06] transition-all hover:-translate-y-1">
+                {(f as any).soon && (
+                  <span className="absolute top-2 right-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-gradient-to-r from-violet-500/30 to-cyan-500/30 border border-white/15 text-white/80 font-semibold">Soon</span>
+                )}
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-cyan-500/20 border border-white/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                   <f.icon className="w-5 h-5 text-violet-300" />
                 </div>
