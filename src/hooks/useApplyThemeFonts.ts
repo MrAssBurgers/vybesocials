@@ -130,21 +130,22 @@ export function loadGoogleFonts(fonts: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const uniqueFonts = [...new Set(fonts)];
     const fontFamilies = uniqueFonts.map(f => f.replace(/ /g, '+')).join('&family=');
-    const fontUrl = `https://fonts.googleapis.com/css2?family=${fontFamilies}:wght@300;400;500;600;700;800;900&display=swap`;
-    
+    // `display=optional` avoids the flash-of-swapped-text once the font is cached.
+    const fontUrl = `https://fonts.googleapis.com/css2?family=${fontFamilies}:wght@300;400;500;600;700;800;900&display=optional`;
+
     // Check if already loaded
     const existingLink = document.querySelector(`link[href*="${fontFamilies}"]`);
     if (existingLink) {
       resolve();
       return;
     }
-    
+
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = fontUrl;
     link.onload = () => resolve();
     link.onerror = () => reject(new Error('Failed to load fonts'));
-    
+
     document.head.appendChild(link);
   });
 }
