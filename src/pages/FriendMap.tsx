@@ -1066,17 +1066,24 @@ function FriendMapInner() {
             <Navigation className="h-4 w-4" />
           </motion.button>
 
-          {/* Compass / Heading-up toggle */}
+          {/* Compass / Heading-up toggle (long-press to reset rotation) */}
           <motion.button
             onClick={() => { setHeadingUp(v => !v); triggerHaptic('light'); }}
+            onContextMenu={(e) => { e.preventDefault(); setManualRotation(0); setHeadingUp(false); triggerHaptic('medium'); }}
             whileTap={{ scale: 0.9 }}
             className={cn(
               'pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full backdrop-blur-xl transition-all',
               headingUp ? 'bg-primary text-primary-foreground shadow-xl' : 'bg-black/50 text-white'
             )}
-            title={headingUp ? 'Heading-up mode (on)' : 'Heading-up mode'}
+            title={headingUp ? 'Heading-up (tap off · hold to reset)' : 'Heading-up (tap on · two-finger twist to rotate)'}
           >
-            <Compass className="h-4 w-4" style={{ transform: headingUp ? `rotate(${heading}deg)` : undefined, transition: 'transform 120ms linear' }} />
+            <Compass
+              className="h-4 w-4"
+              style={{
+                transform: headingUp ? `rotate(${heading}deg)` : (manualRotation !== 0 ? `rotate(${-manualRotation}deg)` : undefined),
+                transition: 'transform 120ms linear',
+              }}
+            />
           </motion.button>
           
           {/* Ghost Mode FAB */}
