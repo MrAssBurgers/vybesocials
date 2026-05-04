@@ -52,7 +52,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   
   // Check URL params for mode (login vs signup) and intro reset
   const modeParam = searchParams.get('mode');
-  const [isLogin, setIsLogin] = useState(() => modeParam === 'login' || searchParams.get('signup') !== 'true');
+  const pathLower = (typeof window !== 'undefined' ? window.location.pathname : '').toLowerCase();
+  const pathSaysSignup = pathLower.includes('signup') || pathLower.includes('sign-up');
+  const pathSaysLogin = pathLower.includes('login') || pathLower.includes('signin') || pathLower.includes('sign-in');
+  const [isLogin, setIsLogin] = useState(() =>
+    pathSaysSignup ? false :
+    pathSaysLogin ? true :
+    modeParam === 'login' || searchParams.get('signup') !== 'true'
+  );
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
