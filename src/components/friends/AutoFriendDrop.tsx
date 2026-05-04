@@ -592,7 +592,7 @@ export function AutoFriendDrop() {
                         <p className="mt-2 text-center text-sm font-black text-card">@{profile?.username}</p>
                       </div>
 
-                      <div className="relative aspect-square overflow-hidden rounded-[24px] border border-primary/20 bg-card">
+                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[24px] border border-primary/20 bg-card">
                         <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
                         <canvas ref={canvasRef} className="hidden" />
                         {!cameraActive && (
