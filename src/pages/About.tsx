@@ -57,7 +57,7 @@ const features = [
 
 export default function About() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-scroll-fix bg-background">
       {/* Header */}
       <header className="border-b border-border/50 sticky top-0 z-50 bg-background/80 backdrop-blur-xl">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
