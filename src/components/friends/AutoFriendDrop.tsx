@@ -483,7 +483,7 @@ export function AutoFriendDrop() {
                       exit={{ opacity: 0, y: -8 }}
                       className="flex flex-col items-center gap-4 py-2"
                     >
-                      <div className="relative flex h-56 w-full items-center justify-center overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-accent/10">
+                      <div className="relative flex h-44 w-full items-center justify-center overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-accent/10">
                         {[0, 1, 2, 3].map((i) => (
                           <motion.div
                             key={i}
