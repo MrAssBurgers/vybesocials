@@ -118,23 +118,25 @@ const Img = ({ src, className, alt = '' }: { src: string; className?: string; al
 /* ---------- Phone mockups (mirror the real app screens) ---------- */
 
 const PhoneBottomNav = ({ active }: { active: 'home' | 'map' | 'create' | 'chat' | 'profile' }) => {
-  const items: { k: 'home' | 'map' | 'create' | 'chat' | 'profile'; icon: typeof Home; accent?: boolean }[] = [
-    { k: 'home', icon: Home },
-    { k: 'map', icon: MapPin },
-    { k: 'create', icon: Plus, accent: true },
-    { k: 'chat', icon: MessageCircle },
-    { k: 'profile', icon: User },
-  ];
+  // Mirrors real BottomNav: pill bg-card with Home (active=ring), Compass, big + (gradient), Chat bubble, profile avatar
   return (
-    <div className="absolute bottom-0 inset-x-0 h-12 bg-[#0B0B10]/90 backdrop-blur-xl border-t border-white/5 flex items-center justify-around px-2 z-10">
-      {items.map(({ k, icon: Icon, accent }) => (
-        <div key={k} className={cn(
-          'flex items-center justify-center rounded-full transition',
-          accent ? 'w-8 h-8 bg-gradient-to-br from-violet-500 to-cyan-500 shadow-[0_0_12px_rgba(139,92,246,0.6)]' : 'w-7 h-7',
-        )}>
-          <Icon className={cn('w-4 h-4', accent ? 'text-white' : active === k ? 'text-white' : 'text-white/40')} />
-        </div>
-      ))}
+    <div className="absolute bottom-2 inset-x-3 h-12 rounded-full bg-[#15151c]/95 backdrop-blur-xl border border-white/5 flex items-center justify-around px-3 z-10 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+      <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', active === 'home' && 'ring-1 ring-pink-400/70 shadow-[0_0_10px_rgba(236,72,153,0.5)]')}>
+        <Home className={cn('w-4 h-4', active === 'home' ? 'text-pink-400' : 'text-white/45')} />
+      </div>
+      <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', active === 'map' && 'ring-1 ring-cyan-400/70')}>
+        <Search className={cn('w-4 h-4', active === 'map' ? 'text-cyan-300' : 'text-white/45')} />
+      </div>
+      <div className="-mt-5 w-11 h-11 rounded-2xl flex items-center justify-center shadow-[0_0_18px_rgba(236,72,153,0.6)]"
+        style={{background:'linear-gradient(135deg, #EC4899, #8B5CF6)'}}>
+        <Plus className="w-5 h-5 text-white" />
+      </div>
+      <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', active === 'chat' && 'ring-1 ring-cyan-400/70')}>
+        <MessageCircle className={cn('w-4 h-4', active === 'chat' ? 'text-cyan-300' : 'text-white/45')} />
+      </div>
+      <div className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-white/10">
+        <Img src={PEOPLE.maya.img} className="w-full h-full rounded-full" />
+      </div>
     </div>
   );
 };
