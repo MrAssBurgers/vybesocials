@@ -51,13 +51,33 @@ const FadeIn = ({ children, delay = 0, className }: { children: React.ReactNode;
   </motion.div>
 );
 
-/* ---------- Phone mockups (stylized in-browser) ---------- */
+/* ---------- Fake people & scenes (real photos, fake identities) ---------- */
 
-/* Stylized to mirror real VYBE screens — all users/content are fake. */
+const PEOPLE = {
+  maya:   { handle: '@maya.rae',  name: 'Maya R.',   img: 'https://i.pravatar.cc/240?img=47' },
+  jordan: { handle: '@jordan.w',  name: 'Jordan W.', img: 'https://i.pravatar.cc/240?img=12' },
+  leo:    { handle: '@leo.k',     name: 'Leo K.',    img: 'https://i.pravatar.cc/240?img=33' },
+  sky:    { handle: '@sky.m',     name: 'Sky M.',    img: 'https://i.pravatar.cc/240?img=49' },
+  mia:    { handle: '@mia.z',     name: 'Mia Z.',    img: 'https://i.pravatar.cc/240?img=44' },
+  kai:    { handle: '@kai.t',     name: 'Kai T.',    img: 'https://i.pravatar.cc/240?img=15' },
+  ren:    { handle: '@ren.x',     name: 'Ren X.',    img: 'https://i.pravatar.cc/240?img=68' },
+};
+
+const SCENES = {
+  rooftop:  'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=600&q=80&auto=format&fit=crop',
+  picnic:   'https://images.unsplash.com/photo-1543807535-eceef0bc6599?w=600&q=80&auto=format&fit=crop',
+  couch:    'https://images.unsplash.com/photo-1543269865-cbf427effbad?w=600&q=80&auto=format&fit=crop',
+  cafe:     'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=600&q=80&auto=format&fit=crop',
+};
+
+const Img = ({ src, className, alt = '' }: { src: string; className?: string; alt?: string }) => (
+  <img src={src} alt={alt} loading="lazy" decoding="async" className={cn('object-cover bg-white/5', className)} />
+);
+
+/* ---------- Phone mockups (stylized in-browser) ---------- */
 
 const DNAPhone = () => (
   <div className="w-full h-full bg-[#0B0B10] p-3 pt-8 flex flex-col gap-2.5 relative overflow-hidden">
-    {/* ambient aura */}
     <div className="absolute -top-20 -left-10 w-56 h-56 rounded-full blur-3xl opacity-50" style={{background:'radial-gradient(circle, #8B5CF6, transparent 70%)'}} />
     <div className="absolute -bottom-16 -right-10 w-56 h-56 rounded-full blur-3xl opacity-40" style={{background:'radial-gradient(circle, #06B6D4, transparent 70%)'}} />
     <div className="relative flex items-center justify-between">
@@ -75,13 +95,13 @@ const DNAPhone = () => (
         ))}
       </div>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <Dna className="w-16 h-16 text-white drop-shadow-[0_0_24px_rgba(139,92,246,0.9)]" />
-        <div className="mt-3 text-white font-bold text-base">Maya R.</div>
+        <Img src={PEOPLE.maya.img} className="w-16 h-16 rounded-full border-2 border-white/40 shadow-[0_0_24px_rgba(139,92,246,0.7)]" />
+        <div className="mt-3 text-white font-bold text-base">{PEOPLE.maya.name}</div>
         <div className="text-[10px] text-white/70 mt-0.5">The Night Owl · Creator</div>
       </div>
       <div className="absolute bottom-2 left-2 right-2 flex justify-between text-[9px] text-white/70">
         <span>VYBE-7F2A</span>
-        <span>87% match · @jordan</span>
+        <span>87% match · {PEOPLE.jordan.handle}</span>
       </div>
     </div>
     <div className="grid grid-cols-3 gap-1.5">
@@ -101,39 +121,40 @@ const FeedPhone = () => (
       <div className="font-display font-black text-base bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">VYBE</div>
       <div className="flex gap-1.5">
         <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center"><Bell className="w-3 h-3 text-white/70" /></div>
-        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-500 to-violet-500" />
+        <Img src={PEOPLE.maya.img} className="w-6 h-6 rounded-full" />
       </div>
     </div>
-    {/* stories row */}
     <div className="flex gap-1.5 overflow-hidden">
       {[
-        {c:'#8B5CF6',n:'You'},
-        {c:'#EC4899',n:'sky'},
-        {c:'#06B6D4',n:'leo'},
-        {c:'#F59E0B',n:'mia'},
-        {c:'#10B981',n:'kai'},
+        {p:PEOPLE.maya, n:'You'},
+        {p:PEOPLE.sky, n:'sky'},
+        {p:PEOPLE.leo, n:'leo'},
+        {p:PEOPLE.mia, n:'mia'},
+        {p:PEOPLE.kai, n:'kai'},
       ].map((s,i)=>(
         <div key={i} className="flex flex-col items-center gap-0.5">
-          <div className="w-11 h-11 rounded-full p-[1.5px]" style={{background:`conic-gradient(from 0deg, ${s.c}, #06B6D4, ${s.c})`}}>
-            <div className="w-full h-full rounded-full bg-[#1a1a22] border-2 border-[#0B0B10]" />
+          <div className="w-11 h-11 rounded-full p-[1.5px]" style={{background:'conic-gradient(from 0deg, #8B5CF6, #EC4899, #06B6D4, #8B5CF6)'}}>
+            <div className="w-full h-full rounded-full bg-[#0B0B10] p-[1.5px]">
+              <Img src={s.p.img} className="w-full h-full rounded-full" />
+            </div>
           </div>
           <div className="text-[8px] text-white/60">{s.n}</div>
         </div>
       ))}
     </div>
-    {/* post card */}
     <div className="rounded-2xl overflow-hidden bg-white/[0.03] border border-white/10 flex-1">
       <div className="flex items-center gap-2 p-2">
-        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-fuchsia-500 to-violet-500" />
+        <Img src={PEOPLE.maya.img} className="w-7 h-7 rounded-full" />
         <div className="flex-1">
-          <div className="text-white text-xs font-semibold">@maya.rae</div>
+          <div className="text-white text-xs font-semibold">{PEOPLE.maya.handle}</div>
           <div className="text-white/40 text-[9px]">2m · Brooklyn</div>
         </div>
         <div className="text-white/40 text-sm">···</div>
       </div>
-      <div className="aspect-square relative" style={{background:'linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #06b6d4 100%)'}}>
-        <div className="absolute inset-0" style={{backgroundImage:'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3), transparent 40%)'}} />
-        <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-black/40 text-[9px] text-white">✦ aura</div>
+      <div className="aspect-square relative overflow-hidden">
+        <Img src={SCENES.rooftop} alt="Friends on a rooftop" className="absolute inset-0 w-full h-full" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+        <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-black/50 backdrop-blur text-[9px] text-white">✦ aura</div>
       </div>
       <div className="p-2 flex items-center gap-3 text-white/80 text-[11px]">
         <div className="flex items-center gap-1"><Heart className="w-3.5 h-3.5 text-pink-400 fill-pink-400" /><span>1.2k</span></div>
@@ -152,34 +173,34 @@ const MapPhone = () => (
     </div>
     <div className="flex-1 rounded-2xl border border-white/10 relative overflow-hidden"
       style={{background:'radial-gradient(ellipse at 50% 50%, rgba(6,182,212,0.18), transparent 60%), linear-gradient(135deg, #0a1428, #0B0B10)'}}>
-      {/* grid lines */}
       <div className="absolute inset-0 opacity-20" style={{backgroundImage:'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)', backgroundSize:'24px 24px'}} />
-      {/* you */}
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
         <div className="relative">
           <div className="absolute inset-0 rounded-full bg-cyan-400/30 animate-ping" style={{width:48,height:48,left:-16,top:-16}} />
           <div className="w-4 h-4 rounded-full bg-cyan-400 border-2 border-white shadow-lg" />
         </div>
       </div>
-      {/* friends */}
       {[
-        {t:'22%',l:'28%',c:'#8B5CF6',n:'sky',e:'🌙'},
-        {t:'62%',l:'68%',c:'#EC4899',n:'leo',e:'☕'},
-        {t:'72%',l:'22%',c:'#F59E0B',n:'mia',e:'🎧'},
-        {t:'30%',l:'74%',c:'#10B981',n:'kai',e:'🏀'},
+        {t:'22%',l:'28%',p:PEOPLE.sky,e:'🌙'},
+        {t:'62%',l:'68%',p:PEOPLE.leo,e:'☕'},
+        {t:'72%',l:'22%',p:PEOPLE.mia,e:'🎧'},
+        {t:'30%',l:'74%',p:PEOPLE.kai,e:'🏀'},
       ].map((p,i)=>(
         <div key={i} className="absolute -translate-x-1/2 -translate-y-full" style={{top:p.t,left:p.l}}>
           <div className="flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-[11px]" style={{background:p.c}}>{p.e}</div>
-            <div className="mt-0.5 px-1 py-0.5 rounded text-[8px] bg-black/60 text-white">{p.n}</div>
+            <div className="relative">
+              <Img src={p.p.img} className="w-8 h-8 rounded-full border-2 border-white shadow-lg" />
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#0B0B10] border border-white/20 flex items-center justify-center text-[9px]">{p.e}</div>
+            </div>
+            <div className="mt-0.5 px-1 py-0.5 rounded text-[8px] bg-black/60 text-white">{p.p.handle.slice(1)}</div>
           </div>
         </div>
       ))}
     </div>
     <div className="rounded-xl bg-white/5 border border-white/10 p-2 text-white/80 text-[10px] flex items-center gap-2">
-      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-500 to-violet-500" />
+      <Img src={PEOPLE.leo.img} className="w-6 h-6 rounded-full" />
       <div className="flex-1">
-        <div className="text-white text-[11px] font-semibold">@leo.k is 0.4 mi away</div>
+        <div className="text-white text-[11px] font-semibold">{PEOPLE.leo.handle} is 0.4 mi away</div>
         <div className="text-white/50">Sunny 72° · at Café Mile</div>
       </div>
       <div className="text-cyan-400 text-[10px] font-semibold">Bump</div>
@@ -191,11 +212,11 @@ const ChatPhone = () => (
   <div className="w-full h-full bg-[#0B0B10] p-2.5 pt-8 flex flex-col gap-2">
     <div className="flex items-center gap-2 pb-2 border-b border-white/5">
       <div className="relative">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-pink-500" />
+        <Img src={PEOPLE.jordan.img} className="w-8 h-8 rounded-full" />
         <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#0B0B10]" />
       </div>
       <div className="flex-1">
-        <div className="text-white text-sm font-semibold">@jordan.w</div>
+        <div className="text-white text-sm font-semibold">{PEOPLE.jordan.handle}</div>
         <div className="text-white/50 text-[10px] flex items-center gap-1">
           <Flame className="w-2.5 h-2.5 text-amber-400" /> 14d streak · typing…
         </div>
@@ -214,17 +235,20 @@ const ChatPhone = () => (
         </div>
       </div>
       <div className="self-end mt-2 max-w-[78%] rounded-2xl overflow-hidden border border-white/10">
-        <div className="aspect-[4/3]" style={{background:'linear-gradient(135deg, #f59e0b, #ec4899)'}} />
+        <div className="aspect-[4/3] relative">
+          <Img src={SCENES.couch} alt="Friends laughing" className="absolute inset-0 w-full h-full" />
+        </div>
         <div className="bg-white/5 px-2 py-1 text-[9px] text-white/60">VYBE Snap · tap to view</div>
       </div>
     </div>
     <div className="rounded-full bg-white/5 border border-white/10 px-3 py-2 flex items-center gap-2">
-      <div className="text-white/40 text-xs flex-1">Message @jordan…</div>
+      <div className="text-white/40 text-xs flex-1">Message {PEOPLE.jordan.handle}…</div>
       <Heart className="w-3.5 h-3.5 text-white/40" />
       <Camera className="w-3.5 h-3.5 text-white/40" />
     </div>
   </div>
 );
+
 
 /* ---------- Page ---------- */
 
@@ -258,17 +282,7 @@ const VybeHome = memo(function VybeHome() {
     return () => { document.title = prev; meta?.setAttribute('content', prevDesc); };
   }, []);
   return (
-    <div
-      className="vybe-home-scroll bg-[#0B0B10] text-white"
-      style={{
-        height: '100dvh',
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        WebkitOverflowScrolling: 'touch',
-        overscrollBehaviorY: 'contain',
-        touchAction: 'pan-y',
-      }}
-    >
+    <div className="page-scroll-fix bg-[#0B0B10] text-white">
       {/* SEO handled via useEffect below */}
 
       {/* Sticky nav */}
@@ -303,9 +317,13 @@ const VybeHome = memo(function VybeHome() {
         </div>
         <div className="max-w-7xl mx-auto relative grid lg:grid-cols-2 gap-12 items-center">
           <FadeIn>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/70 mb-6">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Now in early access
+            <div className="inline-flex items-center gap-3 pl-1.5 pr-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/70 mb-6">
+              <div className="flex -space-x-2">
+                {[PEOPLE.maya, PEOPLE.jordan, PEOPLE.leo, PEOPLE.sky].map(p => (
+                  <Img key={p.handle} src={p.img} className="w-6 h-6 rounded-full border-2 border-[#0B0B10]" />
+                ))}
+              </div>
+              <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> 12,000+ in early access</span>
             </div>
             <h1 className="font-display font-black text-5xl sm:text-6xl lg:text-7xl leading-[1.05] tracking-tight">
               The social app that
@@ -496,6 +514,36 @@ const VybeHome = memo(function VybeHome() {
               ))}
             </tbody>
           </table>
+        </div>
+      </SectionWrap>
+
+      {/* TESTIMONIALS */}
+      <SectionWrap>
+        <FadeIn>
+          <div className="text-center mb-12">
+            <div className="text-xs uppercase tracking-widest text-violet-400 mb-3 font-semibold">Real people</div>
+            <h2 className="font-display font-black text-4xl sm:text-5xl">Built for actual humans.</h2>
+          </div>
+        </FadeIn>
+        <div className="grid md:grid-cols-3 gap-5 max-w-5xl mx-auto">
+          {[
+            { p: PEOPLE.maya, loc: 'Brooklyn, NY', q: 'My DNA card actually shifts every week — I\'ve never seen an app that gets me this fast.' },
+            { p: PEOPLE.jordan, loc: 'Austin, TX', q: 'Bumping phones to add friends is the most fun I\'ve had on a social app in years. My group went all-in in a week.' },
+            { p: PEOPLE.ren, loc: 'Los Angeles, CA', q: 'Themes I made for friends went viral inside our circle. Feels like MySpace energy but actually polished.' },
+          ].map((t, i) => (
+            <FadeIn key={t.p.handle} delay={i * 0.08}>
+              <div className="h-full p-6 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-violet-400/30 transition">
+                <p className="text-white/85 text-[15px] leading-relaxed">"{t.q}"</p>
+                <div className="mt-5 flex items-center gap-3">
+                  <Img src={t.p.img} className="w-10 h-10 rounded-full" />
+                  <div>
+                    <div className="text-white text-sm font-semibold">{t.p.name}</div>
+                    <div className="text-white/50 text-xs">{t.p.handle} · {t.loc}</div>
+                  </div>
+                </div>
+              </div>
+            </FadeIn>
+          ))}
         </div>
       </SectionWrap>
 

@@ -1,108 +1,84 @@
-# Plan: Public "Vybe Home" Marketing Page
+## Goal
 
-A new public page (no login required) styled like discord.com — bold hero, app screenshots, feature showcases, and a "why VYBE is different" narrative that turns visitors into signups.
+Make `/vybe-home` look genuinely real (not AI-mocked) by swapping flat gradient placeholders for actual photos of fake people and group shots, and apply our **VybeHome scroll fix** pattern to every public marketing/auth page that has the same finger-scroll bug — starting with `/login` and `/signup` (Landing).
 
-## Where it lives
+## 1. Real fake-people imagery
 
-- New page: `src/pages/VybeHome.tsx`
-- New route: `/vybe-home` (public, added to `AnimatedRoutes.tsx`)
-- Linked from current `/` Landing page hero ("See what makes VYBE different →") so we don't disrupt the existing landing/auth flow
-- Optional: also linked in footer of Landing, Features, About
+Add curated Unsplash photo URLs (free CC0, no attribution required for app use) for:
 
-(We keep `/` = Landing as-is so signups still work. Vybe Home is the "tour" page.)
+**Avatars (fake people pfps)** — used in stories row, post header, friend map pins, chat header, comparison table, testimonials. We'll use `i.pravatar.cc/300?img=N` with locked seeds so they stay consistent — these are real photos of real models from the Pravatar set, but they are not VYBE users (they're fake "Maya R.", "Jordan W.", "Leo K.", etc.).
 
-## Page structure (top to bottom)
+Seed map (locked so it never reshuffles):
+- `maya.rae` → img=47 · `jordan.w` → img=12 · `leo.k` → img=33 · `sky.m` → img=49 · `mia.z` → img=44 · `kai.t` → img=15
 
-```text
-┌─────────────────────────────────────────────┐
-│  STICKY NAV: VYBE logo · Features · Safety  │
-│              · Blog · [Sign in] [Get VYBE]  │
-├─────────────────────────────────────────────┤
-│  HERO                                       │
-│  "The social app that becomes you."         │
-│  Subhead + [Download] [Open Web App]        │
-│  Floating phone mockup w/ animated DNA card │
-│  Ambient gradient mesh (purple→cyan)        │
-├─────────────────────────────────────────────┤
-│  SOCIAL PROOF STRIP                         │
-│  "Built for your real friends" · stats      │
-├─────────────────────────────────────────────┤
-│  FEATURE BLOCK 1 — VYBE DNA (hero feature)  │
-│  Left: copy + bullets. Right: screenshot.   │
-├─────────────────────────────────────────────┤
-│  FEATURE BLOCK 2 — Aura & Customization     │
-│  Image left, copy right (alternating)       │
-├─────────────────────────────────────────────┤
-│  FEATURE BLOCK 3 — Friend Map + Bump        │
-├─────────────────────────────────────────────┤
-│  FEATURE BLOCK 4 — VYBE Snap, Notes, Calls  │
-├─────────────────────────────────────────────┤
-│  FEATURE GRID (12 mini cards w/ icons)      │
-│  Clips · Communities · Marketplace · DNA ·  │
-│  Creator Tools · Themes · AI · Stories ·    │
-│  Reaction Streaks · Roulette · Locker ·     │
-│  Vybe Pass                                  │
-├─────────────────────────────────────────────┤
-│  COMPARISON: "Why not just use ___?"        │
-│  Three columns: Insta / Snap / Discord vs   │
-│  VYBE row showing what only VYBE does       │
-├─────────────────────────────────────────────┤
-│  SAFETY STRIP                               │
-│  Vybe Check · parental controls · age gates │
-├─────────────────────────────────────────────┤
-│  FINAL CTA                                  │
-│  Big gradient panel: "Make it yours."       │
-│  [Create your VYBE] [Open Web App]          │
-├─────────────────────────────────────────────┤
-│  FOOTER (reuse existing footer)             │
-└─────────────────────────────────────────────┘
-```
+**Post media** — every fake post that currently shows a flat gradient gets a real "group of people chilling" photo from Unsplash:
+- Hero feed post: rooftop friends laughing
+- Post-detail mock: friends at a sunset picnic
+- Story thumbnails: candid group shots, café table, concert crowd
+- VYBE Snap card in chat: two friends on a couch laughing
 
-## Design language (Discord-inspired, VYBE-flavored)
+Implementation: a small `FAKE_PEOPLE` and `FAKE_SCENES` constant at the top of `VybeHome.tsx` so all references stay consistent. Wrap each `<img>` in a tiny `<PhotoFill>` helper that does `object-cover`, `loading="lazy"`, blurred placeholder, and gracefully falls back to the existing gradient if the image fails.
 
-- Dark background `#0B0B10` with large soft radial gradients (purple `#8B5CF6` → cyan `#06B6D4`) blurred behind sections — already on-brand
-- Rounded "device frames" around screenshots (phone-shaped svg + soft shadow + subtle parallax on scroll)
-- Big display type for section headlines (Space Grotesk via existing `font-display`), small Inter body
-- Alternating left/right feature blocks, each ~80vh on desktop, stacked on mobile
-- Subtle Framer Motion: fade+rise on scroll-in (`whileInView`, once: true), gentle floating animation on the hero phone, animated gradient bar at top
-- Reuse existing glass + button components: `LiquidGlassButton`, `GlassCard`, design tokens from `src/lib/design-system.ts`
-- Fully responsive: single column under `md`, two-column from `lg`
+**Where current gradients become real photos:**
 
-## Screenshots
+| Component | Was | Becomes |
+|---|---|---|
+| `FeedPhone` post body | pink→violet→cyan gradient | Unsplash group-of-friends photo, with the existing aura badge overlaid |
+| `FeedPhone` story rings | empty colored circles | Real avatars inside the conic gradient ring |
+| `FeedPhone` post header avatar | gradient circle | Pravatar `maya.rae` |
+| `MapPhone` friend pins | colored circles with emoji | Small circular real avatars + emoji status badge |
+| `MapPhone` "0.4 mi away" card | gradient circle | Pravatar `leo.k` |
+| `ChatPhone` header avatar | gradient circle | Pravatar `jordan.w` + green online dot kept |
+| `ChatPhone` VYBE Snap card | flat gradient | Real "two friends laughing on a couch" photo |
+| Hero "Now in early access" pill | nothing | Add 3 stacked overlapping real avatars next to it for social proof |
+| Final CTA section | nothing | Add a faint, low-opacity group photo as background layer behind the radial gradients |
 
-We need 4 hero screenshots + 12 small feature thumbnails. Approach:
-1. Use `browser--screenshot` against the running preview at key in-app routes (`/home`, `/vybe-dna`, `/messages`, `/community`, `/profile`, etc.) at a 9:19.5 mobile viewport (390×844)
-2. Save them to `public/marketing/` (e.g. `dna.png`, `feed.png`, `messages.png`, `map.png`, `aura.png`, etc.)
-3. Reference them in the page via `<img src="/marketing/dna.png">` inside the phone-frame component
+All photos use stable Unsplash photo IDs (e.g. `https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=600&q=80`) so they don't rotate and we can verify each one looks right.
 
-If a route requires auth and can't be screenshotted publicly, I'll use a placeholder gradient card with the feature name + icon and we can swap real screenshots in later. I'll list which screenshots succeeded vs. fell back so you can flag any to retry.
+## 2. New "Real people" testimonial strip
 
-## Components to add
+Insert a new section between "Why VYBE" and the Safety strip:
 
-- `src/pages/VybeHome.tsx` — the page itself (single file, ~400-500 lines, all sections inline as small components for clarity)
-- `src/components/marketing/PhoneFrame.tsx` — reusable phone-shaped wrapper for screenshots
-- `src/components/marketing/FeatureRow.tsx` — alternating left/right feature block
-- `src/components/marketing/FeatureCard.tsx` — small icon card for the 12-feature grid
+- 3 testimonial cards, each with a real Pravatar headshot, fake handle, fake location, and a short quote
+- Centered headline: "Built for actual humans."
+- Cards use the same `bg-white/[0.03]` glass treatment as the feature grid for visual consistency
 
-## Routing & SEO
+This single section does most of the "make it look real not AI" work because it adds faces.
 
-- Add `<Route path="/vybe-home" element={<VybeHome />} />` to public block in `AnimatedRoutes.tsx`
-- Add `<Helmet>` (already used elsewhere) with title "VYBE — The social app that becomes you", description, og:image
-- Add `/vybe-home` to `public/sitemap.xml`
-- Add a "Tour" link in the existing Landing hero pointing to `/vybe-home`
+## 3. Scroll fix — apply the VybeHome pattern everywhere it's broken
 
-## What I won't touch
+The `vybe-home-scroll` style block (`height: 100dvh; overflowY: auto; WebkitOverflowScrolling: touch; overscrollBehaviorY: contain; touchAction: pan-y`) is what fixed the trackpad/finger scrolling for marketing pages. Auth pages have the same bug because they use `min-h-[100dvh]` (which lets content grow past the viewport without constraining a real scroll container).
 
-- `/` Landing page (signup flow stays exactly as-is)
-- Auth, DB, RLS, edge functions — pure marketing page, no backend changes
-- Existing `Features.tsx` page (Vybe Home is the richer, image-heavy version; we keep Features as the text-only spec page)
+**Rename the helper** so it's reusable and named after the issue:
 
-## Acceptance
+- Promote the inline style block in `VybeHome.tsx` to a single shared CSS class **`.page-scroll-fix`** in `src/index.css` (alongside the existing `scroll-mobile-safe` block at line 1037). Document it as: *"VYBE scroll-fix — fixes the bug where users had to drag the scrollbar instead of scrolling with finger/trackpad on full-page marketing/auth screens."*
+- Replace the inline style on `VybeHome.tsx` with `className="page-scroll-fix"`.
 
-- Visit `/vybe-home` while logged out → loads instantly, no auth redirect
-- Hero, 4 feature blocks, 12-card grid, comparison table, final CTA all render
-- Real in-app screenshots show in phone frames (or styled fallbacks listed if any failed)
-- Mobile (390px), tablet, and desktop all look polished — nothing overlaps, no horizontal scroll
-- "Get VYBE" / "Create your VYBE" buttons route to `/` (Landing) where signup happens
+**Apply `.page-scroll-fix` to:**
 
-Approve and I'll build it end-to-end, capture the screenshots from the live preview, and QA every breakpoint before handing back.
+1. `src/pages/Landing.tsx` — the `/login` and `/signup` page (line 283 wrapper). Change `min-h-[100dvh] … overflow-y-auto scroll-mobile-safe` → `page-scroll-fix … flex items-start sm:items-center justify-center px-4 py-8`. Keep flex layout for the centered card.
+2. Spot-check and apply the same fix to other public pages already reported to have the bug: `src/pages/About.tsx`, `src/pages/Features.tsx`, `src/pages/Safety.tsx`, `src/pages/Blog.tsx`, `src/pages/FAQ.tsx`, `src/pages/Contact.tsx`, `src/pages/Privacy.tsx`, `src/pages/Terms.tsx` — only where the page wrapper currently uses `min-h-screen` / `min-h-[100dvh]` without an inner scroll container.
+
+Authenticated app routes (under `AppLayout`) are NOT touched — they already have their own scroller at line 84/136 of `AppLayout.tsx`.
+
+## 4. Memory
+
+After implementation, save a `mem://technical/ui-interaction/page-scroll-fix` memory:
+
+> "Public/marketing/auth pages outside AppLayout must use `.page-scroll-fix` (height: 100dvh + overflow-y: auto + touch-action: pan-y + WebkitOverflowScrolling). `min-h-[100dvh]` alone causes the 'have-to-drag-the-scrollbar' bug on trackpads and touch."
+
+Add a one-liner to the index referencing it.
+
+## Out of scope
+
+- Real screenshots of the live VYBE app (user said keep current in-browser mockups, just make the people fake/real-looking)
+- Any change to native APK behavior — RootGate already routes Capacitor builds straight to Landing
+- Stripe / Cloud / DB changes
+
+## Files touched
+
+- `src/pages/VybeHome.tsx` (image swaps + testimonial section + remove inline scroll style)
+- `src/pages/Landing.tsx` (apply `page-scroll-fix`)
+- `src/index.css` (add `.page-scroll-fix` class)
+- `src/pages/About.tsx`, `Features.tsx`, `Safety.tsx`, `Blog.tsx`, `FAQ.tsx`, `Contact.tsx`, `Privacy.tsx`, `Terms.tsx` (wrapper class swap where applicable)
+- `mem://technical/ui-interaction/page-scroll-fix` + index update
