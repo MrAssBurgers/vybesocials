@@ -732,11 +732,11 @@ const VybeHome = memo(function VybeHome() {
       <SectionWrap>
         <FadeIn>
           <FeatureRow
-            tag="Friend Map · Bump · NFC"
-            title="Built for your real friends, IRL."
-            desc="See where your people are right now (Ghost Mode anytime). Bump phones to add. Tap NFC to swap. The first social app that respects the physical world."
-            bullets={['Live friend map with weather','Bump-to-add via swing detection','One-tap NFC pairing']}
-            phone={<MapPhone />}
+            tag="Friend Link · QR · NFC"
+            title="Add friends in one tap. Literally."
+            desc="A sleek Friend Link sheet with an instant QR code and a live tap radar. Hold phones together for NFC. Scan in under a second. No usernames, no typing, no friction."
+            bullets={['Instant local QR with your avatar inset','Tap-to-add via NFC + native bridge','Realtime sync — both phones celebrate together']}
+            phone={<FriendLinkPhone />}
           />
         </FadeIn>
       </SectionWrap>
