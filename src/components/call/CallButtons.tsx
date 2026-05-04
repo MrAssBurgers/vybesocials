@@ -63,7 +63,10 @@ export function CallButtons({
     setIsStarting(callType);
 
     try {
-      await requestCallMediaPermissions(callType);
+      // NOTE: Do NOT pre-probe permissions here. P2PConnection.connect()
+      // calls getUserMedia itself synchronously after this gesture, which
+      // both opens the OS prompt AND avoids the duplicate-getUserMedia
+      // failure pattern on iOS. Probing here just adds latency.
       await startCall({
         callType,
         conversationId,
