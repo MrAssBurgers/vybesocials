@@ -1001,8 +1001,6 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   .scroller {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    transform: translateZ(0);
-    contain: layout paint style;
   }
   .scroller > * {
     content-visibility: auto;
