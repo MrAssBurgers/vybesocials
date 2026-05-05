@@ -187,7 +187,7 @@ USER CONTEXT:
     const applied: any[] = [];
 
     // caps
-    let feedCount = 0, themeDone = false, layoutDone = false, nudgeDone = false;
+    let feedCount = 0, themeDone = false, nudgeDone = false;
 
     for (const tc of toolCalls) {
       const name = tc.function?.name;
