@@ -23,6 +23,7 @@ const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 const Home = lazy(() => import("@/pages/Home"));
 const Onboarding = lazy(() => import("@/pages/Onboarding"));
 const VybeDNA = lazy(() => import("@/pages/VybeDNA"));
+const AutoPilotSettings = lazy(() => import("@/pages/AutoPilotSettings"));
 
 // High-priority pages - lazy but prefetched early
 const Explore = lazy(() => import("@/pages/Explore"));
