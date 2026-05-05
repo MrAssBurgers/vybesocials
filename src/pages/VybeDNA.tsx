@@ -61,8 +61,11 @@ export default function VybeDNAPage() {
             <h1 className="text-lg font-bold flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-primary" />
               VYBE DNA
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-sm">
+                Beta
+              </span>
             </h1>
-            <p className="text-xs text-muted-foreground">Evolves with your activity</p>
+            <p className="text-xs text-muted-foreground">Evolves with your activity · still learning</p>
           </div>
           {dna && (
             <Button variant="ghost" size="icon" onClick={handleShare}>
