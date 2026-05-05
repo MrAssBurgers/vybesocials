@@ -17,8 +17,10 @@ import { useAuth } from "@/lib/auth";
 import { RecentMessageUser } from "@/lib/recentMessageUsers";
 import { useFriendshipStatus, useSendFriendRequest, useFriends, useRespondToFriendRequest, useFriendRequests } from "@/hooks/useFriends";
 import { useSuggestedFriends } from "@/hooks/useFriendsOfFriends";
-import { useQuickAddSuggestions } from "@/hooks/useQuickAddSuggestions";
+import { useQuickAddSuggestions, type QuickAddUser } from "@/hooks/useQuickAddSuggestions";
 import { useDismissedQuickAdd } from "@/hooks/useDismissedQuickAdd";
+import { useSimilarDNAUsers } from "@/hooks/useSimilarDNAUsers";
+import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NFCFriendShare } from "@/components/friends/NFCFriendShare";
 
