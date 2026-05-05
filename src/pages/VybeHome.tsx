@@ -726,7 +726,7 @@ const VybeHome = memo(function VybeHome() {
             title="An app that learns who you are."
             desc="Every reaction, share, and second of attention shapes your personal DNA. Your feed, friend suggestions, and even the UI itself evolve to match. Nobody else has this."
             bullets={['30-day evolving personality vector','Re-skins your feed automatically','Shareable DNA card you\'ll want to post']}
-            phone={<DNAPhone />}
+            phone={<PhoneShot src={phoneChallengesImg} alt="VYBE challenges" />}
           />
         </FadeIn>
       </SectionWrap>
@@ -739,7 +739,7 @@ const VybeHome = memo(function VybeHome() {
             title="Make it look like you. Not like everyone else."
             desc="Drag, drop, theme, animate. Your profile is a living canvas — Bento grid blocks, custom backgrounds, shareable themes, motion presets. Templates are dead."
             bullets={['Framer Motion bento blocks','Share your theme with friends','Live aura backgrounds']}
-            phone={<FeedPhone />}
+            phone={<PhoneShot src={phoneHomeImg} alt="VYBE home" />}
           />
         </FadeIn>
       </SectionWrap>
@@ -751,7 +751,7 @@ const VybeHome = memo(function VybeHome() {
             title="Add friends in one tap. Literally."
             desc="A sleek Friend Link sheet with an instant QR code and a live tap radar. Hold phones together for NFC. Scan in under a second. No usernames, no typing, no friction."
             bullets={['Instant local QR with your avatar inset','Tap-to-add via NFC + native bridge','Realtime sync — both phones celebrate together']}
-            phone={<FriendLinkPhone />}
+            phone={<PhoneShot src={phoneMapImg} alt="VYBE friend map" />}
           />
         </FadeIn>
       </SectionWrap>
@@ -764,7 +764,7 @@ const VybeHome = memo(function VybeHome() {
             title="The closest thing to actually being there."
             desc="Disappearing snaps. GIF notes that float on the chat. Crystal-clear calls that connect in under a second. Multi-emoji reactions, swipe-replies, and reaction streaks that keep the vibe alive."
             bullets={['<1s call connect time','48-hour reaction streaks','End-to-end encrypted messages']}
-            phone={<ChatPhone />}
+            phone={<PhoneShot src={phoneChallengesImg} alt="VYBE challenges" />}
           />
         </FadeIn>
       </SectionWrap>
@@ -969,7 +969,7 @@ function FeatureRow({
           ))}
         </ul>
       </div>
-      <div className="flex justify-center">{phone && <PhoneFrame>{phone}</PhoneFrame>}</div>
+      <div className="flex justify-center">{phone}</div>
     </div>
   );
 }
