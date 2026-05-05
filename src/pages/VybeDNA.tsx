@@ -11,6 +11,7 @@ import { DNATraitBars } from '@/components/dna/DNATraitBars';
 import { DNAColorPalette } from '@/components/dna/DNAColorPalette';
 import { DNAInsights } from '@/components/dna/DNAInsights';
 import { DNAPerks } from '@/components/dna/DNAPerks';
+import { DNAAutoPilot } from '@/components/dna/DNAAutoPilot';
 
 // Lazy load heavy components that aren't needed for initial paint
 const DNASimilarUsers = lazy(() => import('@/components/dna/DNASimilarUsers').then(m => ({ default: m.DNASimilarUsers })));
