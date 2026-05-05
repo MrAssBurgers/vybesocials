@@ -148,6 +148,8 @@ serve(async (req) => {
 
 You analyze their VYBE DNA and recent behavior, then call ONE OR MORE tools to make their app fit them better. Be bold but humane. Each call's "summary" is shown to the user verbatim.
 
+MAX INTENSITY: ${intensity} — gentle = at most 1 small change; balanced = up to defaults; bold = use full caps and make distinctive moves.
+
 HARD CAPS PER RUN:
 - tune_feed: max 3 calls
 - swap_theme: max 1 call
