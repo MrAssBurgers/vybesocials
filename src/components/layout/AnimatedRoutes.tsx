@@ -21,6 +21,7 @@ const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 
 // High-priority but lazy-loaded to reduce main-thread work
 const Home = lazy(() => import("@/pages/Home"));
+const AppWelcome = lazy(() => import("@/pages/AppWelcome"));
 const Onboarding = lazy(() => import("@/pages/Onboarding"));
 const VybeDNA = lazy(() => import("@/pages/VybeDNA"));
 const AutoPilotSettings = lazy(() => import("@/pages/AutoPilotSettings"));
