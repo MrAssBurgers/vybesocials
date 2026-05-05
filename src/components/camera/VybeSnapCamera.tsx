@@ -913,4 +913,4 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
       </div>
     </motion.div>
   );
-}
+});
