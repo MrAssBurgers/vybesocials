@@ -21,6 +21,7 @@ const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 
 // High-priority but lazy-loaded to reduce main-thread work
 const Home = lazy(() => import("@/pages/Home"));
+const AppWelcome = lazy(() => import("@/pages/AppWelcome"));
 const Onboarding = lazy(() => import("@/pages/Onboarding"));
 const VybeDNA = lazy(() => import("@/pages/VybeDNA"));
 const AutoPilotSettings = lazy(() => import("@/pages/AutoPilotSettings"));
@@ -174,6 +175,8 @@ export function AnimatedRoutes() {
             
             {/* CRITICAL ROUTES - Eagerly loaded, instant navigation */}
             <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/welcome" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />
+            <Route path="/vision" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />
             <Route path="/clips" element={<ProtectedRoute><Shorts /></ProtectedRoute>} />
             <Route path="/shorts" element={<ProtectedRoute><Shorts /></ProtectedRoute>} />
             <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
