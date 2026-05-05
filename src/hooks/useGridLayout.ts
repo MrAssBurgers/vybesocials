@@ -1,7 +1,9 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useUserPreferences, useUpdatePreferences } from './useUserPreferences';
 import { ALL_WIDGETS, type WidgetDef } from './useHomeLayout';
 import { useIsMobileOrTablet } from './use-mobile';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
 
 export interface GridWidgetState extends WidgetDef {
   enabled: boolean;
@@ -58,14 +60,57 @@ export function useGridLayout() {
   const { data: prefs } = useUserPreferences();
   const update = useUpdatePreferences();
   const { isMobileOrTablet } = useIsMobileOrTablet();
+  const { user } = useAuth();
+  const [autoOverride, setAutoOverride] = useState<{ order?: string[]; hidden?: string[] } | null>(null);
 
   const variant: LayoutVariant = isMobileOrTablet ? 'mobile' : 'desktop';
+
+  const fetchAutoOverride = useCallback(async () => {
+    if (!user?.id) { setAutoOverride(null); return; }
+    const { data: settings } = await supabase
+      .from('dna_agent_settings').select('mode').eq('user_id', user.id).maybeSingle();
+    if (settings?.mode !== 'autonomous') { setAutoOverride(null); return; }
+    const { data: action } = await supabase
+      .from('dna_agent_actions')
+      .select('after')
+      .eq('user_id', user.id)
+      .eq('action_type', 'layout_change')
+      .eq('applied', true)
+      .eq('reverted', false)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setAutoOverride((action?.after as any) || null);
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchAutoOverride();
+    if (!user?.id) return;
+    const ch = supabase
+      .channel(`autopilot-grid-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dna_agent_actions', filter: `user_id=eq.${user.id}` }, () => fetchAutoOverride())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dna_agent_settings', filter: `user_id=eq.${user.id}` }, () => fetchAutoOverride())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [user?.id, fetchAutoOverride]);
 
   const config = useMemo((): GridLayoutConfig => {
     const gridRoot = (prefs?.extra as any)?.grid_layout;
     const saved = gridRoot?.[variant] ?? gridRoot;
-    return parseConfig(saved as Partial<GridLayoutConfig> | undefined);
-  }, [prefs?.extra, variant]);
+    const base = parseConfig(saved as Partial<GridLayoutConfig> | undefined);
+    if (!autoOverride) return base;
+    const order = autoOverride.order ?? [];
+    const hidden = new Set(autoOverride.hidden ?? []);
+    const widgets = base.widgets.map((w, i) => {
+      const idx = order.indexOf(w.id);
+      return {
+        ...w,
+        enabled: order.length ? (idx !== -1 && !hidden.has(w.id)) : (!hidden.has(w.id) && w.enabled),
+        order: idx !== -1 ? idx : (order.length + i),
+      };
+    }).sort((a, b) => a.order - b.order);
+    return { ...base, widgets };
+  }, [prefs?.extra, variant, autoOverride]);
 
   const saveGridLayout = useCallback(async (newConfig: Partial<GridLayoutConfig>, allDevices = false) => {
     const currentExtra = (prefs?.extra as any) ?? {};
