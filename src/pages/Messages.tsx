@@ -28,9 +28,9 @@ export default function Messages() {
         className={`
           ${isImmersive
             ? 'h-[100dvh] fixed inset-0 z-50' 
-            : 'min-h-[100dvh] md:min-h-screen h-[100dvh] md:h-screen w-full'
+            : 'h-full w-full'
           } 
-          flex max-w-full pb-0 bg-background/65 backdrop-blur-2xl
+          flex max-w-full pb-0 bg-background
         `}
         style={{ 
           position: isImmersive ? 'fixed' : undefined,
