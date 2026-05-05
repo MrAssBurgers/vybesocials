@@ -5,6 +5,7 @@ import { useDynamicManifest } from '@/hooks/useDynamicManifest';
 import { useRetroactiveSync } from '@/hooks/useRetroactiveSync';
 import { useDailyLoginChallenge } from '@/hooks/useDailyLogin';
 import { useCaptureNotifications } from '@/hooks/useCaptureDetection';
+import { useApplyAutoTheme } from '@/hooks/useApplyAutoTheme';
 
 
 /**
@@ -19,6 +20,7 @@ export default function DeferredAuthHooks() {
   useRetroactiveSync();
   useDailyLoginChallenge();
   useCaptureNotifications();
+  useApplyAutoTheme();
   
   return null;
 }

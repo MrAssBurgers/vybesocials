@@ -1,5 +1,7 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useUserPreferences, useUpdatePreferences } from './useUserPreferences';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
 
 export interface WidgetDef {
   id: string;
@@ -42,11 +44,37 @@ export interface HomeLayout {
 export function useHomeLayout() {
   const { data: prefs } = useUserPreferences();
   const update = useUpdatePreferences();
+  const { user } = useAuth();
+  const [autoOverride, setAutoOverride] = useState<{ order?: string[]; hidden?: string[] } | null>(null);
+
+  // Pull the latest applied autonomous layout_change override
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    (async () => {
+      const { data: settings } = await supabase
+        .from('dna_agent_settings').select('mode').eq('user_id', user.id).maybeSingle();
+      if (!active) return;
+      if (settings?.mode !== 'autonomous') { setAutoOverride(null); return; }
+      const { data: action } = await supabase
+        .from('dna_agent_actions')
+        .select('after')
+        .eq('user_id', user.id)
+        .eq('action_type', 'layout_change')
+        .eq('applied', true)
+        .eq('reverted', false)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (active) setAutoOverride((action?.after as any) || null);
+    })();
+    return () => { active = false; };
+  }, [user?.id]);
 
   const layout = useMemo((): HomeLayout => ({
-    order: ((prefs?.extra as any)?.home_layout?.order ?? DEFAULT_ORDER) as string[],
-    hidden: ((prefs?.extra as any)?.home_layout?.hidden ?? DEFAULT_HIDDEN) as string[],
-  }), [prefs?.extra]);
+    order: (autoOverride?.order ?? (prefs?.extra as any)?.home_layout?.order ?? DEFAULT_ORDER) as string[],
+    hidden: (autoOverride?.hidden ?? (prefs?.extra as any)?.home_layout?.hidden ?? DEFAULT_HIDDEN) as string[],
+  }), [prefs?.extra, autoOverride]);
 
   const widgets = useMemo((): WidgetState[] => {
     const orderedIds = [...layout.order];
