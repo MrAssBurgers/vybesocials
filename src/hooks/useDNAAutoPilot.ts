@@ -4,12 +4,19 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
 export type AutoPilotMode = 'off' | 'suggest' | 'autonomous';
+export type AutoPilotIntensity = 'gentle' | 'balanced' | 'bold';
 
 export interface AutoPilotSettings {
   user_id: string;
   mode: AutoPilotMode;
   cadence_minutes: number;
   last_run_at: string | null;
+  trigger_on_post: boolean;
+  trigger_on_follow: boolean;
+  trigger_on_session: boolean;
+  max_intensity: AutoPilotIntensity;
+  learning_paused: boolean;
+  personalization_opted_out: boolean;
 }
 
 export interface AutoPilotAction {
@@ -37,22 +44,37 @@ export function useDNAAutoPilot() {
       supabase.from('dna_agent_settings').select('*').eq('user_id', user.id).maybeSingle(),
       supabase.from('dna_agent_actions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
     ]);
-    setSettings((s.data as any) || { user_id: user.id, mode: 'suggest', cadence_minutes: 360, last_run_at: null });
+    const defaults: AutoPilotSettings = {
+      user_id: user.id, mode: 'suggest', cadence_minutes: 360, last_run_at: null,
+      trigger_on_post: true, trigger_on_follow: true, trigger_on_session: true,
+      max_intensity: 'balanced', learning_paused: false, personalization_opted_out: false,
+    };
+    setSettings({ ...defaults, ...((s.data as any) || {}) });
     setActions((a.data as any[]) || []);
     setLoading(false);
   }, [user?.id]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const setMode = useCallback(async (mode: AutoPilotMode) => {
+  const updateSettings = useCallback(async (patch: Partial<AutoPilotSettings>) => {
     if (!user?.id) return;
-    setSettings(prev => prev ? { ...prev, mode } : prev);
-    await supabase.from('dna_agent_settings').upsert({
-      user_id: user.id,
-      mode,
-      cadence_minutes: settings?.cadence_minutes || 360,
-    }, { onConflict: 'user_id' });
-  }, [user?.id, settings?.cadence_minutes]);
+    setSettings(prev => prev ? { ...prev, ...patch } : prev);
+    const merged = { ...(settings || {} as any), ...patch, user_id: user.id };
+    // strip read-only fields
+    const { last_run_at, created_at, updated_at, ...payload } = merged as any;
+    await supabase.from('dna_agent_settings').upsert(payload, { onConflict: 'user_id' });
+  }, [user?.id, settings]);
+
+  const setMode = useCallback(async (mode: AutoPilotMode) => {
+    await updateSettings({ mode });
+  }, [updateSettings]);
+
+  const clearAdaptationData = useCallback(async () => {
+    const { error } = await supabase.rpc('clear_dna_adaptation_data');
+    if (error) { toast.error('Could not clear data'); return; }
+    toast.success('All adaptation data cleared');
+    await refresh();
+  }, [refresh]);
 
   const runNow = useCallback(async () => {
     if (!user?.id || running) return;
@@ -85,5 +107,5 @@ export function useDNAAutoPilot() {
     await refresh();
   }, [refresh]);
 
-  return { settings, actions, loading, running, setMode, runNow, revert, applyPending, refresh };
+  return { settings, actions, loading, running, setMode, updateSettings, clearAdaptationData, runNow, revert, applyPending, refresh };
 }

@@ -135,12 +135,20 @@ serve(async (req) => {
     ]);
 
     const mode = settingsR.data?.mode || "suggest";
+    const intensity = settingsR.data?.max_intensity || "balanced";
+    if (settingsR.data?.personalization_opted_out || settingsR.data?.learning_paused || mode === "off") {
+      return new Response(JSON.stringify({ ok: true, mode, actions: [], skipped: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const willApply = mode === "autonomous";
     const pv = (dnaR.data?.personality_vector as Record<string, number>) || {};
 
     const systemPrompt = `You are VYBE Auto-Pilot — an autonomous AI agent that personalizes a user's social-app experience.
 
 You analyze their VYBE DNA and recent behavior, then call ONE OR MORE tools to make their app fit them better. Be bold but humane. Each call's "summary" is shown to the user verbatim.
+
+MAX INTENSITY: ${intensity} — gentle = at most 1 small change; balanced = up to defaults; bold = use full caps and make distinctive moves.
 
 HARD CAPS PER RUN:
 - tune_feed: max 3 calls

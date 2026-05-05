@@ -1,8 +1,9 @@
 import { useDNAAutoPilot, AutoPilotMode } from '@/hooks/useDNAAutoPilot';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Zap, Eye, Pause, RotateCcw, Check, Wand2, Palette, LayoutGrid, MessageCircleHeart } from 'lucide-react';
+import { Sparkles, Zap, Eye, Pause, RotateCcw, Check, Wand2, Palette, LayoutGrid, MessageCircleHeart, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Link } from 'react-router-dom';
 
 const MODES: { value: AutoPilotMode; label: string; icon: any; desc: string }[] = [
   { value: 'off', label: 'Off', icon: Pause, desc: 'No changes' },
@@ -58,6 +59,11 @@ export function DNAAutoPilot() {
                   : 'Paused · turn on to let your DNA reshape your experience'}
               </p>
             </div>
+            <Button asChild variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0">
+              <Link to="/vybe-dna/autopilot" aria-label="Auto-Pilot settings">
+                <Settings2 className="h-4 w-4" />
+              </Link>
+            </Button>
           </div>
 
           {/* Mode toggle */}

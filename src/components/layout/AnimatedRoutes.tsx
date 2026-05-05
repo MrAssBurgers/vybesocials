@@ -23,6 +23,7 @@ const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 const Home = lazy(() => import("@/pages/Home"));
 const Onboarding = lazy(() => import("@/pages/Onboarding"));
 const VybeDNA = lazy(() => import("@/pages/VybeDNA"));
+const AutoPilotSettings = lazy(() => import("@/pages/AutoPilotSettings"));
 
 // High-priority pages - lazy but prefetched early
 const Explore = lazy(() => import("@/pages/Explore"));
@@ -233,6 +234,7 @@ export function AnimatedRoutes() {
             <Route path="/spaces" element={<ProtectedRoute><VYBESpaces /></ProtectedRoute>} />
             <Route path="/space/:spaceId" element={<ProtectedRoute><SpaceRoom /></ProtectedRoute>} />
             <Route path="/vybe-dna" element={<ProtectedRoute><VybeDNA /></ProtectedRoute>} />
+            <Route path="/vybe-dna/autopilot" element={<ProtectedRoute><AutoPilotSettings /></ProtectedRoute>} />
             <Route path="/wallet" element={<ProtectedRoute><TokenWallet /></ProtectedRoute>} />
             <Route path="/marketplace" element={<ProtectedRoute><TokenMarketplace /></ProtectedRoute>} />
             <Route path="/premium-success" element={<ProtectedRoute><PremiumSuccess /></ProtectedRoute>} />
