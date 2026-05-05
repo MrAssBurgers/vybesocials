@@ -231,14 +231,6 @@ USER CONTEXT:
           summary: args.summary, before, after, applied: willApply,
         }).select().single();
         applied.push(row);
-      } else if (name === "change_layout" && !layoutDone) {
-        layoutDone = true;
-        const after = { order: args.order, hidden: args.hidden || [] };
-        const { data: row } = await supabase.from("dna_agent_actions").insert({
-          user_id: userId, action_type: "layout_change",
-          summary: args.summary, before: null, after, applied: willApply,
-        }).select().single();
-        applied.push(row);
       } else if (name === "send_nudge" && !nudgeDone) {
         nudgeDone = true;
         const { data: row } = await supabase.from("dna_agent_actions").insert({
