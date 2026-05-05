@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, forwardRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, SwitchCamera, Zap, ZapOff, Loader2, Timer, Grid3X3, Sun, Moon, Image, Music, Search, UserPlus, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,7 @@ const LENS_FILTERS = [
   { id: 'noir', label: 'Noir', icon: '🎬', filter: 'grayscale(0.8) contrast(1.4) brightness(0.9)' },
 ];
 
-export function VybeSnapCamera({ isOpen, onClose, onSend }: VybeSnapCameraProps) {
+export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(function VybeSnapCamera({ isOpen, onClose, onSend }, _ref) {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [phase, setPhase] = useState<'camera' | 'edit' | 'sending'>('camera');
