@@ -683,19 +683,19 @@ const VybeHome = memo(function VybeHome() {
             <div className="relative h-[560px] hidden lg:block">
               <motion.div animate={{y:[0,-12,0]}} transition={{duration:6,repeat:Infinity,ease:'easeInOut'}}
                 className="absolute left-0 top-10 z-10">
-                <PhoneFrame tilt={-6}><FeedPhone /></PhoneFrame>
+                <PhoneShot src={phoneHomeImg} alt="VYBE home feed" tilt={-6} />
               </motion.div>
               <motion.div animate={{y:[0,12,0]}} transition={{duration:7,repeat:Infinity,ease:'easeInOut',delay:0.5}}
                 className="absolute right-0 top-0 z-20">
-                <PhoneFrame tilt={6}><DNAPhone /></PhoneFrame>
+                <PhoneShot src={phoneChallengesImg} alt="VYBE challenges" tilt={6} />
               </motion.div>
               <motion.div animate={{y:[0,-8,0]}} transition={{duration:8,repeat:Infinity,ease:'easeInOut',delay:1}}
                 className="absolute left-1/2 -translate-x-1/2 bottom-0 z-30">
-                <PhoneFrame tilt={2}><ChatPhone /></PhoneFrame>
+                <PhoneShot src={phoneMapImg} alt="VYBE friend map" tilt={2} />
               </motion.div>
             </div>
             <div className="lg:hidden flex justify-center">
-              <PhoneFrame><DNAPhone /></PhoneFrame>
+              <PhoneShot src={phoneHomeImg} alt="VYBE home feed" />
             </div>
           </FadeIn>
         </div>
