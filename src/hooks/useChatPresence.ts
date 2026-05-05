@@ -172,7 +172,7 @@ export function useChatPresence(conversationId: string | undefined) {
     // Also poll presence state every 3 seconds as a safety net for missed realtime events
     const presencePollRef = setInterval(fetchPresence, 3000);
 
-    // Subscribe to presence changes
+    // Single consolidated channel for presence + typing (was 2 separate channels)
     const presenceChannel = supabase
       .channel(`chat-presence:${conversationId}`)
       .on(
@@ -187,11 +187,6 @@ export function useChatPresence(conversationId: string | undefined) {
           if (isMounted) fetchPresence();
         }
       )
-      .subscribe();
-
-    // Subscribe to typing changes - handle directly from realtime payload
-    const typingChannel = supabase
-      .channel(`typing-presence:${conversationId}`)
       .on(
         'postgres_changes',
         {
@@ -255,7 +250,6 @@ export function useChatPresence(conversationId: string | undefined) {
       clearInterval(presencePollRef);
       leavePresence();
       supabase.removeChannel(presenceChannel);
-      supabase.removeChannel(typingChannel);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [conversationId, profile?.id]);
