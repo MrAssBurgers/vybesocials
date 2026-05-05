@@ -47,29 +47,34 @@ export function useHomeLayout() {
   const { user } = useAuth();
   const [autoOverride, setAutoOverride] = useState<{ order?: string[]; hidden?: string[] } | null>(null);
 
-  // Pull the latest applied autonomous layout_change override
-  useEffect(() => {
+  const fetchOverride = useCallback(async () => {
     if (!user?.id) return;
-    let active = true;
-    (async () => {
-      const { data: settings } = await supabase
-        .from('dna_agent_settings').select('mode').eq('user_id', user.id).maybeSingle();
-      if (!active) return;
-      if (settings?.mode !== 'autonomous') { setAutoOverride(null); return; }
-      const { data: action } = await supabase
-        .from('dna_agent_actions')
-        .select('after')
-        .eq('user_id', user.id)
-        .eq('action_type', 'layout_change')
-        .eq('applied', true)
-        .eq('reverted', false)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (active) setAutoOverride((action?.after as any) || null);
-    })();
-    return () => { active = false; };
+    const { data: settings } = await supabase
+      .from('dna_agent_settings').select('mode').eq('user_id', user.id).maybeSingle();
+    if (settings?.mode !== 'autonomous') { setAutoOverride(null); return; }
+    const { data: action } = await supabase
+      .from('dna_agent_actions')
+      .select('after')
+      .eq('user_id', user.id)
+      .eq('action_type', 'layout_change')
+      .eq('applied', true)
+      .eq('reverted', false)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setAutoOverride((action?.after as any) || null);
   }, [user?.id]);
+
+  useEffect(() => {
+    fetchOverride();
+    if (!user?.id) return;
+    const ch = supabase
+      .channel(`autopilot-layout-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dna_agent_actions', filter: `user_id=eq.${user.id}` }, () => fetchOverride())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dna_agent_settings', filter: `user_id=eq.${user.id}` }, () => fetchOverride())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [user?.id, fetchOverride]);
 
   const layout = useMemo((): HomeLayout => ({
     order: (autoOverride?.order ?? (prefs?.extra as any)?.home_layout?.order ?? DEFAULT_ORDER) as string[],

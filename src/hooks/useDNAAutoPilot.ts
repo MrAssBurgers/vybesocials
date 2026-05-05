@@ -82,9 +82,21 @@ export function useDNAAutoPilot() {
     try {
       const { data, error } = await supabase.functions.invoke('dna-autopilot', { body: { trigger: 'manual' } });
       if (error) throw error;
-      const count = data?.actions?.length || 0;
-      if (count === 0) toast('Auto-Pilot found nothing new to tune yet — keep using VYBE.');
-      else toast.success(`Auto-Pilot tuned ${count} thing${count === 1 ? '' : 's'} for you`);
+      const acts = (data?.actions || []) as AutoPilotAction[];
+      const mode = (data?.mode || settings?.mode || 'suggest') as AutoPilotMode;
+      if (acts.length === 0) {
+        toast('Auto-Pilot found nothing new to tune yet — keep using VYBE.');
+      } else if (mode === 'autonomous') {
+        // Show each summary so user sees exactly what happened
+        acts.slice(0, 3).forEach(a => toast.success(a.summary));
+        // Surface nudge messages directly
+        acts.filter(a => a.action_type === 'nudge').forEach(a => {
+          const msg = (a.after as any)?.message;
+          if (msg) toast(msg, { duration: 6000 });
+        });
+      } else {
+        toast.success(`Auto-Pilot drafted ${acts.length} change${acts.length === 1 ? '' : 's'} — review & apply below`);
+      }
       await refresh();
     } catch (e: any) {
       toast.error(e?.message || 'Auto-Pilot run failed');
