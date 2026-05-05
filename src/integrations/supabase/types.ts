@@ -3708,6 +3708,96 @@ export type Database = {
           },
         ]
       }
+      dna_agent_actions: {
+        Row: {
+          action_type: string
+          after: Json | null
+          applied: boolean
+          before: Json | null
+          created_at: string
+          id: string
+          reverted: boolean
+          summary: string
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          after?: Json | null
+          applied?: boolean
+          before?: Json | null
+          created_at?: string
+          id?: string
+          reverted?: boolean
+          summary: string
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          after?: Json | null
+          applied?: boolean
+          before?: Json | null
+          created_at?: string
+          id?: string
+          reverted?: boolean
+          summary?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      dna_agent_settings: {
+        Row: {
+          cadence_minutes: number
+          created_at: string
+          last_run_at: string | null
+          mode: Database["public"]["Enums"]["dna_agent_mode"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cadence_minutes?: number
+          created_at?: string
+          last_run_at?: string | null
+          mode?: Database["public"]["Enums"]["dna_agent_mode"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cadence_minutes?: number
+          created_at?: string
+          last_run_at?: string | null
+          mode?: Database["public"]["Enums"]["dna_agent_mode"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      dna_auto_theme: {
+        Row: {
+          applied_at: string
+          aura_intensity: number | null
+          glyph_pattern: string | null
+          gradient: string | null
+          signature_colors: Json
+          user_id: string
+        }
+        Insert: {
+          applied_at?: string
+          aura_intensity?: number | null
+          glyph_pattern?: string | null
+          gradient?: string | null
+          signature_colors?: Json
+          user_id: string
+        }
+        Update: {
+          applied_at?: string
+          aura_intensity?: number | null
+          glyph_pattern?: string | null
+          gradient?: string | null
+          signature_colors?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       dna_content_preferences: {
         Row: {
           boost_topics: string[] | null
@@ -12466,6 +12556,7 @@ export type Database = {
         | "beta"
         | "special"
       creator_tier: "none" | "emerging" | "verified" | "elite"
+      dna_agent_mode: "off" | "suggest" | "autonomous"
       group_role: "owner" | "admin" | "member"
     }
     CompositeTypes: {
@@ -12614,6 +12705,7 @@ export const Constants = {
         "special",
       ],
       creator_tier: ["none", "emerging", "verified", "elite"],
+      dna_agent_mode: ["off", "suggest", "autonomous"],
       group_role: ["owner", "admin", "member"],
     },
   },
