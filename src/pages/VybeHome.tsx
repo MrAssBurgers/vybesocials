@@ -15,15 +15,15 @@ import phoneMapImg from '@/assets/vybe-home-map.png';
 import phoneChallengesImg from '@/assets/vybe-home-challenges.png';
 
 const PhoneShot = ({ src, alt, tilt = 0, className }: { src: string; alt: string; tilt?: number; className?: string }) => (
-  <div className={cn('relative mx-auto w-[260px] sm:w-[280px]', className)} style={{ transform: `rotate(${tilt}deg)` }}>
+  <PhoneFrame tilt={tilt} className={className}>
     <img
       src={src}
       alt={alt}
       loading="lazy"
       decoding="async"
-      className="w-full h-auto drop-shadow-[0_30px_60px_rgba(139,92,246,0.45)]"
+      className="w-full h-full object-cover"
     />
-  </div>
+  </PhoneFrame>
 );
 
 /* ---------- Reusable bits ---------- */
