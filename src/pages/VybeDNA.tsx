@@ -79,8 +79,13 @@ export default function VybeDNAPage() {
           </div>
         ) : dna ? (
           <>
-            {/* DNA Orb - keep single animation for hero */}
+            {/* Auto-Pilot — autonomous AI agent */}
             <FadeInSection>
+              <DNAAutoPilot />
+            </FadeInSection>
+
+            {/* DNA Orb - keep single animation for hero */}
+            <FadeInSection delay={30}>
               <div className="pt-4 pb-10">
                 <DNAOrb dna={dna} />
               </div>
