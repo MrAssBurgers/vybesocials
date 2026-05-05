@@ -22,20 +22,25 @@ export default function Messages() {
     }
   }, [isDesktop]);
 
+  // On mobile (not in chat), pin to viewport so bg-background covers area behind bottom nav
+  const mobileListMode = !isDesktop && !isInChat;
+
   return (
     <AppLayout hideRightSidebar fullWidth hideNav={isImmersive} noPadding>
       <div 
         className={`
           ${isImmersive
-            ? 'h-[100dvh] fixed inset-0 z-50' 
-            : 'h-full w-full'
+            ? 'h-[100dvh] fixed inset-0 z-50'
+            : mobileListMode
+              ? 'fixed inset-x-0 top-14 bottom-0 z-[1]'
+              : 'h-full w-full'
           } 
           flex max-w-full pb-0 bg-background
         `}
         style={{ 
-          position: isImmersive ? 'fixed' : undefined,
+          position: isImmersive ? 'fixed' : (mobileListMode ? 'fixed' : undefined),
           inset: isImmersive ? 0 : undefined,
-          zIndex: isImmersive ? 50 : undefined,
+          zIndex: isImmersive ? 50 : (mobileListMode ? 1 : undefined),
           overflow: 'hidden',
         }}
       >
