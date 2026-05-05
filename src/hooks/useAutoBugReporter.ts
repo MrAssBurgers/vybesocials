@@ -17,8 +17,17 @@ interface DetectedBug {
   timestamp: number;
 }
 
-// Deduplicate per session
+// Deduplicate per session — first occurrence reports, repeats throttled
 const reportedKeys = new Set<string>();
+
+// Per-key cooldown: same error key (normalized) won't re-enqueue within window
+const recentEnqueues = new Map<string, number>();
+const PER_KEY_COOLDOWN_MS = 30_000; // 30s
+
+// Global rate cap: never enqueue more than N reports in a rolling window
+const recentEnqueueTimestamps: number[] = [];
+const RATE_WINDOW_MS = 5_000;
+const RATE_MAX_PER_WINDOW = 8;
 
 function bugKey(msg: string): string {
   return msg
