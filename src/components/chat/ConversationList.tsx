@@ -1041,7 +1041,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
       />
     </>
   );
-});
+}));
 
 // Recommended Friends Section - Snapchat Quick Add style at bottom of DMs
 const RecommendedFriendsSection = memo(function RecommendedFriendsSection() {
