@@ -3749,7 +3749,13 @@ export type Database = {
           cadence_minutes: number
           created_at: string
           last_run_at: string | null
+          learning_paused: boolean
+          max_intensity: Database["public"]["Enums"]["dna_agent_intensity"]
           mode: Database["public"]["Enums"]["dna_agent_mode"]
+          personalization_opted_out: boolean
+          trigger_on_follow: boolean
+          trigger_on_post: boolean
+          trigger_on_session: boolean
           updated_at: string
           user_id: string
         }
@@ -3757,7 +3763,13 @@ export type Database = {
           cadence_minutes?: number
           created_at?: string
           last_run_at?: string | null
+          learning_paused?: boolean
+          max_intensity?: Database["public"]["Enums"]["dna_agent_intensity"]
           mode?: Database["public"]["Enums"]["dna_agent_mode"]
+          personalization_opted_out?: boolean
+          trigger_on_follow?: boolean
+          trigger_on_post?: boolean
+          trigger_on_session?: boolean
           updated_at?: string
           user_id: string
         }
@@ -3765,7 +3777,13 @@ export type Database = {
           cadence_minutes?: number
           created_at?: string
           last_run_at?: string | null
+          learning_paused?: boolean
+          max_intensity?: Database["public"]["Enums"]["dna_agent_intensity"]
           mode?: Database["public"]["Enums"]["dna_agent_mode"]
+          personalization_opted_out?: boolean
+          trigger_on_follow?: boolean
+          trigger_on_post?: boolean
+          trigger_on_session?: boolean
           updated_at?: string
           user_id?: string
         }
@@ -11964,6 +11982,7 @@ export type Database = {
         Args: { p_conversation_id: string; p_user_id: string }
         Returns: Json
       }
+      clear_dna_adaptation_data: { Args: never; Returns: undefined }
       compute_vybe_dna: { Args: never; Returns: Json }
       confirm_referral_atomic: {
         Args: {
@@ -12556,6 +12575,7 @@ export type Database = {
         | "beta"
         | "special"
       creator_tier: "none" | "emerging" | "verified" | "elite"
+      dna_agent_intensity: "gentle" | "balanced" | "bold"
       dna_agent_mode: "off" | "suggest" | "autonomous"
       group_role: "owner" | "admin" | "member"
     }
@@ -12705,6 +12725,7 @@ export const Constants = {
         "special",
       ],
       creator_tier: ["none", "emerging", "verified", "elite"],
+      dna_agent_intensity: ["gentle", "balanced", "bold"],
       dna_agent_mode: ["off", "suggest", "autonomous"],
       group_role: ["owner", "admin", "member"],
     },
