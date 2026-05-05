@@ -10,7 +10,7 @@
  * "Join Back" only appears for persistent mode calls (P2P has no rejoin).
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, forwardRef } from 'react';
 import { Phone, Video, Loader2, PhoneCall } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCallStore, CallType, getLingeringCall } from '@/lib/callStore';
@@ -29,7 +29,7 @@ interface CallButtonsProps {
   participantIds?: string[];
 }
 
-export function CallButtons({ 
+export const CallButtons = forwardRef<HTMLDivElement, CallButtonsProps>(function CallButtons({ 
   conversationId, 
   receiverId,
   receiverUsername,
@@ -39,7 +39,7 @@ export function CallButtons({
   groupName,
   groupAvatar,
   participantIds,
-}: CallButtonsProps) {
+}, ref) {
   const { state, startCall, rejoinCall } = useCallStore();
   const [isStarting, setIsStarting] = useState<CallType | null>(null);
 
@@ -97,7 +97,7 @@ export function CallButtons({
   // Show green "Join Back" button when there's a lingering persistent call
   if (hasLingeringCall) {
     return (
-      <div className="flex items-center gap-1">
+      <div ref={ref} className="flex items-center gap-1">
         <Button
           variant="default"
           size="sm"
@@ -112,7 +112,7 @@ export function CallButtons({
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div ref={ref} className="flex items-center gap-1">
       <Button
         variant="ghost"
         size="icon"
@@ -143,4 +143,4 @@ export function CallButtons({
       </Button>
     </div>
   );
-}
+});

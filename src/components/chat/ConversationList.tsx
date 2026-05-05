@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, memo, useCallback, useRef, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, useMotionValue, useTransform, PanInfo, AnimatePresence } from 'framer-motion';
@@ -555,7 +555,7 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
 const SWIPE_THRESHOLD = -60;
 
 // Shared conversation content component - simplified without the options menu
-const ConversationContent = memo(function ConversationContent({
+const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function ConversationContent({
   conversation,
   displayName,
   avatarUrl,
@@ -574,7 +574,7 @@ const ConversationContent = memo(function ConversationContent({
   otherMember,
   streak,
   userStatus,
-}: any) {
+}, _ref) {
   return (
     <>
       <div className="relative flex-shrink-0">
@@ -743,22 +743,10 @@ const ConversationContent = memo(function ConversationContent({
       </div>
     </>
   );
-});
+}));
 
 // Memoized conversation item with swipe-to-delete on mobile and long-press for options
-const ConversationItem = memo(function ConversationItem({ 
-  conversation, 
-  onClick,
-  isOnline,
-  isTyping,
-  currentUserId,
-  userRole,
-  onTrash,
-  hasStory,
-  storyGroup,
-  streak,
-  userStatus,
-}: { 
+interface ConversationItemProps {
   conversation: Conversation; 
   onClick: () => void;
   isOnline?: boolean;
@@ -770,7 +758,21 @@ const ConversationItem = memo(function ConversationItem({
   storyGroup?: StoryGroup;
   streak?: Streak;
   userStatus?: { emoji: string; text: string } | null;
-}) {
+}
+
+const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(function ConversationItem({ 
+  conversation, 
+  onClick,
+  isOnline,
+  isTyping,
+  currentUserId,
+  userRole,
+  onTrash,
+  hasStory,
+  storyGroup,
+  streak,
+  userStatus,
+}, _ref) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [optionsOpen, setOptionsOpen] = useState(false);
@@ -1039,7 +1041,7 @@ const ConversationItem = memo(function ConversationItem({
       />
     </>
   );
-});
+}));
 
 // Recommended Friends Section - Snapchat Quick Add style at bottom of DMs
 const RecommendedFriendsSection = memo(function RecommendedFriendsSection() {
