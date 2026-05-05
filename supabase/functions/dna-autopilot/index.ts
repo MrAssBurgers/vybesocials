@@ -131,8 +131,9 @@ MAX INTENSITY: ${intensity} — gentle = at most 1 small change; balanced = up t
 HARD CAPS PER RUN:
 - tune_feed: max 3 calls
 - swap_theme: max 1 call
-- change_layout: max 1 call
 - send_nudge: max 1 call
+
+NEVER attempt to reorder, hide, or modify home widgets. Layout is fully user-controlled.
 
 Only call tools when there is real evidence in the data. If nothing meaningful changed, return no tool calls.
 
