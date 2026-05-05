@@ -5,6 +5,7 @@ import { useDynamicManifest } from '@/hooks/useDynamicManifest';
 import { useRetroactiveSync } from '@/hooks/useRetroactiveSync';
 import { useDailyLoginChallenge } from '@/hooks/useDailyLogin';
 import { useCaptureNotifications } from '@/hooks/useCaptureDetection';
+import { useApplyAutoTheme } from '@/hooks/useApplyAutoTheme';
 
 
 /**
