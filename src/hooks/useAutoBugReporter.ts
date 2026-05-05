@@ -158,6 +158,22 @@ async function flushReports() {
 
 function enqueueReport(bug: DetectedBug) {
   const key = bugKey(bug.message);
+
+  // Per-key cooldown — silently drop bursts of identical errors
+  // (e.g. dozens of broken-tunnel avatar images firing during scroll)
+  const now = Date.now();
+  const last = recentEnqueues.get(key);
+  if (last && now - last < PER_KEY_COOLDOWN_MS) return;
+  recentEnqueues.set(key, now);
+
+  // Global rate cap — drop if we've enqueued too many recently
+  while (recentEnqueueTimestamps.length && now - recentEnqueueTimestamps[0] > RATE_WINDOW_MS) {
+    recentEnqueueTimestamps.shift();
+  }
+  if (recentEnqueueTimestamps.length >= RATE_MAX_PER_WINDOW) return;
+  recentEnqueueTimestamps.push(now);
+
+  // Session-level dedupe (one report per unique key per session)
   if (reportedKeys.has(key)) return;
   reportedKeys.add(key);
 
