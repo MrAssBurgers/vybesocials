@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, memo, useCallback, useRef, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, useMotionValue, useTransform, PanInfo, AnimatePresence } from 'framer-motion';
@@ -555,7 +555,7 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
 const SWIPE_THRESHOLD = -60;
 
 // Shared conversation content component - simplified without the options menu
-const ConversationContent = memo(function ConversationContent({
+const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function ConversationContent({
   conversation,
   displayName,
   avatarUrl,
@@ -574,7 +574,7 @@ const ConversationContent = memo(function ConversationContent({
   otherMember,
   streak,
   userStatus,
-}: any) {
+}, _ref) {
   return (
     <>
       <div className="relative flex-shrink-0">
