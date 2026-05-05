@@ -250,7 +250,6 @@ export function useChatPresence(conversationId: string | undefined) {
       clearInterval(presencePollRef);
       leavePresence();
       supabase.removeChannel(presenceChannel);
-      supabase.removeChannel(typingChannel);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [conversationId, profile?.id]);
