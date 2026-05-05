@@ -107,5 +107,5 @@ export function useDNAAutoPilot() {
     await refresh();
   }, [refresh]);
 
-  return { settings, actions, loading, running, setMode, runNow, revert, applyPending, refresh };
+  return { settings, actions, loading, running, setMode, updateSettings, clearAdaptationData, runNow, revert, applyPending, refresh };
 }
