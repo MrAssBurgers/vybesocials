@@ -48,22 +48,9 @@ export function useHomeLayout() {
   const [autoOverride, setAutoOverride] = useState<{ order?: string[]; hidden?: string[] } | null>(null);
 
   const fetchOverride = useCallback(async () => {
-    if (!user?.id) return;
-    const { data: settings } = await supabase
-      .from('dna_agent_settings').select('mode').eq('user_id', user.id).maybeSingle();
-    if (settings?.mode !== 'autonomous') { setAutoOverride(null); return; }
-    const { data: action } = await supabase
-      .from('dna_agent_actions')
-      .select('after')
-      .eq('user_id', user.id)
-      .eq('action_type', 'layout_change')
-      .eq('applied', true)
-      .eq('reverted', false)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    setAutoOverride((action?.after as any) || null);
-  }, [user?.id]);
+    // Auto-Pilot must NEVER touch widget order/visibility — user-controlled only.
+    setAutoOverride(null);
+  }, []);
 
   useEffect(() => {
     fetchOverride();

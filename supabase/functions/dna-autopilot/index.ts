@@ -52,29 +52,7 @@ const TOOLS = [
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "change_layout",
-      description: "Reorder or hide home widgets. Max 1 per run.",
-      parameters: {
-        type: "object",
-        properties: {
-          order: {
-            type: "array",
-            items: { type: "string", enum: ["greeting","stories","xp_streak","ai_brief","vybe_dna","wallet","shop","communities","weekly_rhythm","creator_analytics","battle_pass","feed","trending","online_friends"] },
-          },
-          hidden: {
-            type: "array",
-            items: { type: "string", enum: ["greeting","stories","xp_streak","ai_brief","vybe_dna","wallet","shop","communities","weekly_rhythm","creator_analytics","battle_pass","feed","trending","online_friends"] },
-          },
-          summary: { type: "string" },
-        },
-        required: ["order", "summary"],
-        additionalProperties: false,
-      },
-    },
-  },
+  // change_layout intentionally removed — Auto-Pilot must not reorder or hide home widgets.
   {
     type: "function",
     function: {
@@ -153,8 +131,9 @@ MAX INTENSITY: ${intensity} — gentle = at most 1 small change; balanced = up t
 HARD CAPS PER RUN:
 - tune_feed: max 3 calls
 - swap_theme: max 1 call
-- change_layout: max 1 call
 - send_nudge: max 1 call
+
+NEVER attempt to reorder, hide, or modify home widgets. Layout is fully user-controlled.
 
 Only call tools when there is real evidence in the data. If nothing meaningful changed, return no tool calls.
 
@@ -208,7 +187,7 @@ USER CONTEXT:
     const applied: any[] = [];
 
     // caps
-    let feedCount = 0, themeDone = false, layoutDone = false, nudgeDone = false;
+    let feedCount = 0, themeDone = false, nudgeDone = false;
 
     for (const tc of toolCalls) {
       const name = tc.function?.name;
@@ -250,14 +229,6 @@ USER CONTEXT:
         const { data: row } = await supabase.from("dna_agent_actions").insert({
           user_id: userId, action_type: "theme_swap",
           summary: args.summary, before, after, applied: willApply,
-        }).select().single();
-        applied.push(row);
-      } else if (name === "change_layout" && !layoutDone) {
-        layoutDone = true;
-        const after = { order: args.order, hidden: args.hidden || [] };
-        const { data: row } = await supabase.from("dna_agent_actions").insert({
-          user_id: userId, action_type: "layout_change",
-          summary: args.summary, before: null, after, applied: willApply,
         }).select().single();
         applied.push(row);
       } else if (name === "send_nudge" && !nudgeDone) {
