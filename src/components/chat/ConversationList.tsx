@@ -743,22 +743,10 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
       </div>
     </>
   );
-});
+}));
 
 // Memoized conversation item with swipe-to-delete on mobile and long-press for options
-const ConversationItem = memo(function ConversationItem({ 
-  conversation, 
-  onClick,
-  isOnline,
-  isTyping,
-  currentUserId,
-  userRole,
-  onTrash,
-  hasStory,
-  storyGroup,
-  streak,
-  userStatus,
-}: { 
+interface ConversationItemProps {
   conversation: Conversation; 
   onClick: () => void;
   isOnline?: boolean;
@@ -770,7 +758,21 @@ const ConversationItem = memo(function ConversationItem({
   storyGroup?: StoryGroup;
   streak?: Streak;
   userStatus?: { emoji: string; text: string } | null;
-}) {
+}
+
+const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(function ConversationItem({ 
+  conversation, 
+  onClick,
+  isOnline,
+  isTyping,
+  currentUserId,
+  userRole,
+  onTrash,
+  hasStory,
+  storyGroup,
+  streak,
+  userStatus,
+}, _ref) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [optionsOpen, setOptionsOpen] = useState(false);
