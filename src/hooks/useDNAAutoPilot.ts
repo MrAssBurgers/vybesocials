@@ -4,12 +4,19 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
 export type AutoPilotMode = 'off' | 'suggest' | 'autonomous';
+export type AutoPilotIntensity = 'gentle' | 'balanced' | 'bold';
 
 export interface AutoPilotSettings {
   user_id: string;
   mode: AutoPilotMode;
   cadence_minutes: number;
   last_run_at: string | null;
+  trigger_on_post: boolean;
+  trigger_on_follow: boolean;
+  trigger_on_session: boolean;
+  max_intensity: AutoPilotIntensity;
+  learning_paused: boolean;
+  personalization_opted_out: boolean;
 }
 
 export interface AutoPilotAction {
