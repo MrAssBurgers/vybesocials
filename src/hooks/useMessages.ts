@@ -784,27 +784,84 @@ export function useAddReaction() {
     mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // First, delete any existing reaction from this user on this message
+      // Toggle: if user already reacted with same emoji, remove it.
+      // Otherwise upsert (one reaction per user per message).
+      const { data: existing } = await supabase
+        .from('message_reactions')
+        .select('emoji')
+        .eq('message_id', messageId)
+        .eq('user_id', profile.id)
+        .maybeSingle();
+
+      // Always clear any existing reaction from this user on this message first
       await supabase
         .from('message_reactions')
         .delete()
         .eq('message_id', messageId)
         .eq('user_id', profile.id);
 
-      // Then insert the new reaction
-      const { error } = await supabase
-        .from('message_reactions')
-        .insert({
-          message_id: messageId,
-          user_id: profile.id,
-          emoji,
-        });
+      if (existing?.emoji === emoji) {
+        // Toggle off — already deleted above
+        return { messageId, emoji, removed: true };
+      }
 
-      if (error) throw error;
+      const { error: insertError } = await supabase
+        .from('message_reactions')
+        .insert({ message_id: messageId, user_id: profile.id, emoji });
+      if (insertError) throw insertError;
+      return { messageId, emoji, removed: false };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
+    // Optimistic update: patch the message reactions array in cache immediately,
+    // preserving message ordering. Realtime channel will reconcile.
+    onMutate: async ({ messageId, emoji }) => {
+      if (!profile?.id) return;
+      const userId = profile.id;
+
+      // Cancel in-flight refetches so they don't overwrite our optimistic state
+      await queryClient.cancelQueries({ queryKey: ['messages'] });
+
+      // Snapshot all messages caches so we can roll back on error
+      const snapshots: Array<[readonly unknown[], Message[] | undefined]> = [];
+      const queries = queryClient.getQueriesData<Message[]>({ queryKey: ['messages'] });
+
+      for (const [key, messages] of queries) {
+        if (!messages) continue;
+        snapshots.push([key, messages]);
+        const idx = messages.findIndex(m => m.id === messageId);
+        if (idx === -1) continue;
+
+        const target = messages[idx];
+        const existing = target.reactions?.find(r => r.user_id === userId);
+        let nextReactions = target.reactions ? [...target.reactions] : [];
+
+        if (existing?.emoji === emoji) {
+          // Toggle off
+          nextReactions = nextReactions.filter(r => r.user_id !== userId);
+        } else if (existing) {
+          // Replace
+          nextReactions = nextReactions.map(r =>
+            r.user_id === userId ? { ...r, emoji } : r
+          );
+        } else {
+          // Add
+          nextReactions.push({ user_id: userId, emoji });
+        }
+
+        // Replace in place — preserves array order (no reordering of messages)
+        const updated = [...messages];
+        updated[idx] = { ...target, reactions: nextReactions };
+        queryClient.setQueryData<Message[]>(key, updated);
+      }
+
+      return { snapshots };
     },
+    onError: (_err, _vars, context) => {
+      // Roll back optimistic updates
+      context?.snapshots?.forEach(([key, snapshot]) => {
+        queryClient.setQueryData(key, snapshot);
+      });
+    },
+    // No onSuccess invalidate — realtime message_reactions channel reconciles
   });
 }
 

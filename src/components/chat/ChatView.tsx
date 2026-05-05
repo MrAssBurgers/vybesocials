@@ -1380,7 +1380,7 @@ export function ChatView() {
             groupAvatar={conversation?.avatar_url}
             participantIds={otherMembers.map(m => m.user_id)}
           />
-        )}
+          )}
 
 
         {/* DM Feature Sheets - triggered from Toybox */}
@@ -1676,6 +1676,27 @@ export function ChatView() {
               isLoading={conversationSafety.respondToRequest.isPending}
             />
           )}
+
+          {/* Inline typing bubble for 1:1 DMs - uses consolidated chat-presence channel */}
+          <AnimatePresence>
+            {!isGroupChat && typingUsers.length > 0 && otherMember && (
+              <motion.div
+                key="typing-bubble"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 5 }}
+                transition={{ duration: 0.2 }}
+                className="px-4 py-1"
+              >
+                <SnapTypingBubble
+                  avatarUrl={otherMember.avatar_url}
+                  username={otherMember.username || ''}
+                  displayName={otherMember.display_name}
+                  size="md"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div ref={messagesEndRef} className="h-1" />
         </div>

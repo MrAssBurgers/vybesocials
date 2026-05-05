@@ -17,8 +17,17 @@ interface DetectedBug {
   timestamp: number;
 }
 
-// Deduplicate per session
+// Deduplicate per session — first occurrence reports, repeats throttled
 const reportedKeys = new Set<string>();
+
+// Per-key cooldown: same error key (normalized) won't re-enqueue within window
+const recentEnqueues = new Map<string, number>();
+const PER_KEY_COOLDOWN_MS = 30_000; // 30s
+
+// Global rate cap: never enqueue more than N reports in a rolling window
+const recentEnqueueTimestamps: number[] = [];
+const RATE_WINDOW_MS = 5_000;
+const RATE_MAX_PER_WINDOW = 8;
 
 function bugKey(msg: string): string {
   return msg
@@ -149,6 +158,22 @@ async function flushReports() {
 
 function enqueueReport(bug: DetectedBug) {
   const key = bugKey(bug.message);
+
+  // Per-key cooldown — silently drop bursts of identical errors
+  // (e.g. dozens of broken-tunnel avatar images firing during scroll)
+  const now = Date.now();
+  const last = recentEnqueues.get(key);
+  if (last && now - last < PER_KEY_COOLDOWN_MS) return;
+  recentEnqueues.set(key, now);
+
+  // Global rate cap — drop if we've enqueued too many recently
+  while (recentEnqueueTimestamps.length && now - recentEnqueueTimestamps[0] > RATE_WINDOW_MS) {
+    recentEnqueueTimestamps.shift();
+  }
+  if (recentEnqueueTimestamps.length >= RATE_MAX_PER_WINDOW) return;
+  recentEnqueueTimestamps.push(now);
+
+  // Session-level dedupe (one report per unique key per session)
   if (reportedKeys.has(key)) return;
   reportedKeys.add(key);
 
@@ -223,6 +248,10 @@ export function useAutoBugReporter() {
       if (!src || shouldIgnore(src) || shouldIgnoreUrl(src)) return;
       const isAppResource = src.startsWith(window.location.origin) || src.includes('supabase');
       if (!isAppResource) return;
+      // Broken avatars/storage files are noisy and never actionable — skip
+      if (src.includes('/storage/v1/') || /\/avatars?\//i.test(src)) return;
+      // Skip during active scroll (prevents enqueue spikes)
+      if (document.documentElement.classList.contains('is-scrolling')) return;
       const message = `Broken ${tagName}: ${src.split('/').pop()?.split('?')[0] || src}`;
       enqueueReport({
         message,
