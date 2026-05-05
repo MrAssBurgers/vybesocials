@@ -187,7 +187,7 @@ export const FounderBadge = memo(function FounderBadge({
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>{badge}</TooltipTrigger>
-        <TooltipContent className="max-w-[200px]">
+        <TooltipContent side="top" align="center" sideOffset={6} collisionPadding={12} className="max-w-[200px] z-[9999]">
           <p className="font-semibold text-sm">{config.label}</p>
           <p className="text-xs text-muted-foreground">{config.description}</p>
           {locked && <p className="text-xs text-primary mt-1">🔒 Not yet claimed</p>}
