@@ -248,6 +248,10 @@ export function useAutoBugReporter() {
       if (!src || shouldIgnore(src) || shouldIgnoreUrl(src)) return;
       const isAppResource = src.startsWith(window.location.origin) || src.includes('supabase');
       if (!isAppResource) return;
+      // Broken avatars/storage files are noisy and never actionable — skip
+      if (src.includes('/storage/v1/') || /\/avatars?\//i.test(src)) return;
+      // Skip during active scroll (prevents enqueue spikes)
+      if (document.documentElement.classList.contains('is-scrolling')) return;
       const message = `Broken ${tagName}: ${src.split('/').pop()?.split('?')[0] || src}`;
       enqueueReport({
         message,
