@@ -52,29 +52,7 @@ const TOOLS = [
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "change_layout",
-      description: "Reorder or hide home widgets. Max 1 per run.",
-      parameters: {
-        type: "object",
-        properties: {
-          order: {
-            type: "array",
-            items: { type: "string", enum: ["greeting","stories","xp_streak","ai_brief","vybe_dna","wallet","shop","communities","weekly_rhythm","creator_analytics","battle_pass","feed","trending","online_friends"] },
-          },
-          hidden: {
-            type: "array",
-            items: { type: "string", enum: ["greeting","stories","xp_streak","ai_brief","vybe_dna","wallet","shop","communities","weekly_rhythm","creator_analytics","battle_pass","feed","trending","online_friends"] },
-          },
-          summary: { type: "string" },
-        },
-        required: ["order", "summary"],
-        additionalProperties: false,
-      },
-    },
-  },
+  // change_layout intentionally removed — Auto-Pilot must not reorder or hide home widgets.
   {
     type: "function",
     function: {
