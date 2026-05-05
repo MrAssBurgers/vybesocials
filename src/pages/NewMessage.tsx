@@ -17,6 +17,8 @@ import { useAuth } from "@/lib/auth";
 import { RecentMessageUser } from "@/lib/recentMessageUsers";
 import { useFriendshipStatus, useSendFriendRequest, useFriends, useRespondToFriendRequest, useFriendRequests } from "@/hooks/useFriends";
 import { useSuggestedFriends } from "@/hooks/useFriendsOfFriends";
+import { useQuickAddSuggestions } from "@/hooks/useQuickAddSuggestions";
+import { useDismissedQuickAdd } from "@/hooks/useDismissedQuickAdd";
 import { cn } from "@/lib/utils";
 import { NFCFriendShare } from "@/components/friends/NFCFriendShare";
 
