@@ -11866,6 +11866,7 @@ export type Database = {
       }
       claim_profile_by_email: { Args: never; Returns: string }
       cleanup_expired_reset_tokens: { Args: never; Returns: undefined }
+      cleanup_expired_trashed_conversations: { Args: never; Returns: undefined }
       cleanup_old_error_logs: { Args: never; Returns: undefined }
       cleanup_old_friend_drops: { Args: never; Returns: undefined }
       cleanup_stale_challenges: { Args: never; Returns: undefined }

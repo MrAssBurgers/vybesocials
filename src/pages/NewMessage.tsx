@@ -17,6 +17,8 @@ import { useAuth } from "@/lib/auth";
 import { RecentMessageUser } from "@/lib/recentMessageUsers";
 import { useFriendshipStatus, useSendFriendRequest, useFriends, useRespondToFriendRequest, useFriendRequests } from "@/hooks/useFriends";
 import { useSuggestedFriends } from "@/hooks/useFriendsOfFriends";
+import { useQuickAddSuggestions } from "@/hooks/useQuickAddSuggestions";
+import { useDismissedQuickAdd } from "@/hooks/useDismissedQuickAdd";
 import { cn } from "@/lib/utils";
 import { NFCFriendShare } from "@/components/friends/NFCFriendShare";
 
@@ -130,14 +132,15 @@ function InviteBanner() {
 /* ── Find Friends / Suggested ─────────────────────── */
 
 function FindFriendsSection() {
-  const { data: suggestions, isLoading } = useSuggestedFriends();
+  const { suggestions, isLoading } = useQuickAddSuggestions(20);
+  const { dismissUser } = useDismissedQuickAdd();
   const sendRequest = useSendFriendRequest();
   const navigate = useNavigate();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [added, setAdded] = useState<Set<string>>(new Set());
 
-  if (isLoading) return null;
-  const visible = (suggestions || []).filter(s => !dismissed.has(s.id));
+  if (isLoading && suggestions.length === 0) return null;
+  const visible = suggestions.filter(s => !dismissed.has(s.id));
   if (visible.length === 0) return null;
 
   const handleAdd = (userId: string) => {
@@ -151,13 +154,18 @@ function FindFriendsSection() {
     });
   };
 
+  const handleDismiss = (userId: string) => {
+    setDismissed(prev => new Set([...prev, userId]));
+    dismissUser(userId);
+  };
+
   return (
     <section className="space-y-2">
       <div className="px-1">
         <h2 className="text-sm font-semibold">Quick Add</h2>
       </div>
       <div className="rounded-xl border border-border overflow-hidden">
-        {visible.slice(0, 10).map((person) => (
+        {visible.slice(0, 12).map((person) => (
           <div key={person.id} className="flex items-center gap-3 p-3 border-b border-border last:border-0">
             <button onClick={() => navigate(`/u/${person.username}`)} className="flex-shrink-0">
               <Avatar className="h-10 w-10">
@@ -169,11 +177,7 @@ function FindFriendsSection() {
             </button>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">{person.display_name || person.username}</p>
-              <p className="text-xs text-muted-foreground">
-                {person.mutual_count > 0
-                  ? `${person.mutual_count} mutual friend${person.mutual_count !== 1 ? 's' : ''}`
-                  : `@${person.username}`}
-              </p>
+              <p className="text-xs text-muted-foreground truncate">{person.subtitle || `@${person.username}`}</p>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               {added.has(person.id) ? (
@@ -191,7 +195,7 @@ function FindFriendsSection() {
                     Add
                   </Button>
                   <button
-                    onClick={() => setDismissed(prev => new Set([...prev, person.id]))}
+                    onClick={() => handleDismiss(person.id)}
                     className="p-1 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <X className="h-3.5 w-3.5" />
