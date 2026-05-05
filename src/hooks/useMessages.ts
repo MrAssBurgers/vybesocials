@@ -793,24 +793,22 @@ export function useAddReaction() {
         .eq('user_id', profile.id)
         .maybeSingle();
 
+      // Always clear any existing reaction from this user on this message first
+      await supabase
+        .from('message_reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', profile.id);
+
       if (existing?.emoji === emoji) {
-        const { error } = await supabase
-          .from('message_reactions')
-          .delete()
-          .eq('message_id', messageId)
-          .eq('user_id', profile.id);
-        if (error) throw error;
+        // Toggle off — already deleted above
         return { messageId, emoji, removed: true };
       }
 
-      // Upsert (delete-then-insert was race-prone; use single upsert)
-      const { error: upsertError } = await supabase
+      const { error: insertError } = await supabase
         .from('message_reactions')
-        .upsert(
-          { message_id: messageId, user_id: profile.id, emoji },
-          { onConflict: 'message_id,user_id' }
-        );
-      if (upsertError) throw upsertError;
+        .insert({ message_id: messageId, user_id: profile.id, emoji });
+      if (insertError) throw insertError;
       return { messageId, emoji, removed: false };
     },
     // Optimistic update: patch the message reactions array in cache immediately,
