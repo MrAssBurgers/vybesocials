@@ -59,6 +59,11 @@ export function DNAAutoPilot() {
                   : 'Paused · turn on to let your DNA reshape your experience'}
               </p>
             </div>
+            <Button asChild variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0">
+              <Link to="/vybe-dna/autopilot" aria-label="Auto-Pilot settings">
+                <Settings2 className="h-4 w-4" />
+              </Link>
+            </Button>
           </div>
 
           {/* Mode toggle */}
