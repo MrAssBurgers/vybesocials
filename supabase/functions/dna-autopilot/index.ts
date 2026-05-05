@@ -135,6 +135,12 @@ serve(async (req) => {
     ]);
 
     const mode = settingsR.data?.mode || "suggest";
+    const intensity = settingsR.data?.max_intensity || "balanced";
+    if (settingsR.data?.personalization_opted_out || settingsR.data?.learning_paused || mode === "off") {
+      return new Response(JSON.stringify({ ok: true, mode, actions: [], skipped: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const willApply = mode === "autonomous";
     const pv = (dnaR.data?.personality_vector as Record<string, number>) || {};
 
