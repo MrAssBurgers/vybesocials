@@ -52,7 +52,7 @@ export default function AppWelcome() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground overflow-y-auto pb-24">
+    <div className="page-scroll-fix min-h-[100dvh] bg-background text-foreground overflow-y-auto pb-24">
       {/* Ambient gradient */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute top-0 left-1/4 h-[480px] w-[480px] rounded-full bg-primary/20 blur-[120px]" />
