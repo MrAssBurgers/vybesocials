@@ -1,7 +1,9 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useUserPreferences, useUpdatePreferences } from './useUserPreferences';
 import { ALL_WIDGETS, type WidgetDef } from './useHomeLayout';
 import { useIsMobileOrTablet } from './use-mobile';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
 
 export interface GridWidgetState extends WidgetDef {
   enabled: boolean;
