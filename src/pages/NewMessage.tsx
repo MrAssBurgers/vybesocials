@@ -134,79 +134,150 @@ function InviteBanner() {
 /* ── Find Friends / Suggested ─────────────────────── */
 
 function FindFriendsSection() {
-  const { suggestions, isLoading } = useQuickAddSuggestions(20);
+  const { suggestions, isLoading } = useQuickAddSuggestions(40);
+  const { data: similarDNA } = useSimilarDNAUsers(30);
   const { dismissUser } = useDismissedQuickAdd();
   const sendRequest = useSendFriendRequest();
   const navigate = useNavigate();
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [added, setAdded] = useState<Set<string>>(new Set());
 
-  if (isLoading && suggestions.length === 0) return null;
-  const visible = suggestions.filter(s => !dismissed.has(s.id));
-  if (visible.length === 0) return null;
+  const VISIBLE_COUNT = 6;
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
+  const [slots, setSlots] = useState<QuickAddUser[]>([]);
+
+  // Build the master pool: mutual / interest matches first, then DNA-similar users as backfill
+  const pool = useMemo<QuickAddUser[]>(() => {
+    const seen = new Set<string>();
+    const out: QuickAddUser[] = [];
+    for (const s of suggestions) {
+      if (seen.has(s.id)) continue;
+      seen.add(s.id);
+      out.push(s);
+    }
+    for (const s of similarDNA || []) {
+      if (seen.has(s.id)) continue;
+      seen.add(s.id);
+      out.push({
+        id: s.id,
+        username: s.username,
+        display_name: s.display_name,
+        avatar_url: s.avatar_url,
+        mutual_count: 0,
+        subtitle: `${s.similarity}% DNA match · ${s.dominant_trait}`,
+      });
+    }
+    return out;
+  }, [suggestions, similarDNA]);
+
+  // Initialize / refill visible slots from the pool whenever the pool grows or someone is removed
+  useEffect(() => {
+    setSlots((prev) => {
+      const keep = prev.filter((p) => !removed.has(p.id));
+      if (keep.length >= VISIBLE_COUNT) return keep;
+      const taken = new Set([...keep.map((p) => p.id), ...removed]);
+      const next = [...keep];
+      for (const candidate of pool) {
+        if (next.length >= VISIBLE_COUNT) break;
+        if (taken.has(candidate.id)) continue;
+        next.push(candidate);
+        taken.add(candidate.id);
+      }
+      return next;
+    });
+  }, [pool, removed]);
 
   const handleAdd = (userId: string) => {
-    setAdded(prev => new Set([...prev, userId]));
+    // Instantly remove and refill — fire-and-forget the request
+    setRemoved((prev) => new Set([...prev, userId]));
     sendRequest.mutate(userId, {
-      onSuccess: () => {
-        toast.success('Friend request sent!');
-        setTimeout(() => setDismissed(prev => new Set([...prev, userId])), 800);
+      onError: () => {
+        toast.error("Couldn't send request");
+        setRemoved((prev) => { const n = new Set(prev); n.delete(userId); return n; });
       },
-      onError: () => setAdded(prev => { const n = new Set(prev); n.delete(userId); return n; }),
     });
   };
 
   const handleDismiss = (userId: string) => {
-    setDismissed(prev => new Set([...prev, userId]));
+    setRemoved((prev) => new Set([...prev, userId]));
     dismissUser(userId);
   };
 
+  if (isLoading && slots.length === 0) {
+    return (
+      <section className="space-y-2">
+        <div className="px-1 flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          <h2 className="text-sm font-semibold">People with your Vybe</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-36 rounded-2xl" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (slots.length === 0) return null;
+
   return (
     <section className="space-y-2">
-      <div className="px-1">
-        <h2 className="text-sm font-semibold">Quick Add</h2>
+      <div className="px-1 flex items-center gap-1.5">
+        <Sparkles className="h-3.5 w-3.5 text-primary" />
+        <h2 className="text-sm font-semibold">People with your Vybe</h2>
       </div>
-      <div className="rounded-xl border border-border overflow-hidden">
-        {visible.slice(0, 12).map((person) => (
-          <div key={person.id} className="flex items-center gap-3 p-3 border-b border-border last:border-0">
-            <button onClick={() => navigate(`/u/${person.username}`)} className="flex-shrink-0">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={person.avatar_url || undefined} />
-                <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
-                  {(person.display_name || person.username)?.[0]?.toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </button>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate">{person.display_name || person.username}</p>
-              <p className="text-xs text-muted-foreground truncate">{person.subtitle || `@${person.username}`}</p>
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              {added.has(person.id) ? (
-                <div className="h-7 w-16 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Check className="h-3.5 w-3.5 text-primary" />
+      <div className="grid grid-cols-2 gap-2.5">
+        <AnimatePresence mode="popLayout" initial={false}>
+          {slots.map((person) => (
+            <motion.div
+              key={person.id}
+              layout
+              initial={{ opacity: 0, scale: 0.85, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: -10 }}
+              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              className="relative rounded-2xl bg-gradient-to-br from-primary/10 via-card to-accent/10 border border-border/60 p-3 flex flex-col items-center text-center overflow-hidden group"
+            >
+              <button
+                onClick={() => handleDismiss(person.id)}
+                className="absolute top-1.5 right-1.5 p-1 rounded-full text-muted-foreground/70 hover:text-foreground hover:bg-background/70 transition-colors z-10"
+                aria-label="Dismiss"
+              >
+                <X className="h-3 w-3" />
+              </button>
+
+              <button
+                onClick={() => navigate(`/u/${person.username}`)}
+                className="mb-2"
+              >
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary to-accent blur-md opacity-50 group-hover:opacity-70 transition-opacity" />
+                  <Avatar className="h-14 w-14 ring-2 ring-background relative">
+                    <AvatarImage src={person.avatar_url || undefined} />
+                    <AvatarFallback className="text-base font-bold bg-primary/15 text-primary">
+                      {(person.display_name || person.username)?.[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
                 </div>
-              ) : (
-                <>
-                  <Button
-                    size="sm"
-                    onClick={() => handleAdd(person.id)}
-                    className="h-7 rounded-full text-[10px] font-semibold gap-1 px-3"
-                  >
-                    <UserPlus className="h-3 w-3" />
-                    Add
-                  </Button>
-                  <button
-                    onClick={() => handleDismiss(person.id)}
-                    className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
+              </button>
+
+              <p className="text-xs font-semibold truncate w-full px-1">
+                {person.display_name || person.username}
+              </p>
+              <p className="text-[10px] text-muted-foreground truncate w-full px-1 mb-2">
+                {person.subtitle || `@${person.username}`}
+              </p>
+
+              <Button
+                size="sm"
+                onClick={() => handleAdd(person.id)}
+                className="w-full h-7 rounded-full text-[11px] font-semibold gap-1 mt-auto"
+              >
+                <UserPlus className="h-3 w-3" />
+                Add
+              </Button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </section>
   );
