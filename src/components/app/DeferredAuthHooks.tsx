@@ -20,6 +20,7 @@ export default function DeferredAuthHooks() {
   useRetroactiveSync();
   useDailyLoginChallenge();
   useCaptureNotifications();
+  useApplyAutoTheme();
   
   return null;
 }
