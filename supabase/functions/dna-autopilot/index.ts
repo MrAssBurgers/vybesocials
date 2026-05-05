@@ -62,11 +62,11 @@ const TOOLS = [
         properties: {
           order: {
             type: "array",
-            items: { type: "string", enum: ["forYou", "clips", "explore", "local", "events", "trends"] },
+            items: { type: "string", enum: ["greeting","stories","xp_streak","ai_brief","vybe_dna","wallet","shop","communities","weekly_rhythm","creator_analytics","battle_pass","feed","trending","online_friends"] },
           },
           hidden: {
             type: "array",
-            items: { type: "string", enum: ["forYou", "clips", "explore", "local", "events", "trends"] },
+            items: { type: "string", enum: ["greeting","stories","xp_streak","ai_brief","vybe_dna","wallet","shop","communities","weekly_rhythm","creator_analytics","battle_pass","feed","trending","online_friends"] },
           },
           summary: { type: "string" },
         },
