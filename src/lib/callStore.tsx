@@ -712,7 +712,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    globalLingeringCall = null;
+    setLingeringCall(null);
     callSounds.end();
     setState(initialState);
 
@@ -727,7 +727,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     if (currentCall) {
       // Only allow lingering for persistent mode
       if (currentCall.callMode === 'persistent') {
-        globalLingeringCall = currentCall;
+        setLingeringCall(currentCall);
       }
       setState({ phase: 'idle', call: null, error: null });
     }
@@ -739,7 +739,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     // Only persistent mode supports rejoin
     if (lingeringCall.callMode !== 'persistent') return;
 
-    globalLingeringCall = null;
+    setLingeringCall(null);
 
     try {
       const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
@@ -764,7 +764,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       setState({ phase: 'joining', call: callData, error: null });
     } catch (err: any) {
       console.error('[CallStore] Failed to rejoin:', err);
-      globalLingeringCall = lingeringCall;
+      setLingeringCall(lingeringCall);
     }
   }, [setState]);
 
