@@ -932,6 +932,29 @@ export function GlobalCallOverlay() {
   const isConnecting = state.phase === 'creating' || (state.phase === 'joining' && !state.call?.isInitiator);
   const isRingingOut = state.call?.isInitiator && !hasRemoteParticipant && (state.phase === 'joining' || state.phase === 'connected');
 
+  const stageLabel = (() => {
+    switch (state.connectStage) {
+      case 'requesting-media': return state.call?.callType === 'video' ? 'Turning on camera…' : 'Turning on microphone…';
+      case 'media-ready': return 'Camera ready';
+      case 'fetching-token': return 'Securing the line…';
+      case 'signaling': return 'Connecting to the other side…';
+      case 'connecting-media': return 'Negotiating audio & video…';
+      case 'ready': return 'Connected';
+      default: return 'Connecting…';
+    }
+  })();
+  const stageProgress = (() => {
+    switch (state.connectStage) {
+      case 'requesting-media': return 15;
+      case 'media-ready': return 30;
+      case 'fetching-token': return 45;
+      case 'signaling': return 65;
+      case 'connecting-media': return 85;
+      case 'ready': return 100;
+      default: return 10;
+    }
+  })();
+
   // Minimize/expand
   const handleMinimize = useCallback(() => setIsMinimized(true), []);
   const handleExpand = useCallback(() => setIsMinimized(false), []);
