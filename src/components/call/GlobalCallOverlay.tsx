@@ -616,6 +616,27 @@ export function GlobalCallOverlay() {
     return () => clearInterval(interval);
   }, [state.phase]);
 
+  // Live emoji reactions — Supabase Realtime broadcast keyed on the call id
+  useEffect(() => {
+    const callId = state.call?.id;
+    if (!callId || !profile?.id) return;
+    const ch = supabase.channel(`call-reactions-${callId}`, { config: { broadcast: { self: false } } });
+    ch.on('broadcast', { event: 'reaction' }, (msg) => {
+      const p: any = msg.payload;
+      if (!p?.emoji || p.userId === profile.id) return;
+      setIncomingReaction({ emoji: p.emoji, nonce: Date.now() + Math.random() });
+    });
+    ch.subscribe();
+    reactionsChannelRef.current = ch;
+    return () => { try { supabase.removeChannel(ch); } catch {} reactionsChannelRef.current = null; };
+  }, [state.call?.id, profile?.id]);
+
+  const sendReaction = useCallback((emoji: string) => {
+    const ch = reactionsChannelRef.current;
+    if (!ch || !profile?.id) return;
+    try { ch.send({ type: 'broadcast', event: 'reaction', payload: { emoji, userId: profile.id } }); } catch {}
+  }, [profile?.id]);
+
   // Track latest mute state without re-binding listeners
   const isMutedRef = useRef(isMuted);
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
