@@ -189,8 +189,23 @@ function readCallSnapshot(): CallSnapshot | null {
   }
 }
 
+// Lightweight subscriber registry so non-React readers can react to lingering call changes
+const lingeringSubscribers = new Set<() => void>();
+function notifyLingeringChange() { lingeringSubscribers.forEach(fn => { try { fn(); } catch {} }); }
+function setLingeringCall(call: CallData | null) {
+  globalLingeringCall = call;
+  notifyLingeringChange();
+}
+export function subscribeLingeringCall(cb: () => void): () => void {
+  lingeringSubscribers.add(cb);
+  return () => lingeringSubscribers.delete(cb);
+}
+
 export function CallStoreProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
+  // Bootstrap custom sounds (custom ringtone) into localStorage as soon as user authenticates
+  // so incoming-call ringer can use it without opening Settings first.
+  useSyncCustomSounds();
   const [state, setStateInternal] = useState<CallStoreState>(() => globalCallState);
   const [incomingCall, setIncomingCallInternal] = useState<CallData | null>(() => globalIncomingCall);
   
