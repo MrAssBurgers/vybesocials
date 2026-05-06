@@ -15,6 +15,8 @@ import { GeneratingScreen } from './AIBriefLoadingState';
 interface AIBriefSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  focusTopic?: string | null;
+  focusHeadline?: string | null;
 }
 
 interface BriefUpdate {
