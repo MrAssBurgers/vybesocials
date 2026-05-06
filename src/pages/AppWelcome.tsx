@@ -137,14 +137,12 @@ export default function AppWelcome() {
                   <div className="absolute inset-x-4 -bottom-3 h-6 rounded-full bg-black/60 blur-2xl" />
                   {/* Phone frame */}
                   <div className="relative rounded-[2rem] border border-white/10 bg-gradient-to-b from-zinc-800 to-zinc-950 p-1.5 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.6)]">
-                    <div className="relative overflow-hidden rounded-[1.6rem] bg-black aspect-[9/19.5]">
-                      {/* Notch */}
-                      <div className="absolute top-1.5 left-1/2 -translate-x-1/2 z-10 h-4 w-16 rounded-full bg-black" />
+                    <div className="relative overflow-hidden rounded-[1.6rem] bg-black aspect-[9/13]">
                       <img
                         src={s.image}
                         alt={s.title}
                         loading="lazy"
-                        className="h-full w-full object-cover object-top"
+                        className="h-full w-full object-contain"
                       />
                       {/* Subtle gloss */}
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-white/0 via-white/[0.04] to-white/0" />
