@@ -339,8 +339,10 @@ export function AutoFriendDrop() {
       {!isActive && isMobile && (
         <div
           className={cn(
-            'fixed bottom-24 left-1/2 z-40 animate-fade-in transition-transform duration-300 ease-out',
-            controlVisible ? '-translate-x-1/2 translate-y-0' : '-translate-x-1/2 translate-y-28 pointer-events-none'
+            'fixed bottom-24 left-1/2 z-40 animate-fade-in transition-all duration-300 ease-out -translate-x-1/2',
+            controlVisible
+              ? 'opacity-100 translate-y-0 pointer-events-auto'
+              : 'opacity-0 translate-y-28 pointer-events-none invisible'
           )}
         >
           <button

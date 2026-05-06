@@ -1271,136 +1271,139 @@ export function ChatView() {
       </AnimatePresence>
 
 
-      {/* Header - fixed height, compact on mobile */}
-      <header className="flex-shrink-0 h-14 sm:h-16 px-2 sm:px-4 border-b border-border flex items-center gap-2 sm:gap-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-20">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10">
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        
-        {/* Clickable Avatar - navigates to profile or opens group info */}
-        <button 
-          onClick={handleAvatarClick}
-          className="relative flex-shrink-0 group"
-          aria-label={isGroupChat ? "View group info" : "View profile"}
-        >
-          <div className="relative h-9 w-9 sm:h-10 sm:w-10">
-            {/* Ring - exactly matches avatar container */}
-            <div className="absolute inset-0 rounded-full ring-2 ring-primary/20 group-hover:ring-primary/50 transition-all" />
-            <Avatar className="h-full w-full group-active:scale-95 transition-transform">
-              {isGroupChat ? (
-                conversation?.avatar_url ? (
-                  <AvatarImage src={conversation.avatar_url} />
-                ) : (
-                  <AvatarFallback className="text-sm bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
-                    <Users className="h-4 w-4" />
-                  </AvatarFallback>
-                )
-              ) : (
-                <>
-                  <AvatarImage src={otherMember?.avatar_url || undefined} />
-                  <AvatarFallback className="text-sm">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
-                </>
-              )}
-            </Avatar>
-          </div>
-          {!isGroupChat && (
-            <OnlineIndicator isOnline={otherMemberOnline} size="sm" className="bottom-0 right-0" />
-          )}
-          {isGroupChat && (
-            <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-background">
-              {otherMembers.length + 1}
-            </div>
-          )}
-        </button>
-        
-        <div className="flex-1 min-w-0">
-          <h2 className="font-semibold text-sm sm:text-base truncate leading-tight flex items-center gap-1.5">
-            {/* Styled display name with badge gradients */}
-            {!isGroupChat && otherMember?.id ? (
-              <StyledUsername
-                userId={otherMember.id}
-                username={otherMember.username || ''}
-                displayName={otherMember.display_name}
-                preferDisplayName={true}
-              />
-            ) : (
-              displayName
-            )}
-            {!isGroupChat && otherMember?.id && isOwner(otherMember.username || '') && <OwnerBadge />}
-            {!isGroupChat && otherMember?.id && isOwnerWife(otherMember.id) && <OwnerWifeRingBadge />}
-            {/* Streak indicator in header */}
-            {!isGroupChat && streak && streak.streak_count > 0 && (
-              <StreakIndicator 
-                count={streak.streak_count} 
-                expiresAt={streak.expires_at}
-                size="sm"
-                showExpiry
-              />
-            )}
-          </h2>
-          {isGroupChat ? (
-            <button 
-              onClick={() => setShowGroupInfo(true)}
-              className="text-[11px] sm:text-xs text-muted-foreground leading-tight hover:text-primary transition-colors"
-            >
-              {otherMembers.length + 1} members · Tap for info
-            </button>
-          ) : (
-            <div className="flex items-center gap-1">
-              <LivePresenceBar
-                isOnline={otherMemberOnline}
-                isTyping={typingUsers.length > 0}
-                isInChat={presentUsers.length > 0}
-                username={otherMember?.username}
-                lastReadAt={lastReadAt}
-              />
-            </div>
-          )}
-        </div>
-        
-        <div className="flex items-center flex-shrink-0 ml-auto translate-y-[3px]">
-          <div className="flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-white/[0.06] backdrop-blur-xl border border-white/10 shadow-[0_6px_20px_-8px_rgba(0,0,0,0.55)] ring-1 ring-inset ring-white/5">
-            {!isGroupChat && otherMember?.id && (
-              <CallButtons 
-                conversationId={conversationId!} 
-                receiverId={otherMember.id}
-                receiverUsername={otherMember.username}
-                receiverDisplayName={otherMember.display_name}
-                receiverAvatarUrl={otherMember.avatar_url}
-              />
-            )}
-            
-            {isGroupChat && otherMember?.id && (
-              <CallButtons 
-                conversationId={conversationId!} 
-                receiverId={otherMember.id}
-                receiverUsername={otherMember.username}
-                receiverDisplayName={otherMember.display_name}
-                receiverAvatarUrl={otherMember.avatar_url}
-                isGroupCall={true}
-                groupName={conversation?.name || 'Group Chat'}
-                groupAvatar={conversation?.avatar_url}
-                participantIds={otherMembers.map(m => m.user_id)}
-              />
-            )}
+      {/* Floating header — no bar, two frosted-glass pills floating over content */}
+      <header className="absolute top-0 left-0 right-0 px-2 sm:px-3 pt-3 sm:pt-4 pb-2 flex items-center gap-2 sm:gap-3 bg-transparent z-20 pointer-events-none">
+        {/* LEFT pill: back + avatar + name */}
+        <div className="pointer-events-auto flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 pl-1.5 pr-3 py-1.5 rounded-full bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)] ring-1 ring-inset ring-white/[0.04]">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/messages')}
+            className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="flex-shrink-0 h-9 w-9 rounded-full">
-                  <MoreVertical className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="z-50 bg-popover">
-                <DropdownMenuItem onClick={handleAvatarClick}>{t('messages.viewProfile')}</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowMediaSettings(true)}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Media Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem>{t('messages.muteNotifications')}</DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <button
+            onClick={handleAvatarClick}
+            className="relative flex-shrink-0 group"
+            aria-label={isGroupChat ? "View group info" : "View profile"}
+          >
+            <div className="relative h-8 w-8 sm:h-9 sm:w-9">
+              <div className="absolute inset-0 rounded-full ring-2 ring-primary/20 group-hover:ring-primary/50 transition-all" />
+              <Avatar className="h-full w-full group-active:scale-95 transition-transform">
+                {isGroupChat ? (
+                  conversation?.avatar_url ? (
+                    <AvatarImage src={conversation.avatar_url} />
+                  ) : (
+                    <AvatarFallback className="text-sm bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+                      <Users className="h-4 w-4" />
+                    </AvatarFallback>
+                  )
+                ) : (
+                  <>
+                    <AvatarImage src={otherMember?.avatar_url || undefined} />
+                    <AvatarFallback className="text-sm">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+                  </>
+                )}
+              </Avatar>
+            </div>
+            {!isGroupChat && (
+              <OnlineIndicator isOnline={otherMemberOnline} size="sm" className="bottom-0 right-0" />
+            )}
+            {isGroupChat && (
+              <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-background">
+                {otherMembers.length + 1}
+              </div>
+            )}
+          </button>
+
+          <div className="flex-1 min-w-0">
+            <h2 className="font-semibold text-sm sm:text-base truncate leading-tight flex items-center gap-1.5">
+              {!isGroupChat && otherMember?.id ? (
+                <StyledUsername
+                  userId={otherMember.id}
+                  username={otherMember.username || ''}
+                  displayName={otherMember.display_name}
+                  preferDisplayName={true}
+                />
+              ) : (
+                displayName
+              )}
+              {!isGroupChat && otherMember?.id && isOwner(otherMember.username || '') && <OwnerBadge />}
+              {!isGroupChat && otherMember?.id && isOwnerWife(otherMember.id) && <OwnerWifeRingBadge />}
+              {!isGroupChat && streak && streak.streak_count > 0 && (
+                <StreakIndicator
+                  count={streak.streak_count}
+                  expiresAt={streak.expires_at}
+                  size="sm"
+                  showExpiry
+                />
+              )}
+            </h2>
+            {isGroupChat ? (
+              <button
+                onClick={() => setShowGroupInfo(true)}
+                className="text-[11px] sm:text-xs text-muted-foreground leading-tight hover:text-primary transition-colors"
+              >
+                {otherMembers.length + 1} members · Tap for info
+              </button>
+            ) : (
+              <div className="flex items-center gap-1">
+                <LivePresenceBar
+                  isOnline={otherMemberOnline}
+                  isTyping={typingUsers.length > 0}
+                  isInChat={presentUsers.length > 0}
+                  username={otherMember?.username}
+                  lastReadAt={lastReadAt}
+                />
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* RIGHT pill: phone + facetime + chat settings */}
+        <div className="pointer-events-auto flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)] ring-1 ring-inset ring-white/[0.04] flex-shrink-0">
+          {!isGroupChat && otherMember?.id && (
+            <CallButtons
+              conversationId={conversationId!}
+              receiverId={otherMember.id}
+              receiverUsername={otherMember.username}
+              receiverDisplayName={otherMember.display_name}
+              receiverAvatarUrl={otherMember.avatar_url}
+            />
+          )}
+
+          {isGroupChat && otherMember?.id && (
+            <CallButtons
+              conversationId={conversationId!}
+              receiverId={otherMember.id}
+              receiverUsername={otherMember.username}
+              receiverDisplayName={otherMember.display_name}
+              receiverAvatarUrl={otherMember.avatar_url}
+              isGroupCall={true}
+              groupName={conversation?.name || 'Group Chat'}
+              groupAvatar={conversation?.avatar_url}
+              participantIds={otherMembers.map(m => m.user_id)}
+            />
+          )}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10">
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-50 bg-popover">
+              <DropdownMenuItem onClick={handleAvatarClick}>{t('messages.viewProfile')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowMediaSettings(true)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Media Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem>{t('messages.muteNotifications')}</DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
 
@@ -1447,7 +1450,7 @@ export function ChatView() {
         ref={messagesContainerRef}
         className={cn(
           "flex-1 overflow-y-auto overflow-x-hidden min-h-0",
-          "px-3 sm:px-4 py-3 sm:py-4",
+          "px-3 sm:px-4 pt-20 sm:pt-24 pb-3 sm:pb-4",
           "scroll-smooth",
           getWallpaperClass()
         )}

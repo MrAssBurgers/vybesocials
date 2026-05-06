@@ -184,7 +184,7 @@ export function VYBECommandBar() {
         {!open && (
           <motion.button
             initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1, y: controlVisible ? 0 : 112 }}
+            animate={{ scale: 1, opacity: controlVisible ? 1 : 0, y: controlVisible ? 0 : 112 }}
             exit={{ scale: 0, opacity: 0 }}
             onClick={handleOpen}
             className={cn(
