@@ -278,30 +278,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           Home
         </button>
       )}
-      {/* Smooth blended background — no hard edges */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div 
-          className="absolute w-[140%] h-[140%] -top-[30%] -left-[30%]"
-          style={{
-            background: 'radial-gradient(ellipse at 20% 20%, hsl(var(--primary) / 0.15) 0%, transparent 60%)',
-            filter: 'blur(80px)',
-          }}
-        />
-        <div 
-          className="absolute w-[140%] h-[140%] -bottom-[30%] -right-[30%]"
-          style={{
-            background: 'radial-gradient(ellipse at 80% 80%, hsl(var(--accent) / 0.12) 0%, transparent 60%)',
-            filter: 'blur(80px)',
-          }}
-        />
-        <div 
-          className="absolute w-[100%] h-[100%] top-[10%] left-[20%]"
-          style={{
-            background: 'radial-gradient(ellipse at 50% 50%, hsl(var(--primary) / 0.06) 0%, transparent 50%)',
-            filter: 'blur(60px)',
-          }}
-        />
-      </div>
+      {/* Single lightweight gradient backdrop — no stacked blur layers (caused mobile jank) */}
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(ellipse at 30% 20%, hsl(var(--primary) / 0.18), transparent 60%), radial-gradient(ellipse at 70% 90%, hsl(var(--accent) / 0.14), transparent 60%)',
+        }}
+      />
 
       {/* Public content section for SEO — visible to crawlers */}
       <div className="relative z-10 w-full max-w-[400px] flex flex-col gap-6 my-auto">
