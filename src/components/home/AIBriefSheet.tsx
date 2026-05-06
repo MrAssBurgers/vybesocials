@@ -380,6 +380,9 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasFetchedRef = useRef(false);
   const [focusDetail, setFocusDetail] = useState<string | null>(null);
+  const [focusSourceUrl, setFocusSourceUrl] = useState<string | null>(null);
+  const [focusSourceName, setFocusSourceName] = useState<string | null>(null);
+  const [focusSearchUrl, setFocusSearchUrl] = useState<string | null>(null);
   const [focusLoading, setFocusLoading] = useState(false);
   const lastFocusKey = useRef<string | null>(null);
 
@@ -509,6 +512,9 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
     lastFocusKey.current = key;
     setFocusLoading(true);
     setFocusDetail(null);
+    setFocusSourceUrl(null);
+    setFocusSourceName(null);
+    setFocusSearchUrl(null);
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -527,6 +533,9 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
         if (!res.ok) throw new Error('detail failed');
         const data = await res.json();
         setFocusDetail(data.detail || null);
+        setFocusSourceUrl(data.sourceUrl || null);
+        setFocusSourceName(data.sourceName || null);
+        setFocusSearchUrl(data.searchUrl || null);
       } catch {
         setFocusDetail(null);
       } finally {
@@ -640,6 +649,32 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
                       <p className="text-[12px] text-muted-foreground">
                         Tap refresh to load more on this story.
                       </p>
+                    )}
+                    {!focusLoading && (focusSourceUrl || focusSearchUrl) && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {focusSourceUrl && (
+                          <a
+                            href={focusSourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-accent/15 hover:bg-accent/25 border border-accent/25 text-[11px] font-semibold text-accent transition-colors"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Read on {focusSourceName || 'source'}
+                          </a>
+                        )}
+                        {focusSearchUrl && (
+                          <a
+                            href={focusSearchUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/30 hover:bg-muted/50 border border-border/20 text-[11px] font-medium text-foreground/80 transition-colors"
+                          >
+                            <Globe className="h-3 w-3" />
+                            More articles
+                          </a>
+                        )}
+                      </div>
                     )}
                   </motion.div>
                 )}

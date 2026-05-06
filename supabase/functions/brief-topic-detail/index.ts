@@ -40,8 +40,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const sys = `You are VYBE's friendly news explainer. The user tapped a notification about a topic they care about. Write a short (3-5 sentence) plain-English explainer about the headline: what happened, why it matters, and any key context. No emojis. No quotes. Be specific and concrete.`;
-    const userMsg = `Topic: ${topic || "general"}\nHeadline: ${headline || "(none)"}\n\nExplain in 3-5 sentences.`;
+    const sys = `You are VYBE's news explainer. Reply ONLY with strict JSON of shape {"detail": string, "source_url": string | null, "source_name": string | null}. "detail" is a 3-5 sentence plain-English explainer about the headline (what happened, why it matters, key context). "source_url" should be a real, well-known publisher article URL you are highly confident exists for this exact story (e.g. reuters.com, apnews.com, bbc.com, nytimes.com, theverge.com, espn.com). If you are NOT highly confident the URL is real, set source_url to null. Never invent URLs. No emojis, no quotes around fields beyond JSON syntax.`;
+    const userMsg = `Topic: ${topic || "general"}\nHeadline: ${headline || "(none)"}`;
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -51,6 +51,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
+        response_format: { type: "json_object" },
         messages: [
           { role: "system", content: sys },
           { role: "user", content: userMsg },
@@ -67,9 +68,38 @@ Deno.serve(async (req) => {
     }
 
     const aiJson = await aiRes.json();
-    const detail: string = (aiJson.choices?.[0]?.message?.content || "").trim();
+    const raw: string = (aiJson.choices?.[0]?.message?.content || "").trim();
+    let detail = "";
+    let sourceUrl: string | null = null;
+    let sourceName: string | null = null;
+    try {
+      const parsed = JSON.parse(raw);
+      detail = String(parsed.detail || "").trim();
+      if (parsed.source_url && typeof parsed.source_url === "string") {
+        try {
+          const u = new URL(parsed.source_url);
+          if (u.protocol === "http:" || u.protocol === "https:") {
+            sourceUrl = u.toString();
+            sourceName = parsed.source_name ? String(parsed.source_name) : u.hostname.replace(/^www\./, "");
+          }
+        } catch { /* invalid url */ }
+      }
+    } catch {
+      detail = raw;
+    }
 
-    return new Response(JSON.stringify({ topic, headline, detail }), {
+    // Always include a guaranteed-valid Google News search link as a fallback.
+    const searchQuery = encodeURIComponent(headline || topic || "");
+    const searchUrl = `https://news.google.com/search?q=${searchQuery}`;
+
+    return new Response(JSON.stringify({
+      topic,
+      headline,
+      detail,
+      sourceUrl,
+      sourceName,
+      searchUrl,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
