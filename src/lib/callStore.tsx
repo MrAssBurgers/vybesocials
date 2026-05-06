@@ -449,6 +449,41 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     tryReconnect();
   }, [profile?.id, setState]);
 
+  // Watch the lingering call's status — clear it the moment it actually ends server-side
+  // so the green "Rejoin" button never sticks around after a real hangup.
+  useEffect(() => {
+    if (!profile?.id) return;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let watchedId: string | null = null;
+
+    const attach = (id: string) => {
+      if (watchedId === id) return;
+      detach();
+      watchedId = id;
+      channel = supabase
+        .channel(`lingering-call-${id}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls', filter: `id=eq.${id}` }, (payload) => {
+          const s = (payload.new as any)?.status;
+          if (s === 'ended' || s === 'declined' || s === 'missed') {
+            setLingeringCall(null);
+          }
+        })
+        .subscribe();
+    };
+    const detach = () => {
+      if (channel) { supabase.removeChannel(channel); channel = null; }
+      watchedId = null;
+    };
+
+    const sync = () => {
+      const id = globalLingeringCall?.id || null;
+      if (id) attach(id); else detach();
+    };
+    sync();
+    const unsub = subscribeLingeringCall(sync);
+    return () => { unsub(); detach(); };
+  }, [profile?.id]);
+
   // Listen for call status changes (remote hangup) AND call_mode changes (mode switch)
   useEffect(() => {
     const callId = state.call?.id;
