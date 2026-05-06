@@ -50,10 +50,20 @@ export interface CallData {
   participants?: CallUser[];
 }
 
+export type ConnectStage =
+  | 'idle'
+  | 'requesting-media'   // getUserMedia in flight
+  | 'media-ready'        // local camera/mic acquired
+  | 'fetching-token'     // negotiating credentials with server
+  | 'signaling'          // P2P SDP exchange / LiveKit signaling
+  | 'connecting-media'   // ICE / room connect
+  | 'ready';             // fully connected
+
 interface CallStoreState {
   phase: CallPhase;
   call: CallData | null;
   error: string | null;
+  connectStage: ConnectStage;
 }
 
 interface CallStoreContextType {
