@@ -546,6 +546,8 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     if (!profile?.id) throw new Error('Not authenticated');
     if (globalCallState.phase !== 'idle') return;
 
+    // Starting a brand-new call — drop any stale lingering rejoin chip
+    setLingeringCall(null);
     setState({ phase: 'creating', call: null, error: null });
     callSounds.startRingback();
 
