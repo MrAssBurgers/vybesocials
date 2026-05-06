@@ -937,6 +937,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       leaveCall,
       rejoinCall,
       setPhase,
+      setConnectStage,
       setError,
       dismissIncoming,
       switchMode,
