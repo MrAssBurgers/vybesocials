@@ -7,7 +7,7 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2.90.1";
-import { AccessToken } from "npm:livekit-server-sdk@2.15.0";
+import { AccessToken, RoomServiceClient } from "npm:livekit-server-sdk@2.15.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
