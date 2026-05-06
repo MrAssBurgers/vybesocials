@@ -80,7 +80,6 @@ export const PostNudgeWidget = memo(function PostNudgeWidget() {
         >
           Share a VYBE
         </Button>
-      </motion.div>
-    </AnimatePresence>
+    </motion.div>
   );
 });
