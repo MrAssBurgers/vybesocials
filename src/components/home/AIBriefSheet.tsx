@@ -380,6 +380,9 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasFetchedRef = useRef(false);
   const [focusDetail, setFocusDetail] = useState<string | null>(null);
+  const [focusSourceUrl, setFocusSourceUrl] = useState<string | null>(null);
+  const [focusSourceName, setFocusSourceName] = useState<string | null>(null);
+  const [focusSearchUrl, setFocusSearchUrl] = useState<string | null>(null);
   const [focusLoading, setFocusLoading] = useState(false);
   const lastFocusKey = useRef<string | null>(null);
 
