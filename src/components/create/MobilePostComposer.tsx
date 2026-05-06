@@ -8,6 +8,8 @@ import { useAuth } from '@/lib/auth';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
 import { VybeCheckOverlay } from '@/components/safety/VybeCheckOverlay';
 import { type AgeRating } from '@/components/safety/AgeRatingSelector';
+import { useContentSafety } from '@/hooks/useContentSafety';
+
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { AIPhotoEnhancer } from '@/components/ai/AIPhotoEnhancer';
 import { PublishCelebration } from './PublishCelebration';
