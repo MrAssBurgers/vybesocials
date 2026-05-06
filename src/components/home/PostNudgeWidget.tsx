@@ -1,5 +1,5 @@
-import { memo, useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { memo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Camera, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -8,10 +8,26 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { liquidSpring } from '@/motion/liquidConfig';
 
+const DISMISS_KEY = 'vybe-post-nudge-dismissed';
+const DISMISS_TTL = 2 * 24 * 60 * 60 * 1000;
+
+function readInitialDismissed(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const dismissedAt = localStorage.getItem(DISMISS_KEY);
+    if (!dismissedAt) return false;
+    return Date.now() - parseInt(dismissedAt, 10) < DISMISS_TTL;
+  } catch {
+    return false;
+  }
+}
+
 export const PostNudgeWidget = memo(function PostNudgeWidget() {
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const [dismissed, setDismissed] = useState(false);
+  // Read synchronously on first render — avoids a 1-frame flash where the
+  // widget mounts visible, then hides itself in a useEffect.
+  const [dismissed, setDismissed] = useState(readInitialDismissed);
 
   // Check if user posted in last 3 days
   const { data: hasRecentPost } = useQuery({
@@ -28,28 +44,20 @@ export const PostNudgeWidget = memo(function PostNudgeWidget() {
     },
     enabled: !!profile?.id,
     staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
-
-  // Check dismiss state
-  useEffect(() => {
-    const dismissedAt = localStorage.getItem('vybe-post-nudge-dismissed');
-    if (dismissedAt) {
-      const elapsed = Date.now() - parseInt(dismissedAt, 10);
-      if (elapsed < 2 * 24 * 60 * 60 * 1000) setDismissed(true);
-    }
-  }, []);
 
   if (hasRecentPost || hasRecentPost === undefined || dismissed) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        transition={liquidSpring}
-        className="relative rounded-2xl bg-gradient-to-br from-primary/10 via-accent/5 to-primary/10 border border-primary/20 p-5 text-center"
-      >
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={liquidSpring}
+      className="relative rounded-2xl bg-gradient-to-br from-primary/10 via-accent/5 to-primary/10 border border-primary/20 p-5 text-center"
+    >
         <button
           onClick={() => {
             setDismissed(true);
