@@ -88,8 +88,19 @@ export function useNotifications() {
       if (error) throw error;
       if (!data || data.length === 0) return [];
 
+      // Hide stale Daily Brief pings (>24h old) — they're time-sensitive
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      const filtered = data.filter((n: any) => {
+        if (n.subtype === 'brief_item') {
+          return now - new Date(n.created_at).getTime() < DAY_MS;
+        }
+        return true;
+      });
+      if (filtered.length === 0) return [];
+
       // Batch fetch all unique actor profiles in one query
-      const actorIds = [...new Set(data.map(n => n.actor_id))];
+      const actorIds = [...new Set(filtered.map(n => n.actor_id))];
       const { data: actors } = await supabase
         .from('profiles')
         .select('id, username, avatar_url, display_name')
@@ -97,7 +108,7 @@ export function useNotifications() {
 
       const actorMap = new Map(actors?.map(a => [a.id, a]) || []);
 
-      return data.map(n => ({
+      return filtered.map(n => ({
         id: n.id,
         type: n.type as NotificationType,
         read: n.read,
