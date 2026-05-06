@@ -500,6 +500,41 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
     };
   }, [open, fetchBrief]);
 
+  // Fetch a focused topic explainer when opened from a notification deep link
+  useEffect(() => {
+    if (!open) return;
+    if (!focusTopic && !focusHeadline) { setFocusDetail(null); return; }
+    const key = `${focusTopic || ''}|${focusHeadline || ''}`;
+    if (lastFocusKey.current === key && focusDetail) return;
+    lastFocusKey.current = key;
+    setFocusLoading(true);
+    setFocusDetail(null);
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { setFocusLoading(false); return; }
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/brief-topic-detail`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ topic: focusTopic, headline: focusHeadline }),
+          },
+        );
+        if (!res.ok) throw new Error('detail failed');
+        const data = await res.json();
+        setFocusDetail(data.detail || null);
+      } catch {
+        setFocusDetail(null);
+      } finally {
+        setFocusLoading(false);
+      }
+    })();
+  }, [open, focusTopic, focusHeadline]);
+
   const handleRefresh = useCallback(() => {
     hasFetchedRef.current = true;
     setIsLoading(true);
