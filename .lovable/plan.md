@@ -1,69 +1,58 @@
-## 1. Floating frosted-glass DM header (no bar)
+## 1. FAB "fall down" animation (Friend Link + VYBE Designer)
 
-In `src/components/chat/ChatView.tsx` around line 1274, replace the entire `<header>` element. Remove the full-width black bar (no `border-b`, no opaque background) and split the contents into **two independent floating pills** that look like they're hovering over the chat content:
+**Problem:** Right now both FABs fade to opacity-0 while only translating `translate-y-28`. Because opacity drops in parallel with the slide, you see them dissolve mid-air instead of falling cleanly off-screen. They also don't always feel synchronized.
 
-- **Left pill**: back arrow + avatar + name/presence
-- **Right pill**: phone, FaceTime, chat-settings (3-dot)
+**Fix in `src/components/friends/AutoFriendDrop.tsx` and `src/components/ai/VYBECommandBar.tsx`:**
 
-Both pills:
-- `bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10` for the Instagram-style live blur of whatever is behind them
-- `rounded-full` with soft shadow + inset white ring for premium glass depth
-- Header wrapper: `bg-transparent`, `pt-3 sm:pt-4 pb-2`, `sticky top-0 z-20` so they sit lower (no cutoff on small Androids) and the chat content scrolls *behind* them with the live blur showing through.
-- Compact icon size (`h-8 w-8`) so nothing overflows.
+- Replace the hide state with a real "fall off-screen" transform:
+  - Hidden: `translate-y-[200%] opacity-100` (button stays fully opaque while falling, then is simply below the viewport — invisible to the user).
+  - Visible: `translate-y-0 opacity-100`.
+- Use an `ease-in` curve when hiding (gravity feel) and `ease-out` (spring-ish) when showing so they "fly back" upward into place.
+- Keep `pointer-events-none` + `invisible` only **after** the fall completes (apply via a short `setTimeout`/`transitionend`, or simply gate `pointer-events` on `controlVisible` while leaving `invisible` off so the transition still plays).
+- Use the same `duration-[280ms]` on both components so they drop in lockstep.
+- For `VYBECommandBar`, switch the framer-motion `animate` to drive `y` (e.g. `y: controlVisible ? 0 : 160`) with matching transition + same duration, removing the opacity drop.
 
-## 2. Truly hide Friend Link + AI Designer with bottom nav
+Result: both buttons fall straight down together, are completely gone while nav is hidden, and spring back up in unison when the nav returns.
 
-`src/components/friends/AutoFriendDrop.tsx` line ~343: the current hidden state is `translate-y-28 pointer-events-none` — the button is still visible (just shifted off the safe area). Change to fully hide:
-```tsx
-className={cn(
-  "transition-all duration-300",
-  controlVisible
-    ? "opacity-100 translate-y-0 pointer-events-auto"
-    : "opacity-0 translate-y-28 pointer-events-none invisible"
-)}
-```
+## 2. DM header — shrink left pill so typing/presence has room
 
-`src/components/ai/VYBECommandBar.tsx` line ~187: current `animate={{ y: controlVisible ? 0 : 112 }}` keeps opacity at 1. Change to:
-```tsx
-animate={{
-  scale: 1,
-  opacity: controlVisible ? 1 : 0,
-  y: controlVisible ? 0 : 112,
-  pointerEvents: controlVisible ? 'auto' : 'none',
-}}
-```
-plus add `style={{ visibility: controlVisible ? 'visible' : 'hidden' }}` on the outer wrapper after the exit transition so it doesn't catch taps.
+In `src/components/chat/ChatView.tsx` around line 1275–1363:
 
-## 3. Clip thumbnails not loading in chat
+- Remove `flex-1` from the left pill wrapper (line 1277). Change it to `max-w-[60%]` (or `w-fit`) and let the inner name/presence area still `truncate` inside its own width.
+- Set the outer `<header>` to `justify-between` (already is by default with the gap layout — confirm: change wrapper to `flex items-center justify-between`).
+- Add a small `mr-2` after the left pill so it visually ends a bit past the username, leaving breathing room for the `LivePresenceBar` typing animation to expand without being clipped by the frosted glass edge.
+- Keep the right pill `flex-shrink-0` so it stays anchored top-right.
 
-Investigate `src/components/chat/MessageBubble.tsx` (or the message renderer) where video messages render. The bug is almost certainly that on the native build the `<video>` element relies on `preload="metadata"` to generate a poster, which Android WebView often blocks for cross-origin signed URLs. Fix:
-- Generate a `poster` URL from the existing video processor (`useVideoProcessor` already produces a thumbnail blob on upload — store it as `thumbnail_url` on the message media).
-- For legacy clips without a stored poster, fall back to a `<canvas>` first-frame extraction in the bubble (request `crossOrigin="anonymous"` + `seekTo(0.1)` + `drawImage`) and cache the data URL via `signedUrlCache`.
-- Set `<video preload="auto" playsInline muted poster={thumbnailUrl}>` so Android shows the first frame even when autoplay is blocked.
+Result: left pill hugs avatar + name + presence text, frosted glass ends just past the username, leaving open canvas in the middle of the header.
 
-## 4. NFC Friend Drop — both phones broadcast + tap triggers add animation
+## 3. Floating "liquid glass" composer (bottom bar)
 
-In `src/hooks/useNativeFriendDrop.ts` and `native/android/FriendDropPlugin.kt` / `native/ios/FriendDropPlugin.swift`:
+In `src/components/chat/ChatView.tsx` around line 1973:
 
-- Both phones must enter **HCE (Host Card Emulation) reader+writer mode simultaneously**. Today the initiator broadcasts and the responder reads — change both to call `startSession()` which:
-  1. Registers an HCE service that emits the user's `friend_drop_token` (signed short-lived JWT from `friend-drop-token` edge function).
-  2. Simultaneously polls for incoming NDEF messages.
-- On `onTagDiscovered`, immediately:
-  1. Fire haptic `impactHeavy` + emit `nfc-detected` event consumed by `AutoFriendDrop`.
-  2. Set phase to `connecting` so the existing add-user animation (the radial pulse + avatar morph) plays the moment phones touch.
-  3. Call `friendDropSync.acceptPeer(token)` to commit the friendship in Supabase.
-- Update `AutoFriendDrop.tsx`: subscribe to `nativeFriendDrop.onPeerDetected` and call `setPhase('connecting')` → `setPhase('success')` so the add animation runs end-to-end on tap, even before the server round-trip completes (optimistic UI).
+- Replace the current container styling:
+  ```
+  <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30 relative">
+  ```
+  with a transparent floating wrapper:
+  ```
+  <div className="flex-shrink-0 sticky bottom-0 z-30 bg-transparent px-2 sm:px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+  ```
+- Wrap the inner `px-2 py-2 ...` row (line 1983) in a single rounded "pill" container that mirrors the header style:
+  ```
+  rounded-3xl bg-background/40 backdrop-blur-2xl backdrop-saturate-150
+  border border-white/10 ring-1 ring-inset ring-white/[0.04]
+  shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)]
+  px-2.5 py-2
+  ```
+- Drop the hard `border-t` so the chat scroll content blurs through underneath the composer (matching the header's glass-over-content effect).
+- Keep Toybox / input / send buttons inside the pill exactly as today; only the chrome changes.
 
-## Technical summary
+Result: the bottom row (Toybox → text input → snap/record/send) sits inside one floating frosted-glass pill that mirrors the top header, with chat content visibly blurring beneath it as you scroll.
 
-| File | Change |
-|---|---|
-| `src/components/chat/ChatView.tsx` | Replace bar header with two floating frosted-glass pills, remove border, add live backdrop-blur |
-| `src/components/friends/AutoFriendDrop.tsx` | Add `opacity-0 invisible` on hidden state; subscribe to NFC tag detection to start add animation |
-| `src/components/ai/VYBECommandBar.tsx` | Animate opacity to 0 + visibility hidden when nav hides |
-| `src/hooks/useNativeFriendDrop.ts` | Expose `onPeerDetected` event, enable simultaneous HCE broadcast+read |
-| `native/android/FriendDropPlugin.kt` | Start HCE service + reader mode in parallel inside `startSession()` |
-| `native/ios/FriendDropPlugin.swift` | Same — Core NFC reader + CoreBluetooth advertising in parallel |
-| Chat message bubble (video) | Persist `thumbnail_url` on message_media; use as `<video poster>`; fallback canvas-extract for legacy clips |
+## Files touched
 
-After approval, you'll need to **rebuild in Despia** for the NFC and video poster changes to ship to the Play Store build.
+- `src/components/friends/AutoFriendDrop.tsx` — fall animation
+- `src/components/ai/VYBECommandBar.tsx` — fall animation (motion `y`)
+- `src/components/chat/ChatView.tsx` — left header pill width + composer glass pill
+
+No DB / native / edge function changes — pure UI, no Despia rebuild required.
