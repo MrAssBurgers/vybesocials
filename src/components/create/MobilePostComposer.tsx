@@ -62,6 +62,49 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
   const [showCelebration, setShowCelebration] = useState(false);
   const [showTags, setShowTags] = useState(true);
 
+  // Pre-scan: kick off Vybe Check as soon as media lands in composer so the
+  // user instantly sees the AI working, and Share is near-instant.
+  const preScan = useContentSafety();
+  type PreScanState =
+    | { status: 'idle' }
+    | { status: 'scanning' }
+    | { status: 'safe'; suggestedAgeRating?: AgeRating | null; ageRatingReasons?: string[] }
+    | { status: 'blocked'; message: string; categories: string[] };
+  const [preScanState, setPreScanState] = useState<PreScanState>({ status: 'idle' });
+  const preScanFileRef = useRef<File | null>(null);
+
+  useEffect(() => {
+    const file = localFiles[0];
+    if (!file || preScanFileRef.current === file) return;
+    preScanFileRef.current = file;
+    setPreScanState({ status: 'scanning' });
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = file.type.startsWith('video/')
+          ? await preScan.scanVideo(file)
+          : await preScan.scanImage(file);
+        if (cancelled) return;
+        if (result.result === 'blocked') {
+          setPreScanState({
+            status: 'blocked',
+            message: result.message || 'Content violates community guidelines',
+            categories: result.categories || [],
+          });
+        } else {
+          setPreScanState({
+            status: 'safe',
+            suggestedAgeRating: (result.suggestedAgeRating as AgeRating | undefined) ?? null,
+            ageRatingReasons: result.ageRatingReasons,
+          });
+        }
+      } catch {
+        if (!cancelled) setPreScanState({ status: 'idle' });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [localFiles, preScan]);
+
   // Draft persistence — survives accidental swipe-outs
   const draft = useComposerDraft(contentType === 'short' ? 'short' : contentType === 'video' ? 'video' : 'post');
   useEffect(() => {
