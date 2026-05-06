@@ -609,6 +609,41 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
               </div>
             ) : briefData ? (
               <div className="space-y-5">
+                {/* Focus topic detail (from notification deep link) */}
+                {(focusTopic || focusHeadline) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 rounded-2xl bg-gradient-to-br from-accent/10 via-primary/5 to-transparent border border-accent/20"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Newspaper className="h-3.5 w-3.5 text-accent" />
+                      <span className="text-[10px] font-bold text-accent uppercase tracking-[0.12em]">
+                        About this {focusTopic ? `· ${focusTopic}` : ''}
+                      </span>
+                    </div>
+                    {focusHeadline && (
+                      <p className="text-sm font-semibold text-foreground mb-2 leading-snug">
+                        {focusHeadline}
+                      </p>
+                    )}
+                    {focusLoading ? (
+                      <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                        Pulling the details…
+                      </div>
+                    ) : focusDetail ? (
+                      <p className="text-[13px] text-foreground/85 leading-relaxed whitespace-pre-line">
+                        {focusDetail}
+                      </p>
+                    ) : (
+                      <p className="text-[12px] text-muted-foreground">
+                        Tap refresh to load more on this story.
+                      </p>
+                    )}
+                  </motion.div>
+                )}
+
                 {/* AI Summary card */}
                 <motion.div
                   initial={{ opacity: 0, y: 6 }}
