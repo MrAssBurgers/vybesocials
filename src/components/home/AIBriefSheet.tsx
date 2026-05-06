@@ -650,6 +650,32 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
                         Tap refresh to load more on this story.
                       </p>
                     )}
+                    {!focusLoading && (focusSourceUrl || focusSearchUrl) && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {focusSourceUrl && (
+                          <a
+                            href={focusSourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-accent/15 hover:bg-accent/25 border border-accent/25 text-[11px] font-semibold text-accent transition-colors"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Read on {focusSourceName || 'source'}
+                          </a>
+                        )}
+                        {focusSearchUrl && (
+                          <a
+                            href={focusSearchUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/30 hover:bg-muted/50 border border-border/20 text-[11px] font-medium text-foreground/80 transition-colors"
+                          >
+                            <Globe className="h-3 w-3" />
+                            More articles
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </motion.div>
                 )}
 
