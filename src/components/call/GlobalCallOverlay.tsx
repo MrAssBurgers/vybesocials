@@ -87,6 +87,8 @@ export function GlobalCallOverlay() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [p2pFailCount, setP2pFailCount] = useState(0);
+  const [incomingReaction, setIncomingReaction] = useState<{ emoji: string; nonce: number } | null>(null);
+  const reactionsChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const p2pEndedRef = useRef(false); // Guard against double endCall from P2P events
   
   // Remote user left — linger state (persistent mode only)
