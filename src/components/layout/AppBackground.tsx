@@ -148,7 +148,14 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
   // Auto-load user's active background on auth
   const refreshBackground = useCallback(async () => {
     const profileId = profile?.id;
-    if (!profileId) return;
+    if (!profileId) {
+      // Logged out — clear any background that was applied to body
+      rawUrlRef.current = null;
+      hasLoadedRef.current = false;
+      setBackground(prev => ({ ...prev, imageUrl: null }));
+      clearBodyBackground();
+      return;
+    }
     
     try {
       // First try the active background
