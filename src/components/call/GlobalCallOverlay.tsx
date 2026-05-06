@@ -1283,21 +1283,18 @@ export function GlobalCallOverlay() {
             )}
           </AnimatePresence>
 
-          {/* Remote user left banner (all modes) */}
+          {/* Remote user left — calm chip (no pink, no countdown frenzy) */}
           <AnimatePresence>
-            {remoteUserLeft && isConnected && (
-              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="absolute top-32 left-4 right-4 z-50">
-                <div className="p-4 rounded-2xl backdrop-blur-xl bg-primary/20 border border-primary/30 shadow-2xl">
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-semibold text-sm">Call still live</p>
-                      <p className="text-white/60 text-xs">{autoEndCountdown === -1 ? `${displayName} left · They can rejoin anytime` : `${displayName} left · They can rejoin · Auto-ends in ${Math.floor(autoEndCountdown / 60)}:${(autoEndCountdown % 60).toString().padStart(2, '0')}`}</p>
-                    </div>
-                  </div>
+            {remoteUserLeft && isConnected && autoEndCountdown !== -1 && autoEndCountdown > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+                className="absolute top-28 left-1/2 -translate-x-1/2 z-50"
+              >
+                <div className="px-3 py-1.5 rounded-full backdrop-blur-xl bg-white/10 border border-white/15 text-white/70 text-xs font-medium tracking-wide">
+                  Call ends in {Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}
                 </div>
               </motion.div>
             )}
