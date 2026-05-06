@@ -1,64 +1,94 @@
-## Autonomous VYBE DNA Agent
 
-Turn VYBE DNA from a passive personality view into an **autonomous AI agent** that silently watches what the user does, decides what to change, and reshapes their experience — feed weights, theme colors, home layout, suggested people, and even nudges — without the user having to ask.
+## Goal
 
-### Concept
+Make calling feel instant and rock-solid: connect the moment the receiver answers, play the custom ringtone, behave like a Discord voice-room in Stay On mode, kill the pink countdown animation, perfectly center the breathing aura, hide Rejoin after the call truly ends, and broadcast emoji reactions live to the other side.
 
-Every few hours (and after notable events), an "Auto-Pilot" agent runs in the background:
+## What's broken (root causes)
 
-1. Pulls the user's last 30 days of behavior (existing `vybe_dna`, `dna_content_preferences`, recent posts/likes/follows/saves/sessions).
-2. Asks Lovable AI ("VYBE Auto-Pilot") to *decide* what should change for this person, returning a structured JSON action plan.
-3. Applies those actions atomically to the user's tables — boost/reduce topics, swap theme palette, reorder home widgets, suggest creators, surface a personalized nudge.
-4. Logs every change in a new `dna_agent_actions` audit trail so the user can see "what the AI changed for you" and undo anything.
+1. **"Call failed" / slow camera & connect**
+   - Receiver's `acceptCall` path flips to `joining` but `GlobalCallOverlay` still waits for `state.call.token` for persistent calls and does the LiveKit token fetch inline. For P2P, `P2PConnection.connect()` runs `getUserMedia` in parallel with signaling, but the camera open still blocks the connected event because the join timeout (30s) only fires on real failure — meanwhile no early "media-ready → fast path" is shown.
+   - Caller already paints overlay immediately, but receiver shows "Connecting…" until full ICE handshake completes. There is no "media ready / answered" intermediate state.
 
-The user can leave it 100% autonomous, set it to "Suggest only" (review before applying), or pause it.
+2. **Custom ringtone not playing**
+   - `useSyncCustomSounds` only runs inside `NotificationSoundSection` (settings page). Until the user opens settings, `localStorage['vybe-custom-sounds']` never gets the ringtone URL, so `premiumSounds.startRinging()` falls back to the synth bell.
+   - Only the receiver's incoming-call path uses `premiumSounds.startRinging()`; that's correct, but the URL is missing on app boot.
 
-### What changes for the user
+3. **Stay On mode does not behave like a voice room**
+   - `currentCall.callMode === 'persistent'` enables linger, but `leaveCall()` clears `globalCallState` and only sets `globalLingeringCall` for the **leaver**. The remaining participant's overlay treats it as `remote-participant-left` and starts the 3-min linger timer (P2P branch). For persistent 1:1, the indefinite branch already exists, but **group calls** still trigger `LINGER_SECONDS = 3600` countdown, and the room still ends when the last participant disconnects from LiveKit (LiveKit auto-closes empty rooms after a short empty-timeout).
+   - There is no server-side "keep room alive" flag; the LiveKit room dies when the last person leaves, so the call really does end.
 
-- **Feed personality** — boost/reduce topics in `dna_content_preferences` based on what they've actually engaged with this week.
-- **Theme & vibe** — agent picks signature colors, gradient, glyph pattern, and aura intensity, writes them into a new `dna_auto_theme` table that `useApplyThemeFonts` reads first.
-- **Home layout** — agent reorders/visibility-toggles widgets in `useHomeLayout` (e.g. surface "Local" if you scroll local posts; demote "Events" if you ignore them).
-- **Suggested people** — agent picks 3–5 high-DNA-similarity creators and pins them to a "Made for you" rail.
-- **Smart nudges** — one short context-aware note in the new "Auto-Pilot" inbox ("You've been quiet on Clips — want to try the new music trend?").
+4. **Pink flashing countdown**
+   - Lines 1278–1295 (`Remote user left banner`) renders a `bg-primary/20 border border-primary/30` block with a pulsing `bg-primary` dot. With the project's hot-pink/magenta primary token in light mode, this looks pink and frantic. The countdown text also lives inside the avatar block (lines 1185–1193) showing `2:59 Call auto-ends`.
 
-### New DNA "Auto-Pilot" UI on `/vybe-dna`
+5. **Janky / mis-aligned aura**
+   - The avatar wrapper is `inline-flex h-32 w-32`. Multiple `motion.div` children use `style={{ width:'110%', height:'110%' }}` with `-translate-x-1/2 -translate-y-1/2`. They aren't perfectly centered because the parent isn't square in flex layout on iOS; `width/height: 100%` + percent translate creates sub-pixel drift, then the rings beat at three different durations (3s, 3s+0.8s delay, 4s) so they desync visually.
 
-- Hero card at the top: pulsing AI orb, "Auto-Pilot ON · Last tuned 2h ago", toggle row (Off / Suggest / Autonomous).
-- "What I changed for you" timeline: each `dna_agent_actions` row rendered as a card with icon, plain-language summary, before→after diff, and an Undo button.
-- "Run Auto-Pilot now" button for instant re-tune.
-- A live "Confidence" meter showing how much data the agent has to work with.
+6. **Rejoin button persists after call ends**
+   - `CallButtons` reads `getLingeringCall()` at render time. `globalLingeringCall` is only cleared in `endCall()` and `rejoinCall()`. If User A is in persistent mode and User B hangs up (status update → `setState(initialState)`), nothing clears User A's `globalLingeringCall`. Also, the value is non-reactive — `useCallStore` doesn't re-subscribe when it changes, so the button can render stale.
 
-### Data model
+7. **Reaction emojis not delivered**
+   - `CallReactions` is wired with `onReaction={(emoji) => { /* broadcast via realtime */ }}` — literally a no-op stub. Nothing is broadcast and `incomingReaction` is never set on the remote side.
 
-New tables (RLS: user can read/update own only):
+---
 
-- `dna_auto_theme` — `user_id`, `signature_colors jsonb`, `gradient`, `glyph_pattern`, `aura_intensity`, `applied_at`.
-- `dna_agent_actions` — `id`, `user_id`, `action_type` (`feed_tune`, `theme_swap`, `layout_change`, `suggest_user`, `nudge`), `summary`, `before jsonb`, `after jsonb`, `applied bool`, `reverted bool`, `created_at`.
-- `dna_agent_settings` — `user_id PK`, `mode` enum (`off` / `suggest` / `autonomous`, default `suggest`), `last_run_at`, `cadence_minutes` (default 360).
+## Fix plan
 
-### Backend
+### A. Custom ringtone — guarantee URL is loaded on boot
+- Move `useSyncCustomSounds()` invocation up to `App.tsx` (or `CallStoreProvider`) so it runs as soon as the user is authenticated.
+- Inside `useSyncCustomSounds`, refresh signed URLs that have expired (call upsert again if needed) and write into `localStorage` immediately.
+- Verify `premiumSounds.startRinging()` actually awaits `playCustomAudio` and falls back to synth only on hard failure.
 
-- **Edge function `dna-autopilot`** — accepts `{ trigger: 'manual' | 'cron' }`, fetches DNA + recent activity, calls Lovable AI Gateway (`google/gemini-3-flash-preview`) with **tool calling** for structured output (one tool per action type), validates each action, applies it (or stores as `applied=false` if mode is `suggest`), and writes `dna_agent_actions`.
-- **Cron** — `pg_cron` job every 6 hours invoking `dna-autopilot` for users whose `dna_agent_settings.mode != 'off'` and `last_run_at < now() - cadence`. Use the `supabase--insert` flow (not migrations) so it carries the project-specific URL + anon key.
-- **Edge function `dna-autopilot-revert`** — accepts `action_id`, restores `before` snapshot, marks `reverted=true`.
+### B. Instant connect feel
+- In `acceptCall` (callStore), for **P2P**, call `setState({ phase: 'joining', ... })` AND start a non-blocking `premiumSounds.callConnect()` chime so the receiver hears feedback in <100ms.
+- In `GlobalCallOverlay.connectP2P`, call `attachLocalVideo` synchronously from `onLocalStream` (already done) but also flip a new `mediaReady` UI flag to switch away from the "Connecting…" overlay the moment camera opens — don't wait for ICE.
+- Reduce the connecting overlay (`isConnecting && isVideoCall && !isInitiator`) to dismiss as soon as `hasLocalVideo` is true, not only on `phase === 'connected'`.
+- For caller, pre-warm `getUserMedia` synchronously in `CallButtons.handleStartCall` (we already avoid pre-probe — keep that, but skip the artificial 30s `joinTimeoutRef`; reduce to 15s and show "Still trying…" at 8s instead of failing).
 
-### Frontend
+### C. Stay-On = real voice-room behavior
+- Persistent 1:1: keep current "indefinite linger" path.
+- **Group / persistent**: when remote leaves, do NOT show countdown — show "Waiting for others…". Remove the `LINGER_SECONDS = 3600` group countdown; let the local user explicitly leave.
+- Keep room alive with a tiny "keepalive" data-channel publish every 20s on persistent so LiveKit doesn't garbage-collect the empty room while one user stays.
+- Update edge function `livekit-token` (room creation side) to set `empty_timeout: 600` (10 min) and `max_participants: 50` so the room survives short solo periods.
 
-- New hook `useDNAAutoPilot()` — exposes `settings`, `actions`, `runNow()`, `setMode()`, `revert(actionId)`.
-- `src/components/dna/DNAAutoPilot.tsx` — the hero card + mode toggle + timeline, mounted at the top of `VybeDNA.tsx`.
-- `useApplyThemeFonts` patched to prefer `dna_auto_theme` over the user's saved theme when present and Auto-Pilot is on.
-- `useHomeLayout` patched to merge auto-pilot layout overrides on top of user prefs.
-- A subtle floating toast appears in-app when a new autonomous change happens: "VYBE tuned your feed · See what changed".
+### D. Kill the pink countdown UI
+- Remove the `Remote user left` top banner (lines 1278–1296) entirely for persistent mode. Only show a tiny chip in the header: "Waiting for {name}".
+- For P2P 3-minute linger, replace the pink banner + countdown text with a calm white/40% chip "Call ends in 2:59" — no `bg-primary/20`, no pulsing primary dot, no `animate-ping`.
+- Inside the avatar block, drop the giant `2:59 Call auto-ends` text (lines 1185–1193). Replace with a single subtle sub-line.
 
-### Technical details
+### E. Perfectly aligned beating aura
+- Wrap the avatar in a square `relative h-40 w-40 grid place-items-center` container.
+- Convert all ring `motion.div`s to absolutely positioned elements with `inset-0` + `m-auto` instead of `top-1/2 left-1/2 -translate -translate`. Use a single shared `width: 100%; height: 100%; aspect-ratio: 1`.
+- Synchronize all three rings to the same 3s cycle with phase offsets `0`, `1s`, `2s` (no different durations). Use `ease: 'easeInOut'` so it actually breathes instead of linear pulsing.
+- Avatar's own subtle scale uses the same 3s timeline.
+- Remove the standby aura's separate 6s timing — just dim opacity, keep the 3s rhythm.
 
-- Tool schemas (one tool per action) keep the agent's output validated and safe — no free-form JSON parsing.
-- Each apply step writes the `before` snapshot first so revert is trivial.
-- Hard caps per run (max 1 theme change, 3 feed tunes, 1 layout change, 1 nudge) so the experience never feels chaotic.
-- Rate-limit handling for 429/402 from the gateway, surfaced as a toast.
-- All RLS policies use `auth.uid() = user_id`; agent edge function uses the service role key only after validating the JWT (same pattern as `dna-chat`).
-- `useApplyThemeFonts` and `useHomeLayout` reads gated behind `authReady` to avoid the standard query-guard issue.
+### F. Rejoin button cleanup
+- Add a tiny event-emitter wrapper around `globalLingeringCall` so `CallButtons` re-renders when it changes (or expose it through context as `lingeringCall` state on `CallStoreContext`).
+- Subscribe to the call status realtime channel app-wide (not just inside an active call) — when a call this user lingered on flips to `status === 'ended'`, clear `globalLingeringCall`.
+- Also clear lingering call on logout, and on any new outgoing call start.
 
-### Memory
+### G. Live emoji reactions
+- Add a Supabase Realtime broadcast channel `call-reactions-{callId}` opened in `GlobalCallOverlay` for the duration of the call.
+- `CallReactions.onReaction` payload: `channel.send({ type: 'broadcast', event: 'reaction', payload: { emoji, userId } })`.
+- Receive side: store last emoji in state and pass to `<CallReactions incomingReaction={lastEmoji} />` (which already animates floating emojis).
+- Fix the existing `CallReactions` bug: `incomingReaction` causes `setIncomingFloats` during render — wrap in `useEffect([incomingReaction])` instead.
 
-If approved, save a memory describing the autonomous-agent architecture (action schema, cadence, revert flow) so future work stays consistent.
+### H. Hangup parity
+- When persistent call truly ends (status === 'ended' from DB), force-clear `globalLingeringCall` for both users so the green "Rejoin" button never appears post-hangup.
+
+---
+
+## Files touched
+
+- `src/lib/callStore.tsx` — lingering call event subscription; clear lingering on remote end; reactive lingering exposure; group-call linger removal
+- `src/lib/premiumSounds.ts` — robust custom ringtone playback (await + fallback)
+- `src/hooks/useCustomSounds.ts` — bootstrap sync from any caller
+- `src/App.tsx` — invoke `useSyncCustomSounds` once at app root
+- `src/components/call/GlobalCallOverlay.tsx` — aura container rewrite, remove pink banner, instant-connect UX, reactions broadcast wiring, group linger removal
+- `src/components/call/CallReactions.tsx` — fix `incomingReaction` effect, expose typed `onReaction`
+- `src/components/call/CallButtons.tsx` — re-render on lingering-call change
+- `supabase/functions/livekit-token/index.ts` — `empty_timeout: 600`, ensure room creation flags
+
+## Out of scope
+
+- Native push ringtone playback (OS-level CallKit / Android Telecom integration). The web ringtone fix above addresses what the user reported.
