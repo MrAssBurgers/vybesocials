@@ -112,6 +112,60 @@ export default function AppWelcome() {
           </p>
         </motion.div>
 
+        {/* Showcase — phone mockups */}
+        <motion.div
+          {...fadeUp}
+          transition={{ ...fadeUp.transition, delay: 0.08 }}
+          className="mt-12 space-y-4"
+        >
+          <h2 className="text-xs uppercase tracking-[0.18em] text-muted-foreground/80">A look inside</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {SHOWCASE.map((s, i) => (
+              <motion.div
+                key={s.title}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 + i * 0.06 }}
+                className="group relative overflow-hidden rounded-3xl border border-border/40 bg-card/60 backdrop-blur-xl p-5"
+              >
+                {/* Accent glow */}
+                <div className={`pointer-events-none absolute -top-20 -right-16 h-56 w-56 rounded-full bg-gradient-to-br ${s.accent} blur-3xl opacity-70`} />
+
+                {/* Phone mockup */}
+                <div className="relative mx-auto mb-5 w-[180px] sm:w-[200px]">
+                  {/* Soft shadow */}
+                  <div className="absolute inset-x-4 -bottom-3 h-6 rounded-full bg-black/60 blur-2xl" />
+                  {/* Phone frame */}
+                  <div className="relative rounded-[2rem] border border-white/10 bg-gradient-to-b from-zinc-800 to-zinc-950 p-1.5 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.6)]">
+                    <div className="relative overflow-hidden rounded-[1.6rem] bg-black aspect-[9/19.5]">
+                      {/* Notch */}
+                      <div className="absolute top-1.5 left-1/2 -translate-x-1/2 z-10 h-4 w-16 rounded-full bg-black" />
+                      <img
+                        src={s.image}
+                        alt={s.title}
+                        loading="lazy"
+                        className="h-full w-full object-cover object-top"
+                      />
+                      {/* Subtle gloss */}
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-white/0 via-white/[0.04] to-white/0" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                      <s.icon className="h-3.5 w-3.5" strokeWidth={2.2} />
+                    </div>
+                    <h3 className="text-base font-semibold">{s.title}</h3>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{s.body}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
         {/* Vision pillars */}
         <motion.div
           {...fadeUp}
