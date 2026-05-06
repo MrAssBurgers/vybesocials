@@ -7,7 +7,7 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2.90.1";
-import { AccessToken } from "npm:livekit-server-sdk@2.15.0";
+import { AccessToken, RoomServiceClient } from "npm:livekit-server-sdk@2.15.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -204,6 +204,21 @@ Deno.serve(async (req) => {
       }
 
       activeCallId = callSession.id;
+    }
+
+    // Pre-create the room with a long empty timeout so it behaves like
+    // a Discord-style voice room and isn't auto-closed when momentarily empty.
+    try {
+      const httpUrl = livekitUrl.replace(/^wss?:/, (m) => m === "wss:" ? "https:" : "http:");
+      const svc = new RoomServiceClient(httpUrl, livekitApiKey, livekitApiSecret);
+      await svc.createRoom({
+        name: roomName,
+        emptyTimeout: 600, // 10 minutes — keep room alive while users rejoin
+        maxParticipants: 50,
+      });
+    } catch (e) {
+      // Room may already exist; that's fine
+      console.log("createRoom skipped:", (e as Error)?.message);
     }
 
     // Generate LiveKit access token
