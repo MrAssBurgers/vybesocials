@@ -86,6 +86,7 @@ interface CallStoreContextType {
   leaveCall: () => void;
   rejoinCall: () => void;
   setPhase: (phase: CallPhase) => void;
+  setConnectStage: (stage: ConnectStage) => void;
   setError: (error: string | null) => void;
   dismissIncoming: () => void;
   switchMode: (mode: CallMode) => Promise<void>;
