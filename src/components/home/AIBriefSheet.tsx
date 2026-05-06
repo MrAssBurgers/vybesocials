@@ -379,6 +379,9 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
   const [loadingStage, setLoadingStage] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasFetchedRef = useRef(false);
+  const [focusDetail, setFocusDetail] = useState<string | null>(null);
+  const [focusLoading, setFocusLoading] = useState(false);
+  const lastFocusKey = useRef<string | null>(null);
 
   const timeOfDay = getTimeOfDay();
   const { icon: TimeIcon, greeting, color, bg } = timeConfig[timeOfDay];
