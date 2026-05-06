@@ -237,9 +237,25 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
             onComplete={handleVybeCheckComplete}
             onBlocked={handleVybeCheckBlocked}
             onCancel={() => setShowVybeCheck(false)}
+            precomputedResult={
+              preScanState.status === 'safe'
+                ? {
+                    blocked: false,
+                    suggestedAgeRating: preScanState.suggestedAgeRating ?? null,
+                    ageRatingReasons: preScanState.ageRatingReasons,
+                  }
+                : preScanState.status === 'blocked'
+                ? {
+                    blocked: true,
+                    message: preScanState.message,
+                    categories: preScanState.categories,
+                  }
+                : null
+            }
           />
         )}
       </AnimatePresence>
+
       <AnimatePresence>
         {showCelebration && (
           <PublishCelebration
