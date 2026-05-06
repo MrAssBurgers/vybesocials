@@ -463,7 +463,8 @@ export function GlobalCallOverlay() {
     });
 
     try {
-      await room.connect(call.livekitUrl, call.token);
+      setConnectStage('connecting-media');
+      await room.connect(call.livekitUrl, call.token, { autoSubscribe: true });
       await room.localParticipant.setMicrophoneEnabled(true);
       if (call.callType === 'video') {
         try { await room.localParticipant.setCameraEnabled(true); } catch (err: any) {
@@ -475,7 +476,7 @@ export function GlobalCallOverlay() {
       toast.error('Failed to connect');
       endCall();
     }
-  }, [attachRemoteVideo, attachRemoteAudio, attachLocalVideo, clearJoinTimeout, endCall, setPhase]);
+  }, [attachRemoteVideo, attachRemoteAudio, attachLocalVideo, clearJoinTimeout, endCall, setPhase, setConnectStage]);
 
   // ── Join/Switch Logic ─────────────────────────────────────
 
