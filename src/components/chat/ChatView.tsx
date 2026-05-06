@@ -1439,23 +1439,8 @@ export function ChatView() {
           isVideoCall={true}
         />
         
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10">
-              <MoreVertical className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="z-50 bg-popover">
-            <DropdownMenuItem onClick={handleAvatarClick}>{t('messages.viewProfile')}</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setShowMediaSettings(true)}>
-              <Settings className="h-4 w-4 mr-2" />
-              Media Settings
-            </DropdownMenuItem>
-            <DropdownMenuItem>{t('messages.muteNotifications')}</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </header>
+
 
       {/* Messages - scrollable area with edge-to-edge bubbles */}
       <div 
