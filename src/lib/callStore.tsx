@@ -20,6 +20,7 @@ import { premiumSounds } from '@/lib/premiumSounds';
 import { toast } from 'sonner';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
 import { useSyncCustomSounds } from '@/hooks/useCustomSounds';
+import { warmCallMedia, clearWarmCallMedia } from '@/lib/callMediaWarmup';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
