@@ -702,10 +702,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       // Reset to idle so the overlay closes and the user can try again
       // instead of being stuck on a black screen requiring a cache clear.
       setState({ phase: 'idle', call: null, error: null });
-      try {
-        const { toast } = await import('sonner');
-        toast.error(err?.message || 'Failed to start call');
-      } catch {}
+      try { toast.error(err?.message || 'Failed to start call'); } catch {}
     }
   }, [profile?.id, profile?.username, profile?.avatar_url, setState]);
 
