@@ -560,13 +560,20 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
     // Starting a brand-new call — drop any stale lingering rejoin chip
     setLingeringCall(null);
-    setState({ phase: 'creating', call: null, error: null });
+    setState({ phase: 'creating', call: null, error: null, connectStage: 'requesting-media' });
     callSounds.startRingback();
 
     // CRITICAL: release any preloaded camera stream (Friend Link / preview)
     // before the call requests its own stream. Holding the camera elsewhere
     // makes getUserMedia fail and crashes the call.
     try { stopCameraStream(); } catch {}
+
+    // Pre-warm camera + mic in parallel with DB insert so the moment the
+    // overlay mounts, tracks are already live.
+    const warmupPromise = warmCallMedia(params.callType).then((s) => {
+      if (s) setState((prev) => ({ ...prev, connectStage: 'media-ready' }));
+      return s;
+    });
 
     try {
       const roomName = `call-${params.conversationId}`;
