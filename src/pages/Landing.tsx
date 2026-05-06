@@ -200,30 +200,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       if (isLogin) {
         const { error } = await signIn(formData.email, formData.password);
         if (error) throw error;
-        
+
         // Always persist sessions so users stay signed in reliably
         sessionStorage.removeItem('vybe-session-only');
-        
+
         toast.success('Welcome back! ✨');
-        
-        // Check if user has completed onboarding before redirecting
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (currentUser) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('username, onboarding_completed')
-            .eq('user_id', currentUser.id)
-            .maybeSingle();
-          
-          if (profile?.username && profile?.onboarding_completed !== false) {
-            navTo('home', '/home');
-          } else {
-            // No username yet or onboarding not complete - go to onboarding
-            navTo('onboarding', '/onboarding');
-          }
-        } else {
-          navTo('home', '/home');
-        }
+
+        // Navigate immediately — the route gate / authProfile effect above will
+        // bounce to /onboarding if the profile is incomplete. No extra round trip.
+        navTo('home', '/home');
       } else {
         if (!formData.username.trim()) {
           throw new Error('Username is required');
