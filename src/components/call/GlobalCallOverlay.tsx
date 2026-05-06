@@ -393,16 +393,16 @@ export function GlobalCallOverlay() {
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
 
       const isGroupCall = stateRef.current.call?.isGroupCall;
-      const isPersistent1v1 = currentMode === 'persistent' && !isGroupCall;
+      const isPersistent = currentMode === 'persistent';
       setRemoteUserLeft(true);
 
-      if (isPersistent1v1) {
-        // 1:1 persistent mode: stay alive indefinitely, no timer
+      if (isPersistent) {
+        // Persistent mode (1:1 or group, voice-room behavior): stay alive indefinitely
         setAutoEndCountdown(-1);
         if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
         if (autoEndTimerRef.current) clearTimeout(autoEndTimerRef.current);
       } else {
-        const LINGER_SECONDS = isGroupCall ? 60 * 60 : 180; // 3 minutes for 1:1
+        const LINGER_SECONDS = 180; // 3 minutes for non-persistent 1:1
         setAutoEndCountdown(LINGER_SECONDS);
 
         if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
