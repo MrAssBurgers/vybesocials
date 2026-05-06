@@ -512,6 +512,9 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
     lastFocusKey.current = key;
     setFocusLoading(true);
     setFocusDetail(null);
+    setFocusSourceUrl(null);
+    setFocusSourceName(null);
+    setFocusSearchUrl(null);
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -530,6 +533,9 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
         if (!res.ok) throw new Error('detail failed');
         const data = await res.json();
         setFocusDetail(data.detail || null);
+        setFocusSourceUrl(data.sourceUrl || null);
+        setFocusSourceName(data.sourceName || null);
+        setFocusSearchUrl(data.searchUrl || null);
       } catch {
         setFocusDetail(null);
       } finally {
