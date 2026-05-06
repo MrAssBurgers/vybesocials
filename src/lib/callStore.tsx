@@ -889,7 +889,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
   }, [setState]);
 
   const setPhase = useCallback((phase: CallPhase) => {
-    setState((prev) => ({ ...prev, phase }));
+    setState((prev) => ({ ...prev, phase, connectStage: phase === 'connected' ? 'ready' : prev.connectStage }));
+  }, [setState]);
+
+  const setConnectStage = useCallback((stage: ConnectStage) => {
+    setState((prev) => ({ ...prev, connectStage: stage }));
   }, [setState]);
 
   const setError = useCallback((error: string | null) => {
