@@ -783,6 +783,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     }
 
     setLingeringCall(null);
+    clearWarmCallMedia();
     callSounds.end();
     setState(initialState);
 
