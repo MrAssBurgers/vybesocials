@@ -309,6 +309,35 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
         {isUploading && (
           <motion.div className="h-0.5 bg-gradient-to-r from-primary via-accent to-primary" initial={{ width: '0%' }} animate={{ width: `${uploadProgress}%` }} transition={{ duration: 0.3 }} />
         )}
+        {/* Live Vybe Check status — instant feedback the AI is working */}
+        {hasMedia && preScanState.status !== 'idle' && (
+          <div className="px-4 pb-2 pt-1.5" data-no-auto-contrast>
+            <motion.div
+              key={preScanState.status}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border",
+                preScanState.status === 'scanning' && "border-primary/30 bg-primary/10 text-primary",
+                preScanState.status === 'safe' && "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+                preScanState.status === 'blocked' && "border-red-500/30 bg-red-500/10 text-red-400",
+              )}
+            >
+              {preScanState.status === 'scanning' && (
+                <>
+                  <motion.span
+                    className="w-3 h-3 rounded-full border-[1.5px] border-primary/30 border-t-primary"
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 0.7, ease: 'linear' }}
+                  />
+                  Vybe Check scanning…
+                </>
+              )}
+              {preScanState.status === 'safe' && (<><Shield className="w-3 h-3" /> Vybe Check passed</>)}
+              {preScanState.status === 'blocked' && (<><Shield className="w-3 h-3" /> Vybe Check flagged</>)}
+            </motion.div>
+          </div>
+        )}
       </div>
 
       {/* Scrollable content */}
