@@ -429,7 +429,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                 )}
                 {/* Orb */}
                 <motion.div
-                  layoutId="vybe-orb"
+                  /* layoutId removed for perf */
                   className="vybe-forge-orb w-[110px] h-[110px] rounded-full flex items-center justify-center"
                   transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
                 >
@@ -551,7 +551,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               <div className="relative w-[88px] h-[88px] flex items-center justify-center mb-3">
                 {!reduceMotion && <div className="absolute inset-[-10px] vybe-forge-ring" />}
                 <motion.div
-                  layoutId="vybe-orb"
+                  /* layoutId removed for perf */
                   className="vybe-forge-orb w-[78px] h-[78px] rounded-full flex items-center justify-center"
                   transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
                 >
@@ -642,7 +642,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                   </>
                 )}
                 <motion.div
-                  layoutId="vybe-orb"
+                  /* layoutId removed for perf */
                   className="vybe-forge-orb w-[100px] h-[100px] rounded-full flex items-center justify-center"
                   transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
                 >
