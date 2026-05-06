@@ -1358,30 +1358,49 @@ export function ChatView() {
           )}
         </div>
         
-        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0 ml-auto">
-          {!isGroupChat && otherMember?.id && (
-            <CallButtons 
-              conversationId={conversationId!} 
-              receiverId={otherMember.id}
-              receiverUsername={otherMember.username}
-              receiverDisplayName={otherMember.display_name}
-              receiverAvatarUrl={otherMember.avatar_url}
-            />
-          )}
-          
-          {isGroupChat && otherMember?.id && (
-            <CallButtons 
-              conversationId={conversationId!} 
-              receiverId={otherMember.id}
-              receiverUsername={otherMember.username}
-              receiverDisplayName={otherMember.display_name}
-              receiverAvatarUrl={otherMember.avatar_url}
-              isGroupCall={true}
-              groupName={conversation?.name || 'Group Chat'}
-              groupAvatar={conversation?.avatar_url}
-              participantIds={otherMembers.map(m => m.user_id)}
-            />
-          )}
+        <div className="flex items-center flex-shrink-0 ml-auto translate-y-[3px]">
+          <div className="flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-white/[0.06] backdrop-blur-xl border border-white/10 shadow-[0_6px_20px_-8px_rgba(0,0,0,0.55)] ring-1 ring-inset ring-white/5">
+            {!isGroupChat && otherMember?.id && (
+              <CallButtons 
+                conversationId={conversationId!} 
+                receiverId={otherMember.id}
+                receiverUsername={otherMember.username}
+                receiverDisplayName={otherMember.display_name}
+                receiverAvatarUrl={otherMember.avatar_url}
+              />
+            )}
+            
+            {isGroupChat && otherMember?.id && (
+              <CallButtons 
+                conversationId={conversationId!} 
+                receiverId={otherMember.id}
+                receiverUsername={otherMember.username}
+                receiverDisplayName={otherMember.display_name}
+                receiverAvatarUrl={otherMember.avatar_url}
+                isGroupCall={true}
+                groupName={conversation?.name || 'Group Chat'}
+                groupAvatar={conversation?.avatar_url}
+                participantIds={otherMembers.map(m => m.user_id)}
+              />
+            )}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="flex-shrink-0 h-9 w-9 rounded-full">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-50 bg-popover">
+                <DropdownMenuItem onClick={handleAvatarClick}>{t('messages.viewProfile')}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowMediaSettings(true)}>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Media Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem>{t('messages.muteNotifications')}</DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
 
@@ -1420,23 +1439,8 @@ export function ChatView() {
           isVideoCall={true}
         />
         
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10">
-              <MoreVertical className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="z-50 bg-popover">
-            <DropdownMenuItem onClick={handleAvatarClick}>{t('messages.viewProfile')}</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setShowMediaSettings(true)}>
-              <Settings className="h-4 w-4 mr-2" />
-              Media Settings
-            </DropdownMenuItem>
-            <DropdownMenuItem>{t('messages.muteNotifications')}</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </header>
+
 
       {/* Messages - scrollable area with edge-to-edge bubbles */}
       <div 

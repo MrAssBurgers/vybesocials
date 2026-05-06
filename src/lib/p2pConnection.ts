@@ -116,6 +116,12 @@ export class P2PConnection {
     // 0. Release any existing camera stream (e.g. from VybeSnapCamera).
     //    Tracks are stopped synchronously — no artificial wait needed.
     stopCameraStream();
+    // Defensive: if a prior call left a localStream on this instance, stop it
+    // before requesting new tracks (Android WebViews crash on duplicate gUM).
+    if (this.localStream) {
+      try { this.localStream.getTracks().forEach((t) => t.stop()); } catch {}
+      this.localStream = null;
+    }
 
     // 1. Build constraints. Start at SD for FAST camera open on mobile;
     //    we can upgrade to HD via applyConstraints after the call connects.

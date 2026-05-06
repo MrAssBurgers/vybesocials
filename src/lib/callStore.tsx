@@ -698,7 +698,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       console.error('[CallStore] Failed to start call:', err);
       premiumSounds.stopAllCallSounds();
-      setState({ phase: 'error', call: null, error: err.message });
+      try { clearWarmCallMedia(); } catch {}
+      // Reset to idle so the overlay closes and the user can try again
+      // instead of being stuck on a black screen requiring a cache clear.
+      setState({ phase: 'idle', call: null, error: null });
+      try { toast.error(err?.message || 'Failed to start call'); } catch {}
     }
   }, [profile?.id, profile?.username, profile?.avatar_url, setState]);
 
