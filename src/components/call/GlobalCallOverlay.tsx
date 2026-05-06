@@ -55,7 +55,7 @@ import { AudioVisualizer } from './AudioVisualizer';
 const INCOMING_CALL_TIMEOUT_SECONDS = 30;
 
 export function GlobalCallOverlay() {
-  const { state, acceptCall, endCall, leaveCall, setPhase, setError, dismissIncoming, switchMode } = useCallStore();
+  const { state, acceptCall, endCall, leaveCall, setPhase, setConnectStage, setError, dismissIncoming, switchMode } = useCallStore();
   const { profile } = useAuth();
   const { isPremium } = usePremiumStatus();
   
@@ -307,6 +307,7 @@ export function GlobalCallOverlay() {
     p2pRef.current = p2p;
 
     try {
+      setConnectStage('signaling');
       await p2p.connect();
       // Safety net: if onLocalStream didn't fire (e.g. callback errored),
       // still try to attach now.
@@ -322,7 +323,7 @@ export function GlobalCallOverlay() {
       toast.error('Failed to connect');
       endCall();
     }
-  }, [profile?.id, attachLocalVideo, endCall]);
+  }, [profile?.id, attachLocalVideo, endCall, setConnectStage]);
 
   // Keep connectP2PRef fresh for deferred calls from event handler
   useEffect(() => { connectP2PRef.current = connectP2P; }, [connectP2P]);
@@ -341,6 +342,16 @@ export function GlobalCallOverlay() {
       adaptiveStream: true,
       dynacast: true,
       videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+      // Aggressive reconnection so brief network blips don't drop the call
+      reconnectPolicy: {
+        nextRetryDelayInMs: (ctx) => {
+          if (ctx.retryCount > 8) return null;
+          // 250ms, 500ms, 1s, 1s, 1.5s, 1.5s, 2s, 2s
+          return Math.min(250 * Math.pow(2, ctx.retryCount), 2000);
+        },
+      },
+      // Faster initial peer connection setup
+      publishDefaults: { simulcast: true },
     });
 
     roomRef.current = room;
@@ -453,7 +464,8 @@ export function GlobalCallOverlay() {
     });
 
     try {
-      await room.connect(call.livekitUrl, call.token);
+      setConnectStage('connecting-media');
+      await room.connect(call.livekitUrl, call.token, { autoSubscribe: true });
       await room.localParticipant.setMicrophoneEnabled(true);
       if (call.callType === 'video') {
         try { await room.localParticipant.setCameraEnabled(true); } catch (err: any) {
@@ -465,7 +477,7 @@ export function GlobalCallOverlay() {
       toast.error('Failed to connect');
       endCall();
     }
-  }, [attachRemoteVideo, attachRemoteAudio, attachLocalVideo, clearJoinTimeout, endCall, setPhase]);
+  }, [attachRemoteVideo, attachRemoteAudio, attachLocalVideo, clearJoinTimeout, endCall, setPhase, setConnectStage]);
 
   // ── Join/Switch Logic ─────────────────────────────────────
 
@@ -920,6 +932,29 @@ export function GlobalCallOverlay() {
   const isConnecting = state.phase === 'creating' || (state.phase === 'joining' && !state.call?.isInitiator);
   const isRingingOut = state.call?.isInitiator && !hasRemoteParticipant && (state.phase === 'joining' || state.phase === 'connected');
 
+  const stageLabel = (() => {
+    switch (state.connectStage) {
+      case 'requesting-media': return state.call?.callType === 'video' ? 'Turning on camera…' : 'Turning on microphone…';
+      case 'media-ready': return 'Camera ready';
+      case 'fetching-token': return 'Securing the line…';
+      case 'signaling': return 'Connecting to the other side…';
+      case 'connecting-media': return 'Negotiating audio & video…';
+      case 'ready': return 'Connected';
+      default: return 'Connecting…';
+    }
+  })();
+  const stageProgress = (() => {
+    switch (state.connectStage) {
+      case 'requesting-media': return 15;
+      case 'media-ready': return 30;
+      case 'fetching-token': return 45;
+      case 'signaling': return 65;
+      case 'connecting-media': return 85;
+      case 'ready': return 100;
+      default: return 10;
+    }
+  })();
+
   // Minimize/expand
   const handleMinimize = useCallback(() => setIsMinimized(true), []);
   const handleExpand = useCallback(() => setIsMinimized(false), []);
@@ -1265,19 +1300,23 @@ export function GlobalCallOverlay() {
             </motion.div>
           </div>
 
-          {/* Connecting overlay for receiver */}
+          {/* Stage-aware Connecting overlay (both initiator + receiver, only while not yet connected) */}
           <AnimatePresence>
-            {isConnecting && isVideoCall && !state.call?.isInitiator && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(8, 8, 16, 0.8)', backdropFilter: 'blur(40px) saturate(150%)', WebkitBackdropFilter: 'blur(40px) saturate(150%)' }}>
-                <div className="text-center p-8 rounded-3xl backdrop-blur-2xl bg-white/[0.06] border border-white/[0.1] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-                  <div className="relative">
-                    <motion.div animate={{ scale: [1, 2], opacity: [0.5, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 140, height: 140, margin: 'auto', left: 0, right: 0, top: 0, bottom: 0 }} />
-                    <Avatar className="h-32 w-32 mx-auto ring-4 ring-primary/20 shadow-2xl">
+            {!isConnected && (isConnecting || (state.phase === 'joining' && state.connectStage && state.connectStage !== 'ready')) && isVideoCall && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(8, 8, 16, 0.65)', backdropFilter: 'blur(28px) saturate(140%)', WebkitBackdropFilter: 'blur(28px) saturate(140%)' }}>
+                <div className="text-center px-6 py-7 rounded-3xl backdrop-blur-2xl bg-white/[0.06] border border-white/[0.1] shadow-[0_8px_32px_rgba(0,0,0,0.5)] min-w-[260px]">
+                  <div className="relative w-28 h-28 mx-auto">
+                    <motion.div animate={{ scale: [1, 1.6], opacity: [0.5, 0] }} transition={{ repeat: Infinity, duration: 1.8, ease: 'easeOut' }} className="absolute inset-0 rounded-full border-2 border-primary/50" />
+                    <Avatar className="absolute inset-0 m-auto h-24 w-24 ring-4 ring-primary/20 shadow-2xl">
                       <AvatarImage src={displayAvatar || undefined} />
-                      <AvatarFallback className="text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
+                      <AvatarFallback className="text-3xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
                     </Avatar>
                   </div>
-                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="mt-6 text-white/60 text-lg font-light">Connecting to {displayName}...</motion.p>
+                  <p className="mt-5 text-white text-base font-medium tracking-tight">{displayName}</p>
+                  <motion.p key={state.connectStage} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mt-1 text-white/60 text-sm font-light">{stageLabel}</motion.p>
+                  <div className="mt-4 h-1 w-48 mx-auto rounded-full bg-white/10 overflow-hidden">
+                    <motion.div animate={{ width: `${stageProgress}%` }} transition={{ duration: 0.4, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-primary via-purple-500 to-accent" />
+                  </div>
                 </div>
               </motion.div>
             )}

@@ -20,6 +20,7 @@ import { premiumSounds } from '@/lib/premiumSounds';
 import { toast } from 'sonner';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
 import { useSyncCustomSounds } from '@/hooks/useCustomSounds';
+import { warmCallMedia, clearWarmCallMedia } from '@/lib/callMediaWarmup';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
@@ -50,10 +51,20 @@ export interface CallData {
   participants?: CallUser[];
 }
 
+export type ConnectStage =
+  | 'idle'
+  | 'requesting-media'   // getUserMedia in flight
+  | 'media-ready'        // local camera/mic acquired
+  | 'fetching-token'     // negotiating credentials with server
+  | 'signaling'          // P2P SDP exchange / LiveKit signaling
+  | 'connecting-media'   // ICE / room connect
+  | 'ready';             // fully connected
+
 interface CallStoreState {
   phase: CallPhase;
   call: CallData | null;
   error: string | null;
+  connectStage?: ConnectStage;
 }
 
 interface CallStoreContextType {
@@ -75,6 +86,7 @@ interface CallStoreContextType {
   leaveCall: () => void;
   rejoinCall: () => void;
   setPhase: (phase: CallPhase) => void;
+  setConnectStage: (stage: ConnectStage) => void;
   setError: (error: string | null) => void;
   dismissIncoming: () => void;
   switchMode: (mode: CallMode) => Promise<void>;
@@ -548,13 +560,20 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
     // Starting a brand-new call — drop any stale lingering rejoin chip
     setLingeringCall(null);
-    setState({ phase: 'creating', call: null, error: null });
+    setState({ phase: 'creating', call: null, error: null, connectStage: 'requesting-media' });
     callSounds.startRingback();
 
     // CRITICAL: release any preloaded camera stream (Friend Link / preview)
     // before the call requests its own stream. Holding the camera elsewhere
     // makes getUserMedia fail and crashes the call.
     try { stopCameraStream(); } catch {}
+
+    // Pre-warm camera + mic in parallel with DB insert so the moment the
+    // overlay mounts, tracks are already live.
+    const warmupPromise = warmCallMedia(params.callType).then((s) => {
+      if (s) setState((prev) => ({ ...prev, connectStage: 'media-ready' }));
+      return s;
+    });
 
     try {
       const roomName = `call-${params.conversationId}`;
@@ -589,6 +608,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       let resolvedRoomName = roomName;
 
       if (initialMode === 'persistent') {
+        setState((prev) => ({ ...prev, connectStage: 'fetching-token' }));
         const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
           body: {
             conversationId: params.conversationId,
@@ -604,6 +624,10 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         token = tokenData.token;
         resolvedRoomName = tokenData.roomName || roomName;
       }
+
+      // Make sure media warmup has resolved (or timed out) before flipping to
+      // 'joining' so the overlay's first frame already has live tracks.
+      try { await Promise.race([warmupPromise, new Promise((r) => setTimeout(r, 1500))]); } catch {}
 
       const callData: CallData = {
         id: callSession.id,
@@ -633,7 +657,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
       premiumSounds.stopAllCallSounds();
       // Paint the overlay IMMEDIATELY — overlay/camera mount happens here.
-      setState({ phase: 'joining', call: callData, error: null });
+      setState({ phase: 'joining', call: callData, error: null, connectStage: 'signaling' });
 
       // Fan out push notifications truly fire-and-forget. Receiver also has
       // realtime + 2-5s polling fallback in this same file (lines 285-333),
@@ -688,6 +712,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     premiumSounds.stopAllCallSounds();
     setIncomingCall(null);
 
+    // Pre-warm camera/mic the instant the user taps Accept so by the time
+    // signaling completes, tracks are already live and the in-call UI snaps in.
+    try { stopCameraStream(); } catch {}
+    const warmupPromise = warmCallMedia(call.callType);
+
     // Fire-and-forget DB status update — never block the UI on this
     void supabase
       .from('calls')
@@ -698,10 +727,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       });
 
     if (call.callMode === 'persistent') {
-      // For persistent: still need the LiveKit token before joining the room.
-      // Flip to 'joining' immediately so overlay paints; overlay will wait
-      // until call.token is set before calling room.connect().
-      setState({ phase: 'joining', call: { ...call }, error: null });
+      // Flip to 'joining' immediately with media stage so the overlay paints.
+      setState({ phase: 'joining', call: { ...call }, error: null, connectStage: 'requesting-media' });
+      warmupPromise.then((s) => {
+        if (s) setState((prev) => (prev.phase === 'joining' ? { ...prev, connectStage: 'fetching-token' } : prev));
+      });
       try {
         const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
           body: {
@@ -716,7 +746,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         }
 
         setState(prev => prev.call?.id === call.id
-          ? { ...prev, call: { ...prev.call, token: tokenData.token, livekitUrl: tokenData.url, roomName: tokenData.roomName } }
+          ? { ...prev, call: { ...prev.call, token: tokenData.token, livekitUrl: tokenData.url, roomName: tokenData.roomName }, connectStage: 'connecting-media' }
           : prev);
       } catch (err: any) {
         console.error('[CallStore] Failed to accept call:', err);
@@ -725,7 +755,10 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       }
     } else {
       // P2P mode — overlay starts WebRTC the moment we flip phase
-      setState({ phase: 'joining', call: { ...call }, error: null });
+      setState({ phase: 'joining', call: { ...call }, error: null, connectStage: 'requesting-media' });
+      warmupPromise.then((s) => {
+        if (s) setState((prev) => (prev.phase === 'joining' ? { ...prev, connectStage: 'signaling' } : prev));
+      });
     }
   }, [setState, setIncomingCall]);
 
@@ -750,6 +783,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     }
 
     setLingeringCall(null);
+    clearWarmCallMedia();
     callSounds.end();
     setState(initialState);
 
@@ -877,7 +911,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
   }, [setState]);
 
   const setPhase = useCallback((phase: CallPhase) => {
-    setState((prev) => ({ ...prev, phase }));
+    setState((prev) => ({ ...prev, phase, connectStage: phase === 'connected' ? 'ready' : prev.connectStage }));
+  }, [setState]);
+
+  const setConnectStage = useCallback((stage: ConnectStage) => {
+    setState((prev) => ({ ...prev, connectStage: stage }));
   }, [setState]);
 
   const setError = useCallback((error: string | null) => {
@@ -921,6 +959,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       leaveCall,
       rejoinCall,
       setPhase,
+      setConnectStage,
       setError,
       dismissIncoming,
       switchMode,
@@ -941,6 +980,7 @@ export function useCallStore(): CallStoreContextType {
       leaveCall: () => {},
       rejoinCall: () => {},
       setPhase: () => {},
+      setConnectStage: () => {},
       setError: () => {},
       dismissIncoming: () => {},
       switchMode: async () => {},
