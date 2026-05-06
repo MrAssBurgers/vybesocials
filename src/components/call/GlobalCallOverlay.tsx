@@ -1370,7 +1370,7 @@ export function GlobalCallOverlay() {
               {/* Primary row (larger, dominant) */}
               <div className="inline-flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
                 {/* Reactions */}
-                <CallReactions onReaction={(emoji) => { /* broadcast via realtime */ }} />
+                <CallReactions onReaction={sendReaction} incomingReaction={incomingReaction} />
 
                 <div className="w-px h-8 sm:h-10 bg-white/20 flex-shrink-0" />
 
