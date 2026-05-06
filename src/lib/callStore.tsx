@@ -608,6 +608,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       let resolvedRoomName = roomName;
 
       if (initialMode === 'persistent') {
+        setState((prev) => ({ ...prev, connectStage: 'fetching-token' }));
         const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
           body: {
             conversationId: params.conversationId,
@@ -623,6 +624,10 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         token = tokenData.token;
         resolvedRoomName = tokenData.roomName || roomName;
       }
+
+      // Make sure media warmup has resolved (or timed out) before flipping to
+      // 'joining' so the overlay's first frame already has live tracks.
+      try { await Promise.race([warmupPromise, new Promise((r) => setTimeout(r, 1500))]); } catch {}
 
       const callData: CallData = {
         id: callSession.id,
