@@ -712,6 +712,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     premiumSounds.stopAllCallSounds();
     setIncomingCall(null);
 
+    // Pre-warm camera/mic the instant the user taps Accept so by the time
+    // signaling completes, tracks are already live and the in-call UI snaps in.
+    try { stopCameraStream(); } catch {}
+    const warmupPromise = warmCallMedia(call.callType);
+
     // Fire-and-forget DB status update — never block the UI on this
     void supabase
       .from('calls')
@@ -722,10 +727,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       });
 
     if (call.callMode === 'persistent') {
-      // For persistent: still need the LiveKit token before joining the room.
-      // Flip to 'joining' immediately so overlay paints; overlay will wait
-      // until call.token is set before calling room.connect().
-      setState({ phase: 'joining', call: { ...call }, error: null });
+      // Flip to 'joining' immediately with media stage so the overlay paints.
+      setState({ phase: 'joining', call: { ...call }, error: null, connectStage: 'requesting-media' });
+      warmupPromise.then((s) => {
+        if (s) setState((prev) => (prev.phase === 'joining' ? { ...prev, connectStage: 'fetching-token' } : prev));
+      });
       try {
         const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
           body: {
@@ -740,7 +746,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         }
 
         setState(prev => prev.call?.id === call.id
-          ? { ...prev, call: { ...prev.call, token: tokenData.token, livekitUrl: tokenData.url, roomName: tokenData.roomName } }
+          ? { ...prev, call: { ...prev.call, token: tokenData.token, livekitUrl: tokenData.url, roomName: tokenData.roomName }, connectStage: 'connecting-media' }
           : prev);
       } catch (err: any) {
         console.error('[CallStore] Failed to accept call:', err);
@@ -749,7 +755,10 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       }
     } else {
       // P2P mode — overlay starts WebRTC the moment we flip phase
-      setState({ phase: 'joining', call: { ...call }, error: null });
+      setState({ phase: 'joining', call: { ...call }, error: null, connectStage: 'requesting-media' });
+      warmupPromise.then((s) => {
+        if (s) setState((prev) => (prev.phase === 'joining' ? { ...prev, connectStage: 'signaling' } : prev));
+      });
     }
   }, [setState, setIncomingCall]);
 
