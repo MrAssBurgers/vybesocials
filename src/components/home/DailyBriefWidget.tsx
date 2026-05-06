@@ -9,18 +9,28 @@ import { useSearchParams } from 'react-router-dom';
 
 export function DailyBriefWidget() {
   const [showBrief, setShowBrief] = useState(false);
+  const [focusTopic, setFocusTopic] = useState<string | null>(null);
+  const [focusHeadline, setFocusHeadline] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     if (searchParams.get('openBrief') === 'true') {
       setShowBrief(true);
+      const t = searchParams.get('topic');
+      const h = searchParams.get('headline');
+      if (t) setFocusTopic(t);
+      if (h) setFocusHeadline(h);
       searchParams.delete('openBrief');
+      searchParams.delete('topic');
+      searchParams.delete('headline');
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
 
   const handleOpenBrief = () => {
     haptics.tap();
+    setFocusTopic(null);
+    setFocusHeadline(null);
     setShowBrief(true);
   };
 
@@ -44,7 +54,12 @@ export function DailyBriefWidget() {
           </Button>
         </motion.div>
       </div>
-      <AIBriefSheet open={showBrief} onOpenChange={setShowBrief} />
+      <AIBriefSheet
+        open={showBrief}
+        onOpenChange={(o) => { setShowBrief(o); if (!o) { setFocusTopic(null); setFocusHeadline(null); } }}
+        focusTopic={focusTopic}
+        focusHeadline={focusHeadline}
+      />
     </>
   );
 }
