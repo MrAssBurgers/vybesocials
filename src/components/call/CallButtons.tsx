@@ -99,12 +99,12 @@ export const CallButtons = forwardRef<HTMLDivElement, CallButtonsProps>(function
   // Show green "Join Back" button when there's a lingering persistent call
   if (hasLingeringCall) {
     return (
-      <div ref={ref} className="flex items-center gap-1">
+      <div ref={ref} className="flex items-center gap-1 flex-shrink-0">
         <Button
           variant="default"
           size="sm"
           onClick={handleRejoin}
-          className="bg-green-500 hover:bg-green-600 text-white gap-1.5 active:scale-95 transition-transform touch-manipulation"
+          className="bg-green-500 hover:bg-green-600 text-white gap-1.5 active:scale-95 transition-transform touch-manipulation h-9 px-3"
         >
           <PhoneCall className="h-4 w-4" />
           <span className="text-sm font-medium">Rejoin</span>
@@ -114,14 +114,17 @@ export const CallButtons = forwardRef<HTMLDivElement, CallButtonsProps>(function
   }
 
   return (
-    <div ref={ref} className="flex items-center gap-1">
+    <div ref={ref} className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
       <Button
         variant="ghost"
         size="icon"
         onClick={() => handleStartCall('audio')}
+        // pointer-events-auto + touch-manipulation defeats Android's 300ms
+        // tap-to-zoom delay that was eating the very first tap on small phones.
+        onTouchEnd={(e) => { e.preventDefault(); handleStartCall('audio'); }}
         disabled={isDisabled}
         title={isGroupCall ? "Group audio call" : "Audio call"}
-        className="active:scale-95 transition-transform touch-manipulation"
+        className="h-9 w-9 sm:h-10 sm:w-10 active:scale-95 transition-transform touch-manipulation flex-shrink-0"
       >
         {isStarting === 'audio' ? (
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -133,9 +136,10 @@ export const CallButtons = forwardRef<HTMLDivElement, CallButtonsProps>(function
         variant="ghost"
         size="icon"
         onClick={() => handleStartCall('video')}
+        onTouchEnd={(e) => { e.preventDefault(); handleStartCall('video'); }}
         disabled={isDisabled}
         title={isGroupCall ? "Group FaceTime" : "FaceTime"}
-        className="active:scale-95 transition-transform touch-manipulation"
+        className="h-9 w-9 sm:h-10 sm:w-10 active:scale-95 transition-transform touch-manipulation flex-shrink-0"
       >
         {isStarting === 'video' ? (
           <Loader2 className="h-5 w-5 animate-spin" />

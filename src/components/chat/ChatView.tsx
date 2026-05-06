@@ -1358,29 +1358,31 @@ export function ChatView() {
           )}
         </div>
         
-        {!isGroupChat && otherMember?.id && (
-          <CallButtons 
-            conversationId={conversationId!} 
-            receiverId={otherMember.id}
-            receiverUsername={otherMember.username}
-            receiverDisplayName={otherMember.display_name}
-            receiverAvatarUrl={otherMember.avatar_url}
-          />
-        )}
-        
-        {isGroupChat && otherMember?.id && (
-          <CallButtons 
-            conversationId={conversationId!} 
-            receiverId={otherMember.id}
-            receiverUsername={otherMember.username}
-            receiverDisplayName={otherMember.display_name}
-            receiverAvatarUrl={otherMember.avatar_url}
-            isGroupCall={true}
-            groupName={conversation?.name || 'Group Chat'}
-            groupAvatar={conversation?.avatar_url}
-            participantIds={otherMembers.map(m => m.user_id)}
-          />
+        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0 ml-auto">
+          {!isGroupChat && otherMember?.id && (
+            <CallButtons 
+              conversationId={conversationId!} 
+              receiverId={otherMember.id}
+              receiverUsername={otherMember.username}
+              receiverDisplayName={otherMember.display_name}
+              receiverAvatarUrl={otherMember.avatar_url}
+            />
           )}
+          
+          {isGroupChat && otherMember?.id && (
+            <CallButtons 
+              conversationId={conversationId!} 
+              receiverId={otherMember.id}
+              receiverUsername={otherMember.username}
+              receiverDisplayName={otherMember.display_name}
+              receiverAvatarUrl={otherMember.avatar_url}
+              isGroupCall={true}
+              groupName={conversation?.name || 'Group Chat'}
+              groupAvatar={conversation?.avatar_url}
+              participantIds={otherMembers.map(m => m.user_id)}
+            />
+          )}
+        </div>
 
 
         {/* DM Feature Sheets - triggered from Toybox */}
