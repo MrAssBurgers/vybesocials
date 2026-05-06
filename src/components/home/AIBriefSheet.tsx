@@ -367,7 +367,7 @@ const SectionHeader = memo(function SectionHeader({ icon: Icon, label }: { icon:
   );
 });
 
-export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
+export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: AIBriefSheetProps) {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
