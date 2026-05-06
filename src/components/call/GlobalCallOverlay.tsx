@@ -341,6 +341,16 @@ export function GlobalCallOverlay() {
       adaptiveStream: true,
       dynacast: true,
       videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+      // Aggressive reconnection so brief network blips don't drop the call
+      reconnectPolicy: {
+        nextRetryDelayInMs: (ctx) => {
+          if (ctx.retryCount > 8) return null;
+          // 250ms, 500ms, 1s, 1s, 1.5s, 1.5s, 2s, 2s
+          return Math.min(250 * Math.pow(2, ctx.retryCount), 2000);
+        },
+      },
+      // Faster initial peer connection setup
+      publishDefaults: { simulcast: true },
     });
 
     roomRef.current = room;
