@@ -1117,10 +1117,11 @@ export function GlobalCallOverlay() {
           {!isVideoCall && (
             <div className="absolute inset-0 flex items-center justify-center" onClick={handleScreenTap} onTouchEnd={handleScreenTap}>
               <div className="text-center px-4">
-                <div className="relative inline-flex items-center justify-center h-32 w-32 sm:h-40 sm:w-40">
+                {/* Square aura container — keeps every ring perfectly concentric */}
+                <div className="relative mx-auto h-32 w-32 sm:h-40 sm:w-40 grid place-items-center">
                   {/* Audio Visualizer ring — only when remote is present */}
                   {isConnected && !remoteUserLeft && (
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center" style={{ width: 180, height: 180 }}>
+                    <div className="absolute inset-0 m-auto grid place-items-center" style={{ width: '140%', height: '140%' }}>
                       <AudioVisualizer
                         size={180}
                         stream={remoteAudioRef.current?.srcObject as MediaStream | null}
@@ -1129,57 +1130,54 @@ export function GlobalCallOverlay() {
                     </div>
                   )}
 
-                  {/* Active call rings (remote present) */}
-                  {!remoteUserLeft && (
-                    <>
-                      <motion.div
-                        animate={{ scale: [1, 1.6], opacity: [0.3, 0] }}
-                        transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/40"
-                        style={{ width: '110%', height: '110%' }}
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.4], opacity: [0.2, 0] }}
-                        transition={{ repeat: Infinity, duration: 3, delay: 0.8, ease: "linear" }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-accent/30"
-                        style={{ width: '110%', height: '110%' }}
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.6, 0.4] }}
-                        transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl"
-                        style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(280 80% 60% / 0.3))', width: '100%', height: '100%' }}
-                      />
-                    </>
-                  )}
-
-                  {/* Standby aura (remote left) — single synchronized 6s breathing cycle */}
-                  {remoteUserLeft && (
-                    <>
-                      <motion.div
-                        animate={{ scale: [1, 1.18, 1], opacity: [0.35, 0.6, 0.35] }}
-                        transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/40"
-                        style={{ width: '115%', height: '115%' }}
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.18, 1], opacity: [0.15, 0.3, 0.15] }}
-                        transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30"
-                        style={{ width: '135%', height: '135%' }}
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.06, 1], opacity: [0.25, 0.4, 0.25] }}
-                        transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl"
-                        style={{ background: 'radial-gradient(circle, hsl(40 90% 70% / 0.35), transparent 70%)', width: '100%', height: '100%' }}
-                      />
-                    </>
-                  )}
+                  {/* Synchronized 3-ring breathing aura — same 3s cycle, phase-offset for depth */}
+                  {(() => {
+                    const dim = remoteUserLeft ? 0.6 : 1; // soften when alone
+                    const baseColor = remoteUserLeft ? 'hsl(0 0% 100% / 0.35)' : 'hsl(var(--primary) / 0.45)';
+                    return (
+                      <>
+                        <motion.div
+                          aria-hidden
+                          animate={{ scale: [1, 1.5], opacity: [0.35 * dim, 0] }}
+                          transition={{ repeat: Infinity, duration: 3, ease: 'easeOut' }}
+                          className="absolute inset-0 m-auto rounded-full border"
+                          style={{ width: '100%', height: '100%', borderColor: baseColor }}
+                        />
+                        <motion.div
+                          aria-hidden
+                          animate={{ scale: [1, 1.5], opacity: [0.25 * dim, 0] }}
+                          transition={{ repeat: Infinity, duration: 3, ease: 'easeOut', delay: 1 }}
+                          className="absolute inset-0 m-auto rounded-full border"
+                          style={{ width: '100%', height: '100%', borderColor: baseColor }}
+                        />
+                        <motion.div
+                          aria-hidden
+                          animate={{ scale: [1, 1.5], opacity: [0.18 * dim, 0] }}
+                          transition={{ repeat: Infinity, duration: 3, ease: 'easeOut', delay: 2 }}
+                          className="absolute inset-0 m-auto rounded-full border"
+                          style={{ width: '100%', height: '100%', borderColor: baseColor }}
+                        />
+                        {/* Soft glow halo — same 3s timeline */}
+                        <motion.div
+                          aria-hidden
+                          animate={{ scale: [1, 1.08, 1], opacity: [0.35 * dim, 0.55 * dim, 0.35 * dim] }}
+                          transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
+                          className="absolute inset-0 m-auto rounded-full blur-2xl"
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            background: remoteUserLeft
+                              ? 'radial-gradient(circle, hsl(0 0% 100% / 0.18), transparent 70%)'
+                              : 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(var(--accent) / 0.3))',
+                          }}
+                        />
+                      </>
+                    );
+                  })()}
 
                   <motion.div
-                    animate={remoteUserLeft ? { scale: [1, 1.025, 1] } : { scale: [1, 1.03, 1] }}
-                    transition={{ repeat: Infinity, duration: remoteUserLeft ? 6 : 3, ease: "linear" }}
+                    animate={{ scale: [1, 1.03, 1] }}
+                    transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
                     className="relative z-10"
                   >
                     <Avatar className={`h-32 w-32 sm:h-40 sm:w-40 ring-4 ring-white/10 shadow-2xl transition-opacity duration-500 ${remoteUserLeft ? 'opacity-80' : ''}`}>
@@ -1199,20 +1197,7 @@ export function GlobalCallOverlay() {
                   <p className="mt-2 text-white/70 text-base sm:text-lg font-mono">{formatDuration(callDuration)}</p>
                 )}
                 {isConnected && remoteUserLeft && (
-                  <div className="mt-3 sm:mt-4 text-center">
-                    {autoEndCountdown === -1 ? (
-                      <>
-                        <p className="text-white/60 text-sm sm:text-base">{displayName} left</p>
-                        <p className="text-white/40 text-xs sm:text-sm mt-1">They can rejoin anytime</p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-white/50 text-xs sm:text-sm">{displayName} left · They can rejoin</p>
-                        <p className="text-white/70 text-base sm:text-lg font-mono mt-1">{Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
-                        <p className="text-white/40 text-xs mt-1">Call auto-ends</p>
-                      </>
-                    )}
-                  </div>
+                  <p className="mt-3 text-white/50 text-xs sm:text-sm">{displayName} left · they can rejoin</p>
                 )}
               </div>
             </div>
