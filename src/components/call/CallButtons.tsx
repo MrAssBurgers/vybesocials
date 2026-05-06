@@ -65,10 +65,21 @@ export const CallButtons = forwardRef<HTMLDivElement, CallButtonsProps>(function
     setIsStarting(callType);
 
     try {
-      // NOTE: Do NOT pre-probe permissions here. P2PConnection.connect()
-      // calls getUserMedia itself synchronously after this gesture, which
-      // both opens the OS prompt AND avoids the duplicate-getUserMedia
-      // failure pattern on iOS. Probing here just adds latency.
+      // On native (Despia/Capacitor) Android WebView, ensure OS-level mic/camera
+      // permission is granted *before* getUserMedia runs. Skipping this caused
+      // the WebView to hard-crash mid-permission-prompt on Play Store builds.
+      try {
+        const ua = navigator.userAgent || '';
+        const isNative = /despia|vybeapp|; wv\)|\bwv\b/i.test(ua) || (window as any).Capacitor?.isNativePlatform?.();
+        if (isNative) {
+          const bridge = (window as any).despia;
+          if (bridge?.requestPermission) {
+            await bridge.requestPermission('microphone').catch(() => {});
+            if (callType === 'video') await bridge.requestPermission('camera').catch(() => {});
+          }
+        }
+      } catch {}
+
       await startCall({
         callType,
         conversationId,
