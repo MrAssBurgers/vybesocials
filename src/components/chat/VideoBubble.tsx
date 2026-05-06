@@ -36,7 +36,50 @@ export const VideoBubble = memo(function VideoBubble({
   const [showControls, setShowControls] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const [generatedPoster, setGeneratedPoster] = useState<string | null>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // Fallback: when no thumbnail prop is provided (legacy clips on Android
+  // WebView where preload="metadata" doesn't paint), extract the first frame
+  // ourselves so the chat bubble doesn't sit blank.
+  useEffect(() => {
+    if (thumbnail || generatedPoster || !src || error) return;
+    let cancelled = false;
+    const v = document.createElement('video');
+    v.crossOrigin = 'anonymous';
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = 'auto';
+    v.src = src;
+    const onSeeked = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = v.videoWidth || 320;
+        canvas.height = v.videoHeight || 320;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+          if (!cancelled) setGeneratedPoster(canvas.toDataURL('image/jpeg', 0.7));
+        }
+      } catch {}
+      v.removeAttribute('src');
+      v.load();
+    };
+    const onLoaded = () => {
+      try { v.currentTime = Math.min(0.1, (v.duration || 1) * 0.05); } catch { onSeeked(); }
+    };
+    v.addEventListener('loadedmetadata', onLoaded);
+    v.addEventListener('seeked', onSeeked);
+    v.addEventListener('error', () => { if (!cancelled) setGeneratedPoster(null); });
+    return () => {
+      cancelled = true;
+      v.removeEventListener('loadedmetadata', onLoaded);
+      v.removeEventListener('seeked', onSeeked);
+      v.removeAttribute('src');
+    };
+  }, [src, thumbnail, generatedPoster, error]);
+
+  const posterSrc = thumbnail || generatedPoster || undefined;
 
   // Auto-pause when scrolled out of view
   const { ref: inViewRef, inView } = useInView({
