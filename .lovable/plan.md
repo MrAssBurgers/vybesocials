@@ -1,57 +1,69 @@
-## 1. Fix FaceTime/audio call crash on Play Store (Despia) build
+## 1. Floating frosted-glass DM header (no bar)
 
-**Root cause analysis**
+In `src/components/chat/ChatView.tsx` around line 1274, replace the entire `<header>` element. Remove the full-width black bar (no `border-b`, no opaque background) and split the contents into **two independent floating pills** that look like they're hovering over the chat content:
 
-The crash on the native Despia build is caused by a chain of issues that line up specifically on Android WebViews:
+- **Left pill**: back arrow + avatar + name/presence
+- **Right pill**: phone, FaceTime, chat-settings (3-dot)
 
-1. `callStore.startCall` calls `warmCallMedia()` (in `src/lib/callMediaWarmup.ts`) which fires `navigator.mediaDevices.getUserMedia({ audio, video })` *before* the WebRTC `P2PConnection.connect()` runs its own `getUserMedia`. On a Despia WebView the second `getUserMedia` while the first stream is still alive can hard-crash the WebView (this matches the "app instantly crashes, must clear cache" symptom — the WebView process dies and the cached service worker shell loads stale state).
-2. Despia/Android also requires the OS-level mic/camera permission to be granted *before* `getUserMedia` runs. The current code skips the permission probe entirely (see CallButtons comment "Do NOT pre-probe permissions here"). On a fresh install with no granted permissions, the prompt appears mid-getUserMedia and the WebView aborts.
-3. A failure inside `startCall` after the DB row is inserted leaves the call store stuck in `creating`/`requesting-media`, and the user sees a frozen overlay until they clear cache.
+Both pills:
+- `bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10` for the Instagram-style live blur of whatever is behind them
+- `rounded-full` with soft shadow + inset white ring for premium glass depth
+- Header wrapper: `bg-transparent`, `pt-3 sm:pt-4 pb-2`, `sticky top-0 z-20` so they sit lower (no cutoff on small Androids) and the chat content scrolls *behind* them with the live blur showing through.
+- Compact icon size (`h-8 w-8`) so nothing overflows.
 
-**Fixes**
+## 2. Truly hide Friend Link + AI Designer with bottom nav
 
-- `src/lib/callMediaWarmup.ts` — short-circuit `warmCallMedia` and return `null` immediately when running inside Despia / Capacitor / native Android WebView (UA test: `/despia|vybeapp|wv\)|; wv/i`). This eliminates the duplicate getUserMedia race entirely on native; browser users keep the warmup speed boost.
-- `src/lib/callStore.tsx` (`startCall`) — wrap the whole body in a `try/catch/finally` that, on any error, resets state back to `idle`, stops ringback, and surfaces a toast instead of leaving the overlay stuck. Also `await stopCameraStream()` synchronously and `await new Promise(r => requestAnimationFrame(r))` before kicking the warmup so the previous camera handle is fully released.
-- `src/components/call/CallButtons.tsx` — on native (Despia) only, request mic/camera permission via the existing Despia bridge (`window.despia?.requestPermission?.('microphone'|'camera')`) inside the gesture before calling `startCall`. Skip on web.
-- `src/lib/p2pConnection.ts` — already has staged init for Despia; add a guard so that if `localStream` from a prior call still exists, we stop its tracks before requesting new ones (defensive cleanup).
-- `src/components/call/GlobalCallOverlay.tsx` — wrap `p2p.connect()` in try/catch and on failure reset the call store to idle so users aren't stuck on a black overlay after a crash recovery.
-
-## 2. Floating liquid-glass DM header actions
-
-In `src/components/chat/ChatView.tsx` (line ~1361), wrap the existing action cluster (CallButtons + the MoreVertical DropdownMenu trigger) in a single rounded liquid-glass pill and offset it down a few pixels so it visually floats below the header baseline:
-
+`src/components/friends/AutoFriendDrop.tsx` line ~343: the current hidden state is `translate-y-28 pointer-events-none` — the button is still visible (just shifted off the safe area). Change to fully hide:
 ```tsx
-<div className="flex items-center gap-1 flex-shrink-0 ml-auto translate-y-[3px]">
-  <div className="flex items-center gap-0.5 px-1.5 py-1 rounded-full
-                  bg-white/5 dark:bg-white/[0.04] backdrop-blur-xl
-                  border border-white/10 shadow-[0_4px_18px_-6px_rgba(0,0,0,0.45)]
-                  ring-1 ring-inset ring-white/5">
-    {/* CallButtons (audio + video) */}
-    {/* MoreVertical dropdown trigger */}
-  </div>
-</div>
+className={cn(
+  "transition-all duration-300",
+  controlVisible
+    ? "opacity-100 translate-y-0 pointer-events-auto"
+    : "opacity-0 translate-y-28 pointer-events-none invisible"
+)}
 ```
 
-Move the existing `<DropdownMenu>` trigger inside this pill so the avatar-button, audio, video, and settings icons all share the same floating glass background. Reduce inner button padding to keep the pill compact (`h-8 w-8` inside, outer pill `rounded-full`). The Sheets/DropdownContent stay outside the pill.
+`src/components/ai/VYBECommandBar.tsx` line ~187: current `animate={{ y: controlVisible ? 0 : 112 }}` keeps opacity at 1. Change to:
+```tsx
+animate={{
+  scale: 1,
+  opacity: controlVisible ? 1 : 0,
+  y: controlVisible ? 0 : 112,
+  pointerEvents: controlVisible ? 'auto' : 'none',
+}}
+```
+plus add `style={{ visibility: controlVisible ? 'visible' : 'hidden' }}` on the outer wrapper after the exit transition so it doesn't catch taps.
 
-## 3. Sync floating FABs with bottom nav visibility
+## 3. Clip thumbnails not loading in chat
 
-Today `AutoFriendDrop` and `VYBECommandBar` use `useFloatingControlVisibility` (their own scroll listener). The bottom nav uses a different signal (`navVisibility.subscribeEffective`), so they desync — FABs hide/show on raw scroll while the nav animates on a different schedule.
+Investigate `src/components/chat/MessageBubble.tsx` (or the message renderer) where video messages render. The bug is almost certainly that on the native build the `<video>` element relies on `preload="metadata"` to generate a poster, which Android WebView often blocks for cross-origin signed URLs. Fix:
+- Generate a `poster` URL from the existing video processor (`useVideoProcessor` already produces a thumbnail blob on upload — store it as `thumbnail_url` on the message media).
+- For legacy clips without a stored poster, fall back to a `<canvas>` first-frame extraction in the bubble (request `crossOrigin="anonymous"` + `seekTo(0.1)` + `drawImage`) and cache the data URL via `signedUrlCache`.
+- Set `<video preload="auto" playsInline muted poster={thumbnailUrl}>` so Android shows the first frame even when autoplay is blocked.
 
-**Fix**: Update `useFloatingControlVisibility` to subscribe to `navVisibility.subscribeEffective` as the source of truth (falling back to its current scroll detection only if no effective signal has been published yet). This guarantees the Friend Link button and AI Designer (VYBECommandBar) always animate in lockstep with the bottom nav — they disappear together on scroll-down and reappear together on scroll-up.
+## 4. NFC Friend Drop — both phones broadcast + tap triggers add animation
 
-No changes needed in `AutoFriendDrop.tsx` or `VYBECommandBar.tsx` themselves; they already consume `controlVisible`.
+In `src/hooks/useNativeFriendDrop.ts` and `native/android/FriendDropPlugin.kt` / `native/ios/FriendDropPlugin.swift`:
+
+- Both phones must enter **HCE (Host Card Emulation) reader+writer mode simultaneously**. Today the initiator broadcasts and the responder reads — change both to call `startSession()` which:
+  1. Registers an HCE service that emits the user's `friend_drop_token` (signed short-lived JWT from `friend-drop-token` edge function).
+  2. Simultaneously polls for incoming NDEF messages.
+- On `onTagDiscovered`, immediately:
+  1. Fire haptic `impactHeavy` + emit `nfc-detected` event consumed by `AutoFriendDrop`.
+  2. Set phase to `connecting` so the existing add-user animation (the radial pulse + avatar morph) plays the moment phones touch.
+  3. Call `friendDropSync.acceptPeer(token)` to commit the friendship in Supabase.
+- Update `AutoFriendDrop.tsx`: subscribe to `nativeFriendDrop.onPeerDetected` and call `setPhase('connecting')` → `setPhase('success')` so the add animation runs end-to-end on tap, even before the server round-trip completes (optimistic UI).
 
 ## Technical summary
 
 | File | Change |
 |---|---|
-| `src/lib/callMediaWarmup.ts` | Skip warmup on Despia/native WebView |
-| `src/lib/callStore.tsx` | try/catch/finally around `startCall`, reset state on error |
-| `src/lib/p2pConnection.ts` | Defensive stop of stale `localStream` before new gUM |
-| `src/components/call/CallButtons.tsx` | Despia permission request inside gesture |
-| `src/components/call/GlobalCallOverlay.tsx` | Catch `p2p.connect()` failures, reset store |
-| `src/components/chat/ChatView.tsx` | Wrap action cluster in floating glass pill, translate-y |
-| `src/hooks/useFloatingControlVisibility.ts` | Source visibility from `navVisibility.subscribeEffective` |
+| `src/components/chat/ChatView.tsx` | Replace bar header with two floating frosted-glass pills, remove border, add live backdrop-blur |
+| `src/components/friends/AutoFriendDrop.tsx` | Add `opacity-0 invisible` on hidden state; subscribe to NFC tag detection to start add animation |
+| `src/components/ai/VYBECommandBar.tsx` | Animate opacity to 0 + visibility hidden when nav hides |
+| `src/hooks/useNativeFriendDrop.ts` | Expose `onPeerDetected` event, enable simultaneous HCE broadcast+read |
+| `native/android/FriendDropPlugin.kt` | Start HCE service + reader mode in parallel inside `startSession()` |
+| `native/ios/FriendDropPlugin.swift` | Same — Core NFC reader + CoreBluetooth advertising in parallel |
+| Chat message bubble (video) | Persist `thumbnail_url` on message_media; use as `<video poster>`; fallback canvas-extract for legacy clips |
 
-After approval, you'll need to **rebuild in Despia** for the call-crash fixes to take effect on the Play Store build (the glass header + FAB sync changes are live immediately on web/PWA).
+After approval, you'll need to **rebuild in Despia** for the NFC and video poster changes to ship to the Play Store build.
