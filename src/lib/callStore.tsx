@@ -657,7 +657,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
       premiumSounds.stopAllCallSounds();
       // Paint the overlay IMMEDIATELY — overlay/camera mount happens here.
-      setState({ phase: 'joining', call: callData, error: null });
+      setState({ phase: 'joining', call: callData, error: null, connectStage: 'signaling' });
 
       // Fan out push notifications truly fire-and-forget. Receiver also has
       // realtime + 2-5s polling fallback in this same file (lines 285-333),
