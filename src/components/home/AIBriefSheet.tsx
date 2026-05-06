@@ -15,6 +15,8 @@ import { GeneratingScreen } from './AIBriefLoadingState';
 interface AIBriefSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  focusTopic?: string | null;
+  focusHeadline?: string | null;
 }
 
 interface BriefUpdate {
@@ -365,7 +367,7 @@ const SectionHeader = memo(function SectionHeader({ icon: Icon, label }: { icon:
   );
 });
 
-export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
+export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: AIBriefSheetProps) {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -377,6 +379,9 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
   const [loadingStage, setLoadingStage] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasFetchedRef = useRef(false);
+  const [focusDetail, setFocusDetail] = useState<string | null>(null);
+  const [focusLoading, setFocusLoading] = useState(false);
+  const lastFocusKey = useRef<string | null>(null);
 
   const timeOfDay = getTimeOfDay();
   const { icon: TimeIcon, greeting, color, bg } = timeConfig[timeOfDay];
@@ -495,6 +500,41 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
     };
   }, [open, fetchBrief]);
 
+  // Fetch a focused topic explainer when opened from a notification deep link
+  useEffect(() => {
+    if (!open) return;
+    if (!focusTopic && !focusHeadline) { setFocusDetail(null); return; }
+    const key = `${focusTopic || ''}|${focusHeadline || ''}`;
+    if (lastFocusKey.current === key && focusDetail) return;
+    lastFocusKey.current = key;
+    setFocusLoading(true);
+    setFocusDetail(null);
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { setFocusLoading(false); return; }
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/brief-topic-detail`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ topic: focusTopic, headline: focusHeadline }),
+          },
+        );
+        if (!res.ok) throw new Error('detail failed');
+        const data = await res.json();
+        setFocusDetail(data.detail || null);
+      } catch {
+        setFocusDetail(null);
+      } finally {
+        setFocusLoading(false);
+      }
+    })();
+  }, [open, focusTopic, focusHeadline]);
+
   const handleRefresh = useCallback(() => {
     hasFetchedRef.current = true;
     setIsLoading(true);
@@ -569,6 +609,41 @@ export function AIBriefSheet({ open, onOpenChange }: AIBriefSheetProps) {
               </div>
             ) : briefData ? (
               <div className="space-y-5">
+                {/* Focus topic detail (from notification deep link) */}
+                {(focusTopic || focusHeadline) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 rounded-2xl bg-gradient-to-br from-accent/10 via-primary/5 to-transparent border border-accent/20"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Newspaper className="h-3.5 w-3.5 text-accent" />
+                      <span className="text-[10px] font-bold text-accent uppercase tracking-[0.12em]">
+                        About this {focusTopic ? `· ${focusTopic}` : ''}
+                      </span>
+                    </div>
+                    {focusHeadline && (
+                      <p className="text-sm font-semibold text-foreground mb-2 leading-snug">
+                        {focusHeadline}
+                      </p>
+                    )}
+                    {focusLoading ? (
+                      <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                        Pulling the details…
+                      </div>
+                    ) : focusDetail ? (
+                      <p className="text-[13px] text-foreground/85 leading-relaxed whitespace-pre-line">
+                        {focusDetail}
+                      </p>
+                    ) : (
+                      <p className="text-[12px] text-muted-foreground">
+                        Tap refresh to load more on this story.
+                      </p>
+                    )}
+                  </motion.div>
+                )}
+
                 {/* AI Summary card */}
                 <motion.div
                   initial={{ opacity: 0, y: 6 }}
