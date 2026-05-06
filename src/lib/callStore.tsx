@@ -958,6 +958,7 @@ export function useCallStore(): CallStoreContextType {
       leaveCall: () => {},
       rejoinCall: () => {},
       setPhase: () => {},
+      setConnectStage: () => {},
       setError: () => {},
       dismissIncoming: () => {},
       switchMode: async () => {},
