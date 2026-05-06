@@ -1980,7 +1980,7 @@ const MessageInputArea = memo(function MessageInputArea({
         />
       )}
       
-      <div className="px-2 py-2 sm:px-4 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-3xl bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 ring-1 ring-inset ring-white/[0.04] shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)]">
       <input
         ref={fileInputRef}
         type="file"
