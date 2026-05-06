@@ -185,9 +185,9 @@ export const VideoBubble = memo(function VideoBubble({
       {/* Thumbnail / Video */}
       <div className="relative w-full h-full bg-black/20">
         {/* Thumbnail shown while not playing or loading */}
-        {thumbnail && (!isLoaded || !isPlaying) && (
+        {posterSrc && (!isLoaded || !isPlaying) && (
           <img
-            src={thumbnail}
+            src={posterSrc}
             alt="Video thumbnail"
             className={cn(
               "absolute inset-0 w-full h-full object-cover",
@@ -200,6 +200,7 @@ export const VideoBubble = memo(function VideoBubble({
         <video
           ref={videoRef}
           src={src}
+          poster={posterSrc}
           className={cn(
             "absolute inset-0 w-full h-full object-cover",
             (!isPlaying || !isLoaded) && "opacity-0"
@@ -208,6 +209,7 @@ export const VideoBubble = memo(function VideoBubble({
           playsInline
           loop
           preload="metadata"
+          crossOrigin="anonymous"
           onLoadedData={() => setIsLoaded(true)}
           onEnded={handleVideoEnd}
           onError={() => setError(true)}
