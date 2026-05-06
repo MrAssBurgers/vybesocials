@@ -200,30 +200,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       if (isLogin) {
         const { error } = await signIn(formData.email, formData.password);
         if (error) throw error;
-        
+
         // Always persist sessions so users stay signed in reliably
         sessionStorage.removeItem('vybe-session-only');
-        
+
         toast.success('Welcome back! ✨');
-        
-        // Check if user has completed onboarding before redirecting
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (currentUser) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('username, onboarding_completed')
-            .eq('user_id', currentUser.id)
-            .maybeSingle();
-          
-          if (profile?.username && profile?.onboarding_completed !== false) {
-            navTo('home', '/home');
-          } else {
-            // No username yet or onboarding not complete - go to onboarding
-            navTo('onboarding', '/onboarding');
-          }
-        } else {
-          navTo('home', '/home');
-        }
+
+        // Navigate immediately — the route gate / authProfile effect above will
+        // bounce to /onboarding if the profile is incomplete. No extra round trip.
+        navTo('home', '/home');
       } else {
         if (!formData.username.trim()) {
           throw new Error('Username is required');
@@ -293,30 +278,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           Home
         </button>
       )}
-      {/* Smooth blended background — no hard edges */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div 
-          className="absolute w-[140%] h-[140%] -top-[30%] -left-[30%]"
-          style={{
-            background: 'radial-gradient(ellipse at 20% 20%, hsl(var(--primary) / 0.15) 0%, transparent 60%)',
-            filter: 'blur(80px)',
-          }}
-        />
-        <div 
-          className="absolute w-[140%] h-[140%] -bottom-[30%] -right-[30%]"
-          style={{
-            background: 'radial-gradient(ellipse at 80% 80%, hsl(var(--accent) / 0.12) 0%, transparent 60%)',
-            filter: 'blur(80px)',
-          }}
-        />
-        <div 
-          className="absolute w-[100%] h-[100%] top-[10%] left-[20%]"
-          style={{
-            background: 'radial-gradient(ellipse at 50% 50%, hsl(var(--primary) / 0.06) 0%, transparent 50%)',
-            filter: 'blur(60px)',
-          }}
-        />
-      </div>
+      {/* Single lightweight gradient backdrop — no stacked blur layers (caused mobile jank) */}
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(ellipse at 30% 20%, hsl(var(--primary) / 0.18), transparent 60%), radial-gradient(ellipse at 70% 90%, hsl(var(--accent) / 0.14), transparent 60%)',
+        }}
+      />
 
       {/* Public content section for SEO — visible to crawlers */}
       <div className="relative z-10 w-full max-w-[400px] flex flex-col gap-6 my-auto">
@@ -361,26 +330,18 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
           {/* Auth Form */}
           <form onSubmit={handleSubmit} className="space-y-2.5">
-            <AnimatePresence mode="wait">
-              {!isLogin && (
-                <motion.div
-                  key="username"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                   className="space-y-1.5"
-                >
-                  <Label htmlFor="username">{t('auth.username')}</Label>
-                  <Input
-                    id="username"
-                    placeholder="Choose a username"
-                    value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    className="bg-secondary/50 border-border"
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {!isLogin && (
+              <div className="space-y-1.5 animate-in fade-in duration-200">
+                <Label htmlFor="username">{t('auth.username')}</Label>
+                <Input
+                  id="username"
+                  placeholder="Choose a username"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  className="bg-secondary/50 border-border"
+                />
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="email">{t('auth.email')}</Label>

@@ -487,38 +487,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (checkError) throw new Error('Unable to verify username. Please try again.');
       if (!isAvailable) throw new Error('This username is already taken. Please choose another.');
 
-      // 2. Now safe to create auth user
-      const { data, error } = await supabase.auth.signUp({
+      // 2. Now safe to create auth user — username is passed via metadata so the
+      // `handle_new_user` DB trigger creates the profile atomically. This avoids
+      // the orphaned-auth-user bug ("email already registered" on retry) that
+      // happened when a client-side profile insert failed after auth succeeded.
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: window.location.origin,
+          data: { username: cleanUsername },
         },
       });
 
       if (error) throw error;
-
-      if (data.user) {
-        // 3. Create profile with validated username
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            user_id: data.user.id,
-            username: cleanUsername,
-            bio: '',
-          });
-
-        if (profileError) {
-          // Profile creation failed — clean up orphaned auth user by signing out
-          console.error('[SignUp] Profile creation failed, cleaning up:', profileError.message);
-          await supabase.auth.signOut();
-          
-          if (profileError.message?.includes('duplicate') || profileError.message?.includes('unique')) {
-            throw new Error('This username was just taken. Please choose another.');
-          }
-          throw profileError;
-        }
-      }
 
       return { error: null };
     } catch (error) {

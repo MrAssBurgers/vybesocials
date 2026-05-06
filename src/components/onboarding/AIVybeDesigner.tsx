@@ -348,50 +348,17 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
 
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-hidden">
-      {/* === FORGE BACKDROP === */}
+      {/* === FORGE BACKDROP — simplified for mobile perf === */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
-        {/* Deep space gradient */}
+        {/* Static deep-space gradient (cheap, GPU-friendly) */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              'radial-gradient(ellipse at 50% 0%, hsl(var(--primary) / 0.18), transparent 60%), radial-gradient(ellipse at 50% 100%, hsl(var(--accent) / 0.14), transparent 55%), hsl(var(--background))',
+              'radial-gradient(ellipse at 50% 0%, hsl(var(--primary) / 0.22), transparent 60%), radial-gradient(ellipse at 50% 100%, hsl(var(--accent) / 0.16), transparent 55%), hsl(var(--background))',
           }}
         />
-        {/* Perspective grid floor */}
-        {!reduceMotion && (
-          <div className="absolute inset-x-0 bottom-0 h-1/2 overflow-hidden opacity-60">
-            <div className="vybe-forge-grid" />
-          </div>
-        )}
-        {/* Counter-rotating conic auroras */}
-        <motion.div
-          className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] rounded-full blur-[120px] opacity-25"
-          style={{
-            background:
-              'conic-gradient(from 0deg, hsl(var(--primary) / 0.7), transparent 40%, hsl(var(--accent) / 0.5), transparent 80%, hsl(var(--primary) / 0.7))',
-          }}
-          animate={reduceMotion ? undefined : { rotate: 360 }}
-          transition={{ duration: 80, repeat: Infinity, ease: 'linear' }}
-        />
-        <motion.div
-          className="absolute -bottom-1/4 -right-1/4 w-[120%] h-[120%] rounded-full blur-[120px] opacity-20"
-          style={{
-            background:
-              'conic-gradient(from 180deg, hsl(var(--accent) / 0.6), transparent 50%, hsl(var(--primary) / 0.4))',
-          }}
-          animate={reduceMotion ? undefined : { rotate: -360 }}
-          transition={{ duration: 100, repeat: Infinity, ease: 'linear' }}
-        />
-        {/* Floating particles */}
-        {!reduceMotion && particles.map(p => (
-          <span
-            key={p.id}
-            className="vybe-forge-particle"
-            style={{ top: p.top, left: p.left, animationDelay: p.delay, animationDuration: p.duration }}
-          />
-        ))}
-        {/* Scan line during build */}
+        {/* Scan line during build only */}
         {step === 'building' && !reduceMotion && <div className="vybe-forge-scan" />}
         {/* Vignette */}
         <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-transparent to-background/60" />
@@ -462,7 +429,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                 )}
                 {/* Orb */}
                 <motion.div
-                  layoutId="vybe-orb"
+                  /* layoutId removed for perf */
                   className="vybe-forge-orb w-[110px] h-[110px] rounded-full flex items-center justify-center"
                   transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
                 >
@@ -584,7 +551,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               <div className="relative w-[88px] h-[88px] flex items-center justify-center mb-3">
                 {!reduceMotion && <div className="absolute inset-[-10px] vybe-forge-ring" />}
                 <motion.div
-                  layoutId="vybe-orb"
+                  /* layoutId removed for perf */
                   className="vybe-forge-orb w-[78px] h-[78px] rounded-full flex items-center justify-center"
                   transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
                 >
@@ -675,7 +642,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                   </>
                 )}
                 <motion.div
-                  layoutId="vybe-orb"
+                  /* layoutId removed for perf */
                   className="vybe-forge-orb w-[100px] h-[100px] rounded-full flex items-center justify-center"
                   transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
                 >
