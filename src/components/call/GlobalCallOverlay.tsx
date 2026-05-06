@@ -307,6 +307,7 @@ export function GlobalCallOverlay() {
     p2pRef.current = p2p;
 
     try {
+      setConnectStage('signaling');
       await p2p.connect();
       // Safety net: if onLocalStream didn't fire (e.g. callback errored),
       // still try to attach now.
