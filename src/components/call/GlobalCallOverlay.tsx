@@ -323,7 +323,7 @@ export function GlobalCallOverlay() {
       toast.error('Failed to connect');
       endCall();
     }
-  }, [profile?.id, attachLocalVideo, endCall]);
+  }, [profile?.id, attachLocalVideo, endCall, setConnectStage]);
 
   // Keep connectP2PRef fresh for deferred calls from event handler
   useEffect(() => { connectP2PRef.current = connectP2P; }, [connectP2P]);
