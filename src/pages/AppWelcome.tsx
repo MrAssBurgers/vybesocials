@@ -1,7 +1,42 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Sparkles, Layers, Crown, Users, Zap, Heart } from 'lucide-react';
+import { ArrowRight, Sparkles, Layers, Crown, Users, Zap, Heart, Radio, MapPin, Target, Home as HomeIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import welcomeHome from '@/assets/welcome-home.png';
+import welcomeFriendLink from '@/assets/welcome-friendlink.png';
+import welcomeMap from '@/assets/welcome-map.png';
+import welcomeChallenges from '@/assets/welcome-challenges.png';
+
+const SHOWCASE = [
+  {
+    icon: HomeIcon,
+    image: welcomeHome,
+    title: 'Your home, your VYBE',
+    body: 'A home screen that adapts to you — Daily Brief, DNA, Wallet, and the people you care about, one tap away.',
+    accent: 'from-primary/30 to-accent/20',
+  },
+  {
+    icon: Radio,
+    image: welcomeFriendLink,
+    title: 'Friend Link — tap to connect',
+    body: 'Hold phones together and add friends instantly. No usernames, no QR hunting — just a tap.',
+    accent: 'from-pink-500/30 to-cyan-400/20',
+  },
+  {
+    icon: MapPin,
+    image: welcomeMap,
+    title: 'See your people on the map',
+    body: 'Friends, weather, trending spots, and Ghost Mode when you want privacy. Your world, live.',
+    accent: 'from-blue-500/30 to-cyan-400/20',
+  },
+  {
+    icon: Target,
+    image: welcomeChallenges,
+    title: 'Challenges, XP & levels',
+    body: 'Daily, weekly, and permanent challenges. Earn badges, level up, and climb the ranks.',
+    accent: 'from-pink-500/30 to-primary/20',
+  },
+];
 
 const fadeUp = {
   initial: { opacity: 0, y: 16 },
