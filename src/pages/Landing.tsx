@@ -330,26 +330,18 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
           {/* Auth Form */}
           <form onSubmit={handleSubmit} className="space-y-2.5">
-            <AnimatePresence mode="wait">
-              {!isLogin && (
-                <motion.div
-                  key="username"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                   className="space-y-1.5"
-                >
-                  <Label htmlFor="username">{t('auth.username')}</Label>
-                  <Input
-                    id="username"
-                    placeholder="Choose a username"
-                    value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    className="bg-secondary/50 border-border"
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {!isLogin && (
+              <div className="space-y-1.5 animate-in fade-in duration-200">
+                <Label htmlFor="username">{t('auth.username')}</Label>
+                <Input
+                  id="username"
+                  placeholder="Choose a username"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  className="bg-secondary/50 border-border"
+                />
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="email">{t('auth.email')}</Label>
