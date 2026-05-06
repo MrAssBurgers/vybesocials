@@ -1970,7 +1970,7 @@ const MessageInputArea = memo(function MessageInputArea({
   safetyFilterNode?: React.ReactNode;
 }) {
   return (
-    <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30 relative">
+    <div className="flex-shrink-0 sticky bottom-0 z-30 bg-transparent px-2 sm:px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] relative">
       {/* Sticker Panel */}
       {onSendSticker && showStickerPanel && setShowStickerPanel && (
         <StickerPanel
