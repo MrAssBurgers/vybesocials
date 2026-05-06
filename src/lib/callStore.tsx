@@ -19,6 +19,7 @@ import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { toast } from 'sonner';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
+import { useSyncCustomSounds } from '@/hooks/useCustomSounds';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
@@ -189,8 +190,23 @@ function readCallSnapshot(): CallSnapshot | null {
   }
 }
 
+// Lightweight subscriber registry so non-React readers can react to lingering call changes
+const lingeringSubscribers = new Set<() => void>();
+function notifyLingeringChange() { lingeringSubscribers.forEach(fn => { try { fn(); } catch {} }); }
+function setLingeringCall(call: CallData | null) {
+  globalLingeringCall = call;
+  notifyLingeringChange();
+}
+export function subscribeLingeringCall(cb: () => void): () => void {
+  lingeringSubscribers.add(cb);
+  return () => lingeringSubscribers.delete(cb);
+}
+
 export function CallStoreProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
+  // Bootstrap custom sounds (custom ringtone) into localStorage as soon as user authenticates
+  // so incoming-call ringer can use it without opening Settings first.
+  useSyncCustomSounds();
   const [state, setStateInternal] = useState<CallStoreState>(() => globalCallState);
   const [incomingCall, setIncomingCallInternal] = useState<CallData | null>(() => globalIncomingCall);
   
@@ -433,6 +449,41 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     tryReconnect();
   }, [profile?.id, setState]);
 
+  // Watch the lingering call's status — clear it the moment it actually ends server-side
+  // so the green "Rejoin" button never sticks around after a real hangup.
+  useEffect(() => {
+    if (!profile?.id) return;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let watchedId: string | null = null;
+
+    const attach = (id: string) => {
+      if (watchedId === id) return;
+      detach();
+      watchedId = id;
+      channel = supabase
+        .channel(`lingering-call-${id}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls', filter: `id=eq.${id}` }, (payload) => {
+          const s = (payload.new as any)?.status;
+          if (s === 'ended' || s === 'declined' || s === 'missed') {
+            setLingeringCall(null);
+          }
+        })
+        .subscribe();
+    };
+    const detach = () => {
+      if (channel) { supabase.removeChannel(channel); channel = null; }
+      watchedId = null;
+    };
+
+    const sync = () => {
+      const id = globalLingeringCall?.id || null;
+      if (id) attach(id); else detach();
+    };
+    sync();
+    const unsub = subscribeLingeringCall(sync);
+    return () => { unsub(); detach(); };
+  }, [profile?.id]);
+
   // Listen for call status changes (remote hangup) AND call_mode changes (mode switch)
   useEffect(() => {
     const callId = state.call?.id;
@@ -495,6 +546,8 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     if (!profile?.id) throw new Error('Not authenticated');
     if (globalCallState.phase !== 'idle') return;
 
+    // Starting a brand-new call — drop any stale lingering rejoin chip
+    setLingeringCall(null);
     setState({ phase: 'creating', call: null, error: null });
     callSounds.startRingback();
 
@@ -696,7 +749,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    globalLingeringCall = null;
+    setLingeringCall(null);
     callSounds.end();
     setState(initialState);
 
@@ -711,7 +764,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     if (currentCall) {
       // Only allow lingering for persistent mode
       if (currentCall.callMode === 'persistent') {
-        globalLingeringCall = currentCall;
+        setLingeringCall(currentCall);
       }
       setState({ phase: 'idle', call: null, error: null });
     }
@@ -723,7 +776,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     // Only persistent mode supports rejoin
     if (lingeringCall.callMode !== 'persistent') return;
 
-    globalLingeringCall = null;
+    setLingeringCall(null);
 
     try {
       const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
@@ -748,7 +801,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       setState({ phase: 'joining', call: callData, error: null });
     } catch (err: any) {
       console.error('[CallStore] Failed to rejoin:', err);
-      globalLingeringCall = lingeringCall;
+      setLingeringCall(lingeringCall);
     }
   }, [setState]);
 

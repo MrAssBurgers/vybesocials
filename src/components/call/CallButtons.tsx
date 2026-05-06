@@ -10,10 +10,10 @@
  * "Join Back" only appears for persistent mode calls (P2P has no rejoin).
  */
 
-import { useState, useCallback, useRef, forwardRef } from 'react';
+import { useState, useCallback, useRef, useEffect, forwardRef } from 'react';
 import { Phone, Video, Loader2, PhoneCall } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useCallStore, CallType, getLingeringCall } from '@/lib/callStore';
+import { useCallStore, CallType, getLingeringCall, subscribeLingeringCall } from '@/lib/callStore';
 import { toast } from 'sonner';
 
 
@@ -46,9 +46,11 @@ export const CallButtons = forwardRef<HTMLDivElement, CallButtonsProps>(function
   // Prevent iOS double-fire (touch -> click) starting two calls.
   const startGuardRef = useRef(false);
 
-  // Check if there's a lingering call for this conversation
-  // Only persistent mode supports lingering/rejoin
+  // Re-render when the lingering call changes (so Rejoin disappears the moment the call truly ends).
+  const [lingeringTick, setLingeringTick] = useState(0);
+  useEffect(() => subscribeLingeringCall(() => setLingeringTick(t => t + 1)), []);
   const lingeringCall = getLingeringCall();
+  void lingeringTick;
   const hasLingeringCall = lingeringCall?.conversationId === conversationId && lingeringCall?.callMode === 'persistent';
 
   const handleStartCall = useCallback(async (callType: CallType) => {

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -221,22 +222,21 @@ export function useDeleteCustomSound() {
 // Sync custom sounds from database to local storage on load
 export function useSyncCustomSounds() {
   const { data: sounds } = useCustomSounds();
-  
-  // Sync to local storage when sounds load
-  if (sounds && sounds.length > 0) {
+
+  // Sync to local storage in an effect (never during render)
+  useEffect(() => {
+    if (!sounds || sounds.length === 0) return;
     const localSounds = getCustomSounds();
     const updates: Record<string, string> = {};
-    
     for (const sound of sounds) {
       if (localSounds[sound.sound_type] !== sound.file_url) {
         updates[sound.sound_type] = sound.file_url;
       }
     }
-    
     if (Object.keys(updates).length > 0) {
       updateCustomSounds(updates);
     }
-  }
-  
+  }, [sounds]);
+
   return sounds;
 }

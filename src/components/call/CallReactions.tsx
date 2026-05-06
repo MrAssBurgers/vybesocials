@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Smile } from 'lucide-react';
 import { triggerHaptic } from '@/lib/haptics';
@@ -21,13 +21,14 @@ const REACTIONS = [
 
 interface CallReactionsProps {
   onReaction?: (emoji: string) => void;
-  incomingReaction?: string | null;
+  /** A unique signal that increments each time a remote reaction arrives, paired with its emoji */
+  incomingReaction?: { emoji: string; nonce: number } | null;
 }
 
 export function CallReactions({ onReaction, incomingReaction }: CallReactionsProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
-  let idCounter = 0;
+  const [incomingFloats, setIncomingFloats] = useState<FloatingEmoji[]>([]);
 
   const sendReaction = useCallback((emoji: string) => {
     triggerHaptic('light');
@@ -40,17 +41,18 @@ export function CallReactions({ onReaction, incomingReaction }: CallReactionsPro
     setIsOpen(false);
   }, [onReaction]);
 
-  // Incoming reaction from remote
-  const [incomingFloats, setIncomingFloats] = useState<FloatingEmoji[]>([]);
-  if (incomingReaction) {
+  // Receive remote reactions in an effect (NEVER during render — that caused infinite loops)
+  const lastNonceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!incomingReaction) return;
+    if (lastNonceRef.current === incomingReaction.nonce) return;
+    lastNonceRef.current = incomingReaction.nonce;
     const id = Date.now() + Math.random();
     const x = Math.random() * 80 - 40;
-    // Use a ref-based approach to avoid re-renders
-    setTimeout(() => {
-      setIncomingFloats(prev => [...prev, { id, emoji: incomingReaction, x }]);
-      setTimeout(() => setIncomingFloats(prev => prev.filter(e => e.id !== id)), 2000);
-    }, 0);
-  }
+    setIncomingFloats(prev => [...prev, { id, emoji: incomingReaction.emoji, x }]);
+    const t = setTimeout(() => setIncomingFloats(prev => prev.filter(e => e.id !== id)), 2000);
+    return () => clearTimeout(t);
+  }, [incomingReaction]);
 
   return (
     <div className="relative">

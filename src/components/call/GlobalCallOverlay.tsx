@@ -87,6 +87,8 @@ export function GlobalCallOverlay() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [p2pFailCount, setP2pFailCount] = useState(0);
+  const [incomingReaction, setIncomingReaction] = useState<{ emoji: string; nonce: number } | null>(null);
+  const reactionsChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const p2pEndedRef = useRef(false); // Guard against double endCall from P2P events
   
   // Remote user left — linger state (persistent mode only)
@@ -614,6 +616,27 @@ export function GlobalCallOverlay() {
     return () => clearInterval(interval);
   }, [state.phase]);
 
+  // Live emoji reactions — Supabase Realtime broadcast keyed on the call id
+  useEffect(() => {
+    const callId = state.call?.id;
+    if (!callId || !profile?.id) return;
+    const ch = supabase.channel(`call-reactions-${callId}`, { config: { broadcast: { self: false } } });
+    ch.on('broadcast', { event: 'reaction' }, (msg) => {
+      const p: any = msg.payload;
+      if (!p?.emoji || p.userId === profile.id) return;
+      setIncomingReaction({ emoji: p.emoji, nonce: Date.now() + Math.random() });
+    });
+    ch.subscribe();
+    reactionsChannelRef.current = ch;
+    return () => { try { supabase.removeChannel(ch); } catch {} reactionsChannelRef.current = null; };
+  }, [state.call?.id, profile?.id]);
+
+  const sendReaction = useCallback((emoji: string) => {
+    const ch = reactionsChannelRef.current;
+    if (!ch || !profile?.id) return;
+    try { ch.send({ type: 'broadcast', event: 'reaction', payload: { emoji, userId: profile.id } }); } catch {}
+  }, [profile?.id]);
+
   // Track latest mute state without re-binding listeners
   const isMutedRef = useRef(isMuted);
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
@@ -1094,10 +1117,11 @@ export function GlobalCallOverlay() {
           {!isVideoCall && (
             <div className="absolute inset-0 flex items-center justify-center" onClick={handleScreenTap} onTouchEnd={handleScreenTap}>
               <div className="text-center px-4">
-                <div className="relative inline-flex items-center justify-center h-32 w-32 sm:h-40 sm:w-40">
+                {/* Square aura container — keeps every ring perfectly concentric */}
+                <div className="relative mx-auto h-32 w-32 sm:h-40 sm:w-40 grid place-items-center">
                   {/* Audio Visualizer ring — only when remote is present */}
                   {isConnected && !remoteUserLeft && (
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center" style={{ width: 180, height: 180 }}>
+                    <div className="absolute inset-0 m-auto grid place-items-center" style={{ width: '140%', height: '140%' }}>
                       <AudioVisualizer
                         size={180}
                         stream={remoteAudioRef.current?.srcObject as MediaStream | null}
@@ -1106,57 +1130,54 @@ export function GlobalCallOverlay() {
                     </div>
                   )}
 
-                  {/* Active call rings (remote present) */}
-                  {!remoteUserLeft && (
-                    <>
-                      <motion.div
-                        animate={{ scale: [1, 1.6], opacity: [0.3, 0] }}
-                        transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/40"
-                        style={{ width: '110%', height: '110%' }}
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.4], opacity: [0.2, 0] }}
-                        transition={{ repeat: Infinity, duration: 3, delay: 0.8, ease: "linear" }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-accent/30"
-                        style={{ width: '110%', height: '110%' }}
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.6, 0.4] }}
-                        transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl"
-                        style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(280 80% 60% / 0.3))', width: '100%', height: '100%' }}
-                      />
-                    </>
-                  )}
-
-                  {/* Standby aura (remote left) — single synchronized 6s breathing cycle */}
-                  {remoteUserLeft && (
-                    <>
-                      <motion.div
-                        animate={{ scale: [1, 1.18, 1], opacity: [0.35, 0.6, 0.35] }}
-                        transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/40"
-                        style={{ width: '115%', height: '115%' }}
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.18, 1], opacity: [0.15, 0.3, 0.15] }}
-                        transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30"
-                        style={{ width: '135%', height: '135%' }}
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.06, 1], opacity: [0.25, 0.4, 0.25] }}
-                        transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl"
-                        style={{ background: 'radial-gradient(circle, hsl(40 90% 70% / 0.35), transparent 70%)', width: '100%', height: '100%' }}
-                      />
-                    </>
-                  )}
+                  {/* Synchronized 3-ring breathing aura — same 3s cycle, phase-offset for depth */}
+                  {(() => {
+                    const dim = remoteUserLeft ? 0.6 : 1; // soften when alone
+                    const baseColor = remoteUserLeft ? 'hsl(0 0% 100% / 0.35)' : 'hsl(var(--primary) / 0.45)';
+                    return (
+                      <>
+                        <motion.div
+                          aria-hidden
+                          animate={{ scale: [1, 1.5], opacity: [0.35 * dim, 0] }}
+                          transition={{ repeat: Infinity, duration: 3, ease: 'easeOut' }}
+                          className="absolute inset-0 m-auto rounded-full border"
+                          style={{ width: '100%', height: '100%', borderColor: baseColor }}
+                        />
+                        <motion.div
+                          aria-hidden
+                          animate={{ scale: [1, 1.5], opacity: [0.25 * dim, 0] }}
+                          transition={{ repeat: Infinity, duration: 3, ease: 'easeOut', delay: 1 }}
+                          className="absolute inset-0 m-auto rounded-full border"
+                          style={{ width: '100%', height: '100%', borderColor: baseColor }}
+                        />
+                        <motion.div
+                          aria-hidden
+                          animate={{ scale: [1, 1.5], opacity: [0.18 * dim, 0] }}
+                          transition={{ repeat: Infinity, duration: 3, ease: 'easeOut', delay: 2 }}
+                          className="absolute inset-0 m-auto rounded-full border"
+                          style={{ width: '100%', height: '100%', borderColor: baseColor }}
+                        />
+                        {/* Soft glow halo — same 3s timeline */}
+                        <motion.div
+                          aria-hidden
+                          animate={{ scale: [1, 1.08, 1], opacity: [0.35 * dim, 0.55 * dim, 0.35 * dim] }}
+                          transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
+                          className="absolute inset-0 m-auto rounded-full blur-2xl"
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            background: remoteUserLeft
+                              ? 'radial-gradient(circle, hsl(0 0% 100% / 0.18), transparent 70%)'
+                              : 'linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(var(--accent) / 0.3))',
+                          }}
+                        />
+                      </>
+                    );
+                  })()}
 
                   <motion.div
-                    animate={remoteUserLeft ? { scale: [1, 1.025, 1] } : { scale: [1, 1.03, 1] }}
-                    transition={{ repeat: Infinity, duration: remoteUserLeft ? 6 : 3, ease: "linear" }}
+                    animate={{ scale: [1, 1.03, 1] }}
+                    transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
                     className="relative z-10"
                   >
                     <Avatar className={`h-32 w-32 sm:h-40 sm:w-40 ring-4 ring-white/10 shadow-2xl transition-opacity duration-500 ${remoteUserLeft ? 'opacity-80' : ''}`}>
@@ -1176,20 +1197,7 @@ export function GlobalCallOverlay() {
                   <p className="mt-2 text-white/70 text-base sm:text-lg font-mono">{formatDuration(callDuration)}</p>
                 )}
                 {isConnected && remoteUserLeft && (
-                  <div className="mt-3 sm:mt-4 text-center">
-                    {autoEndCountdown === -1 ? (
-                      <>
-                        <p className="text-white/60 text-sm sm:text-base">{displayName} left</p>
-                        <p className="text-white/40 text-xs sm:text-sm mt-1">They can rejoin anytime</p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-white/50 text-xs sm:text-sm">{displayName} left · They can rejoin</p>
-                        <p className="text-white/70 text-base sm:text-lg font-mono mt-1">{Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}</p>
-                        <p className="text-white/40 text-xs mt-1">Call auto-ends</p>
-                      </>
-                    )}
-                  </div>
+                  <p className="mt-3 text-white/50 text-xs sm:text-sm">{displayName} left · they can rejoin</p>
                 )}
               </div>
             </div>
@@ -1275,21 +1283,18 @@ export function GlobalCallOverlay() {
             )}
           </AnimatePresence>
 
-          {/* Remote user left banner (all modes) */}
+          {/* Remote user left — calm chip (no pink, no countdown frenzy) */}
           <AnimatePresence>
-            {remoteUserLeft && isConnected && (
-              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="absolute top-32 left-4 right-4 z-50">
-                <div className="p-4 rounded-2xl backdrop-blur-xl bg-primary/20 border border-primary/30 shadow-2xl">
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-semibold text-sm">Call still live</p>
-                      <p className="text-white/60 text-xs">{autoEndCountdown === -1 ? `${displayName} left · They can rejoin anytime` : `${displayName} left · They can rejoin · Auto-ends in ${Math.floor(autoEndCountdown / 60)}:${(autoEndCountdown % 60).toString().padStart(2, '0')}`}</p>
-                    </div>
-                  </div>
+            {remoteUserLeft && isConnected && autoEndCountdown !== -1 && autoEndCountdown > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+                className="absolute top-28 left-1/2 -translate-x-1/2 z-50"
+              >
+                <div className="px-3 py-1.5 rounded-full backdrop-blur-xl bg-white/10 border border-white/15 text-white/70 text-xs font-medium tracking-wide">
+                  Call ends in {Math.floor(autoEndCountdown / 60)}:{(autoEndCountdown % 60).toString().padStart(2, '0')}
                 </div>
               </motion.div>
             )}
@@ -1347,7 +1352,7 @@ export function GlobalCallOverlay() {
               {/* Primary row (larger, dominant) */}
               <div className="inline-flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
                 {/* Reactions */}
-                <CallReactions onReaction={(emoji) => { /* broadcast via realtime */ }} />
+                <CallReactions onReaction={sendReaction} incomingReaction={incomingReaction} />
 
                 <div className="w-px h-8 sm:h-10 bg-white/20 flex-shrink-0" />
 
