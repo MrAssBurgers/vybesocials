@@ -55,7 +55,7 @@ import { AudioVisualizer } from './AudioVisualizer';
 const INCOMING_CALL_TIMEOUT_SECONDS = 30;
 
 export function GlobalCallOverlay() {
-  const { state, acceptCall, endCall, leaveCall, setPhase, setError, dismissIncoming, switchMode } = useCallStore();
+  const { state, acceptCall, endCall, leaveCall, setPhase, setConnectStage, setError, dismissIncoming, switchMode } = useCallStore();
   const { profile } = useAuth();
   const { isPremium } = usePremiumStatus();
   
