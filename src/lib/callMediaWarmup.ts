@@ -26,6 +26,13 @@ function releaseWarmStream() {
 
 export async function warmCallMedia(callType: 'audio' | 'video'): Promise<MediaStream | null> {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return null;
+  // Skip warmup on native Android WebView / Despia / Capacitor: a duplicate
+  // getUserMedia while P2PConnection.connect()'s own gUM is in flight crashes
+  // the WebView process (the "FaceTime crashes the whole app" bug).
+  const ua = navigator.userAgent || '';
+  if (/despia|vybeapp|; wv\)|\bwv\b/i.test(ua) || (window as any).Capacitor?.isNativePlatform?.()) {
+    return null;
+  }
   if (warmStream) return warmStream;
   if (warmingPromise) return warmingPromise;
 
