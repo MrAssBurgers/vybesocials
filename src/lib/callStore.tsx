@@ -63,7 +63,7 @@ interface CallStoreState {
   phase: CallPhase;
   call: CallData | null;
   error: string | null;
-  connectStage: ConnectStage;
+  connectStage?: ConnectStage;
 }
 
 interface CallStoreContextType {
