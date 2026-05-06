@@ -797,6 +797,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
               <Link
                 to={`/u/${post.author.username}`}
                 className="font-bold mr-1.5 bg-gradient-to-r from-[hsl(var(--neon-pink))] via-[hsl(var(--neon-purple))] to-[hsl(var(--neon-cyan))] bg-clip-text text-transparent hover:opacity-80 transition-opacity"
+                style={{ WebkitTextFillColor: 'transparent', color: 'hsl(var(--foreground))' }}
+                data-no-auto-contrast
               >
                 {post.author.username}
               </Link>

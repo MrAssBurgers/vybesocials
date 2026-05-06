@@ -85,10 +85,15 @@ Deno.serve(async (req) => {
             ios_attachments: (data as any)?.image_url ? { id1: (data as any).image_url } : undefined,
             chrome_web_image: (data as any)?.image_url,
             data: { type: type || "general", url: url || "/notifications", ...(data || {}) },
-            ios_sound: type === "call" ? "ringtone.caf" : undefined,
-            android_channel_id: type === "call" ? "calls" : undefined,
+            ios_sound: type === "call" ? "ringtone.caf" : "default",
+            android_sound: type === "call" ? "ringtone" : undefined,
+            android_channel_id: type === "call" ? "calls" : "messages",
+            android_visibility: 1,
+            mutable_content: true,
+            content_available: true,
             priority: 10,
             ttl: type === "call" ? 30 : 86400,
+            collapse_id: tag || undefined,
           }),
         });
         onesignalResult = { status: res.status, ok: res.ok };
