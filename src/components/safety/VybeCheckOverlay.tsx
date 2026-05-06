@@ -15,20 +15,43 @@ interface VybeCheckOverlayProps {
   onComplete: (ageRating: AgeRating) => void;
   onBlocked: (message: string, categories: string[]) => void;
   onCancel: () => void;
+  /** If a scan was already run (e.g. pre-scan in composer), skip rescanning. */
+  precomputedResult?: {
+    blocked?: boolean;
+    message?: string;
+    categories?: string[];
+    suggestedAgeRating?: AgeRating | null;
+    ageRatingReasons?: string[];
+  } | null;
 }
 
-export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: VybeCheckOverlayProps) {
-  const [phase, setPhase] = useState<Phase>('scanning');
+export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel, precomputedResult }: VybeCheckOverlayProps) {
+  const [phase, setPhase] = useState<Phase>(precomputedResult ? 'rating' : 'scanning');
   const [ageRating, setAgeRating] = useState<AgeRating>('safe');
   const ageRatingRef = useRef<AgeRating>('safe');
   const contentSafety = useContentSafety();
 
   // AI-detected minimum age rating
-  const [aiMinRating, setAiMinRating] = useState<AgeRating | null>(null);
-  const [aiReasons, setAiReasons] = useState<string[]>([]);
+  const [aiMinRating, setAiMinRating] = useState<AgeRating | null>(
+    precomputedResult?.suggestedAgeRating && precomputedResult.suggestedAgeRating !== 'safe'
+      ? precomputedResult.suggestedAgeRating
+      : null
+  );
+  const [aiReasons, setAiReasons] = useState<string[]>(precomputedResult?.ageRatingReasons || []);
 
-  // Run scan on mount
+  // Run scan on mount (skipped if precomputed)
   useEffect(() => {
+    if (precomputedResult) {
+      if (precomputedResult.blocked) {
+        setPhase('blocked');
+        onBlocked(
+          precomputedResult.message || 'Content violates community guidelines',
+          precomputedResult.categories || []
+        );
+      }
+      return;
+    }
+
     let cancelled = false;
 
     const runScan = async () => {
@@ -58,7 +81,6 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: Vyb
         return;
       }
 
-      // Check if AI suggested a minimum age rating
       if (result.suggestedAgeRating && result.suggestedAgeRating !== 'safe') {
         setAiMinRating(result.suggestedAgeRating);
         setAiReasons(result.ageRatingReasons || []);
@@ -71,6 +93,7 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel }: Vyb
     runScan();
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const handleRatingSelect = useCallback((rating: AgeRating) => {
     setAgeRating(rating);

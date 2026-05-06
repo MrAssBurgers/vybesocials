@@ -8,6 +8,8 @@ import { useAuth } from '@/lib/auth';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
 import { VybeCheckOverlay } from '@/components/safety/VybeCheckOverlay';
 import { type AgeRating } from '@/components/safety/AgeRatingSelector';
+import { useContentSafety } from '@/hooks/useContentSafety';
+
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { AIPhotoEnhancer } from '@/components/ai/AIPhotoEnhancer';
 import { PublishCelebration } from './PublishCelebration';
@@ -59,6 +61,49 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showTags, setShowTags] = useState(true);
+
+  // Pre-scan: kick off Vybe Check as soon as media lands in composer so the
+  // user instantly sees the AI working, and Share is near-instant.
+  const preScan = useContentSafety();
+  type PreScanState =
+    | { status: 'idle' }
+    | { status: 'scanning' }
+    | { status: 'safe'; suggestedAgeRating?: AgeRating | null; ageRatingReasons?: string[] }
+    | { status: 'blocked'; message: string; categories: string[] };
+  const [preScanState, setPreScanState] = useState<PreScanState>({ status: 'idle' });
+  const preScanFileRef = useRef<File | null>(null);
+
+  useEffect(() => {
+    const file = localFiles[0];
+    if (!file || preScanFileRef.current === file) return;
+    preScanFileRef.current = file;
+    setPreScanState({ status: 'scanning' });
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = file.type.startsWith('video/')
+          ? await preScan.scanVideo(file)
+          : await preScan.scanImage(file);
+        if (cancelled) return;
+        if (result.result === 'blocked') {
+          setPreScanState({
+            status: 'blocked',
+            message: result.message || 'Content violates community guidelines',
+            categories: result.categories || [],
+          });
+        } else {
+          setPreScanState({
+            status: 'safe',
+            suggestedAgeRating: (result.suggestedAgeRating as AgeRating | undefined) ?? null,
+            ageRatingReasons: result.ageRatingReasons,
+          });
+        }
+      } catch {
+        if (!cancelled) setPreScanState({ status: 'idle' });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [localFiles, preScan]);
 
   // Draft persistence — survives accidental swipe-outs
   const draft = useComposerDraft(contentType === 'short' ? 'short' : contentType === 'video' ? 'video' : 'post');
@@ -192,9 +237,25 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
             onComplete={handleVybeCheckComplete}
             onBlocked={handleVybeCheckBlocked}
             onCancel={() => setShowVybeCheck(false)}
+            precomputedResult={
+              preScanState.status === 'safe'
+                ? {
+                    blocked: false,
+                    suggestedAgeRating: preScanState.suggestedAgeRating ?? null,
+                    ageRatingReasons: preScanState.ageRatingReasons,
+                  }
+                : preScanState.status === 'blocked'
+                ? {
+                    blocked: true,
+                    message: preScanState.message,
+                    categories: preScanState.categories,
+                  }
+                : null
+            }
           />
         )}
       </AnimatePresence>
+
       <AnimatePresence>
         {showCelebration && (
           <PublishCelebration
@@ -247,6 +308,35 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
         </div>
         {isUploading && (
           <motion.div className="h-0.5 bg-gradient-to-r from-primary via-accent to-primary" initial={{ width: '0%' }} animate={{ width: `${uploadProgress}%` }} transition={{ duration: 0.3 }} />
+        )}
+        {/* Live Vybe Check status — instant feedback the AI is working */}
+        {hasMedia && preScanState.status !== 'idle' && (
+          <div className="px-4 pb-2 pt-1.5" data-no-auto-contrast>
+            <motion.div
+              key={preScanState.status}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border",
+                preScanState.status === 'scanning' && "border-primary/30 bg-primary/10 text-primary",
+                preScanState.status === 'safe' && "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+                preScanState.status === 'blocked' && "border-red-500/30 bg-red-500/10 text-red-400",
+              )}
+            >
+              {preScanState.status === 'scanning' && (
+                <>
+                  <motion.span
+                    className="w-3 h-3 rounded-full border-[1.5px] border-primary/30 border-t-primary"
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 0.7, ease: 'linear' }}
+                  />
+                  Vybe Check scanning…
+                </>
+              )}
+              {preScanState.status === 'safe' && (<><Shield className="w-3 h-3" /> Vybe Check passed</>)}
+              {preScanState.status === 'blocked' && (<><Shield className="w-3 h-3" /> Vybe Check flagged</>)}
+            </motion.div>
+          </div>
         )}
       </div>
 

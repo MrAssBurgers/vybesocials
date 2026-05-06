@@ -887,7 +887,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
 
       {/* Tags — BELOW everything, as glowing neon pills */}
       {post.tags && post.tags.length > 0 && (
-        <div className="px-4 pt-3 pb-4 flex flex-wrap gap-1.5">
+        <div className="px-4 pt-3 pb-4 flex flex-wrap gap-1.5" data-no-auto-contrast>
+
           {post.tags.map((tag, i) => {
             const palette = ['neon-pink', 'neon-purple', 'neon-cyan', 'neon-yellow'];
             const color = palette[i % palette.length];
