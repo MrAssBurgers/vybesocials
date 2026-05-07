@@ -12380,6 +12380,7 @@ export type Database = {
         }
         Returns: number
       }
+      email_queue_publish_diagnostic: { Args: never; Returns: Json }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
