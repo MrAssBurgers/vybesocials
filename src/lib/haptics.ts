@@ -15,28 +15,6 @@ function supportsVibration(): boolean {
   return typeof navigator !== 'undefined' && 'vibrate' in navigator;
 }
 
-const isDespia = typeof navigator !== 'undefined' &&
-  navigator.userAgent.toLowerCase().includes('despia');
-
-function nativeHaptic(style: HapticStyle): boolean {
-  if (!isDespia) return false;
-  try {
-    const map: Record<HapticStyle, string> = {
-      light: 'light',
-      medium: 'medium',
-      heavy: 'heavy',
-      success: 'success',
-      warning: 'warning',
-      error: 'error',
-    };
-    // Despia haptic scheme — silent no-op if shell doesn't handle it
-    (window as any).location.href = `haptic://impact?style=${map[style]}`;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 // Haptic patterns for different feedback styles
 const HAPTIC_PATTERNS: Record<HapticStyle, number | number[]> = {
   light: 10,
@@ -50,9 +28,8 @@ const HAPTIC_PATTERNS: Record<HapticStyle, number | number[]> = {
 // Trigger haptic feedback
 export function triggerHaptic(style: HapticStyle = 'light'): void {
   if (!isHapticsEnabled()) return;
-  // Native (Despia) shell first — gives real iOS/Android haptic feedback
-  nativeHaptic(style);
   if (!supportsVibration()) return;
+  
   try {
     navigator.vibrate(HAPTIC_PATTERNS[style]);
   } catch {

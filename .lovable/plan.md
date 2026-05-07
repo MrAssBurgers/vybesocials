@@ -1,107 +1,58 @@
-## 1. Stop the offline/online toast spam on app rejoin
+## 1. FAB "fall down" animation (Friend Link + VYBE Designer)
 
-**File:** `src/components/error/GlobalErrorHandler.tsx`
+**Problem:** Right now both FABs fade to opacity-0 while only translating `translate-y-28`. Because opacity drops in parallel with the slide, you see them dissolve mid-air instead of falling cleanly off-screen. They also don't always feel synchronized.
 
-When the Despia/Android WebView resumes, it fires `online`/`offline` events repeatedly, producing 100+ toasts.
+**Fix in `src/components/friends/AutoFriendDrop.tsx` and `src/components/ai/VYBECommandBar.tsx`:**
 
-Replace the simple `online`/`offline` listeners with a guarded version that:
+- Replace the hide state with a real "fall off-screen" transform:
+  - Hidden: `translate-y-[200%] opacity-100` (button stays fully opaque while falling, then is simply below the viewport — invisible to the user).
+  - Visible: `translate-y-0 opacity-100`.
+- Use an `ease-in` curve when hiding (gravity feel) and `ease-out` (spring-ish) when showing so they "fly back" upward into place.
+- Keep `pointer-events-none` + `invisible` only **after** the fall completes (apply via a short `setTimeout`/`transitionend`, or simply gate `pointer-events` on `controlVisible` while leaving `invisible` off so the transition still plays).
+- Use the same `duration-[280ms]` on both components so they drop in lockstep.
+- For `VYBECommandBar`, switch the framer-motion `animate` to drive `y` (e.g. `y: controlVisible ? 0 : 160`) with matching transition + same duration, removing the opacity drop.
 
-- Tracks `lastState` and only emits when state actually changes.
-- Debounces events for 1.5s (ignore flapping during reconnect).
-- Suppresses all network toasts for 4s after `visibilitychange → visible` (handles "rejoining the app" bursts).
-- Throttles to one toast per 8s.
-- Uses sonner's `id: 'net-status'` so any new toast replaces the old one (no stacking).
-- Drops the emoji from the title for a cleaner look.
+Result: both buttons fall straight down together, are completely gone while nav is hidden, and spring back up in unison when the nav returns.
 
-## 2. Native haptics inside the Despia shell
+## 2. DM header — shrink left pill so typing/presence has room
 
-**File:** `src/lib/haptics.ts`
+In `src/components/chat/ChatView.tsx` around line 1275–1363:
 
-`navigator.vibrate` is gated/disabled inside Despia's WebView, so taps feel dead. Add a Despia detection branch that also tries the native shell:
+- Remove `flex-1` from the left pill wrapper (line 1277). Change it to `max-w-[60%]` (or `w-fit`) and let the inner name/presence area still `truncate` inside its own width.
+- Set the outer `<header>` to `justify-between` (already is by default with the gap layout — confirm: change wrapper to `flex items-center justify-between`).
+- Add a small `mr-2` after the left pill so it visually ends a bit past the username, leaving breathing room for the `LivePresenceBar` typing animation to expand without being clipped by the frosted glass edge.
+- Keep the right pill `flex-shrink-0` so it stays anchored top-right.
 
-- Detect `navigator.userAgent.toLowerCase().includes('despia')` once.
-- For each haptic call, additionally invoke `window.location.href = 'haptic://impact?style=light|medium|heavy'` style scheme (Despia exposes `haptic://` taps; fall back gracefully if not handled).
-- Keep `navigator.vibrate` as the secondary path so PWA + browser still works.
-- Continue to respect the `vybe-haptics-enabled` localStorage flag.
+Result: left pill hugs avatar + name + presence text, frosted glass ends just past the username, leaving open canvas in the middle of the header.
 
-Implementation sketch:
-```ts
-const isDespia = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('despia');
-function nativeHaptic(style: HapticStyle) {
-  if (!isDespia) return false;
-  try {
-    // Despia haptic scheme (no-op if unsupported)
-    const map = { light: 'light', medium: 'medium', heavy: 'heavy', success: 'success', warning: 'warning', error: 'error' };
-    (window as any).location.href = `haptic://impact?style=${map[style]}`;
-    return true;
-  } catch { return false; }
-}
-```
-Call it in `triggerHaptic` before/alongside `navigator.vibrate`.
+## 3. Floating "liquid glass" composer (bottom bar)
 
-## 3. Calling UI cleanup (screenshot shows duplicated overlay)
+In `src/components/chat/ChatView.tsx` around line 1973:
 
-**File:** `src/components/call/GlobalCallOverlay.tsx`
+- Replace the current container styling:
+  ```
+  <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30 relative">
+  ```
+  with a transparent floating wrapper:
+  ```
+  <div className="flex-shrink-0 sticky bottom-0 z-30 bg-transparent px-2 sm:px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+  ```
+- Wrap the inner `px-2 py-2 ...` row (line 1983) in a single rounded "pill" container that mirrors the header style:
+  ```
+  rounded-3xl bg-background/40 backdrop-blur-2xl backdrop-saturate-150
+  border border-white/10 ring-1 ring-inset ring-white/[0.04]
+  shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)]
+  px-2.5 py-2
+  ```
+- Drop the hard `border-t` so the chat scroll content blurs through underneath the composer (matching the header's glass-over-content effect).
+- Keep Toybox / input / send buttons inside the pill exactly as today; only the chrome changes.
 
-The screenshot shows two overlapping cards: the floating "Xxsucks2BUxX · Ringing" pill at the top **and** the centered "Connecting to the other side…" card with avatar + progress bar layered on top of the main centered avatar (line 1213) and the header pill (line 1244). The result is three avatars stacked.
-
-Fix:
-
-- **Remove the standalone "Stage-aware Connecting overlay"** at lines 1303–1323 entirely. The header pill (line 1244) and the centered avatar/name block (lines 1213–1237) already convey "Ringing/Connecting" — the third overlay is redundant and is what's rendering as a floating glass card with its own avatar and progress bar.
-- Instead, surface `stageLabel` inline under the centered name when `!isConnected`:
-  - Replace the existing `isConnecting` / `isRingingOut` paragraphs (lines 1225–1230) with a single block that shows `stageLabel` plus a slim 1px progress bar (`stageProgress`) sitting under the avatar.
-- Keep the header pill and main avatar as-is. Now there's exactly one centered status card.
-- Verify `pointer-events-none` on the main backdrop so the "End" button stays tappable.
-
-## 4. Better video/clip thumbnail in chat
-
-**File:** `src/components/chat/VideoBubble.tsx`
-
-The Android WebView shows a white box with a play button because:
-- The `<video poster>` doesn't paint until metadata loads.
-- The first-frame canvas extraction fails with CORS on signed Supabase URLs (`v.crossOrigin = 'anonymous'` rejects when the URL doesn't return matching CORS headers, which our signed URLs sometimes don't).
-
-Fixes:
-
-- Try canvas extraction **without** `crossOrigin` first; if the canvas read throws (`SecurityError`), fall back to a generated gradient placeholder instead of a blank white frame.
-- Add a permanent dark gradient background to the bubble (`bg-gradient-to-br from-zinc-800 to-zinc-900`) so even when no poster is available, the bubble looks like a Clips tile, not a white card.
-- Show a small `Film` icon + caption preview behind the play button in the no-poster state so it reads as "video" rather than "broken image".
-- For new clips, ensure we persist `thumbnail_url` on `message_media` when the clip is sent (existing path) — leave the upload code unchanged, this is just confirming.
-
-## 5. Add Despia offline local push helper
-
-**New file:** `src/lib/despiaPush.ts`
-
-Wraps `sendlocalpushmsg://` for self-set reminders (timer-style notifications that fire even when the app is closed):
-
-```ts
-const isDespia = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('despia');
-
-export function scheduleOfflinePush(opts: {
-  delaySeconds: number;
-  title: string;
-  body: string;
-  url?: string; // deep link
-}) {
-  if (!isDespia) return false;
-  const t = encodeURIComponent(opts.title);
-  const b = encodeURIComponent(opts.body);
-  const u = encodeURIComponent(opts.url || window.location.origin);
-  try {
-    (window as any).location.href = `sendlocalpushmsg://push.send?s=${opts.delaySeconds}=msg!${b}&!#${t}&!#${u}`;
-    return true;
-  } catch { return false; }
-}
-```
-
-Use cases (wired up later as needed): unread DM reminders after N minutes, scheduled message confirmations, story expiry warnings. This commit just lands the helper so feature code can call it.
+Result: the bottom row (Toybox → text input → snap/record/send) sits inside one floating frosted-glass pill that mirrors the top header, with chat content visibly blurring beneath it as you scroll.
 
 ## Files touched
 
-- `src/components/error/GlobalErrorHandler.tsx` — debounced/visibility-aware net toasts
-- `src/lib/haptics.ts` — Despia native haptic scheme
-- `src/components/call/GlobalCallOverlay.tsx` — remove duplicate connecting overlay, inline stage label under name
-- `src/components/chat/VideoBubble.tsx` — robust thumbnail + dark gradient fallback
-- `src/lib/despiaPush.ts` — new offline push helper
+- `src/components/friends/AutoFriendDrop.tsx` — fall animation
+- `src/components/ai/VYBECommandBar.tsx` — fall animation (motion `y`)
+- `src/components/chat/ChatView.tsx` — left header pill width + composer glass pill
 
-No DB / RLS / edge function changes. No Despia rebuild required for any of these (Despia ships `haptic://` and `sendlocalpushmsg://` schemes by default).
+No DB / native / edge function changes — pure UI, no Despia rebuild required.
