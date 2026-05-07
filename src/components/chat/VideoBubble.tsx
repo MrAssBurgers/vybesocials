@@ -185,7 +185,14 @@ export const VideoBubble = memo(function VideoBubble({
       onDoubleClick={handleDoubleClick}
     >
       {/* Thumbnail / Video */}
-      <div className="relative w-full h-full bg-black/20">
+      <div className="relative w-full h-full bg-gradient-to-br from-zinc-800 via-zinc-900 to-black">
+        {/* Fallback "clip tile" look when no poster is available yet */}
+        {!posterSrc && !error && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,0.18),transparent_60%)]" />
+            <Film className="h-10 w-10 text-white/20" strokeWidth={1.5} />
+          </div>
+        )}
         {/* Thumbnail shown while not playing or loading */}
         {posterSrc && (!isLoaded || !isPlaying) && (
           <img
