@@ -15,7 +15,7 @@ export async function registerPasskey(deviceName?: string): Promise<void> {
   const { data: optsRes, error: optsErr } = await supabase.functions.invoke('auth-passkey-register-options', {});
   if (optsErr || !(optsRes as any)?.options) throw new Error('Could not start registration');
 
-  const credential = await startRegistration({ optionsJSON: (optsRes as any).options });
+  const credential = await startRegistration((optsRes as any).options);
 
   const { data: verifyRes, error: verifyErr } = await supabase.functions.invoke('auth-passkey-register-verify', {
     body: { credential, deviceName },
@@ -42,7 +42,7 @@ export async function signInWithPasskey(email: string): Promise<string | null> {
   if (optsErr) throw new Error('Could not start passkey sign-in');
   if (!(optsRes as any)?.ok) return null;
 
-  const credential = await startAuthentication({ optionsJSON: (optsRes as any).options });
+  const credential = await startAuthentication((optsRes as any).options);
 
   const { data: verifyRes, error: verifyErr } = await supabase.functions.invoke('auth-passkey-login-verify', {
     body: { challengeId: (optsRes as any).challengeId, credential },
