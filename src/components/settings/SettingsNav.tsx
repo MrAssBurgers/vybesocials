@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next';
 export type SettingsCategory = 
   | 'profile' 
   | 'privacy' 
+  | 'security'
   | 'connections' 
   | 'subscription'
   | 'appearance' 
@@ -45,6 +46,7 @@ interface SettingsNavProps {
 const baseCategories = [
   { id: 'profile' as const, labelKey: 'settingsNav.profile', icon: User, descKey: 'settingsNav.profileDesc' },
   { id: 'privacy' as const, labelKey: 'settingsNav.privacy', icon: Lock, descKey: 'settingsNav.privacyDesc' },
+  { id: 'security' as const, labelKey: 'Security & 2FA', icon: Shield, descKey: 'Two-factor, passkeys, devices' },
   { id: 'connections' as const, labelKey: 'settingsNav.connections', icon: Link2, descKey: 'settingsNav.connectionsDesc' },
   { id: 'subscription' as const, labelKey: 'settingsNav.subscription', icon: Crown, descKey: 'settingsNav.subscriptionDesc' },
   { id: 'appearance' as const, labelKey: 'settingsNav.appearance', icon: Palette, descKey: 'settingsNav.appearanceDesc' },

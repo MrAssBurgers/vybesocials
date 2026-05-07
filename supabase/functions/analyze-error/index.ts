@@ -1,9 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { validateAuth } from "../_shared/auth.ts";
+import { checkRateLimit } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+// Truncate + strip control chars / prompt-injection markers
+function sanitize(input: unknown, maxLen = 500): string {
+  if (typeof input !== "string") return "";
+  return input
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/```/g, "'''")
+    .slice(0, maxLen);
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -11,7 +22,33 @@ serve(async (req) => {
   }
 
   try {
-    const { error, componentStack, url, userAgent } = await req.json();
+    const auth = await validateAuth(req);
+    if (!auth.authenticated) {
+      return new Response(
+        JSON.stringify({
+          explanation: "Oops! Something went wrong. Try refreshing the page! 🔄",
+          canRetry: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { allowed: rateOk } = await checkRateLimit(`analyze_error:${auth.userId}`, 20, 60);
+    if (!rateOk) {
+      return new Response(
+        JSON.stringify({
+          explanation: "We're getting a lot of requests. Try again in a moment! ⏳",
+          canRetry: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const body = await req.json();
+    const error = sanitize(body?.error, 500);
+    const componentStack = sanitize(body?.componentStack, 800);
+    const url = sanitize(body?.url, 200);
+    const userAgent = sanitize(body?.userAgent, 200);
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {

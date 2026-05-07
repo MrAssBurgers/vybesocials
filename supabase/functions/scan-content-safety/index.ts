@@ -9,6 +9,8 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { validateAuth } from "../_shared/auth.ts";
+import { checkRateLimit } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,6 +36,22 @@ serve(async (req) => {
   }
 
   try {
+    const auth = await validateAuth(req);
+    if (!auth.authenticated) {
+      return new Response(
+        JSON.stringify({ error: auth.error || "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { allowed: rateOk } = await checkRateLimit(`scan_content:${auth.userId}`, 30, 60);
+    if (!rateOk) {
+      return new Response(
+        JSON.stringify({ error: "Too many scan requests. Please wait." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       console.log("LOVABLE_API_KEY not configured");

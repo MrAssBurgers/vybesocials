@@ -340,6 +340,15 @@ serve(async (req) => {
   }
 
   try {
+    const auth = await validateAuth(req);
+    if (!auth.authenticated) {
+      return new Response(JSON.stringify({ error: auth.error }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const limited = await rateLimitOrNull(`gen-theme:${auth.userId}`, 10, 60, corsHeaders);
+    if (limited) return limited;
+
     const { prompt, basePreset = "classic" } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     

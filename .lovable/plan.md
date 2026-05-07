@@ -1,69 +1,41 @@
-## 1. Floating frosted-glass DM header (no bar)
+New hypothesis: the previous fix deleted only the later email/queue migrations, but two earlier May 7 email helper migrations and several unapplied May 7 schema migrations still remain in the repo; Live is still behind at May 6, so publish keeps trying to replay a fragile migration chain that references optional `pgmq` helpers and objects not safely applied to Live.
 
-In `src/components/chat/ChatView.tsx` around line 1274, replace the entire `<header>` element. Remove the full-width black bar (no `border-b`, no opaque background) and split the contents into **two independent floating pills** that look like they're hovering over the chat content:
+Evidence found in read-only investigation:
+- Production migration history still stops at `20260506151609`; none of the local `20260507...` migration files are recorded on Live.
+- Test has May 7 migration versions recorded, including deleted versions (`20260507143502` through `20260507144418`), which proves Test and repo migration history are diverged.
+- The repo still contains `20260507140737...` and `20260507141517...`, both defining email queue helpers with static `pgmq.*` references.
+- Production still has the old unsafe email helpers: `read_email_batch` still calls `pgmq.create(queue_name)` from a read path, and helper functions do not have hardened `search_path` settings.
+- The currently published site is already public, and `package.json` only runs `vite build`, so this is not a visibility or post-build env-var issue.
+- Recent database logs do not show active frontend/runtime errors, which points back to publish-time migration drift.
 
-- **Left pill**: back arrow + avatar + name/presence
-- **Right pill**: phone, FaceTime, chat-settings (3-dot)
+Plan after approval:
 
-Both pills:
-- `bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10` for the Instagram-style live blur of whatever is behind them
-- `rounded-full` with soft shadow + inset white ring for premium glass depth
-- Header wrapper: `bg-transparent`, `pt-3 sm:pt-4 pb-2`, `sticky top-0 z-20` so they sit lower (no cutoff on small Androids) and the chat content scrolls *behind* them with the live blur showing through.
-- Compact icon size (`h-8 w-8`) so nothing overflows.
+1. Remove the remaining publish-blocking migration drift
+   - Delete the two remaining May 7 email queue helper migrations:
+     - `supabase/migrations/20260507140737_21d94856-1b09-44f4-a75c-fa36b569bc52.sql`
+     - `supabase/migrations/20260507141517_e9ee9c25-78d7-4d11-83cc-cf4040d81645.sql`
+   - Review the other local `20260507...` migration files and either keep only the ones that are safe/idempotent for Live or consolidate them so Live does not have to replay duplicate/fragile partial fixes.
 
-## 2. Truly hide Friend Link + AI Designer with bottom nav
+2. Restore email infrastructure using the supported platform tool
+   - Run the Lovable Cloud email infrastructure setup tool instead of hand-written queue migrations.
+   - This should create/repair the queue tables, RPC wrappers, send logs, suppression/unsubscribe support, worker function, and cron wiring through the supported path.
+   - Keep the existing Edge Function source files unless the setup/verification shows a concrete mismatch.
 
-`src/components/friends/AutoFriendDrop.tsx` line ~343: the current hidden state is `translate-y-28 pointer-events-none` — the button is still visible (just shifted off the safe area). Change to fully hide:
-```tsx
-className={cn(
-  "transition-all duration-300",
-  controlVisible
-    ? "opacity-100 translate-y-0 pointer-events-auto"
-    : "opacity-0 translate-y-28 pointer-events-none invisible"
-)}
-```
+3. Add one safe follow-up migration only if needed
+   - If the supported setup leaves the old unsafe helper body on Live, add a single idempotent migration that only hardens public RPC wrappers.
+   - It will use `SECURITY DEFINER` with `SET search_path = public` and dynamic `EXECUTE` for optional `pgmq` calls so function creation does not fail if optional queue infrastructure is absent.
+   - It will guard `GRANT`/`REVOKE` statements so missing roles cannot break publish.
+   - It will ensure read helpers return an empty result in read-only transactions instead of trying to create queues.
 
-`src/components/ai/VYBECommandBar.tsx` line ~187: current `animate={{ y: controlVisible ? 0 : 112 }}` keeps opacity at 1. Change to:
-```tsx
-animate={{
-  scale: 1,
-  opacity: controlVisible ? 1 : 0,
-  y: controlVisible ? 0 : 112,
-  pointerEvents: controlVisible ? 'auto' : 'none',
-}}
-```
-plus add `style={{ visibility: controlVisible ? 'visible' : 'hidden' }}` on the outer wrapper after the exit transition so it doesn't catch taps.
+4. Keep SEO/frontend changes intact
+   - Leave `/local`, `/local/:city`, JSON-LD, OG image tags, footer internal links, and sitemap entries in place.
+   - Do not edit generated backend client/types files.
+   - Only touch frontend code if the latest publish/build diagnostics expose a specific Vite/Rollup syntax or dependency error.
 
-## 3. Clip thumbnails not loading in chat
+5. Verify the fix
+   - Query Test and Live migration history again to confirm the repo no longer contains a publish-blocking unapplied email migration chain.
+   - Verify Live email helper functions are safe: no lazy queue creation from `read_email_batch`, hardened search paths, and backend-only execute grants where appropriate.
+   - Re-check publish visibility remains public.
+   - Confirm `/local` still renders in preview and that the SEO files/routes remain wired.
 
-Investigate `src/components/chat/MessageBubble.tsx` (or the message renderer) where video messages render. The bug is almost certainly that on the native build the `<video>` element relies on `preload="metadata"` to generate a poster, which Android WebView often blocks for cross-origin signed URLs. Fix:
-- Generate a `poster` URL from the existing video processor (`useVideoProcessor` already produces a thumbnail blob on upload — store it as `thumbnail_url` on the message media).
-- For legacy clips without a stored poster, fall back to a `<canvas>` first-frame extraction in the bubble (request `crossOrigin="anonymous"` + `seekTo(0.1)` + `drawImage`) and cache the data URL via `signedUrlCache`.
-- Set `<video preload="auto" playsInline muted poster={thumbnailUrl}>` so Android shows the first frame even when autoplay is blocked.
-
-## 4. NFC Friend Drop — both phones broadcast + tap triggers add animation
-
-In `src/hooks/useNativeFriendDrop.ts` and `native/android/FriendDropPlugin.kt` / `native/ios/FriendDropPlugin.swift`:
-
-- Both phones must enter **HCE (Host Card Emulation) reader+writer mode simultaneously**. Today the initiator broadcasts and the responder reads — change both to call `startSession()` which:
-  1. Registers an HCE service that emits the user's `friend_drop_token` (signed short-lived JWT from `friend-drop-token` edge function).
-  2. Simultaneously polls for incoming NDEF messages.
-- On `onTagDiscovered`, immediately:
-  1. Fire haptic `impactHeavy` + emit `nfc-detected` event consumed by `AutoFriendDrop`.
-  2. Set phase to `connecting` so the existing add-user animation (the radial pulse + avatar morph) plays the moment phones touch.
-  3. Call `friendDropSync.acceptPeer(token)` to commit the friendship in Supabase.
-- Update `AutoFriendDrop.tsx`: subscribe to `nativeFriendDrop.onPeerDetected` and call `setPhase('connecting')` → `setPhase('success')` so the add animation runs end-to-end on tap, even before the server round-trip completes (optimistic UI).
-
-## Technical summary
-
-| File | Change |
-|---|---|
-| `src/components/chat/ChatView.tsx` | Replace bar header with two floating frosted-glass pills, remove border, add live backdrop-blur |
-| `src/components/friends/AutoFriendDrop.tsx` | Add `opacity-0 invisible` on hidden state; subscribe to NFC tag detection to start add animation |
-| `src/components/ai/VYBECommandBar.tsx` | Animate opacity to 0 + visibility hidden when nav hides |
-| `src/hooks/useNativeFriendDrop.ts` | Expose `onPeerDetected` event, enable simultaneous HCE broadcast+read |
-| `native/android/FriendDropPlugin.kt` | Start HCE service + reader mode in parallel inside `startSession()` |
-| `native/ios/FriendDropPlugin.swift` | Same — Core NFC reader + CoreBluetooth advertising in parallel |
-| Chat message bubble (video) | Persist `thumbnail_url` on message_media; use as `<video poster>`; fallback canvas-extract for legacy clips |
-
-After approval, you'll need to **rebuild in Despia** for the NFC and video poster changes to ship to the Play Store build.
+This will focus the fix on the actual remaining publish blocker: backend migration drift and unsupported email queue setup, without rolling back the SEO work.
