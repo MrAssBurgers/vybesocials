@@ -543,7 +543,18 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 🔑 Sign in with passkey
               </Button>
             )}
-          </form>
+
+            {isLogin && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                disabled={loading}
+                onClick={() => navigate('/auth/qr')}
+              >
+                📷 Sign in with QR code
+              </Button>
+            )}
 
           <div className="relative my-3">
             <div className="absolute inset-0 flex items-center">
