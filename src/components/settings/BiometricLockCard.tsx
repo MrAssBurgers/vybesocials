@@ -36,9 +36,9 @@ export function BiometricLockCard() {
         setBioAuthPref(next);
         setEnabled(next);
         toast.success(next ? 'Biometric lock enabled' : 'Biometric lock disabled');
-      } else if (r.reason === 'unavailable') {
+      } else if (!r.ok && r.reason === 'unavailable') {
         toast.error('No Face ID / Touch ID set up on this device.');
-      } else if (r.reason !== 'not-despia') {
+      } else if (!r.ok && r.reason !== 'not-despia') {
         toast.error('Biometric verification failed.');
       }
     } finally {
@@ -55,7 +55,7 @@ export function BiometricLockCard() {
     const r = await requestBioAuth();
     setBusy(false);
     if (r.ok) toast.success('Verified ✓');
-    else if (r.reason === 'unavailable') toast.error('No biometrics enrolled.');
+    else if (!r.ok && r.reason === 'unavailable') toast.error('No biometrics enrolled.');
     else toast.error('Verification cancelled.');
   };
 
