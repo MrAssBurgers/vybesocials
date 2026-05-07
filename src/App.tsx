@@ -58,6 +58,7 @@ const CookieConsentBanner = lazy(() => import("@/components/legal/CookieConsentB
 
 // Lazy-load deferred hooks via a wrapper component
 const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"));
+const LoginApprovalSheet = lazy(() => import("@/components/auth/LoginApprovalSheet").then(m => ({ default: m.LoginApprovalSheet })));
 
 // Initialize stored fonts, custom animations, and validate env on app load
 import { runEnvSanityCheck } from '@/lib/envCheck';
