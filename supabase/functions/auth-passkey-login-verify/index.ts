@@ -4,7 +4,7 @@
 import {
   corsHeaders, jsonResponse, getServiceClient,
 } from '../_shared/security.ts';
-import { verifyAuthenticationResponse } from 'npm:@simplewebauthn/server@10.0.1';
+import { verifyAuthenticationResponse } from 'https://esm.sh/@simplewebauthn/server@10.0.1?target=deno';
 
 function rpId(req: Request): string {
   const origin = req.headers.get('origin') || '';

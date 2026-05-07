@@ -3,7 +3,7 @@
 import {
   corsHeaders, jsonResponse, getServiceClient, getUserFromAuthHeader,
 } from '../_shared/security.ts';
-import { generateRegistrationOptions } from 'npm:@simplewebauthn/server@10.0.1';
+import { generateRegistrationOptions } from 'https://esm.sh/@simplewebauthn/server@10.0.1?target=deno';
 
 const RP_NAME = 'VYBE';
 
