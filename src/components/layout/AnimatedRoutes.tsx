@@ -104,6 +104,8 @@ const ConnectDashboard = lazy(() => import("@/pages/ConnectDashboard"));
 const ConnectStorefront = lazy(() => import("@/pages/ConnectStorefront"));
 const ConnectSuccess = lazy(() => import("@/pages/ConnectSuccess"));
 const Filters = lazy(() => import("@/pages/Filters"));
+const LocalIndex = lazy(() => import("@/pages/LocalIndex"));
+const LocalCity = lazy(() => import("@/pages/LocalCity"));
 
 // Debug panels — lazy load both
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
@@ -170,6 +172,8 @@ export function AnimatedRoutes() {
             <Route path="/guidelines" element={<CommunityGuidelines />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/local" element={<LocalIndex />} />
+            <Route path="/local/:city" element={<LocalCity />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
