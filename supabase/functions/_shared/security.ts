@@ -103,7 +103,9 @@ export function generateNonce(): string {
   return Array.from(b).map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
-// Best-effort enqueue email via send-transactional-email
+// Best-effort enqueue email via send-transactional-email.
+// Uses the supabase-js client so the request is authenticated correctly
+// regardless of whether the project key is a JWT or the new sb_secret_ format.
 export async function sendTransactional(
   templateName: string,
   recipientEmail: string,
@@ -111,16 +113,15 @@ export async function sendTransactional(
   idempotencyKey: string,
 ) {
   try {
-    const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-transactional-email`;
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-      },
-      body: JSON.stringify({ templateName, recipientEmail, templateData, idempotencyKey }),
+    const admin = getServiceClient();
+    const { data, error } = await admin.functions.invoke('send-transactional-email', {
+      body: { templateName, recipientEmail, templateData, idempotencyKey },
     });
-    if (!r.ok) console.warn('sendTransactional non-OK', templateName, r.status, await r.text().catch(() => ''));
+    if (error) {
+      console.warn('sendTransactional invoke error', templateName, error?.message || error);
+    } else if ((data as any)?.error) {
+      console.warn('sendTransactional response error', templateName, (data as any).error);
+    }
   } catch (e) {
     console.warn('sendTransactional failed', templateName, e);
   }
