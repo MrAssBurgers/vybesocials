@@ -1,6 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { validateAuth } from "../_shared/auth.ts";
-import { rateLimitOrNull } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,15 +72,6 @@ serve(async (req) => {
   }
 
   try {
-    const auth = await validateAuth(req);
-    if (!auth.authenticated) {
-      return new Response(JSON.stringify({ error: auth.error }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const limited = await rateLimitOrNull(`ai-adaptive:${auth.userId}`, 30, 60, corsHeaders);
-    if (limited) return limited;
-
     const { messages, userProfile, action, context } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     

@@ -29,39 +29,8 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
     const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
-
-    // ── Authentication ─────────────────────────────────────────────────────
-    // Allow either:
-    //  (a) service-role server-to-server calls from other edge functions, OR
-    //  (b) authenticated user calls where the requested userId matches the
-    //      caller's profile.id (so users can only push to themselves).
-    const authHeader = req.headers.get("Authorization") || "";
-    const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    const isServiceRole = !!bearer && bearer === supabaseServiceKey;
-
-    let callerAuthUserId: string | null = null;
-    if (!isServiceRole) {
-      if (!bearer) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Unauthorized" }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: `Bearer ${bearer}` } },
-      });
-      const { data: userData, error: authErr } = await userClient.auth.getUser(bearer);
-      if (authErr || !userData?.user) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Unauthorized" }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      callerAuthUserId = userData.user.id;
-    }
 
     // VAPID keys are required for Web Push
     if (!vapidPublicKey || !vapidPrivateKey) {
@@ -86,22 +55,6 @@ Deno.serve(async (req) => {
         JSON.stringify({ success: false, error: "userId is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    }
-
-    // Rate limit non-service callers to prevent push spam / phishing abuse.
-    // (Authentication is required and enforced above.)
-    if (!isServiceRole && callerAuthUserId) {
-      const { data: rlOk } = await supabase.rpc("check_rate_limit", {
-        p_key: `push_send:${callerAuthUserId}`,
-        p_max_requests: 60,
-        p_window_seconds: 60,
-      });
-      if (rlOk === false) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Too many push requests. Please wait." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
     }
 
     // ── OneSignal fan-out (covers Despia APK + iOS native shells) ─────────────

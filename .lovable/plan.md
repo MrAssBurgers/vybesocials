@@ -1,41 +1,107 @@
-New hypothesis: the previous fix deleted only the later email/queue migrations, but two earlier May 7 email helper migrations and several unapplied May 7 schema migrations still remain in the repo; Live is still behind at May 6, so publish keeps trying to replay a fragile migration chain that references optional `pgmq` helpers and objects not safely applied to Live.
+## 1. Stop the offline/online toast spam on app rejoin
 
-Evidence found in read-only investigation:
-- Production migration history still stops at `20260506151609`; none of the local `20260507...` migration files are recorded on Live.
-- Test has May 7 migration versions recorded, including deleted versions (`20260507143502` through `20260507144418`), which proves Test and repo migration history are diverged.
-- The repo still contains `20260507140737...` and `20260507141517...`, both defining email queue helpers with static `pgmq.*` references.
-- Production still has the old unsafe email helpers: `read_email_batch` still calls `pgmq.create(queue_name)` from a read path, and helper functions do not have hardened `search_path` settings.
-- The currently published site is already public, and `package.json` only runs `vite build`, so this is not a visibility or post-build env-var issue.
-- Recent database logs do not show active frontend/runtime errors, which points back to publish-time migration drift.
+**File:** `src/components/error/GlobalErrorHandler.tsx`
 
-Plan after approval:
+When the Despia/Android WebView resumes, it fires `online`/`offline` events repeatedly, producing 100+ toasts.
 
-1. Remove the remaining publish-blocking migration drift
-   - Delete the two remaining May 7 email queue helper migrations:
-     - `supabase/migrations/20260507140737_21d94856-1b09-44f4-a75c-fa36b569bc52.sql`
-     - `supabase/migrations/20260507141517_e9ee9c25-78d7-4d11-83cc-cf4040d81645.sql`
-   - Review the other local `20260507...` migration files and either keep only the ones that are safe/idempotent for Live or consolidate them so Live does not have to replay duplicate/fragile partial fixes.
+Replace the simple `online`/`offline` listeners with a guarded version that:
 
-2. Restore email infrastructure using the supported platform tool
-   - Run the Lovable Cloud email infrastructure setup tool instead of hand-written queue migrations.
-   - This should create/repair the queue tables, RPC wrappers, send logs, suppression/unsubscribe support, worker function, and cron wiring through the supported path.
-   - Keep the existing Edge Function source files unless the setup/verification shows a concrete mismatch.
+- Tracks `lastState` and only emits when state actually changes.
+- Debounces events for 1.5s (ignore flapping during reconnect).
+- Suppresses all network toasts for 4s after `visibilitychange → visible` (handles "rejoining the app" bursts).
+- Throttles to one toast per 8s.
+- Uses sonner's `id: 'net-status'` so any new toast replaces the old one (no stacking).
+- Drops the emoji from the title for a cleaner look.
 
-3. Add one safe follow-up migration only if needed
-   - If the supported setup leaves the old unsafe helper body on Live, add a single idempotent migration that only hardens public RPC wrappers.
-   - It will use `SECURITY DEFINER` with `SET search_path = public` and dynamic `EXECUTE` for optional `pgmq` calls so function creation does not fail if optional queue infrastructure is absent.
-   - It will guard `GRANT`/`REVOKE` statements so missing roles cannot break publish.
-   - It will ensure read helpers return an empty result in read-only transactions instead of trying to create queues.
+## 2. Native haptics inside the Despia shell
 
-4. Keep SEO/frontend changes intact
-   - Leave `/local`, `/local/:city`, JSON-LD, OG image tags, footer internal links, and sitemap entries in place.
-   - Do not edit generated backend client/types files.
-   - Only touch frontend code if the latest publish/build diagnostics expose a specific Vite/Rollup syntax or dependency error.
+**File:** `src/lib/haptics.ts`
 
-5. Verify the fix
-   - Query Test and Live migration history again to confirm the repo no longer contains a publish-blocking unapplied email migration chain.
-   - Verify Live email helper functions are safe: no lazy queue creation from `read_email_batch`, hardened search paths, and backend-only execute grants where appropriate.
-   - Re-check publish visibility remains public.
-   - Confirm `/local` still renders in preview and that the SEO files/routes remain wired.
+`navigator.vibrate` is gated/disabled inside Despia's WebView, so taps feel dead. Add a Despia detection branch that also tries the native shell:
 
-This will focus the fix on the actual remaining publish blocker: backend migration drift and unsupported email queue setup, without rolling back the SEO work.
+- Detect `navigator.userAgent.toLowerCase().includes('despia')` once.
+- For each haptic call, additionally invoke `window.location.href = 'haptic://impact?style=light|medium|heavy'` style scheme (Despia exposes `haptic://` taps; fall back gracefully if not handled).
+- Keep `navigator.vibrate` as the secondary path so PWA + browser still works.
+- Continue to respect the `vybe-haptics-enabled` localStorage flag.
+
+Implementation sketch:
+```ts
+const isDespia = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('despia');
+function nativeHaptic(style: HapticStyle) {
+  if (!isDespia) return false;
+  try {
+    // Despia haptic scheme (no-op if unsupported)
+    const map = { light: 'light', medium: 'medium', heavy: 'heavy', success: 'success', warning: 'warning', error: 'error' };
+    (window as any).location.href = `haptic://impact?style=${map[style]}`;
+    return true;
+  } catch { return false; }
+}
+```
+Call it in `triggerHaptic` before/alongside `navigator.vibrate`.
+
+## 3. Calling UI cleanup (screenshot shows duplicated overlay)
+
+**File:** `src/components/call/GlobalCallOverlay.tsx`
+
+The screenshot shows two overlapping cards: the floating "Xxsucks2BUxX · Ringing" pill at the top **and** the centered "Connecting to the other side…" card with avatar + progress bar layered on top of the main centered avatar (line 1213) and the header pill (line 1244). The result is three avatars stacked.
+
+Fix:
+
+- **Remove the standalone "Stage-aware Connecting overlay"** at lines 1303–1323 entirely. The header pill (line 1244) and the centered avatar/name block (lines 1213–1237) already convey "Ringing/Connecting" — the third overlay is redundant and is what's rendering as a floating glass card with its own avatar and progress bar.
+- Instead, surface `stageLabel` inline under the centered name when `!isConnected`:
+  - Replace the existing `isConnecting` / `isRingingOut` paragraphs (lines 1225–1230) with a single block that shows `stageLabel` plus a slim 1px progress bar (`stageProgress`) sitting under the avatar.
+- Keep the header pill and main avatar as-is. Now there's exactly one centered status card.
+- Verify `pointer-events-none` on the main backdrop so the "End" button stays tappable.
+
+## 4. Better video/clip thumbnail in chat
+
+**File:** `src/components/chat/VideoBubble.tsx`
+
+The Android WebView shows a white box with a play button because:
+- The `<video poster>` doesn't paint until metadata loads.
+- The first-frame canvas extraction fails with CORS on signed Supabase URLs (`v.crossOrigin = 'anonymous'` rejects when the URL doesn't return matching CORS headers, which our signed URLs sometimes don't).
+
+Fixes:
+
+- Try canvas extraction **without** `crossOrigin` first; if the canvas read throws (`SecurityError`), fall back to a generated gradient placeholder instead of a blank white frame.
+- Add a permanent dark gradient background to the bubble (`bg-gradient-to-br from-zinc-800 to-zinc-900`) so even when no poster is available, the bubble looks like a Clips tile, not a white card.
+- Show a small `Film` icon + caption preview behind the play button in the no-poster state so it reads as "video" rather than "broken image".
+- For new clips, ensure we persist `thumbnail_url` on `message_media` when the clip is sent (existing path) — leave the upload code unchanged, this is just confirming.
+
+## 5. Add Despia offline local push helper
+
+**New file:** `src/lib/despiaPush.ts`
+
+Wraps `sendlocalpushmsg://` for self-set reminders (timer-style notifications that fire even when the app is closed):
+
+```ts
+const isDespia = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('despia');
+
+export function scheduleOfflinePush(opts: {
+  delaySeconds: number;
+  title: string;
+  body: string;
+  url?: string; // deep link
+}) {
+  if (!isDespia) return false;
+  const t = encodeURIComponent(opts.title);
+  const b = encodeURIComponent(opts.body);
+  const u = encodeURIComponent(opts.url || window.location.origin);
+  try {
+    (window as any).location.href = `sendlocalpushmsg://push.send?s=${opts.delaySeconds}=msg!${b}&!#${t}&!#${u}`;
+    return true;
+  } catch { return false; }
+}
+```
+
+Use cases (wired up later as needed): unread DM reminders after N minutes, scheduled message confirmations, story expiry warnings. This commit just lands the helper so feature code can call it.
+
+## Files touched
+
+- `src/components/error/GlobalErrorHandler.tsx` — debounced/visibility-aware net toasts
+- `src/lib/haptics.ts` — Despia native haptic scheme
+- `src/components/call/GlobalCallOverlay.tsx` — remove duplicate connecting overlay, inline stage label under name
+- `src/components/chat/VideoBubble.tsx` — robust thumbnail + dark gradient fallback
+- `src/lib/despiaPush.ts` — new offline push helper
+
+No DB / RLS / edge function changes. No Despia rebuild required for any of these (Despia ships `haptic://` and `sendlocalpushmsg://` schemes by default).

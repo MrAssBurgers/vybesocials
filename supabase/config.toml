@@ -21,22 +21,6 @@ project_id = "agtcyxjxgkdyoxwxkjth"
     verify_jwt = false
   [functions.auth-email-hook]
     verify_jwt = false
-  [functions.auth-2fa-request]
-    verify_jwt = false
-  [functions.auth-2fa-verify]
-    verify_jwt = false
-  [functions.auth-login-approval]
-    verify_jwt = false
-  [functions.auth-login-notify]
-    verify_jwt = false
-  [functions.auth-passkey-login-options]
-    verify_jwt = false
-  [functions.auth-passkey-login-verify]
-    verify_jwt = false
-  [functions.auth-passkey-register-options]
-    verify_jwt = false
-  [functions.auth-passkey-register-verify]
-    verify_jwt = false
   [functions.calculate-earnings]
     verify_jwt = false
   [functions.check-creator-connect]

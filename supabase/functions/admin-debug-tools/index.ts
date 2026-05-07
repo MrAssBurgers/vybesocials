@@ -74,18 +74,6 @@ serve(async (req) => {
     }
 
     if (action === "preview_table") {
-      const ALLOWED_TABLES = new Set([
-        "profiles", "posts", "comments", "likes", "follows",
-        "conversations", "messages", "notifications", "reports",
-        "user_roles", "badges", "user_badges", "challenges",
-        "business_profiles", "business_products", "business_orders",
-        "events", "communities", "channels", "analytics_events",
-      ]);
-      if (!ALLOWED_TABLES.has(table_name)) {
-        return new Response(JSON.stringify({ error: "Table not allowed" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       const safeLimit = Math.min(queryLimit || 20, 50);
       const { data, error, count } = await supabaseClient
         .from(table_name)

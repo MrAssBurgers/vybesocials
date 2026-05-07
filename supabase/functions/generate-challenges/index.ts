@@ -15,49 +15,11 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    // Auth: only allow service-role caller (cron) or admin/owner JWT
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const authHeader = req.headers.get("Authorization") || "";
-    const token = authHeader.replace(/^Bearer\s+/i, "");
-    const isInternal = token && token === supabaseServiceKey;
-
-    if (!isInternal) {
-      // Validate JWT and check admin/owner role
-      const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-        global: { headers: { Authorization: authHeader } },
-      });
-      const { data: userData, error: userErr } = await userClient.auth.getUser(token);
-      if (userErr || !userData?.user) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const adminClient = createClient(supabaseUrl, supabaseServiceKey);
-      const { data: rolesAuth } = await adminClient
-        .from("user_roles_auth")
-        .select("role")
-        .eq("user_id", userData.user.id);
-      let isAdmin = rolesAuth?.some((r: any) => r.role === "admin" || r.role === "owner");
-      if (!isAdmin) {
-        const { data: profile } = await adminClient
-          .from("profiles").select("id").eq("user_id", userData.user.id).maybeSingle();
-        if (profile) {
-          const { data: roles } = await adminClient
-            .from("user_roles").select("role").eq("user_id", profile.id);
-          isAdmin = roles?.some((r: any) => r.role === "admin" || r.role === "owner");
-        }
-      }
-      if (!isAdmin) {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
-
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get today's date and week start for setting active_date/active_week_start

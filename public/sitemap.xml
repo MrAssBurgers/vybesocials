@@ -12,19 +12,6 @@
   <url><loc>https://vybehub.app/contact</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://vybehub.app/guidelines</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://vybehub.app/child-safety</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://vybehub.app/local</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://vybehub.app/local/new-york</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://vybehub.app/local/los-angeles</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://vybehub.app/local/london</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://vybehub.app/local/tokyo</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://vybehub.app/local/paris</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://vybehub.app/local/berlin</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://vybehub.app/local/sydney</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://vybehub.app/local/toronto</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://vybehub.app/local/mumbai</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://vybehub.app/local/sao-paulo</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://vybehub.app/local/dubai</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://vybehub.app/local/mexico-city</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://vybehub.app/privacy</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
   <url><loc>https://vybehub.app/terms</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
   <url><loc>https://vybehub.app/cookies</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>

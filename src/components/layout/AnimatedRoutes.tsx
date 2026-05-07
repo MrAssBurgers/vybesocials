@@ -14,7 +14,6 @@ import { useAutoBugReporter } from '@/hooks/useAutoBugReporter';
 
 // Lazy-load all pages to reduce unused JavaScript in the initial bundle
 const Landing = lazy(() => import("@/pages/Landing"));
-const QRSignIn = lazy(() => import("@/pages/QRSignIn"));
 const VybeHome = lazy(() => import("@/pages/VybeHome"));
 const DevMockupCompare = lazy(() => import("@/pages/DevMockupCompare"));
 const RootGate = lazy(() => import("@/components/auth/RootGate"));
@@ -104,8 +103,6 @@ const ConnectDashboard = lazy(() => import("@/pages/ConnectDashboard"));
 const ConnectStorefront = lazy(() => import("@/pages/ConnectStorefront"));
 const ConnectSuccess = lazy(() => import("@/pages/ConnectSuccess"));
 const Filters = lazy(() => import("@/pages/Filters"));
-const LocalIndex = lazy(() => import("@/pages/LocalIndex"));
-const LocalCity = lazy(() => import("@/pages/LocalCity"));
 
 // Debug panels — lazy load both
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
@@ -157,7 +154,6 @@ export function AnimatedRoutes() {
             <Route path="/signup" element={<Landing />} />
             <Route path="/sign-up" element={<Landing />} />
             <Route path="/auth" element={<Landing />} />
-            <Route path="/auth/qr" element={<QRSignIn />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/cookies" element={<CookiePolicy />} />
@@ -172,8 +168,6 @@ export function AnimatedRoutes() {
             <Route path="/guidelines" element={<CommunityGuidelines />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
-            <Route path="/local" element={<LocalIndex />} />
-            <Route path="/local/:city" element={<LocalCity />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/auth/callback" element={<AuthCallback />} />

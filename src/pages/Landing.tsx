@@ -19,8 +19,6 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
-import { LoginGateModal } from '@/components/auth/LoginGateModal';
-import { passkeysSupported, signInWithPasskey } from '@/lib/passkeys';
 import { FounderCounter } from '@/components/growth/FounderCounter';
 
 
@@ -77,7 +75,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [loginGate, setLoginGate] = useState<null | { mode: 'code' | 'approval'; email: string; challengeId: string }>(null);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -207,29 +204,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         // Always persist sessions so users stay signed in reliably
         sessionStorage.removeItem('vybe-session-only');
 
-        // Email 2FA gate (only blocks if user has it enabled)
-        try {
-          const { data: twoFa } = await supabase.functions.invoke('auth-2fa-request', {
-            body: { email: formData.email },
-          });
-          if ((twoFa as any)?.requires2fa && (twoFa as any)?.challengeId) {
-            setLoginGate({ mode: 'code', email: formData.email, challengeId: (twoFa as any).challengeId });
-            return;
-          }
-        } catch (e) { console.warn('2fa check failed', e); }
-
-        // Login approval gate (only blocks if user has it enabled)
-        try {
-          const { data: appr } = await supabase.functions.invoke('auth-login-approval', {
-            body: { action: 'request', email: formData.email },
-          });
-          if ((appr as any)?.requiresApproval && (appr as any)?.challengeId) {
-            setLoginGate({ mode: 'approval', email: formData.email, challengeId: (appr as any).challengeId });
-            return;
-          }
-        } catch (e) { console.warn('approval check failed', e); }
-
         toast.success('Welcome back! ✨');
+
+        // Navigate immediately — the route gate / authProfile effect above will
+        // bounce to /onboarding if the profile is incomplete. No extra round trip.
         navTo('home', '/home');
       } else {
         if (!formData.username.trim()) {
@@ -519,44 +497,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 isLogin ? t('auth.login') : t('auth.signup')
               )}
             </Button>
-
-            {isLogin && passkeysSupported() && (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                disabled={loading}
-                onClick={async () => {
-                  setLoading(true);
-                  try {
-                    // Discord-style: no email required. Browser shows the
-                    // native passkey picker for any account on this device.
-                    const link = await signInWithPasskey(formData.email || undefined);
-                    if (!link) { toast.info('No passkey found for this device'); return; }
-                    window.location.href = link;
-                  } catch (e: any) {
-                    if (e?.name !== 'NotAllowedError' && e?.name !== 'AbortError') {
-                      toast.error('Passkey sign-in failed');
-                    }
-                  } finally { setLoading(false); }
-                }}
-              >
-                🔑 Sign in with passkey
-              </Button>
-            )}
-
-            {isLogin && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                disabled={loading}
-                onClick={() => navigate('/auth/qr')}
-              >
-                📷 Sign in with QR code
-              </Button>
-            )}
           </form>
+
           <div className="relative my-3">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-border" />
@@ -699,25 +641,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         open={showForgotPassword} 
         onClose={() => setShowForgotPassword(false)} 
       />
-
-      {loginGate && (
-        <LoginGateModal
-          open
-          mode={loginGate.mode}
-          email={loginGate.email}
-          challengeId={loginGate.challengeId}
-          onSuccess={() => {
-            setLoginGate(null);
-            toast.success('Welcome back! ✨');
-            if (isInviteMode && onInviteNavigate) onInviteNavigate('home');
-            else navigate('/home');
-          }}
-          onCancel={async () => {
-            setLoginGate(null);
-            try { await supabase.auth.signOut(); } catch {}
-          }}
-        />
-      )}
     </div>
   );
 }
