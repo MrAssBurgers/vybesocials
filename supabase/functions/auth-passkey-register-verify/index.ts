@@ -3,7 +3,7 @@
 import {
   corsHeaders, jsonResponse, getServiceClient, getUserFromAuthHeader,
 } from '../_shared/security.ts';
-import { verifyRegistrationResponse } from 'https://esm.sh/@simplewebauthn/server@10.0.1?target=deno';
+import { verifyRegistrationResponse } from 'npm:@simplewebauthn/server@10.0.1';
 
 function rpId(req: Request): string {
   const origin = req.headers.get('origin') || '';
