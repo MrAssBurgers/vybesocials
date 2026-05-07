@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Shield, Smartphone, Mail, Trash2, LogOut, Loader2, QrCode } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { BiometricLockCard } from './BiometricLockCard';
 
 interface Session {
   id: string;
