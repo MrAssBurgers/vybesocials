@@ -662,6 +662,25 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         open={showForgotPassword} 
         onClose={() => setShowForgotPassword(false)} 
       />
+
+      {loginGate && (
+        <LoginGateModal
+          open
+          mode={loginGate.mode}
+          email={loginGate.email}
+          challengeId={loginGate.challengeId}
+          onSuccess={() => {
+            setLoginGate(null);
+            toast.success('Welcome back! ✨');
+            if (isInviteMode && onInviteNavigate) onInviteNavigate('home');
+            else navigate('/home');
+          }}
+          onCancel={async () => {
+            setLoginGate(null);
+            try { await supabase.auth.signOut(); } catch {}
+          }}
+        />
+      )}
     </div>
   );
 }
