@@ -74,8 +74,9 @@ export function requestBioAuth(): Promise<BioAuthResult> {
  */
 export async function confirmWithBiometrics(opts?: { strict?: boolean }): Promise<boolean> {
   const r = await requestBioAuth();
-  if (r.ok === true) return true;
-  if (r.reason === 'not-despia' || r.reason === 'unavailable') return !opts?.strict;
+  if (r.ok) return true;
+  const reason = (r as Extract<BioAuthResult, { ok: false }>).reason;
+  if (reason === 'not-despia' || reason === 'unavailable') return !opts?.strict;
   return false;
 }
 
