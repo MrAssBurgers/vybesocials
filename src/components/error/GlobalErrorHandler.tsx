@@ -76,6 +76,8 @@ export function GlobalErrorHandler() {
     window.addEventListener('unhandledrejection', handleRejection);
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('error', handleChunkError);
