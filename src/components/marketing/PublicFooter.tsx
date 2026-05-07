@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { CITIES } from '@/content/cities';
 
 /**
  * Public, crawlable footer used on all marketing/legal pages and the landing screen.
@@ -7,6 +8,7 @@ import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
  */
 export function PublicFooter() {
   const year = new Date().getFullYear();
+  const featuredCities = CITIES.slice(0, 8);
   return (
     <footer className="mt-12 border-t border-border pt-8 pb-6 text-sm text-muted-foreground">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mb-8">
@@ -17,6 +19,7 @@ export function PublicFooter() {
             <li><Link to="/safety" className="hover:text-primary">Safety</Link></li>
             <li><Link to="/faq" className="hover:text-primary">FAQ</Link></li>
             <li><Link to="/blog" className="hover:text-primary">Blog</Link></li>
+            <li><Link to="/local" className="hover:text-primary">VYBE Local</Link></li>
           </ul>
         </div>
         <div>
