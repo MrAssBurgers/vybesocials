@@ -1,128 +1,42 @@
-## Goal
+New hypothesis: the repeated publishing failures are not caused by `package.json`, missing VITE env vars, or the SEO pages; they are caused by the recent email/queue diagnostic migrations being present in the repo but not successfully applied during publish, so the publish pipeline keeps stopping before the latest backend state is deployed.
 
-Build a complete account security suite on the user's existing Settings area, modeled on Discord/Roblox/Instagram patterns. Five capabilities, all working together:
+Evidence I found in read-only investigation:
+- `package.json` has only `vite build` for production; there are no `postbuild`, `prebuild`, `prepare`, or env-dependent post-build scripts.
+- `vite.config.ts` already hardcodes fallbacks for the public backend URL, project id, and anon/publishable key.
+- The preview server logs show no frontend syntax/dependency error; only a Tailwind ambiguous class warning.
+- The published site is already public, so this is not a private-visibility issue.
+- The latest local migrations from `20260507143505` through `20260507144419` include repeated `pgmq`/email queue helpers and diagnostics, but neither the test nor live backend shows any `20260507` migration versions applied.
+- The diagnostic function created by those migrations does not exist in test or live, confirming the migration chain did not land.
 
-1. Email 2FA (verification code on login)
-2. Passkeys / biometric / Face ID / U2F (WebAuthn)
-3. QR-code quick sign-in (scan from logged-in phone to sign in another device)
-4. In-app login approval (Instagram-style "Was this you?" with IP + location, approve/deny)
-5. Login history / trusted devices list with revoke
+Plan to fix after approval:
 
-All five are managed from a new Settings → Security page and gated by the existing auth flow.
+1. Replace the fragile migration chain
+   - Remove/consolidate the seven recent `20260507` email queue publish-fix migrations that have not applied.
+   - Replace them with one safe, idempotent migration.
+   - Avoid direct static references to optional `pgmq` functions unless the schema exists.
+   - Use dynamic SQL where needed so missing optional queue infrastructure cannot break publish.
+   - Guard role grants so they only run when the target role exists.
 
----
+2. Keep the frontend SEO work intact
+   - Leave `/local`, `/local/:city`, JSON-LD, OG image tags, footer internal links, and sitemap entries in place unless the actual build log proves they are the failure source.
+   - Do not edit the auto-generated backend client/types files manually.
 
-## What the user will see
+3. Re-check backend deployment state
+   - Query the migration history after the fix to confirm the new migration version appears in the backend.
+   - Verify the email queue diagnostic/helper functions exist and return safe empty results if optional queue support is unavailable.
 
-### Settings → Security (new page)
+4. Re-check frontend publish blockers
+   - Inspect the latest build/deploy output available from the project logs.
+   - Search for Rollup/Vite dependency errors, missing imports, bad route imports, and HTML transform errors.
+   - If a frontend error appears, fix that specific syntax/dependency issue directly instead of guessing.
 
-```text
-┌────────────────────────────────────────┐
-│  Two-Factor Authentication             │
-│  [ Email codes ]   ●  Enabled          │
-│  Backup codes: [ Generate / View ]     │
-├────────────────────────────────────────┤
-│  Passkeys & Biometrics                 │
-│  • iPhone Face ID  · Added May 2       │
-│  • YubiKey 5C      · Added Apr 18      │
-│  [ + Add a passkey ]                   │
-├────────────────────────────────────────┤
-│  Quick Sign-In (QR)                    │
-│  Scan a QR from a signed-out device    │
-│  [ Open scanner ]                      │
-├────────────────────────────────────────┤
-│  Login Approvals                       │
-│  Get a push/in-app prompt before any   │
-│  new device can sign in.   [ ON ]      │
-├────────────────────────────────────────┤
-│  Active sessions & devices             │
-│  • iPhone 15 — New York, US — now      │
-│  • MacBook — Brooklyn, US — 2h ago     │
-│  • Chrome (Windows) — Unknown — Revoke │
-│  [ Sign out everywhere ]               │
-└────────────────────────────────────────┘
-```
+5. Final verification
+   - Confirm `/local` still renders in preview.
+   - Confirm the production publish configuration remains public.
+   - Confirm the repository no longer contains a publish-blocking unapplied migration chain.
 
-### Login flow changes
-- After password / Google sign-in, if 2FA is enabled → prompt for emailed 6-digit code.
-- If the device is new and Login Approvals is ON → show "Check your other device to approve" screen; the already-signed-in device gets an in-app sheet with IP, city, browser, time, and Approve / Deny buttons.
-- Passkey button on the login screen ("Sign in with passkey / Face ID") attempts WebAuthn first — instant entry when present.
-- "Sign in with QR" link on the login screen opens a QR display; scanning it from a signed-in mobile device authenticates the new device.
+After you approve this plan, I’ll make the migration/code changes directly and verify with the available project/backend diagnostics.
 
-### After every successful sign-in
-- Toast: "New sign-in from {city}". 
-- Email: "You signed in to VYBE — {device}, {city}, {time}. Wasn't you? Revoke this session."
-
----
-
-## Architecture
-
-### Database (new tables)
-
-- `user_2fa_settings` — per-user toggle for email 2FA, login approvals, hashed backup codes.
-- `auth_challenges` — short-lived rows for pending email 2FA codes, login approvals, and QR sign-in handshakes (`type`, `code_hash`, `expires_at`, `metadata jsonb`, `consumed_at`).
-- `user_passkeys` — WebAuthn credentials (`credential_id`, `public_key`, `counter`, `transports`, `device_name`, `last_used_at`).
-- `user_sessions` — every active session/device (`session_token_hash`, `ip`, `city`, `country`, `user_agent`, `device_label`, `last_seen_at`, `revoked_at`, `trusted bool`).
-- `login_history` — append-only audit (success/fail, method, ip, geo, user-agent).
-
-All tables RLS-protected: user can only SELECT/UPDATE rows where `user_id = auth.uid()`. Inserts go through edge functions running with service role. Backup codes stored as bcrypt hashes only.
-
-### Edge functions
-
-- `auth-2fa-request` — generate 6-digit code, store hash in `auth_challenges`, send via existing transactional email infra (new template `login-verification.tsx`).
-- `auth-2fa-verify` — verify code, mark challenge consumed, return short-lived "2fa-passed" token client uses to complete the Supabase sign-in.
-- `auth-passkey-register-options` / `auth-passkey-register-verify` — WebAuthn registration ceremony.
-- `auth-passkey-login-options` / `auth-passkey-login-verify` — WebAuthn assertion → returns Supabase session via admin API.
-- `auth-qr-create` — signed-out device requests a QR token (random nonce + short TTL), returns it; UI renders QR.
-- `auth-qr-claim` — signed-in device scans, posts `{nonce, intent: 'approve' | 'deny'}` after user confirms.
-- `auth-qr-poll` — signed-out device polls; once approved, function uses admin API to mint session for the new device.
-- `auth-login-approval-request` — when password/OAuth login from new device, create challenge + push it to all trusted sessions via realtime.
-- `auth-login-approval-respond` — trusted device approves/denies; pending login resolves.
-- `auth-session-revoke` / `auth-session-revoke-all` — invalidates `user_sessions` rows + signs out via Supabase admin.
-- `auth-login-notify` — sends "new sign-in" email and inserts `login_history` row.
-
-All edge functions: input validation with Zod, JWT validation in code, rate-limited (per-user + per-IP).
-
-### Client integration
-
-- New routes: `/settings/security`, `/login/verify`, `/login/approve` (in-app sheet, not a route), `/login/qr`.
-- `src/lib/webauthn.ts` — wraps `@simplewebauthn/browser` for register/authenticate.
-- `src/lib/auth2fa.ts` — orchestrates the 2-step sign-in (password → code).
-- `src/hooks/useLoginApprovals.ts` — Realtime subscription on `auth_challenges` for the current user; pops a `<LoginApprovalSheet />` when a new approval challenge arrives, showing IP, city, device, Approve / Deny.
-- `src/hooks/useSessionTracking.ts` — on every sign-in, calls `auth-login-notify` to register the session row + email.
-- Updated `Auth.tsx` (or whatever the login page is — confirm before building) to:
-  - Try passkey first if available (`navigator.credentials`).
-  - After password/Google success, route to `/login/verify` if 2FA on, or wait on `/login/approve` if approval-required.
-  - Add "Sign in with QR" link that opens the QR scanner camera (already have camera infra).
-
-### IP geolocation
-Edge function calls free `ipapi.co/{ip}/json/` (no key, project pattern already used elsewhere — verify before building, fall back to `ip-api.com` if rate-limited). Cached per session.
-
-### Email
-Reuse existing transactional email infrastructure. Two new templates: `login-verification.tsx` (6-digit code) and `new-signin.tsx` (device + city + revoke link). Both follow the existing brand styling rules.
-
----
-
-## Build order (sequenced so each step is independently shippable)
-
-1. DB migration: all five tables + RLS + helper SECURITY DEFINER functions (`set search_path = public`).
-2. Email templates + `auth-2fa-request` / `auth-2fa-verify` + `Settings → Security` toggle for email 2FA + `/login/verify` page.
-3. `user_sessions` + `login_history` + `auth-login-notify` + Active Sessions list with revoke + new-sign-in email.
-4. Login Approvals: edge functions + Realtime subscription + `<LoginApprovalSheet />` + new-device detection in login flow.
-5. Passkeys: install `@simplewebauthn/server` (edge) and `@simplewebauthn/browser` (client) + register/login flows + Settings list.
-6. QR quick sign-in: `/login/qr` display + scanner wired to existing camera + `auth-qr-*` functions + polling.
-7. Backup codes generator + recovery path.
-
----
-
-## Things to confirm before building
-
-- Current login page filename (`Auth.tsx` vs `pages/auth/*`) and whether it already has a 2FA hook stub.
-- Whether the project already wraps Supabase auth in `src/lib/auth.tsx` enough to inject a "post-password gate" without breaking existing OAuth callback at `/~oauth`.
-- Whether transactional email infra is already scaffolded (will check `supabase/functions/send-transactional-email`); if not, scaffold it as part of step 2.
-
----
-
-## Open question (one)
-
-For the **QR quick sign-in** — should the signed-out device show the QR (and the signed-in phone scans it), or the reverse (signed-in phone shows a QR, signed-out device scans)? Discord uses the first; Roblox uses the second. The plan above assumes the Discord pattern (signed-out shows, signed-in scans) because most desktops can display a QR but few have cameras. Confirm or I'll go with Discord-style.
+<lov-actions>
+<lov-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</lov-link>
+</lov-actions>
