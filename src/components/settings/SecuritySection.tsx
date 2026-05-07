@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import { Shield, Smartphone, Mail, Trash2, LogOut, Loader2, QrCode } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { BiometricLockCard } from './BiometricLockCard';
+import { PasskeysCard } from './PasskeysCard';
+import { QrSignInScannerCard } from './QrSignInScannerCard';
 
 interface Session {
   id: string;
