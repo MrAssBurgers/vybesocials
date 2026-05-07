@@ -70,6 +70,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
     const titleKeys: Record<SettingsCategory, string> = {
       profile: 'settingsNav.profileSettings',
       privacy: 'settingsNav.privacyAndSecurity',
+      security: 'Security & 2FA',
       connections: 'settingsNav.connectedAccounts',
       subscription: 'settingsNav.subscription',
       appearance: 'settingsNav.appearance',
