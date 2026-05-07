@@ -93,6 +93,8 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
         return <ProfileSection />;
       case 'privacy':
         return <PrivacySection />;
+      case 'security':
+        return <SecuritySection />;
       case 'connections':
         return <ConnectionsSection />;
       case 'subscription':
