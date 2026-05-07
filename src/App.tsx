@@ -257,6 +257,7 @@ function AppWithPreloader() {
       <GlobalErrorHandler />
       <AuthProvider>
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
+        <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
         <BriefPreFetchInit />
         <LocationProvider>
         {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
