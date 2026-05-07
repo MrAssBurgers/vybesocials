@@ -32,7 +32,7 @@ export function BiometricLockCard() {
     setBusy(true);
     try {
       const r = await requestBioAuth();
-      if (r.ok) {
+      if (r.ok === true) {
         setBioAuthPref(next);
         setEnabled(next);
         toast.success(next ? 'Biometric lock enabled' : 'Biometric lock disabled');
@@ -54,7 +54,7 @@ export function BiometricLockCard() {
     setBusy(true);
     const r = await requestBioAuth();
     setBusy(false);
-    if (r.ok) toast.success('Verified ✓');
+    if (r.ok === true) toast.success('Verified ✓');
     else if (r.reason === 'unavailable') toast.error('No biometrics enrolled.');
     else toast.error('Verification cancelled.');
   };
