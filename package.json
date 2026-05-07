@@ -58,6 +58,7 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@revenuecat/purchases-capacitor": "^13.0.1",
     "@revenuecat/purchases-js": "^1.26.0",
+    "@simplewebauthn/browser": "10.0.0",
     "@snap/camera-kit": "^1.16.0",
     "@snap/react-camera-kit": "^0.2.0",
     "@supabase/supabase-js": "^2.90.1",
