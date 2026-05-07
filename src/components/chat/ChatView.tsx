@@ -1274,7 +1274,7 @@ export function ChatView() {
       {/* Floating header — no bar, two frosted-glass pills floating over content */}
       <header className="absolute top-0 left-0 right-0 px-2 sm:px-3 pt-3 sm:pt-4 pb-2 flex items-center gap-2 sm:gap-3 bg-transparent z-20 pointer-events-none">
         {/* LEFT pill: back + avatar + name */}
-        <div className="pointer-events-auto flex items-center gap-2 sm:gap-2.5 min-w-0 max-w-[58%] mr-auto pl-1.5 pr-4 py-1.5 rounded-full bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)] ring-1 ring-inset ring-white/[0.04]">
+        <div className="pointer-events-auto flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 pl-1.5 pr-3 py-1.5 rounded-full bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)] ring-1 ring-inset ring-white/[0.04]">
           <Button
             variant="ghost"
             size="icon"
@@ -1970,7 +1970,7 @@ const MessageInputArea = memo(function MessageInputArea({
   safetyFilterNode?: React.ReactNode;
 }) {
   return (
-    <div className="flex-shrink-0 sticky bottom-0 z-30 bg-transparent px-2 sm:px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] relative">
+    <div className="flex-shrink-0 border-t border-border bg-background sticky bottom-0 z-30 relative">
       {/* Sticker Panel */}
       {onSendSticker && showStickerPanel && setShowStickerPanel && (
         <StickerPanel
@@ -1980,7 +1980,7 @@ const MessageInputArea = memo(function MessageInputArea({
         />
       )}
       
-      <div className="px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-3xl bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 ring-1 ring-inset ring-white/[0.04] shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)]">
+      <div className="px-2 py-2 sm:px-4 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <input
         ref={fileInputRef}
         type="file"

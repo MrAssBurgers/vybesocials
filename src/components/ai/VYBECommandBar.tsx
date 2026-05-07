@@ -184,9 +184,8 @@ export function VYBECommandBar() {
         {!open && (
           <motion.button
             initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1, y: controlVisible ? 0 : 200 }}
+            animate={{ scale: 1, opacity: controlVisible ? 1 : 0, y: controlVisible ? 0 : 112 }}
             exit={{ scale: 0, opacity: 0 }}
-            transition={{ y: { duration: 0.28, ease: controlVisible ? [0.16, 1, 0.3, 1] : [0.4, 0, 1, 1] } }}
             onClick={handleOpen}
             className={cn(
               "fixed z-50 w-14 h-14 rounded-2xl shadow-lg",
