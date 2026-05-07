@@ -1222,11 +1222,24 @@ export function GlobalCallOverlay() {
                   </motion.div>
                 </div>
                 <h2 className="mt-4 sm:mt-6 text-xl sm:text-2xl font-bold text-white tracking-tight">{displayName}</h2>
-                {isConnecting && (
-                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} className="mt-2 text-white/60 text-base sm:text-lg">Connecting...</motion.p>
-                )}
-                {isRingingOut && (
-                  <motion.p animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }} className="mt-2 text-white/60 text-base sm:text-lg">Ringing...</motion.p>
+                {!isConnected && (
+                  <div className="mt-3 sm:mt-4 flex flex-col items-center">
+                    <motion.p
+                      key={state.connectStage || (isRingingOut ? 'ringing' : 'connecting')}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-white/70 text-sm sm:text-base font-light tracking-wide"
+                    >
+                      {isRingingOut ? 'Ringing…' : stageLabel}
+                    </motion.p>
+                    <div className="mt-3 h-[2px] w-40 sm:w-48 rounded-full bg-white/10 overflow-hidden">
+                      <motion.div
+                        animate={{ width: `${isRingingOut ? 50 : stageProgress}%` }}
+                        transition={{ duration: 0.5, ease: 'easeOut' }}
+                        className="h-full bg-gradient-to-r from-primary via-purple-500 to-accent"
+                      />
+                    </div>
+                  </div>
                 )}
                 {isConnected && !isRingingOut && !remoteUserLeft && (
                   <p className="mt-2 text-white/70 text-base sm:text-lg font-mono">{formatDuration(callDuration)}</p>
