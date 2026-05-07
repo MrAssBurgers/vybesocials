@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { CITIES } from '@/content/cities';
 
 /**
  * Public, crawlable footer used on all marketing/legal pages and the landing screen.
@@ -7,6 +8,7 @@ import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
  */
 export function PublicFooter() {
   const year = new Date().getFullYear();
+  const featuredCities = CITIES.slice(0, 8);
   return (
     <footer className="mt-12 border-t border-border pt-8 pb-6 text-sm text-muted-foreground">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mb-8">
@@ -17,6 +19,7 @@ export function PublicFooter() {
             <li><Link to="/safety" className="hover:text-primary">Safety</Link></li>
             <li><Link to="/faq" className="hover:text-primary">FAQ</Link></li>
             <li><Link to="/blog" className="hover:text-primary">Blog</Link></li>
+            <li><Link to="/local" className="hover:text-primary">VYBE Local</Link></li>
           </ul>
         </div>
         <div>
@@ -44,6 +47,17 @@ export function PublicFooter() {
             <li><Link to="/delete-account" className="hover:text-primary">Delete account</Link></li>
           </ul>
         </div>
+      </div>
+      <div className="border-t border-border pt-6 mb-6">
+        <h3 className="font-semibold text-foreground mb-3">VYBE in your city</h3>
+        <ul className="flex flex-wrap gap-x-4 gap-y-2">
+          {featuredCities.map((c) => (
+            <li key={c.slug}>
+              <Link to={`/local/${c.slug}`} className="hover:text-primary">{c.name}</Link>
+            </li>
+          ))}
+          <li><Link to="/local" className="hover:text-primary font-medium">All cities →</Link></li>
+        </ul>
       </div>
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border pt-6">
         <Link to="/" className="flex items-center gap-2 text-foreground">
