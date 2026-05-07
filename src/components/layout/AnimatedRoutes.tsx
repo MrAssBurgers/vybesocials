@@ -14,6 +14,7 @@ import { useAutoBugReporter } from '@/hooks/useAutoBugReporter';
 
 // Lazy-load all pages to reduce unused JavaScript in the initial bundle
 const Landing = lazy(() => import("@/pages/Landing"));
+const QRSignIn = lazy(() => import("@/pages/QRSignIn"));
 const VybeHome = lazy(() => import("@/pages/VybeHome"));
 const DevMockupCompare = lazy(() => import("@/pages/DevMockupCompare"));
 const RootGate = lazy(() => import("@/components/auth/RootGate"));
@@ -154,6 +155,7 @@ export function AnimatedRoutes() {
             <Route path="/signup" element={<Landing />} />
             <Route path="/sign-up" element={<Landing />} />
             <Route path="/auth" element={<Landing />} />
+            <Route path="/auth/qr" element={<QRSignIn />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/cookies" element={<CookiePolicy />} />
