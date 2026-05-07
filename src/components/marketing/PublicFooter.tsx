@@ -48,6 +48,17 @@ export function PublicFooter() {
           </ul>
         </div>
       </div>
+      <div className="border-t border-border pt-6 mb-6">
+        <h3 className="font-semibold text-foreground mb-3">VYBE in your city</h3>
+        <ul className="flex flex-wrap gap-x-4 gap-y-2">
+          {featuredCities.map((c) => (
+            <li key={c.slug}>
+              <Link to={`/local/${c.slug}`} className="hover:text-primary">{c.name}</Link>
+            </li>
+          ))}
+          <li><Link to="/local" className="hover:text-primary font-medium">All cities →</Link></li>
+        </ul>
+      </div>
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border pt-6">
         <Link to="/" className="flex items-center gap-2 text-foreground">
           <VybeMiniIcon className="w-5 h-5" />
