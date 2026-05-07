@@ -19,6 +19,7 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
+import { LoginGateModal } from '@/components/auth/LoginGateModal';
 import { FounderCounter } from '@/components/growth/FounderCounter';
 
 
@@ -75,6 +76,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [loginGate, setLoginGate] = useState<null | { mode: 'code' | 'approval'; email: string; challengeId: string }>(null);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -204,10 +206,29 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         // Always persist sessions so users stay signed in reliably
         sessionStorage.removeItem('vybe-session-only');
 
-        toast.success('Welcome back! ✨');
+        // Email 2FA gate (only blocks if user has it enabled)
+        try {
+          const { data: twoFa } = await supabase.functions.invoke('auth-2fa-request', {
+            body: { email: formData.email },
+          });
+          if ((twoFa as any)?.requires2fa && (twoFa as any)?.challengeId) {
+            setLoginGate({ mode: 'code', email: formData.email, challengeId: (twoFa as any).challengeId });
+            return;
+          }
+        } catch (e) { console.warn('2fa check failed', e); }
 
-        // Navigate immediately — the route gate / authProfile effect above will
-        // bounce to /onboarding if the profile is incomplete. No extra round trip.
+        // Login approval gate (only blocks if user has it enabled)
+        try {
+          const { data: appr } = await supabase.functions.invoke('auth-login-approval', {
+            body: { action: 'request', email: formData.email },
+          });
+          if ((appr as any)?.requiresApproval && (appr as any)?.challengeId) {
+            setLoginGate({ mode: 'approval', email: formData.email, challengeId: (appr as any).challengeId });
+            return;
+          }
+        } catch (e) { console.warn('approval check failed', e); }
+
+        toast.success('Welcome back! ✨');
         navTo('home', '/home');
       } else {
         if (!formData.username.trim()) {
@@ -641,6 +662,25 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         open={showForgotPassword} 
         onClose={() => setShowForgotPassword(false)} 
       />
+
+      {loginGate && (
+        <LoginGateModal
+          open
+          mode={loginGate.mode}
+          email={loginGate.email}
+          challengeId={loginGate.challengeId}
+          onSuccess={() => {
+            setLoginGate(null);
+            toast.success('Welcome back! ✨');
+            if (isInviteMode && onInviteNavigate) onInviteNavigate('home');
+            else navigate('/home');
+          }}
+          onCancel={async () => {
+            setLoginGate(null);
+            try { await supabase.auth.signOut(); } catch {}
+          }}
+        />
+      )}
     </div>
   );
 }
