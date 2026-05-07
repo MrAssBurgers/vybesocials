@@ -191,11 +191,11 @@ export function useMutualFriends() {
         // 6. Fetch mutual friend profiles for display
         const allMutualIds = new Set<string>();
         candidateMap.forEach(v => v.viaFriends.forEach(id => allMutualIds.add(id)));
-        const { data: mutualProfiles } = await supabase
-          .from('public_profiles')
+        const { data: mutualProfiles } = await (supabase
+          .from('profiles' as any)
           .select('id, username, first_name, last_name, avatar_url')
-          .in('id', Array.from(allMutualIds));
-        const mutualProfileMap = new Map((mutualProfiles || []).map(p => [p.id, p]));
+          .in('id', Array.from(allMutualIds)) as any);
+        const mutualProfileMap = new Map(((mutualProfiles as any[]) || []).map((p: any) => [p.id, p]));
 
         // 7. Score and rank
         const now = Date.now();
