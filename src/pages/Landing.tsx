@@ -206,10 +206,29 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         // Always persist sessions so users stay signed in reliably
         sessionStorage.removeItem('vybe-session-only');
 
-        toast.success('Welcome back! ✨');
+        // Email 2FA gate (only blocks if user has it enabled)
+        try {
+          const { data: twoFa } = await supabase.functions.invoke('auth-2fa-request', {
+            body: { email: formData.email },
+          });
+          if ((twoFa as any)?.requires2fa && (twoFa as any)?.challengeId) {
+            setLoginGate({ mode: 'code', email: formData.email, challengeId: (twoFa as any).challengeId });
+            return;
+          }
+        } catch (e) { console.warn('2fa check failed', e); }
 
-        // Navigate immediately — the route gate / authProfile effect above will
-        // bounce to /onboarding if the profile is incomplete. No extra round trip.
+        // Login approval gate (only blocks if user has it enabled)
+        try {
+          const { data: appr } = await supabase.functions.invoke('auth-login-approval', {
+            body: { action: 'request', email: formData.email },
+          });
+          if ((appr as any)?.requiresApproval && (appr as any)?.challengeId) {
+            setLoginGate({ mode: 'approval', email: formData.email, challengeId: (appr as any).challengeId });
+            return;
+          }
+        } catch (e) { console.warn('approval check failed', e); }
+
+        toast.success('Welcome back! ✨');
         navTo('home', '/home');
       } else {
         if (!formData.username.trim()) {
