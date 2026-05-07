@@ -12,6 +12,7 @@ import { APP_VERSION } from '@/lib/constants';
 import { SettingsNav, SettingsNavVertical, SettingsCategory } from '@/components/settings/SettingsNav';
 import { ProfileSection } from '@/components/settings/ProfileSection';
 import { PrivacySection } from '@/components/settings/PrivacySection';
+import { SecuritySection } from '@/components/settings/SecuritySection';
 import { ConnectionsSection } from '@/components/settings/ConnectionsSection';
 import { SubscriptionSection } from '@/components/settings/SubscriptionSection';
 import { AppearanceSection } from '@/components/settings/AppearanceSection';
