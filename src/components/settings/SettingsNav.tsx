@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next';
 export type SettingsCategory = 
   | 'profile' 
   | 'privacy' 
+  | 'security'
   | 'connections' 
   | 'subscription'
   | 'appearance' 
