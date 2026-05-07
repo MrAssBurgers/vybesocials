@@ -116,19 +116,14 @@ export function SecuritySection() {
         </div>
       </Card>
 
+      {/* Passkeys */}
+      <PasskeysCard />
+
       {/* Biometric app lock (Despia native) */}
       <BiometricLockCard />
 
-      {/* QR sign-in (placeholder for scanner) */}
-      <Card className="p-4 opacity-70">
-        <div className="flex items-start gap-3">
-          <QrCode className="w-5 h-5 mt-0.5 text-primary" />
-          <div className="flex-1">
-            <div className="font-semibold">Quick Sign-In with QR</div>
-            <div className="text-xs text-muted-foreground">Coming next — scan a QR from a signed-out device to sign it in instantly.</div>
-          </div>
-        </div>
-      </Card>
+      {/* Quick QR sign-in (claim from signed-out device) */}
+      <QrSignInScannerCard />
 
       {/* Active sessions */}
       <Card className="p-4">
