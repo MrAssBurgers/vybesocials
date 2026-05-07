@@ -88,17 +88,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // For non-service callers, requested userId must match caller's profile.id
-    if (!isServiceRole) {
-      const { data: callerProfile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("user_id", callerAuthUserId)
-        .maybeSingle();
-      if (!callerProfile || callerProfile.id !== userId) {
+    // Rate limit non-service callers to prevent push spam / phishing abuse.
+    // (Authentication is required and enforced above.)
+    if (!isServiceRole && callerAuthUserId) {
+      const { data: rlOk } = await supabase.rpc("check_rate_limit", {
+        p_key: `push_send:${callerAuthUserId}`,
+        p_max_requests: 60,
+        p_window_seconds: 60,
+      });
+      if (rlOk === false) {
         return new Response(
-          JSON.stringify({ success: false, error: "Forbidden" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ success: false, error: "Too many push requests. Please wait." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     }
