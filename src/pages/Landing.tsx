@@ -20,6 +20,7 @@ import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 import { LoginGateModal } from '@/components/auth/LoginGateModal';
+import { passkeysSupported, signInWithPasskey } from '@/lib/passkeys';
 import { FounderCounter } from '@/components/growth/FounderCounter';
 
 
@@ -518,6 +519,30 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 isLogin ? t('auth.login') : t('auth.signup')
               )}
             </Button>
+
+            {isLogin && passkeysSupported() && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={loading}
+                onClick={async () => {
+                  if (!formData.email) { toast.error('Enter your email first'); return; }
+                  setLoading(true);
+                  try {
+                    const link = await signInWithPasskey(formData.email);
+                    if (!link) { toast.info('No passkey set up for this account'); return; }
+                    window.location.href = link;
+                  } catch (e: any) {
+                    if (e?.name !== 'NotAllowedError' && e?.name !== 'AbortError') {
+                      toast.error('Passkey sign-in failed');
+                    }
+                  } finally { setLoading(false); }
+                }}
+              >
+                🔑 Sign in with passkey
+              </Button>
+            )}
           </form>
 
           <div className="relative my-3">

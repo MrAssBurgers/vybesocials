@@ -52,6 +52,7 @@
         "@radix-ui/react-tooltip": "^1.2.7",
         "@revenuecat/purchases-capacitor": "^13.0.1",
         "@revenuecat/purchases-js": "^1.26.0",
+        "@simplewebauthn/browser": "10.0.0",
         "@snap/camera-kit": "^1.16.0",
         "@snap/react-camera-kit": "^0.2.0",
         "@supabase/supabase-js": "^2.90.1",
@@ -445,6 +446,10 @@
     "@rollup/rollup-win32-ia32-msvc": ["@rollup/rollup-win32-ia32-msvc@4.24.0", "", { "os": "win32", "cpu": "ia32" }, "sha512-xrNcGDU0OxVcPTH/8n/ShH4UevZxKIO6HJFK0e15XItZP2UcaiLFd5kiX7hJnqCbSztUF8Qot+JWBC/QXRPYWQ=="],
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.24.0", "", { "os": "win32", "cpu": "x64" }, "sha512-fbMkAF7fufku0N2dE5TBXcNlg0pt0cJue4xBRE2Qc5Vqikxr4VCgKj/ht6SMdFcOacVA9rqF70APJ8RN/4vMJw=="],
+
+    "@simplewebauthn/browser": ["@simplewebauthn/browser@10.0.0", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@simplewebauthn/browser/-/browser-10.0.0.tgz", { "dependencies": { "@simplewebauthn/types": "^10.0.0" } }, "sha512-hG0JMZD+LiLUbpQcAjS4d+t4gbprE/dLYop/CkE01ugU/9sKXflxV5s0DRjdz3uNMFecatRfb4ZLG3XvF8m5zg=="],
+
+    "@simplewebauthn/types": ["@simplewebauthn/types@10.0.0", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@simplewebauthn/types/-/types-10.0.0.tgz", {}, "sha512-SFXke7xkgPRowY2E+8djKbdEznTVnD5R6GO7GPTthpHrokLvNKw8C3lFZypTxLI7KkCfGPfhtqB3d7OVGGa9jQ=="],
 
     "@snap/camera-kit": ["@snap/camera-kit@1.16.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@snap/camera-kit/-/camera-kit-1.16.0.tgz", { "dependencies": { "@bufbuild/protobuf": "^2.0.0", "@improbable-eng/grpc-web": "^0.15.0", "@snap/state-management": "^1.16.0", "@snap/ts-inject": "^0.3.1", "@types/trusted-types": "^2.0.7", "browser-fs-access": "^0.38.0", "browser-headers": "^0.4.1", "rxjs": "^7.5.7", "tslib": "^2.5.0", "uuid": "^10.0.0", "wasm-feature-detect": "^1.8.0" } }, "sha512-7PiaboXAre4qG0YCJadamJuasWGK3zh3fWGQf6mpPTGQIx75Wyoi7HfY1N8r8dPvCkxQtvU6xxK98zmMmaH0cA=="],
 
