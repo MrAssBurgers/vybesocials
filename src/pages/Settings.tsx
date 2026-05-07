@@ -12,6 +12,7 @@ import { APP_VERSION } from '@/lib/constants';
 import { SettingsNav, SettingsNavVertical, SettingsCategory } from '@/components/settings/SettingsNav';
 import { ProfileSection } from '@/components/settings/ProfileSection';
 import { PrivacySection } from '@/components/settings/PrivacySection';
+import { SecuritySection } from '@/components/settings/SecuritySection';
 import { ConnectionsSection } from '@/components/settings/ConnectionsSection';
 import { SubscriptionSection } from '@/components/settings/SubscriptionSection';
 import { AppearanceSection } from '@/components/settings/AppearanceSection';
@@ -70,6 +71,7 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
     const titleKeys: Record<SettingsCategory, string> = {
       profile: 'settingsNav.profileSettings',
       privacy: 'settingsNav.privacyAndSecurity',
+      security: 'Security & 2FA',
       connections: 'settingsNav.connectedAccounts',
       subscription: 'settingsNav.subscription',
       appearance: 'settingsNav.appearance',
@@ -91,6 +93,8 @@ const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref
         return <ProfileSection />;
       case 'privacy':
         return <PrivacySection />;
+      case 'security':
+        return <SecuritySection />;
       case 'connections':
         return <ConnectionsSection />;
       case 'subscription':

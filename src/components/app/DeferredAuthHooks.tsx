@@ -6,6 +6,7 @@ import { useRetroactiveSync } from '@/hooks/useRetroactiveSync';
 import { useDailyLoginChallenge } from '@/hooks/useDailyLogin';
 import { useCaptureNotifications } from '@/hooks/useCaptureDetection';
 import { useApplyAutoTheme } from '@/hooks/useApplyAutoTheme';
+import { useSessionTracking } from '@/hooks/useSessionTracking';
 
 
 /**
@@ -21,6 +22,7 @@ export default function DeferredAuthHooks() {
   useDailyLoginChallenge();
   useCaptureNotifications();
   useApplyAutoTheme();
+  useSessionTracking();
   
   return null;
 }

@@ -556,6 +556,48 @@ export type Database = {
         }
         Relationships: []
       }
+      auth_challenges: {
+        Row: {
+          challenge_type: string
+          code_hash: string | null
+          consumed_at: string | null
+          created_at: string
+          email: string | null
+          expires_at: string
+          id: string
+          metadata: Json
+          nonce: string | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          challenge_type: string
+          code_hash?: string | null
+          consumed_at?: string | null
+          created_at?: string
+          email?: string | null
+          expires_at: string
+          id?: string
+          metadata?: Json
+          nonce?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          challenge_type?: string
+          code_hash?: string | null
+          consumed_at?: string | null
+          created_at?: string
+          email?: string | null
+          expires_at?: string
+          id?: string
+          metadata?: Json
+          nonce?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       badges: {
         Row: {
           can_be_disabled: boolean | null
@@ -5728,6 +5770,51 @@ export type Database = {
         }
         Relationships: []
       }
+      login_history: {
+        Row: {
+          city: string | null
+          country: string | null
+          created_at: string
+          device_label: string | null
+          id: string
+          ip: string | null
+          metadata: Json
+          method: string
+          region: string | null
+          success: boolean
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          device_label?: string | null
+          id?: string
+          ip?: string | null
+          metadata?: Json
+          method: string
+          region?: string | null
+          success: boolean
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          device_label?: string | null
+          id?: string
+          ip?: string | null
+          metadata?: Json
+          method?: string
+          region?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       login_streaks: {
         Row: {
           created_at: string
@@ -9658,6 +9745,33 @@ export type Database = {
           },
         ]
       }
+      user_2fa_settings: {
+        Row: {
+          backup_codes_hashed: string[]
+          created_at: string
+          email_2fa_enabled: boolean
+          login_approvals_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          backup_codes_hashed?: string[]
+          created_at?: string
+          email_2fa_enabled?: boolean
+          login_approvals_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          backup_codes_hashed?: string[]
+          created_at?: string
+          email_2fa_enabled?: boolean
+          login_approvals_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_about: {
         Row: {
           created_at: string | null
@@ -10371,6 +10485,42 @@ export type Database = {
         }
         Relationships: []
       }
+      user_passkeys: {
+        Row: {
+          counter: number
+          created_at: string
+          credential_id: string
+          device_name: string | null
+          id: string
+          last_used_at: string | null
+          public_key: string
+          transports: string[]
+          user_id: string
+        }
+        Insert: {
+          counter?: number
+          created_at?: string
+          credential_id: string
+          device_name?: string | null
+          id?: string
+          last_used_at?: string | null
+          public_key: string
+          transports?: string[]
+          user_id: string
+        }
+        Update: {
+          counter?: number
+          created_at?: string
+          credential_id?: string
+          device_name?: string | null
+          id?: string
+          last_used_at?: string | null
+          public_key?: string
+          transports?: string[]
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_preferences: {
         Row: {
           button_sound: string | null
@@ -10651,6 +10801,54 @@ export type Database = {
             referencedColumns: ["sound_id"]
           },
         ]
+      }
+      user_sessions: {
+        Row: {
+          city: string | null
+          country: string | null
+          created_at: string
+          device_label: string | null
+          id: string
+          ip: string | null
+          last_seen_at: string
+          region: string | null
+          revoked_at: string | null
+          session_token_hash: string | null
+          trusted: boolean
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          device_label?: string | null
+          id?: string
+          ip?: string | null
+          last_seen_at?: string
+          region?: string | null
+          revoked_at?: string | null
+          session_token_hash?: string | null
+          trusted?: boolean
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          device_label?: string | null
+          id?: string
+          ip?: string | null
+          last_seen_at?: string
+          region?: string | null
+          revoked_at?: string | null
+          session_token_hash?: string | null
+          trusted?: boolean
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       user_settings: {
         Row: {
@@ -12036,6 +12234,23 @@ export type Database = {
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
+      }
+      ensure_2fa_settings: {
+        Args: never
+        Returns: {
+          backup_codes_hashed: string[]
+          created_at: string
+          email_2fa_enabled: boolean
+          login_approvals_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "user_2fa_settings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       ensure_profile: { Args: never; Returns: string }
       execute_admin_sql: { Args: { sql_query: string }; Returns: Json }
