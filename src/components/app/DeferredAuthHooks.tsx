@@ -22,6 +22,7 @@ export default function DeferredAuthHooks() {
   useDailyLoginChallenge();
   useCaptureNotifications();
   useApplyAutoTheme();
+  useSessionTracking();
   
   return null;
 }
