@@ -74,12 +74,12 @@ export function useContactDiscovery() {
         .filter(Boolean);
 
       // Search for users with matching verified phone numbers
-      const { data: users, error } = await supabase
-        .from('public_profiles')
+      const { data: users, error } = await (supabase
+        .from('profiles' as any)
         .select('id, username, display_name, avatar_url, phone_number')
         .eq('phone_verified', true)
         .in('phone_number', phoneNumbers)
-        .neq('id', profile.id);
+        .neq('id', profile.id) as any);
 
       if (error) throw error;
 
