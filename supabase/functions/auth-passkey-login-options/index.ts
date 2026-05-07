@@ -5,7 +5,7 @@
 import {
   corsHeaders, jsonResponse, getServiceClient,
 } from '../_shared/security.ts';
-import { generateAuthenticationOptions } from 'npm:@simplewebauthn/server@10.0.1';
+import { generateAuthenticationOptions } from 'https://esm.sh/@simplewebauthn/server@10.0.1?target=deno';
 
 function rpId(req: Request): string {
   const origin = req.headers.get('origin') || '';
