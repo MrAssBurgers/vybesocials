@@ -43,14 +43,14 @@ Deno.serve(async (req) => {
       })),
     });
 
-    // Stash the challenge keyed by user (single in-flight)
+    // Stash the challenge for the verify step
     await admin.from('auth_challenges').insert({
       user_id: user.id,
       email: user.email,
-      challenge_type: 'email_2fa', // reuse type column; passkey-specific is metadata
+      challenge_type: 'passkey_register',
       code_hash: options.challenge,
       expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-      metadata: { kind: 'passkey_register' },
+      metadata: { rpId: rpId(req) },
     });
 
     return jsonResponse({ ok: true, options });
