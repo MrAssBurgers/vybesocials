@@ -20,6 +20,7 @@ import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 import { LoginGateModal } from '@/components/auth/LoginGateModal';
+import { passkeysSupported, signInWithPasskey } from '@/lib/passkeys';
 import { FounderCounter } from '@/components/growth/FounderCounter';
 
 
