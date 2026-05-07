@@ -7,17 +7,39 @@ export function GlobalErrorHandler() {
   useErrorReporter();
 
   useEffect(() => {
-    const handleOnline = () => {
-      toast.success('Back online! 🌐', {
-        description: 'Your connection has been restored.',
-      });
+    let lastState: 'online' | 'offline' = navigator.onLine ? 'online' : 'offline';
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastToastAt = 0;
+    let suppressUntil = Date.now() + 5000;
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        suppressUntil = Date.now() + 4000;
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    const emit = (next: 'online' | 'offline') => {
+      if (next === lastState) return;
+      lastState = next;
+      const now = Date.now();
+      if (now < suppressUntil) return;
+      if (now - lastToastAt < 8000) return;
+      lastToastAt = now;
+      if (next === 'online') {
+        toast.success('Back online', { description: 'Your connection has been restored.', id: 'net-status' });
+      } else {
+        toast.error("You're offline", { description: 'Check your internet connection.', id: 'net-status' });
+      }
     };
 
-    const handleOffline = () => {
-      toast.error("You're offline 📡", {
-        description: 'Check your internet connection.',
-      });
+    const schedule = (next: 'online' | 'offline') => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => emit(next), 1500);
     };
+
+    const handleOnline = () => schedule('online');
+    const handleOffline = () => schedule('offline');
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
