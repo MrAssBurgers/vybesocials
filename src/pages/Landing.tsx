@@ -527,11 +527,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 className="w-full"
                 disabled={loading}
                 onClick={async () => {
-                  if (!formData.email) { toast.error('Enter your email first'); return; }
                   setLoading(true);
                   try {
-                    const link = await signInWithPasskey(formData.email);
-                    if (!link) { toast.info('No passkey set up for this account'); return; }
+                    // Discord-style: no email required. Browser shows the
+                    // native passkey picker for any account on this device.
+                    const link = await signInWithPasskey(formData.email || undefined);
+                    if (!link) { toast.info('No passkey found for this device'); return; }
                     window.location.href = link;
                   } catch (e: any) {
                     if (e?.name !== 'NotAllowedError' && e?.name !== 'AbortError') {

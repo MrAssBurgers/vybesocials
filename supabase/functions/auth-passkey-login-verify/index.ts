@@ -39,15 +39,24 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'expired' }, 400);
     }
 
-    // Look up the credential
+    // Look up the credential. For discoverable (usernameless) flows the
+    // challenge has no user_id — resolve the user from the passkey itself.
     const credentialIdB64 = credential.id || credential.rawId;
-    const { data: pk } = await admin
+    const pkQuery = admin
       .from('user_passkeys')
-      .select('id, credential_id, public_key, counter, transports')
-      .eq('user_id', chal.user_id!)
-      .eq('credential_id', credentialIdB64)
-      .maybeSingle();
+      .select('id, user_id, credential_id, public_key, counter, transports')
+      .eq('credential_id', credentialIdB64);
+    const { data: pk } = chal.user_id
+      ? await pkQuery.eq('user_id', chal.user_id).maybeSingle()
+      : await pkQuery.maybeSingle();
     if (!pk) return jsonResponse({ error: 'unknown_credential' }, 400);
+
+    // Resolve email if it wasn't pinned at challenge creation.
+    let resolvedEmail = chal.email as string | null;
+    if (!resolvedEmail) {
+      const { data: u } = await admin.auth.admin.getUserById(pk.user_id);
+      resolvedEmail = u?.user?.email ?? null;
+    }
 
     const verification = await verifyAuthenticationResponse({
       response: credential,
@@ -75,12 +84,12 @@ Deno.serve(async (req) => {
       .update({ status: 'consumed', consumed_at: new Date().toISOString() })
       .eq('id', chal.id);
 
-    if (!chal.email) return jsonResponse({ error: 'missing_email' }, 500);
+    if (!resolvedEmail) return jsonResponse({ error: 'missing_email' }, 500);
 
     // Mint a magic link for the verified user
     const { data, error } = await admin.auth.admin.generateLink({
       type: 'magiclink',
-      email: chal.email,
+      email: resolvedEmail,
       options: { redirectTo: `${req.headers.get('origin') || 'https://vybehub.app'}/auth/callback` },
     });
     if (error || !data?.properties?.action_link) {

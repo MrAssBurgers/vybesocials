@@ -33,11 +33,11 @@ export async function registerPasskey(deviceName?: string): Promise<void> {
  * Returns null when the user has no passkeys registered (caller should
  * fall back to password). Throws on real failures.
  */
-export async function signInWithPasskey(email: string): Promise<string | null> {
+export async function signInWithPasskey(email?: string): Promise<string | null> {
   if (!passkeysSupported()) return null;
 
   const { data: optsRes, error: optsErr } = await supabase.functions.invoke('auth-passkey-login-options', {
-    body: { email },
+    body: email ? { email } : {},
   });
   if (optsErr) throw new Error('Could not start passkey sign-in');
   if (!(optsRes as any)?.ok) return null;
