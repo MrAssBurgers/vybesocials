@@ -19,6 +19,7 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
+import { LoginGateModal } from '@/components/auth/LoginGateModal';
 import { FounderCounter } from '@/components/growth/FounderCounter';
 
 
