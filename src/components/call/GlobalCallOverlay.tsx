@@ -1313,27 +1313,7 @@ export function GlobalCallOverlay() {
             </motion.div>
           </div>
 
-          {/* Stage-aware Connecting overlay (both initiator + receiver, only while not yet connected) */}
-          <AnimatePresence>
-            {!isConnected && (isConnecting || (state.phase === 'joining' && state.connectStage && state.connectStage !== 'ready')) && isVideoCall && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(8, 8, 16, 0.65)', backdropFilter: 'blur(28px) saturate(140%)', WebkitBackdropFilter: 'blur(28px) saturate(140%)' }}>
-                <div className="text-center px-6 py-7 rounded-3xl backdrop-blur-2xl bg-white/[0.06] border border-white/[0.1] shadow-[0_8px_32px_rgba(0,0,0,0.5)] min-w-[260px]">
-                  <div className="relative w-28 h-28 mx-auto">
-                    <motion.div animate={{ scale: [1, 1.6], opacity: [0.5, 0] }} transition={{ repeat: Infinity, duration: 1.8, ease: 'easeOut' }} className="absolute inset-0 rounded-full border-2 border-primary/50" />
-                    <Avatar className="absolute inset-0 m-auto h-24 w-24 ring-4 ring-primary/20 shadow-2xl">
-                      <AvatarImage src={displayAvatar || undefined} />
-                      <AvatarFallback className="text-3xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
-                    </Avatar>
-                  </div>
-                  <p className="mt-5 text-white text-base font-medium tracking-tight">{displayName}</p>
-                  <motion.p key={state.connectStage} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mt-1 text-white/60 text-sm font-light">{stageLabel}</motion.p>
-                  <div className="mt-4 h-1 w-48 mx-auto rounded-full bg-white/10 overflow-hidden">
-                    <motion.div animate={{ width: `${stageProgress}%` }} transition={{ duration: 0.4, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-primary via-purple-500 to-accent" />
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Stage-aware connecting status is now inlined under the centered avatar/name */}
 
           {/* Remote user left — calm chip (no pink, no countdown frenzy) */}
           <AnimatePresence>
