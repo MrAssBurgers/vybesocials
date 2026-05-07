@@ -188,6 +188,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ad_campaigns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ad_campaigns_reviewed_by_fkey"
             columns: ["reviewed_by"]
             isOneToOne: false
@@ -258,6 +265,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "business_profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_credits_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_business_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1026,6 +1040,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "business_offers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "business_offers_conversation_id_fkey"
             columns: ["conversation_id"]
             isOneToOne: false
@@ -1174,6 +1195,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "business_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "business_orders_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -1283,6 +1311,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "business_profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_products_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_business_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1459,6 +1494,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "business_reviews_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "business_reviews_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -1605,6 +1647,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: true
             referencedRelation: "business_profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_subscriptions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "public_business_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -11773,101 +11822,201 @@ export type Database = {
         }
         Relationships: []
       }
+      public_business_profiles: {
+        Row: {
+          banner_url: string | null
+          business_hours: Json | null
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string | null
+          is_active: boolean | null
+          is_verified: boolean | null
+          location: string | null
+          logo_url: string | null
+          name: string | null
+          owner_id: string | null
+          rating_average: number | null
+          rating_count: number | null
+          slug: string | null
+          social_links: Json | null
+          updated_at: string | null
+          view_count: number | null
+          website: string | null
+        }
+        Insert: {
+          banner_url?: string | null
+          business_hours?: Json | null
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          is_verified?: boolean | null
+          location?: string | null
+          logo_url?: string | null
+          name?: string | null
+          owner_id?: string | null
+          rating_average?: number | null
+          rating_count?: number | null
+          slug?: string | null
+          social_links?: Json | null
+          updated_at?: string | null
+          view_count?: number | null
+          website?: string | null
+        }
+        Update: {
+          banner_url?: string | null
+          business_hours?: Json | null
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          is_verified?: boolean | null
+          location?: string | null
+          logo_url?: string | null
+          name?: string | null
+          owner_id?: string | null
+          rating_average?: number | null
+          rating_count?: number | null
+          slug?: string | null
+          social_links?: Json | null
+          updated_at?: string | null
+          view_count?: number | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_profiles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "business_profiles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_profiles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_profiles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       public_profiles: {
         Row: {
-          age_verified: boolean | null
           avatar_url: string | null
           badge_settings: Json | null
           bio: string | null
-          coins_balance: number | null
           created_at: string | null
-          date_of_birth: string | null
           display_name: string | null
-          email: string | null
-          first_name: string | null
+          equipped_badge_id: string | null
+          equipped_effect: string | null
+          equipped_frame: string | null
+          equipped_name_color: string | null
+          equipped_profile_theme: string | null
+          equipped_title: string | null
           id: string | null
           interests: string[] | null
-          intro_completed: boolean | null
+          is_premium: boolean | null
           is_private: boolean | null
           is_verified: boolean | null
           language: string | null
-          last_name: string | null
+          last_login_date: string | null
           link_url: string | null
           location: string | null
+          login_streak: number | null
+          music_personality: string | null
           onboarding_completed: boolean | null
-          phone_number: string | null
-          phone_verified: boolean | null
-          referral_inviter_id: string | null
-          sensitivity_preference: string | null
+          premium_expires_at: string | null
           timezone: string | null
-          tutorial_completed: boolean | null
-          tutorial_skipped: boolean | null
+          updated_at: string | null
           user_id: string | null
           username: string | null
         }
         Insert: {
-          age_verified?: never
           avatar_url?: string | null
           badge_settings?: Json | null
           bio?: string | null
-          coins_balance?: never
           created_at?: string | null
-          date_of_birth?: never
           display_name?: string | null
-          email?: never
-          first_name?: never
+          equipped_badge_id?: string | null
+          equipped_effect?: string | null
+          equipped_frame?: string | null
+          equipped_name_color?: string | null
+          equipped_profile_theme?: string | null
+          equipped_title?: string | null
           id?: string | null
           interests?: string[] | null
-          intro_completed?: boolean | null
+          is_premium?: boolean | null
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
-          last_name?: never
+          last_login_date?: string | null
           link_url?: string | null
           location?: string | null
+          login_streak?: number | null
+          music_personality?: string | null
           onboarding_completed?: boolean | null
-          phone_number?: never
-          phone_verified?: never
-          referral_inviter_id?: never
-          sensitivity_preference?: never
+          premium_expires_at?: string | null
           timezone?: string | null
-          tutorial_completed?: boolean | null
-          tutorial_skipped?: boolean | null
+          updated_at?: string | null
           user_id?: string | null
           username?: string | null
         }
         Update: {
-          age_verified?: never
           avatar_url?: string | null
           badge_settings?: Json | null
           bio?: string | null
-          coins_balance?: never
           created_at?: string | null
-          date_of_birth?: never
           display_name?: string | null
-          email?: never
-          first_name?: never
+          equipped_badge_id?: string | null
+          equipped_effect?: string | null
+          equipped_frame?: string | null
+          equipped_name_color?: string | null
+          equipped_profile_theme?: string | null
+          equipped_title?: string | null
           id?: string | null
           interests?: string[] | null
-          intro_completed?: boolean | null
+          is_premium?: boolean | null
           is_private?: boolean | null
           is_verified?: boolean | null
           language?: string | null
-          last_name?: never
+          last_login_date?: string | null
           link_url?: string | null
           location?: string | null
+          login_streak?: number | null
+          music_personality?: string | null
           onboarding_completed?: boolean | null
-          phone_number?: never
-          phone_verified?: never
-          referral_inviter_id?: never
-          sensitivity_preference?: never
+          premium_expires_at?: string | null
           timezone?: string | null
-          tutorial_completed?: boolean | null
-          tutorial_skipped?: boolean | null
+          updated_at?: string | null
           user_id?: string | null
           username?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_equipped_badge_id_fkey"
+            columns: ["equipped_badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       public_servers: {
         Row: {
