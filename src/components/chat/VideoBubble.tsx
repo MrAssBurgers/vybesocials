@@ -46,7 +46,9 @@ export const VideoBubble = memo(function VideoBubble({
     if (thumbnail || generatedPoster || !src || error) return;
     let cancelled = false;
     const v = document.createElement('video');
-    v.crossOrigin = 'anonymous';
+    // Intentionally NOT setting crossOrigin — Supabase signed URLs often
+    // don't return matching CORS headers and the canvas read fails. Without
+    // crossOrigin the canvas becomes tainted but we catch SecurityError below.
     v.muted = true;
     v.playsInline = true;
     v.preload = 'auto';
