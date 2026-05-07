@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, Volume2, VolumeX, Loader2, AlertCircle, RotateCcw } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Loader2, AlertCircle, RotateCcw, Film } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/hooks/useVideoProcessor';
 import { useInView } from 'react-intersection-observer';
