@@ -882,8 +882,8 @@ function FriendMapInner() {
           const res = await Req();
           if (res !== 'granted') { setHeadingUp(false); toast.error('Compass permission denied'); return; }
         }
-        window.addEventListener('deviceorientationabsolute', handler as any, true);
-        window.addEventListener('deviceorientation', handler as any, true);
+        window.addEventListener('deviceorientationabsolute', absoluteHandler as any, true);
+        window.addEventListener('deviceorientation', relativeHandler as any, true);
 
         // Many laptops (incl. Macs) have no magnetometer — readings never arrive
         // or `alpha` is null. Bail out gracefully so the map isn't stuck rotated.
@@ -901,8 +901,8 @@ function FriendMapInner() {
     start();
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
-      window.removeEventListener('deviceorientationabsolute', handler as any, true);
-      window.removeEventListener('deviceorientation', handler as any, true);
+      window.removeEventListener('deviceorientationabsolute', absoluteHandler as any, true);
+      window.removeEventListener('deviceorientation', relativeHandler as any, true);
       mapRef.current?.dragging?.enable();
     };
   }, [headingUp]);
