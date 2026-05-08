@@ -88,8 +88,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Rate limit non-service callers to prevent push spam / phishing abuse.
-    // (Authentication is required and enforced above.)
+    // Authorization: non-service callers can only push to themselves or to a
+    // user with whom they share an active conversation. Prevents push phishing.
     if (!isServiceRole && callerAuthUserId) {
       const { data: rlOk } = await supabase.rpc("check_rate_limit", {
         p_key: `push_send:${callerAuthUserId}`,
@@ -101,6 +101,47 @@ Deno.serve(async (req) => {
           JSON.stringify({ success: false, error: "Too many push requests. Please wait." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
+
+      // Resolve caller's profile id (push targets are profile ids).
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", callerAuthUserId)
+        .maybeSingle();
+      const callerProfileId = callerProfile?.id as string | undefined;
+
+      if (!callerProfileId) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Forbidden" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { userId: targetIdPeek } = await req.clone().json().catch(() => ({ userId: "" }));
+      if (targetIdPeek && targetIdPeek !== callerProfileId) {
+        // Must share at least one conversation
+        const { data: callerConvs } = await supabase
+          .from("conversation_members")
+          .select("conversation_id")
+          .eq("user_id", callerProfileId);
+        const convIds = (callerConvs || []).map((r: any) => r.conversation_id);
+        let allowed = false;
+        if (convIds.length > 0) {
+          const { data: shared } = await supabase
+            .from("conversation_members")
+            .select("id")
+            .eq("user_id", targetIdPeek)
+            .in("conversation_id", convIds)
+            .limit(1);
+          allowed = !!(shared && shared.length > 0);
+        }
+        if (!allowed) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Forbidden: no shared conversation with target" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
     }
 
