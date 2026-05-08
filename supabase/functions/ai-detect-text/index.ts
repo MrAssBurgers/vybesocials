@@ -2,19 +2,14 @@
 // Combines statistical signals (perplexity proxy, burstiness) with an LLM judge
 // Returns JSON: { ai_probability, verdict, burstiness, perplexity, sentences, highlights }
 
+import { validateAuth } from "../_shared/auth.ts";
+import { rateLimitOrNull } from "../_shared/rateLimit.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-const rl = new Map<string, number[]>();
-function rateLimit(key: string, max = 20, windowMs = 60_000): boolean {
-  const now = Date.now();
-  const arr = (rl.get(key) || []).filter((t) => now - t < windowMs);
-  if (arr.length >= max) { rl.set(key, arr); return false; }
-  arr.push(now); rl.set(key, arr); return true;
-}
 
 // AI tells: words/phrases that overwhelmingly appear in LLM output
 const AI_TELLS = [
@@ -94,13 +89,14 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get("Authorization") || "";
-    const userKey = authHeader.slice(-40) || (req.headers.get("x-forwarded-for") ?? "anon");
-    if (!rateLimit(userKey)) {
-      return new Response(JSON.stringify({ error: "Too many requests" }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const auth = await validateAuth(req);
+    if (!auth.authenticated) {
+      return new Response(JSON.stringify({ error: auth.error || "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const limited = await rateLimitOrNull(`ai-detect-text:${auth.userId}`, 20, 60, corsHeaders);
+    if (limited) return limited;
 
     const { text } = await req.json().catch(() => ({}));
     if (typeof text !== "string" || !text.trim()) {
