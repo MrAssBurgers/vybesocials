@@ -1,20 +1,13 @@
 // AI Humanizer — state-of-the-art rewrite that bypasses AI detectors
 // Returns SSE stream from Lovable AI Gateway
+import { validateAuth } from "../_shared/auth.ts";
+import { rateLimitOrNull } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-// Per-isolate rate limit
-const rl = new Map<string, number[]>();
-function rateLimit(key: string, max = 12, windowMs = 60_000): boolean {
-  const now = Date.now();
-  const arr = (rl.get(key) || []).filter((t) => now - t < windowMs);
-  if (arr.length >= max) { rl.set(key, arr); return false; }
-  arr.push(now); rl.set(key, arr); return true;
-}
 
 type Tone = "natural" | "casual" | "academic";
 
@@ -70,16 +63,15 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    // Soft auth: derive user key from header for rate limiting; do NOT block on JWT shape changes
-    const authHeader = req.headers.get("Authorization") || "";
-    const userKey = authHeader.slice(-40) || (req.headers.get("x-forwarded-for") ?? "anon");
-
-    if (!rateLimit(userKey)) {
-      return new Response(JSON.stringify({ error: "Too many requests. Wait a minute." }), {
-        status: 429,
+    const auth = await validateAuth(req);
+    if (!auth.authenticated) {
+      return new Response(JSON.stringify({ error: auth.error || "Unauthorized" }), {
+        status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const limited = await rateLimitOrNull(`ai-humanize:${auth.userId}`, 12, 60, corsHeaders);
+    if (limited) return limited;
 
     const { text, tone } = await req.json().catch(() => ({}));
     if (typeof text !== "string" || !text.trim()) {
