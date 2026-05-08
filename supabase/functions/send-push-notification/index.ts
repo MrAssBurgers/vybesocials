@@ -118,8 +118,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const { userId: targetIdPeek } = await req.clone().json().catch(() => ({ userId: "" }));
-      if (targetIdPeek && targetIdPeek !== callerProfileId) {
+      if (userId && userId !== callerProfileId) {
         // Must share at least one conversation
         const { data: callerConvs } = await supabase
           .from("conversation_members")
@@ -131,7 +130,7 @@ Deno.serve(async (req) => {
           const { data: shared } = await supabase
             .from("conversation_members")
             .select("id")
-            .eq("user_id", targetIdPeek)
+            .eq("user_id", userId)
             .in("conversation_id", convIds)
             .limit(1);
           allowed = !!(shared && shared.length > 0);
