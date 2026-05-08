@@ -826,6 +826,7 @@ function FriendMapInner() {
 
     let lastUpdate = 0;
     let gotReading = false;
+    let gotAbsolute = false;
 
     const screenAngle = (): number => {
       const a = (window.screen?.orientation as any)?.angle;
@@ -834,13 +835,21 @@ function FriendMapInner() {
       return (window as any).orientation || 0;
     };
 
-    const handler = (e: DeviceOrientationEvent) => {
+    const makeHandler = (isAbsoluteSource: boolean) => (e: DeviceOrientationEvent) => {
+      // Once a true absolute compass reading arrives, ignore the relative
+      // `deviceorientation` event entirely. On Android both fire but use
+      // different reference frames, which makes the map jitter wildly.
+      if (!isAbsoluteSource && gotAbsolute) return;
+
       // iOS Safari exposes a true magnetic compass heading directly.
       const ios = (e as any).webkitCompassHeading as number | undefined;
       let raw: number | null = null;
       if (typeof ios === 'number') {
         raw = ios;
       } else if (e.alpha != null) {
+        // Skip relative readings (no real compass reference) — alpha from a
+        // non-absolute event drifts and is meaningless as a heading.
+        if (!isAbsoluteSource && e.absolute === false) return;
         // `alpha` is rotation around device Z axis, 0 = device-frame north,
         // increasing counter-clockwise. Compass heading is clockwise from north
         // and must also be compensated for current screen orientation so the
@@ -849,6 +858,7 @@ function FriendMapInner() {
       }
       if (raw == null || Number.isNaN(raw)) return;
       gotReading = true;
+      if (isAbsoluteSource) gotAbsolute = true;
 
       const now = performance.now();
       if (now - lastUpdate < 80) return;
@@ -861,6 +871,9 @@ function FriendMapInner() {
       });
     };
 
+    const absoluteHandler = makeHandler(true);
+    const relativeHandler = makeHandler(false);
+
     let timeoutId: number | undefined;
     const start = async () => {
       try {
@@ -869,8 +882,8 @@ function FriendMapInner() {
           const res = await Req();
           if (res !== 'granted') { setHeadingUp(false); toast.error('Compass permission denied'); return; }
         }
-        window.addEventListener('deviceorientationabsolute', handler as any, true);
-        window.addEventListener('deviceorientation', handler as any, true);
+        window.addEventListener('deviceorientationabsolute', absoluteHandler as any, true);
+        window.addEventListener('deviceorientation', relativeHandler as any, true);
 
         // Many laptops (incl. Macs) have no magnetometer — readings never arrive
         // or `alpha` is null. Bail out gracefully so the map isn't stuck rotated.
@@ -888,8 +901,8 @@ function FriendMapInner() {
     start();
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
-      window.removeEventListener('deviceorientationabsolute', handler as any, true);
-      window.removeEventListener('deviceorientation', handler as any, true);
+      window.removeEventListener('deviceorientationabsolute', absoluteHandler as any, true);
+      window.removeEventListener('deviceorientation', relativeHandler as any, true);
       mapRef.current?.dragging?.enable();
     };
   }, [headingUp]);
