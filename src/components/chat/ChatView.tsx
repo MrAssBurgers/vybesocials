@@ -1725,12 +1725,14 @@ export function ChatView() {
         onOpenChat={() => setCameraFirstMode(false)}
       />
 
-      {/* VYBE Camera Modal */}
-      <VybeSnapCamera
-        isOpen={showSnapCamera}
-        onClose={() => setShowSnapCamera(false)}
-        onSend={handleVybeSend}
-      />
+      {/* VYBE Camera Modal — only mount when open to avoid heavy AR/MediaPipe init in DM view */}
+      {showSnapCamera && (
+        <VybeSnapCamera
+          isOpen={showSnapCamera}
+          onClose={() => setShowSnapCamera(false)}
+          onSend={handleVybeSend}
+        />
+      )}
 
       {/* Video Send Preview Modal */}
       <VideoSendPreview

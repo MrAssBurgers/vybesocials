@@ -67,7 +67,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
   
   // AR Face Tracking
-  const { faces, isReady: arReady, isLoading: arLoading, startTracking, stopTracking } = useFaceTracking({ enabled: isOpen && cameraReady });
+  const { faces, isReady: arReady, isLoading: arLoading, startTracking, stopTracking } = useFaceTracking({ enabled: isOpen && cameraReady && !!activeARFilter });
   const { applySnapLens, removeSnapLens, isAvailable: snapAvailable } = useSnapAR();
   
   const videoRef = useRef<HTMLVideoElement>(null);
