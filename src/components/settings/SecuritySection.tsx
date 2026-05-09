@@ -42,7 +42,8 @@ export function SecuritySection() {
       supabase.from('user_sessions').select('*').eq('user_id', user.id).is('revoked_at', null).order('last_seen_at', { ascending: false }),
       supabase.from('login_history').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
     ]);
-    if (s) setSettings(s as any);
+    const row = Array.isArray(s) ? s[0] : s;
+    setSettings(row ?? { email_2fa_enabled: false, login_approvals_enabled: false });
     setSessions((sess as Session[]) || []);
     setHistory(h || []);
     setLoading(false);
