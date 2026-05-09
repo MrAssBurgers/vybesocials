@@ -12394,13 +12394,7 @@ export type Database = {
           login_approvals_enabled: boolean
           updated_at: string
           user_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "user_2fa_settings"
-          isOneToOne: true
-          isSetofReturn: false
-        }
+        }[]
       }
       ensure_profile: { Args: never; Returns: string }
       execute_admin_sql: { Args: { sql_query: string }; Returns: Json }
