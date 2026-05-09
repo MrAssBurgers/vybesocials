@@ -769,85 +769,117 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         )}
 
         {/* Zoom indicator */}
-        {zoomLevel > 1 && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10">
-            <div className="bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 text-xs font-bold text-white">
-              {zoomLevel.toFixed(1)}x
-            </div>
-          </div>
+        <AnimatePresence>
+          {zoomLevel > 1 && (
+            <motion.div
+              initial={{ opacity: 0, y: -6, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.9 }}
+              className="absolute top-20 left-1/2 -translate-x-1/2 z-10"
+            >
+              <div className="px-3 py-1 rounded-full bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_24px_rgba(0,0,0,0.35)] text-[11px] font-semibold tracking-wide text-white">
+                {zoomLevel.toFixed(1)}×
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Premium vignette for depth */}
+        {cameraReady && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-0"
+            style={{
+              background:
+                'radial-gradient(120% 80% at 50% 50%, transparent 55%, rgba(0,0,0,0.35) 100%), linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 18%, transparent 70%, rgba(0,0,0,0.55) 100%)',
+            }}
+          />
         )}
       </div>
-      
-      {/* ── Top bar (Snapchat style) ──────────────────── */}
+
+      {/* ── Top bar — premium glass ──────────────────── */}
       <div className="absolute top-0 left-0 right-0 z-20 safe-area-inset-top">
-        <div className="flex items-center justify-between px-3 pt-3 pb-2">
-          {/* Left: User avatar + close */}
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between px-4 pt-3 pb-2">
+          {/* Left: avatar w/ gradient ring + search pill */}
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => navigate('/profile')}
-              className="h-10 w-10 rounded-full overflow-hidden bg-black/40 backdrop-blur-sm border-2 border-white/20"
+              className="relative h-11 w-11 rounded-full p-[2px] active:scale-95 transition-transform"
+              style={{ background: 'conic-gradient(from 140deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))' }}
+              aria-label="Profile"
             >
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center">
-                  <span className="text-sm font-bold text-white">{profile?.username?.[0]?.toUpperCase()}</span>
-                </div>
-              )}
+              <div className="h-full w-full rounded-full overflow-hidden bg-black ring-2 ring-black/40">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/40 to-accent/40">
+                    <span className="text-sm font-bold text-white">{profile?.username?.[0]?.toUpperCase() || 'V'}</span>
+                  </div>
+                )}
+              </div>
             </button>
             <button
               onClick={() => {}}
-              className="h-9 w-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+              className="h-10 px-3.5 rounded-full bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.3)] flex items-center gap-2 active:scale-95 transition-transform"
+              aria-label="Search lenses"
             >
-              <Search className="h-4 w-4 text-white" />
+              <Search className="h-4 w-4 text-white" strokeWidth={2.25} />
+              <span className="text-[12px] font-medium text-white/90">Search</span>
             </button>
           </div>
-          
-          {/* Right: Add friend + Camera flip */}
-          <div className="flex items-center gap-1.5">
+
+          {/* Right: action pills */}
+          <div className="flex items-center gap-2">
             <button
               onClick={() => navigate('/friends')}
-              className="h-9 w-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+              className="h-10 w-10 rounded-full bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.3)] flex items-center justify-center active:scale-90 transition-transform"
+              aria-label="Add friend"
             >
-              <UserPlus className="h-4 w-4 text-white" />
-            </button>
-            <button
-              onClick={handleSwitchCamera}
-              className="h-9 w-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
-            >
-              <SwitchCamera className="h-4 w-4 text-white" />
+              <UserPlus className="h-[18px] w-[18px] text-white" strokeWidth={2.25} />
             </button>
             <button
               onClick={handleClose}
-              className="h-9 w-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+              className="h-10 w-10 rounded-full bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.3)] flex items-center justify-center active:scale-90 transition-transform"
+              aria-label="Close camera"
             >
-              <X className="h-4 w-4 text-white" strokeWidth={2.5} />
+              <X className="h-[18px] w-[18px] text-white" strokeWidth={2.5} />
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── Right side vertical tools (Snapchat style) ── */}
+      {/* ── Right side vertical tools — unified glass stack ── */}
       <AnimatePresence>
         {showTools && !isRecording && (
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 16 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="absolute right-3 z-20 flex flex-col gap-2.5"
-            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 64px)' }}
+            exit={{ opacity: 0, x: 16 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute right-3 z-20 flex flex-col p-1.5 gap-1.5 rounded-full bg-white/8 backdrop-blur-2xl border border-white/12 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 76px)' }}
           >
+            {/* Switch camera (primary action gets accent) */}
+            <button
+              onClick={handleSwitchCamera}
+              className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 active:scale-90 transition-transform"
+              aria-label="Switch camera"
+            >
+              <SwitchCamera className="h-[18px] w-[18px] text-white" strokeWidth={2.25} />
+            </button>
+
             {/* Flash */}
             <button
-              onClick={() => setFlashEnabled(!flashEnabled)}
-              className="active:scale-90 transition-transform"
+              onClick={() => { setFlashEnabled(!flashEnabled); haptics.impact(); }}
+              className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-all",
+                flashEnabled ? "bg-yellow-300/25 ring-1 ring-yellow-300/50" : "hover:bg-white/10"
+              )}
+              aria-label="Toggle flash"
             >
-              <div className={cn(
-                "w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm",
-                flashEnabled ? "bg-yellow-400/30" : "bg-black/40"
-              )}>
-                {flashEnabled ? <Zap className="h-4 w-4 text-yellow-400" fill="currentColor" /> : <ZapOff className="h-4 w-4 text-white/80" />}
-              </div>
+              {flashEnabled
+                ? <Zap className="h-[18px] w-[18px] text-yellow-300" fill="currentColor" />
+                : <ZapOff className="h-[18px] w-[18px] text-white/85" strokeWidth={2.25} />}
             </button>
 
             {/* Timer */}
@@ -857,55 +889,75 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
                 setTimerSeconds(TIMER_OPTIONS[(idx + 1) % TIMER_OPTIONS.length]);
                 haptics.impact();
               }}
-              className="active:scale-90 transition-transform"
+              className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center relative active:scale-90 transition-all",
+                timerSeconds > 0 ? "bg-primary/30 ring-1 ring-primary/50" : "hover:bg-white/10"
+              )}
+              aria-label="Self-timer"
             >
-              <div className={cn(
-                "w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm relative",
-                timerSeconds > 0 ? "bg-primary/30" : "bg-black/40"
-              )}>
-                <Timer className="h-4 w-4 text-white/80" />
-                {timerSeconds > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground text-[8px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
-                    {timerSeconds}
-                  </span>
-                )}
-              </div>
+              <Timer className="h-[18px] w-[18px] text-white/85" strokeWidth={2.25} />
+              {timerSeconds > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold rounded-full h-[15px] min-w-[15px] px-[3px] flex items-center justify-center ring-2 ring-black/40">
+                  {timerSeconds}
+                </span>
+              )}
             </button>
 
             {/* Grid */}
             <button
               onClick={() => { setShowGrid(!showGrid); haptics.impact(); }}
-              className="active:scale-90 transition-transform"
+              className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-all",
+                showGrid ? "bg-white/25 ring-1 ring-white/40" : "hover:bg-white/10"
+              )}
+              aria-label="Composition grid"
             >
-              <div className={cn(
-                "w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm",
-                showGrid ? "bg-white/20" : "bg-black/40"
-              )}>
-                <Grid3X3 className="h-4 w-4 text-white/80" />
-              </div>
+              <Grid3X3 className="h-[18px] w-[18px] text-white/85" strokeWidth={2.25} />
             </button>
 
             {/* Night Mode */}
             <button
               onClick={() => { setNightMode(!nightMode); haptics.impact(); }}
-              className="active:scale-90 transition-transform"
+              className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-all",
+                nightMode ? "bg-yellow-300/20 ring-1 ring-yellow-300/40" : "hover:bg-white/10"
+              )}
+              aria-label="Night mode"
             >
-              <div className={cn(
-                "w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-sm",
-                nightMode ? "bg-yellow-400/20" : "bg-black/40"
-              )}>
-                {nightMode ? <Sun className="h-4 w-4 text-yellow-400" /> : <Moon className="h-4 w-4 text-white/80" />}
-              </div>
+              {nightMode
+                ? <Sun className="h-[18px] w-[18px] text-yellow-300" strokeWidth={2.25} />
+                : <Moon className="h-[18px] w-[18px] text-white/85" strokeWidth={2.25} />}
             </button>
           </motion.div>
         )}
       </AnimatePresence>
-      
-      {/* ── Bottom area (Snapchat style) ──────────────── */}
+
+      {/* ── Bottom area — premium dock ──────────────── */}
       <div className="absolute bottom-0 left-0 right-0 z-20 safe-area-inset-bottom">
+        {/* Active filter / lens name chip */}
+        <AnimatePresence>
+          {!isRecording && (activeARFilter || (currentFilter && currentFilter.id !== 'none')) && (
+            <motion.div
+              key={activeARFilter?.id || currentFilter?.id}
+              initial={{ opacity: 0, y: 8, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.95 }}
+              transition={{ duration: 0.22 }}
+              className="flex justify-center mb-2"
+            >
+              <div className="px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.35)] flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3 text-primary" />
+                <span className="text-[11px] font-semibold tracking-wide text-white">
+                  {activeARFilter?.name || currentFilter?.label}
+                </span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Lens/filter carousel */}
         {!isRecording && (
-          <div className="px-2 mb-3">
+          <div className="px-2 mb-4">
             <ARFilterPicker
               currentFilter={activeARFilter?.id || null}
               onFilterChange={handleARFilterChange}
@@ -916,33 +968,36 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         )}
 
         {/* Capture row */}
-        <div className="flex items-center justify-between px-6 pb-2">
-          {/* Gallery / Memories */}
+        <div className="flex items-end justify-between px-8 pb-3">
+          {/* Gallery */}
           <button
             onClick={handleGalleryPick}
-            className="h-12 w-12 rounded-xl overflow-hidden bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center"
+            className="h-12 w-12 rounded-2xl overflow-hidden bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.3)] flex items-center justify-center active:scale-90 transition-transform"
+            aria-label="Open gallery"
           >
-            <Image className="h-5 w-5 text-white/70" />
+            <Image className="h-[20px] w-[20px] text-white" strokeWidth={2.25} />
           </button>
 
-          {/* Capture button */}
-          <VybeRecordButton
-            isRecording={isRecording}
-            progress={recordingProgress}
-            maxDuration={MAX_RECORDING_DURATION}
-            onCaptureStart={handleCaptureStart}
-            onCaptureEnd={handleCaptureEnd}
-          />
+          {/* Capture button (slightly elevated) */}
+          <div className="-mt-1">
+            <VybeRecordButton
+              isRecording={isRecording}
+              progress={recordingProgress}
+              maxDuration={MAX_RECORDING_DURATION}
+              onCaptureStart={handleCaptureStart}
+              onCaptureEnd={handleCaptureEnd}
+            />
+          </div>
 
-          {/* Music button */}
+          {/* Music */}
           <button
             onClick={() => haptics.impact()}
-            className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center"
+            className="h-12 w-12 rounded-2xl bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.3)] flex items-center justify-center active:scale-90 transition-transform"
+            aria-label="Add music"
           >
-            <Music className="h-5 w-5 text-white/70" />
+            <Music className="h-[20px] w-[20px] text-white" strokeWidth={2.25} />
           </button>
         </div>
-        
       </div>
     </motion.div>
   );
