@@ -774,19 +774,27 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           onSuccess={async (session) => {
             // Apply the session that the verify/approval response handed us.
             // No session existed on this device until this moment.
-            if (session?.access_token && session?.refresh_token) {
-              try {
-                await supabase.auth.setSession({
-                  access_token: session.access_token,
-                  refresh_token: session.refresh_token,
-                });
-              } catch (e) {
-                console.warn('setSession after gate failed', e);
-                toast.error('Could not finish signing in. Please try again.');
-                setLoginGate(null);
-                setGatePending(false);
-                return;
-              }
+            if (!session?.access_token || !session?.refresh_token) {
+              toast.error('Could not finish signing in. Request a new code and try again.');
+              setLoginGate(null);
+              setGatePending(false);
+              return;
+            }
+            try {
+              const { error: sessionError } = await supabase.auth.setSession({
+                access_token: session.access_token,
+                refresh_token: session.refresh_token,
+              });
+              if (sessionError) throw sessionError;
+
+              const { data: active, error: activeError } = await supabase.auth.getUser();
+              if (activeError || !active.user) throw activeError ?? new Error('Session was not established');
+            } catch (e) {
+              console.warn('setSession after gate failed', e);
+              toast.error('Could not finish signing in. Please try again.');
+              setLoginGate(null);
+              setGatePending(false);
+              return;
             }
             setLoginGate(null);
             setGatePending(false);
