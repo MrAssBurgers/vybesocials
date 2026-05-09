@@ -11,9 +11,12 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return jsonResponse({ error: 'method_not_allowed' }, 405);
 
   try {
-    const { email } = await req.json().catch(() => ({}));
+    const { email, challengeId } = await req.json().catch(() => ({}));
     if (!email || typeof email !== 'string' || email.length > 320) {
       return jsonResponse({ error: 'invalid_email' }, 400);
+    }
+    if (challengeId != null && typeof challengeId !== 'string') {
+      return jsonResponse({ error: 'invalid_challenge' }, 400);
     }
     const normalized = email.trim().toLowerCase();
 
@@ -63,7 +66,19 @@ Deno.serve(async (req) => {
     const device = parseUserAgent(ua);
     const geo = await geolocateIp(ip);
 
-    // Invalidate previous pending email_2fa challenges for this user
+    const reusableSession = challengeId
+      ? ((await admin
+        .from('auth_challenges')
+        .select('metadata')
+        .eq('id', challengeId)
+        .eq('user_id', userId)
+        .eq('challenge_type', 'email_2fa')
+        .eq('status', 'pending')
+        .maybeSingle()).data?.metadata as Record<string, any> | null)?.session
+      : null;
+
+    // Invalidate previous pending email_2fa challenges for this user, then
+    // create a fresh challenge id so the newly emailed code is the only valid one.
     await admin
       .from('auth_challenges')
       .update({ status: 'expired' })
@@ -79,9 +94,11 @@ Deno.serve(async (req) => {
         challenge_type: 'email_2fa',
         code_hash: codeHash,
         expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-        metadata: { ip, ua, device, geo },
+        metadata: reusableSession?.access_token && reusableSession?.refresh_token
+          ? { ip, ua, device, geo, session: reusableSession }
+          : { ip, ua, device, geo },
       })
-      .select('id')
+      .select('id, expires_at')
       .single();
     if (insErr || !chal) return jsonResponse({ error: 'create_challenge_failed' }, 500);
 
@@ -98,7 +115,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, error: 'email_failed', detail: sendResult.error }, 502);
     }
 
-    return jsonResponse({ ok: true, requires2fa: true, challengeId: chal.id });
+    return jsonResponse({ ok: true, requires2fa: true, challengeId: chal.id, expiresAt: chal.expires_at });
   } catch (e) {
     console.error('auth-2fa-request error', e);
     return jsonResponse({ error: 'server_error' }, 500);
