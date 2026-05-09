@@ -1,15 +1,9 @@
-// Unified biometric wrapper.
-// Resolves to the best available system: Capacitor (iOS/Android native shell)
-// first, Despia second, then a no-op fallback for plain web.
+// Despia biometric authentication wrapper.
+// Triggers Face ID / Touch ID / device passcode inside the Despia native shell
+// and resolves a Promise based on the global callbacks the runtime invokes.
 //
-// Public API mirrors the previous Despia-only module so existing imports
-// keep working via the re-export in `./despiaBiometrics.ts`.
+// Docs: https://setup.despia.com/native-features/biometrics
 
-import { Capacitor } from '@capacitor/core';
-import {
-  BiometricAuth,
-  BiometryErrorType,
-} from '@aparajita/capacitor-biometric-auth';
 import despia from 'despia-native';
 
 declare global {
@@ -24,78 +18,40 @@ export type BioAuthResult =
   | { ok: true }
   | { ok: false; reason: 'failed' | 'unavailable' | 'not-despia'; code?: string | number; message?: string };
 
-const isCapacitor = (): boolean => {
-  try { return Capacitor.isNativePlatform(); } catch { return false; }
-};
-
 export const isDespia = (): boolean =>
   typeof navigator !== 'undefined' &&
   navigator.userAgent.toLowerCase().includes('despia');
 
 /** True when the current runtime can actually invoke a biometric prompt. */
 export async function isBiometricsAvailable(): Promise<boolean> {
-  if (isCapacitor()) {
-    try {
-      const info = await BiometricAuth.checkBiometry();
-      return !!info.isAvailable;
-    } catch { return false; }
-  }
   return isDespia();
 }
 
-let despiaPending: ((r: BioAuthResult) => void) | null = null;
-function settleDespia(r: BioAuthResult) {
-  const fn = despiaPending; despiaPending = null; fn?.(r);
+let pending: ((r: BioAuthResult) => void) | null = null;
+function settle(r: BioAuthResult) {
+  const fn = pending; pending = null; fn?.(r);
 }
 
-async function requestCapacitor(): Promise<BioAuthResult> {
-  try {
-    const info = await BiometricAuth.checkBiometry();
-    if (!info.isAvailable) {
-      return { ok: false, reason: 'unavailable', message: info.reason || 'no_biometry' };
-    }
-    await BiometricAuth.authenticate({
-      reason: 'Unlock VYBE',
-      cancelTitle: 'Cancel',
-      allowDeviceCredential: true,
-      iosFallbackTitle: 'Use Passcode',
-      androidTitle: 'Unlock VYBE',
-      androidSubtitle: 'Confirm it\'s you',
-      androidConfirmationRequired: false,
-    });
-    return { ok: true };
-  } catch (e: any) {
-    const code = e?.code as BiometryErrorType | undefined;
-    if (
-      code === BiometryErrorType.biometryNotAvailable ||
-      code === BiometryErrorType.biometryNotEnrolled ||
-      code === BiometryErrorType.noDeviceCredential
-    ) {
-      return { ok: false, reason: 'unavailable', code, message: e?.message };
-    }
-    return { ok: false, reason: 'failed', code, message: e?.message };
-  }
-}
-
-function requestDespia(): Promise<BioAuthResult> {
-  if (despiaPending) settleDespia({ ok: false, reason: 'failed', message: 'superseded' });
-  return new Promise<BioAuthResult>((resolve) => {
-    despiaPending = resolve;
-    window.onBioAuthSuccess = () => settleDespia({ ok: true });
-    window.onBioAuthFailure = (code, message) =>
-      settleDespia({ ok: false, reason: 'failed', code, message });
-    window.onBioAuthUnavailable = () =>
-      settleDespia({ ok: false, reason: 'unavailable' });
-    try { despia('bioauth://'); }
-    catch (e) { settleDespia({ ok: false, reason: 'unavailable', message: (e as Error)?.message }); }
-  });
-}
-
-/** Trigger the system biometric prompt. */
+/**
+ * Trigger the system biometric prompt. Resolves once the native runtime fires
+ * one of the three callbacks. Outside Despia, resolves immediately with
+ * `{ ok: false, reason: 'not-despia' }` so callers can fall back.
+ */
 export function requestBioAuth(): Promise<BioAuthResult> {
-  if (isCapacitor()) return requestCapacitor();
-  if (isDespia()) return requestDespia();
-  return Promise.resolve({ ok: false, reason: 'not-despia' });
+  if (!isDespia()) return Promise.resolve({ ok: false, reason: 'not-despia' });
+  if (pending) settle({ ok: false, reason: 'failed', message: 'superseded' });
+
+  return new Promise<BioAuthResult>((resolve) => {
+    pending = resolve;
+    window.onBioAuthSuccess = () => settle({ ok: true });
+    window.onBioAuthFailure = (code, message) =>
+      settle({ ok: false, reason: 'failed', code, message });
+    window.onBioAuthUnavailable = () =>
+      settle({ ok: false, reason: 'unavailable' });
+
+    try { despia('bioauth://'); }
+    catch (e) { settle({ ok: false, reason: 'unavailable', message: (e as Error)?.message }); }
+  });
 }
 
 /** Gate a sensitive action. In strict mode, missing biometrics = blocked. */
