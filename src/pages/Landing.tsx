@@ -77,7 +77,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [loginGate, setLoginGate] = useState<null | { mode: 'code' | 'approval'; email: string; challengeId: string }>(null);
+  const [loginGate, setLoginGate] = useState<null | {
+    mode: 'code' | 'approval';
+    email: string;
+    challengeId: string;
+    expiresAt?: string;
+    approvalDevice?: string;
+    approvalLocation?: { city?: string | null; country?: string | null; ip?: string | null };
+  }>(null);
   const [gatePending, setGatePending] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
