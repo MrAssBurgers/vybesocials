@@ -42,7 +42,8 @@ export function SecuritySection() {
       supabase.from('user_sessions').select('*').eq('user_id', user.id).is('revoked_at', null).order('last_seen_at', { ascending: false }),
       supabase.from('login_history').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
     ]);
-    if (s) setSettings(s as any);
+    const row = Array.isArray(s) ? s[0] : s;
+    setSettings(row ?? { email_2fa_enabled: false, login_approvals_enabled: false });
     setSessions((sess as Session[]) || []);
     setHistory(h || []);
     setLoading(false);
@@ -52,11 +53,15 @@ export function SecuritySection() {
 
   const updateSetting = async (patch: Partial<Settings2FA>) => {
     if (!user || !settings) return;
-    setSettings({ ...settings, ...patch });
-    const { error } = await supabase.from('user_2fa_settings').update(patch).eq('user_id', user.id);
+    const prev = settings;
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    const { error } = await supabase
+      .from('user_2fa_settings')
+      .upsert({ user_id: user.id, ...next }, { onConflict: 'user_id' });
     if (error) {
+      setSettings(prev);
       toast.error('Could not save');
-      load();
     } else {
       toast.success('Saved');
     }
