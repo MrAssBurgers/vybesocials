@@ -1,6 +1,7 @@
 // Verifies an email 2FA code against a stored challenge.
-// On success: marks challenge consumed and returns OK so the client
-// can proceed with the already-completed Supabase session.
+// On success: marks the challenge consumed, atomically clears the stored
+// session tokens from metadata, and returns them to the client which then
+// calls supabase.auth.setSession(...) to actually sign in.
 import {
   corsHeaders, jsonResponse, getServiceClient, sha256Hex,
 } from '../_shared/security.ts';
@@ -20,7 +21,7 @@ Deno.serve(async (req) => {
     const admin = getServiceClient();
     const { data: chal } = await admin
       .from('auth_challenges')
-      .select('id, user_id, code_hash, status, expires_at')
+      .select('id, user_id, code_hash, status, expires_at, metadata')
       .eq('id', challengeId)
       .eq('challenge_type', 'email_2fa')
       .maybeSingle();
@@ -36,12 +37,28 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'wrong_code' }, 400);
     }
 
+    // Pull the stored session tokens, then null them out in the same row so
+    // they can never be replayed.
+    const meta = (chal.metadata as Record<string, any>) || {};
+    const session = meta.session;
+    const scrubbed = { ...meta };
+    delete scrubbed.session;
+
     await admin
       .from('auth_challenges')
-      .update({ status: 'consumed', consumed_at: new Date().toISOString() })
+      .update({
+        status: 'consumed',
+        consumed_at: new Date().toISOString(),
+        metadata: scrubbed,
+      })
       .eq('id', chal.id);
 
-    return jsonResponse({ ok: true });
+    if (!session?.access_token || !session?.refresh_token) {
+      // Older challenge predating the preauth flow — nothing we can hand back.
+      return jsonResponse({ ok: true, session: null });
+    }
+
+    return jsonResponse({ ok: true, session });
   } catch (e) {
     console.error('auth-2fa-verify error', e);
     return jsonResponse({ error: 'server_error' }, 500);

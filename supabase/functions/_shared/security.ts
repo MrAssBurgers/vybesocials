@@ -104,25 +104,32 @@ export function generateNonce(): string {
 }
 
 // Best-effort enqueue email via send-transactional-email.
-// Uses the supabase-js client so the request is authenticated correctly
-// regardless of whether the project key is a JWT or the new sb_secret_ format.
+// Returns { ok, error } so callers can react when delivery fails (and avoid
+// telling the user "code sent" when nothing was actually queued).
 export async function sendTransactional(
   templateName: string,
   recipientEmail: string,
   templateData: Record<string, unknown>,
   idempotencyKey: string,
-) {
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const admin = getServiceClient();
     const { data, error } = await admin.functions.invoke('send-transactional-email', {
       body: { templateName, recipientEmail, templateData, idempotencyKey },
     });
     if (error) {
-      console.warn('sendTransactional invoke error', templateName, error?.message || error);
-    } else if ((data as any)?.error) {
-      console.warn('sendTransactional response error', templateName, (data as any).error);
+      const msg = (error as any)?.message || String(error);
+      console.warn('sendTransactional invoke error', templateName, msg);
+      return { ok: false, error: msg };
     }
+    if ((data as any)?.error) {
+      console.warn('sendTransactional response error', templateName, (data as any).error);
+      return { ok: false, error: String((data as any).error) };
+    }
+    return { ok: true };
   } catch (e) {
-    console.warn('sendTransactional failed', templateName, e);
+    const msg = (e as any)?.message || String(e);
+    console.warn('sendTransactional failed', templateName, msg);
+    return { ok: false, error: msg };
   }
 }

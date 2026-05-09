@@ -85,13 +85,18 @@ Deno.serve(async (req) => {
       .single();
     if (insErr || !chal) return jsonResponse({ error: 'create_challenge_failed' }, 500);
 
-    await sendTransactional('login-verification', normalized, {
+    const sendResult = await sendTransactional('login-verification', normalized, {
       code,
       ip,
       city: geo.city,
       country: geo.country,
       device,
     }, `2fa-${chal.id}`);
+
+    if (!sendResult.ok) {
+      await admin.from('auth_challenges').delete().eq('id', chal.id);
+      return jsonResponse({ ok: false, error: 'email_failed', detail: sendResult.error }, 502);
+    }
 
     return jsonResponse({ ok: true, requires2fa: true, challengeId: chal.id });
   } catch (e) {

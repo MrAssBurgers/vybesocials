@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
       if (!challengeId) return jsonResponse({ error: 'invalid_input' }, 400);
       const { data: chal } = await admin
         .from('auth_challenges')
-        .select('status, expires_at')
+        .select('id, status, expires_at, metadata')
         .eq('id', challengeId)
         .eq('challenge_type', 'login_approval')
         .maybeSingle();
@@ -75,7 +75,47 @@ Deno.serve(async (req) => {
       if (new Date(chal.expires_at).getTime() < Date.now() && chal.status === 'pending') {
         return jsonResponse({ status: 'expired' });
       }
+      // Hand back the stored session ONCE on approval, then scrub it so it
+      // can't be replayed by a second polling client.
+      if (chal.status === 'approved') {
+        const meta = (chal.metadata as Record<string, any>) || {};
+        const session = meta.session;
+        if (session) {
+          const scrubbed = { ...meta };
+          delete scrubbed.session;
+          await admin.from('auth_challenges')
+            .update({ metadata: scrubbed })
+            .eq('id', chal.id);
+        }
+        return jsonResponse({ status: 'approved', session: session ?? null });
+      }
       return jsonResponse({ status: chal.status });
+    }
+
+    if (action === 'deny_self') {
+      // Unauthenticated "This wasn't me" — flips the challenge to denied so the
+      // pending session is never handed out. No proof beyond knowing the
+      // challengeId, but the row is single-use and TTL-bound.
+      const { challengeId } = body;
+      if (!challengeId) return jsonResponse({ error: 'invalid_input' }, 400);
+      const { data: chal } = await admin
+        .from('auth_challenges')
+        .select('id, status, metadata')
+        .eq('id', challengeId)
+        .eq('challenge_type', 'login_approval')
+        .maybeSingle();
+      if (!chal) return jsonResponse({ ok: true });
+      if (chal.status === 'pending') {
+        const meta = (chal.metadata as Record<string, any>) || {};
+        const scrubbed = { ...meta };
+        delete scrubbed.session;
+        await admin.from('auth_challenges').update({
+          status: 'denied',
+          consumed_at: new Date().toISOString(),
+          metadata: scrubbed,
+        }).eq('id', chal.id);
+      }
+      return jsonResponse({ ok: true });
     }
 
     if (action === 'respond') {
