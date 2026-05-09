@@ -354,21 +354,27 @@ export function AutoFriendDrop() {
     };
   }, [isActive]);
 
-  // Start camera only when QR scanning is visible, so Friend Link opens instantly.
+  // Start camera only when QR scanning is visible. The tab onClick also kicks
+  // startCamera() inside the user gesture so iOS doesn't reject getUserMedia.
   useEffect(() => {
     if (!isActive || phase !== 'activated') return;
     if (activeTab === 'qr') {
-      const timer = window.setTimeout(startCamera, 120);
-      return () => { window.clearTimeout(timer); stopScanning(); };
+      startCamera();
+      return () => { stopScanning(); };
     }
     stopScanning();
   }, [isActive, phase, activeTab, startCamera, stopScanning]);
 
-  // Start NFC/native tap when switching to Phone Tap.
+  // Start NFC/native tap when switching to Phone Tap. Falls back to Web NFC.
   useEffect(() => {
-    if (isActive && activeTab === 'tap' && nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
-      nativeFriendDrop.startSession();
+    if (isActive && activeTab === 'tap') {
+      if (nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
+        nativeFriendDrop.startSession();
+      }
     }
+    return () => {
+      if (webNfcRef.current) { webNfcRef.current.abort(); webNfcRef.current = null; }
+    };
   }, [isActive, activeTab, nativeFriendDrop]);
 
   const tapLive = activeTab === 'tap' && (nativeFriendDrop.isActive || !nativeFriendDrop.isAvailable);
@@ -512,7 +518,15 @@ export function AutoFriendDrop() {
                   {(['tap', 'qr'] as ActiveTab[]).map((tab) => (
                     <button
                       key={tab}
-                      onClick={() => setActiveTab(tab)}
+                      onClick={() => {
+                        setActiveTab(tab);
+                        // Trigger media APIs from the user gesture itself.
+                        if (tab === 'qr') {
+                          startCamera();
+                        } else if (tab === 'tap' && !nativeFriendDrop.isAvailable) {
+                          startWebNfcScan();
+                        }
+                      }}
                       className={cn(
                         'relative z-10 flex h-10 items-center justify-center gap-1.5 rounded-full text-xs font-bold transition-colors active:scale-[0.98]',
                         activeTab === tab ? 'text-primary-foreground' : 'text-muted-foreground'
