@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Key, Plus, Trash2, Loader2 } from 'lucide-react';
@@ -7,6 +8,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { passkeysSupported, registerPasskey } from '@/lib/passkeys';
 import { formatDistanceToNow } from 'date-fns';
+
+const inNativeApp = (() => { try { return Capacitor.isNativePlatform(); } catch { return false; } })();
 
 interface Passkey {
   id: string;
