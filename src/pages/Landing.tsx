@@ -170,18 +170,21 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     }
 
     // Use profile from auth context to avoid race condition on iPad Safari
-    // where a separate Supabase query runs before the JWT is fully established
+    // where a separate Supabase query runs before the JWT is fully established.
+    // Suppress auto-redirect while a 2FA / approval gate decision is in flight
+    // (otherwise on mobile the SIGNED_IN listener races the gate and bypasses it).
+    if (gatePending || loginGate) return;
     if (authProfile?.username && authProfile?.onboarding_completed !== false) {
       navigate('/home', { replace: true });
     }
-  }, [user, authProfile, navigate, isInviteRoute, isInviteMode, authReady]);
+  }, [user, authProfile, navigate, isInviteRoute, isInviteMode, authReady, gatePending, loginGate]);
 
   // Prevent the "login flash": if auth is still resolving, OR we already have a
   // logged-in user with a completed profile (about to redirect), render nothing.
   // The splash screen / next route paints in our place.
   if (!isInviteMode) {
     if (!authReady) return null;
-    if (user && authProfile?.username && authProfile?.onboarding_completed !== false) {
+    if (user && authProfile?.username && authProfile?.onboarding_completed !== false && !gatePending && !loginGate) {
       return null;
     }
   }
