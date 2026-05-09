@@ -205,8 +205,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
     try {
       if (isLogin) {
+        // Mark gate-pending BEFORE signIn so the auto-redirect effect can't race
+        // the SIGNED_IN listener and skip the 2FA / approval check on mobile.
+        setGatePending(true);
+
         const { error } = await signIn(formData.email, formData.password);
-        if (error) throw error;
+        if (error) { setGatePending(false); throw error; }
 
         // Always persist sessions so users stay signed in reliably
         sessionStorage.removeItem('vybe-session-only');
@@ -233,6 +237,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           }
         } catch (e) { console.warn('approval check failed', e); }
 
+        setGatePending(false);
         toast.success('Welcome back! ✨');
         navTo('home', '/home');
       } else {
