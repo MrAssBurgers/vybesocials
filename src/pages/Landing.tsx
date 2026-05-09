@@ -78,6 +78,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [rememberMe, setRememberMe] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [loginGate, setLoginGate] = useState<null | { mode: 'code' | 'approval'; email: string; challengeId: string }>(null);
+  const [gatePending, setGatePending] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -170,18 +171,21 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     }
 
     // Use profile from auth context to avoid race condition on iPad Safari
-    // where a separate Supabase query runs before the JWT is fully established
+    // where a separate Supabase query runs before the JWT is fully established.
+    // Suppress auto-redirect while a 2FA / approval gate decision is in flight
+    // (otherwise on mobile the SIGNED_IN listener races the gate and bypasses it).
+    if (gatePending || loginGate) return;
     if (authProfile?.username && authProfile?.onboarding_completed !== false) {
       navigate('/home', { replace: true });
     }
-  }, [user, authProfile, navigate, isInviteRoute, isInviteMode, authReady]);
+  }, [user, authProfile, navigate, isInviteRoute, isInviteMode, authReady, gatePending, loginGate]);
 
   // Prevent the "login flash": if auth is still resolving, OR we already have a
   // logged-in user with a completed profile (about to redirect), render nothing.
   // The splash screen / next route paints in our place.
   if (!isInviteMode) {
     if (!authReady) return null;
-    if (user && authProfile?.username && authProfile?.onboarding_completed !== false) {
+    if (user && authProfile?.username && authProfile?.onboarding_completed !== false && !gatePending && !loginGate) {
       return null;
     }
   }
@@ -201,8 +205,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
     try {
       if (isLogin) {
+        // Mark gate-pending BEFORE signIn so the auto-redirect effect can't race
+        // the SIGNED_IN listener and skip the 2FA / approval check on mobile.
+        setGatePending(true);
+
         const { error } = await signIn(formData.email, formData.password);
-        if (error) throw error;
+        if (error) { setGatePending(false); throw error; }
 
         // Always persist sessions so users stay signed in reliably
         sessionStorage.removeItem('vybe-session-only');
@@ -229,6 +237,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           }
         } catch (e) { console.warn('approval check failed', e); }
 
+        setGatePending(false);
         toast.success('Welcome back! ✨');
         navTo('home', '/home');
       } else {
@@ -708,12 +717,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           challengeId={loginGate.challengeId}
           onSuccess={() => {
             setLoginGate(null);
+            setGatePending(false);
             toast.success('Welcome back! ✨');
             if (isInviteMode && onInviteNavigate) onInviteNavigate('home');
             else navigate('/home');
           }}
           onCancel={async () => {
             setLoginGate(null);
+            setGatePending(false);
             try { await supabase.auth.signOut(); } catch {}
           }}
         />

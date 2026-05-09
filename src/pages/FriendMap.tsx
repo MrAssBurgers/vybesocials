@@ -948,6 +948,27 @@ function FriendMapInner() {
     };
   }, [headingUp, manualRotation]);
 
+  /* ── Apply rotation to Leaflet's inner map pane only (Google-Maps style).
+        Tiles + marker positions rotate together; the wrapper, controls and
+        marker icons stay upright. Uses a dynamic cover-scale so corners
+        never reveal empty space, but no zoom-in at 0°. ── */
+  useEffect(() => {
+    const root = mapEl.current;
+    if (!root) return;
+    const pane = root.querySelector('.leaflet-map-pane') as HTMLElement | null;
+    if (!pane) return;
+
+    const rot = headingUp ? -heading : manualRotation;
+    const rad = (rot * Math.PI) / 180;
+    const cover = Math.abs(Math.cos(rad)) + Math.abs(Math.sin(rad)); // 1.0 at 0°, ~1.41 at 45°
+    pane.style.transformOrigin = 'center center';
+    pane.style.transform = rot ? `rotate(${rot}deg) scale(${cover})` : '';
+    pane.style.transition = 'transform 120ms linear';
+    pane.style.willChange = rot ? 'transform' : '';
+    // Counter-rotate marker icons so avatars + labels stay upright.
+    root.style.setProperty('--map-counter-rot', `${-rot}deg`);
+  }, [headingUp, heading, manualRotation]);
+
   /* ── render ────────────────────────────────────────── */
 
 
@@ -993,21 +1014,30 @@ function FriendMapInner() {
           
           .scrollbar-hide::-webkit-scrollbar{display:none}
           .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
+
+          /* Counter-rotate the inner content of every Leaflet marker so
+             avatars, labels, "you" pin and event icons stay upright while
+             the map pane rotates underneath (Google-Maps "heading-up"). The
+             outer .leaflet-marker-icon keeps Leaflet's positioning transform. */
+          .vfm, .vme, .vfm-cluster {
+            transform: rotate(var(--map-counter-rot, 0deg));
+            transform-origin: center center;
+            transition: transform 120ms linear;
+          }
         `}</style>
 
-        {/* Map container */}
+        {/* Map container — wrapper stays UNROTATED so the top bar, FABs and
+            sheets never skew. Rotation is applied to .leaflet-map-pane in JS. */}
         <div
           ref={mapEl}
           className="absolute inset-0 block w-full h-full"
           style={{
-            transform: headingUp
-              ? `rotate(${-heading}deg) scale(1.18)`
-              : (manualRotation !== 0 ? `rotate(${manualRotation}deg) scale(1.05)` : undefined),
-            transformOrigin: 'center center',
-            transition: 'transform 120ms linear',
-            willChange: (headingUp || manualRotation !== 0) ? 'transform' : undefined,
+            // CSS variable consumed by .leaflet-marker-icon counter-rotation rule
+            // (set in the rotation effect above).
+            ['--map-counter-rot' as any]: '0deg',
           }}
         />
+
 
         {/* ── Top bar (Snap Maps style) ───────────────── */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-4 pt-[env(safe-area-inset-top)]">

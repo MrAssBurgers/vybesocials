@@ -29,13 +29,21 @@ export function BiometricLockCard() {
       toast.info('Open VYBE in the mobile app to use Face ID / Touch ID.');
       return;
     }
+    // Disabling: just clear the pref, never prompt.
+    if (!next) {
+      setBioAuthPref(false);
+      setEnabled(false);
+      toast.success('Biometric lock disabled');
+      return;
+    }
+    // Enabling: confirm enrollment with one prompt, then arm the launch gate.
     setBusy(true);
     try {
       const r = await requestBioAuth();
       if (r.ok === true) {
-        setBioAuthPref(next);
-        setEnabled(next);
-        toast.success(next ? 'Biometric lock enabled' : 'Biometric lock disabled');
+        setBioAuthPref(true);
+        setEnabled(true);
+        toast.success('Biometric lock enabled — required at app launch');
       } else if (r.reason === 'unavailable') {
         toast.error('No Face ID / Touch ID set up on this device.');
       } else if (r.reason !== 'not-despia') {
