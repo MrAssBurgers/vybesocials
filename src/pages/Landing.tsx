@@ -749,17 +749,36 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           mode={loginGate.mode}
           email={loginGate.email}
           challengeId={loginGate.challengeId}
-          onSuccess={() => {
+          expiresAt={loginGate.expiresAt}
+          approvalDevice={loginGate.approvalDevice}
+          approvalLocation={loginGate.approvalLocation}
+          onSuccess={async (session) => {
+            // Apply the session that the verify/approval response handed us.
+            // No session existed on this device until this moment.
+            if (session?.access_token && session?.refresh_token) {
+              try {
+                await supabase.auth.setSession({
+                  access_token: session.access_token,
+                  refresh_token: session.refresh_token,
+                });
+              } catch (e) {
+                console.warn('setSession after gate failed', e);
+                toast.error('Could not finish signing in. Please try again.');
+                setLoginGate(null);
+                setGatePending(false);
+                return;
+              }
+            }
             setLoginGate(null);
             setGatePending(false);
             toast.success('Welcome back! ✨');
             if (isInviteMode && onInviteNavigate) onInviteNavigate('home');
             else navigate('/home');
           }}
-          onCancel={async () => {
+          onCancel={() => {
+            // No session was ever created on this device — nothing to sign out.
             setLoginGate(null);
             setGatePending(false);
-            try { await supabase.auth.signOut(); } catch {}
           }}
         />
       )}
