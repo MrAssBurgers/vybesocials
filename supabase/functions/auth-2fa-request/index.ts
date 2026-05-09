@@ -18,13 +18,31 @@ Deno.serve(async (req) => {
     const normalized = email.trim().toLowerCase();
 
     const admin = getServiceClient();
-    // Find the user by email (admin API)
-    const { data: users, error: lookupErr } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
-    if (lookupErr) return jsonResponse({ error: 'lookup_failed' }, 500);
-    const user = users.users.find(u => (u.email ?? '').toLowerCase() === normalized);
+    // Resolve user via profiles.email first (works regardless of how many auth
+    // users exist). Fall back to a paginated listUsers scan only if no profile
+    // row matches — that avoids the silent bypass for users created past page 1.
+    let userId: string | null = null;
+    {
+      const { data: prof } = await admin
+        .from('profiles')
+        .select('user_id')
+        .eq('email', normalized)
+        .maybeSingle();
+      userId = prof?.user_id ?? null;
+    }
+    if (!userId) {
+      // Fallback: paginate through admin.listUsers (max 5 pages = 1000 users).
+      for (let page = 1; page <= 5 && !userId; page++) {
+        const { data: users, error: lookupErr } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+        if (lookupErr) break;
+        const u = users.users.find(uu => (uu.email ?? '').toLowerCase() === normalized);
+        if (u) userId = u.id;
+        if ((users.users?.length ?? 0) < 200) break;
+      }
+    }
 
     // Always respond OK (don't leak existence) — but only act if user exists & has 2FA on
-    if (!user) {
+    if (!userId) {
       return jsonResponse({ ok: true, requires2fa: false });
     }
 
