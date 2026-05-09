@@ -78,6 +78,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [rememberMe, setRememberMe] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [loginGate, setLoginGate] = useState<null | { mode: 'code' | 'approval'; email: string; challengeId: string }>(null);
+  const [gatePending, setGatePending] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
