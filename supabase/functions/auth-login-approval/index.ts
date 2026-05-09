@@ -24,7 +24,16 @@ Deno.serve(async (req) => {
       const normalized = email.trim().toLowerCase();
 
       const { data: users } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
-      const user = users?.users.find(u => (u.email ?? '').toLowerCase() === normalized);
+      let user = users?.users.find(u => (u.email ?? '').toLowerCase() === normalized) ?? null;
+      if (!user) {
+        // Fallback to profiles.email lookup so users created past page 1 still gate.
+        const { data: prof } = await admin
+          .from('profiles')
+          .select('user_id')
+          .eq('email', normalized)
+          .maybeSingle();
+        if (prof?.user_id) user = { id: prof.user_id } as any;
+      }
       if (!user) return jsonResponse({ ok: true, requiresApproval: false });
 
       const { data: settings } = await admin
