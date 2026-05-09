@@ -16,6 +16,7 @@ import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
 import { CallStoreProvider } from "@/lib/callStore";
 
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
+import { BiometricLoginGate } from "@/components/auth/BiometricLoginGate";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
 import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
