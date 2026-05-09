@@ -44,6 +44,7 @@ export function LoginGateModal({
   const [busy, setBusy] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [activeExpiresAt, setActiveExpiresAt] = useState(expiresAt);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const pollTimerRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
@@ -53,15 +54,19 @@ export function LoginGateModal({
 
   // ── Expiry countdown ─────────────────────────────────────
   useEffect(() => {
-    if (!expiresAt) { setSecondsLeft(null); return; }
+    setActiveExpiresAt(expiresAt);
+  }, [expiresAt, challengeId]);
+
+  useEffect(() => {
+    if (!activeExpiresAt) { setSecondsLeft(null); return; }
     const tick = () => {
-      const ms = new Date(expiresAt).getTime() - Date.now();
+      const ms = new Date(activeExpiresAt).getTime() - Date.now();
       setSecondsLeft(Math.max(0, Math.floor(ms / 1000)));
     };
     tick();
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, [expiresAt]);
+  }, [activeExpiresAt]);
 
   // Resend cooldown ticker
   useEffect(() => {
@@ -213,12 +218,13 @@ export function LoginGateModal({
     try {
       setBusy(true);
       const { data, error } = await supabase.functions.invoke('auth-2fa-request', {
-        body: { email },
+        body: { email, challengeId },
       });
       if (error || (data as any)?.ok === false || (data as any)?.error) {
         toast.error("Couldn't send a new code. Try again in a moment.");
         return;
       }
+      if ((data as any)?.expiresAt) setActiveExpiresAt((data as any).expiresAt);
       toast.success('New code sent');
       setResendCooldown(30);
       setDigits(['', '', '', '', '', '']);
