@@ -124,7 +124,7 @@ export function ProfileSetup({ data, onChange, username }: ProfileSetupProps) {
           <Input
             id="displayName"
             placeholder={username || "Your display name"}
-            value={data.displayName || username}
+            value={data.displayName ?? ''}
             onChange={(e) => onChange({ ...data, displayName: e.target.value })}
             className="bg-card border-border"
           />

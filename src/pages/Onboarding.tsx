@@ -70,10 +70,14 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const [userAge, setUserAge] = useState<number | undefined>(undefined);
   const [legalAccepted, setLegalAccepted] = useState(false);
 
+  // Seed displayName once on mount only — never overwrite user edits (including clearing).
+  const seededDisplayNameRef = useRef(false);
   useEffect(() => {
+    if (seededDisplayNameRef.current) return;
     const name = needsUsername ? username : profile?.username;
     if (name) {
-      setProfileData(prev => ({ ...prev, displayName: name }));
+      seededDisplayNameRef.current = true;
+      setProfileData(prev => (prev.displayName ? prev : { ...prev, displayName: name }));
     }
   }, [username, profile?.username, needsUsername]);
 
