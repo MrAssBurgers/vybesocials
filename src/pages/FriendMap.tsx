@@ -952,26 +952,65 @@ function FriendMapInner() {
     };
   }, [headingUp, manualRotation]);
 
+  /* ── Auto-follow the user's location while heading-up is on, so the avatar
+        always sits at the rotation pivot. ── */
+  useEffect(() => {
+    if (!headingUp) return;
+    const map = mapRef.current;
+    if (!map || !safeMyCoords) return;
+    try { map.panTo(safeMyCoords as any, { animate: true, duration: 0.4, noMoveStart: true } as any); } catch {}
+  }, [headingUp, safeMyCoords]);
+
   /* ── Apply rotation to Leaflet's inner map pane only (Google-Maps style).
-        Tiles + marker positions rotate together; the wrapper, controls and
-        marker icons stay upright. Uses a dynamic cover-scale so corners
-        never reveal empty space, but no zoom-in at 0°. ── */
+        Pivot the rotation around the user's avatar (not the pane center) so
+        the character stays pinned in place while the world spins around it. ── */
   useEffect(() => {
     const root = mapEl.current;
-    if (!root) return;
+    const map = mapRef.current;
+    if (!root || !map) return;
     const pane = root.querySelector('.leaflet-map-pane') as HTMLElement | null;
     if (!pane) return;
 
-    const rot = headingUp ? -heading : manualRotation;
-    const rad = (rot * Math.PI) / 180;
-    const cover = Math.abs(Math.cos(rad)) + Math.abs(Math.sin(rad)); // 1.0 at 0°, ~1.41 at 45°
-    pane.style.transformOrigin = 'center center';
-    pane.style.transform = rot ? `rotate(${rot}deg) scale(${cover})` : '';
-    pane.style.transition = 'transform 120ms linear';
-    pane.style.willChange = rot ? 'transform' : '';
-    // Counter-rotate marker icons so avatars + labels stay upright.
-    root.style.setProperty('--map-counter-rot', `${-rot}deg`);
-  }, [headingUp, heading, manualRotation]);
+    const apply = () => {
+      const rot = headingUp ? -heading : manualRotation;
+
+      // Pivot around the user's avatar when we have a fix; otherwise center.
+      let originX = root.clientWidth / 2;
+      let originY = root.clientHeight / 2;
+      if (safeMyCoords) {
+        try {
+          const pt = map.latLngToContainerPoint(safeMyCoords as any);
+          originX = pt.x;
+          originY = pt.y;
+        } catch {}
+      }
+
+      // Cover-scale that accounts for an off-center pivot so corners never
+      // reveal blank space at any rotation angle.
+      const dx = Math.max(originX, root.clientWidth - originX);
+      const dy = Math.max(originY, root.clientHeight - originY);
+      const halfDiag = Math.hypot(dx, dy);
+      const halfMin = Math.max(1, Math.min(root.clientWidth, root.clientHeight) / 2);
+      const cover = rot ? Math.max(1, halfDiag / halfMin) : 1;
+
+      pane.style.transformOrigin = `${originX}px ${originY}px`;
+      pane.style.transform = rot ? `rotate(${rot}deg) scale(${cover})` : '';
+      pane.style.transition = 'transform 120ms linear';
+      pane.style.willChange = rot ? 'transform' : '';
+      // Counter-rotate marker icons so avatars + labels stay upright.
+      root.style.setProperty('--map-counter-rot', `${-rot}deg`);
+    };
+
+    apply();
+
+    // Re-apply when the map view changes so the pivot stays locked on the avatar.
+    map.on('move', apply);
+    map.on('zoom', apply);
+    return () => {
+      map.off('move', apply);
+      map.off('zoom', apply);
+    };
+  }, [headingUp, heading, manualRotation, safeMyCoords]);
 
   /* ── render ────────────────────────────────────────── */
 
