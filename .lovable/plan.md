@@ -1,66 +1,68 @@
+## Goal
 
-Recording 1 (VYBE) shows the compass tilting the entire map view — markers, "you" pin, and tile edges all rotate together and the map zooms in awkwardly. Recording 2 (Google Maps) shows the correct behavior: tiles rotate under upright pins, with a small "north" indicator that resets bearing on tap. Plan below makes Vybe Maps match that behavior, and bundles the other open issues from this thread.
+Fix two real, user-blocking 2FA bugs and polish the UX so it behaves like Instagram / X / Discord:
 
-## 1. Vybe Maps — Google-Maps-style compass
-File: `src/pages/FriendMap.tsx`
+1. The 2FA email never arrives. Edge logs show `auth-2fa-request` succeeded but the inner call to `send-transactional-email` came back non-2xx. `email_send_log` has zero rows for `login-verification` in the last 24h, and the suppression list is empty — so the function is failing before it even logs. Worse, `sendTransactional` swallows that error and `auth-2fa-request` still returns `requires2fa: true`, so the gate opens for a code the user will never receive.
+2. Clicking Close on the verify dialog signs the user in anyway. Today `Landing.handleSubmit` calls `supabase.auth.signIn(...)` BEFORE checking 2FA. That creates a real session immediately; the gate is purely cosmetic. When the dialog is dismissed (Close button, Esc, tap-outside, hardware back), the existing session and the auth listener race the `signOut()` call and the user lands on `/home`.
 
-Today the wrapper `<div ref={mapEl}>` is rotated AND uniformly scaled to `1.18`. Because that wrapper holds tiles, controls *and* every marker, everything tilts as one block — the exact glitch in Recording 1.
+Big-social behaviour: no session exists until the second factor passes. Cancel = nothing happened.
 
-- Move the rotation off the outer wrapper and onto Leaflet's inner `.leaflet-map-pane` only (`transform-origin: center center`). Tiles + marker positions rotate together; the wrapper stays put so the top bar, FABs, sheets and safe-area paddings never skew.
-- Replace the fixed `scale(1.18)` with a dynamic cover-scale: `scale = |cos(θ)| + |sin(θ)|`. At 0° this is `1.0` (no zoom-in), and it grows just enough to keep the rotated square covering the viewport — no empty corners, no permanent zoom-in.
-- Inject a CSS rule that **counter-rotates every marker icon** (`.leaflet-marker-icon, .leaflet-marker-shadow { transform: rotate(var(--map-counter-rot, 0deg)); transform-origin: center }`). Update `--map-counter-rot` from React in lock-step with heading so avatars, "you" pin, event pins and labels stay upright (matches Recording 2).
-- Add a small **north needle badge** in the right-side controls that rotates with `-heading`. Tap → `setHeadingUp(false)` and reset bearing to north (Google Maps behavior).
-- Change the user/me marker to a Google-style **direction cone** (a faint sector pointing in the heading direction) when compass is on; static blue dot when off.
-- Tighten the heading low-pass filter to `alpha = 0.18` and throttle to 100 ms; keep absolute > `webkitCompassHeading` > relative priority and the screen-orientation compensation.
-- Run the existing two-finger twist gesture through the same map-pane rotation path (and same counter-rotation variable) so manual rotate matches compass rotate visually.
+## Plan
 
-## 2. Vybe Snap crash when opened from a DM
-Files: `src/components/chat/ChatView.tsx`, `src/components/camera/VybeSnapCamera.tsx`
+### A. Make 2FA actually blocking (no session until verified)
 
-- Reset `phase`, `segments`, `capturedMedia`, `selectedFilter`, `activeARFilter` whenever `isOpen` flips true (effect keyed on `isOpen`). A stale `phase === 'edit'` from the previous open currently throws because the prior blob URL was already revoked.
-- Wrap `startCamera` + `applyConstraints({ zoom })` + `applyConstraints({ torch })` in a single try/catch that always settles `cameraReady`. iOS Safari throws on unsupported `zoom` constraints and aborts the rest of the flow → black screen → downstream null deref.
-- Guard `useFaceTracking.startTracking()` and `applySnapLens()` to only run when `videoRef.current?.readyState >= 2`. Today they can fire against a `null` element when the modal mounts inside an animated DM container.
-- Run `stopCameraStream()` and `URL.revokeObjectURL(...)` inside a `finally` on close so the next open is clean.
+1. New edge function `auth-2fa-preauth`:
+   - Input: `{ email, password }`.
+   - Server-side: `admin.auth.signInWithPassword({ email, password })` to validate credentials. The session is created on the server but never returned to the client.
+   - Look up `user_2fa_settings` and `login_approval_settings`:
+     - If email 2FA is on → generate 6-digit code, store its hash + the access/refresh tokens encrypted in `auth_challenges.metadata`, send the email, return `{ stage: 'code', challengeId }`.
+     - Else if approval is on → create approval challenge, store tokens in metadata, return `{ stage: 'approval', challengeId }`.
+     - Else → return `{ stage: 'none', session: { access_token, refresh_token } }`.
+   - On wrong password / disabled user / rate-limit → standard error.
+2. `auth-2fa-verify` and `auth-login-approval` ('poll' on approve): on success, atomically read the stored tokens from `auth_challenges.metadata`, null the field (single-use), and return `{ session }`.
+3. `Landing.handleSubmit` login branch: stop calling `supabase.auth.signIn()`. Call `auth-2fa-preauth` instead.
+   - `stage: 'none'` → `supabase.auth.setSession(session)` then navigate.
+   - `stage: 'code' | 'approval'` → open `LoginGateModal`. No session exists, so cancel is naturally safe.
+4. `LoginGateModal.onSuccess(session)` calls `supabase.auth.setSession(session)` BEFORE navigation.
+5. Cancel path on the modal no longer needs `supabase.auth.signOut()` — there is nothing to sign out of. The pending challenge expires on its own.
 
-## 3. Remove "Camera warming up…" placeholder
-File: `src/components/friends/AutoFriendDrop.tsx`
+### B. Make the email actually send (and fail loudly when it doesn't)
 
-- Delete the "Camera warming up…" overlay block. Render the live `<video>` immediately on QR-tab open; first frame paints the moment the stream resolves.
-- Keep the existing permission-denied / `cameraError` toast + "Try again" CTA, but only show them when there is an actual error — never as a "warming" state.
+1. Harden `_shared/security.ts → sendTransactional` to return `{ ok, error }` instead of silently logging.
+2. Update `auth-2fa-request` (and the new `auth-2fa-preauth`) so that if the send fails, we delete the just-created challenge and return `{ ok: false, error: 'email_failed' }`.
+3. `Landing.tsx` surfaces that as a toast ("Couldn't send your code, try again") and does NOT open the gate modal — the user stays on the login screen.
+4. Re-deploy `send-transactional-email`, `auth-2fa-request`, `auth-2fa-verify`, `auth-2fa-preauth`, `auth-login-approval`, `auth-login-notify`, and `process-email-queue` to Live so the registry is current.
 
-## 4. 2FA + Login Approval — make them work everywhere (web, PWA, Despia)
-Files: `supabase/functions/auth-2fa-request/index.ts`, `supabase/functions/auth-login-approval/index.ts`, `src/pages/Landing.tsx`, `src/components/auth/LoginGateModal.tsx`
+### C. Premium UX polish on `LoginGateModal`
 
-a. **Users past the first 200 silently bypass 2FA.** Both functions look up the user via `admin.auth.admin.listUsers({ page: 1, perPage: 200 })`. Anyone created later returns `user = null` → `requires2fa: false`. Replace with a direct `profiles` lookup by `email` (service role), with a paginated `listUsers` fallback only when no profile row exists.
+1. Replace the single text input with a 6-cell OTP input: one digit per box, auto-advance, backspace step-back, paste support.
+2. Auto-submit when all 6 digits are entered.
+3. Show "Code expires in m:ss" countdown and a separate "Resend in 30s" cooldown.
+4. Lock dismissal (Esc / outside-tap / hardware back) while a verify/poll request is in flight, with a subtle progress bar.
+5. Approval mode: pulsing phone illustration, requester city / IP / device, and a prominent red **"This wasn't me"** button that calls `auth-login-approval` with `action: 'deny'`.
+6. Replace the generic "Cancel" with a clear **"Use a different account"** + **"This wasn't me"** pair, matching Instagram/X copy.
 
-b. **Mobile race: navigation happens before the gate paints.** In `Landing.tsx`, after `signIn()` we `await` two edge calls; on mobile the auth listener fires `SIGNED_IN` and routes to `/home` first. Set a `pendingGateRef` *before* `signIn`, and add a short-lived guard that suppresses the post-auth redirect for ~2 s while the gate decision is in flight. Show a "Verifying…" spinner during that window.
+## Files to change
 
-c. **Polling pauses when the tab backgrounds for the trusted-device prompt** (iOS PWA / Despia). Switch `LoginGateModal`'s polling to a recursive `setTimeout` that re-arms on `visibilitychange === 'visible'` and immediately ticks on resume.
+Frontend:
+- `src/pages/Landing.tsx` — swap direct `signIn` for `auth-2fa-preauth`; handle the three stages; remove the redirect race.
+- `src/components/auth/LoginGateModal.tsx` — OTP input, non-dismissible-while-busy, `setSession` on success, "This wasn't me" button, expiry countdown.
 
-d. Add a **Resend code** button (re-invokes `auth-2fa-request`) with a 30 s cooldown so unreliable mobile email push isn't a dead end.
+Edge functions (all need Live deploy after edits):
+- new `supabase/functions/auth-2fa-preauth/index.ts`
+- `supabase/functions/auth-2fa-request/index.ts` — return `ok:false` on email failure; delete challenge.
+- `supabase/functions/auth-2fa-verify/index.ts` — return stored session on success.
+- `supabase/functions/auth-login-approval/index.ts` — return stored session on approve; keep deny path.
+- `supabase/functions/_shared/security.ts` — `sendTransactional` returns success/failure.
+- Trigger redeploy of `send-transactional-email` and `process-email-queue` so the latest registry + queue worker run on Live.
 
-e. **Verify both edge functions are deployed to Live** (re-deploy in this pass) — past attempts silently fell into the `console.warn` branch.
+## Out of scope
+- No database schema changes — `auth_challenges.metadata` already stores arbitrary JSON.
+- No design-token edits.
+- Biometric / Despia lock flow untouched.
+- The Snap / Maps / Camera work from earlier turns is unaffected.
 
-## 5. Biometrics — only on login, never mid-session (Despia)
-Files: `src/lib/despiaBiometrics.ts`, `src/components/settings/BiometricLockCard.tsx`, new `src/hooks/useBiometricLoginGate.ts`, root provider
-
-- New `useBiometricLoginGate()` mounted once at the root. On cold start (and on `visibilitychange === 'visible'` after >2 min in background), if `isDespia()` && `getBioAuthPref()` && a Supabase session exists, render a full-screen blocker and call `requestBioAuth()`. Success → unblock. Fail/cancel → `supabase.auth.signOut()` + route to `/auth`. `unavailable` → unblock + one-time hint toast.
-- In `BiometricLockCard`: only call `requestBioAuth()` when **enabling** the toggle (to confirm enrollment); disabling just clears the pref. Remove the auto-fire path on the "Test biometric prompt" button so it only runs on explicit click.
-- Audit and remove any other `requestBioAuth()` / `confirmWithBiometrics()` call sites so biometrics never pop unexpectedly during normal app use.
-
-### Out of scope
-- No DB schema or design-token changes.
-- 2FA toggles + `user_2fa_settings` table stay as-is — only edge-function lookup paths change.
-
-### Files touched
-- `src/pages/FriendMap.tsx`
-- `src/components/camera/VybeSnapCamera.tsx`
-- `src/components/chat/ChatView.tsx`
-- `src/components/friends/AutoFriendDrop.tsx`
-- `supabase/functions/auth-2fa-request/index.ts`
-- `supabase/functions/auth-login-approval/index.ts`
-- `src/pages/Landing.tsx`
-- `src/components/auth/LoginGateModal.tsx`
-- `src/lib/despiaBiometrics.ts`
-- `src/components/settings/BiometricLockCard.tsx`
-- New: `src/hooks/useBiometricLoginGate.ts` (mounted in existing root provider)
+## Technical notes
+- Storing access+refresh tokens in `auth_challenges.metadata` is acceptable because that table is service-role-only (no RLS read for users), the row is single-use and TTL-bound (10 min), and the metadata is nulled on consumption. We can also encrypt the payload with `pgp_sym_encrypt(..., vault_secret)` if you want the extra belt — say the word and I'll add it.
+- `signInWithPassword` triggered server-side does count against Supabase's per-user sign-in rate limit, same as today's client call — net rate impact is zero.
+- `setSession` on the client establishes the session locally without a network round-trip, so the post-2FA hand-off is instant.
