@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     const { data: settings } = await admin
       .from('user_2fa_settings')
       .select('email_2fa_enabled')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (!settings?.email_2fa_enabled) {
@@ -67,14 +67,14 @@ Deno.serve(async (req) => {
     await admin
       .from('auth_challenges')
       .update({ status: 'expired' })
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('challenge_type', 'email_2fa')
       .eq('status', 'pending');
 
     const { data: chal, error: insErr } = await admin
       .from('auth_challenges')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         email: normalized,
         challenge_type: 'email_2fa',
         code_hash: codeHash,
