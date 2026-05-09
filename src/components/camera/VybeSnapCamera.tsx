@@ -204,6 +204,21 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
 
   useEffect(() => {
     if (isOpen) {
+      // Reset transient state on every open so a stale `phase === 'edit'` (with
+      // a revoked blob URL) from the previous DM open can never crash the modal.
+      setPhase('camera');
+      setSegments([]);
+      segmentsRef.current = [];
+      setCapturedMedia(prev => {
+        if (prev?.url) { try { URL.revokeObjectURL(prev.url); } catch {} }
+        return null;
+      });
+      setRecordingProgress(0);
+      progressRef.current = 0;
+      setIsRecording(false);
+      isRecordingRef.current = false;
+      shouldFinalizeOnStopRef.current = false;
+
       if (!getActiveStream() && !streamRef.current) {
         setCameraReady(false);
       }
@@ -222,19 +237,37 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     }
   });
 
-  // Start face tracking when camera is ready
+  // Start face tracking when camera is ready — guard against null video element
+  // and unloaded video metadata (the modal can mount inside an animated DM
+  // container before the <video> ref is attached, which crashed startTracking).
   useEffect(() => {
-    if (cameraReady && videoRef.current && arReady) {
-      startTracking(videoRef.current);
-      // Track video dimensions for AR overlay
-      const vid = videoRef.current;
-      const updateSize = () => setVideoSize({ width: vid.videoWidth, height: vid.videoHeight });
-      vid.addEventListener('loadedmetadata', updateSize);
-      updateSize();
-      return () => vid.removeEventListener('loadedmetadata', updateSize);
+    const vid = videoRef.current;
+    if (!cameraReady || !vid || !arReady) {
+      if (!cameraReady) stopTracking();
+      return;
     }
-    return () => { if (!cameraReady) stopTracking(); };
+    let cancelled = false;
+    const begin = () => {
+      if (cancelled || !videoRef.current) return;
+      try { startTracking(videoRef.current); } catch (e) { console.warn('[VybeSnapCamera] face tracking start failed', e); }
+    };
+    const updateSize = () => {
+      if (!videoRef.current) return;
+      setVideoSize({ width: videoRef.current.videoWidth, height: videoRef.current.videoHeight });
+    };
+    if (vid.readyState >= 2) {
+      begin();
+      updateSize();
+    } else {
+      vid.addEventListener('loadedmetadata', () => { begin(); updateSize(); }, { once: true });
+    }
+    vid.addEventListener('loadedmetadata', updateSize);
+    return () => {
+      cancelled = true;
+      vid.removeEventListener('loadedmetadata', updateSize);
+    };
   }, [cameraReady, arReady, startTracking, stopTracking]);
+
 
   // Handle AR filter changes (including Snap lens)
   const handleARFilterChange = useCallback(async (filter: ARFilterDef | null) => {
