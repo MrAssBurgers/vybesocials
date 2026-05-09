@@ -364,7 +364,7 @@ export function LoginGateModal({
               disabled={busy}
               onClick={denySelf}
             >
-              <ShieldAlert className="w-4 h-4 mr-1.5" /> This wasn\'t me
+              <ShieldAlert className="w-4 h-4 mr-1.5" /> This wasn&apos;t me
             </Button>
             <Button variant="ghost" className="w-full" disabled={busy} onClick={onCancel}>
               Cancel
