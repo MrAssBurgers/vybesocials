@@ -276,7 +276,7 @@ export function LoginGateModal({
           <DialogDescription>
             {mode === 'code'
               ? <>We sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
-              : <>Open VYBE on a trusted device and tap <span className="font-medium text-foreground">Approve</span>. We\'ll continue automatically.</>}
+              : <>Open VYBE on a trusted device and tap <span className="font-medium text-foreground">Approve</span>. We&apos;ll continue automatically.</>}
           </DialogDescription>
         </DialogHeader>
 
