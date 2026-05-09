@@ -1036,20 +1036,6 @@ function FriendMapInner() {
         />
 
 
-        {/* Map container */}
-        <div
-          ref={mapEl}
-          className="absolute inset-0 block w-full h-full"
-          style={{
-            transform: headingUp
-              ? `rotate(${-heading}deg) scale(1.18)`
-              : (manualRotation !== 0 ? `rotate(${manualRotation}deg) scale(1.05)` : undefined),
-            transformOrigin: 'center center',
-            transition: 'transform 120ms linear',
-            willChange: (headingUp || manualRotation !== 0) ? 'transform' : undefined,
-          }}
-        />
-
         {/* ── Top bar (Snap Maps style) ───────────────── */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-4 pt-[env(safe-area-inset-top)]">
           <div className="mx-auto flex max-w-lg items-center gap-2 mt-2">
