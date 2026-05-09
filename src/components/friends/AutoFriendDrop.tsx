@@ -666,9 +666,22 @@ export function AutoFriendDrop() {
                         <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
                         <canvas ref={canvasRef} className="hidden" />
                         {!cameraActive && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-secondary/60">
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-secondary/60 px-4 text-center">
                             <ScanLine className="h-7 w-7 text-primary" />
-                            <span className="text-xs font-bold text-muted-foreground">Camera warming up…</span>
+                            {cameraError ? (
+                              <>
+                                <span className="text-xs font-bold text-destructive">{cameraError}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => startCamera()}
+                                  className="mt-1 rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-primary-foreground active:scale-95"
+                                >
+                                  Try again
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-xs font-bold text-muted-foreground">Camera warming up…</span>
+                            )}
                           </div>
                         )}
                         <div className="pointer-events-none absolute inset-0 p-5">
