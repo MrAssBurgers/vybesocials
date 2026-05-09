@@ -5,38 +5,38 @@ import { Button } from '@/components/ui/button';
 import { Fingerprint, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  isDespia,
+  isBiometricsAvailable,
   requestBioAuth,
   getBioAuthPref,
   setBioAuthPref,
-} from '@/lib/despiaBiometrics';
+} from '@/lib/biometrics';
 
 /**
- * Settings card to toggle Face ID / Touch ID app lock via Despia.
- * Stored as a local preference; the native runtime handles the actual prompt.
+ * Settings card to toggle Face ID / Touch ID app lock.
+ * Works inside the Capacitor native app (iOS/Android) and Despia. In a plain
+ * web browser the toggle is disabled with an explanatory hint.
  */
 export function BiometricLockCard() {
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
-  const inDespia = isDespia();
+  const [available, setAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
     setEnabled(getBioAuthPref());
+    isBiometricsAvailable().then(setAvailable);
   }, []);
 
   const onToggle = async (next: boolean) => {
-    if (!inDespia) {
-      toast.info('Open VYBE in the mobile app to use Face ID / Touch ID.');
+    if (!available) {
+      toast.info('Face ID / Touch ID isn\'t available on this device.');
       return;
     }
-    // Disabling: just clear the pref, never prompt.
     if (!next) {
       setBioAuthPref(false);
       setEnabled(false);
       toast.success('Biometric lock disabled');
       return;
     }
-    // Enabling: confirm enrollment with one prompt, then arm the launch gate.
     setBusy(true);
     try {
       const r = await requestBioAuth();
@@ -55,7 +55,7 @@ export function BiometricLockCard() {
   };
 
   const test = async () => {
-    if (!inDespia) {
+    if (!available) {
       toast.info('Available inside the mobile app.');
       return;
     }
@@ -79,14 +79,14 @@ export function BiometricLockCard() {
                 <ShieldCheck className="w-3.5 h-3.5 text-primary/70" />
               </div>
               <div className="text-xs text-muted-foreground">
-                {inDespia
-                  ? 'Require biometrics to open VYBE and confirm sensitive actions.'
-                  : 'Available inside the VYBE mobile app.'}
+                {available === false
+                  ? 'Available inside the VYBE mobile app.'
+                  : 'Require biometrics to open VYBE and confirm sensitive actions.'}
               </div>
             </div>
-            <Switch checked={enabled} disabled={busy || !inDespia} onCheckedChange={onToggle} />
+            <Switch checked={enabled} disabled={busy || available !== true} onCheckedChange={onToggle} />
           </div>
-          {inDespia && enabled && (
+          {available && enabled && (
             <Button size="sm" variant="outline" className="mt-3" disabled={busy} onClick={test}>
               Test biometric prompt
             </Button>

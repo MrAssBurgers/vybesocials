@@ -1,33 +1,54 @@
 ## Root cause
 
-`ensure_2fa_settings()` was redeployed to `RETURNS TABLE(...)`, so `supabase.rpc('ensure_2fa_settings')` now returns an **array** instead of a single row. `SecuritySection.tsx` does `setSettings(s as any)` and reads `settings?.email_2fa_enabled` — which is always `undefined` on an array.
+This app ships as a **Capacitor** native app (see `capacitor.config.ts`), not as a Despia shell. But the entire biometric layer (`src/lib/despiaBiometrics.ts`, `BiometricLockCard`, `useBiometricLoginGate`, `BiometricLoginGate`) is gated by `isDespia()`, which checks for `"despia"` in the user-agent. On iOS/Android Capacitor that check is always **false**, so:
 
-Result:
-- Email 2FA switch always renders OFF, even after toggling.
-- Login Approvals switch always renders OFF.
-- Optimistic toggle spreads an array into an object → state goes garbage → next `load()` overwrites it back to the array → UI snaps back.
-- Face ID card is unrelated to the persistence bug, but on web it only shows "open in the mobile app" — that's intentional, not broken. Will leave as-is unless you want a web WebAuthn fallback (you already have a separate Passkeys card for that).
+- The Face ID / Touch ID toggle silently shows the "Open VYBE in the mobile app" toast and never actually enables anything.
+- The launch-time biometric gate never runs.
+- "Test biometric prompt" does nothing.
 
-## Fix
+The passkey flow uses pure WebAuthn (`@simplewebauthn/browser`). Inside the Capacitor WebView the page origin is `capacitor://localhost` (iOS) / `https://localhost` (Android) which does **not** match the RP ID derived from `https://vybehub.app`, so `navigator.credentials.create()` is rejected by the OS — that's why "Add passkey" fails in the app. In a normal mobile browser it works; in the wrapped app it can't.
 
-### `src/components/settings/SecuritySection.tsx`
-1. Normalize the RPC response: `const row = Array.isArray(s) ? s[0] : s;` then `setSettings(row ?? { email_2fa_enabled: false, login_approvals_enabled: false });`
-2. Keep the optimistic update, but guarantee a row exists before update by doing an `upsert` instead of `update` (covers the case where `ensure_2fa_settings` failed silently or RLS blocked an insert path):
-   ```ts
-   await supabase
-     .from('user_2fa_settings')
-     .upsert({ user_id: user.id, ...settings, ...patch }, { onConflict: 'user_id' });
-   ```
-3. On error, restore the previous value (don't just `load()` which re-fetches the same array shape).
+## Plan
 
-### No DB / edge-function changes
-The RPC is fine; only the client was misreading it.
+### 1. Add a real Capacitor biometric plugin
+Install `@aparajita/capacitor-biometric-auth` (actively maintained, supports Face ID, Touch ID, Android BiometricPrompt, fallback to device passcode).
 
-### Out of scope
-- Face ID web fallback (Passkeys card already covers this).
-- Any 2FA email/login-approval flow changes (those work once the toggle actually persists).
+### 2. Replace `src/lib/despiaBiometrics.ts` with a platform-aware wrapper
+New file `src/lib/biometrics.ts` that:
+- Detects environment in this order: **Capacitor native** → **Despia** (kept as fallback) → web.
+- Exposes the same API the rest of the app already uses: `isBiometricsAvailable()`, `requestBioAuth()`, `confirmWithBiometrics()`, `getBioAuthPref()`, `setBioAuthPref()`.
+- On Capacitor: calls `BiometricAuth.checkBiometry()` then `BiometricAuth.authenticate({ reason, allowDeviceCredential: true, iosFallbackTitle: 'Use Passcode', androidTitle: 'Unlock VYBE' })`. Maps `biometryNotAvailable` / `biometryNotEnrolled` → `unavailable`, user cancel → `failed`.
+- Keeps the Despia code path for backward compatibility but stops being the only path.
 
-## Verification
-- Toggle Email 2FA → refresh → switch stays on.
-- Toggle Login Approvals → refresh → switch stays on.
-- Sign out, sign in with email/password → 2FA gate appears as expected.
+Re-export from `src/lib/despiaBiometrics.ts` so existing imports keep working without churn.
+
+### 3. Update the three consumers to use the unified API
+- `BiometricLockCard.tsx`: replace `isDespia()` with `isBiometricsAvailable()` (async, resolved on mount). Update copy from "Open VYBE in the mobile app" → "Not available on this device" only when the platform truly can't do it. Keep the disabled-state UX.
+- `useBiometricLoginGate.ts`: drop the `isDespia()` early-return; call the new wrapper; keep the 2-min background threshold and sign-out-on-fail behavior.
+- `BiometricLoginGate.tsx`: unchanged (just consumes the hook).
+
+### 4. Fix passkey "Add" failure inside the Capacitor app
+WebAuthn cannot run inside the Capacitor WebView with our current RP ID. Two changes:
+- **In `PasskeysCard.tsx`**: when running inside Capacitor (`Capacitor.isNativePlatform()`), hide the in-app "Add" button and show: *"Add a passkey from a browser at vybehub.app, then sign in here with Face ID / Touch ID."* This avoids the silent failure.
+- **Keep the web flow as-is**; passkeys created in mobile Safari/Chrome at `vybehub.app` will sync via iCloud Keychain / Google Password Manager and become usable for sign-in inside the app via the existing `signInWithPasskey` action-link flow (which works because verification happens server-side, not in the WebView).
+- Optional follow-up (not in this change): integrate `@capgo/capacitor-native-biometric` + a custom ASWebAuthenticationSession deep link if true in-app passkey enrollment is needed later.
+
+### 5. Native config required for biometrics
+- iOS: add `NSFaceIDUsageDescription` to `ios/App/App/Info.plist` ("VYBE uses Face ID to keep your account secure.").
+- Android: the plugin handles permissions; no manifest edit needed.
+- Tell the user to run `npx cap sync` after the install.
+
+### Files touched
+- new: `src/lib/biometrics.ts`
+- edit: `src/lib/despiaBiometrics.ts` (now a thin re-export)
+- edit: `src/components/settings/BiometricLockCard.tsx`
+- edit: `src/hooks/useBiometricLoginGate.ts`
+- edit: `src/components/settings/PasskeysCard.tsx`
+- edit: `ios/App/App/Info.plist` (Face ID usage string)
+- install: `@aparajita/capacitor-biometric-auth`
+
+### Verification
+1. In preview (web): toggle Face ID → shows "Not available on this device" (correct, no biometric in browser).
+2. In the iOS app: toggle Face ID → system Face ID prompt appears → success persists pref → next cold start re-prompts before the UI loads.
+3. In the iOS app: PasskeysCard shows the "Add from browser" hint instead of failing.
+4. In mobile Safari at vybehub.app: Add passkey works → re-open the app → Sign in with Passkey succeeds.

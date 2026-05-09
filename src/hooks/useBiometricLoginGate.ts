@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { isDespia, requestBioAuth, getBioAuthPref } from '@/lib/despiaBiometrics';
+import { isBiometricsAvailable, requestBioAuth, getBioAuthPref } from '@/lib/biometrics';
 import { toast } from 'sonner';
 
 /**
- * App-launch biometric gate for Despia native shell.
- * - Only runs when isDespia() && getBioAuthPref() && a session exists.
+ * App-launch biometric gate. Works in Capacitor (iOS/Android) and Despia.
+ * - Only runs when biometrics are actually available, the user opted in, and
+ *   a Supabase session exists.
  * - Blocks the UI on cold start and on resume (>2 min in background).
  * - On failure / cancel: signs the user out and routes to /auth.
  * - On 'unavailable': unblocks with a one-time hint toast.
- *
- * Returns `locked` so the root layout can render a full-screen blocker.
  */
 export function useBiometricLoginGate() {
   const [locked, setLocked] = useState(false);
@@ -18,26 +17,28 @@ export function useBiometricLoginGate() {
   const verifyingRef = useRef(false);
 
   useEffect(() => {
-    if (!isDespia()) return;
+    let cancelled = false;
 
     const verify = async () => {
       if (verifyingRef.current) return;
       if (!getBioAuthPref()) return;
+      const available = await isBiometricsAvailable();
+      if (!available) return;
       const { data } = await supabase.auth.getSession();
       if (!data.session) return;
 
       verifyingRef.current = true;
-      setLocked(true);
+      if (!cancelled) setLocked(true);
       try {
         const r = await requestBioAuth();
         if (r.ok) {
-          setLocked(false);
+          if (!cancelled) setLocked(false);
         } else if ((r as any).reason === 'unavailable') {
           toast.message('Biometrics unavailable on this device — unlocked.');
-          setLocked(false);
+          if (!cancelled) setLocked(false);
         } else {
           await supabase.auth.signOut().catch(() => {});
-          setLocked(false);
+          if (!cancelled) setLocked(false);
           window.location.replace('/auth');
         }
       } finally {
@@ -59,7 +60,10 @@ export function useBiometricLoginGate() {
       }
     };
     document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
   return locked;
