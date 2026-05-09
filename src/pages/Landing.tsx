@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 // Checkbox removed — using custom inline toggle for iOS compatibility
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Fingerprint } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable/index';
@@ -563,29 +563,48 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               )}
             </Button>
 
-            {isLogin && passkeysSupported() && (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                disabled={loading}
-                onClick={async () => {
-                  setLoading(true);
-                  try {
-                    // Discord-style: no email required. Browser shows the
-                    // native passkey picker for any account on this device.
-                    const link = await signInWithPasskey(formData.email || undefined);
-                    if (!link) { toast.info('No passkey found for this device'); return; }
-                    window.location.href = link;
-                  } catch (e: any) {
-                    if (e?.name !== 'NotAllowedError' && e?.name !== 'AbortError') {
-                      toast.error('Passkey sign-in failed');
-                    }
-                  } finally { setLoading(false); }
-                }}
-              >
-                🔑 Sign in with passkey
-              </Button>
+            {passkeysSupported() && (
+              <>
+                {!isLogin && (
+                  <p className="text-xs text-muted-foreground text-center -mb-1">
+                    Already have a passkey on this device?
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled={loading}
+                  onClick={async () => {
+                    setLoading(true);
+                    try {
+                      // Discoverable-credential flow: browser shows the native
+                      // passkey / Face ID picker and we sign into whichever
+                      // account that passkey was registered to. On the signup
+                      // screen we never scope by the typed email (no account
+                      // exists yet), so the picker can match any local passkey.
+                      const emailHint = isLogin ? (formData.email || undefined) : undefined;
+                      const link = await signInWithPasskey(emailHint);
+                      if (!link) {
+                        toast.info(
+                          isLogin
+                            ? 'No passkey found for this device'
+                            : 'No passkey found on this device — create an account first, then add a passkey in Settings.'
+                        );
+                        return;
+                      }
+                      window.location.href = link;
+                    } catch (e: any) {
+                      if (e?.name !== 'NotAllowedError' && e?.name !== 'AbortError') {
+                        toast.error('Passkey sign-in failed');
+                      }
+                    } finally { setLoading(false); }
+                  }}
+                >
+                  <Fingerprint className="w-4 h-4" />
+                  Sign in with Face ID / passkey
+                </Button>
+              </>
             )}
 
             {isLogin && (
