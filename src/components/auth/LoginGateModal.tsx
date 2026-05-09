@@ -45,6 +45,7 @@ export function LoginGateModal({
   const [resendCooldown, setResendCooldown] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [activeExpiresAt, setActiveExpiresAt] = useState(expiresAt);
+  const [activeChallengeId, setActiveChallengeId] = useState(challengeId);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const pollTimerRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
@@ -55,6 +56,7 @@ export function LoginGateModal({
   // ── Expiry countdown ─────────────────────────────────────
   useEffect(() => {
     setActiveExpiresAt(expiresAt);
+    setActiveChallengeId(challengeId);
   }, [expiresAt, challengeId]);
 
   useEffect(() => {
@@ -143,7 +145,7 @@ export function LoginGateModal({
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('auth-2fa-verify', {
-        body: { challengeId, code: codeStr },
+        body: { challengeId: activeChallengeId, code: codeStr },
       });
       if (error || (data as any)?.error) {
         toast.error('Invalid or expired code');
@@ -157,7 +159,7 @@ export function LoginGateModal({
     } finally {
       setBusy(false);
     }
-  }, [busy, challengeId, onSuccess]);
+  }, [busy, activeChallengeId, onSuccess]);
 
   // Auto-submit when all 6 digits are filled
   useEffect(() => {
@@ -218,12 +220,13 @@ export function LoginGateModal({
     try {
       setBusy(true);
       const { data, error } = await supabase.functions.invoke('auth-2fa-request', {
-        body: { email, challengeId },
+        body: { email, challengeId: activeChallengeId },
       });
       if (error || (data as any)?.ok === false || (data as any)?.error) {
         toast.error("Couldn't send a new code. Try again in a moment.");
         return;
       }
+      if ((data as any)?.challengeId) setActiveChallengeId((data as any).challengeId);
       if ((data as any)?.expiresAt) setActiveExpiresAt((data as any).expiresAt);
       toast.success('New code sent');
       setResendCooldown(30);
