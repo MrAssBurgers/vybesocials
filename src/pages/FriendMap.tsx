@@ -948,6 +948,27 @@ function FriendMapInner() {
     };
   }, [headingUp, manualRotation]);
 
+  /* ── Apply rotation to Leaflet's inner map pane only (Google-Maps style).
+        Tiles + marker positions rotate together; the wrapper, controls and
+        marker icons stay upright. Uses a dynamic cover-scale so corners
+        never reveal empty space, but no zoom-in at 0°. ── */
+  useEffect(() => {
+    const root = mapEl.current;
+    if (!root) return;
+    const pane = root.querySelector('.leaflet-map-pane') as HTMLElement | null;
+    if (!pane) return;
+
+    const rot = headingUp ? -heading : manualRotation;
+    const rad = (rot * Math.PI) / 180;
+    const cover = Math.abs(Math.cos(rad)) + Math.abs(Math.sin(rad)); // 1.0 at 0°, ~1.41 at 45°
+    pane.style.transformOrigin = 'center center';
+    pane.style.transform = rot ? `rotate(${rot}deg) scale(${cover})` : '';
+    pane.style.transition = 'transform 120ms linear';
+    pane.style.willChange = rot ? 'transform' : '';
+    // Counter-rotate marker icons so avatars + labels stay upright.
+    root.style.setProperty('--map-counter-rot', `${-rot}deg`);
+  }, [headingUp, heading, manualRotation]);
+
   /* ── render ────────────────────────────────────────── */
 
 
