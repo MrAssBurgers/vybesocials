@@ -330,6 +330,7 @@ const App = memo(() => {
                   need a spring still opt-in explicitly via their own `transition` prop. */}
               <MotionConfig reducedMotion="user" transition={{ type: 'tween', ease: [0.22, 1, 0.36, 1], duration: 0.22 }}>
                 <AppWithPreloader />
+                <BiometricLoginGate />
               </MotionConfig>
             </AccessibilityProvider>
           </GlassIntensityProvider>
