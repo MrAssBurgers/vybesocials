@@ -212,37 +212,64 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
     try {
       if (isLogin) {
-        // Mark gate-pending BEFORE signIn so the auto-redirect effect can't race
-        // the SIGNED_IN listener and skip the 2FA / approval check on mobile.
+        // Big-platform 2FA: validate password server-side BEFORE any session
+        // lands on the device. The session tokens (if any) are returned only
+        // after the second factor passes, so cancelling the gate is naturally
+        // safe — there's nothing to sign out of.
         setGatePending(true);
 
-        const { error } = await signIn(formData.email, formData.password);
-        if (error) { setGatePending(false); throw error; }
+        const { data: pre, error: preErr } = await supabase.functions.invoke('auth-2fa-preauth', {
+          body: { email: formData.email, password: formData.password },
+        });
+        if (preErr || (pre as any)?.error) {
+          setGatePending(false);
+          const code = (pre as any)?.error;
+          if (code === 'invalid_credentials' || preErr) {
+            throw new Error('Invalid email or password');
+          }
+          if (code === 'email_failed') {
+            throw new Error("We couldn't send your verification email. Try again in a moment.");
+          }
+          throw new Error('Sign-in failed. Please try again.');
+        }
 
-        // Always persist sessions so users stay signed in reliably
         sessionStorage.removeItem('vybe-session-only');
 
-        // Email 2FA gate (only blocks if user has it enabled)
-        try {
-          const { data: twoFa } = await supabase.functions.invoke('auth-2fa-request', {
-            body: { email: formData.email },
-          });
-          if ((twoFa as any)?.requires2fa && (twoFa as any)?.challengeId) {
-            setLoginGate({ mode: 'code', email: formData.email, challengeId: (twoFa as any).challengeId });
-            return;
-          }
-        } catch (e) { console.warn('2fa check failed', e); }
+        const stage = (pre as any)?.stage as 'code' | 'approval' | 'none' | undefined;
 
-        // Login approval gate (only blocks if user has it enabled)
-        try {
-          const { data: appr } = await supabase.functions.invoke('auth-login-approval', {
-            body: { action: 'request', email: formData.email },
+        if (stage === 'code') {
+          setLoginGate({
+            mode: 'code',
+            email: formData.email,
+            challengeId: (pre as any).challengeId,
+            expiresAt: (pre as any).expiresAt,
           });
-          if ((appr as any)?.requiresApproval && (appr as any)?.challengeId) {
-            setLoginGate({ mode: 'approval', email: formData.email, challengeId: (appr as any).challengeId });
-            return;
-          }
-        } catch (e) { console.warn('approval check failed', e); }
+          return;
+        }
+        if (stage === 'approval') {
+          setLoginGate({
+            mode: 'approval',
+            email: formData.email,
+            challengeId: (pre as any).challengeId,
+            expiresAt: (pre as any).expiresAt,
+            approvalDevice: (pre as any).device,
+            approvalLocation: (pre as any).location,
+          });
+          return;
+        }
+
+        // No second factor — apply the returned session and proceed.
+        const session = (pre as any)?.session;
+        if (session?.access_token && session?.refresh_token) {
+          await supabase.auth.setSession({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+          });
+        } else {
+          // Defensive fallback if preauth ever returns without tokens.
+          const { error } = await signIn(formData.email, formData.password);
+          if (error) { setGatePending(false); throw error; }
+        }
 
         setGatePending(false);
         toast.success('Welcome back! ✨');
