@@ -1015,11 +1015,14 @@ function FriendMapInner() {
           .scrollbar-hide::-webkit-scrollbar{display:none}
           .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
 
-          /* Counter-rotate Leaflet markers so avatars + labels stay upright
-             while the map pane rotates underneath (Google-Maps "heading-up"). */
-          .leaflet-marker-icon,
-          .leaflet-marker-shadow{
+          /* Counter-rotate the inner content of every Leaflet marker so
+             avatars, labels, "you" pin and event icons stay upright while
+             the map pane rotates underneath (Google-Maps "heading-up"). The
+             outer .leaflet-marker-icon keeps Leaflet's positioning transform. */
+          .vfm, .vme, .vfm-cluster {
+            transform: rotate(var(--map-counter-rot, 0deg));
             transform-origin: center center;
+            transition: transform 120ms linear;
           }
         `}</style>
 
