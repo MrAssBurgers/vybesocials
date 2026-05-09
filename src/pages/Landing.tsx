@@ -717,12 +717,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           challengeId={loginGate.challengeId}
           onSuccess={() => {
             setLoginGate(null);
+            setGatePending(false);
             toast.success('Welcome back! ✨');
             if (isInviteMode && onInviteNavigate) onInviteNavigate('home');
             else navigate('/home');
           }}
           onCancel={async () => {
             setLoginGate(null);
+            setGatePending(false);
             try { await supabase.auth.signOut(); } catch {}
           }}
         />
