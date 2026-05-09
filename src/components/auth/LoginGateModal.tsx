@@ -26,39 +26,67 @@ interface Props {
 export function LoginGateModal({ open, mode, email, challengeId, onSuccess, onCancel }: Props) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const pollRef = useRef<number | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const pollTimerRef = useRef<number | null>(null);
+  const cancelledRef = useRef(false);
 
-  // Polling for approval mode
+  // Resend-code cooldown ticker
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = window.setTimeout(() => setResendCooldown(c => c - 1), 1000);
+    return () => window.clearTimeout(t);
+  }, [resendCooldown]);
+
+  // Recursive setTimeout polling (so iOS PWA / Despia can pause+resume cleanly).
   useEffect(() => {
     if (!open || mode !== 'approval') return;
-    let cancelled = false;
+    cancelledRef.current = false;
 
     const tick = async () => {
+      if (cancelledRef.current) return;
       try {
         const { data, error } = await supabase.functions.invoke('auth-login-approval', {
           body: { action: 'poll', challengeId },
         });
-        if (cancelled) return;
-        if (error) return;
-        const status = (data as any)?.status;
-        if (status === 'approved') {
-          toast.success('Approved on your trusted device');
-          onSuccess();
-        } else if (status === 'denied') {
-          toast.error('Sign-in was denied');
-          onCancel();
-        } else if (status === 'expired' || status === 'not_found') {
-          toast.error('Approval request expired');
-          onCancel();
+        if (cancelledRef.current) return;
+        if (!error) {
+          const status = (data as any)?.status;
+          if (status === 'approved') {
+            toast.success('Approved on your trusted device');
+            onSuccess();
+            return;
+          }
+          if (status === 'denied') {
+            toast.error('Sign-in was denied');
+            onCancel();
+            return;
+          }
+          if (status === 'expired' || status === 'not_found') {
+            toast.error('Approval request expired');
+            onCancel();
+            return;
+          }
         }
       } catch {}
+      // Re-arm only if still visible — backgrounded tabs resume via visibilitychange.
+      if (document.visibilityState === 'visible') {
+        pollTimerRef.current = window.setTimeout(tick, 3000);
+      }
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
+        tick();
+      }
     };
 
     tick();
-    pollRef.current = window.setInterval(tick, 3000) as unknown as number;
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
-      cancelled = true;
-      if (pollRef.current) window.clearInterval(pollRef.current);
+      cancelledRef.current = true;
+      if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [open, mode, challengeId, onSuccess, onCancel]);
 
@@ -78,6 +106,24 @@ export function LoginGateModal({ open, mode, email, challengeId, onSuccess, onCa
         return;
       }
       onSuccess();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resendCode = async () => {
+    if (resendCooldown > 0 || busy) return;
+    try {
+      setBusy(true);
+      const { data, error } = await supabase.functions.invoke('auth-2fa-request', {
+        body: { email },
+      });
+      if (error || (data as any)?.error) {
+        toast.error('Could not resend code');
+        return;
+      }
+      toast.success('New code sent');
+      setResendCooldown(30);
     } finally {
       setBusy(false);
     }
@@ -110,11 +156,21 @@ export function LoginGateModal({ open, mode, email, challengeId, onSuccess, onCa
               onKeyDown={(e) => { if (e.key === 'Enter') verifyCode(); }}
               className="text-center tracking-[0.5em] text-lg font-mono"
             />
-            <div className="flex gap-2 justify-end">
-              <Button variant="ghost" disabled={busy} onClick={onCancel}>Cancel</Button>
-              <Button disabled={busy || code.length !== 6} onClick={verifyCode}>
-                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <><ShieldCheck className="w-4 h-4 mr-1.5" /> Verify</>}
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy || resendCooldown > 0}
+                onClick={resendCode}
+              >
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
               </Button>
+              <div className="flex gap-2">
+                <Button variant="ghost" disabled={busy} onClick={onCancel}>Cancel</Button>
+                <Button disabled={busy || code.length !== 6} onClick={verifyCode}>
+                  {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <><ShieldCheck className="w-4 h-4 mr-1.5" /> Verify</>}
+                </Button>
+              </div>
             </div>
           </div>
         ) : (
