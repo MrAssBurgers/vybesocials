@@ -823,6 +823,10 @@ function FriendMapInner() {
     // map with the built-in handler feels inverted (swipe up = map goes down).
     const map = mapRef.current;
     map?.dragging?.disable();
+    // Snap onto the user so rotation pivots around the avatar (Google Maps style).
+    if (map && safeMyCoords) {
+      try { map.flyTo(safeMyCoords, Math.max(map.getZoom(), MY_LOCATION_ZOOM), { duration: 0.6 }); } catch {}
+    }
 
     let lastUpdate = 0;
     let gotReading = false;
