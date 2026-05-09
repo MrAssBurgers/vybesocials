@@ -46,6 +46,8 @@ export function AutoFriendDrop() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('tap');
   const [qrSvg, setQrSvg] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const webNfcRef = useRef<AbortController | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -221,6 +223,8 @@ export function AutoFriendDrop() {
   startScanLoopRef.current = startScanLoop;
 
   const startCamera = useCallback(async () => {
+    if (streamRef.current) return; // already running
+    setCameraError(null);
     try {
       let stream = getPreloadedStream();
       if (!stream) {
@@ -235,10 +239,48 @@ export function AutoFriendDrop() {
         setCameraActive(true);
         startScanLoopRef.current();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[FriendLink] Camera access failed:', err);
+      const denied = err?.name === 'NotAllowedError' || err?.name === 'SecurityError';
+      const msg = denied
+        ? 'Camera blocked — enable camera access in settings'
+        : 'Camera unavailable — try again or use Phone Tap';
+      setCameraError(msg);
+      toast.error(msg);
     }
   }, []);
+
+  // Web NFC fallback for non-native devices (Chrome Android over HTTPS).
+  const startWebNfcScan = useCallback(async () => {
+    const NDEFReader = (window as any).NDEFReader;
+    if (!NDEFReader) {
+      toast.error('NFC not supported on this device — use the QR tab');
+      return;
+    }
+    try {
+      if (webNfcRef.current) webNfcRef.current.abort();
+      const ctrl = new AbortController();
+      webNfcRef.current = ctrl;
+      const reader = new NDEFReader();
+      await reader.scan({ signal: ctrl.signal });
+      reader.onreading = (event: any) => {
+        for (const record of event.message.records) {
+          try {
+            const decoder = new TextDecoder(record.encoding || 'utf-8');
+            const text = decoder.decode(record.data);
+            const dropMatch = text.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
+            if (dropMatch) { handleDropScan(dropMatch[1]); return; }
+            const userMatch = text.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
+            if (userMatch && userMatch[1] !== user?.id) { handleFoundUser(userMatch[1]); return; }
+          } catch {}
+        }
+      };
+      toast.success('Hold your phone near a friend\'s phone');
+    } catch (err: any) {
+      console.warn('[FriendLink] Web NFC failed:', err);
+      toast.error(err?.name === 'NotAllowedError' ? 'NFC permission denied' : 'NFC unavailable on this device');
+    }
+  }, [handleDropScan, handleFoundUser, user?.id]);
 
   const handleBump = useCallback(async () => {
     if (!profile?.username || !user) return;
@@ -312,21 +354,27 @@ export function AutoFriendDrop() {
     };
   }, [isActive]);
 
-  // Start camera only when QR scanning is visible, so Friend Link opens instantly.
+  // Start camera only when QR scanning is visible. The tab onClick also kicks
+  // startCamera() inside the user gesture so iOS doesn't reject getUserMedia.
   useEffect(() => {
     if (!isActive || phase !== 'activated') return;
     if (activeTab === 'qr') {
-      const timer = window.setTimeout(startCamera, 120);
-      return () => { window.clearTimeout(timer); stopScanning(); };
+      startCamera();
+      return () => { stopScanning(); };
     }
     stopScanning();
   }, [isActive, phase, activeTab, startCamera, stopScanning]);
 
-  // Start NFC/native tap when switching to Phone Tap.
+  // Start NFC/native tap when switching to Phone Tap. Falls back to Web NFC.
   useEffect(() => {
-    if (isActive && activeTab === 'tap' && nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
-      nativeFriendDrop.startSession();
+    if (isActive && activeTab === 'tap') {
+      if (nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
+        nativeFriendDrop.startSession();
+      }
     }
+    return () => {
+      if (webNfcRef.current) { webNfcRef.current.abort(); webNfcRef.current = null; }
+    };
   }, [isActive, activeTab, nativeFriendDrop]);
 
   const tapLive = activeTab === 'tap' && (nativeFriendDrop.isActive || !nativeFriendDrop.isAvailable);
@@ -470,7 +518,15 @@ export function AutoFriendDrop() {
                   {(['tap', 'qr'] as ActiveTab[]).map((tab) => (
                     <button
                       key={tab}
-                      onClick={() => setActiveTab(tab)}
+                      onClick={() => {
+                        setActiveTab(tab);
+                        // Trigger media APIs from the user gesture itself.
+                        if (tab === 'qr') {
+                          startCamera();
+                        } else if (tab === 'tap' && !nativeFriendDrop.isAvailable) {
+                          startWebNfcScan();
+                        }
+                      }}
                       className={cn(
                         'relative z-10 flex h-10 items-center justify-center gap-1.5 rounded-full text-xs font-bold transition-colors active:scale-[0.98]',
                         activeTab === tab ? 'text-primary-foreground' : 'text-muted-foreground'
@@ -610,9 +666,22 @@ export function AutoFriendDrop() {
                         <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
                         <canvas ref={canvasRef} className="hidden" />
                         {!cameraActive && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-secondary/60">
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-secondary/60 px-4 text-center">
                             <ScanLine className="h-7 w-7 text-primary" />
-                            <span className="text-xs font-bold text-muted-foreground">Camera warming up…</span>
+                            {cameraError ? (
+                              <>
+                                <span className="text-xs font-bold text-destructive">{cameraError}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => startCamera()}
+                                  className="mt-1 rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-primary-foreground active:scale-95"
+                                >
+                                  Try again
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-xs font-bold text-muted-foreground">Camera warming up…</span>
+                            )}
                           </div>
                         )}
                         <div className="pointer-events-none absolute inset-0 p-5">
