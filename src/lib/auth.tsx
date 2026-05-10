@@ -523,46 +523,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    clearProfileCache(); // Clear cache on logout
-    
-    // Clear react-query cache to prevent stale data leaking across accounts
-    const qc = (window as any).__REACT_QUERY_CLIENT__;
-    if (qc && typeof qc.clear === 'function') {
-      qc.clear();
-    }
-    
-    // Clear VYBE theme from localStorage so new accounts start fresh
-    localStorage.removeItem('vybe-font-body');
-    localStorage.removeItem('vybe-font-display');
-    localStorage.removeItem('vybe-anim-speed');
-    localStorage.removeItem('vybe-anim-style');
-    localStorage.removeItem('vybe-custom-animations');
-    
-    // Remove custom animation styles
-    const customAnimStyle = document.getElementById('vybe-custom-animations');
-    if (customAnimStyle) {
-      customAnimStyle.remove();
-    }
-    
-    // Reset CSS variables to defaults
-    const root = document.documentElement;
-    root.style.removeProperty('--font-body');
-    root.style.removeProperty('--font-display');
-    root.style.fontFamily = 'system-ui, sans-serif';
-    
-    // Reset ALL theme CSS variables to default classic theme
-    resetThemeToDefault();
-    
-    // Clear custom background image on logout
-    document.body.style.backgroundImage = '';
-    document.body.style.removeProperty('background-image');
-    document.body.style.removeProperty('background-size');
-    document.body.style.removeProperty('background-position');
-    document.body.style.removeProperty('background-attachment');
-    document.body.style.removeProperty('background-repeat');
-    
-    await supabase.auth.signOut();
+    // 1) Flip local auth state IMMEDIATELY so the UI navigates instantly.
     setProfile(null);
+    setUser(null);
+    setSession(null);
+    clearProfileCache();
+
+    // 2) Clear local Supabase session synchronously (no network round-trip).
+    //    The global revoke happens in the background.
+    void supabase.auth.signOut({ scope: 'local' as any }).catch(() => {});
+    void supabase.auth.signOut().catch(() => {}); // background full revoke
+
+    // 3) Defer all theme/DOM/localStorage cleanup so it never blocks the navigate.
+    queueMicrotask(() => {
+      try {
+        const qc = (window as any).__REACT_QUERY_CLIENT__;
+        if (qc && typeof qc.clear === 'function') qc.clear();
+
+        localStorage.removeItem('vybe-font-body');
+        localStorage.removeItem('vybe-font-display');
+        localStorage.removeItem('vybe-anim-speed');
+        localStorage.removeItem('vybe-anim-style');
+        localStorage.removeItem('vybe-custom-animations');
+
+        const customAnimStyle = document.getElementById('vybe-custom-animations');
+        if (customAnimStyle) customAnimStyle.remove();
+
+        const root = document.documentElement;
+        root.style.removeProperty('--font-body');
+        root.style.removeProperty('--font-display');
+        root.style.fontFamily = 'system-ui, sans-serif';
+
+        resetThemeToDefault();
+
+        document.body.style.backgroundImage = '';
+        document.body.style.removeProperty('background-image');
+        document.body.style.removeProperty('background-size');
+        document.body.style.removeProperty('background-position');
+        document.body.style.removeProperty('background-attachment');
+        document.body.style.removeProperty('background-repeat');
+      } catch {}
+    });
   };
 
   const updateProfile = async (updates: Partial<Profile>) => {
