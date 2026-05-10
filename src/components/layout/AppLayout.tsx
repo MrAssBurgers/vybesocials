@@ -157,6 +157,9 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
       {/* PWA Install Prompt */}
       <PWAInstallBanner />
+
+      {/* One-time soft prompt to enable 2FA so users don't lose access */}
+      <Enable2FANudge />
     </div>
   );
 }));
