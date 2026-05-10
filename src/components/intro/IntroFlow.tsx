@@ -154,34 +154,64 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
           >
             {/* Icon or Logo */}
             {slide.id === 'welcome' ? (
-              <motion.div className="flex justify-center" initial={reduceMotion ? {} : { scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.15, duration: 0.5, ease: EASE_OUT_EXPO }}>
-                <VYBELogo size="splash" showText={false} />
+              <motion.div
+                className="flex justify-center"
+                initial={reduceMotion ? {} : { scale: 0.85, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.15, duration: 0.55, ease: EASE_OUT_EXPO }}
+              >
+                <div className="relative">
+                  <div
+                    className="absolute inset-0 -m-8 rounded-full pointer-events-none"
+                    style={{
+                      background: 'radial-gradient(ellipse, hsl(var(--primary) / 0.45) 0%, hsl(var(--accent) / 0.2) 45%, transparent 75%)',
+                      filter: 'blur(28px)',
+                    }}
+                  />
+                  <span className="sr-only">VYBE</span>
+                  <span
+                    aria-hidden="true"
+                    className="relative font-display font-black tracking-tight text-7xl sm:text-8xl block"
+                    style={{
+                      background: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--neon-purple, var(--primary))) 16.666%, hsl(var(--accent)) 33.333%, hsl(var(--primary)) 50%, hsl(var(--neon-purple, var(--primary))) 66.666%, hsl(var(--accent)) 83.333%, hsl(var(--primary)) 100%)',
+                      backgroundSize: '200% 100%',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                      animation: reduceMotion ? 'none' : 'gradient-shift 3.2s linear infinite',
+                    }}
+                  >
+                    VYBE
+                  </span>
+                </div>
               </motion.div>
-            ) : slide.icon ? (
+            ) : slide.id === 'coming-soon' ? (
               <motion.div
                 initial={reduceMotion ? {} : { scale: 0.6, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.1, duration: 0.5, ease: EASE_OUT_EXPO }}
                 className="flex justify-center"
               >
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary via-primary/80 to-accent flex items-center justify-center shadow-lg shadow-primary/25">
-                  <slide.icon className="w-12 h-12 text-white" />
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/30 via-accent/20 to-primary/30 flex items-center justify-center shadow-lg shadow-primary/20">
+                  <Sparkles className="w-10 h-10 text-primary" />
                 </div>
               </motion.div>
             ) : null}
-            
+
             {/* Title */}
-            <h1 className="text-3xl sm:text-4xl font-display font-bold">
-              {slide.title}
-            </h1>
-            
+            {slide.title && (
+              <h1 className="text-3xl sm:text-4xl font-display font-bold">
+                {slide.title}
+              </h1>
+            )}
+
             {/* Subtitle */}
             {slide.subtitle && (
               <p className="text-lg text-muted-foreground">
                 {slide.subtitle}
               </p>
             )}
-            
+
             {/* Bullets */}
             {slide.bullets && (
               <div className="space-y-3 text-left">
@@ -200,13 +230,6 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
                   </motion.div>
                 ))}
               </div>
-            )}
-            
-            {/* Description */}
-            {slide.description && (
-              <p className="text-muted-foreground">
-                {slide.description}
-              </p>
             )}
           </motion.div>
         </AnimatePresence>
