@@ -1,21 +1,16 @@
-import { useState, useRef, useCallback, useEffect, forwardRef } from 'react';
+import { useState, useRef, useCallback, useEffect, forwardRef, Component, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, SwitchCamera, Zap, ZapOff, Loader2, Timer, Grid3X3, Sun, Moon, Image, Music, Search, UserPlus, Sparkles } from 'lucide-react';
+import {
+  X, SwitchCamera, Zap, ZapOff, Loader2, Timer, Grid3X3,
+  Sun, Moon, Image as ImageIcon, Sparkles, MoreHorizontal,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { VybeRecordButton } from './VybeRecordButton';
 import { VybeSnapEditor } from './VybeSnapEditor';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
 import { getActiveStream, stopCameraStream } from '@/hooks/useCameraPreload';
-import { useAuth } from '@/lib/auth';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { getRecentMessageUsers } from '@/lib/recentMessageUsers';
-import { useNavigate } from 'react-router-dom';
-import { useFaceTracking } from '@/hooks/useFaceTracking';
-import { AROverlayCanvas } from './AROverlayCanvas';
-import { ARFilterPicker } from './ARFilterPicker';
-import { ARFilterDef } from '@/lib/arFilters';
-import { useSnapAR } from './SnapARProvider';
 
 interface RecordingSegment {
   blob: Blob;
@@ -29,22 +24,52 @@ interface VybeSnapCameraProps {
 }
 
 const MAX_RECORDING_DURATION = 30;
-const TIMER_OPTIONS = [0, 3, 10];
+const TIMER_OPTIONS = [0, 3, 10] as const;
 
 const LENS_FILTERS = [
-  { id: 'none', label: 'Normal', icon: '✨', filter: 'none' },
-  { id: 'warm', label: 'Warm', icon: '🌅', filter: 'saturate(1.3) sepia(0.15) brightness(1.05)' },
-  { id: 'cool', label: 'Cool', icon: '❄️', filter: 'saturate(0.9) hue-rotate(10deg) brightness(1.05)' },
-  { id: 'vintage', label: 'Vintage', icon: '📷', filter: 'sepia(0.4) contrast(1.1) brightness(0.95)' },
-  { id: 'vivid', label: 'Vivid', icon: '🎨', filter: 'saturate(1.6) contrast(1.1)' },
-  { id: 'bw', label: 'B&W', icon: '🖤', filter: 'grayscale(1) contrast(1.2)' },
-  { id: 'dreamy', label: 'Dreamy', icon: '💭', filter: 'brightness(1.1) contrast(0.9) saturate(1.2) blur(0.3px)' },
-  { id: 'noir', label: 'Noir', icon: '🎬', filter: 'grayscale(0.8) contrast(1.4) brightness(0.9)' },
+  { id: 'none', label: 'Normal', filter: 'none' },
+  { id: 'warm', label: 'Warm', filter: 'saturate(1.3) sepia(0.15) brightness(1.05)' },
+  { id: 'cool', label: 'Cool', filter: 'saturate(0.9) hue-rotate(10deg) brightness(1.05)' },
+  { id: 'vintage', label: 'Vintage', filter: 'sepia(0.4) contrast(1.1) brightness(0.95)' },
+  { id: 'vivid', label: 'Vivid', filter: 'saturate(1.6) contrast(1.1)' },
+  { id: 'bw', label: 'B&W', filter: 'grayscale(1) contrast(1.2)' },
+  { id: 'dreamy', label: 'Dreamy', filter: 'brightness(1.1) contrast(0.9) saturate(1.2) blur(0.3px)' },
+  { id: 'noir', label: 'Noir', filter: 'grayscale(0.8) contrast(1.4) brightness(0.9)' },
 ];
 
+// ── Crash safety: render-time error boundary so a thrown effect/render
+// inside the camera surface doesn't blow up the entire WebView (Despia).
+class CameraErrorBoundary extends Component<
+  { onClose: () => void; children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err: unknown) { console.warn('[VybeSnapCamera] render error', err); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center px-8 text-center">
+          <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mb-4">
+            <X className="h-8 w-8 text-white" />
+          </div>
+          <p className="text-white font-semibold text-lg mb-2">Camera unavailable</p>
+          <p className="text-white/60 text-sm mb-6">Something went wrong opening the camera.</p>
+          <Button variant="outline" className="rounded-xl" onClick={this.props.onClose}>Close</Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const isDespia = () => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /despia/i.test(ua);
+};
+
 export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(function VybeSnapCamera({ isOpen, onClose, onSend }, _ref) {
-  const { profile } = useAuth();
-  const navigate = useNavigate();
   const [phase, setPhase] = useState<'camera' | 'edit' | 'sending'>('camera');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [flashEnabled, setFlashEnabled] = useState(false);
@@ -56,20 +81,16 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   const [capturedMedia, setCapturedMedia] = useState<{ url: string; type: 'photo' | 'video' } | null>(null);
   const [showFlash, setShowFlash] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [timerSeconds, setTimerSeconds] = useState<number>(0);
   const [showGrid, setShowGrid] = useState(false);
   const [nightMode, setNightMode] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('none');
-  const [showTools, setShowTools] = useState(true);
   const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
   const [selfieFlash, setSelfieFlash] = useState(false);
-  const [activeARFilter, setActiveARFilter] = useState<ARFilterDef | null>(null);
-  const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
-  
-  // AR Face Tracking
-  const { faces, isReady: arReady, isLoading: arLoading, startTracking, stopTracking } = useFaceTracking({ enabled: isOpen && cameraReady && !!activeARFilter });
-  const { applySnapLens, removeSnapLens, isAvailable: snapAvailable } = useSnapAR();
-  
+  const [showFilters, setShowFilters] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -87,100 +108,101 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   const shouldFinalizeOnStopRef = useRef(false);
   const isRecordingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const [permissionDenied, setPermissionDenied] = useState(false);
 
-  // Start camera with proper permission handling
+  // ── Defensive camera open ──
   const startCamera = useCallback(async () => {
     try {
-      if (navigator.permissions) {
+      // Skip Permissions API entirely on Despia/Android WebView — it can throw
+      // synchronously and crash the wrapper. Native permission UI handles it.
+      if (!isDespia() && navigator.permissions) {
         try {
           const camStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
           if (camStatus.state === 'denied') {
             setPermissionDenied(true);
             return;
           }
-        } catch {}
+        } catch {/* swallow — unsupported in WebViews */}
       }
 
+      // Reuse a preloaded stream only if its tracks are still live.
       const preloaded = getActiveStream();
       if (preloaded) {
+        const tracks = preloaded.getTracks();
+        const allLive = tracks.length > 0 && tracks.every(t => t.readyState === 'live');
         const videoTrack = preloaded.getVideoTracks()[0];
         const settings = videoTrack?.getSettings?.();
         const currentFacing = settings?.facingMode || 'user';
         const hasAudio = preloaded.getAudioTracks().length > 0;
-        
-        if (currentFacing === facingMode && hasAudio === soundEnabled) {
+
+        if (allLive && currentFacing === facingMode && hasAudio === soundEnabled) {
           streamRef.current = preloaded;
           setPermissionDenied(false);
           setCameraReady(true);
-          if (videoRef.current) {
-            videoRef.current.srcObject = preloaded;
-            videoRef.current.play().catch(() => {});
-          }
-          try {
-            const capabilities = videoTrack.getCapabilities?.() as any;
-            if (capabilities?.zoom) {
-              await videoTrack.applyConstraints({ advanced: [{ zoom: zoomLevel } as any] } as any);
+          // Defer attaching the source until the <video> exists in the DOM.
+          requestAnimationFrame(() => {
+            if (videoRef.current && streamRef.current) {
+              videoRef.current.srcObject = streamRef.current;
+              videoRef.current.play().catch(() => {});
             }
-            if (capabilities?.torch && flashEnabled && facingMode === 'environment') {
-              await videoTrack.applyConstraints({ advanced: [{ torch: true } as any] } as any);
-            }
-          } catch {}
+          });
           return;
         }
-        stopCameraStream();
+        try { stopCameraStream(); } catch {}
       }
 
+      // Tear down any prior stream we owned
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+        try { streamRef.current.getTracks().forEach(t => t.stop()); } catch {}
+        streamRef.current = null;
       }
 
-      const constraints: MediaStreamConstraints = {
-        video: { 
-          facingMode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          aspectRatio: { ideal: 9/16 },
-        },
-        audio: soundEnabled,
-      };
+      // Try simple constraints first (safer in WebViews), then refine.
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode },
+          audio: soundEnabled,
+        });
+      } catch (simpleErr: any) {
+        // Fall back to "any camera" if facingMode failed
+        if (simpleErr?.name === 'OverconstrainedError' || simpleErr?.name === 'NotFoundError') {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: soundEnabled });
+        } else {
+          throw simpleErr;
+        }
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setPermissionDenied(false);
       setCameraReady(true);
       streamRef.current = stream;
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
-      }
-      
+
+      requestAnimationFrame(() => {
+        if (videoRef.current && streamRef.current) {
+          videoRef.current.srcObject = streamRef.current;
+          videoRef.current.play().catch(() => {});
+        }
+      });
+
+      // Best-effort torch / zoom on the new track (never throw)
       const videoTrack = stream.getVideoTracks()[0];
       try {
-        const capabilities = videoTrack.getCapabilities?.() as any;
-        if (capabilities?.zoom) {
-          await videoTrack.applyConstraints({ advanced: [{ zoom: zoomLevel } as any] } as any);
-        }
+        const capabilities = videoTrack?.getCapabilities?.() as any;
         if (capabilities?.torch && flashEnabled && facingMode === 'environment') {
-          await videoTrack.applyConstraints({ advanced: [{ torch: true } as any] } as any);
+          videoTrack.applyConstraints({ advanced: [{ torch: true } as any] } as any).catch(() => {});
         }
       } catch {}
     } catch (error: any) {
-      if (error?.name === 'NotAllowedError') {
+      const name = error?.name;
+      if (name === 'NotAllowedError') setPermissionDenied(true);
+      else if (name === 'NotReadableError' || name === 'AbortError' || name === 'NotFoundError' || name === 'OverconstrainedError') {
         setPermissionDenied(true);
-      } else if (error?.name === 'NotReadableError' || error?.name === 'AbortError') {
-        // Camera is in use by another tab/app or hardware unavailable — surface to user, not console
-        setPermissionDenied(true);
-        console.warn('[VybeSnapCamera] Camera unavailable (in use by another app):', error?.name);
-      } else if (error?.name === 'NotFoundError' || error?.name === 'OverconstrainedError') {
-        setPermissionDenied(true);
-        console.warn('[VybeSnapCamera] No compatible camera found:', error?.name);
+        console.warn('[VybeSnapCamera] Camera unavailable:', name);
       } else {
+        setPermissionDenied(true);
         console.error('[VybeSnapCamera] Camera error:', error);
       }
     }
-  }, [facingMode, soundEnabled, zoomLevel, flashEnabled]);
+  }, [facingMode, soundEnabled, flashEnabled]);
 
   // Toggle torch
   useEffect(() => {
@@ -197,37 +219,39 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      try { streamRef.current.getTracks().forEach(t => t.stop()); } catch {}
       streamRef.current = null;
     }
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
-      // Reset transient state on every open so a stale `phase === 'edit'` (with
-      // a revoked blob URL) from the previous DM open can never crash the modal.
-      setPhase('camera');
-      setSegments([]);
-      segmentsRef.current = [];
-      setCapturedMedia(prev => {
-        if (prev?.url) { try { URL.revokeObjectURL(prev.url); } catch {} }
-        return null;
-      });
-      setRecordingProgress(0);
-      progressRef.current = 0;
-      setIsRecording(false);
-      isRecordingRef.current = false;
-      shouldFinalizeOnStopRef.current = false;
-
-      if (!getActiveStream() && !streamRef.current) {
-        setCameraReady(false);
-      }
-      startCamera();
-    }
     if (!isOpen) {
       setCameraReady(false);
+      return;
     }
-    return () => stopCamera();
+    // Reset transient state every open so a stale phase from prior open can't crash.
+    setPhase('camera');
+    setSegments([]);
+    segmentsRef.current = [];
+    setCapturedMedia(prev => {
+      if (prev?.url?.startsWith('blob:')) { try { URL.revokeObjectURL(prev.url); } catch {} }
+      return null;
+    });
+    setRecordingProgress(0);
+    progressRef.current = 0;
+    setIsRecording(false);
+    isRecordingRef.current = false;
+    shouldFinalizeOnStopRef.current = false;
+    setShowFilters(false);
+    setShowMore(false);
+
+    if (!getActiveStream() && !streamRef.current) setCameraReady(false);
+    // Defer init one frame so the <video> is mounted before we attach a stream.
+    const id = requestAnimationFrame(() => { startCamera(); });
+    return () => {
+      cancelAnimationFrame(id);
+      stopCamera();
+    };
   }, [isOpen, stopCamera, startCamera]);
 
   useEffect(() => {
@@ -237,66 +261,16 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     }
   });
 
-  // Start face tracking when camera is ready — guard against null video element
-  // and unloaded video metadata (the modal can mount inside an animated DM
-  // container before the <video> ref is attached, which crashed startTracking).
-  useEffect(() => {
-    const vid = videoRef.current;
-    if (!cameraReady || !vid || !arReady) {
-      if (!cameraReady) stopTracking();
-      return;
-    }
-    let cancelled = false;
-    const begin = () => {
-      if (cancelled || !videoRef.current) return;
-      try { startTracking(videoRef.current); } catch (e) { console.warn('[VybeSnapCamera] face tracking start failed', e); }
-    };
-    const updateSize = () => {
-      if (!videoRef.current) return;
-      setVideoSize({ width: videoRef.current.videoWidth, height: videoRef.current.videoHeight });
-    };
-    if (vid.readyState >= 2) {
-      begin();
-      updateSize();
-    } else {
-      vid.addEventListener('loadedmetadata', () => { begin(); updateSize(); }, { once: true });
-    }
-    vid.addEventListener('loadedmetadata', updateSize);
-    return () => {
-      cancelled = true;
-      vid.removeEventListener('loadedmetadata', updateSize);
-    };
-  }, [cameraReady, arReady, startTracking, stopTracking]);
-
-
-  // Handle AR filter changes (including Snap lens)
-  const handleARFilterChange = useCallback(async (filter: ARFilterDef | null) => {
-    setActiveARFilter(filter);
-    // If filter has a Snap Lens ID, apply via Snap SDK
-    if (filter && (filter as any).snapLensId && snapAvailable) {
-      await applySnapLens((filter as any).snapLensId, (filter as any).snapGroupId || '');
-    } else {
-      await removeSnapLens();
-    }
-    // Apply CSS filter to the video element
-    if (filter?.cssFilter) {
-      setSelectedFilter(filter.cssFilter);
-    } else {
-      setSelectedFilter('none');
-    }
-  }, [snapAvailable, applySnapLens, removeSnapLens]);
-  
   // Pinch-to-zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2) {
-      const distance = Math.hypot(
+      pinchStartRef.current = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
-      pinchStartRef.current = distance;
     }
   }, []);
-  
+
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2 && pinchStartRef.current !== null) {
       const distance = Math.hypot(
@@ -309,64 +283,42 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     }
   }, []);
 
-  const handleSwitchCamera = useCallback(async () => {
+  const handleSwitchCamera = useCallback(() => {
     haptics.impact();
-    const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
-    setFacingMode(newFacingMode);
-    
-    if (isRecording && streamRef.current) {
-      try {
-        const newStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: newFacingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
-          audio: soundEnabled,
-        });
-        const oldVideoTrack = streamRef.current.getVideoTracks()[0];
-        
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          mediaRecorderRef.current.stop();
-          setTimeout(() => {
-            streamRef.current = newStream;
-            if (videoRef.current) {
-              videoRef.current.srcObject = newStream;
-            }
-            oldVideoTrack.stop();
-            startRecordingSegment();
-          }, 100);
-        }
-      } catch (error) {
-        console.error('[VybeSnapCamera] Camera switch error:', error);
-      }
-    }
-  }, [facingMode, isRecording, soundEnabled]);
+    setFacingMode(prev => (prev === 'user' ? 'environment' : 'user'));
+  }, []);
 
   const startRecordingSegment = useCallback(() => {
     if (!streamRef.current) return;
     recordedChunksRef.current = [];
-    
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
+
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
       ? 'video/webm;codecs=vp9'
       : MediaRecorder.isTypeSupported('video/webm')
         ? 'video/webm'
         : 'video/mp4';
-    
-    const mediaRecorder = new MediaRecorder(streamRef.current, { mimeType });
-    
+
+    let mediaRecorder: MediaRecorder;
+    try {
+      mediaRecorder = new MediaRecorder(streamRef.current, { mimeType });
+    } catch {
+      try { mediaRecorder = new MediaRecorder(streamRef.current); } catch (e) { console.warn('[VybeSnapCamera] MediaRecorder unavailable', e); return; }
+    }
+
     mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        recordedChunksRef.current.push(event.data);
-      }
+      if (event.data.size > 0) recordedChunksRef.current.push(event.data);
     };
-    
+
     mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+      const blob = new Blob(recordedChunksRef.current, { type: mediaRecorder.mimeType || mimeType });
       const duration = Date.now() - recordingStartTimeRef.current;
-      
+
       if (blob.size > 0 && duration > 100) {
         segmentsRef.current = [...segmentsRef.current, { blob, duration }];
         totalRecordedTimeRef.current += duration;
         setSegments([...segmentsRef.current]);
       }
-      
+
       if (shouldFinalizeOnStopRef.current) {
         shouldFinalizeOnStopRef.current = false;
         const allSegments = segmentsRef.current;
@@ -377,54 +329,22 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
           setCapturedMedia({ url: videoUrl, type: 'video' });
           setPhase('edit');
           if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current.getTracks().forEach(t => t.stop());
             streamRef.current = null;
           }
         }
       }
     };
-    
+
     mediaRecorderRef.current = mediaRecorder;
     mediaRecorder.start(100);
     recordingStartTimeRef.current = Date.now();
   }, []);
 
-  const startRecording = useCallback(() => {
-    if (!streamRef.current) return;
-    haptics.impact();
-    setIsRecording(true);
-    isRecordingRef.current = true;
-    
-    const remainingTime = MAX_RECORDING_DURATION * 1000 - totalRecordedTimeRef.current;
-    if (remainingTime <= 0) return;
-    
-    startRecordingSegment();
-    const recordingStartTime = Date.now();
-    
-    const updateProgress = () => {
-      const currentSegmentTime = Date.now() - recordingStartTime;
-      const totalTime = totalRecordedTimeRef.current + currentSegmentTime;
-      const progress = Math.min((totalTime / (MAX_RECORDING_DURATION * 1000)) * 100, 100);
-      progressRef.current = progress;
-      
-      if (progress >= 100) {
-        shouldFinalizeOnStopRef.current = true;
-        stopRecording();
-      } else if (isRecordingRef.current) {
-        progressFrameRef.current = requestAnimationFrame(updateProgress);
-      }
-    };
-    progressFrameRef.current = requestAnimationFrame(updateProgress);
-    
-    uiUpdateRef.current = setInterval(() => {
-      setRecordingProgress(progressRef.current);
-    }, 100);
-  }, [startRecordingSegment]);
-
   const stopRecording = useCallback(() => {
     isRecordingRef.current = false;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+      try { mediaRecorderRef.current.stop(); } catch {}
     }
     if (progressFrameRef.current) {
       cancelAnimationFrame(progressFrameRef.current);
@@ -439,54 +359,84 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     haptics.success();
   }, []);
 
+  const startRecording = useCallback(() => {
+    if (!streamRef.current) return;
+    haptics.impact();
+    setIsRecording(true);
+    isRecordingRef.current = true;
+
+    const remainingTime = MAX_RECORDING_DURATION * 1000 - totalRecordedTimeRef.current;
+    if (remainingTime <= 0) return;
+
+    startRecordingSegment();
+    const recordingStartTime = Date.now();
+
+    const updateProgress = () => {
+      const currentSegmentTime = Date.now() - recordingStartTime;
+      const totalTime = totalRecordedTimeRef.current + currentSegmentTime;
+      const progress = Math.min((totalTime / (MAX_RECORDING_DURATION * 1000)) * 100, 100);
+      progressRef.current = progress;
+
+      if (progress >= 100) {
+        shouldFinalizeOnStopRef.current = true;
+        stopRecording();
+      } else if (isRecordingRef.current) {
+        progressFrameRef.current = requestAnimationFrame(updateProgress);
+      }
+    };
+    progressFrameRef.current = requestAnimationFrame(updateProgress);
+
+    uiUpdateRef.current = setInterval(() => {
+      setRecordingProgress(progressRef.current);
+    }, 100);
+  }, [startRecordingSegment, stopRecording]);
+
   const takePhoto = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
     haptics.success();
-    
-    // Selfie flash for front camera
+
     if (facingMode === 'user' || flashEnabled) {
       setShowFlash(true);
       setSelfieFlash(facingMode === 'user');
       setTimeout(() => { setShowFlash(false); setSelfieFlash(false); }, 200);
     }
-    
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const outputWidth = Math.min(1080, video.videoWidth);
-    const outputHeight = Math.round(outputWidth * (16/9));
+    const outputWidth = Math.min(1080, video.videoWidth || 1080);
+    const outputHeight = Math.round(outputWidth * (16 / 9));
     canvas.width = outputWidth;
     canvas.height = outputHeight;
-    
-    const videoAspect = video.videoWidth / video.videoHeight;
-    const targetAspect = 9/16;
-    let sx = 0, sy = 0, sw = video.videoWidth, sh = video.videoHeight;
-    
+
+    const vw = video.videoWidth || outputWidth;
+    const vh = video.videoHeight || outputHeight;
+    const videoAspect = vw / vh;
+    const targetAspect = 9 / 16;
+    let sx = 0, sy = 0, sw = vw, sh = vh;
+
     if (videoAspect > targetAspect) {
-      sw = video.videoHeight * targetAspect;
-      sx = (video.videoWidth - sw) / 2;
+      sw = vh * targetAspect;
+      sx = (vw - sw) / 2;
     } else {
-      sh = video.videoWidth / targetAspect;
-      sy = (video.videoHeight - sh) / 2;
+      sh = vw / targetAspect;
+      sy = (vh - sh) / 2;
     }
-    
+
     if (facingMode === 'user') {
       ctx.translate(outputWidth, 0);
       ctx.scale(-1, 1);
     }
-    
-    // Apply filter to canvas
+
     const filterObj = LENS_FILTERS.find(f => f.id === selectedFilter);
-    if (filterObj && filterObj.filter !== 'none') {
-      ctx.filter = filterObj.filter;
-    }
-    
+    if (filterObj && filterObj.filter !== 'none') ctx.filter = filterObj.filter;
+
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.filter = 'none';
-    
+
     const imageUrl = canvas.toDataURL('image/jpeg', 0.92);
     setCapturedMedia({ url: imageUrl, type: 'photo' });
     setPhase('edit');
@@ -514,9 +464,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   const handleCaptureStart = useCallback(() => {
     isHoldingRef.current = true;
     holdTimerRef.current = setTimeout(() => {
-      if (isHoldingRef.current) {
-        startRecording();
-      }
+      if (isHoldingRef.current) startRecording();
     }, 300);
   }, [startRecording]);
 
@@ -529,12 +477,10 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     if (isRecordingRef.current) {
       shouldFinalizeOnStopRef.current = true;
       stopRecording();
+    } else if (timerSeconds > 0) {
+      startTimerCapture();
     } else {
-      if (timerSeconds > 0) {
-        startTimerCapture();
-      } else {
-        takePhoto();
-      }
+      takePhoto();
     }
   }, [stopRecording, takePhoto, timerSeconds, startTimerCapture]);
 
@@ -564,11 +510,8 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     setPhase('camera');
     onClose();
   }, [stopCamera, stopRecording, onClose]);
-  
-  // Gallery pick
-  const handleGalleryPick = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
+
+  const handleGalleryPick = useCallback(() => fileInputRef.current?.click(), []);
 
   const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -596,19 +539,21 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   // Editor phase
   if (phase === 'edit' && capturedMedia) {
     return (
-      <VybeSnapEditor
-        mediaUrl={capturedMedia.url}
-        mediaType={capturedMedia.type}
-        onSend={handleEditorSend}
-        onCancel={() => {
-          setCapturedMedia(null);
-          setSegments([]);
-          setRecordingProgress(0);
-          totalRecordedTimeRef.current = 0;
-          setPhase('camera');
-          startCamera();
-        }}
-      />
+      <CameraErrorBoundary onClose={handleClose}>
+        <VybeSnapEditor
+          mediaUrl={capturedMedia.url}
+          mediaType={capturedMedia.type}
+          onSend={handleEditorSend}
+          onCancel={() => {
+            setCapturedMedia(null);
+            setSegments([]);
+            setRecordingProgress(0);
+            totalRecordedTimeRef.current = 0;
+            setPhase('camera');
+            startCamera();
+          }}
+        />
+      </CameraErrorBoundary>
     );
   }
 
@@ -621,365 +566,263 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[200] bg-black flex items-center justify-center"
       >
-        <div className="flex flex-col items-center gap-6">
+        <div className="flex flex-col items-center gap-5">
           <motion.div
             animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-            className="w-20 h-20 rounded-full flex items-center justify-center"
-            style={{ background: 'conic-gradient(from 0deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))', padding: '3px' }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'linear' }}
           >
-            <div className="w-full h-full rounded-full bg-black flex items-center justify-center">
-              <Sparkles className="h-8 w-8 text-primary" />
-            </div>
+            <Loader2 className="h-10 w-10 text-white" />
           </motion.div>
-          <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-white font-semibold text-lg">
-            Sending VYBE...
-          </motion.p>
+          <p className="text-white/80 text-sm font-medium">Sending…</p>
         </div>
       </motion.div>
     );
   }
 
-  const currentFilter = LENS_FILTERS.find(f => f.id === selectedFilter);
-
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] bg-black flex flex-col"
-    >
-      <canvas ref={canvasRef} className="hidden" />
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,video/*"
-        className="hidden"
-        onChange={handleFileSelected}
-      />
-      
-      {/* Camera view */}
-      <div 
-        className="flex-1 relative overflow-hidden rounded-b-3xl"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
+    <CameraErrorBoundary onClose={handleClose}>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[200] bg-black flex flex-col"
       >
-        {permissionDenied ? (
-          <div className="w-full h-full flex flex-col items-center justify-center px-8 text-center">
-            <div className="w-20 h-20 rounded-full bg-destructive/20 flex items-center justify-center mb-4">
-              <X className="h-8 w-8 text-destructive" />
+        <canvas ref={canvasRef} className="hidden" />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          className="hidden"
+          onChange={handleFileSelected}
+        />
+
+        {/* Camera surface */}
+        <div
+          className="flex-1 relative overflow-hidden"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+        >
+          {permissionDenied ? (
+            <div className="w-full h-full flex flex-col items-center justify-center px-8 text-center">
+              <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mb-4">
+                <X className="h-8 w-8 text-white" />
+              </div>
+              <p className="text-white font-semibold text-lg mb-2">Camera unavailable</p>
+              <p className="text-white/60 text-sm mb-6">Enable camera access in your settings to take a Snap.</p>
+              <Button variant="outline" className="rounded-xl" onClick={() => { setPermissionDenied(false); startCamera(); }}>
+                Try again
+              </Button>
             </div>
-            <p className="text-white font-semibold text-lg mb-2">Camera Access Denied</p>
-            <p className="text-white/50 text-sm mb-6">
-              Please enable camera access in your settings.
-            </p>
-            <Button variant="outline" className="rounded-xl" onClick={() => { setPermissionDenied(false); startCamera(); }}>
-              Try Again
-            </Button>
-          </div>
-        ) : !cameraReady ? (
-          <div className="w-full h-full flex flex-col items-center justify-center">
-            <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }} className="mb-4">
-              <Loader2 className="h-10 w-10 text-primary" />
-            </motion.div>
-            <p className="text-white/50 text-sm font-medium">Connecting camera...</p>
-          </div>
-        ) : (
-          <>
-            <video
-              ref={videoRef}
-              className="w-full h-full object-cover"
-              style={{ 
-                transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
-                filter: activeARFilter?.cssFilter || (selectedFilter !== 'none' 
-                  ? LENS_FILTERS.find(f => f.id === selectedFilter)?.filter 
-                  : (nightMode ? 'brightness(1.4) contrast(0.9)' : 'none')),
-              }}
-              playsInline
-              muted
-              autoPlay
-            />
-            {/* AR Overlay Canvas — renders face masks, particles, effects */}
-            {activeARFilter && videoSize.width > 0 && (
-              <AROverlayCanvas
-                faces={faces}
-                filter={activeARFilter}
-                videoWidth={videoSize.width}
-                videoHeight={videoSize.height}
-                mirrored={facingMode === 'user'}
+          ) : (
+            <>
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover"
+                style={{
+                  transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+                  filter: selectedFilter !== 'none'
+                    ? LENS_FILTERS.find(f => f.id === selectedFilter)?.filter
+                    : (nightMode ? 'brightness(1.4) contrast(0.9)' : 'none'),
+                }}
+                playsInline
+                muted
+                autoPlay
               />
-            )}
-          </>
-        )}
-        
-        {/* Grid overlay */}
-        {showGrid && cameraReady && (
-          <div className="absolute inset-0 pointer-events-none z-10">
-            <div className="w-full h-full grid grid-cols-3 grid-rows-3">
+              {!cameraReady && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
+                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.6, repeat: Infinity, ease: 'linear' }}>
+                    <Loader2 className="h-8 w-8 text-white/70" />
+                  </motion.div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Grid */}
+          {showGrid && cameraReady && (
+            <div className="absolute inset-0 pointer-events-none z-10 grid grid-cols-3 grid-rows-3">
               {Array.from({ length: 9 }).map((_, i) => (
-                <div key={i} className="border border-white/20" />
+                <div key={i} className="border border-white/15" />
               ))}
             </div>
-          </div>
-        )}
-
-        {/* Selfie flash / regular flash overlay */}
-        <AnimatePresence>
-          {showFlash && (
-            <motion.div
-              initial={{ opacity: 1 }}
-              animate={{ opacity: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className={cn(
-                "absolute inset-0 z-50 pointer-events-none",
-                selfieFlash ? "bg-yellow-100" : "bg-white"
-              )}
-            />
           )}
-        </AnimatePresence>
 
-        {/* Timer countdown overlay */}
-        <AnimatePresence>
-          {timerCountdown !== null && (
-            <motion.div
-              initial={{ scale: 2, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.5, opacity: 0 }}
-              className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none"
-            >
-              <span className="text-8xl font-black text-white drop-shadow-2xl">{timerCountdown}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        
-        {/* Segment indicators */}
-        {(segments.length > 0 || isRecording) && (
-          <div className="absolute top-4 left-4 right-4 flex gap-1 z-10">
-            {segments.map((seg, i) => (
-              <div key={i} className="h-1 rounded-full bg-white" style={{ flex: seg.duration / (MAX_RECORDING_DURATION * 1000) }} />
-            ))}
-            {isRecording && (
+          {/* Flash overlay */}
+          <AnimatePresence>
+            {showFlash && (
               <motion.div
-                className="h-1 rounded-full bg-gradient-to-r from-primary to-accent"
-                style={{ flex: (recordingProgress - (segments.reduce((a, s) => a + s.duration, 0) / (MAX_RECORDING_DURATION * 10))) / 100 }}
+                initial={{ opacity: 1 }}
+                animate={{ opacity: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className={cn(
+                  'absolute inset-0 z-50 pointer-events-none',
+                  selfieFlash ? 'bg-yellow-100' : 'bg-white'
+                )}
               />
             )}
-          </div>
-        )}
+          </AnimatePresence>
 
-        {/* Zoom indicator */}
-        <AnimatePresence>
-          {zoomLevel > 1 && (
-            <motion.div
-              initial={{ opacity: 0, y: -6, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.9 }}
-              className="absolute top-20 left-1/2 -translate-x-1/2 z-10"
-            >
-              <div className="px-3 py-1 rounded-full bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_24px_rgba(0,0,0,0.35)] text-[11px] font-semibold tracking-wide text-white">
-                {zoomLevel.toFixed(1)}×
-              </div>
-            </motion.div>
+          {/* Timer countdown */}
+          <AnimatePresence>
+            {timerCountdown !== null && (
+              <motion.div
+                initial={{ scale: 2, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none"
+              >
+                <span className="text-8xl font-light text-white drop-shadow-2xl">{timerCountdown}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Segment / progress indicators */}
+          {(segments.length > 0 || isRecording) && (
+            <div className="absolute top-3 left-4 right-4 flex gap-1 z-10">
+              {segments.map((seg, i) => (
+                <div key={i} className="h-[3px] rounded-full bg-white" style={{ flex: seg.duration / (MAX_RECORDING_DURATION * 1000) }} />
+              ))}
+              {isRecording && (
+                <div
+                  className="h-[3px] rounded-full bg-white"
+                  style={{
+                    flex: Math.max(0,
+                      (recordingProgress - (segments.reduce((a, s) => a + s.duration, 0) / (MAX_RECORDING_DURATION * 10))) / 100
+                    ),
+                  }}
+                />
+              )}
+            </div>
           )}
-        </AnimatePresence>
 
-        {/* Premium vignette for depth */}
-        {cameraReady && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 z-0"
-            style={{
-              background:
-                'radial-gradient(120% 80% at 50% 50%, transparent 55%, rgba(0,0,0,0.35) 100%), linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 18%, transparent 70%, rgba(0,0,0,0.55) 100%)',
-            }}
-          />
-        )}
-      </div>
+          {/* Zoom indicator */}
+          <AnimatePresence>
+            {zoomLevel > 1 && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.9 }}
+                className="absolute top-20 left-1/2 -translate-x-1/2 z-10"
+              >
+                <div className="px-3 py-1 rounded-full bg-black/40 backdrop-blur-md text-[11px] font-medium text-white">
+                  {zoomLevel.toFixed(1)}×
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-      {/* ── Top bar — premium glass ──────────────────── */}
-      <div className="absolute top-0 left-0 right-0 z-20 safe-area-inset-top">
-        <div className="flex items-center justify-between px-4 pt-3 pb-2">
-          {/* Left: avatar w/ gradient ring + search pill */}
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => navigate('/profile')}
-              className="relative h-11 w-11 rounded-full p-[2px] active:scale-95 transition-transform"
-              style={{ background: 'conic-gradient(from 140deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))' }}
-              aria-label="Profile"
-            >
-              <div className="h-full w-full rounded-full overflow-hidden bg-black ring-2 ring-black/40">
-                {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/40 to-accent/40">
-                    <span className="text-sm font-bold text-white">{profile?.username?.[0]?.toUpperCase() || 'V'}</span>
-                  </div>
-                )}
-              </div>
-            </button>
-            <button
-              onClick={() => {}}
-              className="h-10 px-3.5 rounded-full bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.3)] flex items-center gap-2 active:scale-95 transition-transform"
-              aria-label="Search lenses"
-            >
-              <Search className="h-4 w-4 text-white" strokeWidth={2.25} />
-              <span className="text-[12px] font-medium text-white/90">Search</span>
-            </button>
-          </div>
-
-          {/* Right: action pills */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate('/friends')}
-              className="h-10 w-10 rounded-full bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.3)] flex items-center justify-center active:scale-90 transition-transform"
-              aria-label="Add friend"
-            >
-              <UserPlus className="h-[18px] w-[18px] text-white" strokeWidth={2.25} />
-            </button>
+        {/* ── Top bar — minimal IG style ── */}
+        <div className="absolute top-0 left-0 right-0 z-20" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+          <div className="flex items-center justify-between px-4 pt-3 pb-2">
             <button
               onClick={handleClose}
-              className="h-10 w-10 rounded-full bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.3)] flex items-center justify-center active:scale-90 transition-transform"
+              className="h-10 w-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
               aria-label="Close camera"
             >
-              <X className="h-[18px] w-[18px] text-white" strokeWidth={2.5} />
+              <X className="h-7 w-7 text-white drop-shadow-md" strokeWidth={2.25} />
             </button>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => { setFlashEnabled(v => !v); haptics.impact(); }}
+                className="h-10 w-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+                aria-label="Toggle flash"
+              >
+                {flashEnabled
+                  ? <Zap className="h-6 w-6 text-yellow-300 drop-shadow-md" fill="currentColor" />
+                  : <ZapOff className="h-6 w-6 text-white drop-shadow-md" strokeWidth={2.25} />}
+              </button>
+              <button
+                onClick={handleSwitchCamera}
+                className="h-10 w-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+                aria-label="Switch camera"
+              >
+                <SwitchCamera className="h-6 w-6 text-white drop-shadow-md" strokeWidth={2.25} />
+              </button>
+              <button
+                onClick={() => { setShowMore(true); haptics.impact(); }}
+                className="h-10 w-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+                aria-label="More options"
+              >
+                <MoreHorizontal className="h-6 w-6 text-white drop-shadow-md" strokeWidth={2.25} />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Right side vertical tools — unified glass stack ── */}
-      <AnimatePresence>
-        {showTools && !isRecording && (
-          <motion.div
-            initial={{ opacity: 0, x: 16 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 16 }}
-            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute right-3 z-20 flex flex-col p-1.5 gap-1.5 rounded-full bg-white/8 backdrop-blur-2xl border border-white/12 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
-            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 76px)' }}
-          >
-            {/* Switch camera (primary action gets accent) */}
+        {/* ── Bottom controls ── */}
+        <div
+          className="absolute bottom-0 left-0 right-0 z-20"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
+          {/* Filter strip — appears above shutter */}
+          <AnimatePresence>
+            {showFilters && !isRecording && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 16 }}
+                transition={{ duration: 0.2 }}
+                className="px-4 pb-4"
+              >
+                <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+                  {LENS_FILTERS.map(f => {
+                    const active = selectedFilter === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => { setSelectedFilter(f.id); haptics.impact(); }}
+                        className={cn(
+                          'shrink-0 flex flex-col items-center gap-1.5 active:scale-95 transition-transform',
+                        )}
+                      >
+                        <div className={cn(
+                          'w-14 h-14 rounded-full overflow-hidden ring-2 transition-all',
+                          active ? 'ring-white scale-110' : 'ring-white/20'
+                        )}>
+                          <video
+                            // tiny preview using current stream — not strictly necessary; show solid fill
+                            className="w-full h-full object-cover"
+                            style={{
+                              filter: f.filter === 'none' ? 'none' : f.filter,
+                              background: 'linear-gradient(135deg,#1a1a2e,#16213e)',
+                            }}
+                            ref={(el) => {
+                              if (el && streamRef.current && !el.srcObject) {
+                                try { el.srcObject = streamRef.current; el.play().catch(() => {}); } catch {}
+                              }
+                            }}
+                            muted
+                            playsInline
+                            autoPlay
+                          />
+                        </div>
+                        <span className={cn(
+                          'text-[10px] font-medium tracking-wide',
+                          active ? 'text-white' : 'text-white/60'
+                        )}>
+                          {f.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Shutter row — IG/Snap layout */}
+          <div className="flex items-center justify-between px-10 pb-6">
             <button
-              onClick={handleSwitchCamera}
-              className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 active:scale-90 transition-transform"
-              aria-label="Switch camera"
+              onClick={handleGalleryPick}
+              className="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform"
+              aria-label="Open gallery"
             >
-              <SwitchCamera className="h-[18px] w-[18px] text-white" strokeWidth={2.25} />
+              <ImageIcon className="h-6 w-6 text-white" strokeWidth={2.25} />
             </button>
 
-            {/* Flash */}
-            <button
-              onClick={() => { setFlashEnabled(!flashEnabled); haptics.impact(); }}
-              className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-all",
-                flashEnabled ? "bg-yellow-300/25 ring-1 ring-yellow-300/50" : "hover:bg-white/10"
-              )}
-              aria-label="Toggle flash"
-            >
-              {flashEnabled
-                ? <Zap className="h-[18px] w-[18px] text-yellow-300" fill="currentColor" />
-                : <ZapOff className="h-[18px] w-[18px] text-white/85" strokeWidth={2.25} />}
-            </button>
-
-            {/* Timer */}
-            <button
-              onClick={() => {
-                const idx = TIMER_OPTIONS.indexOf(timerSeconds);
-                setTimerSeconds(TIMER_OPTIONS[(idx + 1) % TIMER_OPTIONS.length]);
-                haptics.impact();
-              }}
-              className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center relative active:scale-90 transition-all",
-                timerSeconds > 0 ? "bg-primary/30 ring-1 ring-primary/50" : "hover:bg-white/10"
-              )}
-              aria-label="Self-timer"
-            >
-              <Timer className="h-[18px] w-[18px] text-white/85" strokeWidth={2.25} />
-              {timerSeconds > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold rounded-full h-[15px] min-w-[15px] px-[3px] flex items-center justify-center ring-2 ring-black/40">
-                  {timerSeconds}
-                </span>
-              )}
-            </button>
-
-            {/* Grid */}
-            <button
-              onClick={() => { setShowGrid(!showGrid); haptics.impact(); }}
-              className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-all",
-                showGrid ? "bg-white/25 ring-1 ring-white/40" : "hover:bg-white/10"
-              )}
-              aria-label="Composition grid"
-            >
-              <Grid3X3 className="h-[18px] w-[18px] text-white/85" strokeWidth={2.25} />
-            </button>
-
-            {/* Night Mode */}
-            <button
-              onClick={() => { setNightMode(!nightMode); haptics.impact(); }}
-              className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-all",
-                nightMode ? "bg-yellow-300/20 ring-1 ring-yellow-300/40" : "hover:bg-white/10"
-              )}
-              aria-label="Night mode"
-            >
-              {nightMode
-                ? <Sun className="h-[18px] w-[18px] text-yellow-300" strokeWidth={2.25} />
-                : <Moon className="h-[18px] w-[18px] text-white/85" strokeWidth={2.25} />}
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Bottom area — premium dock ──────────────── */}
-      <div className="absolute bottom-0 left-0 right-0 z-20 safe-area-inset-bottom">
-        {/* Active filter / lens name chip */}
-        <AnimatePresence>
-          {!isRecording && (activeARFilter || (currentFilter && currentFilter.id !== 'none')) && (
-            <motion.div
-              key={activeARFilter?.id || currentFilter?.id}
-              initial={{ opacity: 0, y: 8, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 4, scale: 0.95 }}
-              transition={{ duration: 0.22 }}
-              className="flex justify-center mb-2"
-            >
-              <div className="px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.35)] flex items-center gap-1.5">
-                <Sparkles className="h-3 w-3 text-primary" />
-                <span className="text-[11px] font-semibold tracking-wide text-white">
-                  {activeARFilter?.name || currentFilter?.label}
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Lens/filter carousel */}
-        {!isRecording && (
-          <div className="px-2 mb-4">
-            <ARFilterPicker
-              currentFilter={activeARFilter?.id || null}
-              onFilterChange={handleARFilterChange}
-              isTracking={faces.length > 0}
-              isLoading={arLoading}
-            />
-          </div>
-        )}
-
-        {/* Capture row */}
-        <div className="flex items-end justify-between px-8 pb-3">
-          {/* Gallery */}
-          <button
-            onClick={handleGalleryPick}
-            className="h-12 w-12 rounded-2xl overflow-hidden bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.3)] flex items-center justify-center active:scale-90 transition-transform"
-            aria-label="Open gallery"
-          >
-            <Image className="h-[20px] w-[20px] text-white" strokeWidth={2.25} />
-          </button>
-
-          {/* Capture button (slightly elevated) */}
-          <div className="-mt-1">
             <VybeRecordButton
               isRecording={isRecording}
               progress={recordingProgress}
@@ -987,18 +830,98 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
               onCaptureStart={handleCaptureStart}
               onCaptureEnd={handleCaptureEnd}
             />
-          </div>
 
-          {/* Music */}
-          <button
-            onClick={() => haptics.impact()}
-            className="h-12 w-12 rounded-2xl bg-white/10 backdrop-blur-2xl border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.3)] flex items-center justify-center active:scale-90 transition-transform"
-            aria-label="Add music"
-          >
-            <Music className="h-[20px] w-[20px] text-white" strokeWidth={2.25} />
-          </button>
+            <button
+              onClick={() => { setShowFilters(v => !v); haptics.impact(); }}
+              className={cn(
+                'h-12 w-12 rounded-2xl backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform',
+                showFilters ? 'bg-white text-black' : 'bg-white/15 text-white'
+              )}
+              aria-label="Toggle filters"
+            >
+              <Sparkles className="h-6 w-6" strokeWidth={2.25} />
+            </button>
+          </div>
         </div>
-      </div>
-    </motion.div>
+
+        {/* ── More sheet ── */}
+        <Sheet open={showMore} onOpenChange={setShowMore}>
+          <SheetContent
+            side="bottom"
+            className="bg-black/95 backdrop-blur-xl border-white/10 rounded-t-3xl text-white pb-safe"
+          >
+            <SheetTitle className="text-white text-base font-semibold mb-4">Options</SheetTitle>
+
+            {/* Timer */}
+            <div className="space-y-2 mb-5">
+              <p className="text-xs uppercase tracking-wider text-white/50 font-medium">Timer</p>
+              <div className="flex gap-2">
+                {TIMER_OPTIONS.map(s => (
+                  <button
+                    key={s}
+                    onClick={() => { setTimerSeconds(s); haptics.impact(); }}
+                    className={cn(
+                      'flex-1 h-11 rounded-xl text-sm font-medium transition-colors',
+                      timerSeconds === s ? 'bg-white text-black' : 'bg-white/10 text-white/80'
+                    )}
+                  >
+                    {s === 0 ? 'Off' : `${s}s`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Toggles */}
+            <div className="divide-y divide-white/10 rounded-2xl bg-white/5 overflow-hidden">
+              <ToggleRow
+                icon={<Grid3X3 className="h-5 w-5" />}
+                label="Grid"
+                value={showGrid}
+                onChange={() => { setShowGrid(v => !v); haptics.impact(); }}
+              />
+              <ToggleRow
+                icon={nightMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                label="Night mode"
+                value={nightMode}
+                onChange={() => { setNightMode(v => !v); haptics.impact(); }}
+              />
+              <ToggleRow
+                icon={<Timer className="h-5 w-5" />}
+                label="Sound"
+                value={soundEnabled}
+                onChange={() => { setSoundEnabled(v => !v); haptics.impact(); }}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+      </motion.div>
+    </CameraErrorBoundary>
   );
 });
+
+function ToggleRow({ icon, label, value, onChange }: { icon: ReactNode; label: string; value: boolean; onChange: () => void }) {
+  return (
+    <button
+      onClick={onChange}
+      className="w-full flex items-center justify-between px-4 py-3.5 active:bg-white/5 transition-colors"
+    >
+      <div className="flex items-center gap-3 text-white">
+        <span className="text-white/80">{icon}</span>
+        <span className="text-sm font-medium">{label}</span>
+      </div>
+      <span
+        className={cn(
+          'h-6 w-10 rounded-full relative transition-colors',
+          value ? 'bg-white' : 'bg-white/20'
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-0.5 h-5 w-5 rounded-full bg-black transition-all',
+            value ? 'left-[18px]' : 'left-0.5 bg-white'
+          )}
+        />
+      </span>
+    </button>
+  );
+}
