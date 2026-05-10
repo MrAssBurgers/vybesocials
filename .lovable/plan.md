@@ -1,57 +1,59 @@
-# Fix haptics in Despia shell
+## Goal
+Make `/vybe-home` (`src/pages/VybeHome.tsx`) honest. Right now it mixes the real live member count (good) with **fabricated stats, fake testimonials with quotes from invented people, and unverifiable marketing numbers**. We'll remove or rewrite anything that is not actually true.
 
-## Problem
+## What's false today (what we'll change)
 
-Haptics never fire on your device because `src/lib/haptics.ts` calls the wrong Despia API:
+### 1. Testimonials section — REMOVE entirely
+The three quote cards are 100% fabricated:
+- "Maya R. · Brooklyn" — fake person, fake quote
+- "Jordan W. · Austin" — fake person, fake quote
+- "Ren X. · Los Angeles" — fake person, fake quote
 
-```ts
-(window as any).location.href = `haptic://impact?style=${style}`;
-```
+These are AI-generated avatars with invented identities and quotes. With only 208 real profiles and no opt-in testimonials, we can't show these. **Delete the entire "Real people / Built for actual humans" section.**
 
-That URL scheme **does not exist** in Despia. Per `despia-native`'s type definitions, the only valid haptic schemes are:
+### 2. Social-proof stat strip — REWRITE to facts only
+Current row makes 4 claims, only 1 is verifiable:
+- `120+ Features in one app` — arbitrary, unverified → **remove**
+- `∞ Theme combinations` — gimmicky → **remove**
+- `<200ms Message delivery` — never measured → **remove**
+- `24/7 AI safety scanning` — true → **keep**
 
-- `lighthaptic://`
-- `heavyhaptic://`
-- `successhaptic://`
-- `warninghaptic://`
-- `errorhaptic://`
+Replace with 3 things we can actually back:
+- **Live member count** (already pulled from `usePublicUserCount` — real number from `profiles`)
+- **AI safety scanning · 24/7** (Vybe Check runs on every upload — true)
+- **End-to-end encrypted messages** (matches `mem://technical/security/message-encryption-and-privacy-standard`)
 
-(No `medium` — Despia does not expose one.)
+### 3. Hero hairline claims — TRIM
+- `<1s call connect time` bullet under "Snap · Notes · Calls" → **remove** (no measurement)
+- `Free forever` checkmark → **keep** (matches usePremiumStatus comment "everyone-free")
+- `No ads in DMs` → **keep** (true — ads are not in DMs)
+- `AI-powered safety` → **keep**
 
-On top of that, `window.location.href = ...` is the wrong dispatch mechanism. The `despia-native` package already exposes a `despia(command)` helper (used elsewhere in the app, e.g. `useRewardedAd`) that handles the bridge correctly without risking page navigation in non-Despia browsers.
+### 4. Comparison table — TIGHTEN
+Some rows are opinionated/wrong:
+- `Creator payouts (60-70%)` shows Instagram=true → **flip Instagram to false** (Instagram does not pay 60-70%; only VYBE does per `mem://features/identity/creator-partnership-program`)
+- `Communities & spaces` shows Discord=true → keep
+- `Disappearing snaps` shows Snap=true → keep
+- Everything else stays (the "nobody else does this" rows are accurate for Instagram/Snap/Discord)
 
-The Capacitor branch added in the previous turn is dead code for you (you ship Despia only), so it can be removed to keep things lean.
+### 5. Hero avatar cluster + phone-mockup avatars — LEAVE AS-IS
+The 4-avatar cluster next to "X early members" and the avatars inside the phone screenshots are clearly **illustrative UI mockups** (same as Apple's marketing pages). They aren't presented as named real users on the marketing surface, so they stay. The previously-fabricated names (`@maya.rae`, `Maya R.` etc.) only appeared as quoted "real people" in testimonials, which we're deleting in step 1.
 
-## Changes — single file: `src/lib/haptics.ts`
+### 6. Phone-mockup numbers — LEAVE AS-IS
+Numbers inside the phone frames (`Lvl 49`, `2,013 XP`, `14d streak`, `12,840 · #3 in Brooklyn`, `142 saved`, weather `73°F`) are part of the UI screenshot mockup, the same way every app's marketing site shows a sample screen. Not represented as platform-wide stats. Keep.
 
-1. **Remove the Capacitor import + branch** added last turn.
-2. **Import the Despia helper** instead:
-   ```ts
-   import despia from 'despia-native';
-   ```
-3. **Detect Despia** the same way `useRewardedAd.ts` does (UA contains `despia`), so behavior is consistent across the codebase.
-4. **Rewrite `nativeHaptic(style)`** to map our 6 internal styles to Despia's 5 real schemes and call `despia(...)`:
-   - `light` → `lighthaptic://`
-   - `medium` → `lighthaptic://` (Despia has no medium; light is the closest taptic)
-   - `heavy` → `heavyhaptic://`
-   - `success` → `successhaptic://`
-   - `warning` → `warninghaptic://`
-   - `error` → `errorhaptic://`
-5. Wrap the call in `try/catch` and return `true` on success so `triggerHaptic` short-circuits the `navigator.vibrate` web fallback when Despia handled it (avoids double-buzz on Android where both fire).
-6. Keep `navigator.vibrate` fallback intact for plain browser/PWA use.
-7. Keep the `vybe-haptics-enabled` localStorage gate and the existing `haptics.tap/select/impact/success/warning/error/send/like/navigate` public API — no call sites need to change.
+## Files touched
+- `src/pages/VybeHome.tsx` — the only file changing.
 
 ## Out of scope
-
-- No call-site changes; every existing `haptics.tap()` etc. starts working automatically once the bridge is fixed.
-- No new haptic triggers added to components in this pass. If, after testing, specific screens still feel "dead," we can do a second pass to sprinkle `haptics.tap()` into the missing buttons — let me know which screens.
-- No backend, RLS, or routing changes.
+- No backend, RLS, hooks, or routing changes.
+- No design-system / token changes — only deletions and small text edits.
+- Other marketing pages (`/features`, `/about`, `/safety`) untouched unless you ask.
 
 ## Verification
-
-- Build the Despia APK/IPA from the updated bundle and confirm taps trigger the Taptic Engine / vibrator on:
-  - Bottom-nav switches
-  - Like / reaction long-press
-  - Send message
-  - Pull-to-refresh / publish celebration
-- In a desktop browser, confirm no console errors and no accidental navigation (the old `window.location.href = 'haptic://...'` bug).
+After edit, scroll `/vybe-home` end-to-end and confirm:
+- No testimonial cards with names + quotes
+- Social-proof strip shows only the live member count, 24/7 safety, E2E encryption
+- No `<1s call connect time` bullet
+- Comparison table shows ❌ for Instagram on creator-payouts row
+- Live member count still renders (e.g. "208 early members") from real DB
