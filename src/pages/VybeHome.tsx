@@ -817,12 +817,11 @@ const VybeHome = memo(function VybeHome() {
 
       {/* SOCIAL PROOF STRIP */}
       <section className="py-10 px-6 border-y border-white/5 bg-white/[0.02]">
-        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
           {[
-            {n:'120+', l:'Features in one app'},
-            {n:'∞', l:'Theme combinations'},
-            {n:'<200ms', l:'Message delivery'},
+            {n: countLoading ? '—' : (liveUserCount ?? 0).toLocaleString(), l: liveUserCount === 1 ? 'Early member' : 'Early members'},
             {n:'24/7', l:'AI safety scanning'},
+            {n:'E2E', l:'Encrypted messages'},
           ].map(s => (
             <div key={s.l}>
               <div className="font-display font-black text-3xl bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">{s.n}</div>
@@ -877,7 +876,7 @@ const VybeHome = memo(function VybeHome() {
             tag="Snap · Notes · Calls"
             title="The closest thing to actually being there."
             desc="Disappearing snaps. GIF notes that float on the chat. Crystal-clear calls that connect in under a second. Multi-emoji reactions, swipe-replies, and reaction streaks that keep the vibe alive."
-            bullets={['<1s call connect time','48-hour reaction streaks','End-to-end encrypted messages']}
+            bullets={['48-hour reaction streaks','End-to-end encrypted messages','GIF notes that float on the chat']}
             phone={<PhoneFrame><SnapPhone /></PhoneFrame>}
           />
         </FadeIn>
@@ -939,7 +938,7 @@ const VybeHome = memo(function VybeHome() {
                 ['Customizable everything', false, false, false],
                 ['Disappearing snaps', false, true, false],
                 ['Communities & spaces', false, false, true],
-                ['Creator payouts (60-70%)', true, false, false],
+                ['Creator payouts (60-70%)', false, false, false],
                 ['Built-in AI assistant', false, false, false],
               ].map((row, i) => (
                 <tr key={i} className="border-t border-white/5">
@@ -956,36 +955,6 @@ const VybeHome = memo(function VybeHome() {
               ))}
             </tbody>
           </table>
-        </div>
-      </SectionWrap>
-
-      {/* TESTIMONIALS */}
-      <SectionWrap>
-        <FadeIn>
-          <div className="text-center mb-12">
-            <div className="text-xs uppercase tracking-widest text-violet-400 mb-3 font-semibold">Real people</div>
-            <h2 className="font-display font-black text-4xl sm:text-5xl">Built for actual humans.</h2>
-          </div>
-        </FadeIn>
-        <div className="grid md:grid-cols-3 gap-5 max-w-5xl mx-auto">
-          {[
-            { p: PEOPLE.maya, loc: 'Brooklyn, NY', q: 'My DNA card actually shifts every week — I\'ve never seen an app that gets me this fast.' },
-            { p: PEOPLE.jordan, loc: 'Austin, TX', q: 'Bumping phones to add friends is the most fun I\'ve had on a social app in years. My group went all-in in a week.' },
-            { p: PEOPLE.ren, loc: 'Los Angeles, CA', q: 'Themes I made for friends went viral inside our circle. Feels like MySpace energy but actually polished.' },
-          ].map((t, i) => (
-            <FadeIn key={t.p.handle} delay={i * 0.08}>
-              <div className="h-full p-6 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-violet-400/30 transition">
-                <p className="text-white/85 text-[15px] leading-relaxed">"{t.q}"</p>
-                <div className="mt-5 flex items-center gap-3">
-                  <Img src={t.p.img} className="w-10 h-10 rounded-full" />
-                  <div>
-                    <div className="text-white text-sm font-semibold">{t.p.name}</div>
-                    <div className="text-white/50 text-xs">{t.p.handle} · {t.loc}</div>
-                  </div>
-                </div>
-              </div>
-            </FadeIn>
-          ))}
         </div>
       </SectionWrap>
 
