@@ -938,7 +938,7 @@ const VybeHome = memo(function VybeHome() {
                 ['Customizable everything', false, false, false],
                 ['Disappearing snaps', false, true, false],
                 ['Communities & spaces', false, false, true],
-                ['Creator payouts (60-70%)', true, false, false],
+                ['Creator payouts (60-70%)', false, false, false],
                 ['Built-in AI assistant', false, false, false],
               ].map((row, i) => (
                 <tr key={i} className="border-t border-white/5">
