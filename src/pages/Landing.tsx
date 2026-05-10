@@ -218,19 +218,56 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         // safe — there's nothing to sign out of.
         setGatePending(true);
 
-        const { data: pre, error: preErr } = await supabase.functions.invoke('auth-2fa-preauth', {
-          body: { email: formData.email, password: formData.password },
-        });
-        if (preErr || (pre as any)?.error) {
+        // Race the edge call against a 12s timeout so a cold-start never
+        // leaves the form spinning forever.
+        let pre: any = null;
+        let preErr: any = null;
+        try {
+          const result = await Promise.race([
+            supabase.functions.invoke('auth-2fa-preauth', {
+              body: { email: formData.email, password: formData.password },
+            }),
+            new Promise<{ data: null; error: Error }>((resolve) =>
+              setTimeout(() => resolve({ data: null, error: new Error('timeout') }), 12000),
+            ),
+          ]);
+          pre = (result as any).data;
+          preErr = (result as any).error;
+        } catch (e) {
+          preErr = e;
+        }
+
+        const code = (pre as any)?.error;
+
+        // Hard reject only on confirmed bad credentials.
+        if (code === 'invalid_credentials') {
           setGatePending(false);
-          const code = (pre as any)?.error;
-          if (code === 'invalid_credentials' || preErr) {
-            throw new Error('Invalid email or password');
+          throw new Error('Invalid email or password');
+        }
+        if (code === 'email_failed') {
+          setGatePending(false);
+          throw new Error("We couldn't send your verification email. Try again in a moment.");
+        }
+
+        // Any other failure (network, 5xx, timeout, cold-start) → fall back to
+        // direct password sign-in so users without 2FA can still get in.
+        if (preErr || !pre || (pre as any)?.error) {
+          const { error: directErr } = await supabase.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password,
+          });
+          setGatePending(false);
+          if (directErr) {
+            const msg = (directErr.message || '').toLowerCase();
+            if (msg.includes('invalid') || msg.includes('credential')) {
+              throw new Error('Invalid email or password');
+            }
+            throw new Error("Couldn't sign you in. Please try again.");
           }
-          if (code === 'email_failed') {
-            throw new Error("We couldn't send your verification email. Try again in a moment.");
-          }
-          throw new Error('Sign-in failed. Please try again.');
+          sessionStorage.removeItem('vybe-session-only');
+          toast.success('Welcome back! ✨');
+          navTo('home', '/home');
+          return;
         }
 
         sessionStorage.removeItem('vybe-session-only');
@@ -293,6 +330,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       toast.error(getUserFriendlyError(error));
     } finally {
       setLoading(false);
+      setGatePending(false);
     }
   };
 
