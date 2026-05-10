@@ -23,26 +23,30 @@ interface IntroFlowProps {
 const slides = [
   {
     id: 'welcome',
-    title: 'Welcome to VYBE',
-    subtitle: 'A social app built around presence, not noise.',
-    icon: null, // Will show VYBELogo
+    title: '', // VYBE wordmark used instead
+    subtitle: 'Your social home for real connection.',
+    icon: null,
   },
   {
     id: 'features',
-    title: 'Built Different',
+    title: 'Everything you need',
     bullets: [
-      { icon: Users, text: 'See when friends are actually here' },
-      { icon: MessageCircle, text: 'Chats that feel alive' },
-      { icon: Phone, text: 'Calls that just work' },
-      { icon: Heart, text: 'AI that adapts to you' },
+      { icon: Camera, text: 'Stories & Clips — share your moments' },
+      { icon: MessageCircle, text: 'Messaging & Calls — DMs, voice & video' },
+      { icon: Users, text: 'Communities — find your people' },
+      { icon: MapPin, text: 'Friend Map — see who’s nearby' },
     ],
   },
   {
-    id: 'community',
-    title: 'Built for the Community',
-    subtitle: 'By the community.',
-    description: 'No spam. No pressure. Just real connection.',
-    icon: Heart,
+    id: 'coming-soon',
+    title: 'And more, coming soon',
+    subtitle: 'We’re just getting started.',
+    bullets: [
+      { icon: ShoppingBag, text: 'Marketplace' },
+      { icon: CalendarDays, text: 'Events & Meetups' },
+      { icon: Video, text: 'Video Messages' },
+      { icon: Bot, text: 'AI Chatbot & VYBE Agent' },
+    ],
   },
 ];
 
