@@ -330,6 +330,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       toast.error(getUserFriendlyError(error));
     } finally {
       setLoading(false);
+      setGatePending(false);
     }
   };
 
