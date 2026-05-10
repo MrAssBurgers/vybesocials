@@ -38,6 +38,12 @@ const slides = [
     ],
   },
   {
+    id: 'vybe-agent',
+    title: 'Meet VYBE Agent',
+    subtitle: 'Your personal AI inside VYBE — chats, plans, creates, and vybes with you.',
+    icon: Bot,
+  },
+  {
     id: 'coming-soon',
     title: 'And more, coming soon',
     subtitle: 'We’re just getting started.',
@@ -45,7 +51,7 @@ const slides = [
       { icon: ShoppingBag, text: 'Marketplace' },
       { icon: CalendarDays, text: 'Events & Meetups' },
       { icon: Video, text: 'Video Messages' },
-      { icon: Bot, text: 'AI Chatbot & VYBE Agent' },
+      { icon: Sparkles, text: 'AI Chatbot & creative tools' },
     ],
   },
 ];
@@ -184,6 +190,30 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
                     VYBE
                   </span>
                 </div>
+              </motion.div>
+            ) : slide.id === 'vybe-agent' ? (
+              <motion.div
+                initial={reduceMotion ? {} : { scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.1, duration: 0.5, ease: EASE_OUT_EXPO }}
+                className="flex flex-col items-center gap-4"
+              >
+                <div className="relative">
+                  <div
+                    className="absolute inset-0 -m-6 rounded-full pointer-events-none"
+                    style={{
+                      background: 'radial-gradient(circle, hsl(var(--primary) / 0.5) 0%, hsl(var(--accent) / 0.25) 50%, transparent 75%)',
+                      filter: 'blur(24px)',
+                    }}
+                  />
+                  <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-primary via-primary/80 to-accent flex items-center justify-center shadow-2xl shadow-primary/40">
+                    <Bot className="w-12 h-12 text-white" strokeWidth={2.2} />
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-primary/15 text-primary border border-primary/30">
+                  <Sparkles className="w-3 h-3" />
+                  Coming Soon
+                </span>
               </motion.div>
             ) : slide.id === 'coming-soon' ? (
               <motion.div
