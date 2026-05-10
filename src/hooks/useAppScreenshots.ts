@@ -22,15 +22,15 @@ let inflight: Promise<AppScreenshot[]> | null = null;
 async function fetchScreenshots(): Promise<AppScreenshot[]> {
   if (cache) return cache;
   if (inflight) return inflight;
-  inflight = supabase
-    .from('app_screenshots')
-    .select('*')
-    .order('display_order', { ascending: true })
-    .then(({ data }) => {
-      cache = (data ?? []) as AppScreenshot[];
-      inflight = null;
-      return cache;
-    });
+  inflight = (async () => {
+    const { data } = await supabase
+      .from('app_screenshots')
+      .select('*')
+      .order('display_order', { ascending: true });
+    cache = (data ?? []) as AppScreenshot[];
+    inflight = null;
+    return cache;
+  })();
   return inflight;
 }
 
