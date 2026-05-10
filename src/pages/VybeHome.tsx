@@ -683,19 +683,19 @@ const VybeHome = memo(function VybeHome() {
             <div className="relative h-[560px] hidden lg:block">
               <motion.div animate={{y:[0,-12,0]}} transition={{duration:6,repeat:Infinity,ease:'easeInOut'}}
                 className="absolute left-0 top-10 z-10">
-                <PhoneShot src={phoneHomeImg} alt="VYBE home feed" tilt={-6} />
+                <PhoneFrame><FeedPhone /></PhoneFrame>
               </motion.div>
               <motion.div animate={{y:[0,12,0]}} transition={{duration:7,repeat:Infinity,ease:'easeInOut',delay:0.5}}
                 className="absolute right-0 top-0 z-20">
-                <PhoneShot src={phoneChallengesImg} alt="VYBE challenges" tilt={6} />
+                <PhoneFrame><ChatPhone /></PhoneFrame>
               </motion.div>
               <motion.div animate={{y:[0,-8,0]}} transition={{duration:8,repeat:Infinity,ease:'easeInOut',delay:1}}
                 className="absolute left-1/2 -translate-x-1/2 bottom-0 z-30">
-                <PhoneShot src={phoneMapImg} alt="VYBE friend map" tilt={2} />
+                <PhoneFrame><MapPhone /></PhoneFrame>
               </motion.div>
             </div>
             <div className="lg:hidden flex justify-center">
-              <PhoneShot src={phoneHomeImg} alt="VYBE home feed" />
+              <PhoneFrame><FeedPhone /></PhoneFrame>
             </div>
           </FadeIn>
         </div>
@@ -726,7 +726,7 @@ const VybeHome = memo(function VybeHome() {
             title="An app that learns who you are."
             desc="Every reaction, share, and second of attention shapes your personal DNA. Your feed, friend suggestions, and even the UI itself evolve to match. Nobody else has this."
             bullets={['30-day evolving personality vector','Re-skins your feed automatically','Shareable DNA card you\'ll want to post']}
-            phone={<PhoneShot src={phoneChallengesImg} alt="VYBE challenges" />}
+            phone={<PhoneFrame><DNAPhone /></PhoneFrame>}
           />
         </FadeIn>
       </SectionWrap>
@@ -739,7 +739,7 @@ const VybeHome = memo(function VybeHome() {
             title="Make it look like you. Not like everyone else."
             desc="Drag, drop, theme, animate. Your profile is a living canvas — Bento grid blocks, custom backgrounds, shareable themes, motion presets. Templates are dead."
             bullets={['Framer Motion bento blocks','Share your theme with friends','Live aura backgrounds']}
-            phone={<PhoneShot src={phoneHomeImg} alt="VYBE home" />}
+            phone={<PhoneShot src={phoneHomeImg} alt="VYBE Aura customization" />}
           />
         </FadeIn>
       </SectionWrap>
@@ -751,7 +751,7 @@ const VybeHome = memo(function VybeHome() {
             title="Add friends in one tap. Literally."
             desc="A sleek Friend Link sheet with an instant QR code and a live tap radar. Hold phones together for NFC. Scan in under a second. No usernames, no typing, no friction."
             bullets={['Instant local QR with your avatar inset','Tap-to-add via NFC + native bridge','Realtime sync — both phones celebrate together']}
-            phone={<PhoneShot src={phoneMapImg} alt="VYBE friend map" />}
+            phone={<PhoneFrame><FriendLinkPhone /></PhoneFrame>}
           />
         </FadeIn>
       </SectionWrap>
@@ -764,7 +764,7 @@ const VybeHome = memo(function VybeHome() {
             title="The closest thing to actually being there."
             desc="Disappearing snaps. GIF notes that float on the chat. Crystal-clear calls that connect in under a second. Multi-emoji reactions, swipe-replies, and reaction streaks that keep the vibe alive."
             bullets={['<1s call connect time','48-hour reaction streaks','End-to-end encrypted messages']}
-            phone={<PhoneShot src={phoneChallengesImg} alt="VYBE challenges" />}
+            phone={<PhoneShot src={phoneChallengesImg} alt="VYBE Snap and Calls" />}
           />
         </FadeIn>
       </SectionWrap>
