@@ -764,7 +764,7 @@ const VybeHome = memo(function VybeHome() {
             title="The closest thing to actually being there."
             desc="Disappearing snaps. GIF notes that float on the chat. Crystal-clear calls that connect in under a second. Multi-emoji reactions, swipe-replies, and reaction streaks that keep the vibe alive."
             bullets={['<1s call connect time','48-hour reaction streaks','End-to-end encrypted messages']}
-            phone={<PhoneShot src={phoneChallengesImg} alt="VYBE challenges" />}
+            phone={<PhoneFrame><ChatPhone /></PhoneFrame>}
           />
         </FadeIn>
       </SectionWrap>
