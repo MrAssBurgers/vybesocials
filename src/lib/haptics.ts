@@ -1,7 +1,35 @@
 // Haptic Feedback System
 // Provides haptic feedback for mobile devices and simulated feedback for web
+import { Capacitor } from '@capacitor/core';
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 
 type HapticStyle = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error';
+
+const isNative = (() => {
+  try { return Capacitor.isNativePlatform(); } catch { return false; }
+})();
+
+function capacitorHaptic(style: HapticStyle): boolean {
+  if (!isNative) return false;
+  try {
+    switch (style) {
+      case 'light':
+        Haptics.impact({ style: ImpactStyle.Light }); return true;
+      case 'medium':
+      case 'warning':
+        Haptics.impact({ style: ImpactStyle.Medium }); return true;
+      case 'heavy':
+        Haptics.impact({ style: ImpactStyle.Heavy }); return true;
+      case 'success':
+        Haptics.notification({ type: NotificationType.Success }); return true;
+      case 'error':
+        Haptics.notification({ type: NotificationType.Error }); return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
 
 // Check if haptics are enabled (stored in localStorage)
 function isHapticsEnabled(): boolean {
@@ -50,7 +78,9 @@ const HAPTIC_PATTERNS: Record<HapticStyle, number | number[]> = {
 // Trigger haptic feedback
 export function triggerHaptic(style: HapticStyle = 'light'): void {
   if (!isHapticsEnabled()) return;
-  // Native (Despia) shell first — gives real iOS/Android haptic feedback
+  // Capacitor native plugin (real iOS Taptic Engine / Android vibrator)
+  if (capacitorHaptic(style)) return;
+  // Despia shell fallback
   nativeHaptic(style);
   if (!supportsVibration()) return;
   try {
