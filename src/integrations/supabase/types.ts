@@ -546,6 +546,57 @@ export type Database = {
           },
         ]
       }
+      app_screenshots: {
+        Row: {
+          created_at: string
+          device_url: string | null
+          display_order: number
+          feature_tag: string | null
+          height: number | null
+          id: string
+          marketing_url: string | null
+          placement: string[]
+          raw_url: string | null
+          screen_key: string
+          subtitle: string | null
+          title: string
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          created_at?: string
+          device_url?: string | null
+          display_order?: number
+          feature_tag?: string | null
+          height?: number | null
+          id?: string
+          marketing_url?: string | null
+          placement?: string[]
+          raw_url?: string | null
+          screen_key: string
+          subtitle?: string | null
+          title: string
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          created_at?: string
+          device_url?: string | null
+          display_order?: number
+          feature_tag?: string | null
+          height?: number | null
+          id?: string
+          marketing_url?: string | null
+          placement?: string[]
+          raw_url?: string | null
+          screen_key?: string
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: []
+      }
       app_secrets: {
         Row: {
           created_at: string
