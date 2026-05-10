@@ -817,7 +817,7 @@ const VybeHome = memo(function VybeHome() {
 
       {/* SOCIAL PROOF STRIP */}
       <section className="py-10 px-6 border-y border-white/5 bg-white/[0.02]">
-        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
           {[
             {n: countLoading ? '—' : (liveUserCount ?? 0).toLocaleString(), l: liveUserCount === 1 ? 'Early member' : 'Early members'},
             {n:'24/7', l:'AI safety scanning'},
