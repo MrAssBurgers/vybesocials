@@ -1,58 +1,66 @@
-## Mobile Welcome Redesign — Landing page
+# /vybe-home image fixes
 
-Scope: `src/pages/Landing.tsx`, the hero block above the auth form (lines ~356–394). Auth form, social buttons, SEO copy below remain untouched. Pure UI/copy change — no business logic, no DB.
+Goal: every picture on the marketing home page is correct, unique, on-brand, and visibly centered inside its phone frame. No mismatched screenshots, no off-center crops, no low-quality avatars.
 
-### What changes
+## What's wrong today
 
-**1. Replace the small V icon + "Welcome to VYBE" text with the VYBE wordmark logo**
-- Remove the standalone `<VYBELogo size="md" showText={false} />` + the `<h1>Welcome to VYBE</h1>`.
-- Render a single large gradient `VYBE` wordmark as the hero (using the existing `VYBELogo` component with `showText={true}` and the icon visually hidden — or a dedicated wordmark span reusing the same gradient style already in `VYBELogo.tsx` lines 140–156 to keep brand parity).
-- Keep the soft radial glow behind it for depth.
-- The `<h1>` becomes the wordmark itself (semantic: wrap the wordmark in an `<h1>` for SEO, with visually-hidden "VYBE" text for screen readers).
+1. **Aura section** still uses a static PNG of the home feed — the copy talks about drag/drop themes & bento blocks, so the image lies.
+2. **Snap · Notes · Calls section** still uses a static PNG of the challenges screen — the copy is about snaps/calls/notes.
+3. **People avatars** use `i.pravatar.cc/240?img=…` — inconsistent lighting/style, occasionally fails to load, looks unprofessional.
+4. **ChatPhone scene image** (`SCENES.couch` from Unsplash) often crops awkwardly and the URL pattern is fragile.
+5. **App-mock phones** (FeedPhone, MapPhone, DNAPhone, FriendLinkPhone, ChatPhone) — content is correct but several inner blocks aren't visually centered (e.g., DNA archetype card overlaps, Map weather pill drifts off-edge at certain widths, Chat input sits below the bottom nav). User explicitly asked to "recenter them."
 
-**2. Rewrite the tagline + feature list (focused, no mini-apps, no VYBE+ mentions)**
+## Plan
 
-New structure inside the card, under the wordmark:
+### 1. Replace the two static PNG screenshots with bespoke React mocks
 
-```
-[ VYBE wordmark ]
+Add two new mock-phone components alongside the existing five, then swap them in:
 
-Your social home for real connection.
+- **`AuraPhone`** → used in the Aura `<FeatureRow>`
+  - Mirrors the real Aura customizer: profile header, draggable Bento grid (3 blocks with grab handles + jiggle outline), theme color row (5 swatches with one active ring), motion preset chips, "Save Aura" gradient button. Live aura background = subtle conic gradient behind blocks.
+- **`SnapPhone`** → used in the Snap · Notes · Calls `<FeatureRow>`
+  - Top: incoming-call card (avatar, "Calling…", green/red SlideToAnswer pill).
+  - Middle: floating GIF note bubble with reaction streak flame.
+  - Bottom: disappearing snap thumbnail with 24h countdown ring.
+  - Uses only inline SVG / divs — no external images.
 
-• Stories & Clips — share your moments
-• Messaging & Calls — DMs, group chats, voice & video
-• Communities — find your people
-• Friend Map & Discovery — see who's nearby
+After this, **delete the now-unused imports**: `phoneHomeImg`, `phoneMapImg`, `phoneChallengesImg`, and the `PhoneShot` helper.
 
-✨ Coming soon: Marketplace, Events & Meetups,
-Video Messages, AI Chatbot & VYBE Agent
-```
+### 2. Recenter & polish the existing 5 mock phones
 
-- Tagline: short, one line, `text-foreground/80`.
-- Feature list: 4 rows, each a tiny lucide icon (`Sparkles`/`MessageCircle`/`Users`/`MapPin`) + bold label + thin `text-muted-foreground` description. Compact spacing (gap-2) so it stays above-the-fold on 762×663 mobile.
-- "Coming soon" line: single muted line at the bottom with a subtle gradient `Sparkles` icon. No mention of mini-apps or VYBE+ anywhere.
+Audit each mock phone for off-center / clipped content at the fixed `260×563` frame size:
 
-**3. Trim the SEO blurb above the card (lines 358–364)**
-- Remove the long "AR filters, music, and AI-powered tools" sentence (which name-drops mini-app territory).
-- Replace with a tight one-liner: "The social platform for real connection." + the existing `Learn more about VYBE →` link kept for SEO.
+- **FeedPhone** — center the greeting row, equalize quick-action grid gaps, ensure tabs row doesn't get clipped by the bottom nav (add `pb-` matching nav height).
+- **MapPhone** — constrain the weather pill to `flex-1 min-w-0 truncate`, center the avatar pin cluster, pull the bottom nav above the layers FAB.
+- **DNAPhone** — re-stack the orbit + archetype card with `gap-2` instead of negative margins so they don't overlap; center the VYBE-7F2A chip under the orbit, not floating.
+- **FriendLinkPhone** — center the QR card with proper top offset (currently `top-[108px]` on a 563px frame leaves it slightly high); move the username chip into the same flex column so it can never drift.
+- **ChatPhone** — fix the message-input z-index so it sits *above* the bottom nav (or move nav below input), and recenter the typing indicator.
 
-### Visual / styling
+All mocks share a `<PhoneFrame>` already; this work is purely inside each component, no API changes.
 
-- Wordmark size: `text-4xl sm:text-5xl`, same gradient + `gradient-shift` animation already defined in `VYBELogo.tsx`.
-- Card stays `liquid-glass-card rounded-2xl`, padding tightened to `p-4 sm:p-5` to fit the new list without pushing the auth form off-screen.
-- Feature row icon container: `w-7 h-7 rounded-lg bg-primary/10 text-primary` for a clean, consistent look. All colors via existing semantic tokens (`--primary`, `--accent`, `--muted-foreground`, `--foreground`) — no hardcoded colors.
-- Coming-soon line: `text-[11px] text-muted-foreground/80`, centered, italic-free, with a tiny `Sparkles` icon.
-- Mobile-first: verify nothing overflows the 400px max-width container on the current 762×663 viewport.
+### 3. Replace people photos with consistent, professional avatars
 
-### Out of scope
+- Generate **7 portrait avatars** (one per `PEOPLE` entry: maya, jordan, leo, sky, mia, kai, ren) using the image generator at a uniform style: studio-lit, neutral background, head-and-shoulders, diverse, ages 18–28, consistent color grading to match the dark VYBE palette. Save as `src/assets/avatars/{name}.jpg` and import.
+- Update the `PEOPLE` map to point at the new local imports — pravatar URLs deleted entirely.
 
-- Auth form, Google/Apple buttons, forgot-password, age-gate.
-- Desktop landing layout above this block (only the card content changes; same content renders on desktop too and improves it).
-- Any backend, RLS, or routing changes.
-- `AppWelcome.tsx` (different page, post-signin) — not touched.
+### 4. Replace the ChatPhone scene photo
 
-### Verification
+- Generate **one** square in-app "Snap"-style photo (two friends laughing, warm rim light, vertical 4:5 crop) → `src/assets/scenes/snap-couch.jpg`, replace `SCENES.couch`. Delete the other 3 unused `SCENES` URLs (rooftop / picnic / cafe) since they're not referenced.
 
-- Load `/` on mobile viewport: wordmark is the visual anchor, 4 feature rows fit, coming-soon line visible, auth form still reachable without excessive scroll.
-- No mention of "mini apps" or "VYBE+" in the visible card.
-- Light + dark themes both render the gradient wordmark correctly (component already handles this).
+### 5. Hero phones — final centering check
+
+The 3 hero phones float with `absolute` positioning. Add an outer wrapper with explicit `width/height` matching the 3 phones' bounding box so they don't drift on intermediate desktop widths (1024–1280px). Keep the existing y-bobbing motion.
+
+## Out of scope
+
+- Copy changes, headline rewrites, comparison table edits, testimonials text.
+- Any backend / RLS / auth work.
+- Routing / SEO meta beyond what's already there.
+
+## Verification
+
+After implementation, screenshot `/vybe-home` at 1440×900 and at 390×844, then crop each phone individually and confirm:
+- No two phones show the same content.
+- Every phone's content is fully visible and centered inside the frame (no clipped header/footer, no overlapping blocks).
+- All 7 avatars look like one consistent set.
+- No `pravatar.cc` or `unsplash.com` URLs remain in `src/pages/VybeHome.tsx`.
