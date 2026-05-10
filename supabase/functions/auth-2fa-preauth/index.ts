@@ -139,5 +139,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error('auth-2fa-preauth error', e);
     return jsonResponse({ error: 'server_error' }, 500);
+    // Note: client falls back to direct supabase.auth.signInWithPassword
+    // on any non-401 error, so users are never locked out by a 5xx here.
   }
 });
