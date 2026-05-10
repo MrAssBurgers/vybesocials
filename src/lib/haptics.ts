@@ -1,35 +1,8 @@
 // Haptic Feedback System
-// Provides haptic feedback for mobile devices and simulated feedback for web
-import { Capacitor } from '@capacitor/core';
-import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
+// Provides haptic feedback for the Despia native shell, with a web vibration fallback.
+import despia from 'despia-native';
 
 type HapticStyle = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error';
-
-const isNative = (() => {
-  try { return Capacitor.isNativePlatform(); } catch { return false; }
-})();
-
-function capacitorHaptic(style: HapticStyle): boolean {
-  if (!isNative) return false;
-  try {
-    switch (style) {
-      case 'light':
-        Haptics.impact({ style: ImpactStyle.Light }); return true;
-      case 'medium':
-      case 'warning':
-        Haptics.impact({ style: ImpactStyle.Medium }); return true;
-      case 'heavy':
-        Haptics.impact({ style: ImpactStyle.Heavy }); return true;
-      case 'success':
-        Haptics.notification({ type: NotificationType.Success }); return true;
-      case 'error':
-        Haptics.notification({ type: NotificationType.Error }); return true;
-    }
-  } catch {
-    return false;
-  }
-  return false;
-}
 
 // Check if haptics are enabled (stored in localStorage)
 function isHapticsEnabled(): boolean {
@@ -46,26 +19,28 @@ function supportsVibration(): boolean {
 const isDespia = typeof navigator !== 'undefined' &&
   navigator.userAgent.toLowerCase().includes('despia');
 
+// Map our 6 internal styles → Despia's 5 real schemes.
+// Despia has no `medium`; light is the closest taptic.
+const DESPIA_SCHEME: Record<HapticStyle, 'lighthaptic://' | 'heavyhaptic://' | 'successhaptic://' | 'warninghaptic://' | 'errorhaptic://'> = {
+  light: 'lighthaptic://',
+  medium: 'lighthaptic://',
+  heavy: 'heavyhaptic://',
+  success: 'successhaptic://',
+  warning: 'warninghaptic://',
+  error: 'errorhaptic://',
+};
+
 function nativeHaptic(style: HapticStyle): boolean {
   if (!isDespia) return false;
   try {
-    const map: Record<HapticStyle, string> = {
-      light: 'light',
-      medium: 'medium',
-      heavy: 'heavy',
-      success: 'success',
-      warning: 'warning',
-      error: 'error',
-    };
-    // Despia haptic scheme — silent no-op if shell doesn't handle it
-    (window as any).location.href = `haptic://impact?style=${map[style]}`;
+    despia(DESPIA_SCHEME[style]);
     return true;
   } catch {
     return false;
   }
 }
 
-// Haptic patterns for different feedback styles
+// Haptic patterns for browser/PWA fallback (navigator.vibrate)
 const HAPTIC_PATTERNS: Record<HapticStyle, number | number[]> = {
   light: 10,
   medium: 25,
@@ -78,10 +53,8 @@ const HAPTIC_PATTERNS: Record<HapticStyle, number | number[]> = {
 // Trigger haptic feedback
 export function triggerHaptic(style: HapticStyle = 'light'): void {
   if (!isHapticsEnabled()) return;
-  // Capacitor native plugin (real iOS Taptic Engine / Android vibrator)
-  if (capacitorHaptic(style)) return;
-  // Despia shell fallback
-  nativeHaptic(style);
+  // Despia native shell — real Taptic Engine / vibrator. Short-circuit web fallback to avoid double-buzz.
+  if (nativeHaptic(style)) return;
   if (!supportsVibration()) return;
   try {
     navigator.vibrate(HAPTIC_PATTERNS[style]);
