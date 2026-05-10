@@ -1,59 +1,65 @@
 ## Goal
-Make `/vybe-home` (`src/pages/VybeHome.tsx`) honest. Right now it mixes the real live member count (good) with **fabricated stats, fake testimonials with quotes from invented people, and unverifiable marketing numbers**. We'll remove or rewrite anything that is not actually true.
+Make the marketing page on `/vybe-home` honest in two more ways:
+1. The "Because none of them do this" comparison table currently lies about Instagram and Snap.
+2. The phones in the hero and feature rows are **React-drawn fake UI** (`FeedPhone`, `ChatPhone`, `MapPhone`, `DNAPhone`, `AuraPhone`, `FriendLinkPhone`, `SnapPhone`). You want **real screenshots of the actual app** in those frames.
 
-## What's false today (what we'll change)
+---
 
-### 1. Testimonials section — REMOVE entirely
-The three quote cards are 100% fabricated:
-- "Maya R. · Brooklyn" — fake person, fake quote
-- "Jordan W. · Austin" — fake person, fake quote
-- "Ren X. · Los Angeles" — fake person, fake quote
+## Part 1 — Comparison table truth pass (`VybeHome.tsx` lines 935-942)
 
-These are AI-generated avatars with invented identities and quotes. With only 208 real profiles and no opt-in testimonials, we can't show these. **Delete the entire "Real people / Built for actual humans" section.**
+Two rows are factually wrong:
 
-### 2. Social-proof stat strip — REWRITE to facts only
-Current row makes 4 claims, only 1 is verifiable:
-- `120+ Features in one app` — arbitrary, unverified → **remove**
-- `∞ Theme combinations` — gimmicky → **remove**
-- `<200ms Message delivery` — never measured → **remove**
-- `24/7 AI safety scanning` — true → **keep**
+| Row | Today | Truth | Fix |
+|---|---|---|---|
+| `Live friend map + bump` | Snap=❌ | Snap has Snap Map (friend map). The *bump* part is VYBE-only. | Rename row to **"Tap-to-add (NFC bump)"** — keep Snap=❌, IG=❌, Discord=❌. Honest + still VYBE-unique. |
+| `Built-in AI assistant` | IG=❌, Snap=❌ | Instagram has Meta AI, Snap has My AI. | Rename row to **"AI assistant trained on *your* DNA"** — keep IG=❌/Snap=❌ honestly (their assistants aren't personalized to your behavioral vector). |
 
-Replace with 3 things we can actually back:
-- **Live member count** (already pulled from `usePublicUserCount` — real number from `profiles`)
-- **AI safety scanning · 24/7** (Vybe Check runs on every upload — true)
-- **End-to-end encrypted messages** (matches `mem://technical/security/message-encryption-and-privacy-standard`)
+All other rows stay (Evolving personality engine, Customizable everything, Disappearing snaps Snap=✓, Communities & spaces Discord=✓, Creator payouts 60-70%).
 
-### 3. Hero hairline claims — TRIM
-- `<1s call connect time` bullet under "Snap · Notes · Calls" → **remove** (no measurement)
-- `Free forever` checkmark → **keep** (matches usePremiumStatus comment "everyone-free")
-- `No ads in DMs` → **keep** (true — ads are not in DMs)
-- `AI-powered safety` → **keep**
+---
 
-### 4. Comparison table — TIGHTEN
-Some rows are opinionated/wrong:
-- `Creator payouts (60-70%)` shows Instagram=true → **flip Instagram to false** (Instagram does not pay 60-70%; only VYBE does per `mem://features/identity/creator-partnership-program`)
-- `Communities & spaces` shows Discord=true → keep
-- `Disappearing snaps` shows Snap=true → keep
-- Everything else stays (the "nobody else does this" rows are accurate for Instagram/Snap/Discord)
+## Part 2 — Replace fake phone mockups with real app screenshots
 
-### 5. Hero avatar cluster + phone-mockup avatars — LEAVE AS-IS
-The 4-avatar cluster next to "X early members" and the avatars inside the phone screenshots are clearly **illustrative UI mockups** (same as Apple's marketing pages). They aren't presented as named real users on the marketing surface, so they stay. The previously-fabricated names (`@maya.rae`, `Maya R.` etc.) only appeared as quoted "real people" in testimonials, which we're deleting in step 1.
+### What's there now
+Lines 793-883 render seven hand-coded React components inside a `<PhoneFrame>` (just a black rounded div). They're 100% fabricated UI — not actual app pixels.
 
-### 6. Phone-mockup numbers — LEAVE AS-IS
-Numbers inside the phone frames (`Lvl 49`, `2,013 XP`, `14d streak`, `12,840 · #3 in Brooklyn`, `142 saved`, weather `73°F`) are part of the UI screenshot mockup, the same way every app's marketing site shows a sample screen. Not represented as platform-wide stats. Keep.
+### What we'll do
+1. **Capture real screenshots** using the browser tool against the live preview, at iPhone-ish viewport (390×844). Screens to grab:
+   - `/home` → Feed (replaces `FeedPhone` in hero + nothing else)
+   - `/messages` then open a thread → Chat (replaces `ChatPhone` in hero + `SnapPhone` in "Snap · Notes · Calls" section)
+   - `/map` → Friend Map (replaces `MapPhone` in hero)
+   - `/dna` → VYBE DNA (replaces `DNAPhone`)
+   - `/profile` (own profile in edit/aura mode) → Aura (replaces `AuraPhone`)
+   - `/add-friend` → Friend Link sheet (replaces `FriendLinkPhone`)
+   - `/upload` or camera screen → Snap/Camera (alternate for `SnapPhone`)
 
-## Files touched
-- `src/pages/VybeHome.tsx` — the only file changing.
+2. **Crop & save** each PNG to `src/assets/marketing/` (e.g. `screen-feed.png`, `screen-chat.png`, `screen-map.png`, `screen-dna.png`, `screen-aura.png`, `screen-friendlink.png`, `screen-snap.png`).
 
-## Out of scope
-- No backend, RLS, hooks, or routing changes.
-- No design-system / token changes — only deletions and small text edits.
-- Other marketing pages (`/features`, `/about`, `/safety`) untouched unless you ask.
+3. **Rewrite `PhoneFrame`** in `VybeHome.tsx` to render an `<img>` of the screenshot inside the existing notch/bezel chrome (keep rounded corners, status bar, drop shadow — only the inner content becomes a real image).
 
-## Verification
-After edit, scroll `/vybe-home` end-to-end and confirm:
-- No testimonial cards with names + quotes
-- Social-proof strip shows only the live member count, 24/7 safety, E2E encryption
-- No `<1s call connect time` bullet
-- Comparison table shows ❌ for Instagram on creator-payouts row
-- Live member count still renders (e.g. "208 early members") from real DB
+4. **Delete the seven fake components** (`FeedPhone`, `ChatPhone`, `MapPhone`, `DNAPhone`, `AuraPhone`, `FriendLinkPhone`, `SnapPhone`) and replace each call site with `<PhoneFrame src={screenFeed} />` style usage.
+
+5. Keep the floating animation (`motion.div` y-bobbing) and layered z-index in the hero — only the inner content swaps from drawn-UI to a real `<img>`.
+
+### Auth requirement (need your input)
+Most of the screens above (`/home`, `/messages`, `/map`, `/dna`, `/profile`) are behind auth. The browser tool inherits the preview's logged-in session, so:
+
+> **Please make sure you're already logged into the preview iframe** before I run. If you're not, the screenshots will show the auth screen instead of the real app and I'll have to stop and ask you to log in.
+
+Confirm and I'll proceed.
+
+### Out of scope
+- No backend, RLS, or routing changes
+- No design-system token changes
+- Other marketing pages (`/features`, `/about`, `/safety`) untouched
+
+### Files touched
+- `src/pages/VybeHome.tsx` (table rows + phone components + PhoneFrame)
+- `src/assets/marketing/*.png` (new — real app screenshots)
+
+### Verification
+After implementation:
+- Comparison table reads honestly for IG/Snap on the AI and friend-map rows
+- Every phone on `/vybe-home` shows actual app pixels, not drawn UI
+- Hero phones still bob/float and layer correctly
+- Page still renders fine on mobile (`lg:hidden` fallback shows the real Feed screenshot)

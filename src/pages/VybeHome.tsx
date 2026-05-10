@@ -934,12 +934,12 @@ const VybeHome = memo(function VybeHome() {
             <tbody className="text-white/80">
               {[
                 ['Evolving personality engine', false, false, false],
-                ['Live friend map + bump', false, false, false],
+                ['Tap-to-add (NFC bump)', false, false, false],
                 ['Customizable everything', false, false, false],
                 ['Disappearing snaps', false, true, false],
                 ['Communities & spaces', false, false, true],
                 ['Creator payouts (60-70%)', false, false, false],
-                ['Built-in AI assistant', false, false, false],
+                ['AI assistant trained on your DNA', false, false, false],
               ].map((row, i) => (
                 <tr key={i} className="border-t border-white/5">
                   <td className="text-left p-4 font-medium">{row[0]}</td>
