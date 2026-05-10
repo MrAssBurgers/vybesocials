@@ -683,7 +683,7 @@ const VybeHome = memo(function VybeHome() {
             <div className="relative h-[560px] hidden lg:block">
               <motion.div animate={{y:[0,-12,0]}} transition={{duration:6,repeat:Infinity,ease:'easeInOut'}}
                 className="absolute left-0 top-10 z-10">
-                <PhoneShot src={phoneHomeImg} alt="VYBE home feed" tilt={-6} />
+                <PhoneFrame><FeedPhone /></PhoneFrame>
               </motion.div>
               <motion.div animate={{y:[0,12,0]}} transition={{duration:7,repeat:Infinity,ease:'easeInOut',delay:0.5}}
                 className="absolute right-0 top-0 z-20">
