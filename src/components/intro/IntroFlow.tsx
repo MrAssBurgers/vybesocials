@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Users, MessageCircle, Phone, Heart } from 'lucide-react';
+import { ChevronRight, Users, MessageCircle, Camera, MapPin, Sparkles, ShoppingBag, CalendarDays, Video, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
