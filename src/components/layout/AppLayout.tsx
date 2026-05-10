@@ -101,6 +101,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             </main>
             {!hideRightSidebar && <DesktopRightSidebar />}
           </div>
+          <Enable2FANudge />
         </div>
       </>
     );
