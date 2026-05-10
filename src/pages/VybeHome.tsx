@@ -691,7 +691,7 @@ const VybeHome = memo(function VybeHome() {
               </motion.div>
               <motion.div animate={{y:[0,-8,0]}} transition={{duration:8,repeat:Infinity,ease:'easeInOut',delay:1}}
                 className="absolute left-1/2 -translate-x-1/2 bottom-0 z-30">
-                <PhoneShot src={phoneMapImg} alt="VYBE friend map" tilt={2} />
+                <PhoneFrame><MapPhone /></PhoneFrame>
               </motion.div>
             </div>
             <div className="lg:hidden flex justify-center">
