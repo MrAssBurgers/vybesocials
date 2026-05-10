@@ -695,7 +695,7 @@ const VybeHome = memo(function VybeHome() {
               </motion.div>
             </div>
             <div className="lg:hidden flex justify-center">
-              <PhoneShot src={phoneHomeImg} alt="VYBE home feed" />
+              <PhoneFrame><FeedPhone /></PhoneFrame>
             </div>
           </FadeIn>
         </div>
