@@ -38,6 +38,12 @@ const slides = [
     ],
   },
   {
+    id: 'vybe-agent',
+    title: 'Meet VYBE Agent',
+    subtitle: 'Your personal AI inside VYBE — chats, plans, creates, and vybes with you.',
+    icon: Bot,
+  },
+  {
     id: 'coming-soon',
     title: 'And more, coming soon',
     subtitle: 'We’re just getting started.',
@@ -45,7 +51,7 @@ const slides = [
       { icon: ShoppingBag, text: 'Marketplace' },
       { icon: CalendarDays, text: 'Events & Meetups' },
       { icon: Video, text: 'Video Messages' },
-      { icon: Bot, text: 'AI Chatbot & VYBE Agent' },
+      { icon: Sparkles, text: 'AI Chatbot & creative tools' },
     ],
   },
 ];
