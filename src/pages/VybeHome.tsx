@@ -876,7 +876,7 @@ const VybeHome = memo(function VybeHome() {
             tag="Snap · Notes · Calls"
             title="The closest thing to actually being there."
             desc="Disappearing snaps. GIF notes that float on the chat. Crystal-clear calls that connect in under a second. Multi-emoji reactions, swipe-replies, and reaction streaks that keep the vibe alive."
-            bullets={['<1s call connect time','48-hour reaction streaks','End-to-end encrypted messages']}
+            bullets={['48-hour reaction streaks','End-to-end encrypted messages','GIF notes that float on the chat']}
             phone={<PhoneFrame><SnapPhone /></PhoneFrame>}
           />
         </FadeIn>
