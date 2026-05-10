@@ -1,65 +1,57 @@
-## Goal
-Make the marketing page on `/vybe-home` honest in two more ways:
-1. The "Because none of them do this" comparison table currently lies about Instagram and Snap.
-2. The phones in the hero and feature rows are **React-drawn fake UI** (`FeedPhone`, `ChatPhone`, `MapPhone`, `DNAPhone`, `AuraPhone`, `FriendLinkPhone`, `SnapPhone`). You want **real screenshots of the actual app** in those frames.
+# Auth Reliability + Logout UX + 2FA Nudge
 
----
+Three fixes, all on the client (plus one tiny edge-function tweak for clearer errors).
 
-## Part 1 — Comparison table truth pass (`VybeHome.tsx` lines 935-942)
+## 1. Login that doesn't error out
 
-Two rows are factually wrong:
+**Problem:** Login routes through the `auth-2fa-preauth` edge function. Any cold-start, network blip, or non-credential server error currently throws "Sign-in failed" and blocks the user — even though their password is fine.
 
-| Row | Today | Truth | Fix |
-|---|---|---|---|
-| `Live friend map + bump` | Snap=❌ | Snap has Snap Map (friend map). The *bump* part is VYBE-only. | Rename row to **"Tap-to-add (NFC bump)"** — keep Snap=❌, IG=❌, Discord=❌. Honest + still VYBE-unique. |
-| `Built-in AI assistant` | IG=❌, Snap=❌ | Instagram has Meta AI, Snap has My AI. | Rename row to **"AI assistant trained on *your* DNA"** — keep IG=❌/Snap=❌ honestly (their assistants aren't personalized to your behavioral vector). |
+**Fix in `src/pages/Landing.tsx` `handleSubmit`:**
+- Wrap the `supabase.functions.invoke('auth-2fa-preauth', ...)` call in a 12s timeout.
+- Distinguish three outcomes:
+  1. `invalid_credentials` (401) → show "Invalid email or password" (unchanged).
+  2. `email_failed` → show the existing 2FA email message (unchanged).
+  3. **Any other error** (network, 5xx, timeout, edge cold-start) → silently fall back to `supabase.auth.signInWithPassword(...)` so users with no 2FA enabled can still get in. Only show a hard error if that fallback also fails.
+- Always reset `setGatePending(false)` and `setLoading(false)` in a `finally` block so the form never gets stuck.
+- Surface a friendlier toast for known transport errors ("Connection hiccup — trying again…") instead of a generic red error.
 
-All other rows stay (Evolving personality engine, Customizable everything, Disappearing snaps Snap=✓, Communities & spaces Discord=✓, Creator payouts 60-70%).
+**Fix in `supabase/functions/auth-2fa-preauth/index.ts`:**
+- Return `stage: 'none'` + session on any unexpected internal error instead of 500, **only** after password is verified — keeps the door open when downstream services (challenge insert, geolocate) hiccup.
 
----
+## 2. Instant, confirmed logout
 
-## Part 2 — Replace fake phone mockups with real app screenshots
+**Problem:** `signOut()` in `src/lib/auth.tsx` does ~10 synchronous DOM/localStorage ops then awaits `supabase.auth.signOut()` (network round-trip) before the UI moves. Sidebars also call it with no confirmation.
 
-### What's there now
-Lines 793-883 render seven hand-coded React components inside a `<PhoneFrame>` (just a black rounded div). They're 100% fabricated UI — not actual app pixels.
+**Fix in `src/lib/auth.tsx` `signOut`:**
+- Flip local state first: `setProfile(null)`, `setUser(null)`, `setSession(null)`.
+- Fire `supabase.auth.signOut({ scope: 'local' })` (no network wait — clears local session immediately) and let the global revoke happen in the background via `void` Promise.
+- Move the localStorage / CSS-variable / theme cleanup into a microtask so it doesn't block the navigate.
+- Net effect: function resolves in < 50 ms; UI navigates instantly.
 
-### What we'll do
-1. **Capture real screenshots** using the browser tool against the live preview, at iPhone-ish viewport (390×844). Screens to grab:
-   - `/home` → Feed (replaces `FeedPhone` in hero + nothing else)
-   - `/messages` then open a thread → Chat (replaces `ChatPhone` in hero + `SnapPhone` in "Snap · Notes · Calls" section)
-   - `/map` → Friend Map (replaces `MapPhone` in hero)
-   - `/dna` → VYBE DNA (replaces `DNAPhone`)
-   - `/profile` (own profile in edit/aura mode) → Aura (replaces `AuraPhone`)
-   - `/add-friend` → Friend Link sheet (replaces `FriendLinkPhone`)
-   - `/upload` or camera screen → Snap/Camera (alternate for `SnapPhone`)
+**Fix at all logout entry points** — wrap each in the same confirmation dialog Settings already uses:
+- `src/components/layout/Sidebar.tsx`
+- `src/components/layout/DesktopLeftSidebar.tsx`
+- `src/components/layout/DesktopRightSidebar.tsx`
 
-2. **Crop & save** each PNG to `src/assets/marketing/` (e.g. `screen-feed.png`, `screen-chat.png`, `screen-map.png`, `screen-dna.png`, `screen-aura.png`, `screen-friendlink.png`, `screen-snap.png`).
+Extract the AlertDialog from `Settings.tsx` into a shared `src/components/auth/SignOutConfirmDialog.tsx` and reuse it. Each sidebar's logout button opens the dialog; confirming runs `signOut()` + `navigate('/')`. Includes a "Signing out…" spinner state and disables the button to prevent double-clicks.
 
-3. **Rewrite `PhoneFrame`** in `VybeHome.tsx` to render an `<img>` of the screenshot inside the existing notch/bezel chrome (keep rounded corners, status bar, drop shadow — only the inner content becomes a real image).
+## 3. 2FA enrollment nudge so users don't lose their account
 
-4. **Delete the seven fake components** (`FeedPhone`, `ChatPhone`, `MapPhone`, `DNAPhone`, `AuraPhone`, `FriendLinkPhone`, `SnapPhone`) and replace each call site with `<PhoneFrame src={screenFeed} />` style usage.
+**New component `src/components/auth/Enable2FANudge.tsx`:**
+- Mounted in `AppLayout` (or `RootGate` post-login) so it shows once per session for signed-in users.
+- On mount, reads `user_2fa_settings` (already used by `SecuritySection`). If both `email_2fa_enabled` and `login_approvals_enabled` are false **and** the user dismissed less than 7 days ago is false (tracked in `localStorage` key `vybe-2fa-nudge-dismissed-at`), show a soft bottom-sheet/banner:
+  - Title: "Protect your account"
+  - Body: "Turn on 2-step verification so you never lose access to your VYBE."
+  - Primary CTA → `navigate('/settings?tab=security')`.
+  - Secondary "Remind me later" → stamp localStorage with `Date.now()`.
+- Never shown to users who already have either factor enabled.
+- After a fresh signup completes onboarding, surface the same nudge once with a slightly stronger copy ("Add 2-step verification — recommended").
 
-5. Keep the floating animation (`motion.div` y-bobbing) and layered z-index in the hero — only the inner content swaps from drawn-UI to a real `<img>`.
+No DB schema changes (re-uses existing `user_2fa_settings` + `ensure_2fa_settings` RPC).
 
-### Auth requirement (need your input)
-Most of the screens above (`/home`, `/messages`, `/map`, `/dna`, `/profile`) are behind auth. The browser tool inherits the preview's logged-in session, so:
+## Technical summary
 
-> **Please make sure you're already logged into the preview iframe** before I run. If you're not, the screenshots will show the auth screen instead of the real app and I'll have to stop and ask you to log in.
-
-Confirm and I'll proceed.
-
-### Out of scope
-- No backend, RLS, or routing changes
-- No design-system token changes
-- Other marketing pages (`/features`, `/about`, `/safety`) untouched
-
-### Files touched
-- `src/pages/VybeHome.tsx` (table rows + phone components + PhoneFrame)
-- `src/assets/marketing/*.png` (new — real app screenshots)
-
-### Verification
-After implementation:
-- Comparison table reads honestly for IG/Snap on the AI and friend-map rows
-- Every phone on `/vybe-home` shows actual app pixels, not drawn UI
-- Hero phones still bob/float and layer correctly
-- Page still renders fine on mobile (`lg:hidden` fallback shows the real Feed screenshot)
+- Files edited: `src/lib/auth.tsx`, `src/pages/Landing.tsx`, `src/pages/Settings.tsx`, `src/components/layout/Sidebar.tsx`, `src/components/layout/DesktopLeftSidebar.tsx`, `src/components/layout/DesktopRightSidebar.tsx`, `src/components/layout/AppLayout.tsx`, `supabase/functions/auth-2fa-preauth/index.ts`.
+- Files created: `src/components/auth/SignOutConfirmDialog.tsx`, `src/components/auth/Enable2FANudge.tsx`.
+- No migrations, no new secrets, no new dependencies.
+- Verification: log in (with bad password → still rejected; with good password and gateway down → still gets in via fallback); log out from every entry point (instant + confirmed); fresh account sees 2FA nudge after onboarding.
