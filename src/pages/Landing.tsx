@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 // Checkbox removed — using custom inline toggle for iOS compatibility
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
-import { Eye, EyeOff, Fingerprint } from 'lucide-react';
+import { Eye, EyeOff, Fingerprint, Sparkles, MessageCircle, Users, MapPin, Camera } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable/index';
