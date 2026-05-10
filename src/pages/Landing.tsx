@@ -355,10 +355,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       {/* Public content section for SEO — visible to crawlers */}
       <div className="relative z-10 w-full max-w-[400px] flex flex-col gap-6 my-auto">
         {/* Hero text above the form */}
-        <div className="text-center space-y-1 px-2">
+        <div className="text-center space-y-2 px-2">
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">The Social Platform for Real Connection</h2>
           <p className="text-xs text-muted-foreground/80 leading-relaxed">
-            <a href="/about" className="text-primary hover:underline">Learn more about VYBE →</a>
+            Share stories, create clips, message friends, join communities, and express yourself with AR filters, music, and AI-powered tools. 
+            <a href="/about" className="text-primary hover:underline ml-1">Learn more about VYBE →</a>
           </p>
         </div>
 
@@ -369,66 +370,26 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         transition={{ duration: 0.3 }}
         className="w-full"
       >
-        <div className="liquid-glass-card rounded-2xl p-4 sm:p-5 border border-white/[0.08]">
-          {/* VYBE Wordmark Hero */}
-          <div className="flex flex-col items-center mb-4 relative">
+        <div className="liquid-glass-card rounded-2xl p-5 sm:p-6 border border-white/[0.08]">
+          {/* Centered Logo with clean smooth glow */}
+          <div className="flex flex-col items-center mb-3 relative">
+            {/* Smooth gradient glow behind logo */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div
-                className="w-40 h-20 rounded-full opacity-50"
+              <div 
+                className="w-24 h-24 rounded-full opacity-40"
                 style={{
-                  background: 'radial-gradient(ellipse, hsl(var(--primary) / 0.5) 0%, hsl(var(--accent) / 0.25) 40%, transparent 75%)',
-                  filter: 'blur(18px)',
+                  background: 'radial-gradient(circle, hsl(var(--primary) / 0.6) 0%, hsl(var(--primary) / 0.2) 40%, transparent 70%)',
+                  filter: 'blur(14px)',
                 }}
               />
             </div>
-
-            <h1 className="relative z-10 leading-none">
-              <span className="sr-only">VYBE</span>
-              <span
-                aria-hidden="true"
-                className="font-display font-black tracking-tight text-5xl sm:text-6xl block"
-                style={{
-                  background: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--neon-purple, var(--primary))) 16.666%, hsl(var(--accent)) 33.333%, hsl(var(--primary)) 50%, hsl(var(--neon-purple, var(--primary))) 66.666%, hsl(var(--accent)) 83.333%, hsl(var(--primary)) 100%)',
-                  backgroundSize: '200% 100%',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                  animation: 'gradient-shift 3.2s linear infinite',
-                }}
-              >
-                VYBE
-              </span>
+            
+            <VYBELogo size="md" showText={false} className="mb-1.5 relative z-10" />
+            <h1 className="text-lg font-display font-bold gradient-text relative z-10">
+              Welcome to VYBE
             </h1>
-            <p className="text-xs text-foreground/70 mt-2 text-center relative z-10">
-              Your social home for real connection.
-            </p>
-          </div>
-
-          {/* Core feature list */}
-          <ul className="space-y-1.5 mb-4">
-            {[
-              { icon: Camera, label: 'Stories & Clips', desc: 'share your moments' },
-              { icon: MessageCircle, label: 'Messaging & Calls', desc: 'DMs, groups, voice & video' },
-              { icon: Users, label: 'Communities', desc: 'find your people' },
-              { icon: MapPin, label: 'Friend Map', desc: 'see who’s nearby' },
-            ].map(({ icon: Icon, label, desc }) => (
-              <li key={label} className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  <Icon className="w-3.5 h-3.5" />
-                </span>
-                <span className="text-xs">
-                  <span className="font-semibold text-foreground">{label}</span>
-                  <span className="text-muted-foreground"> — {desc}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          {/* Coming soon teaser */}
-          <div className="flex items-start gap-1.5 mb-4 px-1">
-            <Sparkles className="w-3 h-3 text-accent shrink-0 mt-0.5" />
-            <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
-              <span className="text-foreground/80 font-medium">Coming soon:</span> Marketplace, Events &amp; Meetups, Video Messages, AI Chatbot &amp; VYBE Agent
+            <p className="text-xs text-foreground/70 mt-0.5 text-center relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
+              Connect. Be present. Build community.
             </p>
           </div>
 
