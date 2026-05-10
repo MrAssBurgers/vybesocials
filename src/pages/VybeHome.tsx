@@ -687,7 +687,7 @@ const VybeHome = memo(function VybeHome() {
               </motion.div>
               <motion.div animate={{y:[0,12,0]}} transition={{duration:7,repeat:Infinity,ease:'easeInOut',delay:0.5}}
                 className="absolute right-0 top-0 z-20">
-                <PhoneShot src={phoneChallengesImg} alt="VYBE challenges" tilt={6} />
+                <PhoneFrame><ChatPhone /></PhoneFrame>
               </motion.div>
               <motion.div animate={{y:[0,-8,0]}} transition={{duration:8,repeat:Infinity,ease:'easeInOut',delay:1}}
                 className="absolute left-1/2 -translate-x-1/2 bottom-0 z-30">
