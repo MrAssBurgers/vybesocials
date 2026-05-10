@@ -739,7 +739,7 @@ const VybeHome = memo(function VybeHome() {
             title="Make it look like you. Not like everyone else."
             desc="Drag, drop, theme, animate. Your profile is a living canvas — Bento grid blocks, custom backgrounds, shareable themes, motion presets. Templates are dead."
             bullets={['Framer Motion bento blocks','Share your theme with friends','Live aura backgrounds']}
-            phone={<PhoneShot src={phoneHomeImg} alt="VYBE home" />}
+            phone={<PhoneShot src={phoneHomeImg} alt="VYBE Aura customization" />}
           />
         </FadeIn>
       </SectionWrap>
