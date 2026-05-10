@@ -1,78 +1,98 @@
-## Problem
+## Goals
 
-In `FriendMap.tsx`, when the compass / heading-up mode is enabled, the map's inner Leaflet pane is rotated using `transform-origin: center center`. That spins the map around the **screen center**, not around your own avatar. If you've panned the map at all — or if your avatar isn't perfectly centered — the world appears to rotate around an empty spot while your character drifts off to the side. Google Maps instead keeps your character pinned in place and rotates the world *around* it.
+1. Stop the instant crash when opening VybeSnap from a DM in the Despia native app
+2. Replace the current cluttered camera + editor UI with a clean, organized Snapchat/Instagram-style design
+3. Keep color filters, timer, grid, night mode (tucked behind a single "more" menu)
+4. Drop AR/SnapLens from the DM Snap path so nothing heavy loads on open
 
-## Fix
+---
 
-Two complementary changes in `src/pages/FriendMap.tsx`:
+## Part 1 — Crash fix (`VybeSnapCamera.tsx`, `CameraFirstOverlay.tsx`)
 
-### 1. Auto-follow your location while compass is on
+Suspected cause: on Despia (Android WebView in particular) the current open path runs several things synchronously that can throw before the camera surface mounts:
 
-When `headingUp` becomes true (and on every subsequent location/heading update), recenter the map onto `safeMyCoords` so your avatar always sits at the rotation pivot.
+- `navigator.permissions.query({ name: 'camera' })` — not supported in Android WebView, can throw
+- `getActiveStream()` may return a torn-down preloaded stream whose tracks are already ended
+- `useFaceTracking` + `useSnapAR` are imported at module top; even if dynamic-loaded internally, the AR overlay/picker mount work runs on first render
+- `getUserMedia` is requested before the video element is mounted, so failures bubble as render-time crashes
 
-- On enabling heading-up: `map.flyTo(safeMyCoords, MY_LOCATION_ZOOM, { duration: 0.6 })`.
-- While heading-up is on, every time `safeMyCoords` changes, do a quiet `map.panTo(safeMyCoords, { animate: true, duration: 0.4, noMoveStart: true })` so the dot stays glued to center.
-- Keep `map.dragging.disable()` already in place. Also disable two-finger twist and the existing `recenter` button override during heading-up (no behavior change needed beyond what's there).
+Fixes:
 
-### 2. Pivot the CSS rotation around the avatar, not the pane center
+1. **Defensive open sequence in `startCamera`**
+   - Wrap the `permissions.query` block in `try/catch` that swallows ALL errors (including the synchronous "Illegal invocation" Android WebView throws)
+   - Validate `getActiveStream()` — if any video track has `readyState === 'ended'`, discard and request a fresh stream
+   - Defer `getUserMedia` to a `requestAnimationFrame` after `setPhase('camera')` so the `<video>` is in the DOM first
+   - Wrap the entire init in a top-level `try/catch` that sets `permissionDenied=true` instead of throwing
 
-Even with auto-follow, briefly during animations the avatar can be a few pixels off center. Make the rotation rock-solid by computing the avatar's pixel position inside the map container and writing it into `transform-origin`.
+2. **Strip AR from the Snap path**
+   - Remove `useFaceTracking`, `useSnapAR`, `AROverlayCanvas`, `ARFilterPicker` imports and usage from `VybeSnapCamera`
+   - AR remains available in the main `Camera` component for posts; DM Snap stays lean
+   - Drop the `activeARFilter`, `faces`, `arReady`, `arLoading` state and any UI that depends on them
 
-In the existing rotation effect (around lines 955-970):
+3. **Mount safety**
+   - `CameraFirstOverlay` already only renders camera when `isOpen` — keep that, and also unmount `VybeSnapCamera` (don't just set `isOpen=false`) when closing in `ChatView` (already done via `{showSnapCamera && ...}`); apply same pattern in `CameraFirstOverlay`
+   - Add an early-return error boundary fallback inside `VybeSnapCamera` so a render-time throw shows a "Camera unavailable" panel instead of crashing the WebView
 
-```ts
-const root = mapEl.current;
-const map = mapRef.current;
-const pane = root?.querySelector('.leaflet-map-pane') as HTMLElement | null;
-if (!root || !map || !pane) return;
+4. **Despia-specific**
+   - Skip `permissions.query` entirely when `navigator.userAgent` contains `despia` (uses native bridge for permissions; the web API call is what crashes the wrapper)
+   - Use `{ video: { facingMode }, audio: soundEnabled }` without advanced constraints on first attempt; only retry with constraints if the basic call succeeds
 
-const rot = headingUp ? -heading : manualRotation;
+---
 
-// Pivot around the user's avatar when we have a fix; otherwise fall back to center.
-let originX = root.clientWidth / 2;
-let originY = root.clientHeight / 2;
-if (safeMyCoords) {
-  const pt = map.latLngToContainerPoint(safeMyCoords as any);
-  originX = pt.x;
-  originY = pt.y;
-}
+## Part 2 — Clean redesign (Snapchat/Instagram look)
 
-const rad = (rot * Math.PI) / 180;
-const cover = Math.abs(Math.cos(rad)) + Math.abs(Math.sin(rad));
-pane.style.transformOrigin = `${originX}px ${originY}px`;
-pane.style.transform = rot ? `rotate(${rot}deg) scale(${cover})` : '';
-pane.style.transition = 'transform 120ms linear';
-pane.style.willChange = rot ? 'transform' : '';
-root.style.setProperty('--map-counter-rot', `${-rot}deg`);
-```
+### Capture screen (`VybeSnapCamera.tsx`)
 
-Add `safeMyCoords` to the effect's dependency array so the origin re-evaluates when you move.
+Visual language:
+- Pure black backdrop, full-bleed 9:16 viewport, no glass cards on top
+- Floating glyph icons only (no labels, no chips around them) — 40px round, `bg-white/10 backdrop-blur-md`, white icon
+- Type weights: medium for any small text, never bold
+- All controls anchored either top-edge or bottom-edge, nothing in the middle
 
-Also re-run this effect when the user pans/zooms (subscribe once to Leaflet's `move` and `zoom` events while `headingUp` is true and re-apply the transform), so the pivot stays locked on the avatar even if a gesture briefly nudges the view.
+Top bar (single row, edge-to-edge padding 16):
+- Left: `X` close
+- Right cluster: `Bolt` (flash), `SwitchCamera` (flip), `MoreHorizontal` (opens a single sheet with timer / grid / night mode / sound toggle)
 
-### 3. Keep cover-scale honest with off-center pivot
+Bottom area (in this stacking order, bottom → up):
+1. Shutter row: large `VybeRecordButton` centered, `Image` (gallery) bottom-left, `Sparkles` (filters) bottom-right — all on the same horizontal axis like Snapchat
+2. Above shutter: thin filter strip when filters open — horizontal scroll of color filter chips (Normal, Warm, Cool, Vintage, Vivid, B&W, Dreamy, Noir) with the active one scaled `1.1` and ringed in white
+3. No floating recipients list, no music search, no UserPlus button on capture
 
-Because the rotation pivot is no longer the geometric center, the existing `cover = |cos|+|sin|` scale can still leave a corner empty when the avatar is near an edge. Bump the scale up by the worst-case offset:
+"More" sheet (`Sheet` from shadcn, slides up from bottom, glass black, rounded-t-3xl):
+- Timer (3 chips: Off / 3s / 10s)
+- Grid toggle row
+- Night mode toggle row
+- Sound toggle row
+- One simple list — no toolbar
 
-```ts
-const dx = Math.max(originX, root.clientWidth - originX);
-const dy = Math.max(originY, root.clientHeight - originY);
-const halfDiag = Math.hypot(dx, dy);
-const halfMin = Math.min(root.clientWidth, root.clientHeight) / 2;
-const cover = rot ? Math.max(1, halfDiag / halfMin) : 1;
-```
+Recording UX unchanged (hold/tap, segments, max 30s) — only the visuals around it change.
 
-This guarantees no blank edges regardless of where the avatar sits.
+### Editor screen (`VybeSnapEditor.tsx`)
 
-## Files touched
+Same visual language, IG-Stories style:
+- Top bar: `X` left, `Download` + `Send` right (Send is white pill with arrow)
+- Right rail (vertical stack of 40px glyphs, no labels): `Type` (text), `Smile` (stickers), `Pencil` (draw), `Music`
+- Tap-anywhere to add text
+- Drag handle for moving text/stickers retained, no ring chrome
+- Bottom: single "Send to" pill that opens the recipient picker as a slide-up sheet (no inline avatar list cluttering the canvas)
 
-- `src/pages/FriendMap.tsx` — update the heading-up effect to follow the user, update the rotation effect to pivot around the avatar with corrected cover-scale.
+### Tokens
+- Use existing `bg-card`, `text-foreground`, `border-border` tokens; only camera/editor surface stays pure black for the photographic feel (this is acceptable — matches IG/Snap behavior and design memory's "bg-card over backdrop-blur" rule applies to high-frequency app UI, not media capture overlays)
 
-No other components, hooks, styles, or business logic change. No DB or backend changes.
+---
+
+## Out of scope
+- No DB / RLS / edge function changes
+- AR filters in the main `Camera.tsx` (posts) untouched
+- Sending pipeline (`onSend`, `handleVybeSend`) untouched
+
+## Files to edit
+- `src/components/camera/VybeSnapCamera.tsx` — crash hardening + redesign + remove AR
+- `src/components/camera/VybeSnapEditor.tsx` — redesign right rail + send sheet
+- `src/components/chat/CameraFirstOverlay.tsx` — minor: ensure unmounts cleanly when closed
 
 ## Verification
-
-- Open `/map`, toggle the compass / heading-up button.
-- Your avatar should stay pinned at screen center while the world rotates underneath as you turn the phone.
-- Pan the map, toggle heading-up: the map snaps back to center on the avatar before rotating.
-- No blank corners visible at any rotation angle.
+- Open `/messages/:id` → tap camera → no crash; camera preview renders within ~400ms
+- Filter strip swipes smoothly, "More" sheet opens/closes
+- Capture → editor → send still produces a delivered media message
+- On Despia Android build: open Snap from DM repeatedly without freezing
