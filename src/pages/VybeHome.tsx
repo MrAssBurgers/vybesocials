@@ -6,42 +6,32 @@ import {
   Palette, Flame, Shuffle, Trophy, Camera, ShieldCheck, Heart, Users,
   Zap, Crown, Bell, PlayCircle, ArrowRight, Check, X, Home, Plus, User,
   Search, Send, Bookmark, Share2, MoreHorizontal, ArrowLeft, Lightbulb,
-  Globe, Mic, Smile,
+  Globe, Mic, Smile, Phone, GripVertical, Layers, Image as ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePublicUserCount } from '@/hooks/usePublicUserCount';
-import phoneHomeImg from '@/assets/vybe-home-feed.png';
-import phoneMapImg from '@/assets/vybe-home-map.png';
-import phoneChallengesImg from '@/assets/vybe-home-challenges.png';
 
-const PhoneShot = ({ src, alt, tilt = 0, className }: { src: string; alt: string; tilt?: number; className?: string }) => (
-  <PhoneFrame tilt={tilt} className={className}>
-    <img
-      src={src}
-      alt={alt}
-      loading="lazy"
-      decoding="async"
-      className="w-full h-full object-cover"
-    />
-  </PhoneFrame>
-);
+// On-brand avatars (replaces pravatar.cc)
+import avatarMaya from '@/assets/avatars/maya.jpg';
+import avatarJordan from '@/assets/avatars/jordan.jpg';
+import avatarLeo from '@/assets/avatars/leo.jpg';
+import avatarSky from '@/assets/avatars/sky.jpg';
+import avatarMia from '@/assets/avatars/mia.jpg';
+import avatarKai from '@/assets/avatars/kai.jpg';
+import avatarRen from '@/assets/avatars/ren.jpg';
+import sceneSnapCouch from '@/assets/scenes/snap-couch.jpg';
 
 /* ---------- Reusable bits ---------- */
 
 const PhoneFrame = memo(function PhoneFrame({
   children,
   className,
-  tilt = 0,
 }: {
   children: React.ReactNode;
   className?: string;
-  tilt?: number;
 }) {
   return (
-    <div
-      className={cn('relative mx-auto', className)}
-      style={{ transform: `rotate(${tilt}deg)` }}
-    >
+    <div className={cn('relative mx-auto', className)}>
       <div className="relative w-[260px] sm:w-[280px] aspect-[9/19.5] rounded-[2.5rem] bg-[#0B0B10] border-[10px] border-[#1a1a22] shadow-[0_30px_80px_-20px_rgba(139,92,246,0.45)] overflow-hidden">
         {/* notch */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 h-5 w-24 bg-[#1a1a22] rounded-b-2xl z-20" />
@@ -72,26 +62,20 @@ const FadeIn = ({ children, delay = 0, className }: { children: React.ReactNode;
 /* ---------- Fake people & scenes (real photos, fake identities) ---------- */
 
 const PEOPLE = {
-  maya:   { handle: '@maya.rae',  name: 'Maya R.',   img: 'https://i.pravatar.cc/240?img=47' },
-  jordan: { handle: '@jordan.w',  name: 'Jordan W.', img: 'https://i.pravatar.cc/240?img=12' },
-  leo:    { handle: '@leo.k',     name: 'Leo K.',    img: 'https://i.pravatar.cc/240?img=33' },
-  sky:    { handle: '@sky.m',     name: 'Sky M.',    img: 'https://i.pravatar.cc/240?img=49' },
-  mia:    { handle: '@mia.z',     name: 'Mia Z.',    img: 'https://i.pravatar.cc/240?img=44' },
-  kai:    { handle: '@kai.t',     name: 'Kai T.',    img: 'https://i.pravatar.cc/240?img=15' },
-  ren:    { handle: '@ren.x',     name: 'Ren X.',    img: 'https://i.pravatar.cc/240?img=68' },
+  maya:   { handle: '@maya.rae',  name: 'Maya R.',   img: avatarMaya },
+  jordan: { handle: '@jordan.w',  name: 'Jordan W.', img: avatarJordan },
+  leo:    { handle: '@leo.k',     name: 'Leo K.',    img: avatarLeo },
+  sky:    { handle: '@sky.m',     name: 'Sky M.',    img: avatarSky },
+  mia:    { handle: '@mia.z',     name: 'Mia Z.',    img: avatarMia },
+  kai:    { handle: '@kai.t',     name: 'Kai T.',    img: avatarKai },
+  ren:    { handle: '@ren.x',     name: 'Ren X.',    img: avatarRen },
 };
 
 const SCENES = {
-  rooftop:  'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=600&q=80&auto=format&fit=crop',
-  picnic:   'https://images.unsplash.com/photo-1543807535-eceef0bc6599?w=600&q=80&auto=format&fit=crop',
-  couch:    'https://images.unsplash.com/photo-1543269865-cbf427effbad?w=600&q=80&auto=format&fit=crop',
-  cafe:     'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=600&q=80&auto=format&fit=crop',
+  couch: sceneSnapCouch,
 };
 
-/**
- * Avatar — square, object-cover, exactly like the real <AvatarImage> in src/components/ui/avatar.tsx
- * Use for ALL person photos in mockups so they look screenshot-cropped.
- */
+/** Square avatar that mimics the real <AvatarImage>. */
 const Avatar = ({ src, className, alt = '' }: { src: string; className?: string; alt?: string }) => (
   <span className={cn('relative inline-block shrink-0 overflow-hidden rounded-full bg-white/5', className)}>
     <img
@@ -104,27 +88,7 @@ const Avatar = ({ src, className, alt = '' }: { src: string; className?: string;
   </span>
 );
 
-/**
- * Thumb — fixed-aspect media tile (square by default), matches real PostCard / ChatMediaBubble crop rules.
- */
-const Thumb = ({
-  src,
-  className,
-  alt = '',
-  ratio = 'aspect-square',
-}: { src: string; className?: string; alt?: string; ratio?: string }) => (
-  <span className={cn('relative block overflow-hidden bg-white/5', ratio, className)}>
-    <img
-      src={src}
-      alt={alt}
-      loading="lazy"
-      decoding="async"
-      className="absolute inset-0 h-full w-full object-cover"
-    />
-  </span>
-);
-
-// Back-compat alias used throughout this file.
+/** Back-compat alias used throughout the mocks. */
 const Img = ({ src, className, alt = '' }: { src: string; className?: string; alt?: string }) =>
   className?.includes('rounded-full')
     ? <Avatar src={src} className={className} alt={alt} />
@@ -132,29 +96,26 @@ const Img = ({ src, className, alt = '' }: { src: string; className?: string; al
 
 /* ---------- Phone mockups (mirror the real app screens) ---------- */
 
-const PhoneBottomNav = ({ active }: { active: 'home' | 'map' | 'create' | 'chat' | 'profile' }) => {
-  // Mirrors real BottomNav: pill bg-card with Home (active=ring), Compass, big + (gradient), Chat bubble, profile avatar
-  return (
-    <div className="absolute bottom-2 inset-x-3 h-12 rounded-full bg-[#15151c]/95 backdrop-blur-xl border border-white/5 flex items-center justify-around px-3 z-10 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-      <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', active === 'home' && 'ring-1 ring-pink-400/70 shadow-[0_0_10px_rgba(236,72,153,0.5)]')}>
-        <Home className={cn('w-4 h-4', active === 'home' ? 'text-pink-400' : 'text-white/45')} />
-      </div>
-      <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', active === 'map' && 'ring-1 ring-cyan-400/70')}>
-        <Search className={cn('w-4 h-4', active === 'map' ? 'text-cyan-300' : 'text-white/45')} />
-      </div>
-      <div className="-mt-5 w-11 h-11 rounded-2xl flex items-center justify-center shadow-[0_0_18px_rgba(236,72,153,0.6)]"
-        style={{background:'linear-gradient(135deg, #EC4899, #8B5CF6)'}}>
-        <Plus className="w-5 h-5 text-white" />
-      </div>
-      <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', active === 'chat' && 'ring-1 ring-cyan-400/70')}>
-        <MessageCircle className={cn('w-4 h-4', active === 'chat' ? 'text-cyan-300' : 'text-white/45')} />
-      </div>
-      <div className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-white/10">
-        <Img src={PEOPLE.maya.img} className="w-full h-full rounded-full" />
-      </div>
+const PhoneBottomNav = ({ active }: { active: 'home' | 'map' | 'create' | 'chat' | 'profile' }) => (
+  <div className="absolute bottom-2 inset-x-3 h-12 rounded-full bg-[#15151c]/95 backdrop-blur-xl border border-white/5 flex items-center justify-around px-3 z-30 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+    <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', active === 'home' && 'ring-1 ring-pink-400/70 shadow-[0_0_10px_rgba(236,72,153,0.5)]')}>
+      <Home className={cn('w-4 h-4', active === 'home' ? 'text-pink-400' : 'text-white/45')} />
     </div>
-  );
-};
+    <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', active === 'map' && 'ring-1 ring-cyan-400/70')}>
+      <Search className={cn('w-4 h-4', active === 'map' ? 'text-cyan-300' : 'text-white/45')} />
+    </div>
+    <div className="-mt-5 w-11 h-11 rounded-2xl flex items-center justify-center shadow-[0_0_18px_rgba(236,72,153,0.6)]"
+      style={{background:'linear-gradient(135deg, #EC4899, #8B5CF6)'}}>
+      <Plus className="w-5 h-5 text-white" />
+    </div>
+    <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', active === 'chat' && 'ring-1 ring-cyan-400/70')}>
+      <MessageCircle className={cn('w-4 h-4', active === 'chat' ? 'text-cyan-300' : 'text-white/45')} />
+    </div>
+    <div className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-white/10">
+      <Img src={PEOPLE.maya.img} className="w-full h-full rounded-full" />
+    </div>
+  </div>
+);
 
 const StatusBar = () => (
   <div className="absolute top-0 inset-x-0 h-7 flex items-center justify-between px-5 z-20 text-white text-[10px] font-semibold pointer-events-none">
@@ -174,37 +135,42 @@ const DNAPhone = () => (
     <StatusBar />
     <div className="absolute top-7 inset-x-0 h-10 bg-[#0B0B10]/80 backdrop-blur-xl border-b border-white/5 px-3 flex items-center gap-2 z-10">
       <ArrowLeft className="w-4 h-4 text-white/70" />
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         <div className="text-white text-[12px] font-bold flex items-center gap-1"><Sparkles className="w-3 h-3 text-violet-400" /> VYBE DNA</div>
         <div className="text-[8px] text-white/50">Evolves with your activity</div>
       </div>
       <Share2 className="w-3.5 h-3.5 text-white/70" />
     </div>
-    <div className="absolute inset-0 pt-[68px] pb-12 px-3 overflow-hidden flex flex-col gap-2.5">
-      <div className="relative h-[110px] flex items-center justify-center">
-        <div className="absolute w-[90px] h-[90px] rounded-full blur-2xl opacity-60" style={{background:'radial-gradient(circle, #8B5CF6, transparent 70%)'}} />
-        <div className="absolute w-[80px] h-[80px] rounded-full border border-violet-400/30" />
-        <div className="absolute w-[100px] h-[100px] rounded-full border border-cyan-400/20" />
-        <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(139,92,246,0.7)]"
-          style={{background:'conic-gradient(from 180deg, #8B5CF6, #EC4899, #06B6D4, #8B5CF6)'}}>
-          <Dna className="w-6 h-6 text-white drop-shadow" />
+    <div className="absolute inset-0 pt-[72px] pb-16 px-3 overflow-hidden flex flex-col items-stretch gap-3">
+      {/* Orbit + chip */}
+      <div className="flex flex-col items-center gap-1.5">
+        <div className="relative h-[100px] w-full flex items-center justify-center">
+          <div className="absolute w-[90px] h-[90px] rounded-full blur-2xl opacity-60" style={{background:'radial-gradient(circle, #8B5CF6, transparent 70%)'}} />
+          <div className="absolute w-[80px] h-[80px] rounded-full border border-violet-400/30" />
+          <div className="absolute w-[100px] h-[100px] rounded-full border border-cyan-400/20" />
+          <div className="relative w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(139,92,246,0.7)]"
+            style={{background:'conic-gradient(from 180deg, #8B5CF6, #EC4899, #06B6D4, #8B5CF6)'}}>
+            <Dna className="w-6 h-6 text-white drop-shadow" />
+          </div>
         </div>
-        <div className="absolute -bottom-1 px-2 py-0.5 rounded-full bg-white/10 backdrop-blur border border-white/15 text-[8px] text-white/85">VYBE-7F2A</div>
+        <div className="px-2 py-0.5 rounded-full bg-white/10 backdrop-blur border border-white/15 text-[8px] text-white/85">VYBE-7F2A</div>
       </div>
+      {/* Archetype card */}
       <div className="rounded-xl overflow-hidden border border-white/10">
         <div className="bg-gradient-to-r from-violet-500 to-purple-500 p-2.5 flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
             <Lightbulb className="h-4 w-4 text-white" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="text-white/80 text-[7px] font-semibold uppercase tracking-wider">Your Archetype</div>
             <div className="text-white text-[12px] font-bold leading-tight">The Visionary</div>
           </div>
         </div>
-        <div className="bg-[#15151c] -mt-1 p-2 rounded-t-lg relative">
+        <div className="bg-[#15151c] p-2">
           <p className="text-[8.5px] text-white/65 leading-snug">A creative force that turns ideas into something unforgettable.</p>
         </div>
       </div>
+      {/* Stats */}
       <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2 space-y-1.5">
         {[['Activity', 82, '#F59E0B'],['Social', 64, '#EC4899'],['Creative', 91, '#8B5CF6']].map(([t,v,c]) => (
           <div key={t as string}>
@@ -226,14 +192,14 @@ const DNAPhone = () => (
 const FeedPhone = () => (
   <div className="w-full h-full bg-[#0B0B10] relative overflow-hidden">
     <StatusBar />
-    {/* Top header: V logo, search bar, bell, target */}
+    {/* Top header */}
     <div className="absolute top-7 inset-x-0 px-3 h-11 flex items-center gap-2 z-10 bg-[#0B0B10]/90 backdrop-blur-xl border-b border-white/5">
       <div className="font-display font-black text-lg leading-none bg-gradient-to-b from-violet-400 to-pink-400 bg-clip-text text-transparent">V</div>
-      <div className="flex-1 h-7 rounded-full bg-white/[0.06] border border-white/5 flex items-center px-2.5">
+      <div className="flex-1 h-7 rounded-full bg-white/[0.06] border border-white/5 flex items-center px-2.5 min-w-0">
         <Search className="w-3 h-3 text-white/40" />
       </div>
-      <Bell className="w-4 h-4 text-white/60" />
-      <div className="relative">
+      <Bell className="w-4 h-4 text-white/60 shrink-0" />
+      <div className="relative shrink-0">
         <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-pink-500/30 to-cyan-500/30 border border-pink-400/40 flex items-center justify-center">
           <Trophy className="w-3 h-3 text-pink-300" />
         </div>
@@ -242,7 +208,7 @@ const FeedPhone = () => (
     </div>
 
     {/* Scroll body */}
-    <div className="absolute inset-0 pt-[68px] pb-16 overflow-hidden">
+    <div className="absolute inset-0 pt-[72px] pb-16 overflow-hidden">
       {/* Customize Home pill */}
       <div className="flex justify-center mb-3">
         <div className="px-3 py-1.5 rounded-full border border-pink-400/40 bg-pink-500/5 flex items-center gap-1.5">
@@ -255,7 +221,7 @@ const FeedPhone = () => (
         </div>
       </div>
 
-      {/* Greeting row with avatar + level */}
+      {/* Greeting row */}
       <div className="px-3 flex items-center gap-2 mb-2">
         <div className="relative shrink-0">
           <div className="w-9 h-9 rounded-full p-[1.5px] bg-gradient-to-br from-pink-500 to-violet-500">
@@ -284,11 +250,11 @@ const FeedPhone = () => (
         </div>
       </div>
 
-      {/* TOP XP TODAY */}
+      {/* TOP XP */}
       <div className="px-3 mb-2">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-1.5 flex items-center gap-1.5">
-          <Trophy className="w-3 h-3 text-white/40" />
-          <span className="text-[7px] font-bold text-white/40 tracking-wider">TOP XP TODAY</span>
+          <Trophy className="w-3 h-3 text-white/40 shrink-0" />
+          <span className="text-[7px] font-bold text-white/40 tracking-wider shrink-0">TOP XP</span>
           <span className="text-[8px] text-white/80 ml-1 truncate">@leo.k · 2,013 XP</span>
         </div>
       </div>
@@ -340,20 +306,18 @@ const MapPhone = () => (
     <StatusBar />
     {/* Top: back, avatar, weather pill, layers */}
     <div className="absolute top-7 inset-x-0 px-2.5 h-11 flex items-center gap-2 z-10">
-      <div className="w-7 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center justify-center">
+      <div className="w-7 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center justify-center shrink-0">
         <ArrowLeft className="w-3.5 h-3.5 text-white/80" />
       </div>
-      <div className="w-8 h-8 rounded-full p-[1.5px] bg-gradient-to-br from-pink-500 to-violet-500">
+      <div className="w-8 h-8 rounded-full p-[1.5px] bg-gradient-to-br from-pink-500 to-violet-500 shrink-0">
         <Img src={PEOPLE.maya.img} className="w-full h-full rounded-full" />
       </div>
       <div className="flex-1" />
-      <div className="px-2 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center gap-1 text-[9px] text-white">
-        <span>☀️</span> Sanger, 73°F
+      <div className="px-2 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center gap-1 text-[9px] text-white shrink-0">
+        <span>☀️</span> 73°F
       </div>
-      <div className="w-7 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center justify-center">
-        <div className="grid grid-cols-2 gap-[1px]">
-          {[0,1,2,3].map(i => <div key={i} className="w-[3px] h-[3px] bg-white/70 rounded-[0.5px]" />)}
-        </div>
+      <div className="w-7 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center justify-center shrink-0">
+        <Layers className="w-3.5 h-3.5 text-white/80" />
       </div>
     </div>
 
@@ -372,27 +336,25 @@ const MapPhone = () => (
       ))}
     </div>
 
-    {/* Map area */}
-    <div className="absolute inset-x-0 top-[100px] bottom-[88px]">
+    {/* Map area — sits between tabs (top 100) and the friend strip (bottom 110) */}
+    <div className="absolute inset-x-0 top-[100px] bottom-[110px]">
       <div className="absolute inset-0" style={{background:'linear-gradient(135deg, #0a0a12, #0B0B10)'}} />
-      {/* Subtle road lines */}
       <div className="absolute inset-0 opacity-30">
         <div className="absolute top-[28%] left-[10%] w-[55%] h-[1px] bg-white/15 rotate-[8deg]" />
         <div className="absolute top-[42%] left-0 w-[80%] h-[1px] bg-white/15 -rotate-[3deg]" />
         <div className="absolute top-[10%] left-[45%] w-[1px] h-[60%] bg-white/15" />
         <div className="absolute top-[60%] left-[20%] w-[1px] h-[35%] bg-white/12 rotate-[20deg]" />
       </div>
-      {/* Buildings */}
       {[
         {t:'30%',l:'62%'},{t:'34%',l:'70%'},{t:'58%',l:'82%'},{t:'72%',l:'78%'},{t:'80%',l:'30%'},
       ].map((b,i)=>(<div key={i} className="absolute w-1.5 h-1.5 bg-white/10 rounded-[1px]" style={{top:b.t,left:b.l}} />))}
-      {/* Pulse marker (you) */}
-      <div className="absolute left-[42%] top-[55%]">
+      {/* Centered pulse marker */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
         <div className="absolute w-12 h-12 rounded-full bg-blue-500/20 -left-[18px] -top-[18px] animate-ping" />
         <div className="w-3 h-3 rounded-full bg-blue-400 border-2 border-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.8)]" />
       </div>
       {/* Right action stack */}
-      <div className="absolute right-2 top-[20%] flex flex-col gap-1.5">
+      <div className="absolute right-2 top-3 flex flex-col gap-1.5">
         {[Send, Globe, Sparkles].map((I,i) => (
           <div key={i} className="w-7 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center justify-center">
             <I className="w-3 h-3 text-white/70" />
@@ -401,23 +363,18 @@ const MapPhone = () => (
       </div>
     </div>
 
-    {/* Friend strip */}
-    <div className="absolute bottom-[60px] inset-x-0 px-2 flex gap-1.5 z-10">
+    {/* Friend strip — clear of bottom nav (h-12 + bottom-2 = 56) */}
+    <div className="absolute bottom-[68px] inset-x-0 px-2 flex justify-center gap-1.5 z-20">
       {[PEOPLE.sky, PEOPLE.leo, PEOPLE.mia, PEOPLE.kai, PEOPLE.ren, PEOPLE.jordan].map((p,i)=>(
         <div key={i} className="flex flex-col items-center gap-0.5 shrink-0">
-          <div className="w-7 h-7 rounded-full ring-1 ring-white/15 overflow-hidden">
+          <div className="w-6 h-6 rounded-full ring-1 ring-white/15 overflow-hidden">
             <Img src={p.img} className="w-full h-full rounded-full" />
           </div>
-          <div className="text-[6px] text-white/55 truncate max-w-[28px]">{p.handle.slice(1,7)}</div>
+          <div className="text-[6px] text-white/55 truncate max-w-[28px]">{p.handle.slice(1,6)}</div>
         </div>
       ))}
     </div>
 
-    {/* Search bar */}
-    <div className="absolute bottom-[14px] inset-x-3 h-7 rounded-full bg-[#15151c]/90 border border-white/10 flex items-center gap-1.5 px-2.5 z-10">
-      <Search className="w-3 h-3 text-white/45" />
-      <span className="text-[8px] text-white/40">Search for places</span>
-    </div>
     <PhoneBottomNav active="map" />
   </div>
 );
@@ -443,7 +400,7 @@ const FriendLinkPhone = () => (
       <div className="w-4 h-4" />
     </div>
 
-    {/* Segmented tabs (QR / Tap) */}
+    {/* Segmented tabs */}
     <div className="absolute top-[60px] inset-x-6 z-10">
       <div className="h-7 rounded-full bg-white/[0.05] border border-white/10 p-[2px] flex relative">
         <div className="absolute top-[2px] left-[2px] bottom-[2px] w-[calc(50%-2px)] rounded-full bg-gradient-to-r from-violet-500 to-cyan-500 shadow-[0_0_12px_rgba(139,92,246,0.6)]" />
@@ -458,34 +415,26 @@ const FriendLinkPhone = () => (
       </div>
     </div>
 
-    {/* QR Code area */}
-    <div className="absolute top-[108px] left-1/2 -translate-x-1/2 z-10">
+    {/* QR + chip stack — vertically centered between header (top 100) and bottom action (bottom 60) */}
+    <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 z-10 flex flex-col items-center gap-2">
       <div className="relative">
-        {/* Glow */}
         <div className="absolute -inset-3 rounded-3xl blur-xl opacity-50"
           style={{background:'linear-gradient(135deg, #8B5CF6, #06B6D4)'}} />
-        {/* Card */}
         <div className="relative w-[150px] h-[150px] rounded-2xl bg-white p-2 shadow-2xl">
-          {/* Fake QR pattern */}
           <div className="relative w-full h-full rounded-lg overflow-hidden bg-white">
             <div className="absolute inset-0 grid grid-cols-[repeat(13,1fr)] grid-rows-[repeat(13,1fr)] gap-[1px] p-1">
               {Array.from({length: 169}).map((_, i) => {
-                // Pseudo-random but deterministic QR-ish pattern
                 const on = ((i * 37 + (i % 7) * 13 + Math.floor(i / 13) * 17) % 5) < 2;
                 return <div key={i} className={on ? 'bg-[#0B0B10] rounded-[1px]' : ''} />;
               })}
             </div>
-            {/* Three corner finders */}
-            {[
-              'top-1 left-1','top-1 right-1','bottom-1 left-1',
-            ].map(pos => (
+            {['top-1 left-1','top-1 right-1','bottom-1 left-1'].map(pos => (
               <div key={pos} className={cn('absolute w-5 h-5 bg-white', pos)}>
                 <div className="w-full h-full border-[2px] border-[#0B0B10] rounded-[3px] flex items-center justify-center">
                   <div className="w-2 h-2 bg-[#0B0B10] rounded-[1px]" />
                 </div>
               </div>
             ))}
-            {/* Center avatar */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="relative">
                 <div className="absolute -inset-1 rounded-full bg-white" />
@@ -497,16 +446,13 @@ const FriendLinkPhone = () => (
             </div>
           </div>
         </div>
-        {/* Username chip */}
-        <div className="mt-2 flex justify-center">
-          <div className="px-2.5 py-0.5 rounded-full text-[8.5px] font-bold text-violet-300 bg-violet-500/15 border border-violet-400/30">
-            @maya.rae
-          </div>
-        </div>
+      </div>
+      <div className="px-2.5 py-0.5 rounded-full text-[8.5px] font-bold text-violet-300 bg-violet-500/15 border border-violet-400/30">
+        @maya.rae
       </div>
     </div>
 
-    {/* Bottom action: Scan a code */}
+    {/* Bottom action */}
     <div className="absolute bottom-3 inset-x-3 z-10 space-y-1.5">
       <div className="h-9 rounded-2xl border border-white/10 bg-white/[0.04] flex items-center justify-center gap-1.5 backdrop-blur">
         <Camera className="w-3 h-3 text-white/70" />
@@ -524,24 +470,25 @@ const ChatPhone = () => (
   <div className="w-full h-full bg-[#0B0B10] relative overflow-hidden">
     <StatusBar />
     <div className="absolute top-7 inset-x-0 h-12 bg-[#0B0B10]/80 backdrop-blur-xl border-b border-white/5 px-3 flex items-center gap-2 z-10">
-      <ArrowLeft className="w-4 h-4 text-white/70" />
-      <div className="relative">
+      <ArrowLeft className="w-4 h-4 text-white/70 shrink-0" />
+      <div className="relative shrink-0">
         <Img src={PEOPLE.jordan.img} className="w-7 h-7 rounded-full" />
         <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#0B0B10]" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-white text-[12px] font-semibold leading-tight">{PEOPLE.jordan.name}</div>
+        <div className="text-white text-[12px] font-semibold leading-tight truncate">{PEOPLE.jordan.name}</div>
         <div className="text-white/50 text-[8px] flex items-center gap-1">
           <Flame className="w-2.5 h-2.5 text-amber-400" /> 14d streak · active now
         </div>
       </div>
-      <Camera className="w-4 h-4 text-white/70" />
+      <Camera className="w-4 h-4 text-white/70 shrink-0" />
     </div>
-    <div className="absolute inset-0 pt-[76px] pb-[60px] px-2.5 flex flex-col gap-1.5 justify-end overflow-hidden">
+    {/* Messages — reserve room for input (40) + bottom nav (64) = 104 */}
+    <div className="absolute inset-0 pt-[80px] pb-[112px] px-2.5 flex flex-col gap-1.5 justify-end overflow-hidden">
       <div className="self-center text-[8px] text-white/35 mb-1">Today</div>
       <div className="self-start max-w-[78%] bg-white/[0.07] rounded-2xl rounded-bl-md px-3 py-1.5 text-white text-[11px]">yo you up?</div>
       <div className="self-end max-w-[78%] rounded-2xl rounded-br-md px-3 py-1.5 text-white text-[11px]" style={{background:'linear-gradient(135deg, #8B5CF6, #06B6D4)'}}>always 🌙</div>
-      <div className="self-start relative max-w-[78%] mb-1">
+      <div className="self-start relative max-w-[78%] mb-2">
         <div className="bg-white/[0.07] rounded-2xl rounded-bl-md px-3 py-1.5 text-white text-[11px]">vibe check?</div>
         <div className="absolute -bottom-2 left-2 flex items-center gap-0.5 px-1 py-0.5 rounded-full bg-[#1a1a22] border border-white/10 text-[9px]">
           <span>🔥</span><span className="text-white/60 text-[8px]">3</span>
@@ -559,14 +506,181 @@ const ChatPhone = () => (
       </div>
       <div className="self-start text-[8px] text-white/40 mt-1 ml-1">{PEOPLE.jordan.name.split(' ')[0]} is typing…</div>
     </div>
-    <div className="absolute bottom-12 inset-x-0 px-2.5 pb-1.5 z-10">
+    {/* Message input — sits above the bottom nav */}
+    <div className="absolute bottom-[60px] inset-x-0 px-2.5 z-20">
       <div className="rounded-full bg-white/5 border border-white/10 px-3 h-8 flex items-center gap-2">
-        <Plus className="w-3.5 h-3.5 text-white/50" />
-        <div className="text-white/40 text-[10px] flex-1">Message…</div>
-        <Smile className="w-3.5 h-3.5 text-white/50" />
-        <Mic className="w-3.5 h-3.5 text-white/50" />
+        <Plus className="w-3.5 h-3.5 text-white/50 shrink-0" />
+        <div className="text-white/40 text-[10px] flex-1 truncate">Message…</div>
+        <Smile className="w-3.5 h-3.5 text-white/50 shrink-0" />
+        <Mic className="w-3.5 h-3.5 text-white/50 shrink-0" />
       </div>
     </div>
+    <PhoneBottomNav active="chat" />
+  </div>
+);
+
+// === AURA — mirrors the Aura customizer (Bento + theme + motion) ===
+const AuraPhone = () => (
+  <div className="w-full h-full bg-[#0B0B10] relative overflow-hidden">
+    {/* Live aura background */}
+    <div className="absolute inset-0 opacity-60" style={{background:'conic-gradient(from 90deg at 50% 60%, rgba(139,92,246,0.35), rgba(236,72,153,0.25), rgba(6,182,212,0.3), rgba(139,92,246,0.35))', filter:'blur(40px)'}} />
+    <StatusBar />
+    {/* Header */}
+    <div className="absolute top-7 inset-x-0 h-10 px-3 flex items-center gap-2 z-10">
+      <ArrowLeft className="w-4 h-4 text-white/80" />
+      <div className="flex-1 text-center">
+        <div className="text-white text-[12px] font-bold flex items-center justify-center gap-1">
+          <Palette className="w-3 h-3 text-violet-300" /> Edit Aura
+        </div>
+        <div className="text-[7.5px] text-white/55">Drag to rearrange</div>
+      </div>
+      <div className="px-2 h-6 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center">Save</div>
+    </div>
+
+    {/* Profile header preview */}
+    <div className="absolute top-[60px] inset-x-3 z-10 flex items-center gap-2 p-2 rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur">
+      <div className="w-9 h-9 rounded-full p-[1.5px] bg-gradient-to-br from-violet-500 to-cyan-500 shrink-0">
+        <Img src={PEOPLE.maya.img} className="w-full h-full rounded-full" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-white text-[11px] font-bold leading-tight truncate">@maya.rae</div>
+        <div className="text-[8px] text-white/55">Lvl 49 · The Visionary</div>
+      </div>
+      <Sparkles className="w-3.5 h-3.5 text-violet-300" />
+    </div>
+
+    {/* Bento grid */}
+    <div className="absolute top-[118px] inset-x-3 z-10 grid grid-cols-3 gap-1.5">
+      {/* tall */}
+      <div className="col-span-1 row-span-2 h-[112px] rounded-2xl border border-dashed border-violet-300/50 bg-gradient-to-br from-violet-500/30 to-pink-500/15 p-2 relative">
+        <GripVertical className="absolute top-1 right-1 w-2.5 h-2.5 text-white/40" />
+        <Heart className="w-3 h-3 text-pink-300 mb-1" />
+        <div className="text-[8px] font-bold text-white">Loves</div>
+        <div className="text-[7px] text-white/60">142 saved</div>
+      </div>
+      {/* wide */}
+      <div className="col-span-2 h-[52px] rounded-2xl border border-dashed border-cyan-300/50 bg-gradient-to-br from-cyan-500/25 to-blue-500/10 p-2 relative">
+        <GripVertical className="absolute top-1 right-1 w-2.5 h-2.5 text-white/40" />
+        <div className="flex items-center gap-1.5">
+          <Trophy className="w-3 h-3 text-amber-300" />
+          <div className="text-[8px] font-bold text-white">Top XP this week</div>
+        </div>
+        <div className="text-[7px] text-white/60 mt-0.5">12,840 · #3 in Brooklyn</div>
+      </div>
+      {/* small x2 */}
+      <div className="h-[52px] rounded-2xl border border-dashed border-emerald-300/50 bg-emerald-500/15 p-2 relative">
+        <GripVertical className="absolute top-1 right-1 w-2.5 h-2.5 text-white/40" />
+        <Flame className="w-3 h-3 text-amber-300 mb-0.5" />
+        <div className="text-[8px] font-bold text-white">14d</div>
+      </div>
+      <div className="h-[52px] rounded-2xl border border-dashed border-pink-300/50 bg-pink-500/15 p-2 relative">
+        <GripVertical className="absolute top-1 right-1 w-2.5 h-2.5 text-white/40" />
+        <ImageIcon className="w-3 h-3 text-pink-200 mb-0.5" />
+        <div className="text-[8px] font-bold text-white">Gallery</div>
+      </div>
+    </div>
+
+    {/* Theme colors */}
+    <div className="absolute bottom-[96px] inset-x-3 z-10">
+      <div className="text-[8px] uppercase tracking-wider text-white/50 font-bold mb-1">Theme</div>
+      <div className="flex items-center gap-2">
+        {[
+          {c:'linear-gradient(135deg,#8B5CF6,#EC4899)', active:true},
+          {c:'linear-gradient(135deg,#06B6D4,#8B5CF6)'},
+          {c:'linear-gradient(135deg,#F59E0B,#EC4899)'},
+          {c:'linear-gradient(135deg,#10B981,#06B6D4)'},
+          {c:'linear-gradient(135deg,#F43F5E,#7C3AED)'},
+        ].map((s,i)=>(
+          <div key={i} className={cn('w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-[#0B0B10]', s.active ? 'ring-white' : 'ring-transparent')} style={{background:s.c}} />
+        ))}
+      </div>
+    </div>
+
+    {/* Motion preset chips */}
+    <div className="absolute bottom-[64px] inset-x-3 z-10 flex items-center gap-1.5">
+      {['Smooth','Bouncy','Snappy'].map((m,i)=>(
+        <div key={m} className={cn('px-2 py-1 rounded-full text-[8.5px] font-semibold border',
+          i===0 ? 'bg-violet-500/30 border-violet-300/60 text-white' : 'border-white/10 text-white/55')}>{m}</div>
+      ))}
+    </div>
+
+    <PhoneBottomNav active="profile" />
+  </div>
+);
+
+// === SNAP · NOTES · CALLS ===
+const SnapPhone = () => (
+  <div className="w-full h-full bg-[#0B0B10] relative overflow-hidden">
+    {/* Ambient warm glow */}
+    <div className="absolute inset-0 opacity-50" style={{background:'radial-gradient(ellipse at 50% 30%, rgba(236,72,153,0.4), transparent 60%), radial-gradient(ellipse at 50% 80%, rgba(6,182,212,0.25), transparent 60%)'}} />
+    <StatusBar />
+
+    {/* Incoming call card */}
+    <div className="absolute top-9 inset-x-3 z-10 rounded-2xl border border-white/10 bg-[#15151c]/85 backdrop-blur-xl p-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+      <div className="flex items-center gap-2">
+        <div className="relative shrink-0">
+          <div className="absolute -inset-1 rounded-full bg-emerald-400/40 animate-ping" />
+          <div className="relative w-9 h-9 rounded-full p-[1.5px] bg-gradient-to-br from-emerald-400 to-cyan-400">
+            <Img src={PEOPLE.kai.img} className="w-full h-full rounded-full" />
+          </div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-white text-[11px] font-bold leading-tight truncate">{PEOPLE.kai.name}</div>
+          <div className="text-emerald-300 text-[8px] flex items-center gap-1"><Phone className="w-2.5 h-2.5" /> Calling…</div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <div className="w-7 h-7 rounded-full bg-rose-500 flex items-center justify-center"><Phone className="w-3 h-3 text-white rotate-[135deg]" /></div>
+          <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center shadow-[0_0_12px_rgba(16,185,129,0.7)]"><Phone className="w-3 h-3 text-white" /></div>
+        </div>
+      </div>
+      <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
+        <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400" />
+      </div>
+      <div className="mt-1 text-[7.5px] text-white/45 text-center">Slide to answer</div>
+    </div>
+
+    {/* Floating GIF Note */}
+    <div className="absolute top-[150px] left-3 z-10 flex items-end gap-1.5">
+      <div className="w-7 h-7 rounded-full ring-2 ring-pink-400/60 overflow-hidden shrink-0">
+        <Img src={PEOPLE.mia.img} className="w-full h-full rounded-full" />
+      </div>
+      <div className="relative">
+        <div className="rounded-2xl rounded-bl-sm overflow-hidden border border-white/10 shadow-lg w-[120px] h-[80px] relative bg-gradient-to-br from-fuchsia-500/40 via-violet-500/30 to-cyan-500/40">
+          <div className="absolute inset-0 flex items-center justify-center text-2xl">🎉</div>
+          <div className="absolute top-1 left-1 px-1 py-0.5 rounded-full bg-black/50 text-[7px] text-white font-semibold flex items-center gap-0.5">
+            <ImageIcon className="w-2 h-2" /> GIF
+          </div>
+          <div className="absolute -bottom-1.5 -right-1.5 px-1.5 py-0.5 rounded-full bg-[#1a1a22] border border-white/15 text-[8px] flex items-center gap-0.5">
+            <Flame className="w-2.5 h-2.5 text-amber-300" /><span className="text-white/80">7</span>
+          </div>
+        </div>
+        <div className="text-[7px] text-white/45 mt-1.5 ml-1">{PEOPLE.mia.handle} · 12s ago</div>
+      </div>
+    </div>
+
+    {/* Disappearing snap */}
+    <div className="absolute bottom-[88px] right-3 z-10">
+      <div className="text-[7px] text-white/45 mb-1 text-right">From {PEOPLE.sky.handle}</div>
+      <div className="relative w-[110px] h-[150px] rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+        <Img src={SCENES.couch} alt="Snap" className="absolute inset-0 w-full h-full" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30" />
+        {/* Countdown ring */}
+        <div className="absolute top-1.5 left-1.5">
+          <div className="relative w-6 h-6">
+            <svg viewBox="0 0 24 24" className="absolute inset-0 -rotate-90">
+              <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
+              <circle cx="12" cy="12" r="10" fill="none" stroke="#EC4899" strokeWidth="2" strokeDasharray="62.8" strokeDashoffset="20" strokeLinecap="round" />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center text-[8px] text-white font-bold">7</div>
+          </div>
+        </div>
+        <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-between">
+          <span className="text-[8px] text-white/90 font-semibold">VYBE Snap</span>
+          <Camera className="w-3 h-3 text-white" />
+        </div>
+      </div>
+    </div>
+
     <PhoneBottomNav active="chat" />
   </div>
 );
@@ -606,8 +720,6 @@ const VybeHome = memo(function VybeHome() {
   }, []);
   return (
     <div className="page-scroll-fix bg-[#0B0B10] text-white">
-      {/* SEO handled via useEffect below */}
-
       {/* Sticky nav */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#0B0B10]/80 border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -678,21 +790,23 @@ const VybeHome = memo(function VybeHome() {
             </div>
           </FadeIn>
 
-          {/* Hero phones */}
+          {/* Hero phones — fixed-size centered stage */}
           <FadeIn delay={0.1}>
-            <div className="relative h-[560px] hidden lg:block">
-              <motion.div animate={{y:[0,-12,0]}} transition={{duration:6,repeat:Infinity,ease:'easeInOut'}}
-                className="absolute left-0 top-10 z-10">
-                <PhoneFrame><FeedPhone /></PhoneFrame>
-              </motion.div>
-              <motion.div animate={{y:[0,12,0]}} transition={{duration:7,repeat:Infinity,ease:'easeInOut',delay:0.5}}
-                className="absolute right-0 top-0 z-20">
-                <PhoneFrame><ChatPhone /></PhoneFrame>
-              </motion.div>
-              <motion.div animate={{y:[0,-8,0]}} transition={{duration:8,repeat:Infinity,ease:'easeInOut',delay:1}}
-                className="absolute left-1/2 -translate-x-1/2 bottom-0 z-30">
-                <PhoneFrame><MapPhone /></PhoneFrame>
-              </motion.div>
+            <div className="hidden lg:flex justify-center">
+              <div className="relative w-[600px] h-[620px]">
+                <motion.div animate={{y:[0,-12,0]}} transition={{duration:6,repeat:Infinity,ease:'easeInOut'}}
+                  className="absolute left-0 top-10 z-10">
+                  <PhoneFrame><FeedPhone /></PhoneFrame>
+                </motion.div>
+                <motion.div animate={{y:[0,12,0]}} transition={{duration:7,repeat:Infinity,ease:'easeInOut',delay:0.5}}
+                  className="absolute right-0 top-0 z-20">
+                  <PhoneFrame><ChatPhone /></PhoneFrame>
+                </motion.div>
+                <motion.div animate={{y:[0,-8,0]}} transition={{duration:8,repeat:Infinity,ease:'easeInOut',delay:1}}
+                  className="absolute left-1/2 -translate-x-1/2 bottom-0 z-30">
+                  <PhoneFrame><MapPhone /></PhoneFrame>
+                </motion.div>
+              </div>
             </div>
             <div className="lg:hidden flex justify-center">
               <PhoneFrame><FeedPhone /></PhoneFrame>
@@ -739,7 +853,7 @@ const VybeHome = memo(function VybeHome() {
             title="Make it look like you. Not like everyone else."
             desc="Drag, drop, theme, animate. Your profile is a living canvas — Bento grid blocks, custom backgrounds, shareable themes, motion presets. Templates are dead."
             bullets={['Framer Motion bento blocks','Share your theme with friends','Live aura backgrounds']}
-            phone={<PhoneShot src={phoneHomeImg} alt="VYBE Aura customization" />}
+            phone={<PhoneFrame><AuraPhone /></PhoneFrame>}
           />
         </FadeIn>
       </SectionWrap>
@@ -764,7 +878,7 @@ const VybeHome = memo(function VybeHome() {
             title="The closest thing to actually being there."
             desc="Disappearing snaps. GIF notes that float on the chat. Crystal-clear calls that connect in under a second. Multi-emoji reactions, swipe-replies, and reaction streaks that keep the vibe alive."
             bullets={['<1s call connect time','48-hour reaction streaks','End-to-end encrypted messages']}
-            phone={<PhoneShot src={phoneChallengesImg} alt="VYBE Snap and Calls" />}
+            phone={<PhoneFrame><SnapPhone /></PhoneFrame>}
           />
         </FadeIn>
       </SectionWrap>
