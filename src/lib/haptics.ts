@@ -78,7 +78,9 @@ const HAPTIC_PATTERNS: Record<HapticStyle, number | number[]> = {
 // Trigger haptic feedback
 export function triggerHaptic(style: HapticStyle = 'light'): void {
   if (!isHapticsEnabled()) return;
-  // Native (Despia) shell first — gives real iOS/Android haptic feedback
+  // Capacitor native plugin (real iOS Taptic Engine / Android vibrator)
+  if (capacitorHaptic(style)) return;
+  // Despia shell fallback
   nativeHaptic(style);
   if (!supportsVibration()) return;
   try {
