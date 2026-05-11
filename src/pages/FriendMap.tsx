@@ -655,7 +655,16 @@ function FriendMapInner() {
           markerZoomAnimation: true,
           inertia: true,
           inertiaDeceleration: 2000,
-        }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+          // ── leaflet-rotate ──
+          // Real bearing support (Google-Maps style). Rotation is applied to
+          // tiles + markers natively, so panning/zooming keep working while
+          // rotated and markers stay upright with no CSS counter-rotation.
+          rotate: true,
+          bearing: 0,
+          touchRotate: true,
+          rotateControl: false,
+          shiftKeyRotate: true,
+        } as any).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
       } catch (err) {
         console.error('[FriendMap] Leaflet init failed:', err);
         return false;
