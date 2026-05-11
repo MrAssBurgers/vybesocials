@@ -23,6 +23,9 @@ export interface Message {
   edited_at?: string | null;
   reply_to_id: string | null;
   created_at: string;
+  saved_by_sender?: boolean | null;
+  saved_by_recipient?: boolean | null;
+  saved_at?: string | null;
   sender?: {
     id: string;
     username: string;
