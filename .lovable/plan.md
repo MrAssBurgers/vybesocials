@@ -1,31 +1,109 @@
-Plan to fix the AI features and challenges:
+## VYBE Score (Snapchat Snapscore-style)
 
-1. Repair challenge refresh
-- Remove the stale scheduled challenge jobs that are calling an old backend URL.
-- Recreate the challenge refresh jobs against the current Lovable Cloud backend.
-- Make refresh reliable even if AI generation is rate-limited by falling back to existing challenge templates.
-- Immediately restore active challenges so the Challenges page has today’s daily challenges and this week’s weekly challenges again.
+Add a persistent, ever-growing numeric score on every profile, displayed inline next to the username/stats — same vibe as Snapchat's Snapscore.
 
-2. Add real challenge cleanup
-- Update the challenge cleanup so expired inactive daily/weekly challenges are deleted, not only deactivated.
-- Keep current challenges and achievements safe.
-- Let dependent old progress/reward rows clean up with the deleted expired challenges to save database space.
+### How points accrue (Snapscore-inspired)
 
-3. Fix the AI backend functions
-- Audit all AI-facing backend functions used by the app: AI chat, DNA chat, message assist, smart replies, summaries, captions, recommendations, moderation, Vybe Check, AI content detection, themes/backgrounds, and challenge generation.
-- Standardize error handling for AI rate limits, credits, auth failures, and malformed AI responses so the UI gets useful errors instead of silent failures.
-- Fix identity lookups where functions are using the auth user ID where they should map to the profile ID.
-- Keep existing provider-specific safety logic where the app already depends on it, especially Vybe Check’s stricter multimodal safety scanning.
+Every meaningful action grants points. Score only goes up, never down. Awarded server-side via a single RPC for consistency.
 
-4. Fix frontend AI callers
-- Ensure every AI request sends the correct authenticated function headers.
-- Replace generic “try again” failures with clear user-facing states for rate limits, missing auth, and unavailable AI.
-- Make streaming AI chat/DNA chat finalize cleanly even if the stream ends without content.
+| Action | Points |
+|---|---|
+| Send a DM | +1 |
+| Receive a DM | +1 |
+| Post a Clip / video | +10 |
+| Post a photo / regular post | +6 |
+| Post a Story | +3 |
+| Story view received | +1 (capped 50/story) |
+| Receive a reaction/like | +1 |
+| Give a reaction/like | +0.5 (rounded) |
+| Comment posted | +2 |
+| Receive a comment | +1 |
+| Share sent | +2 |
+| Receive a share | +3 |
+| Save received | +4 |
+| New follower | +5 |
+| Daily login | +5 |
+| Login streak day (per day) | +2 × streak (cap 30) |
+| Friend added | +10 |
+| Complete a challenge | +25 |
+| First post of the day bonus | +15 |
 
-5. Validate the fixes
-- Test challenge refresh produces active daily/weekly rows.
-- Test old challenge deletion reduces stale rows.
-- Test Vybe Check with safe and blocked content paths.
-- Test core AI chat/message assist paths and confirm backend logs no longer show AI failures.
+Anti-abuse: 1-minute throttle per (user, action) for low-value events; daily caps on DM-spam (max 200 DM points/day) and reaction-give (max 100/day).
 
-Key finding: challenges currently have zero active daily/weekly rows, and the scheduled jobs are pointed at the wrong backend, so they report as “scheduled” but never refresh the real app data.
+### Database
+
+New table `vybe_scores`:
+- `profile_id` (PK, FK profiles.id)
+- `score` bigint default 0
+- `last_action_at`, `updated_at`
+
+New table `vybe_score_events` (audit + caps):
+- `profile_id`, `action` text, `points` int, `created_at`
+- Index on (profile_id, action, created_at) for cap windows
+- 30-day retention via cron cleanup
+
+RPC `award_vybe_points(_action text, _points int default null, _target_id uuid default null)`:
+- SECURITY DEFINER, `SET search_path=public`
+- Resolves caller profile_id from auth.uid()
+- Applies action's default points if `_points` null
+- Enforces per-action throttles & daily caps
+- Inserts audit row, upserts `vybe_scores.score = score + points`
+- Returns new score
+
+RLS: `vybe_scores` global SELECT (USING true) so scores show on any profile; INSERT/UPDATE only via RPC. Events table: SELECT own only.
+
+Backfill migration: seed initial score from existing data (posts × 6, followers × 5, comments × 2, capped reasonable) so existing users don't start at 0.
+
+### Client wiring
+
+New hook `src/hooks/useVybeScore.ts`:
+- `useVybeScore(profileId)` — fetches score with React Query, 60s stale
+- `useAwardVybePoints()` — mutation calling the RPC
+
+Award integration points (fire-and-forget, debounced where noisy):
+- `useDMConversations` / message send → `dm_send`
+- Realtime new message received → `dm_receive`
+- Post create flow (`Upload.tsx`, composer) → `post_create` (variant by media type)
+- Story create → `story_create`
+- Reaction add (`useReactions`) → `reaction_give`; trigger on receiver via DB trigger
+- Comment create (`useComments`) → `comment_post` + receiver
+- Share, Save, Follow → respective actions
+- `useDailyLogin` → `daily_login` + streak bonus
+- Challenge complete → `challenge_complete`
+
+Most receiver-side awards are done via DB triggers (cleaner, can't be skipped):
+- AFTER INSERT on `messages`, `reactions`, `comments`, `shares`, `saves`, `follows`, `post_views` (story) → call `award_vybe_points` for the recipient.
+
+### UI
+
+New component `src/components/profile/VybeScore.tsx`:
+- Snapchat-style display: tiny ghost icon (use VYBE bolt/spark) + animated number
+- Uses existing `AnimatedNumber` for satisfying tick-up
+- Tap to open a sheet showing breakdown (today's gains, lifetime total, top-earning action) — like Snapchat's score popup
+- Shows in `ProfileHeroCard` directly under username, replacing the implicit "engagement %" line for own profile (keeps `EngagementScore` ring on the Vibe Board)
+
+Realtime: subscribe to `vybe_scores` row for the viewed profile so the number ticks up live when you DM/post.
+
+Number formatting: raw up to 9,999, then `12.3K`, `1.2M` (Snapchat-style abbreviated).
+
+### Files to add
+
+- `supabase/migrations/<ts>_vybe_score.sql` (table, RPC, triggers, RLS, backfill)
+- `src/hooks/useVybeScore.ts`
+- `src/components/profile/VybeScore.tsx`
+
+### Files to edit
+
+- `src/components/profile/ProfileHeroCard.tsx` — render `<VybeScore />`
+- `src/hooks/useDailyLogin.ts` — call RPC on login
+- `src/hooks/useChallenges.ts` — call RPC on challenge claim
+- Composer / `Upload.tsx` — call RPC on post create
+- `src/hooks/useDMConversations.ts` (or send-message hook) — call RPC on send
+
+### Out of scope
+
+- Leaderboards (existing XP leaderboard already covers that)
+- Score-based unlocks/perks (can come later)
+- Score going down — strictly monotonic like Snapscore
+
+Ready to build on approval.
