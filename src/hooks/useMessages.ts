@@ -23,6 +23,9 @@ export interface Message {
   edited_at?: string | null;
   reply_to_id: string | null;
   created_at: string;
+  saved_by_sender?: boolean | null;
+  saved_by_recipient?: boolean | null;
+  saved_at?: string | null;
   sender?: {
     id: string;
     username: string;
@@ -451,6 +454,36 @@ export function useMarkMessageViewed() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages'] });
+    },
+  });
+}
+
+/**
+ * Toggle saved (kept) state on a 1:1 DM message.
+ * Saved messages are exempt from the 48h auto-expiry; both users see the saved state.
+ */
+export function useToggleSavedMessage(conversationId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const { data, error } = await supabase.rpc('toggle_message_saved', { _message_id: messageId });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return { messageId, ...(row as any) };
+    },
+    onSuccess: ({ messageId, saved_by_sender, saved_by_recipient, saved_at, expires_at }) => {
+      if (!conversationId) return;
+      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+        if (!old) return old;
+        return old.map((m) =>
+          m.id === messageId
+            ? { ...m, saved_by_sender, saved_by_recipient, saved_at, expires_at }
+            : m,
+        );
+      });
+    },
+    onError: () => {
+      toast.error('Could not update saved state');
     },
   });
 }

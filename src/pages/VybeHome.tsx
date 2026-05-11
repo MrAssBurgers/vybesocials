@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePublicUserCount } from '@/hooks/usePublicUserCount';
+import { useLandingTopCreators } from '@/hooks/useLandingTopCreators';
 
 // On-brand avatars (replaces pravatar.cc)
 import avatarMaya from '@/assets/avatars/maya.jpg';
@@ -730,6 +731,21 @@ const features = [
 
 const VybeHome = memo(function VybeHome() {
   const { data: liveUserCount, isLoading: countLoading } = usePublicUserCount();
+  const { data: topCreators } = useLandingTopCreators(4);
+  // Fallback demo faces fill any empty slots so the row never looks empty.
+  const demoFallback = [PEOPLE.maya, PEOPLE.jordan, PEOPLE.leo, PEOPLE.sky];
+  const earlyMemberAvatars = (() => {
+    const real = (topCreators ?? [])
+      .filter((c) => !!c.avatar_url)
+      .slice(0, 4)
+      .map((c) => ({ key: c.id, src: c.avatar_url as string, alt: c.display_name || c.username || 'Creator' }));
+    const filled = [...real];
+    for (let i = 0; filled.length < 4 && i < demoFallback.length; i++) {
+      const p = demoFallback[i];
+      filled.push({ key: `demo-${p.handle}`, src: p.img, alt: p.name });
+    }
+    return filled;
+  })();
   useEffect(() => {
     const prev = document.title;
     document.title = 'VYBE — The social app that becomes you';
@@ -775,8 +791,8 @@ const VybeHome = memo(function VybeHome() {
           <FadeIn>
             <div className="inline-flex items-center gap-3 pl-1.5 pr-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/70 mb-6">
               <div className="flex -space-x-2">
-                {[PEOPLE.maya, PEOPLE.jordan, PEOPLE.leo, PEOPLE.sky].map(p => (
-                  <Img key={p.handle} src={p.img} className="w-6 h-6 rounded-full border-2 border-[#0B0B10]" />
+                {earlyMemberAvatars.map((a) => (
+                  <Img key={a.key} src={a.src} alt={a.alt} className="w-6 h-6 rounded-full border-2 border-[#0B0B10]" />
                 ))}
               </div>
               <span className="flex items-center gap-2">

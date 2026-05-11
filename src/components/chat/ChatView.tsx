@@ -8,6 +8,7 @@ import {
   useScreenshotNotification,
   useMarkMessageViewed,
   useAddReaction,
+  useToggleSavedMessage,
   ViewMode,
   Message,
   useConversations
@@ -87,7 +88,8 @@ import {
   Copy,
   Pencil,
   Sticker,
-  Download
+  Download,
+  Bookmark
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
@@ -166,6 +168,7 @@ export function ChatView() {
   // Enable realtime sync for this specific conversation (reactions, views, etc.)
   useRealtimeMessages(conversationId);
   const markViewed = useMarkMessageViewed();
+  const toggleSaved = useToggleSavedMessage(conversationId);
   const addReaction = useAddReaction();
   const unsendForEveryone = useUnsendForEveryone();
   const deleteForMe = useDeleteForMe();
@@ -1595,6 +1598,7 @@ export function ChatView() {
                     onScrollToMessage={scrollToMessage}
                     forceShowContextMenu={showContextMenuMessageId === message.id}
                     onCloseContextMenu={() => setShowContextMenuMessageId(null)}
+                    onToggleSaved={!isGroupChat ? () => toggleSaved.mutate(message.id) : undefined}
                   />
                 </SwipeToReply>
               </div>
@@ -2230,6 +2234,7 @@ const MessageBubble = memo(function MessageBubble({
   onSaveSticker,
   forceShowContextMenu = false,
   onCloseContextMenu,
+  onToggleSaved,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -2253,6 +2258,7 @@ const MessageBubble = memo(function MessageBubble({
   onScrollToMessage?: (messageId: string) => void;
   forceShowContextMenu?: boolean;
   onCloseContextMenu?: () => void;
+  onToggleSaved?: () => void;
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const hasAnyViews = message.views && message.views.length > 0;
@@ -2422,9 +2428,11 @@ const MessageBubble = memo(function MessageBubble({
               onDeleteForMe={onDeleteForMe}
             />
           </div>
+        {(() => null)()}
+        {/* Saved-state derived flags */}
         <div
           className={cn(
-            'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0 w-fit',
+            'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0 w-fit transition-shadow',
             isEmojiOnly 
               ? 'px-3 py-2'
               : isMediaMessage
@@ -2435,9 +2443,23 @@ const MessageBubble = memo(function MessageBubble({
               : 'bg-muted/70 text-foreground rounded-bl-lg',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
-            repliedMessage && 'rounded-t-[14px]'
+            repliedMessage && 'rounded-t-[14px]',
+            (message.saved_by_sender || message.saved_by_recipient) && (isOwn
+              ? 'ring-1 ring-primary/70 shadow-[0_0_18px_-4px_hsl(var(--primary)/0.55)]'
+              : 'ring-1 ring-cyan-400/60 shadow-[0_0_18px_-4px_rgba(34,211,238,0.45)]')
           )}
           data-message-id={message.id}
+          onClick={(e) => {
+            // Tap-to-save: only fires on text/emoji bubbles in 1:1 DMs.
+            // Media bubbles already handle taps to open the viewer.
+            if (!onToggleSaved) return;
+            if (isMediaMessage || isVideoMessage || isVybeMessage || isAudioMessage || isSharedPost) return;
+            if (isContextMenuOpen) return;
+            // Ignore taps that originated from interactive children
+            const target = e.target as HTMLElement;
+            if (target.closest('button, a, input, textarea')) return;
+            onToggleSaved();
+          }}
           onContextMenu={handleContextMenu}
           onDoubleClick={onToggleReactions}
         >
@@ -2670,6 +2692,23 @@ const MessageBubble = memo(function MessageBubble({
           </div>
         )}
 
+        {/* Saved indicator — shows on both sides, Snapchat-style */}
+        {(message.saved_by_sender || message.saved_by_recipient) && (
+          <div className={cn(
+            "flex items-center gap-1 mt-1 text-[10px] font-medium",
+            isOwn ? "self-end text-primary/80" : "self-start text-cyan-400/90"
+          )}>
+            <Bookmark className="h-2.5 w-2.5 fill-current" />
+            <span>
+              {message.saved_by_sender && message.saved_by_recipient
+                ? 'Saved by both'
+                : (message.saved_by_sender === isOwn || message.saved_by_recipient === !isOwn)
+                  ? (isOwn ? (message.saved_by_sender ? 'You saved' : `${sender?.username || 'They'} saved`) : (message.saved_by_recipient ? 'You saved' : `${sender?.username || 'They'} saved`))
+                  : 'Saved'}
+            </span>
+          </div>
+        )}
+
         {/* Timestamp and read receipts - 6-8px below bubble */}
         <div className={cn(
           "flex items-center gap-1.5 mt-2",
@@ -2774,6 +2813,8 @@ const MessageBubble = memo(function MessageBubble({
             }
           } : undefined}
           onSaveSticker={isMediaMessage && message.media_url && onSaveSticker ? () => onSaveSticker(message.media_url!) : undefined}
+          onToggleKeep={onToggleSaved ? () => { onToggleSaved(); closeContextMenu(); } : undefined}
+          isKept={!!(message.saved_by_sender || message.saved_by_recipient)}
         />
 
         {/* Fullscreen image/video viewer */}
@@ -2812,6 +2853,8 @@ const MessageBubble = memo(function MessageBubble({
     prevProps.showReactions === nextProps.showReactions &&
     prevProps.profileId === nextProps.profileId &&
     prevProps.forceShowContextMenu === nextProps.forceShowContextMenu &&
+    prevProps.message.saved_by_sender === nextProps.message.saved_by_sender &&
+    prevProps.message.saved_by_recipient === nextProps.message.saved_by_recipient &&
     JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions) &&
     JSON.stringify(prevProps.message.views) === JSON.stringify(nextProps.message.views)
   );

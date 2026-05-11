@@ -1,95 +1,63 @@
-# Polish Pass: Thumbnails, Profile BG, Mobile Actions, Comments, Compass Map
+## 1. Real "Early Members" avatars on /vybe-home
 
-Five independent fixes. Each is scoped to UI/presentation only.
+Replace the static demo faces in the early-members chip on `src/pages/VybeHome.tsx` with the **top 4 public, opted-in profiles ranked by 24h engagement score**.
 
-## 1. Kill the white "play button" placeholder everywhere
+### Backend
+- Add column `feature_on_landing boolean default false` to `profiles` (opt-in).
+- Add a Settings → Privacy toggle "Feature me on the landing page" that writes this flag.
+- Create SECURITY DEFINER RPC `get_landing_top_creators(limit int default 4)` that returns `{id, username, display_name, avatar_url, score}`:
+  - Joins `posts` created in the last 24h with their reaction/comment/share/view counts.
+  - Score = `views*0.1 + likes*1 + comments*3 + saves*4 + shares*5` (matches the existing Ranked Discovery Algorithm memory).
+  - Filters: `profiles.is_private = false`, `feature_on_landing = true`, not banned.
+  - Orders by score desc, ties broken by most-recent post.
+  - `SET search_path = public`. Granted to `anon` + `authenticated` (landing page is public).
+- Cache result for 1h via a `landing_top_creators_cache` table or `localStorage`-side TTL; we'll use server-side `to_char(now(),'YYYY-MM-DD-HH')` as a memo bucket so it naturally rolls daily/hourly.
 
-**Problem:** Profile clips/videos render a white box with a giant play icon while the video loads (visible in screenshot 1). Same fallback also appears in some grid spots.
+### Frontend
+- New hook `src/hooks/useLandingTopCreators.ts` — React Query, `staleTime: 1h`, `refetchInterval: 1h`.
+- In `VybeHome.tsx`, replace the hard-coded `maya/jordan/leo/sky` array driving the early-members avatar stack with the hook's data. Map to existing square `<Avatar src=... />` component (pass `avatar_url` from Supabase storage; signed URL not required if avatars bucket is public, otherwise use `useSignedUrl`).
+- If <4 results returned, fill the remaining slots with the existing on-brand demo avatars so the row never looks empty.
+- Keep current visual treatment (overlap, ring, count label).
 
-**Fix:**
-- `src/components/posts/ClipsGrid.tsx` (`ClipThumbnail`): replace the bare `<video>` element with the existing `<VideoThumbnail videoUrl={clip.media_url} thumbnailUrl={clip.thumbnail_url}>` component, which generates a poster frame from the video and shows a soft muted gradient skeleton (never a white box) while loading.
-- Pass `thumbnail_url` through the clip query (check `useProfile` / wherever clips are fetched for the profile tab — add `thumbnail_url` to the select if missing).
-- `src/components/ui/VideoThumbnail.tsx`: tighten the loading state — remove the fallback `<Play>` icon entirely (the `hasError` branch). Replace with a subtle gradient placeholder so a missing thumbnail just looks like a dark card, never a play button.
-- Audit other call sites: `rg "Play.*h-(8|12|16)" src/components` and any place that renders `<Play>` as a fallback over media — swap for the gradient skeleton.
-- Cache generated poster frames in memory (Map keyed by media_url) so re-mounting the grid is instant.
+## 2. 48h disappearing DMs with tap-to-save
 
-## 2. Custom profile background should only show on that user's profile
+Default ON for **all 1:1 DMs** (group chats unaffected). Saved messages stay forever and visually flag on both sides.
 
-**Problem:** When a user sets a custom background, it follows them across pages (home, etc.) and other users' profiles also bleed it.
+### Backend
+- Add columns to `messages`:
+  - `expires_at timestamptz` — set to `created_at + interval '48 hours'` for new 1:1 DM messages (trigger `set_dm_expiry_on_insert`, only when `conversations.is_group = false`).
+  - `saved_by_sender boolean default false`
+  - `saved_by_recipient boolean default false`
+  - `saved_at timestamptz`
+- Computed `is_saved = saved_by_sender OR saved_by_recipient`. When either is true, a trigger nulls `expires_at`.
+- Cleanup: scheduled `pg_cron` job every 5 min runs
+  `UPDATE messages SET is_deleted = true, content = null, media_url = null WHERE expires_at < now() AND is_deleted = false;`
+  (soft delete to preserve thread structure & match existing `is_deleted` UX path).
+- RPC `toggle_message_saved(message_id uuid)`:
+  - Resolves whether caller is sender or recipient on that message's conversation.
+  - Toggles the corresponding column, sets/unsets `saved_at`, returns new state.
+  - Realtime: existing `useRealtimeMessages` UPDATE handler already updates cache on `messages` UPDATEs, so both sides see it instantly.
+- RLS: only conversation participants can call the RPC; cleanup runs as definer.
 
-**Fix:**
-- Find where the active background is applied to the DOM (likely `useApplyAutoTheme`, `useUserBackgrounds`, or a `<body>`/AppLayout effect that sets `body.style.backgroundImage`).
-- Move that DOM-write effect out of the global layout. Apply it ONLY inside the profile page component, scoped to a `<div>` wrapper for that profile, and ONLY when `profile.id === routeProfileId` (own profile) OR when viewing that specific user's profile (use the viewed profile's background, not the logged-in user's).
-- On unmount of the profile page, clear the background.
-- Remove any `body.style.backgroundImage` writes from global hooks.
+### Frontend
+- Extend `Message` type to include `expires_at`, `saved_by_sender`, `saved_by_recipient`, `saved_at`.
+- In `ChatView` / message bubble component:
+  - Render a small "⏱ 48h" hint under unsaved DM bubbles when remaining < 12h (subtle muted text).
+  - Tap-to-save: single tap on a DM bubble (1:1 only) toggles save via `toggle_message_saved`. Don't conflict with existing long-press hold menu — use a tap handler with movement threshold (`<5px` per the UI Cleanliness memory).
+  - Saved bubbles get a tinted style: outgoing → `bg-primary/30` with `ring-1 ring-primary/60`; incoming → `bg-cyan-500/15 ring-1 ring-cyan-400/40`. Tiny "Saved" label with an `Bookmark` icon below the bubble, prefixed with who saved it ("Saved by you" / "Saved by @handle"). Mirrors Snapchat behavior — both users see it.
+  - Add "Save / Unsave" entry to existing `DMHoldMenu` for accessibility.
+  - Hide expired (soft-deleted) messages from the list as the existing `is_deleted` path already does.
+- Optional toast on first save in a thread: "Kept — both of you can see it stays."
 
-## 3. Mobile profile action buttons — match desktop
-
-**Problem:** On mobile (screenshot 2), Message/Share/More live in a vertical scrolling stack on the right; ugly. Desktop shows them inline.
-
-**Fix:**
-- Locate the profile header component (likely `src/components/profile/ProfileHeader.tsx` or similar inside `src/pages/Profile`).
-- Remove the mobile-only vertical stack / overflow-scroll wrapper.
-- Use the same flex row layout as desktop: Follow/Message as full-width primary buttons under the stats row, with Share + More as 40px icon buttons inline. No horizontal or vertical scroll. Use `gap-2` and `flex-1` for the primary actions.
-
-## 4. Redesign comments sheet — premium feel
-
-**Problem:** Comments sheet (screenshot 3) is plain dark with a bordered comment "card" that looks dated.
-
-**Fix:**
-- File: `src/components/comments/*` (likely `CommentsSheet.tsx` / `CommentItem.tsx`).
-- New look:
-  - Remove the boxed border around each comment. Use flat row layout: avatar (36px) · column (username + small verified mark · text · meta row).
-  - Username: 13px semibold; comment body: 14px regular w/ `text-foreground/90`; meta (time · Reply · ❤️ count) in a single 11px row using `text-muted-foreground`.
-  - Like heart on the right, vertically centered, with count under it (Instagram-style).
-  - Replies indented 44px with a hairline left rule (`border-l border-border/40 pl-3`).
-  - Sheet header: drop the "1" count to a subtle badge next to "Comments", thinner divider, larger drag handle.
-  - Composer: pill input with inline emoji + send (purple→cyan gradient send button stays). "AI Suggest" becomes a small ghost chip above the input only when input is empty.
-  - Smooth `motion.div` stagger on initial mount.
-
-## 5. VYBE Map compass — pivot, gestures, default zoom
-
-**Problem statement (from user):**
-- Compass laggy / imprecise.
-- Dragging while compass-on rotates around a wrong point.
-- Want: in compass mode, only pinch-to-zoom is allowed; one-finger drag disables compass and restores the pre-compass map state; re-enabling compass snaps back to user-centered rotation; default zoom slightly further back.
-
-**Current state:** `FriendMap.tsx` uses `leaflet-rotate` with `setBearing(-heading)` (added last turn).
-
-**Fix:**
-
-a) **Lag / precision:**
-- The `deviceorientationabsolute` handler currently calls `setBearing` on every event (~60Hz on iOS). Throttle via `requestAnimationFrame` and only commit if the delta > 0.5°. Smooth with a small low-pass filter: `displayed = displayed + 0.25 * shortestAngleDelta(displayed, target)`.
-- Always pass `{ animate: false }` to `setBearing` to avoid leaflet-rotate's default tween fighting the next frame.
-
-b) **Pivot:**
-- After every compass update, re-pan so the user marker is at the screen center: `map.panTo(myCoords, { animate: false })` BEFORE `setBearing`. leaflet-rotate rotates around the map center, so centering the user guarantees rotation around them.
-- Remove the per-frame `latLngToContainerPoint` pivot trick — it's unnecessary once the user is the center.
-
-c) **Gesture rules in compass mode:**
-- When `headingUp` is enabled:
-  - Snapshot pre-compass state: `{ center, zoom, bearing: 0 }`.
-  - Disable Leaflet drag: `map.dragging.disable()` (keep `touchZoom`, `scrollWheelZoom`, `doubleClickZoom` enabled for pinch).
-  - Add a `touchstart`/`pointerdown` listener: if exactly 1 pointer moves more than ~8px, treat as drag → call `disableCompass()` which: re-enables `map.dragging`, animates `setBearing(0)`, animates `flyTo(snapshot.center, snapshot.zoom)`, sets `headingUp=false`.
-  - Re-enabling compass: snapshot current state again, animate `flyTo(myCoords, defaultCompassZoom)`, then start heading updates.
-
-d) **Default zoom further back:**
-- Add `const DEFAULT_COMPASS_ZOOM = 16` (current is likely 18). Use this when entering compass mode.
-
-e) **Cleanup:**
-- Remove the `?fakeOrbit=1` test code now that pivot is correct (or keep behind a more hidden flag). Remove the fake heading sweep too.
+### Out of scope
+- Group chat disappearing logic (left as future enhancement; the toggle is 1:1 only).
+- Per-message custom timers or per-conversation toggles.
+- Backfilling `expires_at` for historical messages (only new messages after migration get auto-expiry).
 
 ## Files touched
-
-- `src/components/posts/ClipsGrid.tsx`
-- `src/components/ui/VideoThumbnail.tsx`
-- Profile clips data hook (add `thumbnail_url` to select)
-- Background-applying hook (likely `src/hooks/useUserBackgrounds.ts` or `useApplyAutoTheme.ts`) + Profile page wrapper
-- Profile header component (mobile actions layout)
-- `src/components/comments/CommentsSheet.tsx` + `CommentItem.tsx`
-- `src/pages/FriendMap.tsx` (compass throttle, pivot, gesture rules, default zoom)
-
-## Out of scope
-
-- The 503 errors on `/calls` and `Failed to fetch` on Nominatim in the network log are transient backend/CDN issues, not code bugs — not addressed here.
-- The `/notifications` 403s belong to a separate RLS task.
+- `src/pages/VybeHome.tsx`
+- `src/hooks/useLandingTopCreators.ts` (new)
+- `src/components/chat/ChatView.tsx` (or the bubble subcomponent)
+- `src/components/chat/DMHoldMenu.tsx` (Save row)
+- Settings privacy panel (existing privacy settings page) — add toggle
+- Supabase migration: profiles column, messages columns + triggers, RPC, pg_cron job
