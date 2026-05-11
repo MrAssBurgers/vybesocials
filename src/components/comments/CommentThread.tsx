@@ -99,42 +99,43 @@ export const CommentThread = memo(function CommentThread({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
+      exit={{ opacity: 0, y: -6 }}
+      transition={{ duration: 0.18 }}
       className={cn(
         "flex gap-3 group",
-        depth > 0 && "ml-10 mt-3"
+        depth > 0 && "ml-11 mt-3 pl-3 border-l border-border/30"
       )}
     >
       <Link to={`/u/${comment.user.username}`} className="flex-shrink-0">
-        <Avatar className={cn("border border-border", depth === 0 ? "h-10 w-10" : "h-8 w-8")}>
+        <Avatar className={cn(depth === 0 ? "h-9 w-9" : "h-7 w-7")}>
           <AvatarImage src={signedAvatarUrl || undefined} />
-          <AvatarFallback>{comment.user.username?.[0]?.toUpperCase()}</AvatarFallback>
+          <AvatarFallback className="text-xs">{comment.user.username?.[0]?.toUpperCase()}</AvatarFallback>
         </Avatar>
       </Link>
 
       <div className="flex-1 min-w-0">
-        {/* Comment content - with blur overlay for moderate users */}
+        {/* Comment content - flat row, no bubble */}
         <div className="relative">
           <div className={cn(
-            "bg-muted/50 rounded-2xl px-4 py-2 transition-all",
+            "transition-all",
             isBlurred && "blur-md select-none pointer-events-none"
           )}>
-            <Link 
+            <Link
               to={`/u/${comment.user.username}`}
-              className="font-semibold text-sm hover:underline"
+              className="font-semibold text-[13px] hover:underline mr-1.5"
             >
               {comment.user.username}
             </Link>
-            <p className="text-sm mt-0.5 break-words">
+            <span className="text-[14px] text-foreground/90 leading-snug break-words">
               {renderTextWithMentions(comment.text)}
-            </p>
+            </span>
           </div>
 
           {/* Blur overlay with reveal button */}
           {isBlurred && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-muted/20 backdrop-blur-sm border border-border/50">
+            <div className="absolute inset-0 flex items-center justify-center">
               <Button
                 variant="secondary"
                 size="sm"
@@ -147,7 +148,6 @@ export const CommentThread = memo(function CommentThread({
             </div>
           )}
 
-          {/* Revealed indicator */}
           {isFlagged && revealed && filterLevel === 'moderate' && !isOwn && (
             <button
               onClick={() => setRevealed(false)}
