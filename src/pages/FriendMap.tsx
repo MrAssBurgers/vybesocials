@@ -871,31 +871,26 @@ function FriendMapInner() {
   }, [safeMyCoords, friendsArr]);
 
   /* ── Heading-up compass mode ─────────────────────────
-     Drives `heading` (0–360) from the device magnetometer. The bearing is
-     applied to leaflet-rotate via a separate effect below — keeping read
-     (sensor) and write (map) decoupled avoids feedback loops. */
+     Smooth-as-butter rotation: sensor writes a *target* heading into a ref
+     (no React re-render). A rAF loop interpolates a *displayed* heading
+     toward target every frame and calls map.setBearing imperatively.
+     React `heading` state is only updated ~8fps for the compass icon UI. */
+  const targetHeadingRef = useRef(0);
+  const displayedHeadingRef = useRef(0);
   useEffect(() => {
     if (!headingUp) {
       setHeading(0);
-      // Restore north-up cleanly when toggled off.
+      targetHeadingRef.current = 0;
+      displayedHeadingRef.current = 0;
       try { (mapRef.current as any)?.setBearing?.(0); } catch {}
       return;
     }
 
     // Dev-only fake heading sweep: ?fakeHeading=1 spins the map 0→360 over 8s
-    // so the compass can be QA'd on a desktop without a magnetometer.
     const params = new URLSearchParams(window.location.search);
-    if (params.get('fakeHeading') === '1') {
-      const start = performance.now();
-      const id = window.setInterval(() => {
-        const t = (performance.now() - start) / 8000;
-        setHeading(((t * 360) % 360 + 360) % 360);
-      }, 33);
-      return () => window.clearInterval(id);
-    }
+    const fake = params.get('fakeHeading') === '1';
 
-    let lastUpdate = 0;
-    let gotReading = false;
+    let gotReading = fake;
     let gotAbsolute = false;
 
     const screenAngle = (): number => {
@@ -917,20 +912,44 @@ function FriendMapInner() {
       if (raw == null || Number.isNaN(raw)) return;
       gotReading = true;
       if (isAbsoluteSource) gotAbsolute = true;
-
-      const now = performance.now();
-      if (now - lastUpdate < 80) return;
-      lastUpdate = now;
-      setHeading((prev) => {
-        let delta = raw! - prev;
-        if (delta > 180) delta -= 360;
-        if (delta < -180) delta += 360;
-        return (prev + delta * 0.25 + 360) % 360;
-      });
+      targetHeadingRef.current = ((raw % 360) + 360) % 360;
     };
 
     const absoluteHandler = makeHandler(true);
     const relativeHandler = makeHandler(false);
+
+    // rAF smoothing loop — drives the map imperatively
+    let rafId = 0;
+    let lastIconUpdate = 0;
+    const fakeStart = performance.now();
+    const tick = () => {
+      if (fake) {
+        const t = (performance.now() - fakeStart) / 8000;
+        targetHeadingRef.current = ((t * 360) % 360 + 360) % 360;
+      }
+      const target = targetHeadingRef.current;
+      let cur = displayedHeadingRef.current;
+      let delta = target - cur;
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      // Critically-damped exponential smoothing — buttery feel.
+      // Higher = snappier, lower = silkier. 0.18 ≈ ~150ms settle at 60fps.
+      cur = (cur + delta * 0.18 + 360) % 360;
+      displayedHeadingRef.current = cur;
+
+      const map: any = mapRef.current;
+      if (map?.setBearing) {
+        try { map.setBearing(-cur, { animate: false } as any); } catch {}
+      }
+
+      const now = performance.now();
+      if (now - lastIconUpdate > 120) {
+        lastIconUpdate = now;
+        setHeading(cur);
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
 
     let timeoutId: number | undefined;
     const start = async () => {
@@ -940,14 +959,16 @@ function FriendMapInner() {
           const res = await Req();
           if (res !== 'granted') { setHeadingUp(false); toast.error('Compass permission denied'); return; }
         }
-        window.addEventListener('deviceorientationabsolute', absoluteHandler as any, true);
-        window.addEventListener('deviceorientation', relativeHandler as any, true);
-        timeoutId = window.setTimeout(() => {
-          if (!gotReading) {
-            setHeadingUp(false);
-            toast.error('No compass detected on this device');
-          }
-        }, 2500);
+        if (!fake) {
+          window.addEventListener('deviceorientationabsolute', absoluteHandler as any, true);
+          window.addEventListener('deviceorientation', relativeHandler as any, true);
+          timeoutId = window.setTimeout(() => {
+            if (!gotReading) {
+              setHeadingUp(false);
+              toast.error('No compass detected on this device');
+            }
+          }, 2500);
+        }
       } catch (e) {
         console.warn('[FriendMap] compass start failed:', e);
         setHeadingUp(false);
@@ -955,6 +976,7 @@ function FriendMapInner() {
     };
     start();
     return () => {
+      cancelAnimationFrame(rafId);
       if (timeoutId) clearTimeout(timeoutId);
       window.removeEventListener('deviceorientationabsolute', absoluteHandler as any, true);
       window.removeEventListener('deviceorientation', relativeHandler as any, true);
@@ -1016,20 +1038,15 @@ function FriendMapInner() {
     };
   }, [headingUp]);
 
-  /* ── Apply heading-up bearing to the map (Google-Maps style) ──
-     Pans onto the user so they sit at the rotation pivot, then drives
-     leaflet-rotate's native `setBearing`. Markers stay upright natively. */
+  /* ── Keep the user marker at the rotation pivot ──
+     The rAF loop in the compass effect owns setBearing; here we just make
+     sure the user stays centered so rotation pivots around them. */
   useEffect(() => {
     if (!headingUp) return;
     const map: any = mapRef.current;
-    if (!map?.setBearing) return;
-    if (safeMyCoords) {
-      try {
-        map.panTo(safeMyCoords as any, { animate: false } as any);
-      } catch {}
-    }
-    try { map.setBearing(-heading, { animate: false } as any); } catch {}
-  }, [headingUp, heading, safeMyCoords]);
+    if (!map || !safeMyCoords) return;
+    try { map.panTo(safeMyCoords as any, { animate: false } as any); } catch {}
+  }, [headingUp, safeMyCoords]);
 
 
   /* ── render ────────────────────────────────────────── */
