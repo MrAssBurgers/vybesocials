@@ -1111,7 +1111,7 @@ function FriendMapInner() {
           {/* Compass / Heading-up toggle (long-press to reset rotation) */}
           <motion.button
             onClick={() => { setHeadingUp(v => !v); triggerHaptic('light'); }}
-            onContextMenu={(e) => { e.preventDefault(); setManualRotation(0); setHeadingUp(false); triggerHaptic('medium'); }}
+            onContextMenu={(e) => { e.preventDefault(); try { (mapRef.current as any)?.setBearing?.(0); } catch {} setManualRotation(0); setHeadingUp(false); triggerHaptic('medium'); }}
             whileTap={{ scale: 0.9 }}
             className={cn(
               'pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full backdrop-blur-xl transition-all',
