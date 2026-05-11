@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const VALID_REQUIREMENT_TYPES = [
@@ -296,6 +296,41 @@ Rules:
     }));
 
     await supabase.from("challenge_templates").insert(templateRows);
+
+    // 5. PURGE old challenges to save DB space
+    // Keep 7 days of dailies, 4 weeks of weeklies. Delete everything older.
+    try {
+      const purgeDailyBefore = new Date(now);
+      purgeDailyBefore.setUTCDate(now.getUTCDate() - 7);
+      const purgeWeeklyBefore = new Date(now);
+      purgeWeeklyBefore.setUTCDate(now.getUTCDate() - 28);
+      const dailyCutoff = purgeDailyBefore.toISOString().split("T")[0];
+      const weeklyCutoff = purgeWeeklyBefore.toISOString().split("T")[0];
+
+      const { count: deletedDaily } = await supabase
+        .from("challenges")
+        .delete({ count: "exact" })
+        .eq("type", "daily")
+        .lt("active_date", dailyCutoff);
+
+      const { count: deletedWeekly } = await supabase
+        .from("challenges")
+        .delete({ count: "exact" })
+        .eq("type", "weekly")
+        .lt("active_week_start", weeklyCutoff);
+
+      // Trim challenge_templates older than 30 days
+      const tplCutoff = new Date(now);
+      tplCutoff.setUTCDate(now.getUTCDate() - 30);
+      const { count: deletedTpl } = await supabase
+        .from("challenge_templates")
+        .delete({ count: "exact" })
+        .lt("created_at", tplCutoff.toISOString());
+
+      console.log(`Purged old challenges: daily=${deletedDaily ?? 0}, weekly=${deletedWeekly ?? 0}, templates=${deletedTpl ?? 0}`);
+    } catch (purgeErr) {
+      console.error("Purge step failed (non-fatal):", purgeErr);
+    }
 
     console.log(`Generated ${challengeRows.length} AI challenges for today (${today}), week (${weekStart})`);
 
