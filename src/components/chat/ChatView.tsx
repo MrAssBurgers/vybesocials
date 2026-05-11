@@ -277,6 +277,19 @@ export function ChatView() {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showSnapCamera, setShowSnapCamera] = useState(false);
   const [cameraFirstMode, setCameraFirstMode] = useState(false);
+  const callStore = useCallStore();
+  const handleOpenSnapCamera = useCallback(() => {
+    if (callStore.state.phase !== 'idle') {
+      toast.error('End your call to use the camera');
+      return;
+    }
+    try { stopCameraStream(); } catch {}
+    // Fire-and-forget; never let an unhandled rejection crash the WebView
+    Promise.resolve()
+      .then(() => requestCameraStream({ facingMode: 'environment', width: 1920, height: 1080, audio: true }))
+      .catch((e) => console.warn('[ChatView] camera preload failed', e));
+    setShowSnapCamera(true);
+  }, [callStore.state.phase]);
   const [showScreenshotAlert, setShowScreenshotAlert] = useState(false);
   const [screenshotUser, setScreenshotUser] = useState<string | undefined>();
   // Video preview state
