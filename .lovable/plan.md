@@ -1,71 +1,95 @@
-## Why the compass is wrong today
+# Polish Pass: Thumbnails, Profile BG, Mobile Actions, Comments, Compass Map
 
-`src/pages/FriendMap.tsx` (lines 818–1013) fakes rotation by CSS-transforming Leaflet's `.leaflet-map-pane`:
+Five independent fixes. Each is scoped to UI/presentation only.
 
-- Rotates the entire pane with `transform: rotate(...) scale(cover)`
-- Counter-rotates every marker via `--map-counter-rot` CSS var
-- Disables Leaflet `dragging` while rotated (so panning is broken)
-- Re-applies on every `move`/`zoom`, while another effect also pans the map to follow the user — creating a feedback loop and visible "drift" / jitter
-- Cover-scale hack to hide blank corners distorts tile positions, so the avatar is no longer pinned exactly to its real GPS pixel
-- Counter-rotation is per-marker DOM, so popups, clusters, the accuracy circle and weather tiles drift
+## 1. Kill the white "play button" placeholder everywhere
 
-Leaflet has no real bearing support — that's the root cause.
+**Problem:** Profile clips/videos render a white box with a giant play icon while the video loads (visible in screenshot 1). Same fallback also appears in some grid spots.
 
-## Fix: native bearing rotation (Google-Maps style)
+**Fix:**
+- `src/components/posts/ClipsGrid.tsx` (`ClipThumbnail`): replace the bare `<video>` element with the existing `<VideoThumbnail videoUrl={clip.media_url} thumbnailUrl={clip.thumbnail_url}>` component, which generates a poster frame from the video and shows a soft muted gradient skeleton (never a white box) while loading.
+- Pass `thumbnail_url` through the clip query (check `useProfile` / wherever clips are fetched for the profile tab — add `thumbnail_url` to the select if missing).
+- `src/components/ui/VideoThumbnail.tsx`: tighten the loading state — remove the fallback `<Play>` icon entirely (the `hasError` branch). Replace with a subtle gradient placeholder so a missing thumbnail just looks like a dark card, never a play button.
+- Audit other call sites: `rg "Play.*h-(8|12|16)" src/components` and any place that renders `<Play>` as a fallback over media — swap for the gradient skeleton.
+- Cache generated poster frames in memory (Map keyed by media_url) so re-mounting the grid is instant.
 
-Two viable paths. I recommend Path A; Path B is the fallback if A doesn't behave on iOS.
+## 2. Custom profile background should only show on that user's profile
 
-### Path A (recommended) — Add `leaflet-rotate`
+**Problem:** When a user sets a custom background, it follows them across pages (home, etc.) and other users' profiles also bleed it.
 
-`leaflet-rotate` is a small, maintained plugin that monkey-patches Leaflet to add real `bearing`, `setBearing()`, `rotate: true` map option, and a rotated-pan handler. No tile re-layout, no CSS hacks, markers natively stay upright.
+**Fix:**
+- Find where the active background is applied to the DOM (likely `useApplyAutoTheme`, `useUserBackgrounds`, or a `<body>`/AppLayout effect that sets `body.style.backgroundImage`).
+- Move that DOM-write effect out of the global layout. Apply it ONLY inside the profile page component, scoped to a `<div>` wrapper for that profile, and ONLY when `profile.id === routeProfileId` (own profile) OR when viewing that specific user's profile (use the viewed profile's background, not the logged-in user's).
+- On unmount of the profile page, clear the background.
+- Remove any `body.style.backgroundImage` writes from global hooks.
 
-Steps:
+## 3. Mobile profile action buttons — match desktop
 
-1. `bun add leaflet-rotate`
-2. In `FriendMap.tsx`, `import 'leaflet-rotate'` after `import L from 'leaflet'`
-3. Pass `rotate: true, bearing: 0, touchRotate: true, rotateControl: false` when constructing the map
-4. Delete the entire CSS-rotate effect (lines ~964–1013), the marker counter-rotate CSS (~1061), the `dragging.disable()` call, and the two-finger twist effect (~914–953) — `touchRotate: true` handles two-finger twist natively
-5. Replace heading-up application with `map.setBearing(-heading, { around: map.latLngToContainerPoint(safeMyCoords) })` inside the orientation handler — rotation pivots exactly around the avatar
-6. Keep the existing `deviceorientationabsolute` / `webkitCompassHeading` logic from lines 842–876 — that part is correct
-7. Remove the auto-pan follow effect (~955–962); with `setBearing({ around: userPoint })` the avatar stays put without panning
+**Problem:** On mobile (screenshot 2), Message/Share/More live in a vertical scrolling stack on the right; ugly. Desktop shows them inline.
 
-### Path B (fallback) — Migrate to MapLibre GL JS
+**Fix:**
+- Locate the profile header component (likely `src/components/profile/ProfileHeader.tsx` or similar inside `src/pages/Profile`).
+- Remove the mobile-only vertical stack / overflow-scroll wrapper.
+- Use the same flex row layout as desktop: Follow/Message as full-width primary buttons under the stats row, with Share + More as 40px icon buttons inline. No horizontal or vertical scroll. Use `gap-2` and `flex-1` for the primary actions.
 
-If `leaflet-rotate` misbehaves on iOS Safari, swap Leaflet for MapLibre (`bun add maplibre-gl`). MapLibre has first-class `bearing`, `easeTo({ bearing, around })`, vector tiles, and avatar markers that stay upright via `rotationAlignment: 'viewport'`. Free OSM raster tiles work without an API key. Bigger refactor (~1 day) but bulletproof.
+## 4. Redesign comments sheet — premium feel
 
-Google Maps and Apple MapKit JS both require paid keys / Apple Developer JWT setup, so I'm not proposing those unless you specifically want them.
+**Problem:** Comments sheet (screenshot 3) is plain dark with a bordered comment "card" that looks dated.
 
-## Test harness — fake orbiting user
+**Fix:**
+- File: `src/components/comments/*` (likely `CommentsSheet.tsx` / `CommentItem.tsx`).
+- New look:
+  - Remove the boxed border around each comment. Use flat row layout: avatar (36px) · column (username + small verified mark · text · meta row).
+  - Username: 13px semibold; comment body: 14px regular w/ `text-foreground/90`; meta (time · Reply · ❤️ count) in a single 11px row using `text-muted-foreground`.
+  - Like heart on the right, vertically centered, with count under it (Instagram-style).
+  - Replies indented 44px with a hairline left rule (`border-l border-border/40 pl-3`).
+  - Sheet header: drop the "1" count to a subtle badge next to "Comments", thinner divider, larger drag handle.
+  - Composer: pill input with inline emoji + send (purple→cyan gradient send button stays). "AI Suggest" becomes a small ghost chip above the input only when input is empty.
+  - Smooth `motion.div` stagger on initial mount.
 
-To verify rotation pivots perfectly on the user (without walking around outside), add a dev-only fake-user that orbits the real avatar:
+## 5. VYBE Map compass — pivot, gestures, default zoom
 
-1. Add a `?fakeOrbit=1` query param check at the top of `FriendMap.tsx`
-2. When set, start an interval that updates a synthetic friend at `safeMyCoords` + `(cos t * 50m, sin t * 50m)`, t advancing every 50ms
-3. Render it as a regular friend marker (red dot labelled "TEST")
-4. With heading-up ON, the orbiting dot should trace a perfect circle around the stationary avatar at the screen center; if it doesn't, the pivot is still wrong
-5. Also add a "Fake heading sweep" toggle that, instead of using the real magnetometer, drives `setHeading` from 0→360 over 8s — lets us verify rotation on a desktop with no compass
+**Problem statement (from user):**
+- Compass laggy / imprecise.
+- Dragging while compass-on rotates around a wrong point.
+- Want: in compass mode, only pinch-to-zoom is allowed; one-finger drag disables compass and restores the pre-compass map state; re-enabling compass snaps back to user-centered rotation; default zoom slightly further back.
 
-This harness stays behind the query param so it never ships to normal users.
+**Current state:** `FriendMap.tsx` uses `leaflet-rotate` with `setBearing(-heading)` (added last turn).
 
-## QA checklist (I'll run all of these before saying done)
+**Fix:**
 
-- Heading-up ON, stand still: avatar dot is pinned to one screen pixel as the world spins
-- Two-finger twist (compass OFF): map rotates smoothly, avatar still pinned
-- Pan with one finger while rotated: works (currently broken)
-- Pinch-zoom while rotated: works, avatar stays pinned
-- iOS Safari: `webkitCompassHeading` path triggers, no jitter
-- Android Chrome: `deviceorientationabsolute` path triggers, no double-handler jitter
-- Desktop (no magnetometer): toast "No compass detected" still fires after 2.5s
-- Fake orbit: dot traces a clean circle around stationary avatar
-- Markers, accuracy circle, popups, weather chip stay upright
-- Toggle heading-up off → map snaps back to north-up cleanly with no leftover transforms
+a) **Lag / precision:**
+- The `deviceorientationabsolute` handler currently calls `setBearing` on every event (~60Hz on iOS). Throttle via `requestAnimationFrame` and only commit if the delta > 0.5°. Smooth with a small low-pass filter: `displayed = displayed + 0.25 * shortestAngleDelta(displayed, target)`.
+- Always pass `{ animate: false }` to `setBearing` to avoid leaflet-rotate's default tween fighting the next frame.
+
+b) **Pivot:**
+- After every compass update, re-pan so the user marker is at the screen center: `map.panTo(myCoords, { animate: false })` BEFORE `setBearing`. leaflet-rotate rotates around the map center, so centering the user guarantees rotation around them.
+- Remove the per-frame `latLngToContainerPoint` pivot trick — it's unnecessary once the user is the center.
+
+c) **Gesture rules in compass mode:**
+- When `headingUp` is enabled:
+  - Snapshot pre-compass state: `{ center, zoom, bearing: 0 }`.
+  - Disable Leaflet drag: `map.dragging.disable()` (keep `touchZoom`, `scrollWheelZoom`, `doubleClickZoom` enabled for pinch).
+  - Add a `touchstart`/`pointerdown` listener: if exactly 1 pointer moves more than ~8px, treat as drag → call `disableCompass()` which: re-enables `map.dragging`, animates `setBearing(0)`, animates `flyTo(snapshot.center, snapshot.zoom)`, sets `headingUp=false`.
+  - Re-enabling compass: snapshot current state again, animate `flyTo(myCoords, defaultCompassZoom)`, then start heading updates.
+
+d) **Default zoom further back:**
+- Add `const DEFAULT_COMPASS_ZOOM = 16` (current is likely 18). Use this when entering compass mode.
+
+e) **Cleanup:**
+- Remove the `?fakeOrbit=1` test code now that pivot is correct (or keep behind a more hidden flag). Remove the fake heading sweep too.
 
 ## Files touched
 
-- `package.json` (+1 dep)
-- `src/pages/FriendMap.tsx` (rewrite of compass + rotation block, ~200 lines net delete)
-- No DB / backend changes
+- `src/components/posts/ClipsGrid.tsx`
+- `src/components/ui/VideoThumbnail.tsx`
+- Profile clips data hook (add `thumbnail_url` to select)
+- Background-applying hook (likely `src/hooks/useUserBackgrounds.ts` or `useApplyAutoTheme.ts`) + Profile page wrapper
+- Profile header component (mobile actions layout)
+- `src/components/comments/CommentsSheet.tsx` + `CommentItem.tsx`
+- `src/pages/FriendMap.tsx` (compass throttle, pivot, gesture rules, default zoom)
 
-## Risk
+## Out of scope
 
-`leaflet-rotate` is community-maintained, last release ~2023. It's stable but not part of core Leaflet. If we ever upgrade `leaflet` to 2.x it may need replacement — that's when we'd jump to Path B (MapLibre).
+- The 503 errors on `/calls` and `Failed to fetch` on Nominatim in the network log are transient backend/CDN issues, not code bugs — not addressed here.
+- The `/notifications` 403s belong to a separate RLS task.
