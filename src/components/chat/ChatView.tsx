@@ -2460,6 +2460,8 @@ const MessageBubble = memo(function MessageBubble({
             if (target.closest('button, a, input, textarea')) return;
             onToggleSaved();
           }}
+          onContextMenu={handleContextMenu}
+          onDoubleClick={onToggleReactions}
         >
 
           {/* Image/GIF message (not for shared posts - they use SharedPostBubble) */}
