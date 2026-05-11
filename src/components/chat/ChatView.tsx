@@ -94,7 +94,9 @@ import {
 import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
-import { requestCameraStream } from '@/hooks/useCameraPreload';
+import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
+import { requestCameraStream, stopCameraStream } from '@/hooks/useCameraPreload';
+import { useCallStore } from '@/lib/callStore';
 import { VybeViewer } from './VybeViewer';
 import { CameraFirstOverlay } from './CameraFirstOverlay';
 // Flying bubble removed - messages now pop in like iMessage
@@ -275,6 +277,19 @@ export function ChatView() {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showSnapCamera, setShowSnapCamera] = useState(false);
   const [cameraFirstMode, setCameraFirstMode] = useState(false);
+  const callStore = useCallStore();
+  const handleOpenSnapCamera = useCallback(() => {
+    if (callStore.state.phase !== 'idle') {
+      toast.error('End your call to use the camera');
+      return;
+    }
+    try { stopCameraStream(); } catch {}
+    // Fire-and-forget; never let an unhandled rejection crash the WebView
+    Promise.resolve()
+      .then(() => requestCameraStream({ facingMode: 'environment', width: 1920, height: 1080, audio: true }))
+      .catch((e) => console.warn('[ChatView] camera preload failed', e));
+    setShowSnapCamera(true);
+  }, [callStore.state.phase]);
   const [showScreenshotAlert, setShowScreenshotAlert] = useState(false);
   const [screenshotUser, setScreenshotUser] = useState<string | undefined>();
   // Video preview state
@@ -1731,11 +1746,13 @@ export function ChatView() {
 
       {/* VYBE Camera Modal — only mount when open to avoid heavy AR/MediaPipe init in DM view */}
       {showSnapCamera && (
-        <VybeSnapCamera
-          isOpen={showSnapCamera}
-          onClose={() => setShowSnapCamera(false)}
-          onSend={handleVybeSend}
-        />
+        <CameraMountBoundary onError={() => setShowSnapCamera(false)}>
+          <VybeSnapCamera
+            isOpen={showSnapCamera}
+            onClose={() => setShowSnapCamera(false)}
+            onSend={handleVybeSend}
+          />
+        </CameraMountBoundary>
       )}
 
       {/* Video Send Preview Modal */}
@@ -1785,7 +1802,7 @@ export function ChatView() {
             onOpenScheduleMessage={() => setShowScheduleMessage(true)}
             onOpenDMSettings={() => setShowDMSettings(true)}
             onOpenAdminPanel={!isGroupChat ? () => setShowAdminPanel(true) : undefined}
-            onOpenSnapCamera={() => { requestCameraStream({ facingMode: 'environment', width: 1920, height: 1080, audio: true }); setShowSnapCamera(true); }}
+            onOpenSnapCamera={handleOpenSnapCamera}
             onCreateOffer={userBusiness ? () => setShowOfferDialog(true) : undefined}
             hasBusinessProfile={!!userBusiness}
             presentUsers={presentUsers}
@@ -1842,7 +1859,7 @@ export function ChatView() {
           onOpenScheduleMessage={() => setShowScheduleMessage(true)}
           onOpenDMSettings={() => setShowDMSettings(true)}
           onOpenAdminPanel={!isGroupChat ? () => setShowAdminPanel(true) : undefined}
-          onOpenSnapCamera={() => { requestCameraStream({ facingMode: 'environment', width: 1920, height: 1080, audio: true }); setShowSnapCamera(true); }}
+          onOpenSnapCamera={handleOpenSnapCamera}
           onCreateOffer={userBusiness ? () => setShowOfferDialog(true) : undefined}
           hasBusinessProfile={!!userBusiness}
           presentUsers={presentUsers}

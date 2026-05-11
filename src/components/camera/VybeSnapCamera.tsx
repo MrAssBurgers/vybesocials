@@ -255,11 +255,12 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   }, [isOpen, stopCamera, startCamera]);
 
   useEffect(() => {
+    if (!cameraReady) return;
     if (streamRef.current && videoRef.current && !videoRef.current.srcObject) {
       videoRef.current.srcObject = streamRef.current;
       videoRef.current.play().catch(() => {});
     }
-  });
+  }, [cameraReady]);
 
   // Pinch-to-zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -290,11 +291,18 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
 
   const startRecordingSegment = useCallback(() => {
     if (!streamRef.current) return;
+    if (typeof MediaRecorder === 'undefined') {
+      console.warn('[VybeSnapCamera] MediaRecorder not available on this device');
+      return;
+    }
     recordedChunksRef.current = [];
 
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+    const supports = (t: string) => {
+      try { return MediaRecorder.isTypeSupported?.(t); } catch { return false; }
+    };
+    const mimeType = supports('video/webm;codecs=vp9')
       ? 'video/webm;codecs=vp9'
-      : MediaRecorder.isTypeSupported('video/webm')
+      : supports('video/webm')
         ? 'video/webm'
         : 'video/mp4';
 
