@@ -2428,9 +2428,11 @@ const MessageBubble = memo(function MessageBubble({
               onDeleteForMe={onDeleteForMe}
             />
           </div>
+        {(() => null)()}
+        {/* Saved-state derived flags */}
         <div
           className={cn(
-            'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0 w-fit',
+            'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0 w-fit transition-shadow',
             isEmojiOnly 
               ? 'px-3 py-2'
               : isMediaMessage
@@ -2441,11 +2443,23 @@ const MessageBubble = memo(function MessageBubble({
               : 'bg-muted/70 text-foreground rounded-bl-lg',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
-            repliedMessage && 'rounded-t-[14px]'
+            repliedMessage && 'rounded-t-[14px]',
+            (message.saved_by_sender || message.saved_by_recipient) && (isOwn
+              ? 'ring-1 ring-primary/70 shadow-[0_0_18px_-4px_hsl(var(--primary)/0.55)]'
+              : 'ring-1 ring-cyan-400/60 shadow-[0_0_18px_-4px_rgba(34,211,238,0.45)]')
           )}
           data-message-id={message.id}
-          onContextMenu={handleContextMenu}
-          onDoubleClick={onToggleReactions}
+          onClick={(e) => {
+            // Tap-to-save: only fires on text/emoji bubbles in 1:1 DMs.
+            // Media bubbles already handle taps to open the viewer.
+            if (!onToggleSaved) return;
+            if (isMediaMessage || isVideoMessage || isVybeMessage || isAudioMessage || isSharedPost) return;
+            if (isContextMenuOpen) return;
+            // Ignore taps that originated from interactive children
+            const target = e.target as HTMLElement;
+            if (target.closest('button, a, input, textarea')) return;
+            onToggleSaved();
+          }}
         >
 
           {/* Image/GIF message (not for shared posts - they use SharedPostBubble) */}
