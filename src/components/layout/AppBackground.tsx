@@ -145,69 +145,29 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Auto-load user's active background on auth
+  // NOTE: Custom user backgrounds are scoped to the profile page only.
+  // We do NOT auto-load the logged-in user's background here — the Profile
+  // page is responsible for setting/clearing the background for the profile
+  // currently being viewed (own or other). This prevents the background from
+  // following the user across home/messages/etc.
   const refreshBackground = useCallback(async () => {
     const profileId = profile?.id;
     if (!profileId) {
-      // Logged out — clear any background that was applied to body
       rawUrlRef.current = null;
       hasLoadedRef.current = false;
       setBackground(prev => ({ ...prev, imageUrl: null }));
       clearBodyBackground();
-      return;
     }
-    
-    try {
-      // First try the active background
-      const { data } = await supabase
-        .from('user_backgrounds')
-        .select('id, image_url')
-        .eq('user_id', profileId)
-        .eq('is_active', true)
-        .maybeSingle();
-      
-      if (data?.image_url) {
-        rawUrlRef.current = data.image_url;
-        await signAndApply(data.image_url);
-        hasLoadedRef.current = true;
-        return;
-      }
-      
-      // Fallback: no active background - try the most recent one and repair
-      const { data: latestBg } = await supabase
-        .from('user_backgrounds')
-        .select('id, image_url')
-        .eq('user_id', profileId)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (latestBg?.image_url) {
-        rawUrlRef.current = latestBg.image_url;
-        await signAndApply(latestBg.image_url);
-        hasLoadedRef.current = true;
-        // Best-effort repair: mark it active
-        supabase
-          .from('user_backgrounds')
-          .update({ is_active: true })
-          .eq('id', latestBg.id)
-          .then(() => {});
-        return;
-      }
-      
-      // No backgrounds at all
-      if (!hasLoadedRef.current) {
-        rawUrlRef.current = null;
-        setBackground(prev => ({ ...prev, imageUrl: null }));
-      }
-    } catch (err) {
-      console.warn('[AppBackground] Failed to load background:', err);
-    }
-  }, [profile?.id, signAndApply]);
+  }, [profile?.id]);
 
+  // Always clear the body background when auth changes; the profile page will
+  // re-apply it when appropriate.
   useEffect(() => {
-    refreshBackground();
-  }, [refreshBackground]);
+    rawUrlRef.current = null;
+    hasLoadedRef.current = false;
+    setBackground(prev => ({ ...prev, imageUrl: null }));
+    clearBodyBackground();
+  }, [profile?.id]);
 
   // Re-sign every 45 minutes to prevent expiry
   useEffect(() => {
