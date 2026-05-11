@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, X, Eye } from 'lucide-react';
+import { X, Eye } from 'lucide-react';
 import { ShortCard } from './ShortCard';
 import { Button } from '@/components/ui/button';
-import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
 
 interface ClipPost {
   id: string;
   media_url: string;
+  thumbnail_url?: string | null;
   caption: string;
   tags: string[];
   author: {
