@@ -1598,6 +1598,7 @@ export function ChatView() {
                     onScrollToMessage={scrollToMessage}
                     forceShowContextMenu={showContextMenuMessageId === message.id}
                     onCloseContextMenu={() => setShowContextMenuMessageId(null)}
+                    onToggleSaved={!isGroupChat ? () => toggleSaved.mutate(message.id) : undefined}
                   />
                 </SwipeToReply>
               </div>
@@ -2233,6 +2234,7 @@ const MessageBubble = memo(function MessageBubble({
   onSaveSticker,
   forceShowContextMenu = false,
   onCloseContextMenu,
+  onToggleSaved,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -2256,6 +2258,7 @@ const MessageBubble = memo(function MessageBubble({
   onScrollToMessage?: (messageId: string) => void;
   forceShowContextMenu?: boolean;
   onCloseContextMenu?: () => void;
+  onToggleSaved?: () => void;
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const hasAnyViews = message.views && message.views.length > 0;
