@@ -133,6 +133,13 @@ export const DMHoldMenu = memo(function DMHoldMenu({
 
             <MenuRow icon={Reply} label="Reply" onClick={() => handleAction(onReply)} />
 
+            {onToggleKeep && (
+              <>
+                <MenuDivider />
+                <MenuRow icon={Bookmark} label={isKept ? 'Unsave' : 'Save (keep forever)'} onClick={() => handleAction(onToggleKeep)} />
+              </>
+            )}
+
             {messageContent && (
               <>
                 <MenuDivider />
