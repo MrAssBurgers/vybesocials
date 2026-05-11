@@ -1,7 +1,9 @@
 import { memo, useState, useEffect, useRef } from 'react';
-import { Play } from 'lucide-react';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
+
+// In-memory poster cache so re-mounting the grid is instant
+const posterCache = new Map<string, string>();
 
 interface VideoThumbnailProps {
   videoUrl: string;
