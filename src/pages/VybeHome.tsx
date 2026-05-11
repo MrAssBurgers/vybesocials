@@ -41,6 +41,27 @@ const PhoneFrame = memo(function PhoneFrame({
   );
 });
 
+/** Real polished screenshot rendered at the same footprint as PhoneFrame.
+ *  The PNGs in /marketing/device/ already include a device frame + dynamic
+ *  island + brand background, so we render them directly without wrapping. */
+const RealPhone = memo(function RealPhone({
+  src,
+  alt,
+  className,
+}: { src: string; alt: string; className?: string }) {
+  return (
+    <div className={cn('relative mx-auto', className)}>
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        className="block w-[260px] sm:w-[280px] h-auto drop-shadow-[0_30px_80px_rgba(139,92,246,0.45)]"
+      />
+    </div>
+  );
+});
+
 const SectionWrap = ({ children, className }: { children: React.ReactNode; className?: string }) => (
   <section className={cn('relative py-20 sm:py-28 px-6', className)}>
     <div className="max-w-7xl mx-auto">{children}</div>
