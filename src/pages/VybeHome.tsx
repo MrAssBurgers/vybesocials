@@ -821,8 +821,8 @@ const VybeHome = memo(function VybeHome() {
               </a>
             </div>
             <div className="mt-8 flex items-center gap-6 text-xs text-white/50">
-              <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Free forever</div>
-              <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> No ads in DMs</div>
+              <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> End-to-end encrypted DMs</div>
+              <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Built for Gen Z creators</div>
               <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> AI-powered safety</div>
             </div>
           </FadeIn>
