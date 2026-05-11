@@ -860,7 +860,7 @@ const VybeHome = memo(function VybeHome() {
             title="An app that learns who you are."
             desc="Every reaction, share, and second of attention shapes your personal DNA. Your feed, friend suggestions, and even the UI itself evolve to match. Nobody else has this."
             bullets={['30-day evolving personality vector','Re-skins your feed automatically','Shareable DNA card you\'ll want to post']}
-            phone={<PhoneFrame><DNAPhone /></PhoneFrame>}
+            phone={<RealPhone src="/marketing/device/dna.png" alt="VYBE DNA personality screen" />}
           />
         </FadeIn>
       </SectionWrap>
