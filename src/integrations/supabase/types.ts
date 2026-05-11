@@ -6347,6 +6347,9 @@ export type Database = {
           reply_to_id: string | null
           safety_categories: string[] | null
           safety_score: number | null
+          saved_at: string | null
+          saved_by_recipient: boolean
+          saved_by_sender: boolean
           sender_id: string
           view_mode: string | null
           viewed_at: string | null
@@ -6375,6 +6378,9 @@ export type Database = {
           reply_to_id?: string | null
           safety_categories?: string[] | null
           safety_score?: number | null
+          saved_at?: string | null
+          saved_by_recipient?: boolean
+          saved_by_sender?: boolean
           sender_id: string
           view_mode?: string | null
           viewed_at?: string | null
@@ -6403,6 +6409,9 @@ export type Database = {
           reply_to_id?: string | null
           safety_categories?: string[] | null
           safety_score?: number | null
+          saved_at?: string | null
+          saved_by_recipient?: boolean
+          saved_by_sender?: boolean
           sender_id?: string
           view_mode?: string | null
           viewed_at?: string | null
@@ -7396,6 +7405,7 @@ export type Database = {
           equipped_name_color: string | null
           equipped_profile_theme: string | null
           equipped_title: string | null
+          feature_on_landing: boolean
           first_name: string | null
           founder_badge_seen: boolean | null
           id: string
@@ -7444,6 +7454,7 @@ export type Database = {
           equipped_name_color?: string | null
           equipped_profile_theme?: string | null
           equipped_title?: string | null
+          feature_on_landing?: boolean
           first_name?: string | null
           founder_badge_seen?: boolean | null
           id?: string
@@ -7492,6 +7503,7 @@ export type Database = {
           equipped_name_color?: string | null
           equipped_profile_theme?: string | null
           equipped_title?: string | null
+          feature_on_landing?: boolean
           first_name?: string | null
           founder_badge_seen?: boolean | null
           id?: string
@@ -12371,6 +12383,7 @@ export type Database = {
         Returns: Json
       }
       claim_profile_by_email: { Args: never; Returns: string }
+      cleanup_expired_messages: { Args: never; Returns: undefined }
       cleanup_expired_reset_tokens: { Args: never; Returns: undefined }
       cleanup_expired_trashed_conversations: { Args: never; Returns: undefined }
       cleanup_old_error_logs: { Args: never; Returns: undefined }
@@ -12540,6 +12553,16 @@ export type Database = {
           gif_url: string
           id: string
           user_id: string
+        }[]
+      }
+      get_landing_top_creators: {
+        Args: { _limit?: number }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          score: number
+          username: string
         }[]
       }
       get_like_count: { Args: { p_post_id: string }; Returns: number }
@@ -12930,6 +12953,15 @@ export type Database = {
       sync_user_challenge_progress: {
         Args: { p_auth_user_id: string }
         Returns: undefined
+      }
+      toggle_message_saved: {
+        Args: { _message_id: string }
+        Returns: {
+          expires_at: string
+          saved_at: string
+          saved_by_recipient: boolean
+          saved_by_sender: boolean
+        }[]
       }
       track_daily_login: { Args: never; Returns: Json }
       trigger_badge_sync_for_user: {
