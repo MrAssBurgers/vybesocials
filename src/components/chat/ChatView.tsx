@@ -97,7 +97,6 @@ import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
 import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
 import { requestCameraStream, stopCameraStream } from '@/hooks/useCameraPreload';
 import { useCallStore } from '@/lib/callStore';
-import { toast } from 'sonner';
 import { VybeViewer } from './VybeViewer';
 import { CameraFirstOverlay } from './CameraFirstOverlay';
 // Flying bubble removed - messages now pop in like iMessage
