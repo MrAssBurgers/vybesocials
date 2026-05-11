@@ -128,6 +128,7 @@ export default function ProfilePage() {
   const clipsForGrid = shortPosts.map(post => ({
     id: post.id,
     media_url: post.media_url,
+    thumbnail_url: (post as any).thumbnail_url ?? null,
     caption: post.caption || '',
     tags: post.tags || [],
     author: post.author,
