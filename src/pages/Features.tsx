@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Map as MapIcon, Shield, Music, Users, Zap, Heart, MessageCircle, Camera, Trophy, Bot, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PublicFooter } from '@/components/marketing/PublicFooter';
+import { useAppScreenshots } from '@/hooks/useAppScreenshots';
 
 const features = [
   { icon: Bot, title: 'VYBE AI Assistant', body: 'A real-time, multi-modal AI built into the app. Ask it anything, generate images, get personalized recommendations, or have it summarize your day. Powered by Gemini and GPT-5 through a unified gateway, with auto-switching for cost and speed.' },
