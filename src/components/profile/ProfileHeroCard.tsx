@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuLab
 import { ModeratorMenuItems } from '@/components/moderation/ModeratorActionsMenu';
 import { PremiumMemeBanMenuItem } from '@/components/premium/PremiumMemeBanItems';
 import { useUserStatusById } from '@/hooks/useUserStatus';
+import { VybeScore } from '@/components/profile/VybeScore';
 
 interface ProfileHeroCardProps {
   profile: any;
@@ -162,6 +163,10 @@ export function ProfileHeroCard({
             {profile.display_name && (
               <p className="text-xs text-muted-foreground mt-0.5">@{profile.username}</p>
             )}
+
+            <div className="mt-1.5">
+              <VybeScore profileId={profile.id} isOwnProfile={isOwnProfile} />
+            </div>
 
             {/* Vibe status pill */}
             {status && (

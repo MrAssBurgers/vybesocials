@@ -11515,6 +11515,112 @@ export type Database = {
         }
         Relationships: []
       }
+      vybe_score_events: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          points: number
+          profile_id: string
+          target_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          points: number
+          profile_id: string
+          target_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          points?: number
+          profile_id?: string
+          target_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vybe_score_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "vybe_score_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vybe_score_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vybe_score_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
+      vybe_scores: {
+        Row: {
+          last_action_at: string | null
+          profile_id: string
+          score: number
+          updated_at: string
+        }
+        Insert: {
+          last_action_at?: string | null
+          profile_id: string
+          score?: number
+          updated_at?: string
+        }
+        Update: {
+          last_action_at?: string | null
+          profile_id?: string
+          score?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vybe_scores_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "vybe_scores_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vybe_scores_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vybe_scores_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       vybe_tokens: {
         Row: {
           balance: number | null
@@ -12334,6 +12440,7 @@ export type Database = {
       }
     }
     Functions: {
+      _vybe_default_points: { Args: { _action: string }; Returns: number }
       activate_user_boost: { Args: { p_item_id: string }; Returns: Json }
       add_user_xp:
         | { Args: { p_user_id: string; p_xp: number }; Returns: Json }
@@ -12349,6 +12456,19 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      award_vybe_points: {
+        Args: {
+          _action: string
+          _points?: number
+          _profile_id: string
+          _target_id?: string
+        }
+        Returns: number
+      }
+      award_vybe_points_self: {
+        Args: { _action: string; _target_id?: string }
+        Returns: number
       }
       bump_reaction_streak: { Args: { p_other_user: string }; Returns: Json }
       calculate_creator_earnings: { Args: never; Returns: Json }
