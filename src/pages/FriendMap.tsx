@@ -86,7 +86,8 @@ interface WeatherData {
 const DEFAULT_CENTER: [number, number] = [39.8283, -98.5795];
 const DEFAULT_ZOOM = 4;
 const FRIEND_FOCUS_ZOOM = 16;
-const MY_LOCATION_ZOOM = 16;
+const MY_LOCATION_ZOOM = 15;
+const COMPASS_ZOOM = 15;
 const SHARING_PREF_KEY = 'vybe-map-sharing';
 const MAP_STYLE_KEY = 'vybe-map-style';
 const HIDDEN_FRIENDS_KEY = 'vybe-map-hidden-friends';
