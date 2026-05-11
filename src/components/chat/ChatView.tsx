@@ -168,6 +168,7 @@ export function ChatView() {
   // Enable realtime sync for this specific conversation (reactions, views, etc.)
   useRealtimeMessages(conversationId);
   const markViewed = useMarkMessageViewed();
+  const toggleSaved = useToggleSavedMessage(conversationId);
   const addReaction = useAddReaction();
   const unsendForEveryone = useUnsendForEveryone();
   const deleteForMe = useDeleteForMe();
