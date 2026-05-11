@@ -13,6 +13,9 @@ import { useLocationContext } from '@/providers/LocationProvider';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+// Adds native bearing/rotation support to Leaflet (`map.setBearing`, two-finger twist).
+// Without this we'd be CSS-rotating the tile pane, which breaks pan/zoom and clips edges.
+import 'leaflet-rotate';
 
 /* ── Map Error Boundary ─────────────────────────────── */
 
@@ -482,9 +485,45 @@ function FriendMapInner() {
   
   const weather = useWeather(safeMyCoords);
   
+  // Dev-only fake orbit friend (?fakeOrbit=1) — circles the user at ~50m so we
+  // can visually verify rotation pivots exactly on the avatar.
+  const [fakeOrbitT, setFakeOrbitT] = useState(0);
+  const fakeOrbitOn = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('fakeOrbit') === '1';
+  }, []);
+  useEffect(() => {
+    if (!fakeOrbitOn) return;
+    const id = window.setInterval(() => setFakeOrbitT((t) => t + 0.05), 50);
+    return () => window.clearInterval(id);
+  }, [fakeOrbitOn]);
+
   const friendsArr = useMemo(
-    () => (Array.isArray(friends) ? friends.filter((friend) => isValidLatLng(friend.latitude, friend.longitude) && !hiddenFriends.has(friend.user_id)) : []),
-    [friends, hiddenFriends]
+    () => {
+      const base = (Array.isArray(friends) ? friends.filter((friend) => isValidLatLng(friend.latitude, friend.longitude) && !hiddenFriends.has(friend.user_id)) : []);
+      if (fakeOrbitOn && safeMyCoords) {
+        // ~50m offset: 1 deg lat ≈ 111_111 m, lng scaled by cos(lat).
+        const radM = 50;
+        const dLat = (Math.cos(fakeOrbitT) * radM) / 111_111;
+        const dLng = (Math.sin(fakeOrbitT) * radM) / (111_111 * Math.cos((safeMyCoords[0] * Math.PI) / 180));
+        base.push({
+          id: 'fake-orbit',
+          user_id: 'fake-orbit',
+          latitude: safeMyCoords[0] + dLat,
+          longitude: safeMyCoords[1] + dLng,
+          accuracy: 5,
+          label: 'TEST',
+          updated_at: new Date().toISOString(),
+          expires_at: null,
+          sharing_enabled: true,
+          status: '🧪 Orbiting',
+          speed: 1,
+          profile: { username: 'orbit-test', display_name: 'TEST', avatar_url: null },
+        } as any);
+      }
+      return base;
+    },
+    [friends, hiddenFriends, fakeOrbitOn, fakeOrbitT, safeMyCoords]
   );
   const allFriendsArr = useMemo(
     () => (Array.isArray(friends) ? friends.filter((friend) => isValidLatLng(friend.latitude, friend.longitude)) : []),
@@ -652,7 +691,16 @@ function FriendMapInner() {
           markerZoomAnimation: true,
           inertia: true,
           inertiaDeceleration: 2000,
-        }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+          // ── leaflet-rotate ──
+          // Real bearing support (Google-Maps style). Rotation is applied to
+          // tiles + markers natively, so panning/zooming keep working while
+          // rotated and markers stay upright with no CSS counter-rotation.
+          rotate: true,
+          bearing: 0,
+          touchRotate: true,
+          rotateControl: false,
+          shiftKeyRotate: true,
+        } as any).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
       } catch (err) {
         console.error('[FriendMap] Leaflet init failed:', err);
         return false;
@@ -665,6 +713,12 @@ function FriendMapInner() {
       resizeObserver?.observe(el);
       map.on('click', () => { setSelId(null); setStylesOpen(false); });
       map.on('zoomend', () => setZoom(map.getZoom()));
+      // Sync our local rotation state from leaflet-rotate so the compass icon
+      // in the right-side FAB stays accurate during two-finger twist.
+      map.on('rotate', () => {
+        const b = (map as any).getBearing?.() ?? 0;
+        setManualRotation(((b % 360) + 360) % 360);
+      });
       map.whenReady(() => {
         safeInvalidateSize();
         retryRaf = requestAnimationFrame(safeInvalidateSize);
@@ -815,17 +869,28 @@ function FriendMapInner() {
     map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 14, animate: true });
   }, [safeMyCoords, friendsArr]);
 
-  /* ── Heading-up compass mode (rotates map to follow phone heading) ── */
+  /* ── Heading-up compass mode ─────────────────────────
+     Drives `heading` (0–360) from the device magnetometer. The bearing is
+     applied to leaflet-rotate via a separate effect below — keeping read
+     (sensor) and write (map) decoupled avoids feedback loops. */
   useEffect(() => {
-    if (!headingUp) { setHeading(0); return; }
+    if (!headingUp) {
+      setHeading(0);
+      // Restore north-up cleanly when toggled off.
+      try { (mapRef.current as any)?.setBearing?.(0); } catch {}
+      return;
+    }
 
-    // Disable Leaflet panning while the map is rotated — dragging a CSS-rotated
-    // map with the built-in handler feels inverted (swipe up = map goes down).
-    const map = mapRef.current;
-    map?.dragging?.disable();
-    // Snap onto the user so rotation pivots around the avatar (Google Maps style).
-    if (map && safeMyCoords) {
-      try { map.flyTo(safeMyCoords, Math.max(map.getZoom(), MY_LOCATION_ZOOM), { duration: 0.6 }); } catch {}
+    // Dev-only fake heading sweep: ?fakeHeading=1 spins the map 0→360 over 8s
+    // so the compass can be QA'd on a desktop without a magnetometer.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('fakeHeading') === '1') {
+      const start = performance.now();
+      const id = window.setInterval(() => {
+        const t = (performance.now() - start) / 8000;
+        setHeading(((t * 360) % 360 + 360) % 360);
+      }, 33);
+      return () => window.clearInterval(id);
     }
 
     let lastUpdate = 0;
@@ -835,29 +900,17 @@ function FriendMapInner() {
     const screenAngle = (): number => {
       const a = (window.screen?.orientation as any)?.angle;
       if (typeof a === 'number') return a;
-      // Fallback for older browsers
       return (window as any).orientation || 0;
     };
 
     const makeHandler = (isAbsoluteSource: boolean) => (e: DeviceOrientationEvent) => {
-      // Once a true absolute compass reading arrives, ignore the relative
-      // `deviceorientation` event entirely. On Android both fire but use
-      // different reference frames, which makes the map jitter wildly.
       if (!isAbsoluteSource && gotAbsolute) return;
-
-      // iOS Safari exposes a true magnetic compass heading directly.
       const ios = (e as any).webkitCompassHeading as number | undefined;
       let raw: number | null = null;
       if (typeof ios === 'number') {
         raw = ios;
       } else if (e.alpha != null) {
-        // Skip relative readings (no real compass reference) — alpha from a
-        // non-absolute event drifts and is meaningless as a heading.
         if (!isAbsoluteSource && e.absolute === false) return;
-        // `alpha` is rotation around device Z axis, 0 = device-frame north,
-        // increasing counter-clockwise. Compass heading is clockwise from north
-        // and must also be compensated for current screen orientation so the
-        // arrow stays correct in landscape / upside-down.
         raw = (360 - e.alpha + screenAngle()) % 360;
       }
       if (raw == null || Number.isNaN(raw)) return;
@@ -888,9 +941,6 @@ function FriendMapInner() {
         }
         window.addEventListener('deviceorientationabsolute', absoluteHandler as any, true);
         window.addEventListener('deviceorientation', relativeHandler as any, true);
-
-        // Many laptops (incl. Macs) have no magnetometer — readings never arrive
-        // or `alpha` is null. Bail out gracefully so the map isn't stuck rotated.
         timeoutId = window.setTimeout(() => {
           if (!gotReading) {
             setHeadingUp(false);
@@ -907,110 +957,25 @@ function FriendMapInner() {
       if (timeoutId) clearTimeout(timeoutId);
       window.removeEventListener('deviceorientationabsolute', absoluteHandler as any, true);
       window.removeEventListener('deviceorientation', relativeHandler as any, true);
-      mapRef.current?.dragging?.enable();
     };
   }, [headingUp]);
 
-  /* ── Two-finger twist gesture for manual 360° map rotation (when compass is OFF) ── */
-  useEffect(() => {
-    if (headingUp) return; // compass mode owns rotation
-    const el = mapEl.current;
-    if (!el) return;
-    let startAngle: number | null = null;
-    let baseRotation = 0;
-
-    const angleBetween = (t1: Touch, t2: Touch) =>
-      (Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX) * 180) / Math.PI;
-
-    const onStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        startAngle = angleBetween(e.touches[0], e.touches[1]);
-        baseRotation = manualRotation;
-      } else {
-        startAngle = null;
-      }
-    };
-    const onMove = (e: TouchEvent) => {
-      if (e.touches.length !== 2 || startAngle == null) return;
-      const a = angleBetween(e.touches[0], e.touches[1]);
-      const delta = a - startAngle;
-      setManualRotation(((baseRotation + delta) % 360 + 360) % 360);
-    };
-    const onEnd = (e: TouchEvent) => {
-      if (e.touches.length < 2) startAngle = null;
-    };
-
-    el.addEventListener('touchstart', onStart, { passive: true });
-    el.addEventListener('touchmove', onMove, { passive: true });
-    el.addEventListener('touchend', onEnd, { passive: true });
-    el.addEventListener('touchcancel', onEnd, { passive: true });
-    return () => {
-      el.removeEventListener('touchstart', onStart);
-      el.removeEventListener('touchmove', onMove);
-      el.removeEventListener('touchend', onEnd);
-      el.removeEventListener('touchcancel', onEnd);
-    };
-  }, [headingUp, manualRotation]);
-
-  /* ── Auto-follow the user's location while heading-up is on, so the avatar
-        always sits at the rotation pivot. ── */
+  /* ── Apply heading-up bearing to the map (Google-Maps style) ──
+     Pans onto the user so they sit at the rotation pivot, then drives
+     leaflet-rotate's native `setBearing`. Markers stay upright natively. */
   useEffect(() => {
     if (!headingUp) return;
-    const map = mapRef.current;
-    if (!map || !safeMyCoords) return;
-    try { map.panTo(safeMyCoords as any, { animate: true, duration: 0.4, noMoveStart: true } as any); } catch {}
-  }, [headingUp, safeMyCoords]);
+    const map: any = mapRef.current;
+    if (!map?.setBearing) return;
+    if (safeMyCoords) {
+      try {
+        // Pan-only follow (no zoom change) so the avatar stays glued to center.
+        map.panTo(safeMyCoords as any, { animate: true, duration: 0.25, noMoveStart: true } as any);
+      } catch {}
+    }
+    try { map.setBearing(-heading); } catch (e) { console.warn('[FriendMap] setBearing failed', e); }
+  }, [headingUp, heading, safeMyCoords]);
 
-  /* ── Apply rotation to Leaflet's inner map pane only (Google-Maps style).
-        Pivot the rotation around the user's avatar (not the pane center) so
-        the character stays pinned in place while the world spins around it. ── */
-  useEffect(() => {
-    const root = mapEl.current;
-    const map = mapRef.current;
-    if (!root || !map) return;
-    const pane = root.querySelector('.leaflet-map-pane') as HTMLElement | null;
-    if (!pane) return;
-
-    const apply = () => {
-      const rot = headingUp ? -heading : manualRotation;
-
-      // Pivot around the user's avatar when we have a fix; otherwise center.
-      let originX = root.clientWidth / 2;
-      let originY = root.clientHeight / 2;
-      if (safeMyCoords) {
-        try {
-          const pt = map.latLngToContainerPoint(safeMyCoords as any);
-          originX = pt.x;
-          originY = pt.y;
-        } catch {}
-      }
-
-      // Cover-scale that accounts for an off-center pivot so corners never
-      // reveal blank space at any rotation angle.
-      const dx = Math.max(originX, root.clientWidth - originX);
-      const dy = Math.max(originY, root.clientHeight - originY);
-      const halfDiag = Math.hypot(dx, dy);
-      const halfMin = Math.max(1, Math.min(root.clientWidth, root.clientHeight) / 2);
-      const cover = rot ? Math.max(1, halfDiag / halfMin) : 1;
-
-      pane.style.transformOrigin = `${originX}px ${originY}px`;
-      pane.style.transform = rot ? `rotate(${rot}deg) scale(${cover})` : '';
-      pane.style.transition = 'transform 120ms linear';
-      pane.style.willChange = rot ? 'transform' : '';
-      // Counter-rotate marker icons so avatars + labels stay upright.
-      root.style.setProperty('--map-counter-rot', `${-rot}deg`);
-    };
-
-    apply();
-
-    // Re-apply when the map view changes so the pivot stays locked on the avatar.
-    map.on('move', apply);
-    map.on('zoom', apply);
-    return () => {
-      map.off('move', apply);
-      map.off('zoom', apply);
-    };
-  }, [headingUp, heading, manualRotation, safeMyCoords]);
 
   /* ── render ────────────────────────────────────────── */
 
@@ -1058,27 +1023,13 @@ function FriendMapInner() {
           .scrollbar-hide::-webkit-scrollbar{display:none}
           .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
 
-          /* Counter-rotate the inner content of every Leaflet marker so
-             avatars, labels, "you" pin and event icons stay upright while
-             the map pane rotates underneath (Google-Maps "heading-up"). The
-             outer .leaflet-marker-icon keeps Leaflet's positioning transform. */
-          .vfm, .vme, .vfm-cluster {
-            transform: rotate(var(--map-counter-rot, 0deg));
-            transform-origin: center center;
-            transition: transform 120ms linear;
-          }
+          /* leaflet-rotate keeps markers upright natively — no CSS counter-rotation needed. */
         `}</style>
 
-        {/* Map container — wrapper stays UNROTATED so the top bar, FABs and
-            sheets never skew. Rotation is applied to .leaflet-map-pane in JS. */}
+        {/* Map container */}
         <div
           ref={mapEl}
           className="absolute inset-0 block w-full h-full"
-          style={{
-            // CSS variable consumed by .leaflet-marker-icon counter-rotation rule
-            // (set in the rotation effect above).
-            ['--map-counter-rot' as any]: '0deg',
-          }}
         />
 
 
@@ -1196,7 +1147,7 @@ function FriendMapInner() {
           {/* Compass / Heading-up toggle (long-press to reset rotation) */}
           <motion.button
             onClick={() => { setHeadingUp(v => !v); triggerHaptic('light'); }}
-            onContextMenu={(e) => { e.preventDefault(); setManualRotation(0); setHeadingUp(false); triggerHaptic('medium'); }}
+            onContextMenu={(e) => { e.preventDefault(); try { (mapRef.current as any)?.setBearing?.(0); } catch {} setManualRotation(0); setHeadingUp(false); triggerHaptic('medium'); }}
             whileTap={{ scale: 0.9 }}
             className={cn(
               'pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full backdrop-blur-xl transition-all',

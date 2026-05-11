@@ -1,90 +1,71 @@
-# Live Screenshot Capture, Polish, Storage & Site Placement
+## Why the compass is wrong today
 
-## Goal
-Log into the published app at vybehub.app as `vybesocial.info@gmail.com`, capture every major screen at 390×844 (iPhone), polish each into two formats (bare device-frame for app stores, composed marketing version for the website), upload both to a public Supabase bucket, register them in a new `app_screenshots` table, and wire the marketing versions into VybeHome + Features.
+`src/pages/FriendMap.tsx` (lines 818–1013) fakes rotation by CSS-transforming Leaflet's `.leaflet-map-pane`:
 
-## 1. Database (one migration)
+- Rotates the entire pane with `transform: rotate(...) scale(cover)`
+- Counter-rotates every marker via `--map-counter-rot` CSS var
+- Disables Leaflet `dragging` while rotated (so panning is broken)
+- Re-applies on every `move`/`zoom`, while another effect also pans the map to follow the user — creating a feedback loop and visible "drift" / jitter
+- Cover-scale hack to hide blank corners distorts tile positions, so the avatar is no longer pinned exactly to its real GPS pixel
+- Counter-rotation is per-marker DOM, so popups, clusters, the accuracy circle and weather tiles drift
 
-New public bucket `marketing-screenshots` (public SELECT, owner-only write via service role from this run).
+Leaflet has no real bearing support — that's the root cause.
 
-New table `public.app_screenshots`:
-- `screen_key` (text, unique) — e.g. `home`, `clips`, `dna`, `messages`, `map`, `profile`, `add-friend`, `communities`, `spaces`, `stories`, `camera`, `notifications`, `settings`
-- `title`, `subtitle`, `feature_tag` (text)
-- `raw_url`, `device_url`, `marketing_url` (text — public storage URLs)
-- `width`, `height` (int)
-- `display_order` (int) — drives carousel order
-- `placement` (text[]) — `['hero','features','store']`
-- `created_at`, `updated_at`
+## Fix: native bearing rotation (Google-Maps style)
 
-RLS: public SELECT (it's marketing data); writes restricted to service role only. No user-facing writes.
+Two viable paths. I recommend Path A; Path B is the fallback if A doesn't behave on iOS.
 
-## 2. Capture pass (browser tool, against https://vybehub.app)
+### Path A (recommended) — Add `leaflet-rotate`
 
-Sign in once with the Live credentials, then navigate + screenshot each route at 390×844:
+`leaflet-rotate` is a small, maintained plugin that monkey-patches Leaflet to add real `bearing`, `setBearing()`, `rotate: true` map option, and a rotated-pan handler. No tile re-layout, no CSS hacks, markers natively stay upright.
 
-| Key | Route | Notes |
-|---|---|---|
-| home | /home | Default Explore feed |
-| clips | /home?tab=clips | Vertical video feed |
-| dna | /vybe-dna | Personality engine |
-| messages | /messages | Inbox |
-| map | /map | Friend Map (geo permission may fall back to skyline state — capture whatever renders) |
-| profile | /profile | Own profile / bento |
-| add-friend | /add-friend | QR + suggestions |
-| communities | /spaces or /communities (whichever exists) | |
-| spaces | /vybe-spaces | |
-| stories | /home + open first story | |
-| camera | /home → camera FAB | Capture camera UI |
-| notifications | /notifications | |
-| settings | /settings | |
+Steps:
 
-For each: dismiss cookie banner first, wait for content to render, then `browser--screenshot`. Save raw PNGs to `/tmp/shots/<key>-raw.png`.
+1. `bun add leaflet-rotate`
+2. In `FriendMap.tsx`, `import 'leaflet-rotate'` after `import L from 'leaflet'`
+3. Pass `rotate: true, bearing: 0, touchRotate: true, rotateControl: false` when constructing the map
+4. Delete the entire CSS-rotate effect (lines ~964–1013), the marker counter-rotate CSS (~1061), the `dragging.disable()` call, and the two-finger twist effect (~914–953) — `touchRotate: true` handles two-finger twist natively
+5. Replace heading-up application with `map.setBearing(-heading, { around: map.latLngToContainerPoint(safeMyCoords) })` inside the orientation handler — rotation pivots exactly around the avatar
+6. Keep the existing `deviceorientationabsolute` / `webkitCompassHeading` logic from lines 842–876 — that part is correct
+7. Remove the auto-pan follow effect (~955–962); with `setBearing({ around: userPoint })` the avatar stays put without panning
 
-If a screen is blocked by a tutorial or empty state, capture the best representative state and note it — partial coverage is acceptable, this is a marketing pass not a QA pass.
+### Path B (fallback) — Migrate to MapLibre GL JS
 
-## 3. Polish (Python script, no external services)
+If `leaflet-rotate` misbehaves on iOS Safari, swap Leaflet for MapLibre (`bun add maplibre-gl`). MapLibre has first-class `bearing`, `easeTo({ bearing, around })`, vector tiles, and avatar markers that stay upright via `rotationAlignment: 'viewport'`. Free OSM raster tiles work without an API key. Bigger refactor (~1 day) but bulletproof.
 
-Single script `/tmp/polish.py` using Pillow (already available):
+Google Maps and Apple MapKit JS both require paid keys / Apple Developer JWT setup, so I'm not proposing those unless you specifically want them.
 
-**Device version** (`<key>-device.png`, 1290×2796 — App Store 6.7" spec):
-- Black iPhone 15 Pro frame, screenshot fitted to inner viewport with rounded corners
-- Transparent background (PNG) so it can be dropped on any store listing background
-- Also output a 1242×2688 variant for older 6.5" requirement
+## Test harness — fake orbiting user
 
-**Marketing version** (`<key>-marketing.png`, 1600×1200):
-- Same device frame, scaled smaller (~70% height)
-- VYBE gradient backdrop (Deep Navy → Vivid Purple → Bright Cyan, matches `--gradient-primary` from `index.css`)
-- Headline + subtitle text from the `app_screenshots` row, rendered with the project's heading font, bottom-left aligned
-- Soft glow under device
+To verify rotation pivots perfectly on the user (without walking around outside), add a dev-only fake-user that orbits the real avatar:
 
-Also keep the raw screenshot as `<key>-raw.png` for reference.
+1. Add a `?fakeOrbit=1` query param check at the top of `FriendMap.tsx`
+2. When set, start an interval that updates a synthetic friend at `safeMyCoords` + `(cos t * 50m, sin t * 50m)`, t advancing every 50ms
+3. Render it as a regular friend marker (red dot labelled "TEST")
+4. With heading-up ON, the orbiting dot should trace a perfect circle around the stationary avatar at the screen center; if it doesn't, the pivot is still wrong
+5. Also add a "Fake heading sweep" toggle that, instead of using the real magnetometer, drives `setHeading` from 0→360 over 8s — lets us verify rotation on a desktop with no compass
 
-## 4. Upload + register
+This harness stays behind the query param so it never ships to normal users.
 
-For each screen, upload the three files to `marketing-screenshots/<key>/` via `supabase--storage_upload`, then `supabase--insert` a row into `app_screenshots` with the public URLs and metadata.
+## QA checklist (I'll run all of these before saying done)
 
-## 5. Marketing site placement
+- Heading-up ON, stand still: avatar dot is pinned to one screen pixel as the world spins
+- Two-finger twist (compass OFF): map rotates smoothly, avatar still pinned
+- Pan with one finger while rotated: works (currently broken)
+- Pinch-zoom while rotated: works, avatar stays pinned
+- iOS Safari: `webkitCompassHeading` path triggers, no jitter
+- Android Chrome: `deviceorientationabsolute` path triggers, no double-handler jitter
+- Desktop (no magnetometer): toast "No compass detected" still fires after 2.5s
+- Fake orbit: dot traces a clean circle around stationary avatar
+- Markers, accuracy circle, popups, weather chip stay upright
+- Toggle heading-up off → map snaps back to north-up cleanly with no leftover transforms
 
-- **`src/pages/VybeHome.tsx`**: Replace existing static feature visuals (`screen-feed.png` etc.) with a `useAppScreenshots()` hook that reads from `app_screenshots`. The hero `PhoneFrame` cycles through the `hero`-tagged shots; each feature section pulls its matching `screen_key`. Falls back to bundled assets if the table is empty.
-- **`src/pages/Features.tsx`**: Add a "See it in action" gallery that lists every `app_screenshots` row in `display_order`, using the marketing version, with the feature_tag as a chip.
-- New small hook `src/hooks/useAppScreenshots.ts` (cached, public read, no auth required).
+## Files touched
 
-## 6. Deliverables for stores
+- `package.json` (+1 dep)
+- `src/pages/FriendMap.tsx` (rewrite of compass + rotation block, ~200 lines net delete)
+- No DB / backend changes
 
-After the run completes, provide:
-- A `<lov-artifact>` zip at `/mnt/documents/vybe-store-screenshots.zip` with all device-frame PNGs grouped by 6.7" / 6.5" folders (App Store) and 1080×1920 PNGs (Play Store — generated from the same compositor).
-- A short markdown index listing each screen + URL, also in the zip.
+## Risk
 
-## Technical notes
-
-- Capture runs against Live, which logged in successfully in the previous step. Session is reused across navigations.
-- `browser--screenshot` returns a `tool-results://` path; copy each into `/tmp/shots/` with `code--copy` before polishing.
-- Screenshot capture is best-effort — any screen that won't render in headless will still get its row written with `raw_url=null` and a placeholder marketing card so the site doesn't break.
-- No frontend code changes touch business logic; only presentation files.
-- Storage bucket is public so the same URLs work in the website, App Store Connect, and Play Console without signed-URL juggling.
-
-## Files
-
-Created: `supabase/migrations/<ts>_app_screenshots.sql`, `src/hooks/useAppScreenshots.ts`.
-Edited: `src/pages/VybeHome.tsx`, `src/pages/Features.tsx`.
-Generated artifacts: `/mnt/documents/vybe-store-screenshots.zip`.
+`leaflet-rotate` is community-maintained, last release ~2023. It's stable but not part of core Leaflet. If we ever upgrade `leaflet` to 2.x it may need replacement — that's when we'd jump to Path B (MapLibre).
