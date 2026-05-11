@@ -1,109 +1,47 @@
-## VYBE Score (Snapchat Snapscore-style)
+# Fix: DM Vybe Snap camera crashes the app
 
-Add a persistent, ever-growing numeric score on every profile, displayed inline next to the username/stats — same vibe as Snapchat's Snapscore.
+## Root causes (most likely)
 
-### How points accrue (Snapscore-inspired)
+Looking at `ChatView.tsx` and `VybeSnapCamera.tsx`, the camera button in DMs has several fragile spots that can hard-crash the WebView (Despia/Android) or the React tree:
 
-Every meaningful action grants points. Score only goes up, never down. Awarded server-side via a single RPC for consistency.
+1. **Unhandled promise from `requestCameraStream`** — In `ChatView.tsx` (lines 1788, 1845) the camera button fires `requestCameraStream({...})` without `await` or `.catch()`. On Despia, a denied/failed permission throws an unhandled rejection that the wrapper treats as a fatal JS crash.
+2. **No outer error boundary around `VybeSnapCamera`** — The existing `CameraErrorBoundary` lives **inside** `VybeSnapCamera.tsx`, so if the component throws during its **own** initial render (heavy state init, Sheet portal, framer-motion mount), the boundary never catches it and the entire `ChatView` unmounts.
+3. **Effect with no deps reattaches `srcObject` every render** (`VybeSnapCamera.tsx` lines 257–262). On some Android WebViews, reassigning `srcObject` mid-play triggers a `NotReadableError` that bubbles through React.
+4. **Active call collision** — Per project memory, `stopCameraStream()` must be called before mode switches. If a lingering call still owns the camera track, opening Snap fails hard. The current open path doesn't check `useCallStore` state.
+5. **Despia permission race** — On native wrapper, `getUserMedia` must be invoked from a direct user gesture. The current path: tap → `requestCameraStream` (async, no await) → `setShowSnapCamera(true)` → mount → `requestAnimationFrame` → `startCamera` → `getUserMedia`. Multiple async hops break the gesture chain.
 
-| Action | Points |
-|---|---|
-| Send a DM | +1 |
-| Receive a DM | +1 |
-| Post a Clip / video | +10 |
-| Post a photo / regular post | +6 |
-| Post a Story | +3 |
-| Story view received | +1 (capped 50/story) |
-| Receive a reaction/like | +1 |
-| Give a reaction/like | +0.5 (rounded) |
-| Comment posted | +2 |
-| Receive a comment | +1 |
-| Share sent | +2 |
-| Receive a share | +3 |
-| Save received | +4 |
-| New follower | +5 |
-| Daily login | +5 |
-| Login streak day (per day) | +2 × streak (cap 30) |
-| Friend added | +10 |
-| Complete a challenge | +25 |
-| First post of the day bonus | +15 |
+## Changes
 
-Anti-abuse: 1-minute throttle per (user, action) for low-value events; daily caps on DM-spam (max 200 DM points/day) and reaction-give (max 100/day).
+### 1. `src/components/chat/ChatView.tsx`
+- Replace the two inline `onOpenSnapCamera` handlers (lines 1788, 1845) with a single memoized `handleOpenSnapCamera` that:
+  - Bails if `useCallStore().state.phase !== 'idle'` and shows a toast ("End your call to use the camera").
+  - Calls `stopCameraStream()` defensively first.
+  - Calls `requestCameraStream(...)` wrapped in `.catch(() => {})` so a rejection never bubbles.
+  - Then `setShowSnapCamera(true)`.
+- Wrap the `<VybeSnapCamera>` JSX in a small local `<CameraMountBoundary>` (class ErrorBoundary) that closes the modal and toasts on render error instead of unmounting `ChatView`.
 
-### Database
+### 2. `src/components/camera/VybeSnapCamera.tsx`
+- Fix the dep-less `useEffect` at lines 257–262: add `[cameraReady]` deps so it only attaches `srcObject` once when the stream becomes ready, not on every render.
+- In `startCamera`, when `getActiveStream()` exists but doesn't match constraints, also wrap the fallback `getUserMedia` in a try/catch that sets `permissionDenied` instead of throwing.
+- Guard `MediaRecorder.isTypeSupported` access (some WebViews don't define `MediaRecorder` at all) — return early with a friendly message instead of crashing on photos-only devices.
+- Move the `CameraErrorBoundary` to also wrap the editor phase (currently only render of camera surface is guarded).
 
-New table `vybe_scores`:
-- `profile_id` (PK, FK profiles.id)
-- `score` bigint default 0
-- `last_action_at`, `updated_at`
+### 3. `src/components/chat/CameraFirstOverlay.tsx`
+- Same `requestCameraStream(...).catch(() => {})` hardening if/when this overlay is reactivated.
+- Wrap its `<VybeSnapCamera>` in the same boundary.
 
-New table `vybe_score_events` (audit + caps):
-- `profile_id`, `action` text, `points` int, `created_at`
-- Index on (profile_id, action, created_at) for cap windows
-- 30-day retention via cron cleanup
+### 4. `src/hooks/useCameraPreload.ts`
+- Already returns `null` on failure but reject paths inside `requestCameraStream` use `console.warn` only — keep, but ensure no callsite leaves the returned Promise unhandled (handled in step 1).
 
-RPC `award_vybe_points(_action text, _points int default null, _target_id uuid default null)`:
-- SECURITY DEFINER, `SET search_path=public`
-- Resolves caller profile_id from auth.uid()
-- Applies action's default points if `_points` null
-- Enforces per-action throttles & daily caps
-- Inserts audit row, upserts `vybe_scores.score = score + points`
-- Returns new score
+## Files touched
 
-RLS: `vybe_scores` global SELECT (USING true) so scores show on any profile; INSERT/UPDATE only via RPC. Events table: SELECT own only.
+- `src/components/chat/ChatView.tsx` — handler + boundary wrap
+- `src/components/camera/VybeSnapCamera.tsx` — effect deps, MediaRecorder guard, broader boundary
+- `src/components/chat/CameraFirstOverlay.tsx` — same hardening
+- (new) `src/components/camera/CameraMountBoundary.tsx` — reusable outer error boundary
 
-Backfill migration: seed initial score from existing data (posts × 6, followers × 5, comments × 2, capped reasonable) so existing users don't start at 0.
+## Out of scope
 
-### Client wiring
-
-New hook `src/hooks/useVybeScore.ts`:
-- `useVybeScore(profileId)` — fetches score with React Query, 60s stale
-- `useAwardVybePoints()` — mutation calling the RPC
-
-Award integration points (fire-and-forget, debounced where noisy):
-- `useDMConversations` / message send → `dm_send`
-- Realtime new message received → `dm_receive`
-- Post create flow (`Upload.tsx`, composer) → `post_create` (variant by media type)
-- Story create → `story_create`
-- Reaction add (`useReactions`) → `reaction_give`; trigger on receiver via DB trigger
-- Comment create (`useComments`) → `comment_post` + receiver
-- Share, Save, Follow → respective actions
-- `useDailyLogin` → `daily_login` + streak bonus
-- Challenge complete → `challenge_complete`
-
-Most receiver-side awards are done via DB triggers (cleaner, can't be skipped):
-- AFTER INSERT on `messages`, `reactions`, `comments`, `shares`, `saves`, `follows`, `post_views` (story) → call `award_vybe_points` for the recipient.
-
-### UI
-
-New component `src/components/profile/VybeScore.tsx`:
-- Snapchat-style display: tiny ghost icon (use VYBE bolt/spark) + animated number
-- Uses existing `AnimatedNumber` for satisfying tick-up
-- Tap to open a sheet showing breakdown (today's gains, lifetime total, top-earning action) — like Snapchat's score popup
-- Shows in `ProfileHeroCard` directly under username, replacing the implicit "engagement %" line for own profile (keeps `EngagementScore` ring on the Vibe Board)
-
-Realtime: subscribe to `vybe_scores` row for the viewed profile so the number ticks up live when you DM/post.
-
-Number formatting: raw up to 9,999, then `12.3K`, `1.2M` (Snapchat-style abbreviated).
-
-### Files to add
-
-- `supabase/migrations/<ts>_vybe_score.sql` (table, RPC, triggers, RLS, backfill)
-- `src/hooks/useVybeScore.ts`
-- `src/components/profile/VybeScore.tsx`
-
-### Files to edit
-
-- `src/components/profile/ProfileHeroCard.tsx` — render `<VybeScore />`
-- `src/hooks/useDailyLogin.ts` — call RPC on login
-- `src/hooks/useChallenges.ts` — call RPC on challenge claim
-- Composer / `Upload.tsx` — call RPC on post create
-- `src/hooks/useDMConversations.ts` (or send-message hook) — call RPC on send
-
-### Out of scope
-
-- Leaderboards (existing XP leaderboard already covers that)
-- Score-based unlocks/perks (can come later)
-- Score going down — strictly monotonic like Snapscore
-
-Ready to build on approval.
+- No backend / DB changes.
+- No visual redesign of the camera UI.
+- Existing VYBE Score / Challenges work from this thread is untouched.
