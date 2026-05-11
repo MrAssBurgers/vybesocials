@@ -8,6 +8,7 @@ import {
   useScreenshotNotification,
   useMarkMessageViewed,
   useAddReaction,
+  useToggleSavedMessage,
   ViewMode,
   Message,
   useConversations
@@ -87,7 +88,8 @@ import {
   Copy,
   Pencil,
   Sticker,
-  Download
+  Download,
+  Bookmark
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
