@@ -2853,6 +2853,8 @@ const MessageBubble = memo(function MessageBubble({
     prevProps.showReactions === nextProps.showReactions &&
     prevProps.profileId === nextProps.profileId &&
     prevProps.forceShowContextMenu === nextProps.forceShowContextMenu &&
+    prevProps.message.saved_by_sender === nextProps.message.saved_by_sender &&
+    prevProps.message.saved_by_recipient === nextProps.message.saved_by_recipient &&
     JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions) &&
     JSON.stringify(prevProps.message.views) === JSON.stringify(nextProps.message.views)
   );
