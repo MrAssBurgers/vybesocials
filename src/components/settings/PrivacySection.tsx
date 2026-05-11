@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Lock, Eye, EyeOff, Shield, Users, KeyRound } from 'lucide-react';
+import { Lock, Eye, EyeOff, Shield, Users, KeyRound, Sparkles } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,8 @@ export function PrivacySection() {
   const { profile } = useAuth();
   const [isPrivate, setIsPrivate] = useState(false);
   const [privacyLoading, setPrivacyLoading] = useState(false);
+  const [featureOnLanding, setFeatureOnLanding] = useState(false);
+  const [landingLoading, setLandingLoading] = useState(false);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -28,16 +30,38 @@ export function PrivacySection() {
     if (profile?.id) {
       supabase
         .from('profiles')
-        .select('is_private')
+        .select('is_private, feature_on_landing')
         .eq('id', profile.id)
         .single()
         .then(({ data }) => {
           if (data) {
             setIsPrivate(data.is_private ?? false);
+            setFeatureOnLanding((data as any).feature_on_landing ?? false);
           }
         });
     }
   }, [profile?.id]);
+
+  const handleLandingChange = async (value: boolean) => {
+    if (!profile?.id) return;
+    setLandingLoading(true);
+    haptics.tap();
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ feature_on_landing: value } as any)
+        .eq('id', profile.id);
+      if (error) throw error;
+      setFeatureOnLanding(value);
+      haptics.success();
+      toast.success(value ? "You'll be eligible to be featured on vybe.com" : 'Removed from landing page features');
+    } catch (error: any) {
+      haptics.error();
+      toast.error(getUserFriendlyError(error));
+    } finally {
+      setLandingLoading(false);
+    }
+  };
 
   const handlePrivacyChange = async (value: boolean) => {
     if (!profile?.id) return;
@@ -135,6 +159,29 @@ export function PrivacySection() {
               checked={isPrivate} 
               onCheckedChange={handlePrivacyChange}
               disabled={privacyLoading}
+              className="mt-1"
+            />
+          </div>
+        </div>
+
+        {/* Feature on landing page */}
+        <div className="mt-3 p-4 rounded-xl bg-muted/30 border border-border/50">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Sparkles className="w-5 h-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium">Feature me on the landing page</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  When you're trending today, your avatar can show in the "early members" row on vybehub.app. Only public accounts.
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={featureOnLanding}
+              onCheckedChange={handleLandingChange}
+              disabled={landingLoading || isPrivate}
               className="mt-1"
             />
           </div>
