@@ -41,6 +41,27 @@ const PhoneFrame = memo(function PhoneFrame({
   );
 });
 
+/** Real polished screenshot rendered at the same footprint as PhoneFrame.
+ *  The PNGs in /marketing/device/ already include a device frame + dynamic
+ *  island + brand background, so we render them directly without wrapping. */
+const RealPhone = memo(function RealPhone({
+  src,
+  alt,
+  className,
+}: { src: string; alt: string; className?: string }) {
+  return (
+    <div className={cn('relative mx-auto', className)}>
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        className="block w-[260px] sm:w-[280px] h-auto drop-shadow-[0_30px_80px_rgba(139,92,246,0.45)]"
+      />
+    </div>
+  );
+});
+
 const SectionWrap = ({ children, className }: { children: React.ReactNode; className?: string }) => (
   <section className={cn('relative py-20 sm:py-28 px-6', className)}>
     <div className="max-w-7xl mx-auto">{children}</div>
@@ -796,20 +817,20 @@ const VybeHome = memo(function VybeHome() {
               <div className="relative w-[600px] h-[620px]">
                 <motion.div animate={{y:[0,-12,0]}} transition={{duration:6,repeat:Infinity,ease:'easeInOut'}}
                   className="absolute left-0 top-10 z-10">
-                  <PhoneFrame><FeedPhone /></PhoneFrame>
+                  <RealPhone src="/marketing/device/home.png" alt="VYBE home feed" />
                 </motion.div>
                 <motion.div animate={{y:[0,12,0]}} transition={{duration:7,repeat:Infinity,ease:'easeInOut',delay:0.5}}
                   className="absolute right-0 top-0 z-20">
-                  <PhoneFrame><ChatPhone /></PhoneFrame>
+                  <RealPhone src="/marketing/device/messages.png" alt="VYBE encrypted chat" />
                 </motion.div>
                 <motion.div animate={{y:[0,-8,0]}} transition={{duration:8,repeat:Infinity,ease:'easeInOut',delay:1}}
                   className="absolute left-1/2 -translate-x-1/2 bottom-0 z-30">
-                  <PhoneFrame><MapPhone /></PhoneFrame>
+                  <RealPhone src="/marketing/device/map.png" alt="VYBE friend map" />
                 </motion.div>
               </div>
             </div>
             <div className="lg:hidden flex justify-center">
-              <PhoneFrame><FeedPhone /></PhoneFrame>
+              <RealPhone src="/marketing/device/home.png" alt="VYBE home feed" />
             </div>
           </FadeIn>
         </div>
@@ -839,7 +860,7 @@ const VybeHome = memo(function VybeHome() {
             title="An app that learns who you are."
             desc="Every reaction, share, and second of attention shapes your personal DNA. Your feed, friend suggestions, and even the UI itself evolve to match. Nobody else has this."
             bullets={['30-day evolving personality vector','Re-skins your feed automatically','Shareable DNA card you\'ll want to post']}
-            phone={<PhoneFrame><DNAPhone /></PhoneFrame>}
+            phone={<RealPhone src="/marketing/device/dna.png" alt="VYBE DNA personality screen" />}
           />
         </FadeIn>
       </SectionWrap>
@@ -852,7 +873,7 @@ const VybeHome = memo(function VybeHome() {
             title="Make it look like you. Not like everyone else."
             desc="Drag, drop, theme, animate. Your profile is a living canvas — Bento grid blocks, custom backgrounds, shareable themes, motion presets. Templates are dead."
             bullets={['Framer Motion bento blocks','Share your theme with friends','Live aura backgrounds']}
-            phone={<PhoneFrame><AuraPhone /></PhoneFrame>}
+            phone={<RealPhone src="/marketing/device/profile.png" alt="VYBE profile aura customization" />}
           />
         </FadeIn>
       </SectionWrap>
@@ -877,7 +898,7 @@ const VybeHome = memo(function VybeHome() {
             title="The closest thing to actually being there."
             desc="Disappearing snaps. GIF notes that float on the chat. Crystal-clear calls that connect in under a second. Multi-emoji reactions, swipe-replies, and reaction streaks that keep the vibe alive."
             bullets={['48-hour reaction streaks','End-to-end encrypted messages','GIF notes that float on the chat']}
-            phone={<PhoneFrame><SnapPhone /></PhoneFrame>}
+            phone={<RealPhone src="/marketing/device/clips.png" alt="VYBE clips and snaps" />}
           />
         </FadeIn>
       </SectionWrap>
