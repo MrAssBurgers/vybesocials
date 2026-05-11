@@ -13,6 +13,9 @@ import { useLocationContext } from '@/providers/LocationProvider';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+// Adds native bearing/rotation support to Leaflet (`map.setBearing`, two-finger twist).
+// Without this we'd be CSS-rotating the tile pane, which breaks pan/zoom and clips edges.
+import 'leaflet-rotate';
 
 /* ── Map Error Boundary ─────────────────────────────── */
 
