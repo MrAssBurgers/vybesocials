@@ -1746,11 +1746,13 @@ export function ChatView() {
 
       {/* VYBE Camera Modal — only mount when open to avoid heavy AR/MediaPipe init in DM view */}
       {showSnapCamera && (
-        <VybeSnapCamera
-          isOpen={showSnapCamera}
-          onClose={() => setShowSnapCamera(false)}
-          onSend={handleVybeSend}
-        />
+        <CameraMountBoundary onError={() => setShowSnapCamera(false)}>
+          <VybeSnapCamera
+            isOpen={showSnapCamera}
+            onClose={() => setShowSnapCamera(false)}
+            onSend={handleVybeSend}
+          />
+        </CameraMountBoundary>
       )}
 
       {/* Video Send Preview Modal */}
