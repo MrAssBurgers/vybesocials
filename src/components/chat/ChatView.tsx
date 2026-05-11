@@ -2813,6 +2813,8 @@ const MessageBubble = memo(function MessageBubble({
             }
           } : undefined}
           onSaveSticker={isMediaMessage && message.media_url && onSaveSticker ? () => onSaveSticker(message.media_url!) : undefined}
+          onToggleKeep={onToggleSaved ? () => { onToggleSaved(); closeContextMenu(); } : undefined}
+          isKept={!!(message.saved_by_sender || message.saved_by_recipient)}
         />
 
         {/* Fullscreen image/video viewer */}
