@@ -95,16 +95,33 @@ export function useChallenges() {
       
       if (dailyError) throw dailyError;
       
-      // Fallback: if no date-specific dailies, fetch ones with NULL active_date
       let finalDailies = dailies || [];
+
+      // Self-heal: if today's challenges are missing, ask the DB to
+      // populate them from the template library, then re-fetch once.
       if (finalDailies.length === 0) {
-        const { data: fallbackDailies, error: fbError } = await supabase
+        try {
+          await supabase.rpc('rotate_challenges');
+          const { data: refreshed } = await supabase
+            .from('challenges')
+            .select('*')
+            .eq('is_active', true)
+            .eq('type', 'daily')
+            .eq('active_date', today);
+          finalDailies = refreshed || [];
+        } catch (e) {
+          console.warn('rotate_challenges self-heal failed', e);
+        }
+      }
+
+      // Final fallback: NULL-dated dailies
+      if (finalDailies.length === 0) {
+        const { data: fallbackDailies } = await supabase
           .from('challenges')
           .select('*')
           .eq('is_active', true)
           .eq('type', 'daily')
           .is('active_date', null);
-        if (fbError) throw fbError;
         finalDailies = fallbackDailies || [];
       }
       
