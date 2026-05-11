@@ -39,11 +39,15 @@ export async function aiScanImage(file: File): Promise<AISafetyResult> {
   });
 
   if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    console.error('[aiScanImage] failed:', response.status, body);
     if (response.status === 429) {
       return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'Rate limited, skipping AI scan.' };
     }
-    console.error('AI safety scan failed:', response.status);
-    return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'AI scan unavailable.' };
+    if (response.status === 402) {
+      return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'AI credits exhausted. Add funds in workspace settings.' };
+    }
+    return { allowed: true, result: 'allowed', categories: [], score: 0, message: `AI scan unavailable (${response.status}).` };
   }
 
   return response.json();
@@ -71,11 +75,15 @@ export async function aiScanVideoFrame(
   });
 
   if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    console.error('[aiScanVideoFrame] failed:', response.status, body);
     if (response.status === 429) {
       return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'Rate limited, skipping AI scan.' };
     }
-    console.error('AI safety scan failed:', response.status);
-    return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'AI scan unavailable.' };
+    if (response.status === 402) {
+      return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'AI credits exhausted. Add funds in workspace settings.' };
+    }
+    return { allowed: true, result: 'allowed', categories: [], score: 0, message: `AI scan unavailable (${response.status}).` };
   }
 
   return response.json();
