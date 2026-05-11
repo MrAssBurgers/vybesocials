@@ -63,17 +63,41 @@ export default function ProfilePage() {
   const { data: lockerData } = useLockerItems(profile?.id);
 
   const equippedTheme = lockerData?.equippedProfileTheme;
-  const { setBackgroundImage, refreshBackground } = useAppBackground();
+  const { setBackgroundImage } = useAppBackground();
 
+  // Apply the VIEWED profile's custom background while on this page.
+  // Equipped theme image > viewed user's active user_background. Cleared on unmount.
   useEffect(() => {
-    const themeImg = equippedTheme ? THEME_IMAGES[equippedTheme] : null;
-    if (themeImg) {
-      const img = new Image();
-      img.onload = () => setBackgroundImage(themeImg);
-      img.src = themeImg;
-    }
-    return () => { refreshBackground(); };
-  }, [equippedTheme, setBackgroundImage, refreshBackground]);
+    if (!profile?.id) return;
+    let cancelled = false;
+    const apply = async () => {
+      const themeImg = equippedTheme ? THEME_IMAGES[equippedTheme] : null;
+      if (themeImg) {
+        const img = new Image();
+        img.onload = () => { if (!cancelled) setBackgroundImage(themeImg); };
+        img.src = themeImg;
+        return;
+      }
+      // Fall back to the viewed profile's active uploaded background
+      try {
+        const { supabase } = await import('@/integrations/supabase/client');
+        const { data } = await supabase
+          .from('user_backgrounds')
+          .select('image_url')
+          .eq('user_id', profile.id)
+          .eq('is_active', true)
+          .maybeSingle();
+        if (!cancelled) setBackgroundImage(data?.image_url ?? null);
+      } catch {
+        if (!cancelled) setBackgroundImage(null);
+      }
+    };
+    apply();
+    return () => {
+      cancelled = true;
+      setBackgroundImage(null);
+    };
+  }, [profile?.id, equippedTheme, setBackgroundImage]);
 
   const isOwnProfile = !!currentProfile && !!profile && currentProfile.id === profile.id;
 
@@ -128,6 +152,7 @@ export default function ProfilePage() {
   const clipsForGrid = shortPosts.map(post => ({
     id: post.id,
     media_url: post.media_url,
+    thumbnail_url: (post as any).thumbnail_url ?? null,
     caption: post.caption || '',
     tags: post.tags || [],
     author: post.author,

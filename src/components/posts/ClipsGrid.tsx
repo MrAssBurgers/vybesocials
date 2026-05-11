@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, X, Eye } from 'lucide-react';
+import { X, Eye } from 'lucide-react';
 import { ShortCard } from './ShortCard';
 import { Button } from '@/components/ui/button';
-import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { VideoThumbnail } from '@/components/ui/VideoThumbnail';
 
 interface ClipPost {
   id: string;
   media_url: string;
+  thumbnail_url?: string | null;
   caption: string;
   tags: string[];
   author: {
@@ -27,8 +28,6 @@ interface ClipsGridProps {
 }
 
 function ClipThumbnail({ clip, onClick }: { clip: ClipPost; onClick: () => void }) {
-  const signedUrl = useSignedUrl(clip.media_url);
-
   const formatViewCount = (count: number) => {
     if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
     if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
@@ -42,32 +41,16 @@ function ClipThumbnail({ clip, onClick }: { clip: ClipPost; onClick: () => void 
       className="aspect-[9/16] relative group cursor-pointer overflow-hidden rounded-lg bg-muted"
       onClick={onClick}
     >
-      {/* Video thumbnail */}
-      <video
-        src={signedUrl || ''}
+      {/* Real poster frame — never a white play box */}
+      <VideoThumbnail
+        videoUrl={clip.media_url}
+        thumbnailUrl={clip.thumbnail_url ?? null}
+        alt={clip.caption || 'Clip'}
         className="w-full h-full object-cover"
-        muted
-        preload="metadata"
-        playsInline
       />
 
-      {/* Hover overlay */}
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          whileHover={{ opacity: 1, scale: 1 }}
-          className="opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <div className="w-16 h-16 rounded-full bg-white/30 backdrop-blur-sm flex items-center justify-center">
-            <Play className="h-8 w-8 text-white ml-1" fill="white" />
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Play icon overlay (always visible) */}
-      <div className="absolute top-2 left-2 p-1.5 rounded-full bg-black/50">
-        <Play className="h-3 w-3 text-white" fill="white" />
-      </div>
+      {/* Subtle hover veil — no big play button */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
 
       {/* View count at bottom */}
       <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white text-xs font-medium drop-shadow-lg">

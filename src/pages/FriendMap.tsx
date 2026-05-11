@@ -86,7 +86,8 @@ interface WeatherData {
 const DEFAULT_CENTER: [number, number] = [39.8283, -98.5795];
 const DEFAULT_ZOOM = 4;
 const FRIEND_FOCUS_ZOOM = 16;
-const MY_LOCATION_ZOOM = 16;
+const MY_LOCATION_ZOOM = 15;
+const COMPASS_ZOOM = 15;
 const SHARING_PREF_KEY = 'vybe-map-sharing';
 const MAP_STYLE_KEY = 'vybe-map-style';
 const HIDDEN_FRIENDS_KEY = 'vybe-map-hidden-friends';
@@ -960,6 +961,61 @@ function FriendMapInner() {
     };
   }, [headingUp]);
 
+  /* ── Compass mode lifecycle: snap to user at pulled-back zoom,
+     lock dragging (pinch-zoom still works), and a single-finger drag
+     disables compass mode and restores the previous map state. */
+  const preCompassRef = useRef<{ center: L.LatLng; zoom: number } | null>(null);
+  useEffect(() => {
+    const map: any = mapRef.current;
+    if (!map) return;
+    if (headingUp) {
+      // Snapshot pre-compass view so a drag can restore it.
+      preCompassRef.current = { center: map.getCenter(), zoom: map.getZoom() };
+      try { map.dragging?.disable(); } catch {}
+      if (safeMyCoords) {
+        try { map.flyTo(safeMyCoords as any, COMPASS_ZOOM, { duration: 0.6 }); } catch {}
+      }
+    } else {
+      try { map.dragging?.enable(); } catch {}
+      try { map.setBearing?.(0); } catch {}
+      const snap = preCompassRef.current;
+      if (snap) {
+        try { map.flyTo(snap.center, snap.zoom, { duration: 0.6 }); } catch {}
+        preCompassRef.current = null;
+      }
+    }
+  }, [headingUp, safeMyCoords]);
+
+  // Single-finger drag while in compass mode → disable compass and restore.
+  useEffect(() => {
+    if (!headingUp) return;
+    const el = mapEl.current;
+    if (!el) return;
+    let startX = 0, startY = 0, pointers = 0;
+    const onDown = (e: PointerEvent) => {
+      pointers++;
+      if (pointers === 1) { startX = e.clientX; startY = e.clientY; }
+    };
+    const onMove = (e: PointerEvent) => {
+      if (pointers !== 1) return;
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) > 10) {
+        setHeadingUp(false);
+        triggerHaptic('light');
+      }
+    };
+    const onUp = () => { pointers = Math.max(0, pointers - 1); };
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+    return () => {
+      el.removeEventListener('pointerdown', onDown);
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+    };
+  }, [headingUp]);
+
   /* ── Apply heading-up bearing to the map (Google-Maps style) ──
      Pans onto the user so they sit at the rotation pivot, then drives
      leaflet-rotate's native `setBearing`. Markers stay upright natively. */
@@ -969,11 +1025,10 @@ function FriendMapInner() {
     if (!map?.setBearing) return;
     if (safeMyCoords) {
       try {
-        // Pan-only follow (no zoom change) so the avatar stays glued to center.
-        map.panTo(safeMyCoords as any, { animate: true, duration: 0.25, noMoveStart: true } as any);
+        map.panTo(safeMyCoords as any, { animate: false } as any);
       } catch {}
     }
-    try { map.setBearing(-heading); } catch (e) { console.warn('[FriendMap] setBearing failed', e); }
+    try { map.setBearing(-heading, { animate: false } as any); } catch {}
   }, [headingUp, heading, safeMyCoords]);
 
 
