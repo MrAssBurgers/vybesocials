@@ -830,7 +830,7 @@ const VybeHome = memo(function VybeHome() {
               </div>
             </div>
             <div className="lg:hidden flex justify-center">
-              <PhoneFrame><FeedPhone /></PhoneFrame>
+              <RealPhone src="/marketing/device/home.png" alt="VYBE home feed" />
             </div>
           </FadeIn>
         </div>
