@@ -20,15 +20,17 @@ export const VideoThumbnail = memo(function VideoThumbnail({
   className,
   onError,
 }: VideoThumbnailProps) {
-  const [generatedThumbnail, setGeneratedThumbnail] = useState<string | null>(null);
+  const cacheKey = videoUrl || '';
+  const [generatedThumbnail, setGeneratedThumbnail] = useState<string | null>(
+    () => (cacheKey ? posterCache.get(cacheKey) ?? null : null)
+  );
   const [hasError, setHasError] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!generatedThumbnail);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  
+
   const signedThumbnail = useSignedUrl(thumbnailUrl);
   const signedVideo = useSignedUrl(videoUrl);
 
-  // If we have a signed thumbnail URL, use it
   const displayUrl = signedThumbnail || generatedThumbnail;
 
   // Generate thumbnail from video if no thumbnail URL exists
@@ -42,7 +44,6 @@ export const VideoThumbnail = memo(function VideoThumbnail({
     video.preload = 'metadata';
 
     const handleLoadedData = () => {
-      // Seek to 1 second or 10% of video duration
       video.currentTime = Math.min(1, video.duration * 0.1);
     };
 
@@ -51,11 +52,11 @@ export const VideoThumbnail = memo(function VideoThumbnail({
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth || 640;
         canvas.height = video.videoHeight || 360;
-        
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          if (cacheKey) posterCache.set(cacheKey, dataUrl);
           setGeneratedThumbnail(dataUrl);
           setIsLoading(false);
         }
@@ -64,8 +65,6 @@ export const VideoThumbnail = memo(function VideoThumbnail({
         setHasError(true);
         setIsLoading(false);
       }
-      
-      // Cleanup
       video.src = '';
       video.load();
     };
@@ -90,32 +89,22 @@ export const VideoThumbnail = memo(function VideoThumbnail({
       video.src = '';
       videoRef.current = null;
     };
-  }, [signedVideo, signedThumbnail, generatedThumbnail, onError]);
+  }, [signedVideo, signedThumbnail, generatedThumbnail, onError, cacheKey]);
 
-  // Handle signed thumbnail loading
   useEffect(() => {
-    if (signedThumbnail) {
-      setIsLoading(false);
-    }
+    if (signedThumbnail) setIsLoading(false);
   }, [signedThumbnail]);
 
-  if (hasError || (!displayUrl && !isLoading)) {
+  // Soft dark gradient placeholder — never the white play-button fallback
+  if (hasError || !displayUrl) {
     return (
-      <div className={cn(
-        "w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50",
-        className
-      )}>
-        <Play className="h-12 w-12 text-muted-foreground/50" />
-      </div>
-    );
-  }
-
-  if (isLoading && !displayUrl) {
-    return (
-      <div className={cn(
-        "w-full h-full bg-gradient-to-br from-muted to-muted/50 animate-pulse",
-        className
-      )} />
+      <div
+        className={cn(
+          'w-full h-full bg-gradient-to-br from-muted/80 via-muted/60 to-background/80',
+          isLoading && 'animate-pulse',
+          className
+        )}
+      />
     );
   }
 
