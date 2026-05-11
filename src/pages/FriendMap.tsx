@@ -1038,20 +1038,15 @@ function FriendMapInner() {
     };
   }, [headingUp]);
 
-  /* ── Apply heading-up bearing to the map (Google-Maps style) ──
-     Pans onto the user so they sit at the rotation pivot, then drives
-     leaflet-rotate's native `setBearing`. Markers stay upright natively. */
+  /* ── Keep the user marker at the rotation pivot ──
+     The rAF loop in the compass effect owns setBearing; here we just make
+     sure the user stays centered so rotation pivots around them. */
   useEffect(() => {
     if (!headingUp) return;
     const map: any = mapRef.current;
-    if (!map?.setBearing) return;
-    if (safeMyCoords) {
-      try {
-        map.panTo(safeMyCoords as any, { animate: false } as any);
-      } catch {}
-    }
-    try { map.setBearing(-heading, { animate: false } as any); } catch {}
-  }, [headingUp, heading, safeMyCoords]);
+    if (!map || !safeMyCoords) return;
+    try { map.panTo(safeMyCoords as any, { animate: false } as any); } catch {}
+  }, [headingUp, safeMyCoords]);
 
 
   /* ── render ────────────────────────────────────────── */
