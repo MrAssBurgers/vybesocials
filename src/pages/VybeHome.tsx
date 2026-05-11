@@ -817,7 +817,7 @@ const VybeHome = memo(function VybeHome() {
               <div className="relative w-[600px] h-[620px]">
                 <motion.div animate={{y:[0,-12,0]}} transition={{duration:6,repeat:Infinity,ease:'easeInOut'}}
                   className="absolute left-0 top-10 z-10">
-                  <PhoneFrame><FeedPhone /></PhoneFrame>
+                  <RealPhone src="/marketing/device/home.png" alt="VYBE home feed" />
                 </motion.div>
                 <motion.div animate={{y:[0,12,0]}} transition={{duration:7,repeat:Infinity,ease:'easeInOut',delay:0.5}}
                   className="absolute right-0 top-0 z-20">
