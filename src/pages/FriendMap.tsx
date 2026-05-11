@@ -987,27 +987,13 @@ function FriendMapInner() {
           .scrollbar-hide::-webkit-scrollbar{display:none}
           .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
 
-          /* Counter-rotate the inner content of every Leaflet marker so
-             avatars, labels, "you" pin and event icons stay upright while
-             the map pane rotates underneath (Google-Maps "heading-up"). The
-             outer .leaflet-marker-icon keeps Leaflet's positioning transform. */
-          .vfm, .vme, .vfm-cluster {
-            transform: rotate(var(--map-counter-rot, 0deg));
-            transform-origin: center center;
-            transition: transform 120ms linear;
-          }
+          /* leaflet-rotate keeps markers upright natively — no CSS counter-rotation needed. */
         `}</style>
 
-        {/* Map container — wrapper stays UNROTATED so the top bar, FABs and
-            sheets never skew. Rotation is applied to .leaflet-map-pane in JS. */}
+        {/* Map container */}
         <div
           ref={mapEl}
           className="absolute inset-0 block w-full h-full"
-          style={{
-            // CSS variable consumed by .leaflet-marker-icon counter-rotation rule
-            // (set in the rotation effect above).
-            ['--map-counter-rot' as any]: '0deg',
-          }}
         />
 
 
