@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Map as MapIcon, Shield, Music, Users, Zap, Heart, MessageCircle, Camera, Trophy, Bot, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PublicFooter } from '@/components/marketing/PublicFooter';
+import { useAppScreenshots } from '@/hooks/useAppScreenshots';
 
 const features = [
   { icon: Bot, title: 'VYBE AI Assistant', body: 'A real-time, multi-modal AI built into the app. Ask it anything, generate images, get personalized recommendations, or have it summarize your day. Powered by Gemini and GPT-5 through a unified gateway, with auto-switching for cost and speed.' },
@@ -22,6 +23,7 @@ const features = [
 
 export default function FeaturesPage() {
   const navigate = useNavigate();
+  const { shots } = useAppScreenshots('features');
 
   useEffect(() => {
     const prev = document.title;
@@ -70,6 +72,44 @@ export default function FeaturesPage() {
             </motion.article>
           ))}
         </section>
+
+        {shots.length > 0 && (
+          <section className="mb-12">
+            <div className="mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold mb-2">See it in action</h2>
+              <p className="text-muted-foreground">Real screens, straight from the app.</p>
+            </div>
+            <div className="relative -mx-4 sm:mx-0">
+              <div className="flex gap-5 overflow-x-auto px-4 sm:px-0 pb-6 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {shots.map((s, i) => (
+                  <motion.figure
+                    key={s.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: '-50px' }}
+                    transition={{ delay: Math.min(i * 0.04, 0.3) }}
+                    className="snap-center shrink-0 w-[240px] sm:w-[280px]"
+                  >
+                    <div className="rounded-[2rem] overflow-hidden bg-gradient-to-br from-primary/10 via-card to-cyan-400/10 p-1">
+                      <img
+                        src={s.device_url || s.raw_url || ''}
+                        alt={s.title}
+                        loading="lazy"
+                        className="w-full h-auto block"
+                      />
+                    </div>
+                    <figcaption className="mt-3 px-1">
+                      <div className="text-sm font-semibold text-foreground">{s.title}</div>
+                      {s.subtitle && (
+                        <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{s.subtitle}</div>
+                      )}
+                    </figcaption>
+                  </motion.figure>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="rounded-2xl border border-border bg-card p-6 mb-10 text-center">
           <h2 className="text-2xl font-bold mb-2">Ready to find your tribe?</h2>
