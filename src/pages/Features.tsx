@@ -23,6 +23,7 @@ const features = [
 
 export default function FeaturesPage() {
   const navigate = useNavigate();
+  const { shots } = useAppScreenshots('features');
 
   useEffect(() => {
     const prev = document.title;
