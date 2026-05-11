@@ -485,9 +485,45 @@ function FriendMapInner() {
   
   const weather = useWeather(safeMyCoords);
   
+  // Dev-only fake orbit friend (?fakeOrbit=1) — circles the user at ~50m so we
+  // can visually verify rotation pivots exactly on the avatar.
+  const [fakeOrbitT, setFakeOrbitT] = useState(0);
+  const fakeOrbitOn = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('fakeOrbit') === '1';
+  }, []);
+  useEffect(() => {
+    if (!fakeOrbitOn) return;
+    const id = window.setInterval(() => setFakeOrbitT((t) => t + 0.05), 50);
+    return () => window.clearInterval(id);
+  }, [fakeOrbitOn]);
+
   const friendsArr = useMemo(
-    () => (Array.isArray(friends) ? friends.filter((friend) => isValidLatLng(friend.latitude, friend.longitude) && !hiddenFriends.has(friend.user_id)) : []),
-    [friends, hiddenFriends]
+    () => {
+      const base = (Array.isArray(friends) ? friends.filter((friend) => isValidLatLng(friend.latitude, friend.longitude) && !hiddenFriends.has(friend.user_id)) : []);
+      if (fakeOrbitOn && safeMyCoords) {
+        // ~50m offset: 1 deg lat ≈ 111_111 m, lng scaled by cos(lat).
+        const radM = 50;
+        const dLat = (Math.cos(fakeOrbitT) * radM) / 111_111;
+        const dLng = (Math.sin(fakeOrbitT) * radM) / (111_111 * Math.cos((safeMyCoords[0] * Math.PI) / 180));
+        base.push({
+          id: 'fake-orbit',
+          user_id: 'fake-orbit',
+          latitude: safeMyCoords[0] + dLat,
+          longitude: safeMyCoords[1] + dLng,
+          accuracy: 5,
+          label: 'TEST',
+          updated_at: new Date().toISOString(),
+          expires_at: null,
+          sharing_enabled: true,
+          status: '🧪 Orbiting',
+          speed: 1,
+          profile: { username: 'orbit-test', display_name: 'TEST', avatar_url: null },
+        } as any);
+      }
+      return base;
+    },
+    [friends, hiddenFriends, fakeOrbitOn, fakeOrbitT, safeMyCoords]
   );
   const allFriendsArr = useMemo(
     () => (Array.isArray(friends) ? friends.filter((friend) => isValidLatLng(friend.latitude, friend.longitude)) : []),
