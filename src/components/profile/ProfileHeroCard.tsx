@@ -186,67 +186,48 @@ export function ProfileHeroCard({
             </div>
           </div>
 
-          {/* Action buttons - vertical stack on right */}
-          <div className="flex flex-col gap-1 sm:gap-1.5 flex-shrink-0">
+          {/* Action buttons - inline icons (own profile) or dropdown (mod) */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             {isOwnProfile ? (
               <>
                 <Link to="/settings">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl bg-foreground/5 hover:bg-foreground/10">
-                    <Settings className="h-3.5 w-3.5" />
+                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-foreground/5 hover:bg-foreground/10">
+                    <Settings className="h-4 w-4" />
                   </Button>
                 </Link>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl bg-foreground/5 hover:bg-foreground/10" onClick={handleShare}>
-                  <Share2 className="h-3.5 w-3.5" />
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-foreground/5 hover:bg-foreground/10" onClick={handleShare}>
+                  <Share2 className="h-4 w-4" />
                 </Button>
               </>
             ) : (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-xl bg-foreground/5 hover:bg-foreground/10"
-                  onClick={handleMessage}
-                  disabled={createConversation.isPending}
-                >
-                  <MessageCircle className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-xl bg-foreground/5 hover:bg-foreground/10"
-                  onClick={handleShare}
-                >
-                  <Share2 className="h-3.5 w-3.5" />
-                </Button>
-                {isModOrAdmin && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl bg-foreground/5 hover:bg-foreground/10">
-                        <MoreHorizontal className="h-3.5 w-3.5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="liquid-glass">
-                      <DropdownMenuLabel className="flex items-center gap-2">
-                        @{profile.username}
-                        {profileRole && <ModBadge role={profileRole} showLabel />}
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <ModeratorMenuItems
-                        userId={profile.id}
-                        username={profile.username}
-                        onWarnClick={onWarnClick}
-                        onBanClick={onBanClick}
-                        onMemeBanClick={onMemeBanClick}
-                      />
-                      <PremiumMemeBanMenuItem
-                        userId={profile.id}
-                        username={profile.username}
-                        onOpen={onPremiumMemeBanClick}
-                      />
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </>
+              isModOrAdmin && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-foreground/5 hover:bg-foreground/10">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="liquid-glass">
+                    <DropdownMenuLabel className="flex items-center gap-2">
+                      @{profile.username}
+                      {profileRole && <ModBadge role={profileRole} showLabel />}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <ModeratorMenuItems
+                      userId={profile.id}
+                      username={profile.username}
+                      onWarnClick={onWarnClick}
+                      onBanClick={onBanClick}
+                      onMemeBanClick={onMemeBanClick}
+                    />
+                    <PremiumMemeBanMenuItem
+                      userId={profile.id}
+                      username={profile.username}
+                      onOpen={onPremiumMemeBanClick}
+                    />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )
             )}
           </div>
         </div>
@@ -256,28 +237,39 @@ export function ProfileHeroCard({
           <StatCapsule value={profile.post_count} label="Posts" />
           <StatCapsule value={liveFollowerCount} label="Followers" highlight />
           <StatCapsule value={profile.following_count} label="Following" />
-
-          <div className="flex-1" />
-
-          {/* Follow / Premium buttons */}
-          {isOwnProfile ? null : (
-            <div className="flex gap-1.5">
-              <FriendButton userId={profile.id} size="sm" />
-              <Button
-                variant={profile.is_following ? 'secondary' : 'default'}
-                size="sm"
-                className={cn(
-                  "h-8 rounded-xl text-xs font-semibold px-4",
-                  !profile.is_following && "bg-primary text-primary-foreground"
-                )}
-                onClick={onFollow}
-                disabled={isFollowPending}
-              >
-                {profile.is_following ? 'Following' : 'Follow'}
-              </Button>
-            </div>
-          )}
         </div>
+
+        {/* Primary actions row — clean, full-width on mobile, matches desktop */}
+        {!isOwnProfile && (
+          <div className="flex items-center gap-2 mt-3">
+            <Button
+              variant={profile.is_following ? 'secondary' : 'default'}
+              size="sm"
+              className={cn(
+                "flex-1 h-10 rounded-xl text-sm font-semibold",
+                !profile.is_following && "bg-primary text-primary-foreground"
+              )}
+              onClick={onFollow}
+              disabled={isFollowPending}
+            >
+              {profile.is_following ? 'Following' : 'Follow'}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-1 h-10 rounded-xl text-sm font-semibold gap-1.5"
+              onClick={handleMessage}
+              disabled={createConversation.isPending}
+            >
+              <MessageCircle className="h-4 w-4" />
+              Message
+            </Button>
+            <FriendButton userId={profile.id} size="sm" />
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl bg-foreground/5 hover:bg-foreground/10 flex-shrink-0" onClick={handleShare}>
+              <Share2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
     </motion.div>
   );
