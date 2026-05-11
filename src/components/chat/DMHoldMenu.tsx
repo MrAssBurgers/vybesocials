@@ -6,7 +6,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Reply, Copy, Download, Sparkles, Edit3, Trash2, EyeOff } from 'lucide-react';
+import { Reply, Copy, Download, Sparkles, Edit3, Trash2, EyeOff, Bookmark } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { getTopEmojis } from '@/lib/frequentEmojis';
@@ -26,6 +26,8 @@ export interface DMHoldMenuProps {
   onDeleteForMe?: () => void;
   onSave?: () => void;
   onSaveSticker?: () => void;
+  onToggleKeep?: () => void;
+  isKept?: boolean;
 }
 
 const INITIAL_BACKDROP_GUARD_MS = 260;
@@ -45,6 +47,8 @@ export const DMHoldMenu = memo(function DMHoldMenu({
   onDeleteForMe,
   onSave,
   onSaveSticker,
+  onToggleKeep,
+  isKept,
 }: DMHoldMenuProps) {
   const smartEmojis = useMemo(() => getTopEmojis(6), []);
   const ignoreBackdropRef = useRef(false);
