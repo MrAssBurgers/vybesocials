@@ -2692,6 +2692,23 @@ const MessageBubble = memo(function MessageBubble({
           </div>
         )}
 
+        {/* Saved indicator — shows on both sides, Snapchat-style */}
+        {(message.saved_by_sender || message.saved_by_recipient) && (
+          <div className={cn(
+            "flex items-center gap-1 mt-1 text-[10px] font-medium",
+            isOwn ? "self-end text-primary/80" : "self-start text-cyan-400/90"
+          )}>
+            <Bookmark className="h-2.5 w-2.5 fill-current" />
+            <span>
+              {message.saved_by_sender && message.saved_by_recipient
+                ? 'Saved by both'
+                : (message.saved_by_sender === isOwn || message.saved_by_recipient === !isOwn)
+                  ? (isOwn ? (message.saved_by_sender ? 'You saved' : `${sender?.username || 'They'} saved`) : (message.saved_by_recipient ? 'You saved' : `${sender?.username || 'They'} saved`))
+                  : 'Saved'}
+            </span>
+          </div>
+        )}
+
         {/* Timestamp and read receipts - 6-8px below bubble */}
         <div className={cn(
           "flex items-center gap-1.5 mt-2",
