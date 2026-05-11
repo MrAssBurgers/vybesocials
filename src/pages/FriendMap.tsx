@@ -677,6 +677,12 @@ function FriendMapInner() {
       resizeObserver?.observe(el);
       map.on('click', () => { setSelId(null); setStylesOpen(false); });
       map.on('zoomend', () => setZoom(map.getZoom()));
+      // Sync our local rotation state from leaflet-rotate so the compass icon
+      // in the right-side FAB stays accurate during two-finger twist.
+      map.on('rotate', () => {
+        const b = (map as any).getBearing?.() ?? 0;
+        setManualRotation(((b % 360) + 360) % 360);
+      });
       map.whenReady(() => {
         safeInvalidateSize();
         retryRaf = requestAnimationFrame(safeInvalidateSize);
