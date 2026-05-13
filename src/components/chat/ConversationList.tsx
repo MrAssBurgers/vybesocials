@@ -46,6 +46,7 @@ import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
 import { NotesRow } from './NotesRow';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
+import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
