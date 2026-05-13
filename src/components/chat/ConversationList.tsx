@@ -473,14 +473,18 @@ export function ConversationList() {
       </ScrollArea>
 
       {/* VybeSnap Camera */}
-      <VybeSnapCamera
-        isOpen={showSnapCamera}
-        onClose={() => setShowSnapCamera(false)}
-        onSend={(mediaUrl, isVideo) => {
-          setShowSnapCamera(false);
-          toast.success('Snap saved!');
-        }}
-      />
+      {showSnapCamera && (
+        <CameraMountBoundary onError={() => setShowSnapCamera(false)}>
+          <VybeSnapCamera
+            isOpen={showSnapCamera}
+            onClose={() => setShowSnapCamera(false)}
+            onSend={() => {
+              setShowSnapCamera(false);
+              toast.success('Snap saved!');
+            }}
+          />
+        </CameraMountBoundary>
+      )}
     </div>
   );
 }
