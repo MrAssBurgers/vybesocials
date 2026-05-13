@@ -276,6 +276,7 @@ export function ChatView() {
   const [showMediaSettings, setShowMediaSettings] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showSnapCamera, setShowSnapCamera] = useState(false);
+  const [snapInitialStream, setSnapInitialStream] = useState<MediaStream | null>(null);
   const [cameraFirstMode, setCameraFirstMode] = useState(false);
   const callStore = useCallStore();
   const handleOpenSnapCamera = useCallback(() => {
@@ -284,12 +285,19 @@ export function ChatView() {
       return;
     }
     try { stopCameraStream(); } catch {}
-    // Fire-and-forget; never let an unhandled rejection crash the WebView
-    Promise.resolve()
-      .then(() => requestCameraStream({ facingMode: 'environment', width: 1920, height: 1080, audio: true }))
-      .catch((e) => console.warn('[ChatView] camera preload failed', e));
+    // Kick off media request from inside the tap handler — keep gesture context.
+    // Open the modal immediately so the user gets feedback; attach stream when ready.
+    setSnapInitialStream(null);
     setShowSnapCamera(true);
+    requestCameraStream({ facingMode: 'environment', width: 1920, height: 1080, audio: true })
+      .then((stream) => { if (stream) setSnapInitialStream(stream); })
+      .catch((e) => console.warn('[ChatView] camera preload failed', e));
   }, [callStore.state.phase]);
+  const closeSnapCamera = useCallback(() => {
+    setShowSnapCamera(false);
+    setSnapInitialStream(null);
+    try { stopCameraStream(); } catch {}
+  }, []);
   const [showScreenshotAlert, setShowScreenshotAlert] = useState(false);
   const [screenshotUser, setScreenshotUser] = useState<string | undefined>();
   // Video preview state
