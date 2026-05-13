@@ -46,6 +46,7 @@ import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
 import { NotesRow } from './NotesRow';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
+import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
@@ -473,14 +474,18 @@ export function ConversationList() {
       </ScrollArea>
 
       {/* VybeSnap Camera */}
-      <VybeSnapCamera
-        isOpen={showSnapCamera}
-        onClose={() => setShowSnapCamera(false)}
-        onSend={(mediaUrl, isVideo) => {
-          setShowSnapCamera(false);
-          toast.success('Snap saved!');
-        }}
-      />
+      {showSnapCamera && (
+        <CameraMountBoundary onError={() => setShowSnapCamera(false)}>
+          <VybeSnapCamera
+            isOpen={showSnapCamera}
+            onClose={() => setShowSnapCamera(false)}
+            onSend={() => {
+              setShowSnapCamera(false);
+              toast.success('Snap saved!');
+            }}
+          />
+        </CameraMountBoundary>
+      )}
     </div>
   );
 }

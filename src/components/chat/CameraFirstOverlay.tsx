@@ -3,6 +3,7 @@ import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { ChevronUp, MessageCircle } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
+import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
 import { haptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 
@@ -64,11 +65,13 @@ export function CameraFirstOverlay({
         style={{ willChange: 'transform' }}
       >
         {/* Camera layer */}
-        <VybeSnapCamera
-          isOpen={isOpen}
-          onClose={onClose}
-          onSend={onSend}
-        />
+        <CameraMountBoundary onError={onClose}>
+          <VybeSnapCamera
+            isOpen={isOpen}
+            onClose={onClose}
+            onSend={onSend}
+          />
+        </CameraMountBoundary>
 
         {/* Gesture capture overlay - transparent, sits on top for swipe detection */}
         <motion.div
