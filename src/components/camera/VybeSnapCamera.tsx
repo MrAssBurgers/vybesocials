@@ -21,6 +21,10 @@ interface VybeSnapCameraProps {
   isOpen: boolean;
   onClose: () => void;
   onSend: (mediaUrl: string, isVideo: boolean) => void;
+  /** Optional pre-acquired stream from the original user gesture. When provided,
+   * the camera component will attach this stream instead of calling getUserMedia
+   * itself, preserving the gesture context required by mobile WebViews. */
+  initialStream?: MediaStream | null;
 }
 
 const MAX_RECORDING_DURATION = 30;
