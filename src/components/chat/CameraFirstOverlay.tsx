@@ -65,11 +65,13 @@ export function CameraFirstOverlay({
         style={{ willChange: 'transform' }}
       >
         {/* Camera layer */}
-        <VybeSnapCamera
-          isOpen={isOpen}
-          onClose={onClose}
-          onSend={onSend}
-        />
+        <CameraMountBoundary onError={onClose}>
+          <VybeSnapCamera
+            isOpen={isOpen}
+            onClose={onClose}
+            onSend={onSend}
+          />
+        </CameraMountBoundary>
 
         {/* Gesture capture overlay - transparent, sits on top for swipe detection */}
         <motion.div
