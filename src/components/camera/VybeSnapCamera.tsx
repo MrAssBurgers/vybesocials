@@ -116,20 +116,16 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   // ── Defensive camera open ──
   const startCamera = useCallback(async () => {
     try {
-      // Skip Permissions API entirely on Despia/Android WebView — it can throw
-      // synchronously and crash the wrapper. Native permission UI handles it.
-      if (!isDespia() && navigator.permissions) {
-        try {
-          const camStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
-          if (camStatus.state === 'denied') {
-            setPermissionDenied(true);
-            return;
-          }
-        } catch {/* swallow — unsupported in WebViews */}
+      // Hard guard: media API may be entirely missing in some WebViews
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        console.warn('[VybeSnapCamera] getUserMedia unavailable on this device');
+        setPermissionDenied(true);
+        return;
       }
 
-      // Reuse a preloaded stream only if its tracks are still live.
-      const preloaded = getActiveStream();
+      // 1. Prefer a stream provided by the parent (acquired during the original tap)
+      const provided = initialStream && initialStream.active ? initialStream : null;
+      const preloaded = provided || getActiveStream();
       if (preloaded) {
         const tracks = preloaded.getTracks();
         const allLive = tracks.length > 0 && tracks.every(t => t.readyState === 'live');
@@ -138,20 +134,48 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         const currentFacing = settings?.facingMode || 'user';
         const hasAudio = preloaded.getAudioTracks().length > 0;
 
+        // If parent supplied stream, use it as-is (don't second-guess constraints)
+        if (provided && allLive) {
+          streamRef.current = preloaded;
+          setPermissionDenied(false);
+          setCameraReady(true);
+          requestAnimationFrame(() => {
+            if (videoRef.current && streamRef.current) {
+              try {
+                videoRef.current.srcObject = streamRef.current;
+                videoRef.current.play().catch(() => {});
+              } catch {}
+            }
+          });
+          return;
+        }
+
         if (allLive && currentFacing === facingMode && hasAudio === soundEnabled) {
           streamRef.current = preloaded;
           setPermissionDenied(false);
           setCameraReady(true);
-          // Defer attaching the source until the <video> exists in the DOM.
           requestAnimationFrame(() => {
             if (videoRef.current && streamRef.current) {
-              videoRef.current.srcObject = streamRef.current;
-              videoRef.current.play().catch(() => {});
+              try {
+                videoRef.current.srcObject = streamRef.current;
+                videoRef.current.play().catch(() => {});
+              } catch {}
             }
           });
           return;
         }
         try { stopCameraStream(); } catch {}
+      }
+
+      // Skip Permissions API on Despia/Android WebView — it can throw.
+      if (!isDespia() && navigator.permissions) {
+        try {
+          const camStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          if (camStatus.state === 'denied') {
+            setPermissionDenied(true);
+            return;
+          }
+        } catch {/* swallow */}
       }
 
       // Tear down any prior stream we owned
@@ -160,7 +184,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         streamRef.current = null;
       }
 
-      // Try simple constraints first (safer in WebViews), then refine.
+      // Try simple constraints first, then refine.
       let stream: MediaStream | null = null;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -168,13 +192,16 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
           audio: soundEnabled,
         });
       } catch (simpleErr: any) {
-        // Fall back to "any camera" if facingMode failed
-        if (simpleErr?.name === 'OverconstrainedError' || simpleErr?.name === 'NotFoundError') {
+        try {
           stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: soundEnabled });
-        } else {
-          throw simpleErr;
+        } catch (fallbackErr: any) {
+          console.warn('[VybeSnapCamera] getUserMedia fallback failed', fallbackErr);
+          setPermissionDenied(true);
+          return;
         }
       }
+
+      if (!stream) { setPermissionDenied(true); return; }
 
       setPermissionDenied(false);
       setCameraReady(true);
@@ -182,12 +209,14 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
 
       requestAnimationFrame(() => {
         if (videoRef.current && streamRef.current) {
-          videoRef.current.srcObject = streamRef.current;
-          videoRef.current.play().catch(() => {});
+          try {
+            videoRef.current.srcObject = streamRef.current;
+            videoRef.current.play().catch(() => {});
+          } catch {}
         }
       });
 
-      // Best-effort torch / zoom on the new track (never throw)
+      // Best-effort torch (never throw)
       const videoTrack = stream.getVideoTracks()[0];
       try {
         const capabilities = videoTrack?.getCapabilities?.() as any;
@@ -198,15 +227,12 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     } catch (error: any) {
       const name = error?.name;
       if (name === 'NotAllowedError') setPermissionDenied(true);
-      else if (name === 'NotReadableError' || name === 'AbortError' || name === 'NotFoundError' || name === 'OverconstrainedError') {
+      else {
         setPermissionDenied(true);
-        console.warn('[VybeSnapCamera] Camera unavailable:', name);
-      } else {
-        setPermissionDenied(true);
-        console.error('[VybeSnapCamera] Camera error:', error);
+        console.warn('[VybeSnapCamera] Camera error:', name || error);
       }
     }
-  }, [facingMode, soundEnabled, flashEnabled]);
+  }, [facingMode, soundEnabled, flashEnabled, initialStream]);
 
   // Toggle torch
   useEffect(() => {
