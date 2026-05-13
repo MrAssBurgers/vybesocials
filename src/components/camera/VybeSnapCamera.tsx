@@ -73,7 +73,7 @@ const isDespia = () => {
   return /despia/i.test(ua);
 };
 
-export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(function VybeSnapCamera({ isOpen, onClose, onSend }, _ref) {
+export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(function VybeSnapCamera({ isOpen, onClose, onSend, initialStream }, _ref) {
   const [phase, setPhase] = useState<'camera' | 'edit' | 'sending'>('camera');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [flashEnabled, setFlashEnabled] = useState(false);
