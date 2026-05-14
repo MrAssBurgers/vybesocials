@@ -1,42 +1,60 @@
 ## Goal
-Replace the mockup Play Store screenshots with real screenshots captured from your live app, then composite them with professional captions and brand styling.
+Seed realistic-looking demo data into the Live DB so I can capture authentic Play Store screenshots of `/home`, `/clips`, `/messages`, `/community`, `/map`, `/vybe-dna`, then clean it up afterward.
 
-## Approach
+## Anti-AI-slop rules
+- No "✨ vibes ✨" / em-dash / "Let's dive in" copy
+- Lowercase casual captions, typos allowed ("ngl", "fr", "lol", "idk")
+- Mix short (3-8 word) and one-line posts; no paragraphs
+- Real-sounding usernames: `mayaaa`, `jules.k`, `noah_p`, `riv`, `tinab`, `dex2x` — not `creative_user_42`
+- Avatars: real photo-style images from Unsplash (people, not generated)
+- Post images: candid phone-shot aesthetic (concert blur, café latte, sunset from car window, dorm mirror selfie, dog on couch) — not studio
+- DM thread reads like 2 friends mid-convo, not a tutorial
+- Timestamps spread across last 6 days, not all "2m ago"
 
-### 1. Capture real screens from the preview
-Use the browser tool to log into the preview and navigate to the 8 target routes at a 1080x1920 (9:19.5 portrait) viewport so the captures match Play Store dimensions natively. Routes:
+## What gets seeded
 
-```
-/home          → Home / DNA-ranked feed
-/clips         → Vertical Clips
-/messages      → Encrypted DMs
-/upload        → Camera / composer
-/map           → Friend Map
-/community     → Communities
-/vybe-dna      → DNA + customization
-/safety        → Vybe Check / safety
-```
+**6 demo profiles** (1 = "you" for the screenshot session, 5 = friends/feed)
+- usernames, bios, avatar_url (Unsplash people), small follower counts (40-300)
 
-If a route needs seeded content to look good, I'll note it and either seed test data or pick the closest already-populated screen.
+**8 posts** in the home feed
+- 5 image posts, 2 text-only, 1 carousel
+- Realistic likes (12-180), comments (2-20), saves
+- Backdated `created_at` across last week
 
-### 2. Composite to Play Store format
-Reuse the existing Python/PIL pipeline from `scripts/` but swap the mock images for the real captures. Each final 1080x1920 PNG keeps:
-- Real app screenshot in the top ~72% (rounded corners, soft drop shadow on a brand gradient bg, NOT a phone frame — Play Store rejects device frames)
-- Bottom caption band with Roboto Bold headline + Medium subtitle, auto-fit to safe margins
-- Subtle navy → purple → cyan gradient seam matching brand tokens
+**3 clips** for `/clips`
+- short vertical video URLs (use existing public sample mp4s or placeholder), with view/like counts
 
-Plus regenerate the 1024x500 feature graphic (no change unless you want one).
+**1 DM conversation** with 8-12 messages
+- between "you" and `mayaaa`, mid-thread about weekend plans + a shared post
 
-### 3. QA every slide
-Convert each PNG back to a thumbnail and visually inspect for: clipped text, blurry capture, status-bar junk, visible debug UI, uneven padding. Iterate until clean.
+**2 communities**
+- "late night coders" (84 members), "denver coffee" (211 members)
+- with 2-3 recent posts each visible in preview
 
-### 4. Output
-Save to `/mnt/documents/play-store-screenshots/` with the same `01-home.png` … `08-safety.png` naming so they slot into your existing upload flow. Deliver as `<presentation-artifact>` tags.
+**5 map pins** within a 5-mile radius of a chosen city for `/map`
 
-## What I need from you before starting
+**VYBE DNA** seed for the demo account so `/vybe-dna` shows a populated personality vector instead of empty state
 
-1. **Preview login** — the browser uses your preview's auth session. Please sign in to the preview first so I can reach `/home`, `/messages`, etc. (they're behind ProtectedRoute).
-2. **Caption copy** — keep the existing 8 headlines from the previous batch, or want me to rewrite them punchier? (e.g. "Your feed, evolved." / "Real friends, real time." / "Snap. Share. Vanish.")
-3. **Background style** — same brand gradient (navy→purple→cyan) or do you want a cleaner look (solid dark + subtle glow, à la Apple App Store)?
+## Workflow
 
-Once you confirm those, I'll capture, composite, QA, and ship the new set.
+1. Confirm city/coordinates for the map screen (default: Denver, CO)
+2. Write one `supabase--migration` (schema-safe upserts only — no schema changes)
+3. Run it against the connected DB
+4. Sign into preview as the demo account
+5. Capture all 8 screens at 1080×1920 viewport
+6. Composite captions + brand band via existing PIL pipeline → `/mnt/documents/play-store-screenshots/`
+7. QA each slide
+8. Run cleanup migration that deletes all seeded rows by a `demo_seed = true` tag column OR by the known demo profile IDs
+
+## Cleanup safety
+Every inserted row gets either:
+- a `metadata->>'demo_seed' = 'true'` flag (if jsonb column exists), or
+- tracked in a temporary `_demo_seed_ids` table I create + drop
+
+Cleanup script reverses everything in one call. No prod user data touched.
+
+## Open questions before I migrate
+
+1. **City for map pins** — Denver, or somewhere else?
+2. **Demo login account** — should I create a fresh `demo@vybehub.app` profile and give you the password, or use an existing test account you already have?
+3. **Clip video sources** — OK to use 3 short royalty-free mp4s from Pexels (skater, coffee pour, dog), or do you want to upload your own?
