@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useComments, useCreateComment, useDeleteComment, useEditComment } from '@/hooks/useComments';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { usePageMeta } from '@/hooks/usePageMeta';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';

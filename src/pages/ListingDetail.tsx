@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { MediaFallback } from '@/components/ui/MediaFallback';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 export default function ListingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -55,6 +56,28 @@ export default function ListingDetailPage() {
   const { data: sellerPaymentMethods } = useSellerPaymentMethods(listing?.seller_id);
   const { data: sellerRating } = useSellerRating(listing?.seller_id || '');
   const hasPaymentMethods = sellerPaymentMethods && sellerPaymentMethods.length > 0;
+
+  usePageMeta({
+    title: listing ? `${listing.title} | VYBE Marketplace` : 'Marketplace listing | VYBE',
+    description: listing
+      ? (listing.description?.slice(0, 155) || `${listing.title} for ${listing.price === 0 ? 'free' : `$${listing.price}`} on VYBE Marketplace.`)
+      : 'View this listing on VYBE Marketplace.',
+    canonicalPath: `/market/${id}`,
+    jsonLd: listing ? {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: listing.title,
+      description: listing.description || listing.title,
+      image: listing.images && listing.images.length > 0 ? listing.images : undefined,
+      offers: {
+        '@type': 'Offer',
+        price: listing.price,
+        priceCurrency: 'USD',
+        availability: 'https://schema.org/InStock',
+        url: `https://vybehub.app/market/${id}`,
+      },
+    } : undefined,
+  });
 
   const handleShare = async () => {
     const url = `${window.location.origin}/market/${id}`;
