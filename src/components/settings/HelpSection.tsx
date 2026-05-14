@@ -1,12 +1,12 @@
 import { useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { MessageSquareHeart, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText, Play, Download, Star } from 'lucide-react';
 import { openRateApp } from '@/lib/rateApp';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { haptics } from '@/lib/haptics';
-import { resetIntro } from '@/components/intro/IntroFlow';
+
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
 import { InstallAppSheet } from './InstallAppSheet';
