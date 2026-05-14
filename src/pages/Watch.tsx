@@ -32,6 +32,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { InlineComments } from '@/components/comments/InlineComments';
 import { ShareSheet } from '@/components/share/ShareSheet';
+import { HoldToShare } from '@/components/share/HoldToShare';
 
 export default function WatchPage() {
   const { id } = useParams<{ id: string }>();
