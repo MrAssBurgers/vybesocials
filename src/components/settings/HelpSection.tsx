@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { MessageSquareHeart, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText, Play, Download, Star } from 'lucide-react';
@@ -11,11 +11,19 @@ import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
 import { InstallAppSheet } from './InstallAppSheet';
 
+const MobileIntro = lazy(() => import('@/pages/MobileIntro'));
+
 export function HelpSection() {
   const navigate = useNavigate();
   const [showInstallSheet, setShowInstallSheet] = useState(false);
+  const [showIntroReplay, setShowIntroReplay] = useState(false);
   return (
     <div className="space-y-6">
+      {showIntroReplay && (
+        <Suspense fallback={null}>
+          <MobileIntro onDone={() => setShowIntroReplay(false)} />
+        </Suspense>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
