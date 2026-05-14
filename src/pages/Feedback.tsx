@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquarePlus, ThumbsUp, Bug, Lightbulb, MoreHorizontal, Filter, Sparkles } from 'lucide-react';
+import { MessageSquarePlus, ThumbsUp, Bug, Lightbulb, MoreHorizontal, Filter, Sparkles, CheckCircle2 } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -150,22 +150,46 @@ function FeedbackCard({ feedback }: { feedback: Feedback }) {
   );
 }
 
+function buildDeviceContext(): string {
+  try {
+    const ua = navigator.userAgent || 'unknown';
+    const lang = navigator.language || 'unknown';
+    const route = window.location.pathname || '/';
+    const viewport = `${window.innerWidth}x${window.innerHeight}`;
+    const buildTag = (window as any).__VYBE_BUILD__ || 'web';
+    return `\n\n---\nDevice: ${ua}\nLang: ${lang}\nRoute: ${route}\nViewport: ${viewport}\nBuild: ${buildTag}`;
+  } catch {
+    return '';
+  }
+}
+
 function NewFeedbackDialog() {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<string>('');
   const [message, setMessage] = useState('');
+  const [submitted, setSubmitted] = useState(false);
   const createFeedback = useCreateFeedback();
 
   const handleSubmit = async () => {
     if (!message.trim() || !type) return;
-    await createFeedback.mutateAsync({ type, message });
-    setOpen(false);
+    // Auto-append device context for bug reports — invisible to other users in the
+    // public feed UI (they only read the human-written part above the divider).
+    const payload = type === 'bug'
+      ? `${message.trim()}${buildDeviceContext()}`
+      : message.trim();
+    await createFeedback.mutateAsync({ type, message: payload });
+    setSubmitted(true);
+  };
+
+  const reset = () => {
+    setSubmitted(false);
     setMessage('');
     setType('');
+    setOpen(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); else setOpen(true); }}>
       <DialogTrigger asChild>
         <Button size="sm" className="gap-1.5 text-sm px-3 py-1.5 h-8">
           <MessageSquarePlus className="h-3.5 w-3.5" />
@@ -173,49 +197,73 @@ function NewFeedbackDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle>Share Feedback</DialogTitle>
-          <DialogDescription>
-            Found a bug, have an idea, or want to suggest an improvement? Tell us — we read every submission.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label>What kind of feedback?</Label>
-            <Select value={type} onValueChange={setType}>
-              <SelectTrigger><SelectValue placeholder="Pick a category" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="bug">🐛 Report a bug</SelectItem>
-                <SelectItem value="feature">💡 Request a feature</SelectItem>
-                <SelectItem value="improvement">✨ Suggest an improvement</SelectItem>
-                <SelectItem value="other">💬 Something else</SelectItem>
-              </SelectContent>
-            </Select>
+        {submitted ? (
+          <div className="py-8 flex flex-col items-center text-center">
+            <div className="relative mb-4">
+              <div className="absolute -inset-3 rounded-full bg-green-500/20 blur-xl" />
+              <div className="relative w-14 h-14 rounded-full bg-green-500/15 flex items-center justify-center">
+                <CheckCircle2 className="w-7 h-7 text-green-500" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold mb-1">Thanks — we got it.</h3>
+            <p className="text-sm text-muted-foreground max-w-xs mb-5">
+              The team reads every submission. If we ship a fix or feature you suggested,
+              you'll see it in your inbox.
+            </p>
+            <Button onClick={reset} className="min-w-[140px]">Done</Button>
           </div>
-          <div className="space-y-2">
-            <Label>Tell us more</Label>
-            <Textarea
-              placeholder={
-                type === 'bug'
-                  ? 'What happened? What did you expect? Steps to reproduce help us fix it faster.'
-                  : type === 'feature'
-                  ? 'What would you love to see in VYBE, and how would you use it?'
-                  : 'Share your thoughts...'
-              }
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={5}
-              maxLength={1000}
-            />
-            <p className="text-xs text-muted-foreground text-right">{message.length}/1000</p>
-          </div>
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={!type || !message.trim() || createFeedback.isPending}>
-            {createFeedback.isPending ? 'Submitting...' : 'Submit'}
-          </Button>
-        </div>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Share Feedback</DialogTitle>
+              <DialogDescription>
+                Found a bug, have an idea, or want to suggest an improvement? Tell us — we read every submission.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>What kind of feedback?</Label>
+                <Select value={type} onValueChange={setType}>
+                  <SelectTrigger><SelectValue placeholder="Pick a category" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bug">🐛 Report a bug</SelectItem>
+                    <SelectItem value="feature">💡 Request a feature</SelectItem>
+                    <SelectItem value="improvement">✨ Suggest an improvement</SelectItem>
+                    <SelectItem value="other">💬 Something else</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Tell us more</Label>
+                <Textarea
+                  placeholder={
+                    type === 'bug'
+                      ? 'What happened? What did you expect? Steps to reproduce help us fix it faster.'
+                      : type === 'feature'
+                      ? 'What would you love to see in VYBE, and how would you use it?'
+                      : 'Share your thoughts...'
+                  }
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={5}
+                  maxLength={1000}
+                />
+                <p className="text-xs text-muted-foreground text-right">{message.length}/1000</p>
+                {type === 'bug' && (
+                  <p className="text-xs text-muted-foreground">
+                    We'll automatically attach your device, route and build info to help our team reproduce the issue.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={reset}>Cancel</Button>
+              <Button onClick={handleSubmit} disabled={!type || !message.trim() || createFeedback.isPending}>
+                {createFeedback.isPending ? 'Submitting...' : 'Submit'}
+              </Button>
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
