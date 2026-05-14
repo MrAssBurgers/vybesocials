@@ -105,46 +105,89 @@ The signed AAB will be at: `android/app/build/outputs/bundle/release/app-release
 - [ ] Short description (max 80 characters)
 - [ ] Full description (max 4000 characters)
 
-### Suggested Description
+### Suggested Description (ASO-optimized)
 
-**Short description:**
+**App title (max 30 chars):**
 ```
-Share moments, connect with friends & discover amazing content ✨
+VYBE: Social, Chat & Clips
 ```
 
-**Full description:**
+**Short description (max 80 chars — keyword-rich):**
 ```
-Welcome to VYBE - The Next Generation Social Platform! 🌟
-
-VYBE is where creativity meets connection. Share your moments through stunning photos, captivating videos, and engaging stories with your community.
-
-✨ KEY FEATURES:
-
-📸 STORIES & POSTS
-Share your daily moments with beautiful filters and effects. Create photo posts, video clips, and stories that disappear after 24 hours.
-
-💬 REAL-TIME MESSAGING
-Chat with friends instantly. Send texts, photos, videos, voice messages, and more. Enjoy fun features like reactions, replies, and vanish mode.
-
-🎥 SHORTS & CLIPS
-Discover trending short-form videos from creators worldwide. Swipe through an endless feed of entertaining content.
-
-📞 VIDEO & VOICE CALLS
-Connect face-to-face with crystal-clear video calls. Group calls with up to 8 friends at once.
-
-🏪 MARKETPLACE
-Buy and sell within your community. List items, negotiate prices, and make transactions securely.
-
-🎨 PERSONALIZATION
-Express yourself with customizable themes, chat wallpapers, and unique profile styles. Make VYBE truly yours.
-
-🔒 PRIVACY FIRST
-Your data, your control. Choose who sees your content with granular privacy settings.
-
-Join millions of users already vibing on VYBE! Download now and start connecting. 💫
-
-#SocialMedia #Messaging #Stories #VideoChat #Community
+Social app for stories, clips, chat & communities. Make your VYBE.
 ```
+
+**Full description (keyword-rich, scannable, with bullets):**
+```
+VYBE — The Next Generation Social Platform 🌟
+
+VYBE is a social app built for real connection. Share stories, post short
+videos, message friends, hop into voice and video calls, and discover
+communities around the things you actually love.
+
+⭐ WHY USERS LOVE VYBE
+• A social network that learns YOUR vibe — not the algorithm's
+• Private by default, with strong safety tools built in
+• Beautiful themes, fonts, and layouts you can fully customize
+
+✨ TOP FEATURES
+
+📸 Stories, Posts & Clips
+Share photos, short videos, and 24-hour stories with filters, music and AI
+effects. Discover an endless feed of trending clips.
+
+💬 Messaging, Voice & Video Calls
+DMs, group chats, voice notes, and HD video calls — all in one place. Send
+reactions, replies, GIFs, stickers and disappearing messages.
+
+👥 Communities & Live Spaces
+Find your people. Join communities, drop into live audio Spaces, and meet
+new friends through Friend Map and VYBE Roulette.
+
+🎨 Themes & Personalization
+Custom themes, chat wallpapers, profile layouts, and an AI that reshapes
+your feed and home screen to match your real-life vibe.
+
+🛍 Marketplace & Creator Tools
+Sell to your community, support creators with tips, and unlock monetization
+as you grow.
+
+🔒 Privacy & Safety First
+Granular privacy controls, parental tools, in-app reporting, and content
+filters keep VYBE a safe place to be yourself.
+
+Join the next generation of social. Download VYBE and start your vibe today.
+
+KEYWORDS: social media app, messaging app, video chat, stories, short videos,
+clips, community, social network, friends app, group chat, voice calls,
+video calls, themes, creator tools, social platform.
+
+#SocialMedia #Messaging #Stories #ShortVideos #Communities #VideoChat
+```
+
+### Screenshot Plan (8 phone screenshots — feature-focused)
+
+Each screenshot should be 1080×1920 with a bold overlay headline and
+1-line subtitle so the value is obvious at a glance:
+
+1. **"Your social home"** — Home feed with stories rail and a vibrant post.
+2. **"Share your VYBE"** — Camera/Stories editor with a creative effect.
+3. **"Endless clips"** — Vertical Clips feed with engagement bar visible.
+4. **"Chat without limits"** — DM thread showing reactions, GIFs and a voice note.
+5. **"Calls with your people"** — Group video call screen with avatars.
+6. **"Find your community"** — Communities/Spaces discovery screen.
+7. **"Make it yours"** — Theme customizer / profile customization screen.
+8. **"Safe by default"** — Privacy & parental controls screen.
+
+Tips:
+- Use the same overlay style across all 8 (consistent font, gradient, position).
+- Lead with the 3 strongest screenshots — most users only see those.
+- Localize captions for top markets (EN, ES, PT, ID) when possible.
+
+### Feature Graphic (1024×500)
+Headline: "Make your VYBE." with the VYBE wordmark on the brand gradient.
+
+
 
 ## Step 6: Upload to Play Console
 
