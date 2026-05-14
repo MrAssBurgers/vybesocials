@@ -212,10 +212,9 @@ export const HoldToShare = memo(function HoldToShare({
     };
   }, [closeMenu, mediaUrl, postId, postType, profile?.id, queryClient, targets]);
 
-  // Suppress click that would normally fire after a successful long-press.
+  // Suppress click that fires after a successful long-press release.
   const handleClickCapture = useCallback((e: React.MouseEvent) => {
-    if (openRef.current || holdTimerRef.current === null && lastHoverRef.current !== null) {
-      // safety — if menu is open, swallow click
+    if (suppressClickRef.current) {
       e.preventDefault();
       e.stopPropagation();
     }
