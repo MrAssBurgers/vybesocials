@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { CommentSheet } from '@/components/comments/CommentSheet';
 import { ShareSheet } from '@/components/share/ShareSheet';
+import { HoldToShare } from '@/components/share/HoldToShare';
 
 interface MobileShortCardProps {
   post: {
