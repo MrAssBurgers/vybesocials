@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageSquareHeart, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText, Play, Download } from 'lucide-react';
+import { MessageSquareHeart, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText, Play, Download, Star } from 'lucide-react';
+import { openRateApp } from '@/lib/rateApp';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { haptics } from '@/lib/haptics';
