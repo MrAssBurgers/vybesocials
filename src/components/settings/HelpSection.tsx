@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageSquareHeart, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText, Play, Download } from 'lucide-react';
+import { MessageSquareHeart, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText, Play, Download, Star } from 'lucide-react';
+import { openRateApp } from '@/lib/rateApp';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { haptics } from '@/lib/haptics';
@@ -98,6 +99,25 @@ export function HelpSection() {
             <div className="flex-1 text-left min-w-0">
               <p className="font-medium">Install Web App</p>
               <p className="text-sm text-muted-foreground">Add VYBE to your home screen</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+          </button>
+
+          {/* Rate VYBE */}
+          <button
+            onClick={() => {
+              haptics.tap();
+              openRateApp();
+              toast.success('Thanks for supporting VYBE! ⭐');
+            }}
+            className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-orange-500/5 hover:from-amber-500/15 hover:to-orange-500/10 transition-all active:scale-[0.98]"
+          >
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-amber-500/30">
+              <Star className="w-5 h-5 text-white fill-white" />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <p className="font-medium">Rate VYBE</p>
+              <p className="text-sm text-muted-foreground">Love the app? Leave us a review</p>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
           </button>

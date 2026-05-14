@@ -1,36 +1,52 @@
-## Plan to stop the DM camera crash
+## Plan
 
-I found three remaining weak spots that can still crash the app even after the prior fixes:
+I’ll address the tester report with focused app-side changes plus store-listing guidance updates.
 
-1. `ConversationList` still mounts `VybeSnapCamera` directly without `CameraMountBoundary`, so crashes from the DM list camera path are not protected.
-2. `CameraFirstOverlay` also mounts `VybeSnapCamera` directly without the outer boundary.
-3. `ChatView` still starts camera access with `Promise.resolve().then(...)`, which moves `getUserMedia` out of the direct tap gesture path on some mobile wrappers. `VybeSnapCamera` also starts camera from `requestAnimationFrame` on mount, so if the preload fails or is delayed, it can still hit the media API outside the original tap.
+### 1. Strengthen the new-user walkthrough
+- Update the mobile intro/walkthrough slides so they are more dynamic and feature-focused.
+- Cover the report’s key examples: stories/clips, communities, messaging/calls, creator tools, personalization, and safety.
+- Keep skip/next/progress behavior intact and maintain the existing VYBE visual style.
+- Keep the existing post-onboarding interactive tutorial available from Settings → Help.
 
-## What I’ll change
+### 2. Add an in-app “Rate VYBE” entry
+- Add a dedicated “Rate VYBE” action in Settings → Help & Support.
+- On Android/native builds, open the Play Store listing for `com.despia.vybe`.
+- On web/preview, open the Play Store URL in a new tab.
+- Add a small local milestone prompt that can surface after enough app usage, but only once and with dismiss/rate options so it does not spam users.
 
-### 1. Make the DM camera open path direct and safe
-- Update `ChatView` so the camera button calls `requestCameraStream(...)` immediately inside the click handler.
-- Only open `VybeSnapCamera` after that request resolves or returns safely.
-- Never leave camera promises unhandled.
-- Keep the active-call guard and `stopCameraStream()` cleanup.
+### 3. Improve the in-app feedback mechanism visibility
+- Upgrade Settings → Help & Support so users can clearly:
+  - submit feedback,
+  - report issues,
+  - replay the walkthrough/tutorial,
+  - rate the app.
+- Improve the Feedback page submission dialog copy/placeholders so users know bug reports, feature ideas, and general suggestions all belong there.
 
-### 2. Make `VybeSnapCamera` accept an already-open stream
-- Add an optional `initialStream` prop.
-- When provided, attach that stream instead of calling `getUserMedia` again from `requestAnimationFrame`.
-- This keeps camera permission/access tied to the original user tap and avoids a second media request during component mount.
+### 4. Update ASO copy guidance
+- Update `PLAY_STORE_GUIDE.md` with a stronger short description and full description using relevant searchable terms:
+  - social app,
+  - short videos/clips,
+  - stories,
+  - messaging,
+  - communities,
+  - creator tools,
+  - personalization.
+- Keep this as guidance/documentation only; I can’t directly update the live Play Store listing from the codebase.
 
-### 3. Guard every DM camera mount
-- Wrap the `ConversationList` camera with `CameraMountBoundary`.
-- Wrap the `CameraFirstOverlay` camera with `CameraMountBoundary`.
-- Keep the existing `ChatView` boundary.
+### 5. Add Play Store screenshot guidance
+- Add a screenshot checklist/shot list to `PLAY_STORE_GUIDE.md` with feature-focused screenshot concepts and overlay text:
+  - Share your VYBE,
+  - Chat with friends,
+  - Join communities,
+  - Discover clips,
+  - Customize your profile.
 
-### 4. Add stronger media API guards in `VybeSnapCamera`
-- Before calling any media API, check `navigator.mediaDevices?.getUserMedia` exists.
-- Wrap the fallback `getUserMedia({ video: true })` in its own `try/catch` so fallback failures cannot bubble.
-- Stop all owned camera tracks on close/unmount.
-
-## Validation
-
-- Check the relevant files after edits for consistent prop usage.
-- Use available runtime/console signals after the change if the preview reports new camera errors.
-- No backend or database changes.
+## Technical notes
+- Likely files to update:
+  - `src/pages/MobileIntro.tsx`
+  - `src/components/settings/HelpSection.tsx`
+  - `src/pages/Feedback.tsx`
+  - `src/App.tsx` or a small new prompt component mounted near existing global overlays
+  - `PLAY_STORE_GUIDE.md`
+- No backend/database migration is needed because the feedback hub already exists.
+- I’ll avoid touching generated integration files and keep changes frontend/documentation-only.

@@ -174,25 +174,39 @@ function NewFeedbackDialog() {
       </DialogTrigger>
       <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>Submit Feedback</DialogTitle>
-          <DialogDescription>Help us improve by sharing your thoughts, reporting bugs, or suggesting features.</DialogDescription>
+          <DialogTitle>Share Feedback</DialogTitle>
+          <DialogDescription>
+            Found a bug, have an idea, or want to suggest an improvement? Tell us — we read every submission.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label>Type</Label>
+            <Label>What kind of feedback?</Label>
             <Select value={type} onValueChange={setType}>
-              <SelectTrigger><SelectValue placeholder="Select feedback type" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Pick a category" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="bug">🐛 Bug Report</SelectItem>
-                <SelectItem value="feature">💡 Feature Request</SelectItem>
-                <SelectItem value="improvement">✨ Improvement</SelectItem>
-                <SelectItem value="other">💬 Other</SelectItem>
+                <SelectItem value="bug">🐛 Report a bug</SelectItem>
+                <SelectItem value="feature">💡 Request a feature</SelectItem>
+                <SelectItem value="improvement">✨ Suggest an improvement</SelectItem>
+                <SelectItem value="other">💬 Something else</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Message</Label>
-            <Textarea placeholder="Describe your feedback..." value={message} onChange={(e) => setMessage(e.target.value)} rows={4} maxLength={1000} />
+            <Label>Tell us more</Label>
+            <Textarea
+              placeholder={
+                type === 'bug'
+                  ? 'What happened? What did you expect? Steps to reproduce help us fix it faster.'
+                  : type === 'feature'
+                  ? 'What would you love to see in VYBE, and how would you use it?'
+                  : 'Share your thoughts...'
+              }
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={5}
+              maxLength={1000}
+            />
             <p className="text-xs text-muted-foreground text-right">{message.length}/1000</p>
           </div>
         </div>
