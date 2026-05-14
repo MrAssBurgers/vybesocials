@@ -112,41 +112,42 @@ The signed AAB will be at: `android/app/build/outputs/bundle/release/app-release
 VYBE: Social, Chat & Clips
 ```
 
-**Short description (max 80 chars — keyword-rich):**
+**Short description (max 80 chars — keyword-rich, 64 chars):**
 ```
-Social app for stories, clips, chat & communities. Make your VYBE.
+Stories, clips, chat, calls & communities — make your VYBE.
 ```
 
-**Full description (keyword-rich, scannable, with bullets):**
+**Full description (≤4000 chars, front-loaded for the "Read more" cutoff):**
+
+The first ~250 chars are what shows on the listing before users tap "Read more" — they sell the install:
+
 ```
-VYBE — The Next Generation Social Platform 🌟
-
-VYBE is a social app built for real connection. Share stories, post short
-videos, message friends, hop into voice and video calls, and discover
-communities around the things you actually love.
-
-⭐ WHY USERS LOVE VYBE
-• A social network that learns YOUR vibe — not the algorithm's
-• Private by default, with strong safety tools built in
-• Beautiful themes, fonts, and layouts you can fully customize
+VYBE is a social app for stories, short videos, group chats, voice & video
+calls, and communities. Share moments, message friends, drop into live
+Spaces, customize your profile, and discover content that actually matches
+your vibe.
 
 ✨ TOP FEATURES
 
 📸 Stories, Posts & Clips
 Share photos, short videos, and 24-hour stories with filters, music and AI
-effects. Discover an endless feed of trending clips.
+effects. Endless feed of trending clips.
 
 💬 Messaging, Voice & Video Calls
-DMs, group chats, voice notes, and HD video calls — all in one place. Send
-reactions, replies, GIFs, stickers and disappearing messages.
+DMs, group chats, voice notes, HD video calls. Reactions, replies, GIFs,
+stickers, disappearing messages.
 
 👥 Communities & Live Spaces
-Find your people. Join communities, drop into live audio Spaces, and meet
-new friends through Friend Map and VYBE Roulette.
+Find your people. Join communities, drop into live audio Spaces, meet new
+friends through Friend Map and VYBE Roulette.
 
 🎨 Themes & Personalization
 Custom themes, chat wallpapers, profile layouts, and an AI that reshapes
 your feed and home screen to match your real-life vibe.
+
+🏆 Earn & Level Up
+Daily streaks, XP, badges and seasonal drops — the more you VYBE, the more
+you unlock.
 
 🛍 Marketplace & Creator Tools
 Sell to your community, support creators with tips, and unlock monetization
@@ -165,24 +166,38 @@ video calls, themes, creator tools, social platform.
 #SocialMedia #Messaging #Stories #ShortVideos #Communities #VideoChat
 ```
 
+### Localized listing stubs (top markets)
+
+Add these in the Play Console under **Store presence → Main store listing → Manage translations**:
+
+| Locale | Title (≤30) | Short description (≤80) |
+|---|---|---|
+| en-US | `VYBE: Social, Chat & Clips` | `Stories, clips, chat, calls & communities — make your VYBE.` |
+| es-ES | `VYBE: Social, Chat y Clips` | `Historias, clips, chats, llamadas y comunidades — vive tu VYBE.` |
+| pt-BR | `VYBE: Social, Chat e Clipes` | `Histórias, clipes, chat, chamadas e comunidades — viva seu VYBE.` |
+| id-ID | `VYBE: Sosial, Chat & Clips` | `Cerita, klip, chat, panggilan & komunitas — buat VYBE-mu.` |
+| fr-FR | `VYBE: Social, Chat & Clips` | `Stories, clips, chat, appels et communautés — vis ta VYBE.` |
+
+For full descriptions, translate the English block above with the same bullet structure — Play Store ranks emoji-led bullets well in non-English markets too.
+
 ### Screenshot Plan (8 phone screenshots — feature-focused)
 
-Each screenshot should be 1080×1920 with a bold overlay headline and
-1-line subtitle so the value is obvious at a glance:
+Each screenshot is **1080×1920** with a bold overlay headline + 1-line subtitle.
+The first **3** drive the install (only ones most users see in search results) — make those the strongest:
 
-1. **"Your social home"** — Home feed with stories rail and a vibrant post.
-2. **"Share your VYBE"** — Camera/Stories editor with a creative effect.
-3. **"Endless clips"** — Vertical Clips feed with engagement bar visible.
-4. **"Chat without limits"** — DM thread showing reactions, GIFs and a voice note.
+1. **★ ABOVE THE FOLD — "Your social home"** — Home feed with stories rail and a vibrant post.
+2. **★ ABOVE THE FOLD — "Endless clips"** — Vertical Clips feed with engagement bar visible.
+3. **★ ABOVE THE FOLD — "Chat without limits"** — DM thread showing reactions, GIFs and a voice note.
+4. **"Share your VYBE"** — Camera/Stories editor with a creative effect.
 5. **"Calls with your people"** — Group video call screen with avatars.
 6. **"Find your community"** — Communities/Spaces discovery screen.
 7. **"Make it yours"** — Theme customizer / profile customization screen.
 8. **"Safe by default"** — Privacy & parental controls screen.
 
 Tips:
-- Use the same overlay style across all 8 (consistent font, gradient, position).
-- Lead with the 3 strongest screenshots — most users only see those.
-- Localize captions for top markets (EN, ES, PT, ID) when possible.
+- Same overlay style across all 8 (consistent font, gradient, position).
+- Localize captions for top markets (EN, ES, PT, ID, FR) when possible.
+- See `scripts/capture-store-screenshots.md` for an exact route + capture runbook.
 
 ### Feature Graphic (1024×500)
 Headline: "Make your VYBE." with the VYBE wordmark on the brand gradient.
