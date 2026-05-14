@@ -344,10 +344,12 @@ export default function WatchPage() {
                   <Button variant="secondary" size="sm">
                     <ThumbsDown className="h-4 w-4" />
                   </Button>
-                  <Button variant="secondary" size="sm" className="gap-2" onClick={handleShare}>
-                    <Share2 className="h-4 w-4" />
-                    Share
-                  </Button>
+                  <HoldToShare postId={id!} postType="video" mediaUrl={signedUrl || undefined}>
+                    <Button variant="secondary" size="sm" className="gap-2" onClick={handleShare}>
+                      <Share2 className="h-4 w-4" />
+                      Share
+                    </Button>
+                  </HoldToShare>
                   <Button
                     variant="secondary"
                     size="sm"
