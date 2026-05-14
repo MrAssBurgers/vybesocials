@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/auth';
 import { InstallAppSheet } from './InstallAppSheet';
 
 export function HelpSection() {
+  const navigate = useNavigate();
   const [showInstallSheet, setShowInstallSheet] = useState(false);
   return (
     <div className="space-y-6">
@@ -52,12 +53,13 @@ export function HelpSection() {
             <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
           </button>
 
-          {/* About VYBE / View Intro */}
+          {/* Replay Walkthrough */}
           <button
             onClick={() => {
               haptics.tap();
               resetIntro();
-              toast.success('Intro reset! Sign out to view it again.');
+              try { localStorage.removeItem('vybe_intro_seen'); } catch {}
+              navigate('/intro', { state: { from: window.location.pathname } });
             }}
             className="w-full flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all active:scale-[0.98]"
           >
@@ -65,8 +67,8 @@ export function HelpSection() {
               <Play className="w-5 h-5 text-secondary-foreground" />
             </div>
             <div className="flex-1 text-left min-w-0">
-              <p className="font-medium">About VYBE</p>
-              <p className="text-sm text-muted-foreground">View the intro again</p>
+              <p className="font-medium">Replay walkthrough</p>
+              <p className="text-sm text-muted-foreground">Watch the VYBE intro again</p>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
           </button>

@@ -1,8 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Sparkles, Camera, MessageCircle, Users, Palette, Shield, Music } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ArrowRight, Sparkles, Camera, MessageCircle, Users, Palette, Shield, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+
+// Bump this when slides change to re-trigger the intro for existing users.
+export const VYBE_INTRO_VERSION = '2';
 
 const SLIDES = [
   {
@@ -41,6 +44,13 @@ const SLIDES = [
     accent: 'from-amber-400 to-orange-500',
   },
   {
+    icon: Trophy,
+    eyebrow: 'Get rewarded',
+    title: 'Earn & level up',
+    body: 'Daily streaks, XP, badges and seasonal drops — the more you VYBE, the more you unlock.',
+    accent: 'from-yellow-400 to-amber-500',
+  },
+  {
     icon: Shield,
     eyebrow: 'Built for you',
     title: 'Safe by default',
@@ -53,15 +63,26 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 
 export default function MobileIntro({ onDone }: { onDone?: () => void }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const startX = useRef(0);
 
   const finish = useCallback(() => {
-    try { localStorage.setItem('vybe_intro_seen', '1'); } catch {}
+    try {
+      localStorage.setItem('vybe_intro_seen', '1');
+      localStorage.setItem('vybe_intro_version', VYBE_INTRO_VERSION);
+    } catch {}
     if (onDone) onDone();
-    else navigate('/auth', { replace: true });
-  }, [navigate, onDone]);
+    else {
+      // Replay path: a logged-in user navigated here from Settings → return to where
+      // they came from instead of bouncing them to /auth.
+      const from = (location.state as { from?: string } | null)?.from;
+      if (from && from !== '/intro') navigate(from, { replace: true });
+      else if (typeof window !== 'undefined' && localStorage.getItem('vybe-was-logged-in') === '1') navigate('/', { replace: true });
+      else navigate('/auth', { replace: true });
+    }
+  }, [navigate, onDone, location.state]);
 
   const go = useCallback((dir: 1 | -1) => {
     setDirection(dir);
