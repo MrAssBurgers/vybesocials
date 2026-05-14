@@ -19,17 +19,11 @@ const pillars = [
 export default function SafetyPage() {
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const prev = document.title;
-    document.title = 'Safety on VYBE | How We Protect Our Community';
-    const meta = document.querySelector('meta[name="description"]');
-    const prevDesc = meta?.getAttribute('content');
-    meta?.setAttribute('content', 'Learn how VYBE keeps users safe: AI content scanning, encrypted DMs, parental protections for users under 13, blocking and reporting, and community-led moderation.');
-    return () => {
-      document.title = prev;
-      if (prevDesc) meta?.setAttribute('content', prevDesc);
-    };
-  }, []);
+  usePageMeta({
+    title: 'Safety on VYBE | How We Protect Our Community',
+    description: 'Learn how VYBE keeps users safe: AI content scanning, encrypted DMs, parental protections for users under 13, blocking and reporting, and community-led moderation.',
+    canonicalPath: '/safety',
+  });
 
   return (
     <div className="page-scroll-fix bg-background">
