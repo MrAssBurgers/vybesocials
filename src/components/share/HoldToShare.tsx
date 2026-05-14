@@ -151,6 +151,12 @@ export const HoldToShare = memo(function HoldToShare({
         return;
       }
 
+      // Menu was open — suppress the synthetic click that follows pointerup.
+      suppressClickRef.current = true;
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 350);
+
       // Released — check final target under pointer
       const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
       const targetEl = el?.closest(`[${TARGET_ATTR}]`) as HTMLElement | null;
