@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { ShieldAlert, ArrowLeft, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const CONTACT_EMAIL = 'vybesocial.info@gmail.com';
 const EFFECTIVE_DATE = 'April 29, 2026';
@@ -52,6 +53,11 @@ const sections = [
 
 export default function ChildSafetyPage() {
   const navigate = useNavigate();
+  usePageMeta({
+    title: 'Child Safety on VYBE | Protections for Users Under 13',
+    description: 'How VYBE protects younger users: stricter AI filters, no personalized ads, parental PIN and screen-time controls, and explicit-content gating.',
+    canonicalPath: '/child-safety',
+  });
 
   return (
     <div className="min-h-screen bg-background relative z-10" style={{ backgroundColor: 'hsl(var(--background))' }}>

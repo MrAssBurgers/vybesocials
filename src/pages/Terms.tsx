@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { FileText, ArrowLeft, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const CONTACT_EMAIL = 'vybesocial.info@gmail.com';
 const EFFECTIVE_DATE = 'February 16, 2026';
@@ -23,6 +24,11 @@ const sections = [
 
 export default function TermsPage() {
   const navigate = useNavigate();
+  usePageMeta({
+    title: 'Terms of Service | VYBE',
+    description: 'The terms that govern your use of VYBE: account responsibilities, prohibited content, AI moderation, intellectual property, and dispute resolution.',
+    canonicalPath: '/terms',
+  });
 
   return (
     <div className="page-scroll-fix bg-background relative z-10" style={{ backgroundColor: 'hsl(var(--background))' }}>

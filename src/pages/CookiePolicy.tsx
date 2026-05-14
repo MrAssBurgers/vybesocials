@@ -2,12 +2,18 @@ import { motion } from 'framer-motion';
 import { Cookie, ArrowLeft, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const CONTACT_EMAIL = 'vybesocial.info@gmail.com';
 const EFFECTIVE_DATE = 'February 16, 2026';
 
 export default function CookiePolicyPage() {
   const navigate = useNavigate();
+  usePageMeta({
+    title: 'Cookie Policy | VYBE',
+    description: 'How VYBE and our partners use cookies, local storage, and similar technologies — and how to control them.',
+    canonicalPath: '/cookies',
+  });
 
   return (
     <div className="min-h-screen bg-background">

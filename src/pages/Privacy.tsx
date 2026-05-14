@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Shield, ArrowLeft, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const CONTACT_EMAIL = 'vybesocial.info@gmail.com';
 const EFFECTIVE_DATE = 'February 16, 2026';
@@ -23,6 +24,11 @@ const sections = [
 
 export default function PrivacyPage() {
   const navigate = useNavigate();
+  usePageMeta({
+    title: 'Privacy Policy | VYBE',
+    description: 'How VYBE collects, uses, and protects your data. Encryption, AI processing disclosure, retention, ad partners, and your rights.',
+    canonicalPath: '/privacy',
+  });
 
   return (
     <div className="page-scroll-fix bg-background relative z-10" style={{ backgroundColor: 'hsl(var(--background))' }}>

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { MessageCircle, Video, Users, Sparkles, Shield, Zap, Camera, Music, Globe, Heart } from 'lucide-react';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const features = [
   {
@@ -56,6 +57,11 @@ const features = [
 ];
 
 export default function About() {
+  usePageMeta({
+    title: 'About VYBE — The Next Generation Social Platform',
+    description: 'Learn about VYBE: who we are, what we build, and why we believe a more human social app is possible. Stories, clips, encrypted DMs, communities, and AI that actually knows you.',
+    canonicalPath: '/about',
+  });
   return (
     <div className="page-scroll-fix bg-background">
       {/* Header */}
