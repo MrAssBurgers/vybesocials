@@ -325,6 +325,28 @@ export default function PostDetailPage() {
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
   const canDelete = isOwnPost || isAdmin;
 
+  const captionText = (post?.caption || '').trim();
+  const headline = captionText ? captionText.slice(0, 80) : `Post by @${post?.author?.username ?? 'creator'}`;
+  usePageMeta({
+    title: post ? `${headline} | VYBE` : 'Post | VYBE',
+    description: post
+      ? (captionText ? captionText.slice(0, 155) : `A ${post.type} from @${post.author?.username} on VYBE.`)
+      : 'View this post on VYBE.',
+    canonicalPath: `/p/${id}`,
+    ogType: 'article',
+    jsonLd: post ? {
+      '@context': 'https://schema.org',
+      '@type': 'SocialMediaPosting',
+      headline,
+      articleBody: captionText || undefined,
+      datePublished: post.created_at,
+      image: post.type !== 'video' && post.type !== 'short' ? post.media_url : undefined,
+      video: post.type === 'video' || post.type === 'short' ? { '@type': 'VideoObject', contentUrl: post.media_url, name: headline } : undefined,
+      author: { '@type': 'Person', name: post.author?.display_name || post.author?.username, url: `https://vybehub.app/u/${post.author?.username}` },
+      mainEntityOfPage: `https://vybehub.app/p/${id}`,
+    } : undefined,
+  });
+
   const handleDelete = async () => {
     if (!post) return;
     if (!confirm('Are you sure you want to delete this post?')) return;
