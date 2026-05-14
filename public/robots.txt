@@ -10,5 +10,17 @@ Disallow: /notifications
 Disallow: /settings
 Disallow: /upload
 Disallow: /VYBE-AI
+Disallow: /login
+Disallow: /signin
+Disallow: /sign-in
+Disallow: /signup
+Disallow: /sign-up
+Disallow: /auth
+Disallow: /auth/
+Disallow: /reset-password
+Disallow: /unsubscribe
+Disallow: /dev/
+Disallow: /onboarding
+Disallow: /complete-profile
 
 Sitemap: https://vybehub.app/sitemap.xml
