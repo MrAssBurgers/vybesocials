@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Sparkles, Heart, Users, Layers, Crown, Zap } from 'lucide-react';
+import { ArrowRight, Sparkles, Camera, MessageCircle, Users, Palette, Shield, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const SLIDES = [
@@ -9,43 +9,43 @@ const SLIDES = [
     icon: Sparkles,
     eyebrow: 'Welcome to',
     title: 'VYBE',
-    body: 'A social home that actually feels like you — quiet when you want it, alive when you don\'t.',
+    body: 'A social home built for real connection — quiet when you want it, alive when you don\'t.',
     accent: 'from-primary to-accent',
   },
   {
-    icon: Heart,
-    eyebrow: 'Our vision',
-    title: 'Real connection',
-    body: 'Built for the people you actually care about — not strangers fighting for your attention.',
+    icon: Camera,
+    eyebrow: 'Share your moments',
+    title: 'Stories & Clips',
+    body: 'Post photos, short videos, and 24-hour stories with filters, music, and AI-powered effects.',
     accent: 'from-pink-500 to-primary',
   },
   {
-    icon: Users,
-    eyebrow: 'Your people',
-    title: 'Communities that move',
-    body: 'Drop into spaces, join calls, share moments. Discover your people without the noise.',
+    icon: MessageCircle,
+    eyebrow: 'Stay close',
+    title: 'Chat, Call, Vybe',
+    body: 'DMs, group chats, voice and video calls — all encrypted, all in one place.',
     accent: 'from-accent to-cyan-400',
   },
   {
-    icon: Layers,
-    eyebrow: "We're building",
-    title: 'Mini Apps',
-    body: 'Tiny tools and games that live inside VYBE — playable in a tap, shareable in a swipe.',
+    icon: Users,
+    eyebrow: 'Find your people',
+    title: 'Communities & Spaces',
+    body: 'Drop into live audio Spaces, join communities around what you love, see friends on the map.',
     accent: 'from-violet-500 to-fuchsia-500',
   },
   {
-    icon: Crown,
-    eyebrow: 'Coming soon',
-    title: 'VYBE+',
-    body: 'A premium tier with exclusive themes, AI boosts, creator perks, and early access drops.',
+    icon: Palette,
+    eyebrow: 'Make it yours',
+    title: 'Themes that adapt',
+    body: 'Custom themes, fonts, layouts and an AI that reshapes your feed to match your real vibe.',
     accent: 'from-amber-400 to-orange-500',
   },
   {
-    icon: Zap,
-    eyebrow: 'Made for you',
-    title: 'Your DNA, smarter',
-    body: 'An AI that learns you and reshapes your feed, theme and layout to fit your real vibe.',
-    accent: 'from-cyan-400 to-primary',
+    icon: Shield,
+    eyebrow: 'Built for you',
+    title: 'Safe by default',
+    body: 'Strong privacy controls, parental tools, and instant reporting — so you stay in charge.',
+    accent: 'from-emerald-400 to-cyan-400',
   },
 ];
 
