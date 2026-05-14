@@ -56,6 +56,7 @@ const StreakProvider = lazy(() => import("@/components/streak/StreakProvider").t
 const PremiumGiftChecker = lazy(() => import("@/components/premium/PremiumGiftChecker").then(m => ({ default: m.PremiumGiftChecker })));
 const TrackingConsentDialog = lazy(() => import("@/components/app/TrackingConsentDialog").then(m => ({ default: m.TrackingConsentDialog })));
 const CookieConsentBanner = lazy(() => import("@/components/legal/CookieConsentBanner").then(m => ({ default: m.CookieConsentBanner })));
+const RatePromptSheet = lazy(() => import("@/components/feedback/RatePromptSheet").then(m => ({ default: m.RatePromptSheet })));
 
 // Lazy-load deferred hooks via a wrapper component
 const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"));
@@ -297,6 +298,7 @@ function AppWithPreloader() {
                                       <TrackingConsentDialog />
                                       <FounderAppreciation />
                                       <CookieConsentBanner />
+                                      <RatePromptSheet />
                                     </Suspense>
                                   </TutorialProvider>
                                 </Suspense>
