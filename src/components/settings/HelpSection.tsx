@@ -65,9 +65,8 @@ export function HelpSection() {
           <button
             onClick={() => {
               haptics.tap();
-              resetIntro();
               try { localStorage.removeItem('vybe_intro_seen'); } catch {}
-              navigate('/intro', { state: { from: window.location.pathname } });
+              setShowIntroReplay(true);
             }}
             className="w-full flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all active:scale-[0.98]"
           >
