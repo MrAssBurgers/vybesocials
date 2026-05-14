@@ -6,10 +6,16 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 export default function CommunityGuidelines() {
   const [content, setContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  usePageMeta({
+    title: 'Community Guidelines | VYBE',
+    description: 'The rules of the road on VYBE: what\'s welcome, what\'s not, and how moderation works to keep the community safe and kind.',
+    canonicalPath: '/guidelines',
+  });
   
   useEffect(() => {
     async function fetchGuidelines() {
