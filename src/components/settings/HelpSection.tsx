@@ -1,20 +1,28 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { MessageSquareHeart, ChevronRight, BookOpen, MessageCircle, ExternalLink, Shield, FileText, Play, Download, Star } from 'lucide-react';
 import { openRateApp } from '@/lib/rateApp';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { haptics } from '@/lib/haptics';
-import { resetIntro } from '@/components/intro/IntroFlow';
+
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
 import { InstallAppSheet } from './InstallAppSheet';
 
+const MobileIntro = lazy(() => import('@/pages/MobileIntro'));
+
 export function HelpSection() {
   const [showInstallSheet, setShowInstallSheet] = useState(false);
+  const [showIntroReplay, setShowIntroReplay] = useState(false);
   return (
     <div className="space-y-6">
+      {showIntroReplay && (
+        <Suspense fallback={null}>
+          <MobileIntro onDone={() => setShowIntroReplay(false)} />
+        </Suspense>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -52,12 +60,12 @@ export function HelpSection() {
             <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
           </button>
 
-          {/* About VYBE / View Intro */}
+          {/* Replay Walkthrough */}
           <button
             onClick={() => {
               haptics.tap();
-              resetIntro();
-              toast.success('Intro reset! Sign out to view it again.');
+              try { localStorage.removeItem('vybe_intro_seen'); } catch {}
+              setShowIntroReplay(true);
             }}
             className="w-full flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all active:scale-[0.98]"
           >
@@ -65,8 +73,8 @@ export function HelpSection() {
               <Play className="w-5 h-5 text-secondary-foreground" />
             </div>
             <div className="flex-1 text-left min-w-0">
-              <p className="font-medium">About VYBE</p>
-              <p className="text-sm text-muted-foreground">View the intro again</p>
+              <p className="font-medium">Replay walkthrough</p>
+              <p className="text-sm text-muted-foreground">Watch the VYBE intro again</p>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
           </button>

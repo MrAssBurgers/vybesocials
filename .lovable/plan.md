@@ -1,52 +1,41 @@
-## Plan
+## Plan — Go deeper on tester-feedback fixes
 
-I’ll address the tester report with focused app-side changes plus store-listing guidance updates.
+The first pass landed the 5 baseline items (walkthrough, Rate VYBE, Feedback page, ASO copy, screenshot plan). This pass hardens each so testers actually feel the difference.
 
-### 1. Strengthen the new-user walkthrough
-- Update the mobile intro/walkthrough slides so they are more dynamic and feature-focused.
-- Cover the report’s key examples: stories/clips, communities, messaging/calls, creator tools, personalization, and safety.
-- Keep skip/next/progress behavior intact and maintain the existing VYBE visual style.
-- Keep the existing post-onboarding interactive tutorial available from Settings → Help.
+### 1. Walkthrough — make it actually re-playable + smarter
+- Add a "Replay walkthrough" entry in `HelpSection.tsx` that clears `vybe_intro_seen` and routes to `/intro` (or mounts `MobileIntro` as an overlay).
+- Add a 7th slide: "Earn & level up" (XP, streaks, daily login) — testers said features feel hidden.
+- After the last slide, instead of dumping straight to `/auth` for already-signed-in replay users, return to where they came from.
+- Persist a `vybe_intro_version` so future updates can re-trigger the intro for existing users when slides change.
 
-### 2. Add an in-app “Rate VYBE” entry
-- Add a dedicated “Rate VYBE” action in Settings → Help & Support.
-- On Android/native builds, open the Play Store listing for `com.despia.vybe`.
-- On web/preview, open the Play Store URL in a new tab.
-- Add a small local milestone prompt that can surface after enough app usage, but only once and with dismiss/rate options so it does not spam users.
+### 2. Rate VYBE — surface the milestone prompt (currently dormant)
+- Wire `shouldShowRatePrompt()` into a real UI: small bottom-sheet `RatePromptSheet.tsx` that triggers after a positive milestone (e.g. 3rd session AND ≥1 post/like sent), with "Rate on Play Store / Not now / Don't ask again".
+- Mount once in `App.tsx` behind auth, debounced so it never fires inside chat/calls/camera.
+- Track "happy path" trigger via existing session counter; fall back to `usePWAInstallPrompt`-style session count if none.
 
-### 3. Improve the in-app feedback mechanism visibility
-- Upgrade Settings → Help & Support so users can clearly:
-  - submit feedback,
-  - report issues,
-  - replay the walkthrough/tutorial,
-  - rate the app.
-- Improve the Feedback page submission dialog copy/placeholders so users know bug reports, feature ideas, and general suggestions all belong there.
+### 3. Feedback hub — make submitting feel rewarding
+- In `Feedback.tsx`: after submit, show a clear success state ("Got it — the team reads every report") with a small XP/badge nudge if available.
+- Add screenshot attachment (uses existing storage upload helper) so bug reports include visual context — testers complained reports were too vague to act on.
+- Add device/build metadata auto-attached (UA, app version, route) to `useFeedback` payload — invisible to user, huge help for triage.
+- Surface the Feedback shortcut in two more high-discovery spots: profile menu + Settings root (not just Help subsection).
 
-### 4. Update ASO copy guidance
-- Update `PLAY_STORE_GUIDE.md` with a stronger short description and full description using relevant searchable terms:
-  - social app,
-  - short videos/clips,
-  - stories,
-  - messaging,
-  - communities,
-  - creator tools,
-  - personalization.
-- Keep this as guidance/documentation only; I can’t directly update the live Play Store listing from the codebase.
+### 4. ASO copy — tighten for Play Store character limits
+- Verify short description ≤80 chars (current draft is borderline) and rewrite as: `Stories, clips, chat, calls & communities — make your VYBE.`
+- Trim full description to <4000 chars and front-load the first 250 chars (what shows before "Read more").
+- Add localized title/short-desc stubs for ES, PT, ID, FR in `PLAY_STORE_GUIDE.md`.
 
-### 5. Add Play Store screenshot guidance
-- Add a screenshot checklist/shot list to `PLAY_STORE_GUIDE.md` with feature-focused screenshot concepts and overlay text:
-  - Share your VYBE,
-  - Chat with friends,
-  - Join communities,
-  - Discover clips,
-  - Customize your profile.
+### 5. Screenshot plan — make it executable, not just descriptive
+- Add a `scripts/capture-store-screenshots.md` runbook: exact routes to visit, viewport (1080×1920), and overlay PSD/Figma spec.
+- Mark which 3 screenshots are the "above-the-fold" trio (Home, Clips, Chat) since those drive install rate.
 
-## Technical notes
-- Likely files to update:
-  - `src/pages/MobileIntro.tsx`
-  - `src/components/settings/HelpSection.tsx`
-  - `src/pages/Feedback.tsx`
-  - `src/App.tsx` or a small new prompt component mounted near existing global overlays
-  - `PLAY_STORE_GUIDE.md`
-- No backend/database migration is needed because the feedback hub already exists.
-- I’ll avoid touching generated integration files and keep changes frontend/documentation-only.
+### 6. Quietly fix the runtime error
+- Resolve the "Importing a module script failed" runtime error reported on `/` (likely a stale chunk after the camera refactor). Bust the SW cache version in `src/lib/serviceWorker.ts` if needed.
+
+### Files touched (frontend + docs only)
+- `src/pages/MobileIntro.tsx`, `src/components/settings/HelpSection.tsx`
+- `src/components/feedback/RatePromptSheet.tsx` (new), `src/App.tsx`
+- `src/pages/Feedback.tsx`, `src/hooks/useFeedback.ts`
+- `PLAY_STORE_GUIDE.md`, `scripts/capture-store-screenshots.md` (new)
+- `src/lib/serviceWorker.ts` (cache bump only, if needed)
+
+No DB migrations. No backend changes.
