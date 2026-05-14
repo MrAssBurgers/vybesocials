@@ -14,7 +14,6 @@ import { InstallAppSheet } from './InstallAppSheet';
 const MobileIntro = lazy(() => import('@/pages/MobileIntro'));
 
 export function HelpSection() {
-  const navigate = useNavigate();
   const [showInstallSheet, setShowInstallSheet] = useState(false);
   const [showIntroReplay, setShowIntroReplay] = useState(false);
   return (
