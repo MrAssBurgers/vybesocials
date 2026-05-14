@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { PublicFooter } from '@/components/marketing/PublicFooter';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const faqs = [
   {
@@ -64,18 +64,11 @@ const faqs = [
 export default function FAQPage() {
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const prev = document.title;
-    document.title = 'Frequently Asked Questions | VYBE';
-    const meta = document.querySelector('meta[name="description"]');
-    const prevDesc = meta?.getAttribute('content');
-    meta?.setAttribute('content', 'Answers to the most common questions about VYBE: account, privacy, the Friend Map, VYBE DNA, moderation, monetization, and more.');
-
-    // Inject FAQPage JSON-LD for SEO
-    const script = document.createElement('script');
-    script.type = 'application/ld+json';
-    script.id = 'faq-jsonld';
-    script.textContent = JSON.stringify({
+  usePageMeta({
+    title: 'Frequently Asked Questions | VYBE',
+    description: 'Answers to the most common questions about VYBE: account, privacy, the Friend Map, VYBE DNA, moderation, monetization, and more.',
+    canonicalPath: '/faq',
+    jsonLd: {
       '@context': 'https://schema.org',
       '@type': 'FAQPage',
       mainEntity: faqs.map((f) => ({
@@ -83,15 +76,8 @@ export default function FAQPage() {
         name: f.q,
         acceptedAnswer: { '@type': 'Answer', text: f.a },
       })),
-    });
-    document.head.appendChild(script);
-
-    return () => {
-      document.title = prev;
-      if (prevDesc) meta?.setAttribute('content', prevDesc);
-      document.getElementById('faq-jsonld')?.remove();
-    };
-  }, []);
+    },
+  });
 
   return (
     <div className="page-scroll-fix bg-background">
