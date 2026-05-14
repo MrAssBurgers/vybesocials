@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { Mail, Shield, HelpCircle, FileText, Users } from 'lucide-react';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const faqs = [
   {

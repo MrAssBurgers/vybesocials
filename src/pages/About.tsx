@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { MessageCircle, Video, Users, Sparkles, Shield, Zap, Camera, Music, Globe, Heart } from 'lucide-react';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const features = [
   {
