@@ -32,6 +32,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { InlineComments } from '@/components/comments/InlineComments';
 import { ShareSheet } from '@/components/share/ShareSheet';
+import { HoldToShare } from '@/components/share/HoldToShare';
 
 export default function WatchPage() {
   const { id } = useParams<{ id: string }>();
@@ -343,10 +344,12 @@ export default function WatchPage() {
                   <Button variant="secondary" size="sm">
                     <ThumbsDown className="h-4 w-4" />
                   </Button>
-                  <Button variant="secondary" size="sm" className="gap-2" onClick={handleShare}>
-                    <Share2 className="h-4 w-4" />
-                    Share
-                  </Button>
+                  <HoldToShare postId={id!} postType="video" mediaUrl={signedUrl || undefined}>
+                    <Button variant="secondary" size="sm" className="gap-2" onClick={handleShare}>
+                      <Share2 className="h-4 w-4" />
+                      Share
+                    </Button>
+                  </HoldToShare>
                   <Button
                     variant="secondary"
                     size="sm"

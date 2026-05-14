@@ -30,6 +30,7 @@ import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premi
 import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { CommentSheet } from '@/components/comments/CommentSheet';
 import { ShareSheet } from '@/components/share/ShareSheet';
+import { HoldToShare } from '@/components/share/HoldToShare';
 
 interface ShortCardProps {
   post: {
@@ -551,9 +552,11 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         </button>
 
         {/* Share */}
-        <button onClick={handleShare} className="flex flex-col items-center gap-1">
-          <SendIcon className="h-7 w-7 text-white drop-shadow-lg" />
-        </button>
+        <HoldToShare postId={post.id} postType="short" mediaUrl={post.media_url}>
+          <button onClick={handleShare} className="flex flex-col items-center gap-1">
+            <SendIcon className="h-7 w-7 text-white drop-shadow-lg" />
+          </button>
+        </HoldToShare>
 
         {/* Bookmark */}
         <button onClick={handleBookmark} className="flex flex-col items-center gap-1">
