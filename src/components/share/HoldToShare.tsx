@@ -65,6 +65,7 @@ export const HoldToShare = memo(function HoldToShare({
   const movedRef = useRef(false);
   const openRef = useRef(false);
   const lastHoverRef = useRef<string | null>(null);
+  const suppressClickRef = useRef(false);
 
   useEffect(() => () => clearHoldTimer(), []);
 
