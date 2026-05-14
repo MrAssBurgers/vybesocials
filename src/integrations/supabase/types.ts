@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      _demo_seed_log: {
+        Row: {
+          created_at: string
+          id: string
+          row_id: string
+          table_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          row_id: string
+          table_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          row_id?: string
+          table_name?: string
+        }
+        Relationships: []
+      }
       account_deletion_requests: {
         Row: {
           created_at: string
