@@ -1,60 +1,98 @@
 ## Goal
-Seed realistic-looking demo data into the Live DB so I can capture authentic Play Store screenshots of `/home`, `/clips`, `/messages`, `/community`, `/map`, `/vybe-dna`, then clean it up afterward.
 
-## Anti-AI-slop rules
-- No "✨ vibes ✨" / em-dash / "Let's dive in" copy
-- Lowercase casual captions, typos allowed ("ngl", "fr", "lol", "idk")
-- Mix short (3-8 word) and one-line posts; no paragraphs
-- Real-sounding usernames: `mayaaa`, `jules.k`, `noah_p`, `riv`, `tinab`, `dex2x` — not `creative_user_42`
-- Avatars: real photo-style images from Unsplash (people, not generated)
-- Post images: candid phone-shot aesthetic (concert blur, café latte, sunset from car window, dorm mirror selfie, dog on couch) — not studio
-- DM thread reads like 2 friends mid-convo, not a tutorial
-- Timestamps spread across last 6 days, not all "2m ago"
+Close the gap between VYBE's current messaging stack and Google's "Best messaging app" tier, focused on what actually moves the needle in a Capacitor Android Play Store build.
 
-## What gets seeded
+## What you already have (skip)
 
-**6 demo profiles** (1 = "you" for the screenshot session, 5 = friends/feed)
-- usernames, bios, avatar_url (Unsplash people), small follower counts (40-300)
+From memory + DB inspection:
+- Reactions (multi-emoji, swipe reply, persistence) ✓
+- AES-256 at rest, plaintext client UX ✓ (but NOT true E2E)
+- `messages.edited_at / is_edited / is_deleted / can_undo_until` columns ✓ (UI not wired everywhere)
+- Voice + video calling (SlideToAnswer, stopCameraStream) ✓
+- Discord-style emoji multi-select ✓
+- Capacitor configured (`capacitor.config.ts`, `useNativeFeatures`) ✓
+- OneSignal push integration ✓
+- Federated sign-in (Google OAuth) + biometric gate ✓
 
-**8 posts** in the home feed
-- 5 image posts, 2 text-only, 1 carousel
-- Realistic likes (12-180), comments (2-20), saves
-- Backdated `created_at` across last week
+## Build (in priority order)
 
-**3 clips** for `/clips`
-- short vertical video URLs (use existing public sample mp4s or placeholder), with view/like counts
+### 1. True end-to-end encryption (DM only)
+- Add `profiles.e2e_public_key` + new `e2e_device_keys` table (one row per device, X25519 public key).
+- Use `libsignal-client` WASM or simpler `tweetnacl` (sealed box) per-recipient.
+- Encrypt `messages.content` + media keys client-side; server only sees ciphertext. Group chats stay AES-at-rest for v1.
+- Migration: keep old `content` column readable, add `ciphertext`, `nonce`, `algo` columns; new messages skip plaintext write.
+- Settings toggle "Encrypted DMs (beta)" with key-backup recovery phrase modal.
 
-**1 DM conversation** with 8-12 messages
-- between "you" and `mayaaa`, mid-thread about weekend plans + a shared post
+### 2. Message edit + delete UI (data already exists)
+- Long-press menu on own message → Edit / Delete for everyone / Delete for me.
+- Edit window: 15 min (enforced via RPC checking `created_at`).
+- Show "edited" label tied to `is_edited`; show "Message deleted" tombstone.
+- Undo-send toast wired to `can_undo_until`.
 
-**2 communities**
-- "late night coders" (84 members), "denver coffee" (211 members)
-- with 2-3 recent posts each visible in preview
+### 3. Per-conversation notification settings
+- New table `conversation_notification_prefs` (conversation_id, user_id, muted_until, sound, vibration_pattern, importance).
+- Sheet on conversation header → Mute (1h / 8h / 1d / forever), custom sound picker, vibration pattern.
+- Native side: map each conversation to its own Android NotificationChannel via Capacitor plugin (`@capacitor-community/notifications` or custom).
 
-**5 map pins** within a 5-mile radius of a chosen city for `/map`
+### 4. Native Android Conversation Bubbles
+- Capacitor custom plugin (small Java/Kotlin file) that calls `NotificationCompat.Builder.setBubbleMetadata(...)` plus `setShortcutId` + `Person`.
+- Requires long-lived `ShortcutInfo` per conversation — publish on first message.
+- Falls back silently on iOS / web.
 
-**VYBE DNA** seed for the demo account so `/vybe-dna` shows a populated personality vector instead of empty state
+### 5. Direct Share Targets (Android share sheet)
+- Same shortcut publishing pipeline as bubbles, marked `setCategories({SHARE_TARGET})`.
+- Manifest entry `<meta-data android:name="android.app.shortcuts">` + `shortcuts.xml` so VYBE shows top-friend avatars in the OS share sheet.
+- Capacitor `App.addListener('appUrlOpen')` already handles deep links; route `vybe://share?to=<id>` to DM composer prefilled with payload.
 
-## Workflow
+### 6. Emoji picker (system-level)
+- Replace current grid with `<emoji-picker-element>` (works in WebView) + Android EmojiCompat font bundled via `@capacitor-community/emoji-compat` so older Android renders new emoji correctly.
+- Reuse in: composer, reaction bar, status, comments.
 
-1. Confirm city/coordinates for the map screen (default: Denver, CO)
-2. Write one `supabase--migration` (schema-safe upserts only — no schema changes)
-3. Run it against the connected DB
-4. Sign into preview as the demo account
-5. Capture all 8 screens at 1080×1920 viewport
-6. Composite captions + brand band via existing PIL pipeline → `/mnt/documents/play-store-screenshots/`
-7. QA each slide
-8. Run cleanup migration that deletes all seeded rows by a `demo_seed = true` tag column OR by the known demo profile IDs
+### 7. Animate the software keyboard
+- Use `@capacitor/keyboard` events (`keyboardWillShow/Hide`) → CSS variable `--kb-h`.
+- Composer + message list translate up via Framer Motion spring (stiffness 300, damping 28) so input never jumps.
+- iOS already smooth; this fixes Android jank.
 
-## Cleanup safety
-Every inserted row gets either:
-- a `metadata->>'demo_seed' = 'true'` flag (if jsonb column exists), or
-- tracked in a temporary `_demo_seed_ids` table I create + drop
+### 8. Voice/video chat polish — Jetpack Telecom integration
+- Capacitor plugin wrapping `androidx.core.telecom.CallsManager` so VYBE calls show in OS call log, route to Bluetooth/car, survive lockscreen.
+- Foreground service with `FOREGROUND_SERVICE_TYPE_PHONE_CALL`.
+- Existing WebRTC layer untouched; only signaling/UI gets Telecom hooks.
 
-Cleanup script reverses everything in one call. No prod user data touched.
+### 9. CredentialManager + Passkeys
+- Add `@capgo/capacitor-credential-manager` (or thin wrapper).
+- Sign-in screen offers "Sign in with passkey" before email/Google.
+- Server: store passkey credential IDs in new `webauthn_credentials` table; verify via Supabase edge function using `@simplewebauthn/server`.
 
-## Open questions before I migrate
+### 10. Add/edit rich content in share previews
+- When user taps share on a post, open mini editor sheet: trim caption, add sticker overlay, swap thumbnail, then send to picked DM(s).
+- Reuses existing CameraEditor sticker layer.
 
-1. **City for map pins** — Denver, or somewhere else?
-2. **Demo login account** — should I create a fresh `demo@vybehub.app` profile and give you the password, or use an existing test account you already have?
-3. **Clip video sources** — OK to use 3 short royalty-free mp4s from Pexels (skater, coffee pour, dog), or do you want to upload your own?
+## Technical notes
+
+```text
+Build order (dependencies):
+  shortcuts pipeline ──▶ bubbles (4)
+                  └────▶ direct share targets (5)
+  notif prefs table ──▶ per-convo channels (3) ──▶ bubbles (4)
+  e2e key table  ────▶ encrypted DMs (1) ──▶ edit UI handles ciphertext (2)
+  keyboard plugin ───▶ animation (7) + emoji picker layout (6)
+```
+
+Capacitor plugins to add:
+- `@capacitor/keyboard` (animation)
+- `@capacitor-community/emoji-compat` or bundled Noto Color Emoji
+- Custom Kotlin plugin for: shortcuts/bubbles/share targets + Telecom CallsManager
+- `@capgo/capacitor-credential-manager` for passkeys
+
+DB migrations (one combined call):
+- `e2e_device_keys`, columns on `messages` (`ciphertext`, `nonce`, `algo`)
+- `conversation_notification_prefs`
+- `webauthn_credentials`
+- `conversation_shortcuts` (track which conversations have published an OS shortcut)
+
+Out of scope for this round (call out, don't build):
+- Multi-device sync UI (already implicit via Supabase session; no new device-list management)
+- Group E2E (Signal Sender Keys) — punt to v2
+- Custom LED colors (deprecated on modern Android)
+
+After every native-touching change, remind user to `git pull` then `npx cap sync`.
