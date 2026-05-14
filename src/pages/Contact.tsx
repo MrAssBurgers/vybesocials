@@ -39,6 +39,11 @@ const faqs = [
 ];
 
 export default function Contact() {
+  usePageMeta({
+    title: 'Contact & Support | VYBE',
+    description: 'Get in touch with the VYBE team. Help with your account, safety reports, press inquiries, partnerships, and answers to common questions.',
+    canonicalPath: '/contact',
+  });
   return (
     <div className="page-scroll-fix bg-background">
       {/* Header */}

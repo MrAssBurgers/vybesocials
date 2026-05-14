@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { ShieldAlert, ArrowLeft, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const CONTACT_EMAIL = 'vybesocial.info@gmail.com';
 const EFFECTIVE_DATE = 'April 29, 2026';
