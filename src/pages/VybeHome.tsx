@@ -1,4 +1,5 @@
-import { memo, useEffect } from 'react';
+import { memo } from 'react';
+import { usePageMeta } from '@/hooks/usePageMeta';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -746,15 +747,11 @@ const VybeHome = memo(function VybeHome() {
     }
     return filled;
   })();
-  useEffect(() => {
-    const prev = document.title;
-    document.title = 'VYBE — The social app that becomes you';
-    let meta = document.querySelector('meta[name="description"]');
-    const prevDesc = meta?.getAttribute('content') ?? '';
-    if (!meta) { meta = document.createElement('meta'); meta.setAttribute('name','description'); document.head.appendChild(meta); }
-    meta.setAttribute('content', 'Evolving DNA, custom Aura, real friends nearby, ephemeral snaps, and creator tools — VYBE is the social app that becomes you.');
-    return () => { document.title = prev; meta?.setAttribute('content', prevDesc); };
-  }, []);
+  usePageMeta({
+    title: 'VYBE — The social app that becomes you',
+    description: 'Evolving DNA, custom Aura, real friends nearby, ephemeral snaps, and creator tools — VYBE is the social app that becomes you.',
+    canonicalPath: '/',
+  });
   return (
     <div className="page-scroll-fix bg-[#0B0B10] text-white">
       {/* Sticky nav */}

@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Map as MapIcon, Shield, Music, Users, Zap, Heart, MessageCircle, Camera, Trophy, Bot, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PublicFooter } from '@/components/marketing/PublicFooter';
 import { useAppScreenshots } from '@/hooks/useAppScreenshots';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const features = [
   { icon: Bot, title: 'VYBE AI Assistant', body: 'A real-time, multi-modal AI built into the app. Ask it anything, generate images, get personalized recommendations, or have it summarize your day. Powered by Gemini and GPT-5 through a unified gateway, with auto-switching for cost and speed.' },
@@ -25,17 +25,11 @@ export default function FeaturesPage() {
   const navigate = useNavigate();
   const { shots } = useAppScreenshots('features');
 
-  useEffect(() => {
-    const prev = document.title;
-    document.title = 'Features | VYBE — The Social App That Actually Knows You';
-    const meta = document.querySelector('meta[name="description"]');
-    const prevDesc = meta?.getAttribute('content');
-    meta?.setAttribute('content', 'Explore VYBE features: VYBE DNA personality engine, Friend Map, encrypted DMs, AI assistant, communities, music trends, XP and badges, and more.');
-    return () => {
-      document.title = prev;
-      if (prevDesc) meta?.setAttribute('content', prevDesc);
-    };
-  }, []);
+  usePageMeta({
+    title: 'Features | VYBE — The Social App That Actually Knows You',
+    description: 'Explore VYBE features: VYBE DNA personality engine, Friend Map, encrypted DMs, AI assistant, communities, music trends, XP and badges, and more.',
+    canonicalPath: '/features',
+  });
 
   return (
     <div className="page-scroll-fix bg-background">

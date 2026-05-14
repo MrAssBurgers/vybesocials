@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Shield, Eye, Lock, AlertTriangle, Users, Baby, Camera, MessageSquareWarning } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PublicFooter } from '@/components/marketing/PublicFooter';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const pillars = [
   { icon: Shield, title: 'Vybe Check on every upload', body: 'Photos, videos, and audio are scanned by Gemini Flash and Google SafeSearch before they ever go live. Explicit material is blocked at upload time, not after a complaint. AI-generated content is auto-detected and watermarked.' },

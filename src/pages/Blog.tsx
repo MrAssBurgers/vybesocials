@@ -1,25 +1,19 @@
-import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Calendar, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PublicFooter } from '@/components/marketing/PublicFooter';
 import { POSTS } from '@/content/blogPosts';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 export default function BlogPage() {
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const prev = document.title;
-    document.title = 'Blog | VYBE — Stories, updates, and design notes';
-    const meta = document.querySelector('meta[name="description"]');
-    const prevDesc = meta?.getAttribute('content');
-    meta?.setAttribute('content', 'The official VYBE blog. Product updates, safety announcements, design notes, and stories from the team building a more human social app.');
-    return () => {
-      document.title = prev;
-      if (prevDesc) meta?.setAttribute('content', prevDesc);
-    };
-  }, []);
+  usePageMeta({
+    title: 'Blog | VYBE — Stories, updates, and design notes',
+    description: 'The official VYBE blog. Product updates, safety announcements, design notes, and stories from the team building a more human social app.',
+    canonicalPath: '/blog',
+  });
 
   return (
     <div className="page-scroll-fix bg-background">
