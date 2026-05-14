@@ -30,6 +30,7 @@ import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premi
 import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { CommentSheet } from '@/components/comments/CommentSheet';
 import { ShareSheet } from '@/components/share/ShareSheet';
+import { HoldToShare } from '@/components/share/HoldToShare';
 
 interface ShortCardProps {
   post: {
