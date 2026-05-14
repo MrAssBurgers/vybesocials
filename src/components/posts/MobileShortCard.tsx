@@ -516,12 +516,14 @@ export const MobileShortCard = memo(function MobileShortCard({
         </button>
 
         {/* Share */}
-        <button 
-          onClick={handleShare} 
-          className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
-        >
-          <Send className="h-7 w-7 sm:h-8 sm:w-8 text-white drop-shadow-lg" />
-        </button>
+        <HoldToShare postId={post.id} postType="short" mediaUrl={post.media_url}>
+          <button 
+            onClick={handleShare} 
+            className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
+          >
+            <Send className="h-7 w-7 sm:h-8 sm:w-8 text-white drop-shadow-lg" />
+          </button>
+        </HoldToShare>
 
         {/* Mute toggle */}
         {isVideo && (
