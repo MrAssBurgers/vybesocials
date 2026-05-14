@@ -1,29 +1,22 @@
-import { useEffect } from 'react';
 import { Link, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PublicFooter } from '@/components/marketing/PublicFooter';
 import { POSTS } from '@/content/blogPosts';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 export default function BlogPostPage() {
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   const post = POSTS.find((p) => p.slug === slug);
 
-  useEffect(() => {
-    if (!post) return;
-    const prevTitle = document.title;
-    document.title = `${post.title} | VYBE Blog`;
-    const meta = document.querySelector('meta[name="description"]');
-    const prevDesc = meta?.getAttribute('content');
-    meta?.setAttribute('content', post.excerpt);
-
-    // Article JSON-LD
-    const script = document.createElement('script');
-    script.type = 'application/ld+json';
-    script.id = 'article-jsonld';
-    script.textContent = JSON.stringify({
+  usePageMeta({
+    title: post ? `${post.title} | VYBE Blog` : 'VYBE Blog',
+    description: post?.excerpt ?? 'Product updates and stories from the VYBE team.',
+    canonicalPath: post ? `/blog/${post.slug}` : '/blog',
+    ogType: 'article',
+    jsonLd: post ? {
       '@context': 'https://schema.org',
       '@type': 'BlogPosting',
       headline: post.title,
@@ -32,15 +25,8 @@ export default function BlogPostPage() {
       author: { '@type': 'Organization', name: 'VYBE' },
       publisher: { '@type': 'Organization', name: 'VYBE', url: 'https://vybehub.app' },
       mainEntityOfPage: `https://vybehub.app/blog/${post.slug}`,
-    });
-    document.head.appendChild(script);
-
-    return () => {
-      document.title = prevTitle;
-      if (prevDesc) meta?.setAttribute('content', prevDesc);
-      document.getElementById('article-jsonld')?.remove();
-    };
-  }, [post]);
+    } : undefined,
+  });
 
   if (!post) return <Navigate to="/blog" replace />;
 
