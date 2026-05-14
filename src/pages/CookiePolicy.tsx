@@ -9,6 +9,11 @@ const EFFECTIVE_DATE = 'February 16, 2026';
 
 export default function CookiePolicyPage() {
   const navigate = useNavigate();
+  usePageMeta({
+    title: 'Cookie Policy | VYBE',
+    description: 'How VYBE and our partners use cookies, local storage, and similar technologies — and how to control them.',
+    canonicalPath: '/cookies',
+  });
 
   return (
     <div className="min-h-screen bg-background">

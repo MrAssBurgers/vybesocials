@@ -24,6 +24,11 @@ const sections = [
 
 export default function PrivacyPage() {
   const navigate = useNavigate();
+  usePageMeta({
+    title: 'Privacy Policy | VYBE',
+    description: 'How VYBE collects, uses, and protects your data. Encryption, AI processing disclosure, retention, ad partners, and your rights.',
+    canonicalPath: '/privacy',
+  });
 
   return (
     <div className="page-scroll-fix bg-background relative z-10" style={{ backgroundColor: 'hsl(var(--background))' }}>

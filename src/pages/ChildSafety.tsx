@@ -53,6 +53,11 @@ const sections = [
 
 export default function ChildSafetyPage() {
   const navigate = useNavigate();
+  usePageMeta({
+    title: 'Child Safety on VYBE | Protections for Users Under 13',
+    description: 'How VYBE protects younger users: stricter AI filters, no personalized ads, parental PIN and screen-time controls, and explicit-content gating.',
+    canonicalPath: '/child-safety',
+  });
 
   return (
     <div className="min-h-screen bg-background relative z-10" style={{ backgroundColor: 'hsl(var(--background))' }}>

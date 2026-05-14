@@ -24,6 +24,11 @@ const sections = [
 
 export default function TermsPage() {
   const navigate = useNavigate();
+  usePageMeta({
+    title: 'Terms of Service | VYBE',
+    description: 'The terms that govern your use of VYBE: account responsibilities, prohibited content, AI moderation, intellectual property, and dispute resolution.',
+    canonicalPath: '/terms',
+  });
 
   return (
     <div className="page-scroll-fix bg-background relative z-10" style={{ backgroundColor: 'hsl(var(--background))' }}>
