@@ -1,0 +1,27 @@
+# VYBE
+
+> VYBE is a next-generation social platform for sharing moments, connecting with friends, and discovering creators worldwide — built around safety, expression, and real connection.
+
+## Pages
+
+- [Home](/): Brand homepage and product overview.
+- [Features](/features): What VYBE does — Clips, DMs, Communities, Friend Map, VYBE DNA, Themes.
+- [Safety](/safety): Safety features and protections, including AI moderation and parental controls.
+- [Child Safety](/child-safety): Specific protections for users under 13 and parental controls.
+- [Community Guidelines](/guidelines): Rules of the road for posting, messaging, and behavior on VYBE.
+- [FAQ](/faq): Common questions about accounts, privacy, premium, and getting started.
+- [Blog](/blog): Product updates, design notes, and behind-the-scenes from the VYBE team.
+- [About](/about): Mission, team, and the story behind VYBE.
+- [Contact](/contact): How to reach support, press, and partnerships (vybesocial.info@gmail.com).
+- [Local](/local): City-based discovery — find nearby creators and posts.
+
+## Legal
+
+- [Privacy Policy](/privacy): How we collect, use, and protect your data.
+- [Terms of Service](/terms): The legal terms governing your use of VYBE.
+- [Cookie Policy](/cookies): What cookies and similar technologies we use.
+- [Delete Account](/delete-account): How to permanently delete your VYBE account and data.
+
+## Optional
+
+- [Tour](/tour): Marketing walkthrough of the app experience.
