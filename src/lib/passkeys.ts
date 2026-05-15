@@ -1,5 +1,11 @@
 import { startRegistration, startAuthentication, browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  isDespiaShell,
+  registerDespiaDevicePasskey,
+  signInWithDespiaPasskey,
+  isDespiaPasskeyEnrolled,
+} from '@/lib/despiaVault';
 
 /**
  * True when the current shell is a generic Android WebView (Despia, Median,
@@ -30,6 +36,8 @@ export function openInChromeFallback(path: string = '/settings'): void {
 }
 
 export const passkeysSupported = (): boolean => {
+  // Despia shell uses native Storage Vault biometrics — always supported.
+  if (isDespiaShell()) return true;
   try { return browserSupportsWebAuthn(); } catch { return false; }
 };
 
@@ -58,6 +66,12 @@ function classifyPasskeyError(e: any): Error {
  * Throws on failure with a user-friendly message.
  */
 export async function registerPasskey(deviceName?: string): Promise<void> {
+  // Inside the Despia shell, use the native Storage Vault biometric path.
+  if (isDespiaShell()) {
+    await registerDespiaDevicePasskey();
+    return;
+  }
+
   if (!passkeysSupported()) throw new Error('Passkeys are not supported on this device');
 
   const { data: optsRes, error: optsErr } = await supabase.functions.invoke('auth-passkey-register-options', {});
@@ -87,6 +101,15 @@ export async function registerPasskey(deviceName?: string): Promise<void> {
  * fall back to password). Throws on real failures.
  */
 export async function signInWithPasskey(email?: string): Promise<string | null> {
+  // Despia shell: trigger native Face ID / Touch ID via Storage Vault and
+  // restore the session locally. Return a sentinel string so the caller
+  // navigates onward instead of treating it as "no passkey".
+  if (isDespiaShell()) {
+    if (!isDespiaPasskeyEnrolled()) return null;
+    const ok = await signInWithDespiaPasskey();
+    return ok ? '/' : null;
+  }
+
   if (!passkeysSupported()) return null;
 
   const { data: optsRes, error: optsErr } = await supabase.functions.invoke('auth-passkey-login-options', {

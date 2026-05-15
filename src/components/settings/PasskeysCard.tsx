@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { passkeysSupported, registerPasskey, isAndroidWebViewShell, openInChromeFallback } from '@/lib/passkeys';
+import { isDespiaShell, isDespiaPasskeyEnrolled, removeDespiaDevicePasskey } from '@/lib/despiaVault';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Passkey {
@@ -27,9 +28,15 @@ export function PasskeysCard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const supported = passkeysSupported();
+  const despia = isDespiaShell();
+  const [despiaEnrolled, setDespiaEnrolled] = useState<boolean>(isDespiaPasskeyEnrolled());
 
   const load = async () => {
     if (!user) return;
+    if (despia) {
+      setDespiaEnrolled(isDespiaPasskeyEnrolled());
+      return;
+    }
     const { data } = await supabase
       .from('user_passkeys')
       .select('id, device_name, created_at, last_used_at')
@@ -66,8 +73,13 @@ export function PasskeysCard() {
   const remove = async (id: string) => {
     setBusy(true);
     try {
-      const { error } = await supabase.from('user_passkeys').delete().eq('id', id);
-      if (error) throw error;
+      if (id === 'despia-device') {
+        await removeDespiaDevicePasskey();
+        setDespiaEnrolled(false);
+      } else {
+        const { error } = await supabase.from('user_passkeys').delete().eq('id', id);
+        if (error) throw error;
+      }
       toast.success('Passkey removed');
       await load();
     } catch {
@@ -144,13 +156,35 @@ export function PasskeysCard() {
             </div>
           )}
 
-          {supported && keys.length === 0 && addState === 'idle' && (
+          {supported && !despia && keys.length === 0 && addState === 'idle' && (
             <div className="text-xs text-muted-foreground mt-2">
               Tap <span className="font-medium">Add passkey</span> — your phone will show its Face ID / fingerprint sheet, just like Discord.
             </div>
           )}
 
-          {isAndroidWebViewShell() && (
+          {despia && !despiaEnrolled && addState === 'idle' && (
+            <div className="text-xs text-muted-foreground mt-2">
+              Tap <span className="font-medium">Add passkey</span> — VYBE will show your phone's real Face ID / fingerprint prompt and remember this device securely.
+            </div>
+          )}
+
+          {despia && despiaEnrolled && (
+            <div className="mt-3 space-y-1.5">
+              <div className="flex items-center justify-between gap-3 p-2 rounded-lg bg-muted/30">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">This device • Face ID / Touch ID</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    Stored securely on this device. Survives reinstalls.
+                  </div>
+                </div>
+                <Button size="sm" variant="ghost" className="h-8 w-8 p-0" disabled={busy} onClick={() => remove('despia-device')}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {!despia && isAndroidWebViewShell() && (
             <div className="text-xs text-amber-500/90 mt-2 space-y-1.5">
               <div>
                 This in-app browser can't open the system passkey sheet. Open VYBE in Chrome once to add a passkey — it'll work in the app afterward.
@@ -165,7 +199,7 @@ export function PasskeysCard() {
             </div>
           )}
 
-          {keys.length > 0 && (
+          {!despia && keys.length > 0 && (
             <div className="mt-3 space-y-1.5">
               {keys.map(k => (
                 <div key={k.id} className="flex items-center justify-between gap-3 p-2 rounded-lg bg-muted/30">
