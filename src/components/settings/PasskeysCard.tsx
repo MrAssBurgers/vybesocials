@@ -6,7 +6,7 @@ import { Key, Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { passkeysSupported, registerPasskey } from '@/lib/passkeys';
+import { passkeysSupported, registerPasskey, isAndroidWebViewShell } from '@/lib/passkeys';
 import { formatDistanceToNow } from 'date-fns';
 
 const inNativeApp = (() => { try { return Capacitor.isNativePlatform(); } catch { return false; } })();
