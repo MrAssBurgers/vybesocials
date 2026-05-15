@@ -645,9 +645,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                       const link = await signInWithPasskey(emailHint);
                       if (!link) {
                         toast.info(
-                          isLogin
-                            ? 'No passkey found for this device'
-                            : 'No passkey found on this device — create an account first, then add a passkey in Settings.'
+                          isLogin && formData.email
+                            ? 'No passkey found for this account'
+                            : isLogin
+                              ? 'No passkey found on this device'
+                              : 'Create an account first, then add a passkey in Settings.'
                         );
                         return;
                       }
