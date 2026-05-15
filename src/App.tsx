@@ -200,6 +200,9 @@ function AppWithPreloader() {
   useRealtimeProfiles();
   usePostsRealtime();
 
+  // Track on-screen keyboard height as --kb-h CSS variable (Android polish)
+  useKeyboardHeight();
+
   useEffect(() => {
     if (!showSplash) return;
     // Hide splash only when preloader is done AND auth has resolved.
