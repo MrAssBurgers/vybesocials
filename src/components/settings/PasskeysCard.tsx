@@ -6,7 +6,7 @@ import { Key, Plus, Trash2, Loader2, Pencil, Check, X, ShieldCheck, AlertTriangl
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { passkeysSupported, registerPasskey, isAndroidWebViewShell } from '@/lib/passkeys';
+import { passkeysSupported, registerPasskey, isAndroidWebViewShell, openInChromeFallback } from '@/lib/passkeys';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Passkey {
@@ -151,8 +151,17 @@ export function PasskeysCard() {
           )}
 
           {isAndroidWebViewShell() && (
-            <div className="text-xs text-amber-500/90 mt-2">
-              On Samsung devices: if Add doesn't open the system sheet, update <span className="font-medium">Android System WebView</span> &amp; Chrome from the Play Store, then try again.
+            <div className="text-xs text-amber-500/90 mt-2 space-y-1.5">
+              <div>
+                This in-app browser can't open the system passkey sheet. Open VYBE in Chrome once to add a passkey — it'll work in the app afterward.
+              </div>
+              <button
+                type="button"
+                onClick={() => openInChromeFallback('/settings')}
+                className="underline font-medium"
+              >
+                Open in Chrome
+              </button>
             </div>
           )}
 
