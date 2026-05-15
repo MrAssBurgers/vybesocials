@@ -5951,6 +5951,51 @@ export type Database = {
           },
         ]
       }
+      live_music_presence: {
+        Row: {
+          album: string | null
+          album_art_url: string | null
+          artist: string | null
+          duration_ms: number | null
+          is_playing: boolean
+          progress_ms: number | null
+          provider: Database["public"]["Enums"]["music_provider"]
+          title: string | null
+          track_id: string | null
+          track_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          album?: string | null
+          album_art_url?: string | null
+          artist?: string | null
+          duration_ms?: number | null
+          is_playing?: boolean
+          progress_ms?: number | null
+          provider?: Database["public"]["Enums"]["music_provider"]
+          title?: string | null
+          track_id?: string | null
+          track_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          album?: string | null
+          album_art_url?: string | null
+          artist?: string | null
+          duration_ms?: number | null
+          is_playing?: boolean
+          progress_ms?: number | null
+          provider?: Database["public"]["Enums"]["music_provider"]
+          title?: string | null
+          track_id?: string | null
+          track_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       live_widgets: {
         Row: {
           config: Json | null
@@ -6766,6 +6811,33 @@ export type Database = {
           is_active?: boolean
           provider_id?: string
           provider_name?: string
+        }
+        Relationships: []
+      }
+      music_settings: {
+        Row: {
+          hide_when_invisible: boolean
+          show_in_dms: boolean
+          show_listening_activity: boolean
+          show_on_profile: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          hide_when_invisible?: boolean
+          show_in_dms?: boolean
+          show_listening_activity?: boolean
+          show_on_profile?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          hide_when_invisible?: boolean
+          show_in_dms?: boolean
+          show_listening_activity?: boolean
+          show_on_profile?: boolean
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -9257,6 +9329,48 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
         ]
+      }
+      spotify_connections: {
+        Row: {
+          access_token: string
+          avatar_url: string | null
+          connected_at: string
+          display_name: string | null
+          email: string | null
+          refresh_token: string
+          scope: string | null
+          spotify_user_id: string
+          token_expires_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          avatar_url?: string | null
+          connected_at?: string
+          display_name?: string | null
+          email?: string | null
+          refresh_token: string
+          scope?: string | null
+          spotify_user_id: string
+          token_expires_at: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          avatar_url?: string | null
+          connected_at?: string
+          display_name?: string | null
+          email?: string | null
+          refresh_token?: string
+          scope?: string | null
+          spotify_user_id?: string
+          token_expires_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       stories: {
         Row: {
@@ -13345,6 +13459,7 @@ export type Database = {
       dna_agent_intensity: "gentle" | "balanced" | "bold"
       dna_agent_mode: "off" | "suggest" | "autonomous"
       group_role: "owner" | "admin" | "member"
+      music_provider: "spotify" | "apple_music"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -13495,6 +13610,7 @@ export const Constants = {
       dna_agent_intensity: ["gentle", "balanced", "bold"],
       dna_agent_mode: ["off", "suggest", "autonomous"],
       group_role: ["owner", "admin", "member"],
+      music_provider: ["spotify", "apple_music"],
     },
   },
 } as const
