@@ -30,6 +30,13 @@ function isSuccessfulBiometricResult(value: unknown): boolean {
   return Object.values(result).some(isSuccessfulBiometricResult);
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | undefined> {
+  return Promise.race([
+    promise,
+    new Promise<undefined>((resolve) => setTimeout(resolve, ms)),
+  ]);
+}
+
 let despiaMod: any | null = null;
 async function getDespia(): Promise<any> {
   if (despiaMod) return despiaMod;
@@ -70,10 +77,11 @@ export async function registerDespiaDevicePasskey(): Promise<void> {
   const despia = await getDespia();
 
   try {
-    const biometric = await despia('biometric://verify?reason=Register%20VYBE%20Passkey', [
-      'biometricResult',
-    ]);
-    if (biometric?.biometricResult !== undefined && !isSuccessfulBiometricResult(biometric.biometricResult)) {
+    const biometric = await withTimeout(
+      despia('biometric://verify?reason=Register%20VYBE%20Passkey', ['authResult']),
+      8000,
+    );
+    if (biometric?.authResult !== undefined && !isSuccessfulBiometricResult(biometric.authResult)) {
       throw new Error('Cancelled');
     }
   } catch (error: any) {
