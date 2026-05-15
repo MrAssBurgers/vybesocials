@@ -14,6 +14,21 @@ export function isAndroidWebViewShell(): boolean {
   return /android/i.test(ua) && /despia|vybeapp|median|gonative|; wv\)|\bwv\b/i.test(ua);
 }
 
+/**
+ * Open the current app URL in the system Chrome browser via an Android intent.
+ * Used as a fallback when an Android WebView shell can't open the passkey sheet.
+ * Silently no-ops on non-Android.
+ */
+export function openInChromeFallback(path: string = '/settings'): void {
+  if (typeof window === 'undefined') return;
+  const ua = navigator.userAgent || '';
+  if (!/android/i.test(ua)) return;
+  const target = new URL(path, 'https://vybehub.app').toString();
+  // Chrome intent URL — opens the URL directly in Chrome if installed.
+  const intent = `intent://${target.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`;
+  try { window.location.href = intent; } catch { window.open(target, '_blank'); }
+}
+
 export const passkeysSupported = (): boolean => {
   try { return browserSupportsWebAuthn(); } catch { return false; }
 };
