@@ -48,6 +48,7 @@ import { NotesRow } from './NotesRow';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
 import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
 import { useSendFriendRequest } from '@/hooks/useFriends';
+import { NowPlayingInline } from '@/components/music/NowPlayingInline';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
