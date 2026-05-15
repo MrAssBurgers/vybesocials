@@ -78,22 +78,20 @@ export function PasskeysCard() {
                 Sign in instantly with Face ID, Touch ID, Windows Hello, or a security key.
               </div>
             </div>
-            {!inNativeApp && (
-              <Button size="sm" disabled={!supported || busy} onClick={add}>
-                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Plus className="w-3.5 h-3.5 mr-1" /> Add</>}
-              </Button>
-            )}
+            <Button size="sm" disabled={!supported || busy} onClick={add}>
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Plus className="w-3.5 h-3.5 mr-1" /> Add</>}
+            </Button>
           </div>
 
-          {inNativeApp && (
+          {!supported && (
             <div className="text-xs text-muted-foreground mt-2">
-              To add a passkey, open <span className="font-medium">vybehub.app</span> in Safari or Chrome on this phone and tap “Add”. It will sync to this app via iCloud Keychain or Google Password Manager — then you can sign in here with Face ID / Touch ID.
+              Your device doesn't support passkeys yet. Try a recent version of iOS, Android, Safari, Chrome, or Edge.
             </div>
           )}
 
-          {!inNativeApp && !supported && (
+          {inNativeApp && supported && keys.length === 0 && (
             <div className="text-xs text-muted-foreground mt-2">
-              Your browser doesn't support passkeys. Try a recent version of Safari, Chrome, or Edge.
+              Tap <span className="font-medium">Add</span> to register Face ID / Touch ID for one‑tap sign‑in.
             </div>
           )}
 
