@@ -119,34 +119,19 @@ export function useNFC() {
   const pendingWriteRef = useRef<string | null>(null);
 
   const hasWebNFC = isWebNFCSupported();
+  // The Despia native shell on Android exposes its own NFC bridge even when
+  // Web NFC permission is denied. Treat that as supported too.
+  const hasDespiaNFC = isDespiaRuntime() && isAndroidUA();
+  const nfcSupported = hasWebNFC || hasDespiaNFC;
 
   useEffect(() => {
-    console.log('[NFC] Checking support...');
-    console.log('[NFC] hasWebNFC:', hasWebNFC);
-    
-    if (hasWebNFC) {
-      console.log('[NFC] Web NFC supported on Chrome Android');
-      setState(prev => ({
-        ...prev,
-        isSupported: true,
-        isEnabled: true,
-      }));
-    } else {
-      const ua = navigator.userAgent;
-      const isIOS = /iPhone|iPad|iPod/i.test(ua);
-      const isAndroid = /Android/i.test(ua);
-      
-      if (isIOS) {
-        console.log('[NFC] iOS detected - Web NFC not supported in browsers');
-      } else if (isAndroid) {
-        console.log('[NFC] Android detected but not Chrome - Web NFC requires Chrome');
-      } else {
-        console.log('[NFC] Desktop browser - Web NFC not supported');
-      }
-      
-      setState(prev => ({ ...prev, isSupported: false }));
-    }
-  }, [hasWebNFC]);
+    console.log('[NFC] hasWebNFC:', hasWebNFC, 'hasDespiaNFC:', hasDespiaNFC);
+    setState(prev => ({
+      ...prev,
+      isSupported: nfcSupported,
+      isEnabled: nfcSupported,
+    }));
+  }, [hasWebNFC, hasDespiaNFC, nfcSupported]);
 
   // Request permission by starting a scan
   const requestPermission = useCallback(async (): Promise<boolean> => {
