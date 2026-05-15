@@ -3,12 +3,8 @@
 import {
   corsHeaders, jsonResponse, getServiceClient, getUserFromAuthHeader,
 } from '../_shared/security.ts';
+import { rpIdFor, expectedOriginsFor } from '../_shared/passkey-rp.ts';
 import { verifyRegistrationResponse } from 'npm:@simplewebauthn/server@10.0.1';
-
-function rpId(req: Request): string {
-  const origin = req.headers.get('origin') || '';
-  try { return new URL(origin).hostname || 'vybehub.app'; } catch { return 'vybehub.app'; }
-}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -36,12 +32,11 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'expired' }, 400);
     }
 
-    const origin = req.headers.get('origin') || '';
     const verification = await verifyRegistrationResponse({
       response: credential,
       expectedChallenge: chal.code_hash!,
-      expectedOrigin: origin,
-      expectedRPID: rpId(req),
+      expectedOrigin: expectedOriginsFor(req),
+      expectedRPID: rpIdFor(req),
       requireUserVerification: false,
     });
 
