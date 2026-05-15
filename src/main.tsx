@@ -8,6 +8,9 @@ import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled } from "./
 import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
 import { installFlickerGuardCheck } from "./lib/flickerGuardCheck";
 
+// One-time cleanup: legacy biometric app-lock pref (card + gate were removed).
+try { localStorage.removeItem('vybe.bioauth.enabled'); } catch { /* ignore */ }
+
 // Warm up keyframes and preload Framer Motion at idle so first animations are jank-free
 warmupAnimations();
 preloadFramerMotion();
