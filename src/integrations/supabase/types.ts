@@ -12726,6 +12726,49 @@ export type Database = {
         }
         Returns: number
       }
+      edit_message: {
+        Args: { p_message_id: string; p_new_content: string }
+        Returns: {
+          auto_delete_if_ignored: boolean | null
+          blur_on_screenshot: boolean | null
+          can_undo_until: string | null
+          ciphertext: string | null
+          content: string | null
+          conversation_id: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_for_users: string[] | null
+          edited_at: string | null
+          encryption_algo: string | null
+          expires_at: string | null
+          id: string
+          ignore_deadline: string | null
+          is_deleted: boolean | null
+          is_edited: boolean | null
+          is_flagged: boolean | null
+          media_type: string | null
+          media_url: string | null
+          message_type: string | null
+          nonce: string | null
+          reply_to_id: string | null
+          safety_categories: string[] | null
+          safety_score: number | null
+          saved_at: string | null
+          saved_by_recipient: boolean
+          saved_by_sender: boolean
+          sender_id: string
+          view_mode: string | null
+          viewed_at: string | null
+          voice_segments: Json | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "messages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       email_queue_publish_diagnostic: { Args: never; Returns: Json }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
