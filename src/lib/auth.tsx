@@ -523,6 +523,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const resendVerification = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: window.location.origin },
+      });
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
   const signOut = async () => {
     // 1) Flip local auth state IMMEDIATELY so the UI navigates instantly.
     setProfile(null);
