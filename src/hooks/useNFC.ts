@@ -73,16 +73,36 @@ export function parseFriendAddUrl(url: string): string | null {
 // Detect if running on Chrome Android (only platform supporting Web NFC)
 function isWebNFCSupported(): boolean {
   if (typeof window === 'undefined') return false;
-  
-  // Check if NDEFReader exists
+
+  // Web NFC requires the NDEFReader API, which only Chromium-based engines on Android expose.
   if (!('NDEFReader' in window)) return false;
-  
-  // Web NFC only works on Chrome Android
-  const ua = navigator.userAgent;
-  const isAndroid = /Android/i.test(ua);
-  const isChrome = /Chrome/i.test(ua) && !/Edge|Edg/i.test(ua);
-  
-  return isAndroid && isChrome;
+
+  // Web NFC only works on Android (Chrome OR Despia/Chromium WebView). Edge is also fine.
+  return isAndroidUA();
+}
+
+// Despia native NFC bridge — available in the wrapped Android app even when
+// Web NFC permission has been denied. Returns true if a payload was decoded.
+async function despiaNFCScan(onTagScanned: (userId: string) => void): Promise<boolean> {
+  // Try a few known Despia NFC bridge URLs — Despia has shipped under several names.
+  const bridges = ['nfcread://', 'scannfc://', 'nfc://read'];
+  for (const url of bridges) {
+    const result = await despiaCall(url, ['nfcResult', 'payload', 'data', 'url'], 30_000);
+    if (!result) continue;
+    const raw =
+      result.nfcResult || result.payload || result.data || result.url || '';
+    if (typeof raw !== 'string' || !raw) continue;
+    const userId = parseFriendAddUrl(raw);
+    if (userId) {
+      onTagScanned(userId);
+      return true;
+    }
+    if (raw.startsWith('vybe:friend:')) {
+      onTagScanned(raw.replace('vybe:friend:', ''));
+      return true;
+    }
+  }
+  return false;
 }
 
 export function useNFC() {
