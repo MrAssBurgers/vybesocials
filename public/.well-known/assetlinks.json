@@ -6,10 +6,32 @@
     ],
     "target": {
       "namespace": "android_app",
+      "package_name": "com.despia.vybe",
+      "sha256_cert_fingerprints": [
+        "REPLACE_WITH_DESPIA_PLAY_APP_SIGNING_SHA256"
+      ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
       "package_name": "app.lovable.416714c8d0134aff984d522418a9bbc7",
       "sha256_cert_fingerprints": [
         "REPLACE_WITH_PLAY_APP_SIGNING_SHA256"
       ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "web",
+      "site": "https://vybehub.app"
     }
   }
 ]
