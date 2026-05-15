@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Image, Send, Smile, Loader2, X, SortAsc, MessageCircle } from 'lucide-react';
+import { Image, Send, Loader2, X, SortAsc, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -280,12 +280,13 @@ export const InlineComments = memo(function InlineComments({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
+                    size="sm"
                     onClick={() => setShowGifPicker(!showGifPicker)}
                     disabled={!!mediaUrl}
-                    className="h-9 w-9"
+                    className="h-9 px-2 text-[11px] font-bold tracking-wider"
+                    aria-label="Add a GIF"
                   >
-                    <Smile className="h-4 w-4" />
+                    GIF
                   </Button>
 
                   <AnimatePresence>
