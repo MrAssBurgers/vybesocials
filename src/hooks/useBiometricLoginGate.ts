@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { isBiometricsAvailable, requestBioAuth, getBioAuthPref } from '@/lib/biometrics';
+import { isBiometricsAvailable, requestBioAuth, getBioAuthPref, setBioAuthPref } from '@/lib/biometrics';
 import { toast } from 'sonner';
 
 /**
@@ -33,9 +33,18 @@ export function useBiometricLoginGate() {
         const r = await requestBioAuth();
         if (r.ok) {
           if (!cancelled) setLocked(false);
-        } else if ((r as any).reason === 'unavailable') {
-          toast.message('Biometrics unavailable on this device — unlocked.');
+        } else if ((r as any).reason === 'unavailable' || (r as any).reason === 'not-enrolled') {
+          // Hardware gone or biometrics removed — turn pref off, don't lock the user out.
+          setBioAuthPref(false);
+          toast.message('Biometric lock turned off — re-enable in Settings → Security.');
           if (!cancelled) setLocked(false);
+        } else if ((r as any).reason === 'cancelled') {
+          // Resume gate: leave locked so they retry. Cold start: sign out.
+          if (lastHiddenAtRef.current === 0) {
+            await supabase.auth.signOut().catch(() => {});
+            if (!cancelled) setLocked(false);
+            window.location.replace('/auth');
+          }
         } else {
           await supabase.auth.signOut().catch(() => {});
           if (!cancelled) setLocked(false);

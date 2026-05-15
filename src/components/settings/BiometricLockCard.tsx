@@ -26,6 +26,22 @@ export function BiometricLockCard() {
     isBiometricsAvailable().then(setAvailable);
   }, []);
 
+  const promptEnroll = () => {
+    toast.message('Set up Face Unlock or Fingerprint in your phone\'s Settings, then come back.', {
+      action: {
+        label: 'Open Settings',
+        onClick: () => {
+          // Best-effort deep link to the system biometric enrollment screen.
+          // Android: Settings.ACTION_BIOMETRIC_ENROLL via intent. iOS: Settings app.
+          try {
+            window.location.href = 'app-settings:';
+          } catch {}
+        },
+      },
+      duration: 8000,
+    });
+  };
+
   const onToggle = async (next: boolean) => {
     if (!available) {
       toast.info('Face ID / Touch ID isn\'t available on this device.');
@@ -44,8 +60,12 @@ export function BiometricLockCard() {
         setBioAuthPref(true);
         setEnabled(true);
         toast.success('Biometric lock enabled — required at app launch');
+      } else if (r.reason === 'not-enrolled') {
+        promptEnroll();
       } else if (r.reason === 'unavailable') {
-        toast.error('No Face ID / Touch ID set up on this device.');
+        toast.error('Face ID / Touch ID isn\'t available on this device.');
+      } else if (r.reason === 'cancelled') {
+        // user backed out of the prompt — silent
       } else if (r.reason !== 'not-despia') {
         toast.error('Biometric verification failed.');
       }
@@ -63,9 +83,22 @@ export function BiometricLockCard() {
     const r = await requestBioAuth();
     setBusy(false);
     if (r.ok === true) toast.success('Verified ✓');
+    else if (r.reason === 'not-enrolled') promptEnroll();
     else if (r.reason === 'unavailable') toast.error('No biometrics enrolled.');
+    else if (r.reason === 'cancelled') { /* silent */ }
     else toast.error('Verification cancelled.');
   };
+
+  // When the user returns from system Settings (e.g. after enrolling), re-check.
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        isBiometricsAvailable().then(setAvailable);
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
 
   return (
     <Card className="p-4">
