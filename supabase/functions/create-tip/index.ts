@@ -60,7 +60,14 @@ serve(async (req) => {
     const userEmail = claimsData.claims.email as string;
     logStep("User authenticated", { userId });
 
-    const { creator_id, amount, message } = await req.json();
+    const {
+      creator_id,
+      amount,
+      message,
+      client_platform = 'web',
+      wallet_preference = 'standard',
+      native_shell = false,
+    } = await req.json();
     if (!creator_id || !amount || amount < 1) {
       throw new Error("creator_id and amount (min $1) required");
     }
@@ -91,6 +98,9 @@ serve(async (req) => {
         creator_id: creator.id,
         tipper_id: userId,
         message: message?.substring(0, 200) || '',
+        client_platform,
+        wallet_preference,
+        native_shell: String(native_shell),
       },
     };
 

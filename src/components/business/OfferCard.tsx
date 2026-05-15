@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
+import { getPaymentClientContext, openCheckoutUrl } from '@/lib/platformPayments';
 
 interface OfferCardProps {
   offer: {
@@ -52,7 +53,8 @@ export function OfferCard({ offer, currentProfileId, onStatusChange }: OfferCard
               price: offer.price,
               quantity: 1,
             }
-          ]
+          ],
+          ...getPaymentClientContext(),
         }
       });
 
@@ -70,8 +72,8 @@ export function OfferCard({ offer, currentProfileId, onStatusChange }: OfferCard
 
       toast.success('Redirecting to payment...');
       
-      // Redirect to Stripe Checkout
-      window.open(data.url, '_blank');
+      // Open the platform-aware checkout so mobile wallets stay in the app shell.
+      openCheckoutUrl(data.url);
       onStatusChange?.();
     } catch (err: any) {
       console.error('Checkout error:', err);

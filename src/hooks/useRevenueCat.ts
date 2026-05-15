@@ -3,11 +3,23 @@ import { Capacitor } from '@capacitor/core';
 import { Purchases as PurchasesNative } from '@revenuecat/purchases-capacitor';
 import { initRevenueCat, getPurchases, resetRevenueCat } from '@/lib/revenuecat';
 import { useAuth } from '@/lib/auth';
+import { isDespiaAppShell } from '@/lib/platformPayments';
 import type { Purchases, CustomerInfo, Package as RCPackage } from '@revenuecat/purchases-js';
 
 const isNative = () => {
   try { return Capacitor.isNativePlatform(); } catch { return false; }
 };
+
+async function launchDespiaPurchase(rcPackage: RCPackage, appUserId?: string): Promise<CustomerInfo | null> {
+  const m = await import('despia-native');
+  const despia = (m as any).default || m;
+  const productId = (rcPackage as any)?.product?.identifier || (rcPackage as any)?.identifier;
+  if (!productId) throw new Error('Purchase product unavailable');
+  const externalId = encodeURIComponent(appUserId || 'anonymous');
+  const product = encodeURIComponent(productId);
+  await despia(`revenuecat://purchase?external_id=${externalId}&product=${product}`);
+  return null;
+}
 
 /**
  * Unified RevenueCat hook.
@@ -131,12 +143,16 @@ export function useRevenueCat() {
       return info;
     }
 
+    if (isDespiaAppShell()) {
+      return await launchDespiaPurchase(rcPackage, profile?.id || undefined);
+    }
+
     const instance = getPurchases();
     if (!instance) throw new Error('RevenueCat not initialized');
     const { customerInfo: updatedInfo } = await instance.purchase({ rcPackage });
     setCustomerInfo(updatedInfo);
     return updatedInfo;
-  }, []);
+  }, [profile?.id]);
 
   const isEntitled = useCallback((entitlementId: string) => {
     if (!customerInfo) return false;

@@ -36,7 +36,14 @@ serve(async (req) => {
     );
 
     // Parse request body
-    const { businessId, items, offerId } = await req.json();
+    const {
+      businessId,
+      items,
+      offerId,
+      client_platform = 'web',
+      wallet_preference = 'standard',
+      native_shell = false,
+    } = await req.json();
     if (!businessId) throw new Error("Business ID is required");
     if (!items || !Array.isArray(items) || items.length === 0) {
       throw new Error("Items array is required");
@@ -122,6 +129,9 @@ serve(async (req) => {
         business_id: businessId,
         offer_id: offerId || '',
         customer_user_id: user?.id || '',
+        client_platform,
+        wallet_preference,
+        native_shell: String(native_shell),
       },
     };
 
