@@ -3227,6 +3227,45 @@ export type Database = {
           },
         ]
       }
+      conversation_notification_prefs: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          importance: string
+          muted_until: string | null
+          native_channel_id: string | null
+          sound: string | null
+          updated_at: string
+          user_id: string
+          vibration_pattern: string | null
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          importance?: string
+          muted_until?: string | null
+          native_channel_id?: string | null
+          sound?: string | null
+          updated_at?: string
+          user_id: string
+          vibration_pattern?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          importance?: string
+          muted_until?: string | null
+          native_channel_id?: string | null
+          sound?: string | null
+          updated_at?: string
+          user_id?: string
+          vibration_pattern?: string | null
+        }
+        Relationships: []
+      }
       conversation_safety_overrides: {
         Row: {
           conversation_id: string
