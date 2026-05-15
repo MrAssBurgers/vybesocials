@@ -28,6 +28,7 @@ import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { useKeyboardHeight } from "@/hooks/useKeyboardHeight";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
+import { useSpotifyPresence } from "@/hooks/useSpotifyPresence";
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { SkipToMain, LiveRegion } from "@/components/a11y/Accessibility";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
@@ -200,6 +201,7 @@ function AppWithPreloader() {
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
   usePostsRealtime();
+  useSpotifyPresence();
 
   // Track on-screen keyboard height as --kb-h CSS variable (Android polish)
   useKeyboardHeight();
