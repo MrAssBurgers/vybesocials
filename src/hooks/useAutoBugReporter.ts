@@ -78,6 +78,11 @@ const IGNORED_PATTERNS = [
   'OneSignal service worker not found',
   '[WM] No SW registration',
   'No SW registration for postMessage',
+  'Edge function returned a non-2xx',
+  'Edge Function returned a non-2xx',
+  'invalid_credentials',
+  'auth-2fa-preauth',
+  'Edge function returned 401',
 ];
 
 const BUG_STATUS_CODES = [400, 403, 404, 409, 422, 500, 502, 504];
