@@ -1,6 +1,8 @@
 import { useCallback, useRef } from 'react';
+import despia from 'despia-native';
 import { showInterstitial } from '@/lib/admob';
 import { isNativePlatform } from '@/lib/capacitor';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { useAuth } from '@/lib/auth';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { getTrackingConsent } from '@/components/app/TrackingConsentDialog';
