@@ -126,6 +126,7 @@ import { useConversationSafety } from '@/hooks/useConversationSafety';
 import { SafetyFilterRequest } from './SafetyFilterRequest';
 import { SafetyFilterRequestButton } from './SafetyFilterRequestButton';
 import { getTopEmojis, recordEmoji } from '@/lib/frequentEmojis';
+import { NowPlayingInline } from '@/components/music/NowPlayingInline';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
 // Theme color mapping - now includes both bubble and text classes
@@ -1378,7 +1379,7 @@ export function ChatView() {
                 {otherMembers.length + 1} members · Tap for info
               </button>
             ) : (
-              <div className="flex items-center gap-1">
+              <div className="flex flex-col gap-0.5 min-w-0">
                 <LivePresenceBar
                   isOnline={otherMemberOnline}
                   isTyping={typingUsers.length > 0}
@@ -1386,6 +1387,7 @@ export function ChatView() {
                   username={otherMember?.username}
                   lastReadAt={lastReadAt}
                 />
+                <NowPlayingInline authUserId={(otherMember as any)?.user_id} className="max-w-[240px]" />
               </div>
             )}
           </div>

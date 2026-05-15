@@ -136,7 +136,7 @@ export function useConversations() {
               is_muted,
               is_pinned,
               last_read_at,
-              profile:profiles(id, username, avatar_url, display_name)
+              profile:profiles(id, user_id, username, avatar_url, display_name)
             )
           `)
           .in('id', userConversationIds)
