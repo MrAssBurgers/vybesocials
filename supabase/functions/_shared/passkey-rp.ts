@@ -20,6 +20,10 @@ const PROD_ORIGINS = [
   'https://localhost',
   // Lovable published mirror.
   'https://vybeapp.lovable.app',
+  // Despia native shell origins (Android WebView / iOS WKWebView).
+  // Despia loads the production site, so origins should be vybehub.app,
+  // but keep these in case Despia ever proxies through its own host.
+  'https://app.despia.com',
 ];
 
 function isPreviewOrigin(origin: string): boolean {

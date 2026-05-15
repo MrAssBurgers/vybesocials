@@ -66,30 +66,59 @@ function classifyPasskeyError(e: any): Error {
  * Throws on failure with a user-friendly message.
  */
 export async function registerPasskey(deviceName?: string): Promise<void> {
-  // Inside the Despia shell, use the native Storage Vault biometric path.
+  // Despia shell: native Storage Vault biometric path.
   if (isDespiaShell()) {
+    console.log('[passkey:register] stage=despia_native');
     await registerDespiaDevicePasskey();
     return;
   }
 
-  if (!passkeysSupported()) throw new Error('Passkeys are not supported on this device');
+  // Stage 1 — session check. Never start registration without a real user.
+  console.log('[passkey:register] stage=session_check');
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.id) {
+    throw new Error('Sign in first to add a passkey to your account.');
+  }
 
+  if (!passkeysSupported()) {
+    throw new Error('Passkeys are not supported on this device');
+  }
+
+  // Stage 2 — fetch options from server (server uses session to bind to user).
+  console.log('[passkey:register] stage=options_request', { userId: session.user.id });
   const { data: optsRes, error: optsErr } = await supabase.functions.invoke('auth-passkey-register-options', {});
-  if (optsErr || !(optsRes as any)?.options) throw new Error('Could not start registration');
+  if (optsErr || !(optsRes as any)?.options) {
+    console.error('[passkey:register] options_failed', optsErr, optsRes);
+    throw new Error('Could not start registration');
+  }
+  console.log('[passkey:register] stage=options_received');
 
+  // Stage 3 — browser prompts user for biometric / security key.
   let credential;
   try {
     credential = await startRegistration((optsRes as any).options);
+    console.log('[passkey:register] stage=credential_created');
   } catch (e: any) {
+    console.warn('[passkey:register] credential_create_failed', e);
     throw classifyPasskeyError(e);
   }
 
+  // Stage 4 — server verifies and stores credential bound to user_id.
   const { data: verifyRes, error: verifyErr } = await supabase.functions.invoke('auth-passkey-register-verify', {
     body: { credential, deviceName },
   });
   if (verifyErr || (verifyRes as any)?.error) {
+    const code = (verifyRes as any)?.error || verifyErr?.message;
+    const stage = (verifyRes as any)?.stage;
+    console.error('[passkey:register] verify_failed', { code, stage, verifyErr, verifyRes });
+    if (code === 'already_registered') throw new Error('This passkey is already registered to your account.');
+    if (code === 'credential_in_use') throw new Error('This passkey is already in use by another account.');
+    if (code === 'verification_failed') throw new Error('Passkey verification failed — domain mismatch?');
+    if (code === 'expired' || code === 'no_challenge') throw new Error('Passkey request expired. Try again.');
+    if (code === 'save_failed') throw new Error('Could not save passkey. Please try again.');
     throw new Error('Passkey registration failed');
   }
+  console.log('[passkey:register] stage=db_insert_ok');
 }
 
 /**

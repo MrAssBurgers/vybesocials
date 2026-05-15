@@ -12,7 +12,11 @@ Deno.serve(async (req) => {
 
   try {
     const user = await getUserFromAuthHeader(req);
-    if (!user) return jsonResponse({ error: 'unauthorized' }, 401);
+    if (!user) {
+      console.warn('[passkey:register-verify] session_check_failed');
+      return jsonResponse({ error: 'unauthorized', stage: 'session_check' }, 401);
+    }
+    console.log('[passkey:register-verify] session_check_ok', { userId: user.id });
 
     const { credential, deviceName } = await req.json().catch(() => ({}));
     if (!credential) return jsonResponse({ error: 'invalid_input' }, 400);
@@ -27,9 +31,13 @@ Deno.serve(async (req) => {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!chal) return jsonResponse({ error: 'no_challenge' }, 400);
+    if (!chal) {
+      console.warn('[passkey:register-verify] no_challenge', { userId: user.id });
+      return jsonResponse({ error: 'no_challenge', stage: 'challenge_lookup' }, 400);
+    }
     if (new Date(chal.expires_at).getTime() < Date.now()) {
-      return jsonResponse({ error: 'expired' }, 400);
+      console.warn('[passkey:register-verify] challenge_expired', { userId: user.id });
+      return jsonResponse({ error: 'expired', stage: 'challenge_lookup' }, 400);
     }
 
     const verification = await verifyRegistrationResponse({
@@ -41,12 +49,30 @@ Deno.serve(async (req) => {
     });
 
     if (!verification.verified || !verification.registrationInfo) {
-      return jsonResponse({ error: 'verification_failed' }, 400);
+      console.warn('[passkey:register-verify] verification_failed', { userId: user.id });
+      return jsonResponse({ error: 'verification_failed', stage: 'verify' }, 400);
     }
+    console.log('[passkey:register-verify] verify_ok', { userId: user.id });
 
     const info = verification.registrationInfo;
     const credentialIdB64 = btoa(String.fromCharCode(...new Uint8Array(info.credential.id as any)));
     const publicKeyB64 = btoa(String.fromCharCode(...new Uint8Array(info.credential.publicKey)));
+
+    // Reject duplicate credential_id with a friendly error so the client can
+    // show "Passkey already registered" instead of a generic 500.
+    const { data: dup } = await admin
+      .from('user_passkeys')
+      .select('id, user_id')
+      .eq('credential_id', credentialIdB64)
+      .maybeSingle();
+    if (dup) {
+      const sameUser = dup.user_id === user.id;
+      console.warn('[passkey:register-verify] duplicate_credential', { userId: user.id, sameUser });
+      return jsonResponse({
+        error: sameUser ? 'already_registered' : 'credential_in_use',
+        stage: 'db_insert',
+      }, 409);
+    }
 
     const { error: insErr } = await admin.from('user_passkeys').insert({
       user_id: user.id,
@@ -57,9 +83,10 @@ Deno.serve(async (req) => {
       device_name: deviceName || 'Passkey',
     });
     if (insErr) {
-      console.error('insert passkey failed', insErr);
-      return jsonResponse({ error: 'save_failed' }, 500);
+      console.error('[passkey:register-verify] db_insert_failed', insErr);
+      return jsonResponse({ error: 'save_failed', stage: 'db_insert', message: insErr.message }, 500);
     }
+    console.log('[passkey:register-verify] db_insert_ok', { userId: user.id });
 
     await admin.from('auth_challenges')
       .update({ status: 'consumed', consumed_at: new Date().toISOString() })
@@ -67,7 +94,7 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ ok: true });
   } catch (e) {
-    console.error('passkey-register-verify error', e);
-    return jsonResponse({ error: 'server_error' }, 500);
+    console.error('[passkey:register-verify] error', e);
+    return jsonResponse({ error: 'server_error', message: String(e) }, 500);
   }
 });
