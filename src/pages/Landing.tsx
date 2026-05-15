@@ -44,7 +44,7 @@ interface LandingProps {
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
-  const { user, profile: authProfile, signIn, signUp, authReady } = useAuth();
+  const { user, profile: authProfile, signIn, signUp, resendVerification, authReady } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { triggerTransition } = useThemeTransition();
@@ -347,7 +347,25 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       }
     } catch (error: any) {
       const message = error?.isHandledLoginError ? error.message : getUserFriendlyError(error);
-      if (message !== '__SUPPRESS__') toast.error(message);
+      const rawMsg = String(error?.message || '');
+      const isUnconfirmed = rawMsg.includes('Email not confirmed') || error?.code === 'email_not_confirmed';
+      if (message !== '__SUPPRESS__') {
+        if (isUnconfirmed && formData.email) {
+          toast.error(message, {
+            action: {
+              label: 'Resend',
+              onClick: async () => {
+                const { error: resendErr } = await resendVerification(formData.email);
+                if (resendErr) toast.error(getUserFriendlyError(resendErr));
+                else toast.success('Verification email sent — check your inbox.');
+              },
+            },
+            duration: 8000,
+          });
+        } else {
+          toast.error(message);
+        }
+      }
     } finally {
       setLoading(false);
       setGatePending(false);

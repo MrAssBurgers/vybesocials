@@ -43,6 +43,7 @@ interface AuthContextType {
   banInfo: BanInfo | null;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  resendVerification: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
 }
@@ -522,6 +523,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const resendVerification = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: window.location.origin },
+      });
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
   const signOut = async () => {
     // 1) Flip local auth state IMMEDIATELY so the UI navigates instantly.
     setProfile(null);
@@ -635,6 +650,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       banInfo,
       signUp,
       signIn,
+      resendVerification,
       signOut,
       updateProfile,
     }}>

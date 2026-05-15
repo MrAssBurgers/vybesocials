@@ -18,10 +18,38 @@ export function getUserFriendlyError(error: any): string {
     return 'Invalid email or password. Please try again.';
   }
   if (message.includes('Email not confirmed')) {
-    return 'Please verify your email address.';
+    return 'Please verify your email address. Check your inbox or tap "Resend verification".';
+  }
+  if (message.includes('Email link is invalid') || message.includes('expired')) {
+    return 'This verification link has expired. Tap "Resend verification" to get a new one.';
   }
   if (message.includes('already registered') || message.includes('already exists')) {
     return 'An account with this email already exists.';
+  }
+  if (message.includes('already confirmed') || error?.code === 'email_already_confirmed') {
+    return 'This email is already verified — just sign in.';
+  }
+  if (message.includes('User not found') || error?.code === 'user_not_found') {
+    return 'No account found for this email. Create one first.';
+  }
+  if (message.toLowerCase().includes('invalid') && message.toLowerCase().includes('email')) {
+    return 'That email address looks invalid. Double-check it and try again.';
+  }
+  if (
+    error?.code === 'over_email_send_rate_limit' ||
+    error?.status === 429 ||
+    message.includes('rate limit') ||
+    message.includes('too many') ||
+    message.includes('Too Many')
+  ) {
+    return 'Too many attempts — please wait a minute before trying again.';
+  }
+  if (
+    message.toLowerCase().includes('smtp') ||
+    message.includes('email service') ||
+    message.includes('Error sending')
+  ) {
+    return "We couldn't send the email right now. Please try again in a moment.";
   }
   if (message.includes('Password should be at least') || message.includes('password should be at least')) {
     return 'Password must be at least 6 characters.';
