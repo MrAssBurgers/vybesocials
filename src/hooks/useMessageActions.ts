@@ -124,53 +124,46 @@ export function useEditMessage() {
     mutationFn: async ({ messageId, newContent }: { messageId: string; newContent: string }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      // Verify ownership
+      // Verify ownership + grab conversation_id for cache updates
       const { data: message, error: fetchError } = await supabase
         .from('messages')
-        .select('sender_id, conversation_id, content')
+        .select('sender_id, conversation_id, created_at')
         .eq('id', messageId)
         .maybeSingle();
 
       if (fetchError) throw fetchError;
       if (!message) throw new Error('Message not found');
-      
       if (message.sender_id !== profile.id) {
         throw new Error('You can only edit your own messages');
       }
+      // Client-side guard so users see the right error even before hitting the RPC
+      const ageMs = Date.now() - new Date(message.created_at).getTime();
+      if (ageMs > 15 * 60 * 1000) {
+        throw new Error("It's been more than 15 minutes — you can no longer edit this");
+      }
 
-      return { messageId, newContent, conversationId: message.conversation_id, oldContent: message.content };
+      return { messageId, newContent, conversationId: message.conversation_id };
     },
     onSuccess: async ({ messageId, newContent, conversationId }) => {
-      // Optimistically update the message in cache immediately
+      // Optimistic update
       queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
         if (!old) return old;
-        return old.map(m => {
-          if (m.id === messageId) {
-            return {
-              ...m,
-              content: newContent,
-              is_edited: true,
-              edited_at: new Date().toISOString(),
-            };
-          }
-          return m;
-        });
+        return old.map(m => m.id === messageId
+          ? { ...m, content: newContent, is_edited: true, edited_at: new Date().toISOString() }
+          : m
+        );
       });
 
-      // Now perform the actual database update
-      const { error } = await supabase
-        .from('messages')
-        .update({ 
-          content: newContent,
-          is_edited: true,
-          edited_at: new Date().toISOString(),
-        })
-        .eq('id', messageId);
+      // Server-side 15-min enforcement via SECURITY DEFINER RPC
+      const { error } = await supabase.rpc('edit_message', {
+        p_message_id: messageId,
+        p_new_content: newContent,
+      });
 
       if (error) {
-        // Revert on error
         queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-        throw error;
+        toast.error(error.message || 'Failed to edit message');
+        return;
       }
 
       toast.success('Message edited');

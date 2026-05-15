@@ -3227,6 +3227,45 @@ export type Database = {
           },
         ]
       }
+      conversation_notification_prefs: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          importance: string
+          muted_until: string | null
+          native_channel_id: string | null
+          sound: string | null
+          updated_at: string
+          user_id: string
+          vibration_pattern: string | null
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          importance?: string
+          muted_until?: string | null
+          native_channel_id?: string | null
+          sound?: string | null
+          updated_at?: string
+          user_id: string
+          vibration_pattern?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          importance?: string
+          muted_until?: string | null
+          native_channel_id?: string | null
+          sound?: string | null
+          updated_at?: string
+          user_id?: string
+          vibration_pattern?: string | null
+        }
+        Relationships: []
+      }
       conversation_safety_overrides: {
         Row: {
           conversation_id: string
@@ -3349,6 +3388,33 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
         ]
+      }
+      conversation_shortcuts: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          last_published_at: string
+          shortcut_id: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          last_published_at?: string
+          shortcut_id: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          last_published_at?: string
+          shortcut_id?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       conversations: {
         Row: {
@@ -4046,6 +4112,36 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
         ]
+      }
+      e2e_device_keys: {
+        Row: {
+          algo: string
+          created_at: string
+          device_id: string
+          id: string
+          last_seen_at: string
+          public_key: string
+          user_id: string
+        }
+        Insert: {
+          algo?: string
+          created_at?: string
+          device_id: string
+          id?: string
+          last_seen_at?: string
+          public_key: string
+          user_id: string
+        }
+        Update: {
+          algo?: string
+          created_at?: string
+          device_id?: string
+          id?: string
+          last_seen_at?: string
+          public_key?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       email_send_log: {
         Row: {
@@ -6349,6 +6445,7 @@ export type Database = {
           auto_delete_if_ignored: boolean | null
           blur_on_screenshot: boolean | null
           can_undo_until: string | null
+          ciphertext: string | null
           content: string | null
           conversation_id: string
           created_at: string
@@ -6356,6 +6453,7 @@ export type Database = {
           deleted_by: string | null
           deleted_for_users: string[] | null
           edited_at: string | null
+          encryption_algo: string | null
           expires_at: string | null
           id: string
           ignore_deadline: string | null
@@ -6365,6 +6463,7 @@ export type Database = {
           media_type: string | null
           media_url: string | null
           message_type: string | null
+          nonce: string | null
           reply_to_id: string | null
           safety_categories: string[] | null
           safety_score: number | null
@@ -6380,6 +6479,7 @@ export type Database = {
           auto_delete_if_ignored?: boolean | null
           blur_on_screenshot?: boolean | null
           can_undo_until?: string | null
+          ciphertext?: string | null
           content?: string | null
           conversation_id: string
           created_at?: string
@@ -6387,6 +6487,7 @@ export type Database = {
           deleted_by?: string | null
           deleted_for_users?: string[] | null
           edited_at?: string | null
+          encryption_algo?: string | null
           expires_at?: string | null
           id?: string
           ignore_deadline?: string | null
@@ -6396,6 +6497,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message_type?: string | null
+          nonce?: string | null
           reply_to_id?: string | null
           safety_categories?: string[] | null
           safety_score?: number | null
@@ -6411,6 +6513,7 @@ export type Database = {
           auto_delete_if_ignored?: boolean | null
           blur_on_screenshot?: boolean | null
           can_undo_until?: string | null
+          ciphertext?: string | null
           content?: string | null
           conversation_id?: string
           created_at?: string
@@ -6418,6 +6521,7 @@ export type Database = {
           deleted_by?: string | null
           deleted_for_users?: string[] | null
           edited_at?: string | null
+          encryption_algo?: string | null
           expires_at?: string | null
           id?: string
           ignore_deadline?: string | null
@@ -6427,6 +6531,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message_type?: string | null
+          nonce?: string | null
           reply_to_id?: string | null
           safety_categories?: string[] | null
           safety_score?: number | null
@@ -11669,6 +11774,42 @@ export type Database = {
         }
         Relationships: []
       }
+      webauthn_credentials: {
+        Row: {
+          counter: number
+          created_at: string
+          credential_id: string
+          device_label: string | null
+          id: string
+          last_used_at: string | null
+          public_key: string
+          transports: string[] | null
+          user_id: string
+        }
+        Insert: {
+          counter?: number
+          created_at?: string
+          credential_id: string
+          device_label?: string | null
+          id?: string
+          last_used_at?: string | null
+          public_key: string
+          transports?: string[] | null
+          user_id: string
+        }
+        Update: {
+          counter?: number
+          created_at?: string
+          credential_id?: string
+          device_label?: string | null
+          id?: string
+          last_used_at?: string | null
+          public_key?: string
+          transports?: string[] | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       word_reactions: {
         Row: {
           created_at: string
@@ -12584,6 +12725,49 @@ export type Database = {
           p_user_id: string
         }
         Returns: number
+      }
+      edit_message: {
+        Args: { p_message_id: string; p_new_content: string }
+        Returns: {
+          auto_delete_if_ignored: boolean | null
+          blur_on_screenshot: boolean | null
+          can_undo_until: string | null
+          ciphertext: string | null
+          content: string | null
+          conversation_id: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_for_users: string[] | null
+          edited_at: string | null
+          encryption_algo: string | null
+          expires_at: string | null
+          id: string
+          ignore_deadline: string | null
+          is_deleted: boolean | null
+          is_edited: boolean | null
+          is_flagged: boolean | null
+          media_type: string | null
+          media_url: string | null
+          message_type: string | null
+          nonce: string | null
+          reply_to_id: string | null
+          safety_categories: string[] | null
+          safety_score: number | null
+          saved_at: string | null
+          saved_by_recipient: boolean
+          saved_by_sender: boolean
+          sender_id: string
+          view_mode: string | null
+          viewed_at: string | null
+          voice_segments: Json | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "messages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       email_queue_publish_diagnostic: { Args: never; Returns: Json }
       enqueue_email: {
