@@ -650,6 +650,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       banInfo,
       signUp,
       signIn,
+      resendVerification,
       signOut,
       updateProfile,
     }}>
