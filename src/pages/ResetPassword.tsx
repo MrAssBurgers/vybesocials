@@ -93,7 +93,16 @@ export default function ResetPassword() {
           body: { action: 'reset_password', token: resetToken, newPassword: password },
         });
 
-        if (error) throw error;
+        if (error) {
+          let message = error.message || 'Failed to reset password';
+          if (typeof (error as any).context?.json === 'function') {
+            try {
+              const payload = await (error as any).context.json();
+              message = payload?.error || message;
+            } catch { /* keep default function error */ }
+          }
+          throw new Error(message);
+        }
         if (data?.error) throw new Error(data.error);
       } else {
         const { error } = await supabase.auth.updateUser({ password });
