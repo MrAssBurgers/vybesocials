@@ -84,8 +84,10 @@ export function useVideoAds() {
   const trackingAllowed = getTrackingConsent() === 'allowed';
 
   // Master gate. If this is false, ad calls are no-ops.
+  // Allow both Capacitor native AND the Despia-wrapped WebView shell.
+  const inDespia = isDespiaRuntime();
   const adsAllowed =
-    isNativePlatform &&
+    (isNativePlatform || inDespia) &&
     !premiumLoading &&
     !isPremium &&
     trackingAllowed &&
@@ -113,7 +115,17 @@ export function useVideoAds() {
 
     inFlightRef.current = true;
     try {
-      await showInterstitial();
+      if (inDespia) {
+        // Despia native interstitial bridge (fire-and-forget — there's no callback).
+        try {
+          despia('displayinterstitialad://');
+        } catch (e) {
+          console.warn('[useVideoAds] despia interstitial failed', e);
+          return false;
+        }
+      } else {
+        await showInterstitial();
+      }
       const next: SessionState = {
         ...s,
         lastAdAt: Date.now(),
@@ -129,7 +141,7 @@ export function useVideoAds() {
     } finally {
       inFlightRef.current = false;
     }
-  }, [adsAllowed]);
+  }, [adsAllowed, inDespia]);
 
   /**
    * Check whether a given clip index in the Shorts/Clips reel should trigger
