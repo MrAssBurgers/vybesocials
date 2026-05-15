@@ -9,26 +9,6 @@ const corsHeaders = {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function generateResetToken(): string {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  const bytes = new Uint8Array(48);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
-}
-
-function getRedirectOrigin(value: unknown, req: Request): string {
-  const fallback = req.headers.get("origin") || "https://vybehub.app";
-  if (typeof value !== "string") return fallback;
-
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") return fallback;
-    return parsed.origin;
-  } catch {
-    return fallback;
-  }
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -41,7 +21,6 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const email = (body.email ?? "").trim().toLowerCase();
-    const resetOrigin = getRedirectOrigin(body.redirectTo, req);
     log("Incoming request", { email: email ? `${email.slice(0, 3)}***` : "empty" });
 
     // Always return success to prevent enumeration
@@ -81,33 +60,39 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Generate recovery link via Supabase Admin API
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    log("Looking up user for custom reset token");
-    const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
-    if (userError) throw userError;
-
-    const user = userData.users.find((u) => u.email?.toLowerCase() === email);
-    if (!user) {
-      log("User not found — returning success to prevent enumeration");
-      return successResponse();
-    }
-
-    const resetToken = generateResetToken();
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-
-    await supabase.from("password_reset_tokens").delete().eq("user_id", user.id);
-
-    const { error: tokenError } = await supabase.from("password_reset_tokens").insert({
-      user_id: user.id,
-      token: resetToken,
-      expires_at: expiresAt,
+    log("Generating recovery link");
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: {
+        redirectTo: "https://vybehub.app/reset-password",
+      },
     });
 
-    if (tokenError) throw tokenError;
+    if (linkError) {
+      log("generateLink error", { message: linkError.message, status: linkError.status });
+      const notFoundPatterns = ["not found", "no user", "invalid", "does not exist"];
+      const isUserNotFound =
+        linkError.status === 404 ||
+        linkError.status === 422 ||
+        notFoundPatterns.some((p) => linkError.message?.toLowerCase().includes(p));
+      if (isUserNotFound) {
+        log("User not found — returning success to prevent enumeration");
+        return successResponse();
+      }
+      throw linkError;
+    }
 
-    const actionLink = `${resetOrigin}/reset-password?token=${encodeURIComponent(resetToken)}`;
-    log("Recovery link generated", { origin: resetOrigin });
+    const actionLink = linkData?.properties?.action_link;
+    if (!actionLink) {
+      log("No action_link returned", { linkData });
+      throw new Error("Failed to generate recovery link");
+    }
+
+    log("Recovery link generated", { actionLink: actionLink.slice(0, 60) + "..." });
 
     // Send email via Resend
     const resend = new Resend(resendKey);

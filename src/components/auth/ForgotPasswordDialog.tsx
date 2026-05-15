@@ -29,10 +29,7 @@ export function ForgotPasswordDialog({ open, onClose }: ForgotPasswordDialogProp
 
     try {
       const { data, error } = await supabase.functions.invoke('send-reset-email', {
-        body: {
-          email: email.trim(),
-          redirectTo: `${window.location.origin}/reset-password`,
-        },
+        body: { email: email.trim() },
       });
 
       if (error) throw error;
