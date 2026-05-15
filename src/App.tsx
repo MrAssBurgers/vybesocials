@@ -29,6 +29,7 @@ import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { useKeyboardHeight } from "@/hooks/useKeyboardHeight";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
 import { useSpotifyPresence } from "@/hooks/useSpotifyPresence";
+const SpotifyPresenceMount = () => { useSpotifyPresence(); return null; };
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { SkipToMain, LiveRegion } from "@/components/a11y/Accessibility";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
@@ -201,7 +202,6 @@ function AppWithPreloader() {
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
   usePostsRealtime();
-  useSpotifyPresence();
 
   // Track on-screen keyboard height as --kb-h CSS variable (Android polish)
   useKeyboardHeight();
@@ -265,6 +265,7 @@ function AppWithPreloader() {
       )}
       <GlobalErrorHandler />
       <AuthProvider>
+        <SpotifyPresenceMount />
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
         <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
         <BriefPreFetchInit />
