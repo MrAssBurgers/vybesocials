@@ -64,6 +64,12 @@ Deno.serve(async (req) => {
       .eq('user_id', userId)
       .maybeSingle();
 
+    // Fast path: no second factor — return the session immediately and skip
+    // all the geo/UA/device work below. Saves ~300-800ms on every login.
+    if (!settings?.email_2fa_enabled && !settings?.login_approvals_enabled) {
+      return jsonResponse({ stage: 'none', session });
+    }
+
     const ip = getClientIp(req);
     const ua = req.headers.get('user-agent');
     const device = parseUserAgent(ua);
