@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Image, Send, Smile, Loader2, X, SortAsc, MessageCircle } from 'lucide-react';
+import { Image, Send, Loader2, X, SortAsc, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
