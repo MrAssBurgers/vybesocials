@@ -11,14 +11,24 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
+const DESPIA_APP_HINT = /despia|vybeapp|app\.lovable\.416714c8d0134aff984d522418a9bbc7|app\.lovable\.762a689eac3b48a59a179f1c2b5b3a2b|com\.despia\.vybe/i;
+
 export const isDespiaShell = (): boolean => {
   if (typeof navigator === 'undefined') return false;
-  return /despia/i.test(navigator.userAgent || '');
+  return DESPIA_APP_HINT.test(navigator.userAgent || '');
 };
 
 const VAULT_REFRESH_KEY = 'vybe_refresh';
 const VAULT_EMAIL_KEY = 'vybe_email';
 const LOCAL_MARKER = 'vybe.despia.passkey.enrolled';
+
+function isSuccessfulBiometricResult(value: unknown): boolean {
+  if (value === true) return true;
+  if (typeof value === 'string') return /^(true|success|ok|authenticated|verified|1)$/i.test(value);
+  if (!value || typeof value !== 'object') return false;
+  const result = value as Record<string, unknown>;
+  return Object.values(result).some(isSuccessfulBiometricResult);
+}
 
 let despiaMod: any | null = null;
 async function getDespia(): Promise<any> {
@@ -57,6 +67,19 @@ export async function registerDespiaDevicePasskey(): Promise<void> {
   if (!isDespiaShell()) throw new Error('Not in Despia shell');
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.refresh_token) throw new Error('Sign in first to add a passkey');
+  const despia = await getDespia();
+
+  try {
+    const biometric = await despia('biometric://verify?reason=Register%20VYBE%20Passkey', [
+      'biometricResult',
+    ]);
+    if (biometric?.biometricResult !== undefined && !isSuccessfulBiometricResult(biometric.biometricResult)) {
+      throw new Error('Cancelled');
+    }
+  } catch (error: any) {
+    if (error?.message === 'Cancelled') throw error;
+    await despia('bioauth://');
+  }
 
   // Email is unlocked so the sign-in screen can pre-fill it.
   if (session.user?.email) {
