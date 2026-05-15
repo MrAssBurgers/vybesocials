@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { passkeysSupported, registerPasskey, isAndroidWebViewShell, openInChromeFallback } from '@/lib/passkeys';
+import { isDespiaShell, isDespiaPasskeyEnrolled, removeDespiaDevicePasskey } from '@/lib/despiaVault';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Passkey {
@@ -27,9 +28,15 @@ export function PasskeysCard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const supported = passkeysSupported();
+  const despia = isDespiaShell();
+  const [despiaEnrolled, setDespiaEnrolled] = useState<boolean>(isDespiaPasskeyEnrolled());
 
   const load = async () => {
     if (!user) return;
+    if (despia) {
+      setDespiaEnrolled(isDespiaPasskeyEnrolled());
+      return;
+    }
     const { data } = await supabase
       .from('user_passkeys')
       .select('id, device_name, created_at, last_used_at')
@@ -66,8 +73,13 @@ export function PasskeysCard() {
   const remove = async (id: string) => {
     setBusy(true);
     try {
-      const { error } = await supabase.from('user_passkeys').delete().eq('id', id);
-      if (error) throw error;
+      if (id === 'despia-device') {
+        await removeDespiaDevicePasskey();
+        setDespiaEnrolled(false);
+      } else {
+        const { error } = await supabase.from('user_passkeys').delete().eq('id', id);
+        if (error) throw error;
+      }
       toast.success('Passkey removed');
       await load();
     } catch {
