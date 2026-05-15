@@ -233,6 +233,19 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           ]);
           pre = (result as any).data;
           preErr = (result as any).error;
+          // supabase.functions.invoke returns FunctionsHttpError for non-2xx
+          // with data=null. Parse the response body so we can read structured
+          // error codes like 'invalid_credentials' without logging a runtime error.
+          if (!pre && preErr && typeof (preErr as any).context?.json === 'function') {
+            try {
+              pre = await (preErr as any).context.json();
+            } catch {
+              try {
+                const txt = await (preErr as any).context.text?.();
+                if (txt) pre = JSON.parse(txt);
+              } catch { /* ignore */ }
+            }
+          }
         } catch (e) {
           preErr = e;
         }
