@@ -151,19 +151,23 @@ export function useCreateComment() {
 
       if (error) throw error;
 
-      // Create notification + bump reaction streak
-      if (authorId !== profile.id) {
-        await supabase.from('notifications').insert({
-          user_id: authorId,
-          type: 'comment',
-          actor_id: profile.id,
-          post_id: postId,
-        });
-        
-        // Bump reaction streak with post author (fire and forget)
-        if (profile?.id && authorId !== profile.id) {
-          bumpStreak.mutate(authorId);
+      // Create notification + bump reaction streak (best-effort — must NEVER
+      // fail the comment mutation, otherwise the composer keeps the GIF/text
+      // and the user thinks "send didn't work" even though the row inserted).
+      if (authorId && authorId !== profile.id) {
+        try {
+          await supabase.from('notifications').insert({
+            user_id: authorId,
+            type: 'comment',
+            actor_id: profile.id,
+            post_id: postId,
+          });
+        } catch (notifErr) {
+          console.warn('comment notification insert failed (non-fatal):', notifErr);
         }
+
+        // Bump reaction streak with post author (fire and forget)
+        try { bumpStreak.mutate(authorId); } catch { /* ignore */ }
       }
 
       // Run additional AI moderation in background (non-blocking)
