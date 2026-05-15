@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Key, Plus, Trash2, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Key, Plus, Trash2, Loader2, Pencil, Check, X, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { passkeysSupported, registerPasskey, isAndroidWebViewShell } from '@/lib/passkeys';
 import { formatDistanceToNow } from 'date-fns';
-
-const inNativeApp = (() => { try { return Capacitor.isNativePlatform(); } catch { return false; } })();
 
 interface Passkey {
   id: string;
@@ -18,10 +16,16 @@ interface Passkey {
   last_used_at: string | null;
 }
 
+type AddState = 'idle' | 'prompting' | 'success' | 'error';
+
 export function PasskeysCard() {
   const { user } = useAuth();
   const [keys, setKeys] = useState<Passkey[]>([]);
   const [busy, setBusy] = useState(false);
+  const [addState, setAddState] = useState<AddState>('idle');
+  const [addError, setAddError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
   const supported = passkeysSupported();
 
   const load = async () => {
@@ -38,16 +42,21 @@ export function PasskeysCard() {
 
   const add = async () => {
     setBusy(true);
+    setAddState('prompting');
+    setAddError(null);
     try {
       const name = `${navigator.platform || 'Device'} • ${new Date().toLocaleDateString()}`;
       await registerPasskey(name);
+      setAddState('success');
       toast.success('Passkey added');
       await load();
+      setTimeout(() => setAddState('idle'), 2000);
     } catch (e: any) {
       if (e?.name === 'NotAllowedError' || e?.name === 'AbortError' || e?.message === 'Cancelled') {
-        // User cancelled the system sheet — silent.
+        setAddState('idle');
       } else {
-        toast.error(e?.message || 'Could not add passkey');
+        setAddState('error');
+        setAddError(e?.message || 'Could not add passkey');
       }
     } finally {
       setBusy(false);
@@ -68,6 +77,32 @@ export function PasskeysCard() {
     }
   };
 
+  const startRename = (k: Passkey) => {
+    setEditingId(k.id);
+    setEditingName(k.device_name || '');
+  };
+
+  const saveRename = async () => {
+    if (!editingId) return;
+    const name = editingName.trim().slice(0, 64);
+    if (!name) { setEditingId(null); return; }
+    setBusy(true);
+    try {
+      const { error } = await supabase
+        .from('user_passkeys')
+        .update({ device_name: name })
+        .eq('id', editingId);
+      if (error) throw error;
+      setKeys(prev => prev.map(k => k.id === editingId ? { ...k, device_name: name } : k));
+      setEditingId(null);
+      toast.success('Renamed');
+    } catch {
+      toast.error('Could not rename');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Card className="p-4">
       <div className="flex items-start gap-3">
@@ -81,9 +116,27 @@ export function PasskeysCard() {
               </div>
             </div>
             <Button size="sm" disabled={!supported || busy} onClick={add}>
-              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Plus className="w-3.5 h-3.5 mr-1" /> Add</>}
+              {addState === 'prompting' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : addState === 'success' ? (
+                <><ShieldCheck className="w-3.5 h-3.5 mr-1" /> Added</>
+              ) : (
+                <><Plus className="w-3.5 h-3.5 mr-1" /> Add passkey</>
+              )}
             </Button>
           </div>
+
+          {addState === 'prompting' && (
+            <div className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin" /> Use your device passkey to continue…
+            </div>
+          )}
+
+          {addState === 'error' && addError && (
+            <div className="text-xs text-destructive mt-2 flex items-start gap-1.5">
+              <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> <span>{addError}</span>
+            </div>
+          )}
 
           {!supported && (
             <div className="text-xs text-muted-foreground mt-2">
@@ -91,9 +144,9 @@ export function PasskeysCard() {
             </div>
           )}
 
-          {supported && keys.length === 0 && (
+          {supported && keys.length === 0 && addState === 'idle' && (
             <div className="text-xs text-muted-foreground mt-2">
-              Tap <span className="font-medium">Add</span> — your phone will show its Face ID / fingerprint sheet, just like Discord.
+              Tap <span className="font-medium">Add passkey</span> — your phone will show its Face ID / fingerprint sheet, just like Discord.
             </div>
           )}
 
@@ -107,16 +160,47 @@ export function PasskeysCard() {
             <div className="mt-3 space-y-1.5">
               {keys.map(k => (
                 <div key={k.id} className="flex items-center justify-between gap-3 p-2 rounded-lg bg-muted/30">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{k.device_name || 'Passkey'}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      Added {formatDistanceToNow(new Date(k.created_at), { addSuffix: true })}
-                      {k.last_used_at ? ` • Used ${formatDistanceToNow(new Date(k.last_used_at), { addSuffix: true })}` : ''}
-                    </div>
+                  <div className="min-w-0 flex-1">
+                    {editingId === k.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          autoFocus
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveRename();
+                            if (e.key === 'Escape') setEditingId(null);
+                          }}
+                          maxLength={64}
+                          className="h-7 text-sm"
+                        />
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveRename} disabled={busy}>
+                          <Check className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingId(null)}>
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-sm font-medium truncate">{k.device_name || 'Passkey'}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          Added {formatDistanceToNow(new Date(k.created_at), { addSuffix: true })}
+                          {k.last_used_at ? ` • Used ${formatDistanceToNow(new Date(k.last_used_at), { addSuffix: true })}` : ''}
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => remove(k.id)}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                  {editingId !== k.id && (
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0" disabled={busy} onClick={() => startRename(k)}>
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0" disabled={busy} onClick={() => remove(k.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
