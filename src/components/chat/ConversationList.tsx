@@ -714,15 +714,19 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
                     : (lastMessage.content?.slice(0, 30) || 'Media') + (lastMessage.content && lastMessage.content.length > 30 ? '...' : '')}
                 </p>
               </>
-            ) : userStatus ? (
+            ) : (otherMember as any)?.user_id ? (
+              <NowPlayingInline authUserId={(otherMember as any).user_id} className="truncate" />
+            ) : null}
+            {!isTyping && !lastMessage && userStatus && !(otherMember as any)?.user_id && (
               <p className="text-xs text-muted-foreground/70 truncate italic">
                 {userStatus.emoji} {userStatus.text}
               </p>
-            ) : conversation.is_group ? (
+            )}
+            {!isTyping && !lastMessage && conversation.is_group && (
               <p className="text-xs text-muted-foreground truncate">
                 Start chatting
               </p>
-            ) : null}
+            )}
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
