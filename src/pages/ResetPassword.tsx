@@ -19,8 +19,17 @@ export default function ResetPassword() {
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
+  const [resetToken, setResetToken] = useState<string | null>(null);
 
   useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (token) {
+      setResetToken(token);
+      setTokenValid(true);
+      setChecking(false);
+      return;
+    }
+
     // Listen for the PASSWORD_RECOVERY event from Supabase
     // The generateLink recovery URL will trigger this event when the page loads
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -79,8 +88,26 @@ export default function ResetPassword() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
+      if (resetToken) {
+        const { data, error } = await supabase.functions.invoke('send-auth-email', {
+          body: { action: 'reset_password', token: resetToken, newPassword: password },
+        });
+
+        if (error) {
+          let message = error.message || 'Failed to reset password';
+          if (typeof (error as any).context?.json === 'function') {
+            try {
+              const payload = await (error as any).context.json();
+              message = payload?.error || message;
+            } catch { /* keep default function error */ }
+          }
+          throw new Error(message);
+        }
+        if (data?.error) throw new Error(data.error);
+      } else {
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+      }
 
       setSuccess(true);
       toast.success('Password updated successfully!');
