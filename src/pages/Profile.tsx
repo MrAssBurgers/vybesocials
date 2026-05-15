@@ -30,6 +30,8 @@ import { ProfileHeroCard } from '@/components/profile/ProfileHeroCard';
 import { ProfileAboutMe } from '@/components/profile/ProfileAboutMe';
 import { ProfileAboutDetails } from '@/components/profile/ProfileAboutDetails';
 import { ProfileVibeBoard } from '@/components/profile/ProfileVibeBoard';
+import { NowPlayingCard } from '@/components/music/NowPlayingCard';
+import { useLiveMusicPresence } from '@/hooks/useLiveMusicPresence';
 
 import {
   NAME_COLOR_MAP, THEME_GRADIENTS, THEME_IMAGES, THEME_ACCENTS,
@@ -243,6 +245,9 @@ export default function ProfilePage() {
           profile={profile}
           isOwnProfile={isOwnProfile}
         />
+
+        {/* Now Playing (Spotify) */}
+        <NowPlayingCardWrapper authUserId={(profile as any).user_id} />
 
         {/* About Details (MBTI, height, music, etc.) */}
         <ProfileAboutDetails
