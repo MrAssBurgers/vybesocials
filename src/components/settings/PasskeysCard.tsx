@@ -44,7 +44,11 @@ export function PasskeysCard() {
       toast.success('Passkey added');
       await load();
     } catch (e: any) {
-      if (e?.name !== 'NotAllowedError' && e?.name !== 'AbortError') {
+      if (e?.name === 'NotAllowedError' || e?.name === 'AbortError') {
+        // User cancelled the system sheet — silent.
+      } else if (inNativeApp && /security|origin|rp|domain|associated/i.test(String(e?.message || ''))) {
+        toast.error('Update the app to enable passkeys on this device.');
+      } else {
         toast.error(e?.message || 'Could not add passkey');
       }
     } finally {
