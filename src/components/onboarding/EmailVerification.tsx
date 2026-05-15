@@ -3,9 +3,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Mail, Shield, CheckCircle, Loader2 } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+const RESEND_COOLDOWN_SECONDS = 30;
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { useAuth } from '@/lib/auth';
 
@@ -19,31 +21,71 @@ export function EmailVerification({ onVerified }: EmailVerificationProps) {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [verified, setVerified] = useState(user?.email_confirmed_at ? true : false);
+  const [cooldown, setCooldown] = useState(0);
+
+  // Cooldown ticker for resend button
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  const mapAuthError = (err: any): string => {
+    const msg = String(err?.message || err || '').toLowerCase();
+    if (msg.includes('rate') || msg.includes('too many') || err?.status === 429) {
+      return 'Too many requests. Wait a moment before trying again.';
+    }
+    if (msg.includes('signups not allowed') || msg.includes('not authorized')) {
+      return 'Email signups are temporarily disabled. Contact support.';
+    }
+    if (msg.includes('invalid') && msg.includes('email')) {
+      return 'That email address looks invalid.';
+    }
+    if (msg.includes('smtp') || msg.includes('provider')) {
+      return 'Email provider is misconfigured. Please contact support.';
+    }
+    return err?.message || 'Could not send verification code. Please try again.';
+  };
 
   const handleSendCode = async () => {
     if (!user?.email) {
       toast.error('No email associated with this account');
       return;
     }
-    
+    if (cooldown > 0) return;
+
     setLoading(true);
-    
+    console.log('[email-verify] send_code:start', { email: user.email });
+
     try {
-      // Use Supabase's built-in OTP for email verification
-      const { error } = await supabase.auth.signInWithOtp({
+      // For an already-signed-in user whose email isn't confirmed, the
+      // correct call is `resend({ type: 'signup' })`. `signInWithOtp` with
+      // `shouldCreateUser:false` fails on existing-but-unverified accounts
+      // with "Signups not allowed for otp" — that was the source of the
+      // generic "failed to send verification code" toast.
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
         email: user.email,
-        options: {
-          shouldCreateUser: false, // User already exists
-        },
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
       });
-      
-      if (error) throw error;
-      
+
+      if (error) {
+        // Fallback path: try OTP signin (covers email-change flows).
+        console.warn('[email-verify] resend failed, trying signInWithOtp', error);
+        const { error: otpErr } = await supabase.auth.signInWithOtp({
+          email: user.email,
+          options: { shouldCreateUser: false },
+        });
+        if (otpErr) throw otpErr;
+      }
+
+      console.log('[email-verify] send_code:success');
       setCodeSent(true);
-      toast.success('Verification code sent to your email!');
+      setCooldown(RESEND_COOLDOWN_SECONDS);
+      toast.success('Verification code sent — check your email');
     } catch (error: any) {
-      console.error('Error sending code:', error);
-      toast.error(error.message || 'Failed to send verification code');
+      console.error('[email-verify] send_code:error', error);
+      toast.error(mapAuthError(error));
     } finally {
       setLoading(false);
     }
