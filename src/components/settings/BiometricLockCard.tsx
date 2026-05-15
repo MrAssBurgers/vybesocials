@@ -60,10 +60,11 @@ export function BiometricLockCard() {
         setBioAuthPref(true);
         setEnabled(true);
         toast.success('Biometric lock enabled — required at app launch');
-      } else if (r.reason === 'not-enrolled') {
+      } else if (r.reason === 'not-enrolled' || r.reason === 'unavailable') {
+        // Despia returns 'unavailable' both when no hardware exists AND when
+        // no fingerprint/face is enrolled. Almost every modern phone has the
+        // hardware, so treat this as "go enroll in phone Settings".
         promptEnroll();
-      } else if (r.reason === 'unavailable') {
-        toast.error('Face ID / Touch ID isn\'t available on this device.');
       } else if (r.reason === 'cancelled') {
         // user backed out of the prompt — silent
       } else if (r.reason !== 'not-despia') {
@@ -83,8 +84,7 @@ export function BiometricLockCard() {
     const r = await requestBioAuth();
     setBusy(false);
     if (r.ok === true) toast.success('Verified ✓');
-    else if (r.reason === 'not-enrolled') promptEnroll();
-    else if (r.reason === 'unavailable') toast.error('No biometrics enrolled.');
+    else if (r.reason === 'not-enrolled' || r.reason === 'unavailable') promptEnroll();
     else if (r.reason === 'cancelled') { /* silent */ }
     else toast.error('Verification cancelled.');
   };
