@@ -6379,6 +6379,7 @@ export type Database = {
           auto_delete_if_ignored: boolean | null
           blur_on_screenshot: boolean | null
           can_undo_until: string | null
+          ciphertext: string | null
           content: string | null
           conversation_id: string
           created_at: string
@@ -6386,6 +6387,7 @@ export type Database = {
           deleted_by: string | null
           deleted_for_users: string[] | null
           edited_at: string | null
+          encryption_algo: string | null
           expires_at: string | null
           id: string
           ignore_deadline: string | null
@@ -6395,6 +6397,7 @@ export type Database = {
           media_type: string | null
           media_url: string | null
           message_type: string | null
+          nonce: string | null
           reply_to_id: string | null
           safety_categories: string[] | null
           safety_score: number | null
@@ -6410,6 +6413,7 @@ export type Database = {
           auto_delete_if_ignored?: boolean | null
           blur_on_screenshot?: boolean | null
           can_undo_until?: string | null
+          ciphertext?: string | null
           content?: string | null
           conversation_id: string
           created_at?: string
@@ -6417,6 +6421,7 @@ export type Database = {
           deleted_by?: string | null
           deleted_for_users?: string[] | null
           edited_at?: string | null
+          encryption_algo?: string | null
           expires_at?: string | null
           id?: string
           ignore_deadline?: string | null
@@ -6426,6 +6431,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message_type?: string | null
+          nonce?: string | null
           reply_to_id?: string | null
           safety_categories?: string[] | null
           safety_score?: number | null
@@ -6441,6 +6447,7 @@ export type Database = {
           auto_delete_if_ignored?: boolean | null
           blur_on_screenshot?: boolean | null
           can_undo_until?: string | null
+          ciphertext?: string | null
           content?: string | null
           conversation_id?: string
           created_at?: string
@@ -6448,6 +6455,7 @@ export type Database = {
           deleted_by?: string | null
           deleted_for_users?: string[] | null
           edited_at?: string | null
+          encryption_algo?: string | null
           expires_at?: string | null
           id?: string
           ignore_deadline?: string | null
@@ -6457,6 +6465,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message_type?: string | null
+          nonce?: string | null
           reply_to_id?: string | null
           safety_categories?: string[] | null
           safety_score?: number | null
