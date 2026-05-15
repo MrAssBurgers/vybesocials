@@ -457,3 +457,9 @@ function EmptyState({ emoji, text, subtitle }: { emoji: string; text: string; su
     </motion.div>
   );
 }
+
+function NowPlayingCardWrapper({ authUserId }: { authUserId: string | null | undefined }) {
+  const presence = useLiveMusicPresence(authUserId);
+  if (!presence?.is_playing) return null;
+  return <NowPlayingCard presence={presence} />;
+}
