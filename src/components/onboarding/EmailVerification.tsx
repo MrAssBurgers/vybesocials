@@ -236,10 +236,10 @@ export function EmailVerification({ onVerified }: EmailVerificationProps) {
                   <Button
                     variant="outline"
                     onClick={handleResendCode}
-                    disabled={loading}
+                    disabled={loading || cooldown > 0}
                     className="h-9 px-3 text-sm bg-background/50"
                   >
-                    Resend
+                    {cooldown > 0 ? `Resend (${cooldown}s)` : 'Resend'}
                   </Button>
                 </div>
               </div>
