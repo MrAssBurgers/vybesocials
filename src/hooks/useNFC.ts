@@ -360,13 +360,22 @@ export function useNFC() {
 
   // Bidirectional share - scan and prepare to exchange
   const shareProfile = useCallback(async (userId: string, onReceive: (theirUserId: string) => void): Promise<boolean> => {
+    // Despia native NFC bridge fallback (Android shell only).
+    if (hasDespiaNFC && (!hasWebNFC || !window.NDEFReader)) {
+      setState(prev => ({ ...prev, isScanning: true, isWriteReady: true, error: null }));
+      haptics.impact();
+      toast.success('NFC Ready! Hold phones together back-to-back.', { duration: 5000 });
+      const ok = await despiaNFCScan((theirId) => {
+        if (theirId !== userId) onReceive(theirId);
+      });
+      setState(prev => ({ ...prev, isScanning: false, isWriteReady: false }));
+      return ok;
+    }
+
     if (!hasWebNFC || !window.NDEFReader) {
-      const ua = navigator.userAgent;
-      if (/iPhone|iPad|iPod/i.test(ua)) {
-        toast.error('NFC not available in iOS browsers. Use the share link instead!', {
-          duration: 5000,
-        });
-      } else if (/Android/i.test(ua)) {
+      if (isIOSUA()) {
+        toast.error('NFC not available in iOS browsers. Use the share link instead!', { duration: 5000 });
+      } else if (isAndroidUA()) {
         toast.error('NFC requires Chrome browser on Android.');
       } else {
         toast.error('NFC only works on Android with Chrome browser.');
@@ -398,7 +407,6 @@ export function useNFC() {
         console.log('[NFC] Device/tag detected');
         haptics.success();
         
-        // Try to read their profile
         let foundTheirProfile = false;
         for (const record of event.message.records) {
           if (record.recordType === 'url' || record.recordType === 'text') {
@@ -415,7 +423,6 @@ export function useNFC() {
           }
         }
         
-        // Try to write our profile (works with NFC tags)
         if (pendingWriteRef.current) {
           try {
             await ndef.write({
@@ -426,7 +433,6 @@ export function useNFC() {
               toast.success('Profile shared via NFC!');
             }
           } catch {
-            // Write might fail for phone-to-phone - that's expected
             console.log('[NFC] Could not write (normal for phone-to-phone)');
           }
         }
@@ -437,15 +443,36 @@ export function useNFC() {
       console.error('[NFC] Share failed:', error);
       
       if (error.name === 'NotAllowedError') {
-        toast.error('NFC permission denied. Enable in settings.');
+        // Try Despia native bridge as fallback when permission denied.
+        if (isDespiaRuntime() && isAndroidUA()) {
+          const ok = await despiaNFCScan((theirId) => {
+            if (theirId !== userId) onReceive(theirId);
+          });
+          if (ok) return true;
+        }
+        toast.error('NFC permission denied. Tap the gear icon to open app settings.');
+      } else if (error.name === 'NotSupportedError') {
+        toast.error('NFC is turned off. Enable NFC in your phone settings.');
       } else if (error.name !== 'AbortError') {
         console.warn('[NFC] Share start failed:', error.message);
       }
       return false;
     }
-  }, [hasWebNFC, stopScan]);
+  }, [hasWebNFC, hasDespiaNFC, stopScan]);
 
   const openSettings = useCallback(() => {
+    if (isDespiaRuntime()) {
+      toast.info('Opening app settings…', {
+        description: 'Enable NFC permission, then return to VYBE.',
+      });
+      void openAppSettings();
+      return;
+    }
+    if (isIOSUA()) {
+      toast.info('Open Settings → VYBE and enable NFC', { duration: 5000 });
+      window.location.href = 'app-settings:';
+      return;
+    }
     toast.info('Enable NFC in your device settings', {
       description: 'Settings → Connected devices → NFC',
     });
@@ -453,18 +480,11 @@ export function useNFC() {
 
   // Get a user-friendly status message
   const getStatusMessage = useCallback((): string => {
-    if (!hasWebNFC) {
-      const ua = navigator.userAgent;
-      if (/iPhone|iPad|iPod/i.test(ua)) {
-        return 'NFC not available in iOS browsers';
-      }
-      if (/Android/i.test(ua)) {
-        return 'Use Chrome browser for NFC';
-      }
-      return 'NFC only works on Android + Chrome';
-    }
-    return 'NFC available';
-  }, [hasWebNFC]);
+    if (nfcSupported) return 'NFC available';
+    if (isIOSUA()) return 'NFC not available in iOS browsers';
+    if (isAndroidUA()) return 'Enable NFC permission for VYBE';
+    return 'NFC only works on Android phones';
+  }, [nfcSupported]);
 
   return {
     ...state,
