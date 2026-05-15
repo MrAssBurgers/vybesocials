@@ -78,9 +78,12 @@ export async function registerDespiaDevicePasskey(): Promise<void> {
 
   try {
     const biometric = await withTimeout(
-      despia('biometric://verify?reason=Register%20VYBE%20Passkey', ['authResult']),
+      despia('biometric://authenticate?reason=Register%20VYBE%20Passkey', ['authResult']),
       8000,
     );
+    if (biometric === undefined) {
+      await despia('bioauth://');
+    }
     const authResult = (biometric as any)?.authResult;
     if (authResult !== undefined && !isSuccessfulBiometricResult(authResult)) {
       throw new Error('Cancelled');
