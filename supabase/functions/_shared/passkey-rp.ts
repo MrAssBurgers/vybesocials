@@ -31,14 +31,19 @@ function isPreviewOrigin(origin: string): boolean {
   }
 }
 
-/** rpID to use for the credential. Pinned to vybehub.app in production so
- * credentials work across web + native shells; preview uses its own host so
- * dev sandbox keys can't be used to sign into prod (and vice versa). */
+/** rpID to use for the credential. WebAuthn requires rpId to equal — or be a
+ * registrable suffix of — the current origin's host. So for any standard web
+ * origin (https://...) we use that host directly. Native shells with non-http
+ * origins (capacitor://localhost, https://localhost) fall back to vybehub.app
+ * (which the native shell asserts via Associated Domains / assetlinks). */
 export function rpIdFor(req: Request): string {
   const origin = req.headers.get('origin') || '';
-  if (isPreviewOrigin(origin)) {
-    try { return new URL(origin).hostname; } catch { /* fall through */ }
-  }
+  try {
+    const u = new URL(origin);
+    if (u.protocol === 'https:' && u.hostname && u.hostname !== 'localhost') {
+      return u.hostname;
+    }
+  } catch { /* fall through */ }
   return PROD_RP_ID;
 }
 
