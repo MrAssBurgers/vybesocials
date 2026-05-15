@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import { getPaymentClientContext, openCheckoutUrl } from '@/lib/platformPayments';
 
 const TIP_AMOUNTS = [2, 5, 10, 25, 50, 100];
 
@@ -15,7 +16,7 @@ export function useSendTip() {
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-tip', {
-        body: { creator_id: creatorId, amount, message },
+        body: { creator_id: creatorId, amount, message, ...getPaymentClientContext() },
       });
       if (error) throw error;
       if (data?.error) {
@@ -23,7 +24,7 @@ export function useSendTip() {
         return;
       }
       if (data?.url) {
-        window.open(data.url, '_blank');
+        openCheckoutUrl(data.url);
       }
     } catch (err: any) {
       toast.error(err?.message || 'Failed to create tip');
