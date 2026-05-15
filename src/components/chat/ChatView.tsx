@@ -126,6 +126,7 @@ import { useConversationSafety } from '@/hooks/useConversationSafety';
 import { SafetyFilterRequest } from './SafetyFilterRequest';
 import { SafetyFilterRequestButton } from './SafetyFilterRequestButton';
 import { getTopEmojis, recordEmoji } from '@/lib/frequentEmojis';
+import { NowPlayingInline } from '@/components/music/NowPlayingInline';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
 // Theme color mapping - now includes both bubble and text classes
