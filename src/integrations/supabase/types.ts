@@ -3389,6 +3389,33 @@ export type Database = {
           },
         ]
       }
+      conversation_shortcuts: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          last_published_at: string
+          shortcut_id: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          last_published_at?: string
+          shortcut_id: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          last_published_at?: string
+          shortcut_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           avatar_url: string | null
