@@ -1,41 +1,83 @@
-## What I’ll fix
+# Fix VYBE Passkeys + Mobile Biometrics
 
-The current issue is two separate things getting mixed together:
+## Goal
+Stop the mobile crash, delete the fake "Face ID / Touch ID" toggle, and ship one real account-bound passkey system that uses the device's native passkey sheet on every platform. Match Discord's UX.
 
-1. **Passkeys should work like Discord**: tap sign in, the phone shows the native passkey/Face ID/fingerprint picker, then VYBE signs in with the saved credential.
-2. **Samsung WebView crash prompt**: Android WebView instability can crash the app before passkey UI appears, especially in a wrapped Despia/WebView app.
+## What's wrong today
+1. `BiometricLockCard` calls a Despia `bioauth://` bridge and a Capacitor biometric plugin that crash inside the Despia Android shell — this is the toggle the user is tapping.
+2. That toggle is labeled like account passkey setup but only stores a localStorage flag (`vybe.bioauth.enabled`) — it never registers a passkey.
+3. The real WebAuthn flow (`PasskeysCard`, `src/lib/passkeys.ts`, `auth-passkey-*` edge functions) is correct but lives in a separate card, so users hit the broken one first.
+4. Inside the Despia Android WebView, `navigator.credentials.create` throws cryptic `rpId`/origin errors instead of opening the system sheet, because the shell isn't wired to Android Credential Manager and `assetlinks.json` isn't trusted by the installed APK.
 
-## Key problems found
+## Plan
 
-- The app has a real WebAuthn/passkey flow, but the Android credential association file still contains a placeholder SHA-256 fingerprint, so Android cannot fully trust the app/site relationship for app-style passkeys.
-- Android resource IDs are inconsistent: `capacitor.config.ts` uses `app.lovable.416714c8d0134aff984d522418a9bbc7`, but `android-resources/values/strings.xml` and `manifest.webmanifest` still reference an older `app.lovable.762a...` ID.
-- The Face ID / Touch ID toggle is an app-lock preference, not true account passkey registration. I’ll make the UI separate those clearly and route users to add a real passkey for Discord-style login.
-- The WebView crash cannot be fully fixed from React code if Samsung’s Android System WebView is broken, but I can reduce passkey crashes by detecting risky WebView/native runtimes and giving a safer path/message instead of failing silently.
+### 1. Delete the broken biometric toggle
+- Remove `BiometricLockCard` from Settings and from any Security/Account screen that imports it.
+- Delete `src/hooks/useBiometricLoginGate.ts` usage from the app shell (the launch gate that sometimes signs the user out on Despia).
+- Delete `src/lib/biometrics.ts` and `src/lib/despiaBiometrics.ts` (no fake biometric API surface left in the app).
+- Drop `@aparajita/capacitor-biometric-auth` and the Despia biometric bridge from `package.json`.
+- Clear the `vybe.bioauth.enabled` localStorage key on next launch so old installs don't stay "locked".
 
-## Implementation plan
+Result: no code path in the app pretends to scan a face or fingerprint. The only biometric prompt that ever appears is the OS-owned passkey sheet.
 
-1. **Unify app identity for Android/passkeys**
-   - Update Android-facing resource values and web manifest IDs to the current app ID.
-   - Keep passkeys bound to `vybehub.app` so web + app can share credentials.
+### 2. Make `PasskeysCard` the single source of truth
+Keep the existing card but tighten it to the Discord pattern:
+- Settings → "Passkeys" row, with subtitle "Sign in with Face ID, Touch ID, fingerprint, Windows Hello, or a security key."
+- "Add a passkey" button → states: idle → prompting (spinner + "Use your device passkey to continue…") → success ("Added") → error (inline message, returns to idle).
+- List of saved passkeys with device name, created date, last used, rename (pencil), delete (trash).
+- "Sign in with passkey" button on `/auth` already exists — keep it, fix copy: "No passkey found for this account" / "…on this device" / "Create an account first, then add a passkey in Settings."
+- All errors go through `classifyPasskeyError`:
+  - `NotAllowedError` / `AbortError` / "Cancelled" → silent return to idle.
+  - Unsupported → "Passkeys are not supported on this device yet."
+  - Verification failure → "Passkey setup failed. Try again."
 
-2. **Make passkey registration more Discord-like**
-   - Update the Settings passkey card copy/actions so “Add” clearly triggers the system Face ID/fingerprint/passkey sheet.
-   - Improve `registerPasskey()` error handling so Android/WebView origin/RP/Digital Asset Link failures show the real fix instead of a generic failure.
-   - Keep discoverable credential login enabled so users can sign in without typing an email when supported.
+### 3. Native bridges for the app shells
+Web + Capacitor iOS WKWebView + Capacitor Android already work via WebAuthn once Associated Domains and `assetlinks.json` are correct. The Despia Android shell is the one that can't open the system sheet.
 
-3. **Fix mobile passkey association blockers**
-   - Update `assetlinks.json` structure to support credential sharing correctly.
-   - Keep the signing fingerprint placeholder visible if the real Play/App signing SHA-256 is not known; passkeys will require replacing that with the real Despia/Play signing fingerprint before app-native credential sharing can work on Android.
+- **iOS (Capacitor)**: ship `apple-app-site-association` with the real Team ID + bundle ID (`TEAMID.app.lovable.416714c8d0134aff984d522418a9bbc7`) and add `webcredentials:vybehub.app` to the iOS app's Associated Domains entitlement (documented in `docs/IOS_SETUP.md`). After this, WKWebView opens the iOS passkey sheet automatically — no custom UI.
+- **Android (Capacitor)**: keep `public/.well-known/assetlinks.json` with the production Play signing SHA-256 + the debug SHA-256, plus the `delegate_permission/common.get_login_creds` entry so Credential Manager trusts `vybehub.app ↔ app.lovable.416714c8d0134aff984d522418a9bbc7`. Once trusted, Android's Credential Manager handles WebAuthn calls inside the WebView automatically.
+- **Despia Android shell**: WebAuthn inside Despia's WebView is unreliable. Detect it (`isAndroidWebViewShell()`), and instead of throwing, show: "To add a passkey, open VYBE in Chrome once — your passkey will then work in the app." Add a one-tap "Open in Chrome" deep link. This is the same fallback Discord uses for unsupported shells.
+- **Real Despia bridge (optional, only if Despia exposes one)**: if Despia ships a `passkey://` URL scheme, wire it through `src/lib/passkeys.ts` so registration/login flow through the same backend routes. If they don't, the Chrome fallback above is the production answer.
 
-4. **Separate biometric app lock from passkeys**
-   - Adjust the Face ID / Touch ID lock card so it does not look like account passkey setup.
-   - If biometrics are unavailable/not enrolled, keep the Settings guidance, but do not claim a passkey was created.
+### 4. Backend (already deployed — verify only)
+The four edge functions exist and bind credentials to the Supabase user:
+- `auth-passkey-register-options` (authenticated)
+- `auth-passkey-register-verify` (authenticated, verifies + stores `credential_id`, `public_key`, `counter`, `transports`, `device_name`, `created_at`)
+- `auth-passkey-login-options` (discoverable + email modes)
+- `auth-passkey-login-verify` (verifies, bumps counter, mints magic link → session)
 
-5. **Add Samsung/WebView guardrails**
-   - Detect Samsung Android WebView/native WebView when passkey APIs are missing or unstable.
-   - Show a short actionable message: update Android System WebView/Chrome or open VYBE in Chrome to add/sign in with passkey.
-   - Avoid telling the user to uninstall updates as the app’s own fix.
+Add two missing endpoints to round out the spec:
+- `GET` list (already covered client-side by direct `user_passkeys` select with RLS — leave as-is).
+- `DELETE` one passkey (already covered by RLS-protected delete — leave as-is).
 
-## Important note
+Confirm RLS on `user_passkeys`: select/insert/update/delete only where `user_id = auth.uid()`.
 
-If the installed Despia APK is signed with a package/certificate that does not match `assetlinks.json`, Android passkeys will still fail. I can prepare the app-side files, but the final APK signing SHA-256 must be added to `public/.well-known/assetlinks.json` for Android to trust VYBE like Discord.
+### 5. Crash hardening
+- Every `startRegistration` / `startAuthentication` call wrapped in try/catch with `classifyPasskeyError`.
+- No `await` on a missing native plugin — feature-detect before calling.
+- Remove the visibility-change biometric gate so resuming the app never triggers a sign-out.
+
+## Technical details
+
+Files removed:
+- `src/components/settings/BiometricLockCard.tsx`
+- `src/hooks/useBiometricLoginGate.ts`
+- `src/lib/biometrics.ts`
+- `src/lib/despiaBiometrics.ts`
+- usages in `App.tsx` / settings page
+
+Files kept and tightened:
+- `src/components/settings/PasskeysCard.tsx` — single Passkeys row, Discord states.
+- `src/lib/passkeys.ts` — keep `classifyPasskeyError`, `isAndroidWebViewShell`, add `openInChromeFallback()`.
+- `src/pages/Landing.tsx` — passkey sign-in button copy.
+- `public/.well-known/assetlinks.json` — needs **real** Play signing SHA-256 from the user (placeholder won't work on installed APK).
+- `public/.well-known/apple-app-site-association` — needs **real** Apple Team ID from the user.
+- `capacitor.config.ts` / iOS entitlements — Associated Domains: `webcredentials:vybehub.app applinks:vybehub.app`.
+
+Backend: no schema changes. `user_passkeys` table already stores `credential_id, public_key, user_id, counter, transports, device_name, created_at, last_used_at`.
+
+## What I need from you before this fully works on installed apps
+1. **Android Play signing SHA-256 fingerprint** (from Play Console → App signing) so `assetlinks.json` trusts the installed APK. Without this, Android passkeys inside the app fall back to "open in Chrome".
+2. **Apple Team ID** (10-char) so `apple-app-site-association` is valid. Without this, iOS passkeys inside the app fall back to Safari.
+
+Everything else (web, Lovable preview, Capacitor dev builds with the dev SHA) will work as soon as I ship the code changes.
