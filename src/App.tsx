@@ -26,6 +26,7 @@ import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
+import { useKeyboardHeight } from "@/hooks/useKeyboardHeight";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { SkipToMain, LiveRegion } from "@/components/a11y/Accessibility";
