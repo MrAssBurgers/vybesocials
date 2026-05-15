@@ -165,13 +165,27 @@ export function useNFC() {
 
   // Start scanning for NFC tags
   const startScan = useCallback(async (onTagScanned: (userId: string) => void): Promise<boolean> => {
+    // Inside the Despia Android shell, prefer the native NFC bridge — it works
+    // even when Web NFC permission has been denied or the WebView blocks it.
+    if (hasDespiaNFC) {
+      setState(prev => ({ ...prev, isScanning: true, error: null }));
+      haptics.tap();
+      toast.success('NFC scanning! Hold your phone near a tag or another device.');
+      const ok = await despiaNFCScan(onTagScanned);
+      setState(prev => ({ ...prev, isScanning: false }));
+      if (!ok) {
+        toast.info('No VYBE data found on that tag');
+      } else {
+        haptics.success();
+      }
+      return ok;
+    }
+
     if (!hasWebNFC || !window.NDEFReader) {
       console.log('[NFC] Scan failed - not supported');
-      
-      const ua = navigator.userAgent;
-      if (/iPhone|iPad|iPod/i.test(ua)) {
+      if (isIOSUA()) {
         toast.error('NFC not available in iOS browsers. Install the native app for NFC.');
-      } else if (/Android/i.test(ua)) {
+      } else if (isAndroidUA()) {
         toast.error('NFC requires Chrome browser on Android.');
       } else {
         toast.error('NFC is only available on Android with Chrome browser.');
@@ -250,18 +264,24 @@ export function useNFC() {
     } catch (error: any) {
       console.error('[NFC] Scan failed:', error);
       setState(prev => ({ ...prev, isScanning: false }));
-      
+
       if (error.name === 'NotAllowedError') {
-        toast.error('NFC permission denied. Enable in browser settings.');
-      } else if (error.name === 'NotSupportedError' || error.name === 'AbortError') {
-        // Silently fail for unsupported or aborted
+        // Permission denied — try the Despia native bridge as a last resort.
+        if (isDespiaRuntime() && isAndroidUA()) {
+          const ok = await despiaNFCScan(onTagScanned);
+          if (ok) return true;
+        }
+        toast.error('NFC permission denied. Tap the gear icon to open app settings.');
+      } else if (error.name === 'NotSupportedError') {
+        toast.error('NFC is turned off. Enable NFC in your phone settings.');
+      } else if (error.name === 'AbortError') {
         return false;
       } else {
         console.warn('[NFC] Start failed:', error.message);
       }
       return false;
     }
-  }, [hasWebNFC]);
+  }, [hasWebNFC, hasDespiaNFC]);
 
   const stopScan = useCallback(() => {
     console.log('[NFC] Stopping scan');
