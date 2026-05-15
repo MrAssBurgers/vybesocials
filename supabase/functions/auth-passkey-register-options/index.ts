@@ -15,7 +15,12 @@ Deno.serve(async (req) => {
 
   try {
     const user = await getUserFromAuthHeader(req);
-    if (!user || !user.email) return jsonResponse({ error: 'unauthorized' }, 401);
+    if (!user || !user.email) {
+      console.warn('[passkey:register-options] session_check_failed');
+      return jsonResponse({ error: 'unauthorized', stage: 'session_check' }, 401);
+    }
+    const resolvedRpId = rpId(req);
+    console.log('[passkey:register-options] session_check_ok', { userId: user.id, rpId: resolvedRpId });
 
     const admin = getServiceClient();
     const { data: existing } = await admin
@@ -25,7 +30,7 @@ Deno.serve(async (req) => {
 
     const options = await generateRegistrationOptions({
       rpName: RP_NAME,
-      rpID: rpId(req),
+      rpID: resolvedRpId,
       userID: new TextEncoder().encode(user.id),
       userName: user.email,
       userDisplayName: user.email,
@@ -40,20 +45,20 @@ Deno.serve(async (req) => {
         transports: p.transports || undefined,
       })),
     });
+    console.log('[passkey:register-options] options_created', { userId: user.id, existingCount: existing?.length || 0 });
 
-    // Stash the challenge for the verify step
     await admin.from('auth_challenges').insert({
       user_id: user.id,
       email: user.email,
       challenge_type: 'passkey_register',
       code_hash: options.challenge,
       expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-      metadata: { rpId: rpId(req) },
+      metadata: { rpId: resolvedRpId },
     });
 
     return jsonResponse({ ok: true, options });
   } catch (e) {
-    console.error('passkey-register-options error', e);
-    return jsonResponse({ error: 'server_error' }, 500);
+    console.error('[passkey:register-options] error', e);
+    return jsonResponse({ error: 'server_error', message: String(e) }, 500);
   }
 });
