@@ -961,7 +961,7 @@ const VybeHome = memo(function VybeHome() {
         <div className="overflow-x-auto">
           <table className="w-full max-w-4xl mx-auto text-sm">
             <thead>
-              <tr className="text-white/40 text-xs uppercase tracking-wider">
+              <tr className="text-white/70 text-xs uppercase tracking-wider">
                 <th className="text-left p-4">Feature</th>
                 <th className="p-4">Instagram</th>
                 <th className="p-4">Snap</th>
@@ -983,7 +983,7 @@ const VybeHome = memo(function VybeHome() {
                   <td className="text-left p-4 font-medium">{row[0]}</td>
                   {row.slice(1).map((v, j) => (
                     <td key={j} className="p-4 text-center">
-                      {v ? <Check className="w-4 h-4 text-white/40 inline" /> : <X className="w-4 h-4 text-white/15 inline" />}
+                      {v ? <Check className="w-4 h-4 text-white/70 inline" /> : <X className="w-4 h-4 text-white/30 inline" />}
                     </td>
                   ))}
                   <td className="p-4 text-center bg-gradient-to-br from-violet-500/10 to-cyan-500/10">
@@ -1050,7 +1050,7 @@ const VybeHome = memo(function VybeHome() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-6 justify-between items-center">
           <div className="flex items-center gap-2">
             <span className="font-display font-black bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">VYBE</span>
-            <span className="text-white/30">© 2026</span>
+            <span className="text-white/60">© 2026</span>
           </div>
           <div className="flex flex-wrap gap-5">
             <Link to="/about" className="hover:text-white">About</Link>
