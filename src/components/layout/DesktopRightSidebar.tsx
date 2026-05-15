@@ -29,6 +29,7 @@ import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { useConversationTyping } from '@/hooks/useConversationTyping';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { useLiveMusicPresence } from '@/hooks/useLiveMusicPresence';
 
 // Online friend avatar with click-to-DM functionality - simplified for performance
 const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend: any }) {
