@@ -51,20 +51,36 @@ const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend
     }
   }, [friend?.id, createConversation, navigate, isLoading]);
 
+  const presence = useLiveMusicPresence(friend?.user_id);
+  const listening = !!presence?.is_playing && !!presence?.title;
+  const trackTitle = listening ? `${presence?.title}${presence?.artist ? ' · ' + presence.artist : ''}` : '';
+
   return (
     <button
       onClick={handleClick}
       disabled={isLoading}
+      title={listening ? `Listening: ${trackTitle}` : friend?.username || ''}
       className="flex-shrink-0 group relative hover:scale-105 active:scale-95 transition-transform"
     >
       <div className="relative">
-        <Avatar className="h-10 w-10 ring-2 ring-background group-hover:ring-primary/50 transition-all">
+        <Avatar className={cn(
+          "h-10 w-10 ring-2 ring-background group-hover:ring-primary/50 transition-all",
+          listening && "ring-[#1DB954]"
+        )}>
           <AvatarImage src={friend?.avatar_url || undefined} />
           <AvatarFallback className="text-xs bg-gradient-to-br from-primary/50 to-accent/50">
             {friend?.username?.[0]?.toUpperCase() || '?'}
           </AvatarFallback>
         </Avatar>
         <OnlineIndicator isOnline={true} size="sm" className="bottom-0 right-0" />
+        {listening && (
+          <span
+            className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-[#1DB954] ring-2 ring-background flex items-center justify-center shadow-[0_0_8px_#1DB954]"
+            aria-label="Listening on Spotify"
+          >
+            <span className="block w-1 h-1 rounded-full bg-background" />
+          </span>
+        )}
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded-full">
             <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
