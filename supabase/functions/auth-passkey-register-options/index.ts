@@ -3,14 +3,11 @@
 import {
   corsHeaders, jsonResponse, getServiceClient, getUserFromAuthHeader,
 } from '../_shared/security.ts';
+import { rpIdFor } from '../_shared/passkey-rp.ts';
 import { generateRegistrationOptions } from 'npm:@simplewebauthn/server@10.0.1';
 
 const RP_NAME = 'VYBE';
-
-function rpId(req: Request): string {
-  const origin = req.headers.get('origin') || '';
-  try { return new URL(origin).hostname || 'vybehub.app'; } catch { return 'vybehub.app'; }
-}
+const rpId = (req: Request) => rpIdFor(req);
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });

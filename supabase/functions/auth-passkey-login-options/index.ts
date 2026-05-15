@@ -5,12 +5,10 @@
 import {
   corsHeaders, jsonResponse, getServiceClient,
 } from '../_shared/security.ts';
+import { rpIdFor } from '../_shared/passkey-rp.ts';
 import { generateAuthenticationOptions } from 'npm:@simplewebauthn/server@10.0.1';
 
-function rpId(req: Request): string {
-  const origin = req.headers.get('origin') || '';
-  try { return new URL(origin).hostname || 'vybehub.app'; } catch { return 'vybehub.app'; }
-}
+const rpId = (req: Request) => rpIdFor(req);
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });

@@ -1,96 +1,71 @@
-## iPhone (iOS) Support Plan
+## Two fixes
 
-The project already has Capacitor 8 wired up (config, plugins, `useNativeFeatures`, RevenueCat, AdMob, push, camera, haptics). What's missing is everything around the **actual iOS shell, App Store readiness, and iOS-specific polish**. Here's what I'll do.
+### 1) Passkeys / biometric on mobile
 
----
+**Why it doesn't work today**
 
-### 1. iOS Project & Config Hardening
-- Update `capacitor.config.ts`:
-  - Flip `IS_DEVELOPMENT` to a proper `process.env`-driven flag so production builds never hit the Lovable preview URL.
-  - Add iOS-specific keys: `scheme: 'VYBE'`, `limitsNavigationsToAppBoundDomains: true`, `scrollEnabled: true`, `overrideUserAgent` for analytics, `backgroundColor`.
-  - Configure `App` deep linking (`app.lovable...://` + universal link host `vybehub.app`).
-- Add a documented `npx cap add ios` + `npx cap sync` workflow (cannot be run inside Lovable sandbox — instructions only).
+- `PasskeysCard` hides the "Add" button on native (Capacitor) and just tells users to go to Safari.
+- Even if the button were shown, registration would fail because the edge functions derive the WebAuthn `rpID` from the request `Origin` header. In a Capacitor iOS WebView the origin is `capacitor://localhost`, so the server registers a credential bound to `localhost` instead of `vybehub.app` — the next sign-in fails with `NotAllowedError`.
+- iOS WKWebView only allows passkeys for a domain when the app declares an **Associated Domain** (`webcredentials:vybehub.app`) and that domain serves an **`apple-app-site-association`** file declaring this app's bundle ID. Neither exists.
+- Android WebView needs the equivalent **Digital Asset Links** (`/.well-known/assetlinks.json`).
 
-### 2. iOS Permissions (Info.plist)
-Generate a `Info.plist` patch script + docs covering every usage description Apple requires (rejection-blockers):
-- `NSCameraUsageDescription`, `NSMicrophoneUsageDescription`
-- `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription`
-- `NSLocationWhenInUseUsageDescription` (Friend Map)
-- `NSContactsUsageDescription` (Friend discovery, if used)
-- `NSFaceIDUsageDescription` (WebAuthn / passkeys)
-- `NSUserTrackingUsageDescription` (AdMob/ATT)
-- `NSAppleMusicUsageDescription` (music features)
-- Background modes: `remote-notification`, `audio` (for calls), `fetch`.
+**Fix (one pass)**
 
-### 3. App Tracking Transparency (ATT)
-- Add `@capacitor-community/app-tracking-transparency` (or AdMob's built-in ATT bridge).
-- New `useATT` hook that requests ATT once on first launch, before AdMob init. Required or AdMob/Apple rejects.
+Edge functions (`auth-passkey-register-options`, `auth-passkey-register-verify`, `auth-passkey-login-options`, `auth-passkey-login-verify`):
+- Always use `rpID = 'vybehub.app'` (production domain). Accept `localhost` only when the request origin is a Lovable preview URL (for the editor sandbox).
+- Pass `expectedOrigin` as an array including `https://vybehub.app`, `https://www.vybehub.app`, the Lovable preview origin, and `capacitor://localhost` / `https://localhost` (Capacitor iOS/Android shells), so verification succeeds in every shell while credentials remain bound to `vybehub.app`.
 
-### 4. Safe-Area & Layout Fixes for Notch/Dynamic Island
-- Audit AppLayout, BottomNav, headers, fullscreen overlays (Stories, Clips, Camera, Calling, DM) and ensure `safe-area-top` / `safe-area-bottom` are applied. Several full-screen modals currently assume Android edge-to-edge.
-- Add `viewport-fit=cover` to `index.html` meta viewport (verify present).
-- Add iOS-only CSS class on `<html>` via `Capacitor.getPlatform()` for targeted tweaks (e.g., disable `100vh`, prefer `100dvh`).
+Client (`src/components/settings/PasskeysCard.tsx`):
+- Drop the `inNativeApp` gate around the **Add** button — show it everywhere `passkeysSupported()` returns true.
+- On native, surface a single, friendly error toast if registration fails because Associated Domains aren't configured (instead of the silent fallback message).
+- Already-good login path (`signInWithPasskey`) stays unchanged.
 
-### 5. iOS Keyboard & Input Behavior
-- Configure `@capacitor/keyboard` `resize: 'native'` for iOS (current `body` mode breaks fixed bottom inputs in DM/Comments).
-- Add `KeyboardResize` listener to scroll active input into view for chat & comment composers.
-- Disable iOS double-tap zoom & rubber-band on lockable surfaces (camera, video player) via `touch-action` + `overscroll-behavior`.
+Domain verification files (served by the deployed app at `vybehub.app`):
+- `public/.well-known/apple-app-site-association` — JSON declaring the iOS bundle ID for both `webcredentials` (passkeys) and `applinks` (Universal Links → deep link routing the iOS plan added).
+- `public/.well-known/assetlinks.json` — Android equivalent for Chrome WebView passkeys.
 
-### 6. Push Notifications (APNs)
-- Add APNs setup docs: enable Push Notifications + Background Modes capabilities in Xcode, upload APNs key to OneSignal.
-- Verify `useOneSignal` integration registers the iOS device token and routes deep links via `App.addListener('appUrlOpen')`.
+iOS setup docs (`docs/IOS_SETUP.md`):
+- Add an **Associated Domains** capability step listing both `webcredentials:vybehub.app` and `applinks:vybehub.app`.
+- Note that the AASA must be reachable at `https://vybehub.app/.well-known/apple-app-site-association` with `Content-Type: application/json` and **no redirect** — Lovable serves `public/` correctly.
 
-### 7. Sign in with Apple (Required by Apple if Google is offered)
-- Add `@capacitor-community/apple-sign-in`.
-- New `signInWithApple()` path in auth using Lovable Cloud's managed Apple provider (no BYOC needed initially).
-- Add Apple button to Landing/Login pages alongside Google. **Without this, App Store review rejects the build.**
-
-### 8. RevenueCat / IAP for iOS
-- Verify RevenueCat iOS API key is wired (currently has Android-style usage). Add `Purchases.configure({ apiKey: IOS_KEY })` branch.
-- Document StoreKit product setup matching existing entitlements (VYBE Pro tiers, gifting).
-- Disable Stripe paywall paths on iOS to comply with Apple's IAP rule for digital goods.
-
-### 9. AdMob iOS
-- Add iOS AdMob App ID to `capacitor.config.ts` plugin block.
-- Ensure ATT prompt fires before AdMob init.
-
-### 10. Splash Screen & App Icons
-- Add a script under `scripts/generate-ios-assets.ts` using `@capacitor/assets` to produce all required iOS icon sizes + splash variants from existing brand assets.
-- Use the dynamic V splash logic already documented in memory.
-
-### 11. iOS-Specific Bug Surfaces (from project memory)
-- Hidden `<input type="file">` Toybox constraint — audit & fix any animated containers wrapping file inputs.
-- Camera: ensure `stopCameraStream()` runs on iOS before WebRTC call init (already in memory, verify).
-- Google OAuth `redirect_uri` must remain `window.location.origin` — works because `Browser` plugin handles it; document Custom URL Scheme fallback.
-- WebKit video autoplay: add `playsInline muted` to all `<video>` elements used in feeds/stories (audit Clips, Stories, Watch).
-
-### 12. Build & Submission Prep
-- Add `package.json` scripts: `ios:dev`, `ios:build`, `ios:open`, `ios:sync`.
-- Document the full export → Xcode → TestFlight pipeline (cannot run from Lovable sandbox).
+Result: Add Passkey works in the iOS app, Android app, and any browser. First registration uses Face ID / Touch ID (or the system passkey sheet). Subsequent logins use the same biometric.
 
 ---
 
-### What I will edit in this project
-- `capacitor.config.ts` — env-driven server URL, iOS scheme, deep links, AdMob iOS app ID.
-- `index.html` — `viewport-fit=cover`, apple-touch-icon, status-bar-style meta.
-- `src/lib/capacitor.ts` — add `isIOS`, `isAndroid` helpers, ATT request, Apple sign-in bridge.
-- `src/hooks/useATT.ts` (new) — one-shot ATT prompt before tracking/ads.
-- `src/hooks/useAppleAuth.ts` (new) + Apple button on Landing/Login.
-- `src/hooks/usePlatformInit.ts` (new) — boot orchestrator (StatusBar, Keyboard, ATT, Push, RevenueCat) gated per platform.
-- Targeted CSS / safe-area fixes in AppLayout, BottomNav, fullscreen overlays.
-- `<video>` audit pass for `playsInline`.
-- `scripts/generate-ios-assets.ts` (new) + iOS docs (`docs/IOS_SETUP.md`).
+### 2) Mod "Delete Post" — instant, one tap
 
-### What you'll need to do (cannot run inside Lovable)
-1. Export project to GitHub → `git pull`.
-2. `npm install` → `npx cap add ios` → `npx cap sync ios`.
-3. Open `ios/App/App.xcworkspace` in Xcode on a Mac.
-4. Add capabilities: Push Notifications, Background Modes (remote-notification, audio), Sign in with Apple, Associated Domains (`applinks:vybehub.app`).
-5. Drop in the AdMob iOS App ID, RevenueCat iOS API key, OneSignal APNs key.
-6. Archive → upload to TestFlight.
+**Why it's slow today**
 
-A `docs/IOS_SETUP.md` walks through every step with screenshots-friendly instructions.
+Clicking *Delete Post (Mod)* opens a dialog requiring a typed reason before the actual `delete()` call fires. The user wants the post gone the instant they tap.
+
+**Fix**
+
+`src/components/moderation/ModeratorActionsMenu.tsx` — change the menu item to delete inline:
+
+- On click, immediately call `supabase.from('posts'|'comments').delete().eq('id', id)` with no dialog.
+- Optimistically remove the row from React Query caches (`posts`, `comments`, feed lists) before the round-trip so the post vanishes from the UI in the same frame; rollback + toast if the server rejects.
+- Send the `content_removed` notification with a default reason (`"Removed by moderator"`) in the background so the author still gets pinged without blocking the click.
+- Show a small undo toast for ~5s ("Post deleted — Undo") that re-inserts the row if tapped (best-effort; if RLS blocks re-insert, keep it deleted and show a quiet error).
+
+`useModerationActions.ts` already has the right query-invalidation pattern — extend it with a new `useModDeletePost` mutation so the menu item is a one-liner and other surfaces (Watch, PostDetail, ShortCard, MobileShortCard) can reuse it.
+
+The existing reason-required dialog is removed from the moderator flow. (The full audit dialog remains accessible from the Admin dashboard for cases that genuinely need a reason.)
+
+Result: tap delete → post is gone from the feed instantly, server confirms in the background, author gets the standard removal notice.
 
 ---
 
-Want me to also tackle iPad layout (split view, larger breakpoints) in this pass, or keep it iPhone-only for now?
+### Files I'll touch
+
+- `supabase/functions/auth-passkey-register-options/index.ts`
+- `supabase/functions/auth-passkey-register-verify/index.ts`
+- `supabase/functions/auth-passkey-login-options/index.ts`
+- `supabase/functions/auth-passkey-login-verify/index.ts`
+- `public/.well-known/apple-app-site-association` (new)
+- `public/.well-known/assetlinks.json` (new)
+- `src/components/settings/PasskeysCard.tsx`
+- `src/components/moderation/ModeratorActionsMenu.tsx`
+- `src/hooks/useModerationActions.ts`
+- `docs/IOS_SETUP.md` (add Associated Domains step)
+
+No DB migrations needed.

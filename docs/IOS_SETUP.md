@@ -67,11 +67,38 @@ In Xcode, select the **App** target → **Signing & Capabilities** → `+ Capabi
    - Background fetch
 3. **Sign in with Apple** — required because the app offers Google sign-in
    (Apple Guideline 4.8). Without this, App Store review rejects the build.
-4. **Associated Domains** → add:
+4. **Associated Domains** → add ALL of:
    - `applinks:vybehub.app`
    - `applinks:www.vybehub.app`
+   - `webcredentials:vybehub.app`  ← **required for Passkeys / Face ID sign-in**
+   - `webcredentials:www.vybehub.app`
 5. **App Tracking Transparency** is automatic — no capability needed, just the
    Info.plist key (see §4).
+
+### 3a. Passkeys / Face ID — apple-app-site-association
+
+Passkeys in WKWebView only work when iOS can verify that this app owns the
+domain. The app already serves the file at:
+
+```
+https://vybehub.app/.well-known/apple-app-site-association
+```
+
+(see `public/.well-known/apple-app-site-association`).
+
+**You MUST replace `TEAMID` in that file with your real Apple Team ID** (10-char
+alphanumeric, found in the upper-right of https://developer.apple.com/account).
+After replacing it, re-deploy the web app so the file is live, then build the
+iOS app. iOS will fetch the AASA on first launch and cache it; if you change
+it later, delete + reinstall the app to force a refresh.
+
+The same Team ID + bundle ID combo must appear in:
+- `public/.well-known/apple-app-site-association` → both `applinks` and `webcredentials` arrays
+- Xcode → Signing & Capabilities → Associated Domains entries above
+
+The Android equivalent (`public/.well-known/assetlinks.json`) needs the SHA-256
+fingerprint of your Play app-signing certificate — get it from Play Console →
+Setup → App signing.
 
 ---
 

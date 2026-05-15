@@ -4,12 +4,8 @@
 import {
   corsHeaders, jsonResponse, getServiceClient,
 } from '../_shared/security.ts';
+import { rpIdFor, expectedOriginsFor } from '../_shared/passkey-rp.ts';
 import { verifyAuthenticationResponse } from 'npm:@simplewebauthn/server@10.0.1';
-
-function rpId(req: Request): string {
-  const origin = req.headers.get('origin') || '';
-  try { return new URL(origin).hostname || 'vybehub.app'; } catch { return 'vybehub.app'; }
-}
 
 function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -61,8 +57,8 @@ Deno.serve(async (req) => {
     const verification = await verifyAuthenticationResponse({
       response: credential,
       expectedChallenge: chal.code_hash!,
-      expectedOrigin: req.headers.get('origin') || '',
-      expectedRPID: rpId(req),
+      expectedOrigin: expectedOriginsFor(req),
+      expectedRPID: rpIdFor(req),
       credential: {
         id: pk.credential_id,
         publicKey: b64ToBytes(pk.public_key),

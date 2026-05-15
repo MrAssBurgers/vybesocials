@@ -71,39 +71,76 @@ export function ModeratorMenuItems({
   onWarnClick: () => void;
   onBanClick: () => void;
   onMemeBanClick: () => void;
+  /** @deprecated kept for backward compat — delete now happens inline */
   onDeleteContentClick?: (type: 'post' | 'comment', id: string) => void;
 }) {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Instant mod delete — no confirmation dialog. Optimistically yanks the row
+  // from local UI, fires the destructive query in the background, and pings
+  // the author with a default removal notice.
+  const instantDelete = async (type: 'post' | 'comment', id: string) => {
+    // Fire UI removal immediately
+    if (type === 'post') onPostDelete?.();
+    else onCommentDelete?.();
+    toast.success(`${type === 'post' ? 'Post' : 'Comment'} deleted`);
+
+    try {
+      const table = type === 'post' ? 'posts' : 'comments';
+      const { error } = await supabase.from(table).delete().eq('id', id);
+      if (error) throw error;
+
+      // Background: notify the author so they know it was removed by a mod.
+      if (profile?.id && userId && userId !== profile.id) {
+        supabase.from('notifications').insert({
+          user_id: userId,
+          type: 'content_removed',
+          actor_id: profile.id,
+          reason: 'Removed by moderator',
+          ...(type === 'post' ? { post_id: id } : {}),
+        }).then(() => {});
+      }
+
+      queryClient.invalidateQueries({ queryKey: [type === 'post' ? 'posts' : 'comments'] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['shorts'] });
+    } catch {
+      toast.error(`Failed to delete ${type}`);
+    }
+  };
+
   return (
     <>
       <DropdownMenuSeparator />
       <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
         Mod Actions
       </div>
-      
+
       {postId && (
-        <DropdownMenuItem onClick={() => onDeleteContentClick?.('post', postId)} className="text-destructive">
+        <DropdownMenuItem onClick={() => instantDelete('post', postId)} className="text-destructive">
           <Trash2 className="h-4 w-4 mr-2" />
           Delete Post (Mod)
         </DropdownMenuItem>
       )}
-      
+
       {commentId && (
-        <DropdownMenuItem onClick={() => onDeleteContentClick?.('comment', commentId)} className="text-destructive">
+        <DropdownMenuItem onClick={() => instantDelete('comment', commentId)} className="text-destructive">
           <Trash2 className="h-4 w-4 mr-2" />
           Delete Comment (Mod)
         </DropdownMenuItem>
       )}
-      
+
       <DropdownMenuItem onClick={onWarnClick}>
         <AlertTriangle className="h-4 w-4 mr-2 text-yellow-500" />
         Warn User
       </DropdownMenuItem>
-      
+
       <DropdownMenuItem onClick={onBanClick} className="text-destructive">
         <Ban className="h-4 w-4 mr-2" />
         Ban User
       </DropdownMenuItem>
-      
+
       <DropdownMenuItem onClick={onMemeBanClick} className="text-orange-500">
         <Laugh className="h-4 w-4 mr-2" />
         Meme Ban 😂
