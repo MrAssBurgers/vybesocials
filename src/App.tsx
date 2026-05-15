@@ -201,7 +201,6 @@ function AppWithPreloader() {
   // Real-time profile sync - updates propagate instantly to all users
   useRealtimeProfiles();
   usePostsRealtime();
-  useSpotifyPresence();
 
   // Track on-screen keyboard height as --kb-h CSS variable (Android polish)
   useKeyboardHeight();
@@ -265,6 +264,7 @@ function AppWithPreloader() {
       )}
       <GlobalErrorHandler />
       <AuthProvider>
+        <SpotifyPresenceMount />
         <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
         <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
         <BriefPreFetchInit />
