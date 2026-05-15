@@ -4047,6 +4047,36 @@ export type Database = {
           },
         ]
       }
+      e2e_device_keys: {
+        Row: {
+          algo: string
+          created_at: string
+          device_id: string
+          id: string
+          last_seen_at: string
+          public_key: string
+          user_id: string
+        }
+        Insert: {
+          algo?: string
+          created_at?: string
+          device_id: string
+          id?: string
+          last_seen_at?: string
+          public_key: string
+          user_id: string
+        }
+        Update: {
+          algo?: string
+          created_at?: string
+          device_id?: string
+          id?: string
+          last_seen_at?: string
+          public_key?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
