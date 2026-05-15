@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getPaymentClientContext, openCheckoutUrl } from '@/lib/platformPayments';
 
 export function useCheckoutSession() {
   const [isLoading, setIsLoading] = useState(false);
@@ -9,7 +10,7 @@ export function useCheckoutSession() {
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-        body: { price_id: priceId },
+        body: { price_id: priceId, ...getPaymentClientContext() },
       });
       if (error) throw error;
       if (data?.error) {
@@ -17,7 +18,7 @@ export function useCheckoutSession() {
         return;
       }
       if (data?.url) {
-        window.location.href = data.url;
+        openCheckoutUrl(data.url);
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to start checkout');
