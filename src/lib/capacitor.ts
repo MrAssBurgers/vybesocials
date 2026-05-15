@@ -63,11 +63,18 @@ export async function initializeNativePlugins() {
       }
     });
 
-    // Handle deep links
+    // Handle deep links — supports both Universal Links (https://vybehub.app/...)
+    // and the custom URL scheme (vybe://...). Strips the host so /post/abc works.
     App.addListener('appUrlOpen', ({ url }) => {
-      const path = new URL(url).pathname;
-      if (path) {
-        window.location.href = path;
+      try {
+        const parsed = new URL(url);
+        const path = parsed.pathname + parsed.search + parsed.hash;
+        if (path && path !== '/') {
+          window.history.pushState({}, '', path);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }
+      } catch (e) {
+        console.warn('[Capacitor] Bad deep link:', url, e);
       }
     });
 

@@ -7,7 +7,8 @@ import {
   RewardAdOptions,
   AdmobConsentStatus,
 } from '@capacitor-community/admob';
-import { isNativePlatform } from './capacitor';
+import { isNativePlatform, isIOS } from './capacitor';
+import { requestTrackingAuthorization } from './att';
 
 /**
  * AdMob integration for Vybe Studios.
@@ -41,6 +42,12 @@ let initialized = false;
 export async function initializeAdMob() {
   if (!isNativePlatform || initialized) return;
   try {
+    // iOS: must request App Tracking Transparency BEFORE AdMob.initialize
+    // or Apple review rejects the build and AdMob serves only non-personalized ads.
+    if (isIOS) {
+      await requestTrackingAuthorization();
+    }
+
     await AdMob.initialize({
       testingDevices: [],
       initializeForTesting: USE_TEST_ADS,
