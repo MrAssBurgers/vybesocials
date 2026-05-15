@@ -1,98 +1,96 @@
-## Goal
+## iPhone (iOS) Support Plan
 
-Close the gap between VYBE's current messaging stack and Google's "Best messaging app" tier, focused on what actually moves the needle in a Capacitor Android Play Store build.
+The project already has Capacitor 8 wired up (config, plugins, `useNativeFeatures`, RevenueCat, AdMob, push, camera, haptics). What's missing is everything around the **actual iOS shell, App Store readiness, and iOS-specific polish**. Here's what I'll do.
 
-## What you already have (skip)
+---
 
-From memory + DB inspection:
-- Reactions (multi-emoji, swipe reply, persistence) ✓
-- AES-256 at rest, plaintext client UX ✓ (but NOT true E2E)
-- `messages.edited_at / is_edited / is_deleted / can_undo_until` columns ✓ (UI not wired everywhere)
-- Voice + video calling (SlideToAnswer, stopCameraStream) ✓
-- Discord-style emoji multi-select ✓
-- Capacitor configured (`capacitor.config.ts`, `useNativeFeatures`) ✓
-- OneSignal push integration ✓
-- Federated sign-in (Google OAuth) + biometric gate ✓
+### 1. iOS Project & Config Hardening
+- Update `capacitor.config.ts`:
+  - Flip `IS_DEVELOPMENT` to a proper `process.env`-driven flag so production builds never hit the Lovable preview URL.
+  - Add iOS-specific keys: `scheme: 'VYBE'`, `limitsNavigationsToAppBoundDomains: true`, `scrollEnabled: true`, `overrideUserAgent` for analytics, `backgroundColor`.
+  - Configure `App` deep linking (`app.lovable...://` + universal link host `vybehub.app`).
+- Add a documented `npx cap add ios` + `npx cap sync` workflow (cannot be run inside Lovable sandbox — instructions only).
 
-## Build (in priority order)
+### 2. iOS Permissions (Info.plist)
+Generate a `Info.plist` patch script + docs covering every usage description Apple requires (rejection-blockers):
+- `NSCameraUsageDescription`, `NSMicrophoneUsageDescription`
+- `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription`
+- `NSLocationWhenInUseUsageDescription` (Friend Map)
+- `NSContactsUsageDescription` (Friend discovery, if used)
+- `NSFaceIDUsageDescription` (WebAuthn / passkeys)
+- `NSUserTrackingUsageDescription` (AdMob/ATT)
+- `NSAppleMusicUsageDescription` (music features)
+- Background modes: `remote-notification`, `audio` (for calls), `fetch`.
 
-### 1. True end-to-end encryption (DM only)
-- Add `profiles.e2e_public_key` + new `e2e_device_keys` table (one row per device, X25519 public key).
-- Use `libsignal-client` WASM or simpler `tweetnacl` (sealed box) per-recipient.
-- Encrypt `messages.content` + media keys client-side; server only sees ciphertext. Group chats stay AES-at-rest for v1.
-- Migration: keep old `content` column readable, add `ciphertext`, `nonce`, `algo` columns; new messages skip plaintext write.
-- Settings toggle "Encrypted DMs (beta)" with key-backup recovery phrase modal.
+### 3. App Tracking Transparency (ATT)
+- Add `@capacitor-community/app-tracking-transparency` (or AdMob's built-in ATT bridge).
+- New `useATT` hook that requests ATT once on first launch, before AdMob init. Required or AdMob/Apple rejects.
 
-### 2. Message edit + delete UI (data already exists)
-- Long-press menu on own message → Edit / Delete for everyone / Delete for me.
-- Edit window: 15 min (enforced via RPC checking `created_at`).
-- Show "edited" label tied to `is_edited`; show "Message deleted" tombstone.
-- Undo-send toast wired to `can_undo_until`.
+### 4. Safe-Area & Layout Fixes for Notch/Dynamic Island
+- Audit AppLayout, BottomNav, headers, fullscreen overlays (Stories, Clips, Camera, Calling, DM) and ensure `safe-area-top` / `safe-area-bottom` are applied. Several full-screen modals currently assume Android edge-to-edge.
+- Add `viewport-fit=cover` to `index.html` meta viewport (verify present).
+- Add iOS-only CSS class on `<html>` via `Capacitor.getPlatform()` for targeted tweaks (e.g., disable `100vh`, prefer `100dvh`).
 
-### 3. Per-conversation notification settings
-- New table `conversation_notification_prefs` (conversation_id, user_id, muted_until, sound, vibration_pattern, importance).
-- Sheet on conversation header → Mute (1h / 8h / 1d / forever), custom sound picker, vibration pattern.
-- Native side: map each conversation to its own Android NotificationChannel via Capacitor plugin (`@capacitor-community/notifications` or custom).
+### 5. iOS Keyboard & Input Behavior
+- Configure `@capacitor/keyboard` `resize: 'native'` for iOS (current `body` mode breaks fixed bottom inputs in DM/Comments).
+- Add `KeyboardResize` listener to scroll active input into view for chat & comment composers.
+- Disable iOS double-tap zoom & rubber-band on lockable surfaces (camera, video player) via `touch-action` + `overscroll-behavior`.
 
-### 4. Native Android Conversation Bubbles
-- Capacitor custom plugin (small Java/Kotlin file) that calls `NotificationCompat.Builder.setBubbleMetadata(...)` plus `setShortcutId` + `Person`.
-- Requires long-lived `ShortcutInfo` per conversation — publish on first message.
-- Falls back silently on iOS / web.
+### 6. Push Notifications (APNs)
+- Add APNs setup docs: enable Push Notifications + Background Modes capabilities in Xcode, upload APNs key to OneSignal.
+- Verify `useOneSignal` integration registers the iOS device token and routes deep links via `App.addListener('appUrlOpen')`.
 
-### 5. Direct Share Targets (Android share sheet)
-- Same shortcut publishing pipeline as bubbles, marked `setCategories({SHARE_TARGET})`.
-- Manifest entry `<meta-data android:name="android.app.shortcuts">` + `shortcuts.xml` so VYBE shows top-friend avatars in the OS share sheet.
-- Capacitor `App.addListener('appUrlOpen')` already handles deep links; route `vybe://share?to=<id>` to DM composer prefilled with payload.
+### 7. Sign in with Apple (Required by Apple if Google is offered)
+- Add `@capacitor-community/apple-sign-in`.
+- New `signInWithApple()` path in auth using Lovable Cloud's managed Apple provider (no BYOC needed initially).
+- Add Apple button to Landing/Login pages alongside Google. **Without this, App Store review rejects the build.**
 
-### 6. Emoji picker (system-level)
-- Replace current grid with `<emoji-picker-element>` (works in WebView) + Android EmojiCompat font bundled via `@capacitor-community/emoji-compat` so older Android renders new emoji correctly.
-- Reuse in: composer, reaction bar, status, comments.
+### 8. RevenueCat / IAP for iOS
+- Verify RevenueCat iOS API key is wired (currently has Android-style usage). Add `Purchases.configure({ apiKey: IOS_KEY })` branch.
+- Document StoreKit product setup matching existing entitlements (VYBE Pro tiers, gifting).
+- Disable Stripe paywall paths on iOS to comply with Apple's IAP rule for digital goods.
 
-### 7. Animate the software keyboard
-- Use `@capacitor/keyboard` events (`keyboardWillShow/Hide`) → CSS variable `--kb-h`.
-- Composer + message list translate up via Framer Motion spring (stiffness 300, damping 28) so input never jumps.
-- iOS already smooth; this fixes Android jank.
+### 9. AdMob iOS
+- Add iOS AdMob App ID to `capacitor.config.ts` plugin block.
+- Ensure ATT prompt fires before AdMob init.
 
-### 8. Voice/video chat polish — Jetpack Telecom integration
-- Capacitor plugin wrapping `androidx.core.telecom.CallsManager` so VYBE calls show in OS call log, route to Bluetooth/car, survive lockscreen.
-- Foreground service with `FOREGROUND_SERVICE_TYPE_PHONE_CALL`.
-- Existing WebRTC layer untouched; only signaling/UI gets Telecom hooks.
+### 10. Splash Screen & App Icons
+- Add a script under `scripts/generate-ios-assets.ts` using `@capacitor/assets` to produce all required iOS icon sizes + splash variants from existing brand assets.
+- Use the dynamic V splash logic already documented in memory.
 
-### 9. CredentialManager + Passkeys
-- Add `@capgo/capacitor-credential-manager` (or thin wrapper).
-- Sign-in screen offers "Sign in with passkey" before email/Google.
-- Server: store passkey credential IDs in new `webauthn_credentials` table; verify via Supabase edge function using `@simplewebauthn/server`.
+### 11. iOS-Specific Bug Surfaces (from project memory)
+- Hidden `<input type="file">` Toybox constraint — audit & fix any animated containers wrapping file inputs.
+- Camera: ensure `stopCameraStream()` runs on iOS before WebRTC call init (already in memory, verify).
+- Google OAuth `redirect_uri` must remain `window.location.origin` — works because `Browser` plugin handles it; document Custom URL Scheme fallback.
+- WebKit video autoplay: add `playsInline muted` to all `<video>` elements used in feeds/stories (audit Clips, Stories, Watch).
 
-### 10. Add/edit rich content in share previews
-- When user taps share on a post, open mini editor sheet: trim caption, add sticker overlay, swap thumbnail, then send to picked DM(s).
-- Reuses existing CameraEditor sticker layer.
+### 12. Build & Submission Prep
+- Add `package.json` scripts: `ios:dev`, `ios:build`, `ios:open`, `ios:sync`.
+- Document the full export → Xcode → TestFlight pipeline (cannot run from Lovable sandbox).
 
-## Technical notes
+---
 
-```text
-Build order (dependencies):
-  shortcuts pipeline ──▶ bubbles (4)
-                  └────▶ direct share targets (5)
-  notif prefs table ──▶ per-convo channels (3) ──▶ bubbles (4)
-  e2e key table  ────▶ encrypted DMs (1) ──▶ edit UI handles ciphertext (2)
-  keyboard plugin ───▶ animation (7) + emoji picker layout (6)
-```
+### What I will edit in this project
+- `capacitor.config.ts` — env-driven server URL, iOS scheme, deep links, AdMob iOS app ID.
+- `index.html` — `viewport-fit=cover`, apple-touch-icon, status-bar-style meta.
+- `src/lib/capacitor.ts` — add `isIOS`, `isAndroid` helpers, ATT request, Apple sign-in bridge.
+- `src/hooks/useATT.ts` (new) — one-shot ATT prompt before tracking/ads.
+- `src/hooks/useAppleAuth.ts` (new) + Apple button on Landing/Login.
+- `src/hooks/usePlatformInit.ts` (new) — boot orchestrator (StatusBar, Keyboard, ATT, Push, RevenueCat) gated per platform.
+- Targeted CSS / safe-area fixes in AppLayout, BottomNav, fullscreen overlays.
+- `<video>` audit pass for `playsInline`.
+- `scripts/generate-ios-assets.ts` (new) + iOS docs (`docs/IOS_SETUP.md`).
 
-Capacitor plugins to add:
-- `@capacitor/keyboard` (animation)
-- `@capacitor-community/emoji-compat` or bundled Noto Color Emoji
-- Custom Kotlin plugin for: shortcuts/bubbles/share targets + Telecom CallsManager
-- `@capgo/capacitor-credential-manager` for passkeys
+### What you'll need to do (cannot run inside Lovable)
+1. Export project to GitHub → `git pull`.
+2. `npm install` → `npx cap add ios` → `npx cap sync ios`.
+3. Open `ios/App/App.xcworkspace` in Xcode on a Mac.
+4. Add capabilities: Push Notifications, Background Modes (remote-notification, audio), Sign in with Apple, Associated Domains (`applinks:vybehub.app`).
+5. Drop in the AdMob iOS App ID, RevenueCat iOS API key, OneSignal APNs key.
+6. Archive → upload to TestFlight.
 
-DB migrations (one combined call):
-- `e2e_device_keys`, columns on `messages` (`ciphertext`, `nonce`, `algo`)
-- `conversation_notification_prefs`
-- `webauthn_credentials`
-- `conversation_shortcuts` (track which conversations have published an OS shortcut)
+A `docs/IOS_SETUP.md` walks through every step with screenshots-friendly instructions.
 
-Out of scope for this round (call out, don't build):
-- Multi-device sync UI (already implicit via Supabase session; no new device-list management)
-- Group E2E (Signal Sender Keys) — punt to v2
-- Custom LED colors (deprecated on modern Android)
+---
 
-After every native-touching change, remind user to `git pull` then `npx cap sync`.
+Want me to also tackle iPad layout (split view, larger breakpoints) in this pass, or keep it iPhone-only for now?
