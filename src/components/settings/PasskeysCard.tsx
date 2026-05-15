@@ -91,9 +91,15 @@ export function PasskeysCard() {
             </div>
           )}
 
-          {inNativeApp && supported && keys.length === 0 && (
+          {supported && keys.length === 0 && (
             <div className="text-xs text-muted-foreground mt-2">
-              Tap <span className="font-medium">Add</span> to register Face ID / Touch ID for one‑tap sign‑in.
+              Tap <span className="font-medium">Add</span> — your phone will show its Face ID / fingerprint sheet, just like Discord.
+            </div>
+          )}
+
+          {isAndroidWebViewShell() && (
+            <div className="text-xs text-amber-500/90 mt-2">
+              On Samsung devices: if Add doesn't open the system sheet, update <span className="font-medium">Android System WebView</span> &amp; Chrome from the Play Store, then try again.
             </div>
           )}
 
