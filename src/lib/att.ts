@@ -34,9 +34,10 @@ export async function requestTrackingAuthorization(): Promise<ATTStatus> {
     }
 
     // Show the system ATT prompt (one-shot — Apple won't show it again
-    // unless the app is reinstalled).
-    const result = await AdMob.requestTrackingAuthorization();
-    cachedStatus = (result?.status ?? current.status) as ATTStatus;
+    // unless the app is reinstalled). Returns void; re-query status after.
+    await AdMob.requestTrackingAuthorization();
+    const after = await AdMob.trackingAuthorizationStatus();
+    cachedStatus = after.status as ATTStatus;
     localStorage.setItem(ATT_REQUESTED_KEY, '1');
     return cachedStatus;
   } catch (err) {
