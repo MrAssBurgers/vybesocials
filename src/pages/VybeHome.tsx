@@ -50,13 +50,17 @@ const RealPhone = memo(function RealPhone({
   src,
   alt,
   className,
-}: { src: string; alt: string; className?: string }) {
+  priority = false,
+}: { src: string; alt: string; className?: string; priority?: boolean }) {
   return (
     <div className={cn('relative mx-auto', className)}>
       <img
         src={src}
         alt={alt}
-        loading="lazy"
+        width={280}
+        height={600}
+        loading={priority ? 'eager' : 'lazy'}
+        fetchPriority={priority ? 'high' : 'auto'}
         decoding="async"
         className="block w-[260px] sm:w-[280px] h-auto drop-shadow-[0_30px_80px_rgba(139,92,246,0.45)]"
       />
@@ -830,7 +834,7 @@ const VybeHome = memo(function VybeHome() {
               <div className="relative w-[600px] h-[620px]">
                 <motion.div animate={{y:[0,-12,0]}} transition={{duration:6,repeat:Infinity,ease:'easeInOut'}}
                   className="absolute left-0 top-10 z-10">
-                  <RealPhone src="/marketing/device/home.png" alt="VYBE home feed" />
+                  <RealPhone src="/marketing/device/home.png" alt="VYBE home feed" priority />
                 </motion.div>
                 <motion.div animate={{y:[0,12,0]}} transition={{duration:7,repeat:Infinity,ease:'easeInOut',delay:0.5}}
                   className="absolute right-0 top-0 z-20">
@@ -843,7 +847,7 @@ const VybeHome = memo(function VybeHome() {
               </div>
             </div>
             <div className="lg:hidden flex justify-center">
-              <RealPhone src="/marketing/device/home.png" alt="VYBE home feed" />
+              <RealPhone src="/marketing/device/home.png" alt="VYBE home feed" priority />
             </div>
           </FadeIn>
         </div>
