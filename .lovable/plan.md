@@ -1,42 +1,41 @@
-# Fix Face ID / Touch ID Enable Flow
+## What I’ll fix
 
-## Problem
-When you toggle **Face ID / Touch ID** on in Settings → Security on your phone, it shows "No Face ID / Touch ID set up on this device" instead of triggering the system biometric prompt to scan your face/fingerprint and save it.
+The current issue is two separate things getting mixed together:
 
-## Root cause
-Two issues in the current flow:
+1. **Passkeys should work like Discord**: tap sign in, the phone shows the native passkey/Face ID/fingerprint picker, then VYBE signs in with the saved credential.
+2. **Samsung WebView crash prompt**: Android WebView instability can crash the app before passkey UI appears, especially in a wrapped Despia/WebView app.
 
-1. **`isBiometricsAvailable()` only returns true inside Despia.** In the Capacitor native Android build (what's going on the Play Store), `isDespia()` is false, so the toggle is permanently disabled and shows the "not available" hint — the user can never even tap it.
-2. **`requestBioAuth()` only calls the Despia `bioauth://` URL scheme.** It has no Capacitor path, so even if we enabled the toggle, tapping it wouldn't actually open Android's BiometricPrompt.
+## Key problems found
 
-## Fix
+- The app has a real WebAuthn/passkey flow, but the Android credential association file still contains a placeholder SHA-256 fingerprint, so Android cannot fully trust the app/site relationship for app-style passkeys.
+- Android resource IDs are inconsistent: `capacitor.config.ts` uses `app.lovable.416714c8d0134aff984d522418a9bbc7`, but `android-resources/values/strings.xml` and `manifest.webmanifest` still reference an older `app.lovable.762a...` ID.
+- The Face ID / Touch ID toggle is an app-lock preference, not true account passkey registration. I’ll make the UI separate those clearly and route users to add a real passkey for Discord-style login.
+- The WebView crash cannot be fully fixed from React code if Samsung’s Android System WebView is broken, but I can reduce passkey crashes by detecting risky WebView/native runtimes and giving a safer path/message instead of failing silently.
 
-### 1. Add Capacitor biometric support
-Use `@aparajita/capacitor-biometric-auth` (already a common Capacitor plugin) for the native Android/iOS path.
+## Implementation plan
 
-- Install plugin, add to `capacitor.config.ts` if needed.
-- In `src/lib/biometrics.ts`:
-  - `isBiometricsAvailable()` → if `Capacitor.isNativePlatform()`, call `BiometricAuth.checkBiometry()` and return true when `isAvailable` is true OR when `reason === 'biometryNotEnrolled'` (so we can guide the user to enroll). Fall back to existing Despia check, then false on web.
-  - `requestBioAuth()` → if native, call `BiometricAuth.authenticate({ reason: 'Unlock VYBE', cancelTitle: 'Cancel', allowDeviceCredential: true })`. Map result to `{ ok: true }` / `{ ok: false, reason: 'unavailable' | 'failed' }`. If error code is `biometryNotEnrolled`, return `reason: 'not-enrolled'` (new variant) so UI can deep-link to system settings.
+1. **Unify app identity for Android/passkeys**
+   - Update Android-facing resource values and web manifest IDs to the current app ID.
+   - Keep passkeys bound to `vybehub.app` so web + app can share credentials.
 
-### 2. Handle "not enrolled" properly in `BiometricLockCard`
-Right now we show a dead-end toast. Instead:
-- If `requestBioAuth()` returns `reason: 'not-enrolled'`, show a toast **"Set up Face Unlock or Fingerprint in your phone's Settings, then come back."** with an action button that opens Android Settings via `App.openUrl({ url: 'app-settings:' })` or the native intent `android.settings.BIOMETRIC_ENROLL`.
-- After they return to the app (visibility change), re-check availability and prompt again automatically.
+2. **Make passkey registration more Discord-like**
+   - Update the Settings passkey card copy/actions so “Add” clearly triggers the system Face ID/fingerprint/passkey sheet.
+   - Improve `registerPasskey()` error handling so Android/WebView origin/RP/Digital Asset Link failures show the real fix instead of a generic failure.
+   - Keep discoverable credential login enabled so users can sign in without typing an email when supported.
 
-### 3. Update `BioAuthResult` type
-Add `'not-enrolled'` to the `reason` union so callers (login gate, sensitive action confirms) handle it without treating it as a hard failure.
+3. **Fix mobile passkey association blockers**
+   - Update `assetlinks.json` structure to support credential sharing correctly.
+   - Keep the signing fingerprint placeholder visible if the real Play/App signing SHA-256 is not known; passkeys will require replacing that with the real Despia/Play signing fingerprint before app-native credential sharing can work on Android.
 
-### 4. Login gate behavior
-`useBiometricLoginGate` already signs the user out on failure. Update so `not-enrolled` clears the pref (`setBioAuthPref(false)`) and unlocks instead of signing out — otherwise users get locked out by simply removing their fingerprint.
+4. **Separate biometric app lock from passkeys**
+   - Adjust the Face ID / Touch ID lock card so it does not look like account passkey setup.
+   - If biometrics are unavailable/not enrolled, keep the Settings guidance, but do not claim a passkey was created.
 
-## Files touched
-- `src/lib/biometrics.ts` — add Capacitor path, new result reason
-- `src/components/settings/BiometricLockCard.tsx` — handle not-enrolled, deep-link to system settings
-- `src/hooks/useBiometricLoginGate.ts` — graceful not-enrolled handling
-- `package.json` — add `@aparajita/capacitor-biometric-auth`
+5. **Add Samsung/WebView guardrails**
+   - Detect Samsung Android WebView/native WebView when passkey APIs are missing or unstable.
+   - Show a short actionable message: update Android System WebView/Chrome or open VYBE in Chrome to add/sign in with passkey.
+   - Avoid telling the user to uninstall updates as the app’s own fix.
 
-No DB or backend changes. After merging you'll need `npx cap sync android` locally before the next Android build.
+## Important note
 
-## What you'll see after the fix
-Tap the toggle on your phone → Android's native fingerprint/face prompt appears → on success the toggle stays on and biometric lock is enabled. If no biometrics are enrolled on the device, you get a clear message with a button to jump straight into the system enrollment screen.
+If the installed Despia APK is signed with a package/certificate that does not match `assetlinks.json`, Android passkeys will still fail. I can prepare the app-side files, but the final APK signing SHA-256 must be added to `public/.well-known/assetlinks.json` for Android to trust VYBE like Discord.

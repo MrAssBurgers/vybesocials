@@ -6,7 +6,7 @@ import { Key, Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { passkeysSupported, registerPasskey } from '@/lib/passkeys';
+import { passkeysSupported, registerPasskey, isAndroidWebViewShell } from '@/lib/passkeys';
 import { formatDistanceToNow } from 'date-fns';
 
 const inNativeApp = (() => { try { return Capacitor.isNativePlatform(); } catch { return false; } })();
@@ -44,10 +44,8 @@ export function PasskeysCard() {
       toast.success('Passkey added');
       await load();
     } catch (e: any) {
-      if (e?.name === 'NotAllowedError' || e?.name === 'AbortError') {
+      if (e?.name === 'NotAllowedError' || e?.name === 'AbortError' || e?.message === 'Cancelled') {
         // User cancelled the system sheet — silent.
-      } else if (inNativeApp && /security|origin|rp|domain|associated/i.test(String(e?.message || ''))) {
-        toast.error('Update the app to enable passkeys on this device.');
       } else {
         toast.error(e?.message || 'Could not add passkey');
       }
@@ -93,9 +91,15 @@ export function PasskeysCard() {
             </div>
           )}
 
-          {inNativeApp && supported && keys.length === 0 && (
+          {supported && keys.length === 0 && (
             <div className="text-xs text-muted-foreground mt-2">
-              Tap <span className="font-medium">Add</span> to register Face ID / Touch ID for one‑tap sign‑in.
+              Tap <span className="font-medium">Add</span> — your phone will show its Face ID / fingerprint sheet, just like Discord.
+            </div>
+          )}
+
+          {isAndroidWebViewShell() && (
+            <div className="text-xs text-amber-500/90 mt-2">
+              On Samsung devices: if Add doesn't open the system sheet, update <span className="font-medium">Android System WebView</span> &amp; Chrome from the Play Store, then try again.
             </div>
           )}
 

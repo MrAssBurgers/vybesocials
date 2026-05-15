@@ -108,13 +108,13 @@ export function BiometricLockCard() {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="font-semibold flex items-center gap-1.5">
-                Face ID / Touch ID
+                Biometric app lock
                 <ShieldCheck className="w-3.5 h-3.5 text-primary/70" />
               </div>
               <div className="text-xs text-muted-foreground">
                 {available === false
                   ? 'Available inside the VYBE mobile app.'
-                  : 'Require biometrics to open VYBE and confirm sensitive actions.'}
+                  : 'Require Face ID / fingerprint to open VYBE. (For one‑tap sign‑in, add a Passkey above.)'}
               </div>
             </div>
             <Switch checked={enabled} disabled={busy || available !== true} onCheckedChange={onToggle} />
