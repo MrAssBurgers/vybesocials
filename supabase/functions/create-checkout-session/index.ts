@@ -27,7 +27,12 @@ serve(async (req) => {
     if (userError || !userData.user) throw new Error("Not authenticated");
     const user = userData.user;
 
-    const { price_id } = await req.json();
+    const {
+      price_id,
+      client_platform = 'web',
+      wallet_preference = 'standard',
+      native_shell = false,
+    } = await req.json();
     if (!price_id) throw new Error("price_id is required");
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
@@ -69,7 +74,7 @@ serve(async (req) => {
       mode: "subscription",
       success_url: "https://vybehub.app/success",
       cancel_url: "https://vybehub.app/cancel",
-      metadata: { user_id: user.id },
+      metadata: { user_id: user.id, client_platform, wallet_preference, native_shell: String(native_shell) },
     });
 
     return new Response(JSON.stringify({ url: session.url }), {
