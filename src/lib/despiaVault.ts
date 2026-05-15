@@ -81,7 +81,8 @@ export async function registerDespiaDevicePasskey(): Promise<void> {
       despia('biometric://verify?reason=Register%20VYBE%20Passkey', ['authResult']),
       8000,
     );
-    if (biometric?.authResult !== undefined && !isSuccessfulBiometricResult(biometric.authResult)) {
+    const authResult = (biometric as any)?.authResult;
+    if (authResult !== undefined && !isSuccessfulBiometricResult(authResult)) {
       throw new Error('Cancelled');
     }
   } catch (error: any) {
