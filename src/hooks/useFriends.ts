@@ -95,7 +95,7 @@ export function useFriendRequests() {
         .from('friend_requests')
         .select(`
           *,
-          sender:profiles!sender_id(id, username, avatar_url, display_name)
+          sender:profiles!sender_id(id, user_id, username, avatar_url, display_name)
         `)
         .eq('receiver_id', profile.id)
         .eq('status', 'pending')
@@ -107,7 +107,7 @@ export function useFriendRequests() {
         .from('friend_requests')
         .select(`
           *,
-          receiver:profiles!receiver_id(id, username, avatar_url, display_name)
+          receiver:profiles!receiver_id(id, user_id, username, avatar_url, display_name)
         `)
         .eq('sender_id', profile.id)
         .eq('status', 'pending')
@@ -139,7 +139,7 @@ export function useFriends() {
       const { data: asSender, error: senderError } = await supabase
         .from('friend_requests')
         .select(`
-          receiver:profiles!receiver_id(id, username, avatar_url, display_name)
+          receiver:profiles!receiver_id(id, user_id, username, avatar_url, display_name)
         `)
         .eq('sender_id', profile.id)
         .eq('status', 'accepted');
@@ -149,7 +149,7 @@ export function useFriends() {
       const { data: asReceiver, error: receiverError } = await supabase
         .from('friend_requests')
         .select(`
-          sender:profiles!sender_id(id, username, avatar_url, display_name)
+          sender:profiles!sender_id(id, user_id, username, avatar_url, display_name)
         `)
         .eq('receiver_id', profile.id)
         .eq('status', 'accepted');
