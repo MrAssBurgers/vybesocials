@@ -30,6 +30,8 @@ import { ProfileHeroCard } from '@/components/profile/ProfileHeroCard';
 import { ProfileAboutMe } from '@/components/profile/ProfileAboutMe';
 import { ProfileAboutDetails } from '@/components/profile/ProfileAboutDetails';
 import { ProfileVibeBoard } from '@/components/profile/ProfileVibeBoard';
+import { NowPlayingCard } from '@/components/music/NowPlayingCard';
+import { useLiveMusicPresence } from '@/hooks/useLiveMusicPresence';
 
 import {
   NAME_COLOR_MAP, THEME_GRADIENTS, THEME_IMAGES, THEME_ACCENTS,
@@ -244,6 +246,9 @@ export default function ProfilePage() {
           isOwnProfile={isOwnProfile}
         />
 
+        {/* Now Playing (Spotify) */}
+        <NowPlayingCardWrapper authUserId={(profile as any).user_id} />
+
         {/* About Details (MBTI, height, music, etc.) */}
         <ProfileAboutDetails
           profileId={profile.id}
@@ -451,4 +456,10 @@ function EmptyState({ emoji, text, subtitle }: { emoji: string; text: string; su
       {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
     </motion.div>
   );
+}
+
+function NowPlayingCardWrapper({ authUserId }: { authUserId: string | null | undefined }) {
+  const presence = useLiveMusicPresence(authUserId);
+  if (!presence?.is_playing) return null;
+  return <NowPlayingCard presence={presence} />;
 }
