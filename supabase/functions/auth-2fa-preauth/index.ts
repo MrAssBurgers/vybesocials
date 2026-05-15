@@ -28,7 +28,10 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'invalid_email' }, 400);
     }
     if (!password || typeof password !== 'string') {
-      return jsonResponse({ error: 'invalid_credentials' }, 400);
+      // Invalid credentials are an expected login outcome, not a function crash.
+      // Return 200 with a structured error so the client can show a form error
+      // without Lovable's runtime detector treating this preauth check as fatal.
+      return jsonResponse({ error: 'invalid_credentials' }, 200);
     }
     const normalized = email.trim().toLowerCase();
 
@@ -44,7 +47,7 @@ Deno.serve(async (req) => {
       password,
     });
     if (signInError || !signInData?.session || !signInData?.user) {
-      return jsonResponse({ error: 'invalid_credentials' }, 401);
+      return jsonResponse({ error: 'invalid_credentials' }, 200);
     }
 
     const session = {

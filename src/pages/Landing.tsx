@@ -218,6 +218,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         // safe — there's nothing to sign out of.
         setGatePending(true);
 
+        const createHandledLoginError = (message: string) => {
+          const err = new Error(message) as Error & { isHandledLoginError?: boolean };
+          err.isHandledLoginError = true;
+          return err;
+        };
+
         // Race the edge call against a 12s timeout so a cold-start never
         // leaves the form spinning forever.
         let pre: any = null;
@@ -255,11 +261,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         // Hard reject only on confirmed bad credentials.
         if (code === 'invalid_credentials') {
           setGatePending(false);
-          throw new Error('Invalid email or password');
+          throw createHandledLoginError('Invalid email or password');
         }
         if (code === 'email_failed') {
           setGatePending(false);
-          throw new Error("We couldn't send your verification email. Try again in a moment.");
+          throw createHandledLoginError("We couldn't send your verification email. Try again in a moment.");
         }
 
         // Any other failure (network, 5xx, timeout, cold-start) → fall back to
@@ -273,9 +279,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           if (directErr) {
             const msg = (directErr.message || '').toLowerCase();
             if (msg.includes('invalid') || msg.includes('credential')) {
-              throw new Error('Invalid email or password');
+              throw createHandledLoginError('Invalid email or password');
             }
-            throw new Error("Couldn't sign you in. Please try again.");
+            throw createHandledLoginError("Couldn't sign you in. Please try again.");
           }
           sessionStorage.removeItem('vybe-session-only');
           toast.success('Welcome back! ✨');
@@ -318,7 +324,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         } else {
           // Defensive fallback if preauth ever returns without tokens.
           const { error } = await signIn(formData.email, formData.password);
-          if (error) { setGatePending(false); throw error; }
+          if (error) { setGatePending(false); throw createHandledLoginError(error.message || "Couldn't sign you in. Please try again."); }
         }
 
         setGatePending(false);
@@ -340,7 +346,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         navTo('onboarding', '/onboarding');
       }
     } catch (error: any) {
-      toast.error(getUserFriendlyError(error));
+      const message = error?.isHandledLoginError ? error.message : getUserFriendlyError(error);
+      if (message !== '__SUPPRESS__') toast.error(message);
     } finally {
       setLoading(false);
       setGatePending(false);
