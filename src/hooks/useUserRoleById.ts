@@ -48,7 +48,7 @@ export function useUsersRoles(userIds: string[]) {
       if (error) {
         // Non-critical for the DM list. During slow/offline auth restore this can run
         // with an anonymous token; return no badges instead of breaking chat rendering.
-        if (error.code === '42501' || error.status === 401 || error.code === 'PGRST116') return {};
+        if (error.code === '42501' || error.code === 'PGRST116') return {};
         throw error;
       }
       
