@@ -121,6 +121,7 @@ const queryClient = new QueryClient({
 // Start global reconnect manager (refreshes active queries the instant
 // connectivity is restored, polls aggressively while offline).
 startReconnectManager(queryClient);
+startOutbox();
 
 // Build-hash based cache buster so deployments invalidate persisted cache.
 const PERSIST_BUSTER = (import.meta as any).env?.VITE_BUILD_ID || 'vybe-cache-v1';
