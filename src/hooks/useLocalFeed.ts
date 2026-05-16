@@ -131,8 +131,14 @@ export function useLocalFeed() {
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
     staleTime: STALE_TIME,
+    gcTime: 1000 * 60 * 60 * 24 * 14, // 14 days — keep local feed cached for offline
     refetchOnMount: false,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+    placeholderData: (previousData) => previousData,
+    networkMode: 'offlineFirst',
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 }
 
