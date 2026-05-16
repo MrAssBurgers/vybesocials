@@ -1,13 +1,13 @@
 // VYBE Service Worker
-// Version 7.0 - App-shell only offline support (no static offline page fallback)
+// Version 8.0 - App-shell + media offline caching for instant cold-start
 
-const CACHE_NAME = 'vybe-v7';
-const STATIC_CACHE = 'vybe-static-v7';
-const MEDIA_CACHE = 'vybe-media-v1';
-const SHELL_CACHE = 'vybe-shell-v2';
-const ASSETS_CACHE = 'vybe-assets-v2';
+const CACHE_NAME = 'vybe-v8';
+const STATIC_CACHE = 'vybe-static-v8';
+const MEDIA_CACHE = 'vybe-media-v2';
+const SHELL_CACHE = 'vybe-shell-v3';
+const ASSETS_CACHE = 'vybe-assets-v3';
 const SHELL_URL = '/';
-const ASSETS_CACHE_MAX = 60;
+const ASSETS_CACHE_MAX = 180;
 const APP_ICON = '/icons/icon-192x192.png';
 const BADGE_ICON = '/icons/icon-96x96.png';
 
@@ -37,6 +37,7 @@ const NETWORK_FIRST_PATTERNS = [
 // Media paths that should use cache-first (long-lived)
 const CACHE_FIRST_PATTERNS = [
   '/storage/v1/object/public/',
+  '/storage/v1/object/sign/',
   'fonts.googleapis.com',
   'fonts.gstatic.com',
 ];
@@ -126,15 +127,23 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
-    // Same-origin hashed Vite bundles: stale-while-revalidate so the app
-    // shell can boot offline. Hashed filenames are immutable, so this is
-    // safe — new deploys ship new hashes and old chunks are evicted by
-    // the FIFO cap below.
+    // Same-origin JS/CSS/font chunks (with or without content hash) — stale
+    // while revalidate so the app shell can boot offline after one online visit.
     if (
       url.origin === self.location.origin &&
-      /\/assets\/.+\.[a-f0-9]{8,}\.(?:js|css|woff2?)(?:\?.*)?$/i.test(url.pathname)
+      /\.(?:js|mjs|css|woff2?|ttf|otf)(?:\?.*)?$/i.test(url.pathname)
     ) {
       event.respondWith(staleWhileRevalidateCapped(event.request, ASSETS_CACHE, ASSETS_CACHE_MAX));
+      return;
+    }
+
+    // Same-origin images (post media thumbs, icons, etc.) — cache-first so
+    // already-seen images stay visible offline and when scrolling fast.
+    if (
+      url.origin === self.location.origin &&
+      /\.(?:png|jpe?g|gif|webp|avif|svg|ico)(?:\?.*)?$/i.test(url.pathname)
+    ) {
+      event.respondWith(cacheFirst(event.request, MEDIA_CACHE));
       return;
     }
   } catch {

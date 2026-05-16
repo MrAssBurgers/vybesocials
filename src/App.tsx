@@ -346,10 +346,17 @@ const App = memo(() => {
         client={queryClient}
         persistOptions={{
           persister: queryPersister,
-          maxAge: 1000 * 60 * 60 * 24, // 24h
+          // 14 days — keep everything (feed, DMs, profiles) usable offline
+          // across multiple app sessions, just like Instagram/X.
+          maxAge: 1000 * 60 * 60 * 24 * 14,
           buster: PERSIST_BUSTER,
           dehydrateOptions: {
-            shouldDehydrateQuery: (q) => q.state.status === 'success' && shouldPersistQueryKey(q.queryKey),
+            // Persist successful AND errored queries — if we have stale data
+            // for a key we want to keep showing it even if the last refetch
+            // failed (e.g. offline).
+            shouldDehydrateQuery: (q) =>
+              (q.state.status === 'success' || (q.state.status === 'error' && q.state.data !== undefined)) &&
+              shouldPersistQueryKey(q.queryKey),
             shouldDehydrateMutation: () => false,
           },
         }}
