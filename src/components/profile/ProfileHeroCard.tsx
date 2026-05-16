@@ -80,7 +80,8 @@ export function ProfileHeroCard({
   const createConversation = useCreateConversation();
   const { data: status } = useUserStatusById(profile?.id);
   const { data: about } = useUserAbout(profile?.id);
-  const age = about?.show_age ? calcAge(profile?.date_of_birth || profile?.birthday) : null;
+  const birthday = profile?.date_of_birth || profile?.birthday;
+  const age = about?.show_age ? calcAge(birthday) : null;
   const cardRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
@@ -174,13 +175,11 @@ export function ProfileHeroCard({
               {showModBadge && profileRole && <ModBadge role={profileRole} />}
             </div>
 
-            {/* Handle · age · MBTI */}
+            {/* Handle · age */}
             <p className="text-xs text-muted-foreground mt-0.5 truncate">
               {profile.display_name ? <>@{profile.username}</> : <>&nbsp;</>}
-              {profile.display_name && (age !== null || about?.mbti) ? <span className="opacity-50"> · </span> : null}
+              {profile.display_name && age !== null ? <span className="opacity-50"> · </span> : null}
               {age !== null && <span className="font-medium text-foreground/70">{age}</span>}
-              {age !== null && about?.mbti ? <span className="opacity-50"> · </span> : null}
-              {about?.mbti && <span className="font-medium text-foreground/70">{about.mbti}</span>}
             </p>
 
             {/* Status pill — compact, inline under handle */}

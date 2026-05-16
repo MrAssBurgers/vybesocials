@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { useErrorReporter } from '@/hooks/useErrorReporter';
+import { useAutoBugReporter } from '@/hooks/useAutoBugReporter';
 import { toast } from 'sonner';
 import { trackError, clearAppCache } from '@/lib/selfHealingMonitor';
 
 export function GlobalErrorHandler() {
   useErrorReporter();
+  useAutoBugReporter();
 
   useEffect(() => {
     let lastState: 'online' | 'offline' = navigator.onLine ? 'online' : 'offline';
