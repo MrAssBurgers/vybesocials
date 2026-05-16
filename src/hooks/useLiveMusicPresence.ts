@@ -13,6 +13,8 @@ export interface LiveMusicPresence {
   progress_ms: number | null;
   track_url: string | null;
   is_playing: boolean;
+  tempo: number | null;
+  energy: number | null;
   updated_at: string;
 }
 
