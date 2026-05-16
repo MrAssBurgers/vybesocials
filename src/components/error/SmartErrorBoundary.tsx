@@ -41,12 +41,12 @@ class SmartErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     this.setState({ errorInfo });
     const msg = error?.message || '';
-    const isChunkError = msg.includes('Loading chunk') || 
+    const isChunkError = msg.includes('Loading chunk') ||
       msg.includes('Failed to fetch dynamically imported module') ||
       msg.includes('Importing a module script failed') ||
       msg.includes('error loading dynamically imported module') ||
       msg.includes('Unable to preload CSS');
-    
+
     if (isChunkError) {
       if ('caches' in window) {
         caches.keys().then(names => names.forEach(name => caches.delete(name)));
@@ -55,13 +55,28 @@ class SmartErrorBoundary extends Component<Props, State> {
       return;
     }
 
+    // Treat transient network/fetch errors (slow internet, offline blips) as
+    // recoverable — never show the "Something went wrong" screen for these.
+    const isNetworkError =
+      !navigator.onLine ||
+      /Failed to fetch|NetworkError|Load failed|TypeError: fetch|ERR_NETWORK|ERR_INTERNET|timeout|AbortError|The operation was aborted/i.test(msg) ||
+      (error?.name === 'TypeError' && /fetch/i.test(msg));
+
+    if (isNetworkError) {
+      console.warn('[SmartErrorBoundary] Suppressed transient network error:', msg);
+      // Silently recover — keep the last good UI on screen.
+      setTimeout(() => this.setState({ hasError: false, error: null, errorInfo: null }), 0);
+      return;
+    }
+
     console.error('[SmartErrorBoundary] Caught error:', error?.message, error?.stack);
     console.error('[SmartErrorBoundary] Component stack:', errorInfo.componentStack);
 
+    // Still report the crash silently in the background so monitoring works.
     void this.reportCrash(error, errorInfo.componentStack, 'auto');
 
-    // Ask AI to explain the error
-    this.analyzeError(error, errorInfo);
+    // Auto-recover after a brief delay instead of showing the error UI.
+    setTimeout(() => this.setState({ hasError: false, error: null, errorInfo: null }), 50);
   }
 
   reportCrash = async (
@@ -130,6 +145,10 @@ class SmartErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      // Never show the "Something went wrong" screen — feels unprofessional.
+      // componentDidCatch auto-resets hasError; render nothing in the meantime.
+      return null;
+      // eslint-disable-next-line no-unreachable
       return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 gap-5">
           <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center">
