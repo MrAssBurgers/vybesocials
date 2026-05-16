@@ -317,6 +317,7 @@ function AppWithPreloader() {
                                       <FounderAppreciation />
                                       <CookieConsentBanner />
                                       <RatePromptSheet />
+                                      <OfflineIndicator />
                                     </Suspense>
                                   </TutorialProvider>
                                 </Suspense>
