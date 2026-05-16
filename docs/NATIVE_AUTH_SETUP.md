@@ -14,12 +14,11 @@ domain, update that file's `PROD_RP_ID` and `PROD_ORIGINS` arrays.
 
 File: `public/.well-known/assetlinks.json`
 
-The Despia (`com.despia.vybe`) SHA-256 is already filled in:
+The Despia (`com.despia.vybe`) SHA-256 is filled in:
 `DE:E3:B6:4D:4D:93:39:A1:74:E2:34:6C:A6:38:61:42:AC:DA:E4:07:24:0F:5A:97:AC:E2:26:07:B9:DE:59:E5`
 
-Only replace `REPLACE_WITH_PLAY_APP_SIGNING_SHA256` if you also ship a
-separate Capacitor build under `app.lovable.416714c8d0134aff984d522418a9bbc7`.
-Otherwise you can delete that second block.
+Only the Despia block + `web` entry are shipped (VYBE distributes via
+Despia only — no separate Capacitor Android build).
 
 After deploy, verify with:
 ```
@@ -90,7 +89,6 @@ See `.env.example`. The two passkey RP-related vars are documentation only
 ## Final checklist of values you still owe
 
 - [x] **Android SHA-256 fingerprint** for `com.despia.vybe` ✅ (`DE:E3:B6:4D:...:59:E5`)
-- [ ] **Android SHA-256 fingerprint** for any Capacitor variant (optional)
 - [ ] **Apple Team ID**
 - [ ] **iOS bundle ID** (from Despia or Capacitor)
 - [ ] Confirm Despia bridges listed above are enabled for your build
