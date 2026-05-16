@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { ViewMode } from './useMessages';
+import { enqueue as outboxEnqueue, onOutboxChange, flush as outboxFlush } from '@/lib/dmOutbox';
 
 export type MessageStatus = 'sending' | 'sent' | 'failed';
 
