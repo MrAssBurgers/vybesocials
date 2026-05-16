@@ -163,12 +163,7 @@ async function navigationStrategy(request) {
   } catch {
     const cachedShell = (await cache.match(SHELL_URL)) || (await caches.match(SHELL_URL));
     if (cachedShell) return cachedShell;
-    const offline = await caches.match('/offline.html');
-    if (offline) return offline;
-    return new Response('Offline', {
-      status: 503,
-      headers: { 'Content-Type': 'text/html' },
-    });
+    return new Response('', { status: 204 });
   }
 }
 
@@ -206,7 +201,7 @@ async function staleWhileRevalidateCapped(request, cacheName, maxEntries) {
   }
 });
 
-// Strategy: Network first, fallback to cache, then offline page
+// Strategy: Network first, fallback to cache, then lightweight empty response
 async function networkFirst(request) {
   try {
     const response = await fetch(request);
