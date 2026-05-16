@@ -20,6 +20,18 @@ import { ModeratorMenuItems } from '@/components/moderation/ModeratorActionsMenu
 import { PremiumMemeBanMenuItem } from '@/components/premium/PremiumMemeBanItems';
 import { useUserStatusById } from '@/hooks/useUserStatus';
 import { VybeScore } from '@/components/profile/VybeScore';
+import { useUserAbout } from '@/hooks/useUserAbout';
+
+function calcAge(birthday?: string | null): number | null {
+  if (!birthday) return null;
+  const b = new Date(birthday);
+  if (isNaN(b.getTime())) return null;
+  const t = new Date();
+  let age = t.getFullYear() - b.getFullYear();
+  const m = t.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && t.getDate() < b.getDate())) age--;
+  return age >= 0 && age < 130 ? age : null;
+}
 
 interface ProfileHeroCardProps {
   profile: any;
