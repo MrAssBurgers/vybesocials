@@ -2,7 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const SPOTIFY_CLIENT_ID = Deno.env.get('SPOTIFY_CLIENT_ID')!;
-const REDIRECT_URI = `${Deno.env.get('SUPABASE_URL')!}/functions/v1/spotify-oauth-callback`;
+const REDIRECT_URI = Deno.env.get('SPOTIFY_REDIRECT_URI') || 'https://vybehub.app/spotify/callback';
 const SCOPES = 'user-read-currently-playing user-read-playback-state user-read-email';
 
 Deno.serve(async (req) => {
@@ -23,9 +23,11 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const returnTo: string = body.returnTo || 'https://vybehub.app/settings';
 
-    // State: base64(userId|nonce|returnTo) — verified in callback
+    // State: base64(userId|nonce|returnTo|redirectUri) — decoded in callback.
+    // Keep Spotify redirect on the app domain so the user never lands on a raw
+    // function URL, and so the allowlisted URI is stable for production/mobile.
     const nonce = crypto.randomUUID();
-    const state = btoa(`${userId}|${nonce}|${returnTo}`);
+    const state = btoa(`${userId}|${nonce}|${returnTo}|${REDIRECT_URI}`);
 
     const url = new URL('https://accounts.spotify.com/authorize');
     url.searchParams.set('client_id', SPOTIFY_CLIENT_ID);
