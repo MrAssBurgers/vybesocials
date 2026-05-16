@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { queryPersister, shouldPersistQueryKey } from "@/lib/queryPersister";
 import { startReconnectManager } from "@/lib/reconnectManager";
+import { startOutbox } from "@/lib/dmOutbox";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import { AuthProvider } from "@/lib/auth";
