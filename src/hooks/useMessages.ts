@@ -221,9 +221,12 @@ export function useConversations() {
     },
     enabled: !!profile?.id,
     staleTime: 60000, // 1 minute cache
+    gcTime: 1000 * 60 * 60 * 24, // 24h — keep conversations cached for offline
     refetchOnWindowFocus: true, // Refetch when user returns to app
-    refetchOnMount: 'always', // Always get fresh data on mount
+    refetchOnMount: false, // Show cached instantly; realtime + reconnect refresh it
     refetchOnReconnect: true, // Refetch when connection is restored
+    placeholderData: (prev) => prev,
+    networkMode: 'offlineFirst',
   });
 
   // Realtime updates are now handled by useGlobalRealtimeMessages at App level
