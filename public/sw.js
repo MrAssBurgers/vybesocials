@@ -108,7 +108,7 @@ self.addEventListener('fetch', (event) => {
     if (!url.protocol.startsWith('http')) return;
 
     // Navigation requests: network-first, fall back to cached app shell so the
-    // real Vybe UI loads offline (not the static offline.html placeholder).
+    // real Vybe UI loads offline instead of a placeholder page.
     if (event.request.mode === 'navigate') {
       event.respondWith(navigationStrategy(event.request));
       return;
