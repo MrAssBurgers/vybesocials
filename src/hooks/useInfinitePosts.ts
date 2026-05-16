@@ -146,8 +146,11 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
     gcTime: GC_TIME,
     refetchOnMount: false, // Use cached data instantly, no re-fetch on mount
     refetchOnWindowFocus: false,
+    refetchOnReconnect: true, // Stream fresh content the moment we're back online
     placeholderData: (previousData) => previousData, // Show cached while fetching
-  });
+    networkMode: 'offlineFirst', // Serve cache on slow/no internet instead of hanging
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
 
   return query;
 }
