@@ -1,9 +1,13 @@
 // VYBE Service Worker
-// Version 5.0 - Push Notifications + Offline-First Caching
+// Version 6.0 - True app-shell offline (no static offline.html fallback for known clients)
 
-const CACHE_NAME = 'vybe-v5';
-const STATIC_CACHE = 'vybe-static-v5';
+const CACHE_NAME = 'vybe-v6';
+const STATIC_CACHE = 'vybe-static-v6';
 const MEDIA_CACHE = 'vybe-media-v1';
+const SHELL_CACHE = 'vybe-shell-v1';
+const ASSETS_CACHE = 'vybe-assets-v1';
+const SHELL_URL = '/';
+const ASSETS_CACHE_MAX = 60;
 const APP_ICON = '/icons/icon-192x192.png';
 const BADGE_ICON = '/icons/icon-96x96.png';
 
@@ -42,23 +46,31 @@ const CACHE_FIRST_PATTERNS = [
 const isIOS = () => /iPad|iPhone|iPod/.test(self.navigator?.userAgent || '');
 const isAndroid = () => /Android/.test(self.navigator?.userAgent || '');
 
-// Install event - precache critical assets
+// Install event - precache critical assets + warm app shell
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing VYBE Service Worker v5');
+  console.log('[SW] Installing VYBE Service Worker v6');
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn('[SW] Precache partial failure:', err);
-      });
-    })
+    Promise.all([
+      caches.open(STATIC_CACHE).then((cache) =>
+        cache.addAll(PRECACHE_ASSETS).catch((err) => {
+          console.warn('[SW] Precache partial failure:', err);
+        })
+      ),
+      // Best-effort warm the SPA shell so first offline reload works.
+      caches.open(SHELL_CACHE).then((cache) =>
+        fetch(SHELL_URL, { cache: 'reload' })
+          .then((res) => (res && res.ok ? cache.put(SHELL_URL, res.clone()) : null))
+          .catch(() => null)
+      ),
+    ])
   );
   self.skipWaiting();
 });
 
 // Activate event - clean old caches, claim clients
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating VYBE Service Worker v5');
-  const VALID_CACHES = new Set([CACHE_NAME, STATIC_CACHE, MEDIA_CACHE]);
+  console.log('[SW] Activating VYBE Service Worker v6');
+  const VALID_CACHES = new Set([CACHE_NAME, STATIC_CACHE, MEDIA_CACHE, SHELL_CACHE, ASSETS_CACHE]);
   event.waitUntil(
     Promise.all([
       clients.claim(),
