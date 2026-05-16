@@ -1,76 +1,49 @@
 ## Goal
+Make the app feel like Instagram/Twitter when the network drops: anything that was already loaded (DMs, posts, profiles, comments) stays on screen offline, and the app aggressively reconnects and refreshes the moment the connection returns.
 
-Four targeted fixes on the profile + security:
+## Approach
+Use what's already in place (`@tanstack/react-query` with `networkMode: 'offlineFirst'` and a long `gcTime`) and add a real **persistence layer + reconnect manager** on top. No business logic changes, no per-screen rewrites — one global wiring change handles every list/query in the app.
 
-1. Show **live Spotify "Now Playing"** card on the profile (with play in Spotify + listen-along, real beat-matched waveform).
-2. Make **age display** actually show on the profile when `show_age` is enabled.
-3. Fix **2FA toggles** (Email 2FA + Login Approvals) so they stay enabled after a refresh.
-4. Tighten the **profile "hat"** (`ProfileHeroCard`) so the score / badges / age are clean and organized; the "body" (bento + about) stays as-is.
+## Changes
 
----
+### 1. Persist React Query cache to IndexedDB
+Install `@tanstack/react-query-persist-client` and `idb-keyval`. In `src/App.tsx`, wrap the existing `QueryClientProvider` with `PersistQueryClientProvider` backed by an IndexedDB async persister (`createAsyncStoragePersister`).
 
-## 1. Live Spotify card on profile
+- Cache survives full reloads and offline cold starts.
+- `maxAge`: 24h. `buster`: app build hash so deploys invalidate cleanly.
+- `dehydrateOptions.shouldDehydrateQuery`: skip queries whose keys include `realtime`, `presence`, `signed-url`, `live`, or `token` (anything ephemeral/auth-sensitive).
+- Don't persist mutations.
 
-Add a new component `src/components/profile/ProfileNowPlayingLive.tsx` rendered inside `ProfileHeroCard` (below the about-me block, top of bento area in `Profile.tsx`). It uses the existing `useLiveMusicPresence(profile.user_id)` hook (already wired to `live_music_presence` realtime).
+Result: on reopen with no internet, every previously-viewed DM thread, post feed, profile, comment list, etc. renders instantly from disk.
 
-The card shows:
-- Album art (44×44), track title, artist, "Listening on Spotify" label with green pulse.
-- **Live progress bar** that interpolates locally between server pushes (already done in `NowPlayingCard`).
-- **Beat-matched waveform**: 16 vertical bars whose height oscillates on a tempo derived from track `duration_ms`/section position. Since the Spotify Web API "Audio Analysis" endpoint gives real beats, extend `spotify-now-playing` edge function to also pull `/v1/audio-features/{track_id}` and store `tempo` (BPM) and `energy` on `live_music_presence` (new nullable columns). The waveform then animates at `60_000 / tempo` ms per beat with amplitude scaled by `energy`. Falls back to current CSS pulse if no tempo.
-- Two action buttons:
-  - **Open in Spotify** → `track_url` (works for everyone).
-  - **Listen along** → calls a new edge function `spotify-listen-along` that uses the *viewer's* Spotify access token to `PUT /v1/me/player/play` with `uris: [track.uri]` and `position_ms: presence.progress_ms`. If the viewer has no Spotify connection, button opens the Spotify connect flow first. Resyncs every 10s while the toggle is on.
+### 2. Global reconnect manager (new file `src/lib/reconnectManager.ts`)
+A small singleton that:
+- Listens to `online`, `visibilitychange`, and `navigator.connection` `change` events.
+- When the browser reports online again, runs a fast reachability probe (`HEAD` to `${VITE_SUPABASE_URL}/auth/v1/health` with 2s timeout).
+- On confirmed reconnect: calls `queryClient.invalidateQueries({ refetchType: 'active' })` so visible screens refresh; inactive screens stay served from cache until visited.
+- While offline: polls the probe every 3s (with backoff to 15s) so we catch the moment the connection actually works, even if `navigator.onLine` is stale (common on mobile / captive portals).
 
-The card is shown on every profile (not just own) and hidden when `presence.is_playing` is false.
+Mount once from `App.tsx`.
 
-## 2. Age visibility fix
+### 3. Offline indicator + cache-served banner
+Tiny non-intrusive pill (reuse existing toast / status patterns, no new design system tokens) that shows "Offline – showing saved content" when `!isOnline`, and a one-shot "Back online" confirmation when reconnect succeeds. Driven by the existing `useNetworkStatus` hook.
 
-`ProfileAboutDetails` already renders Age when `about.show_age && birthday`. Two real bugs:
-- Profile page passes `(profile as any).date_of_birth || (profile as any).birthday`. Confirm the column on `profiles` is actually named `date_of_birth`; if it lives only in `user_about` or on the auth metadata, plug the right source. Add a tiny fallback: if no birthday but the `user_about` row has one, use that.
-- Also surface age in the **profile hat** as a compact pill next to the @handle (only when `show_age` is on and birthday exists), so it's visible without scrolling — matches the user's request that it show in the "profile hat".
+### 4. DM outbox (offline message queue)
+In the chat send path (`useSendMessage` / equivalent in `ChatView.tsx`):
+- If send fails because offline, write the message to an IndexedDB `outbox` store and optimistically render it with a "Queued" clock icon.
+- `reconnectManager` flushes the outbox in FIFO order on reconnect, replaces the optimistic row with the server row on success, and shows a retry affordance on permanent failure.
+- Scope: 1-on-1 + group DMs only. Posts/comments stay online-only for v1 (they require media uploads, which need a separate strategy).
 
-## 3. 2FA toggle persistence
+### 5. Service worker tweak (`public/sw.js`)
+Confirm the existing SW does **not** cache HTML aggressively (we already had stale-content issues). Add a runtime `NetworkFirst` cache for `GET` requests to `*.supabase.co/storage/v1/object/public/*` so already-viewed avatars and post media stay visible offline. Cap at 200 entries / 7 days. No change to auth or REST endpoints (those go through react-query's persisted cache).
 
-Symptoms: toggle flips, "Saved" toast, but next visit it's off. Root causes & fixes:
-- `Switch onCheckedChange` runs `updateSetting` which does an `upsert(..., { onConflict: 'user_id' }).select(...).single()`. The current RLS UPDATE policy on `user_2fa_settings` has `USING (auth.uid()=user_id)` but **no WITH CHECK**. On some Supabase setups the upsert path takes the INSERT branch first and the row already exists, returning the *old* row via RETURNING. Replace the client logic with: call a SECURITY DEFINER RPC `update_2fa_settings(p_email boolean, p_approvals boolean)` that does a plain `UPDATE ... RETURNING *` after `ensure_2fa_settings()`. Use the returned row to set state. This eliminates the upsert/RLS edge cases and guarantees the persisted values come back.
-- Also add an `updated_at` trigger so we can see staleness in the dashboard.
-- Verify by re-mounting `SecuritySection` after save and reading from the table directly.
-
-## 4. Profile hat cleanup
-
-`ProfileHeroCard` currently stacks: name row → @handle → VybeScore → status pill → badges/title. On 384px width it wraps and looks busy. Reorganize into a clear two-row identity block:
-
-```text
-[ avatar ] Bakrix [crown] [vip]            [⚙] [↗]
-           @bakrix · 27 · ESTP
-           ─────────────────────────────
-           [⚡ 0 vybe]  [🔥 status]  [badges +3]
-```
-
-Specifically:
-- One name row with name + role badges only.
-- Sub-row: `@username · age · MBTI` (only the parts present), small muted text.
-- `VybeScore`, status pill and badge row become a single horizontally-scrolling chip strip below, with consistent pill height (24px).
-- Stats capsules (Posts / Followers / Following) keep current spot but get equal flex widths so the row is symmetric.
-- Remove the `bg-card/40` overlay's heavy darkening; rely on the gradient + border for the glass look so the score & badges read cleanly.
-
-No business-logic changes for the hat beyond surfacing age + reorganizing.
-
----
+## Out of scope (call out for follow-up)
+- Offline media **uploads** for new posts/stories (needs background sync + resumable uploads).
+- Offline reactions/likes queue.
+- Conflict resolution for edits made offline on multiple devices.
 
 ## Technical notes
-
-- DB migration: add `tempo numeric`, `energy numeric` to `live_music_presence`; add SECURITY DEFINER `update_2fa_settings(boolean, boolean)` with `SET search_path = public`.
-- Edge functions:
-  - `spotify-now-playing`: after fetching the track, fire-and-forget fetch `/v1/audio-features/{id}` and include `tempo`/`energy` in the upsert.
-  - new `spotify-listen-along`: validates viewer JWT, loads viewer's spotify tokens (refresh if needed), `PUT /me/player/play` with target `uris` + `position_ms`.
-- Frontend:
-  - New `ProfileNowPlayingLive.tsx` (uses `useLiveMusicPresence`).
-  - `ProfileHeroCard.tsx`: layout reorg + inline age + chip strip.
-  - `SecuritySection.tsx`: swap upsert for new RPC; keep optimistic UI.
-  - `Profile.tsx`: render `<ProfileNowPlayingLive authUserId={profile.user_id} />` between the hero card and bento.
-
-## Out of scope
-
-- No changes to the actual Spotify OAuth flow (already fixed previously).
-- No edits to the bento body other than the new live card slot above it.
+- Files touched: `src/App.tsx`, `public/sw.js`, `src/components/chat/ChatView.tsx` (+ send hook), and three new files: `src/lib/queryPersister.ts`, `src/lib/reconnectManager.ts`, `src/lib/dmOutbox.ts`.
+- New deps: `@tanstack/react-query-persist-client`, `@tanstack/query-async-storage-persister`, `idb-keyval`.
+- No DB migrations, no edge function changes, no design token changes.
+- Persisted cache is per-browser; logging out clears it via `persister.removeClient()` in the existing sign-out flow.

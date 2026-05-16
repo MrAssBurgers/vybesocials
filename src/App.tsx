@@ -6,6 +6,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { queryPersister, shouldPersistQueryKey } from "@/lib/queryPersister";
+import { startReconnectManager } from "@/lib/reconnectManager";
+import { OfflineIndicator } from "@/components/system/OfflineIndicator";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import { AuthProvider } from "@/lib/auth";
@@ -113,6 +117,13 @@ const queryClient = new QueryClient({
 
 // Expose for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = queryClient;
+
+// Start global reconnect manager (refreshes active queries the instant
+// connectivity is restored, polls aggressively while offline).
+startReconnectManager(queryClient);
+
+// Build-hash based cache buster so deployments invalidate persisted cache.
+const PERSIST_BUSTER = (import.meta as any).env?.VITE_BUILD_ID || 'vybe-cache-v1';
 
 function ScrollRestoration() {
   const location = useLocation();
@@ -306,6 +317,7 @@ function AppWithPreloader() {
                                       <FounderAppreciation />
                                       <CookieConsentBanner />
                                       <RatePromptSheet />
+                                      <OfflineIndicator />
                                     </Suspense>
                                   </TutorialProvider>
                                 </Suspense>
@@ -332,7 +344,18 @@ const App = memo(() => {
     <SmartErrorBoundary>
       <SkipToMain />
       <LiveRegion />
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister: queryPersister,
+          maxAge: 1000 * 60 * 60 * 24, // 24h
+          buster: PERSIST_BUSTER,
+          dehydrateOptions: {
+            shouldDehydrateQuery: (q) => q.state.status === 'success' && shouldPersistQueryKey(q.queryKey),
+            shouldDehydrateMutation: () => false,
+          },
+        }}
+      >
         <ThemeProvider>
           <GlassIntensityProvider>
             <AccessibilityProvider>
@@ -344,7 +367,7 @@ const App = memo(() => {
             </AccessibilityProvider>
           </GlassIntensityProvider>
         </ThemeProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </SmartErrorBoundary>
   );
 });
