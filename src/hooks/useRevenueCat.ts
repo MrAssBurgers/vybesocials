@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Purchases as PurchasesNative } from '@revenuecat/purchases-capacitor';
 import { initRevenueCat, getPurchases, resetRevenueCat } from '@/lib/revenuecat';
 import { useAuth } from '@/lib/auth';
 import { isDespiaAppShell } from '@/lib/platformPayments';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Purchases, CustomerInfo, Package as RCPackage } from '@revenuecat/purchases-js';
 
 const isNative = () => {
@@ -23,136 +24,104 @@ async function launchDespiaPurchase(rcPackage: RCPackage, appUserId?: string): P
 
 /**
  * Unified RevenueCat hook.
- * - Web: uses @revenuecat/purchases-js
- * - iOS/Android: uses @revenuecat/purchases-capacitor (Google Play Billing v6.x on Android)
- *
- * `customerInfo`, `offerings`, and `purchase()` are normalized to the web SDK
- * shape so existing consumers (usePremiumStatus, CustomerCenter, paywalls)
- * continue to work unchanged.
+ * Shared across the app via React Query so 20+ consumers don't each fire
+ * their own offerings / customerInfo fetches (huge perf win on slow internet).
  */
 export function useRevenueCat() {
   const { profile } = useAuth();
-  const [purchases, setPurchases] = useState<Purchases | null>(null);
-  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
-  const [offerings, setOfferings] = useState<RCPackage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const userId = profile?.id || undefined;
 
-  // ---------- Web loaders ----------
-  const loadOfferingsWeb = useCallback(async (instance: Purchases) => {
-    try {
-      const result = await instance.getOfferings();
-      const current = result.current;
-      if (current && current.availablePackages.length > 0) {
-        setOfferings(current.availablePackages);
-        setError(null);
-      } else {
-        setError('no_offerings');
-      }
-    } catch {
-      setError('offerings_failed');
-    }
-  }, []);
-
-  // ---------- Native loaders ----------
-  const loadOfferingsNative = useCallback(async () => {
-    try {
-      const result = await PurchasesNative.getOfferings();
-      const current = result.current;
-      if (current && current.availablePackages.length > 0) {
-        // Cast to web Package shape — fields like identifier/product are compatible
-        setOfferings(current.availablePackages as unknown as RCPackage[]);
-        setError(null);
-      } else {
-        setError('no_offerings');
-      }
-    } catch {
-      setError('offerings_failed');
-    }
-  }, []);
-
-  // ---------- Initial load ----------
+  // Initialize once per userId (init is idempotent inside initRevenueCat).
   useEffect(() => {
-    let cancelled = false;
-    const userId = profile?.id || undefined;
+    initRevenueCat(userId);
+  }, [userId]);
 
-    if (isNative()) {
-      // Configures the native plugin (idempotent inside initRevenueCat)
-      initRevenueCat(userId);
-      setPurchases(null); // native doesn't expose the web instance
+  const purchases: Purchases | null = isNative() ? null : (getPurchases() ?? null);
 
-      (async () => {
+  const customerInfoQ = useQuery({
+    queryKey: ['rc-customer-info', userId ?? 'anon'],
+    queryFn: async (): Promise<CustomerInfo | null> => {
+      if (isNative()) {
         try {
-          const { customerInfo: info } = await PurchasesNative.getCustomerInfo();
-          if (!cancelled) setCustomerInfo(info as unknown as CustomerInfo);
-        } catch {
-          /* noop */
-        } finally {
-          if (!cancelled) setIsLoading(false);
-        }
-        if (!cancelled) await loadOfferingsNative();
-      })();
+          const { customerInfo } = await PurchasesNative.getCustomerInfo();
+          return customerInfo as unknown as CustomerInfo;
+        } catch { return null; }
+      }
+      const instance = getPurchases();
+      if (!instance) return null;
+      try { return await instance.getCustomerInfo(); } catch { return null; }
+    },
+    // Long cache window — entitlements rarely change. Avoids hammering RC on
+    // every component mount / route change / slow-network reconnect.
+    staleTime: 10 * 60 * 1000,        // 10 min
+    gcTime: 60 * 60 * 1000,           // 1 hour
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: 1,
+  });
 
-      return () => { cancelled = true; };
-    }
+  const offeringsQ = useQuery({
+    queryKey: ['rc-offerings', userId ?? 'anon'],
+    queryFn: async (): Promise<RCPackage[]> => {
+      if (isNative()) {
+        try {
+          const result = await PurchasesNative.getOfferings();
+          const current = result.current;
+          return (current?.availablePackages ?? []) as unknown as RCPackage[];
+        } catch { return []; }
+      }
+      const instance = getPurchases();
+      if (!instance) return [];
+      try {
+        const result = await instance.getOfferings();
+        return result.current?.availablePackages ?? [];
+      } catch { return []; }
+    },
+    staleTime: 30 * 60 * 1000,        // 30 min
+    gcTime: 60 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: 1,
+  });
 
-    // Web path
-    const instance = initRevenueCat(userId);
-    setPurchases(instance);
-
-    if (!instance) {
-      setIsLoading(false);
-      setError('init_failed');
-      return;
-    }
-
-    instance.getCustomerInfo()
-      .then(info => { if (!cancelled) setCustomerInfo(info); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setIsLoading(false); });
-
-    loadOfferingsWeb(instance);
-    return () => { cancelled = true; };
-  }, [profile?.id, loadOfferingsWeb, loadOfferingsNative]);
+  const customerInfo = customerInfoQ.data ?? null;
+  const offerings = offeringsQ.data ?? [];
+  const isLoading = customerInfoQ.isLoading || offeringsQ.isLoading;
+  const error = offeringsQ.isError
+    ? 'offerings_failed'
+    : (!offeringsQ.isLoading && offerings.length === 0 ? 'no_offerings' : null);
 
   const retryLoadOfferings = useCallback(async () => {
-    if (isNative()) {
-      await loadOfferingsNative();
-      return;
+    if (!isNative()) {
+      if (!getPurchases()) {
+        resetRevenueCat();
+        initRevenueCat(userId);
+      }
     }
-    const instance = getPurchases();
-    if (!instance) {
-      resetRevenueCat();
-      const userId = profile?.id || undefined;
-      const newInstance = initRevenueCat(userId);
-      setPurchases(newInstance);
-      if (!newInstance) { setError('init_failed'); return; }
-      await loadOfferingsWeb(newInstance);
-    } else {
-      await loadOfferingsWeb(instance);
-    }
-  }, [profile?.id, loadOfferingsWeb, loadOfferingsNative]);
+    await qc.invalidateQueries({ queryKey: ['rc-offerings', userId ?? 'anon'] });
+  }, [qc, userId]);
 
   const purchase = useCallback(async (rcPackage: RCPackage) => {
     if (isNative()) {
-      const result = await PurchasesNative.purchasePackage({
-        aPackage: rcPackage as any,
-      });
+      const result = await PurchasesNative.purchasePackage({ aPackage: rcPackage as any });
       const info = result.customerInfo as unknown as CustomerInfo;
-      setCustomerInfo(info);
+      qc.setQueryData(['rc-customer-info', userId ?? 'anon'], info);
       return info;
     }
 
     if (isDespiaAppShell()) {
-      return await launchDespiaPurchase(rcPackage, profile?.id || undefined);
+      return await launchDespiaPurchase(rcPackage, userId);
     }
 
     const instance = getPurchases();
     if (!instance) throw new Error('RevenueCat not initialized');
     const { customerInfo: updatedInfo } = await instance.purchase({ rcPackage });
-    setCustomerInfo(updatedInfo);
+    qc.setQueryData(['rc-customer-info', userId ?? 'anon'], updatedInfo);
     return updatedInfo;
-  }, [profile?.id]);
+  }, [qc, userId]);
 
   const isEntitled = useCallback((entitlementId: string) => {
     if (!customerInfo) return false;
@@ -160,20 +129,8 @@ export function useRevenueCat() {
   }, [customerInfo]);
 
   const refresh = useCallback(async () => {
-    if (isNative()) {
-      try {
-        // syncPurchases pulls latest from store, then refresh customer info
-        await PurchasesNative.syncPurchases();
-        const { customerInfo: info } = await PurchasesNative.getCustomerInfo();
-        setCustomerInfo(info as unknown as CustomerInfo);
-      } catch { /* noop */ }
-      return;
-    }
-    const instance = getPurchases();
-    if (!instance) return;
-    const info = await instance.getCustomerInfo();
-    setCustomerInfo(info);
-  }, []);
+    await qc.invalidateQueries({ queryKey: ['rc-customer-info', userId ?? 'anon'] });
+  }, [qc, userId]);
 
   return {
     purchases,
