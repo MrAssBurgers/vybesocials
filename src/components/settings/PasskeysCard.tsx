@@ -19,8 +19,13 @@ interface Passkey {
 
 type AddState = 'idle' | 'prompting' | 'success' | 'error';
 
+import { useIsOwner } from '@/hooks/useIsOwner';
+
 export function PasskeysCard() {
   const { user } = useAuth();
+  const { isOwner, ready: ownerReady } = useIsOwner();
+  // Defense in depth: even if a non-owner somehow lands here, render nothing.
+  if (ownerReady && !isOwner) return null;
   const [keys, setKeys] = useState<Passkey[]>([]);
   const [busy, setBusy] = useState(false);
   const [addState, setAddState] = useState<AddState>('idle');
