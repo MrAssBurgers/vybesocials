@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const SPOTIFY_CLIENT_ID = Deno.env.get('SPOTIFY_CLIENT_ID')!;
 const SPOTIFY_CLIENT_SECRET = Deno.env.get('SPOTIFY_CLIENT_SECRET')!;
-const REDIRECT_URI = `${Deno.env.get('SUPABASE_URL')!}/functions/v1/spotify-oauth-callback`;
+const FALLBACK_REDIRECT_URI = Deno.env.get('SPOTIFY_REDIRECT_URI') || 'https://vybehub.app/spotify/callback';
 
 const html = (msg: string, returnTo: string, ok: boolean) => `<!doctype html>
 <html><head><meta charset="utf-8"><title>Spotify</title>
@@ -32,11 +32,13 @@ Deno.serve(async (req) => {
 
   let returnTo = 'https://vybehub.app/settings';
   let userId: string | null = null;
+  let redirectUri = FALLBACK_REDIRECT_URI;
   try {
     if (state) {
-      const [uid, , rt] = atob(state).split('|');
+      const [uid, , rt, ru] = atob(state).split('|');
       userId = uid;
       if (rt) returnTo = rt;
+      if (ru?.startsWith('https://')) redirectUri = ru;
     }
   } catch { /* ignore */ }
 
@@ -53,7 +55,7 @@ Deno.serve(async (req) => {
     const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
       headers: { 'Authorization': `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }),
+      body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri }),
     });
     const tokenJson = await tokenRes.json();
     if (!tokenRes.ok) throw new Error(tokenJson.error_description || tokenJson.error || 'Token exchange failed');
