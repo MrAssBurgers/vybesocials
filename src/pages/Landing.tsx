@@ -639,51 +639,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               )}
             </Button>
 
-            {passkeysSupported() && (
-              <>
-                {!isLogin && (
-                  <p className="text-xs text-muted-foreground text-center -mb-1">
-                    Already have a passkey on this device?
-                  </p>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full gap-2"
-                  disabled={loading}
-                  onClick={async () => {
-                    setLoading(true);
-                    try {
-                      // Discoverable-credential flow: browser shows the native
-                      // passkey / Face ID picker and we sign into whichever
-                      // account that passkey was registered to. On the signup
-                      // screen we never scope by the typed email (no account
-                      // exists yet), so the picker can match any local passkey.
-                      const emailHint = isLogin ? (formData.email || undefined) : undefined;
-                      const link = await signInWithPasskey(emailHint);
-                      if (!link) {
-                        toast.info(
-                          isLogin && formData.email
-                            ? 'No passkey found for this account'
-                            : isLogin
-                              ? 'No passkey found on this device'
-                              : 'Create an account first, then add a passkey in Settings.'
-                        );
-                        return;
-                      }
-                      window.location.href = link;
-                    } catch (e: any) {
-                      if (e?.name !== 'NotAllowedError' && e?.name !== 'AbortError') {
-                        toast.error('Passkey sign-in failed');
-                      }
-                    } finally { setLoading(false); }
-                  }}
-                >
-                  <Fingerprint className="w-4 h-4" />
-                  Sign in with Face ID / passkey
-                </Button>
-              </>
-            )}
+            {/* Passkey sign-in is currently owner-only and hidden from the public login UI. */}
+            {false && passkeysSupported() && null}
 
             {isLogin && (
               <Button

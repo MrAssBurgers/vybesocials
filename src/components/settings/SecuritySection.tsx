@@ -9,6 +9,7 @@ import { Shield, Smartphone, Mail, Trash2, LogOut, Loader2, QrCode } from 'lucid
 import { formatDistanceToNow } from 'date-fns';
 import { PasskeysCard } from './PasskeysCard';
 import { QrSignInScannerCard } from './QrSignInScannerCard';
+import { useIsOwner } from '@/hooks/useIsOwner';
 
 interface Session {
   id: string;
@@ -27,6 +28,7 @@ interface Settings2FA {
 
 export function SecuritySection() {
   const { user } = useAuth();
+  const { isOwner } = useIsOwner();
   const [settings, setSettings] = useState<Settings2FA | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -55,13 +57,17 @@ export function SecuritySection() {
     const prev = settings;
     const next = { ...settings, ...patch };
     setSettings(next);
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('user_2fa_settings')
-      .upsert({ user_id: user.id, ...next }, { onConflict: 'user_id' });
-    if (error) {
+      .upsert({ user_id: user.id, ...next }, { onConflict: 'user_id' })
+      .select('email_2fa_enabled, login_approvals_enabled')
+      .single();
+    if (error || !data) {
       setSettings(prev);
-      toast.error('Could not save');
+      toast.error(error?.message ? `Could not save: ${error.message}` : 'Could not save');
     } else {
+      // Sync state with what actually persisted in the row
+      setSettings((s) => (s ? { ...s, ...data } : s));
       toast.success('Saved');
     }
   };
@@ -122,8 +128,8 @@ export function SecuritySection() {
         </div>
       </Card>
 
-      {/* Passkeys */}
-      <PasskeysCard />
+      {/* Passkeys — owner only (hidden from regular users while the system is internal) */}
+      {isOwner && <PasskeysCard />}
 
       {/* Quick QR sign-in (claim from signed-out device) */}
       <QrSignInScannerCard />
