@@ -20,6 +20,18 @@ import { ModeratorMenuItems } from '@/components/moderation/ModeratorActionsMenu
 import { PremiumMemeBanMenuItem } from '@/components/premium/PremiumMemeBanItems';
 import { useUserStatusById } from '@/hooks/useUserStatus';
 import { VybeScore } from '@/components/profile/VybeScore';
+import { useUserAbout } from '@/hooks/useUserAbout';
+
+function calcAge(birthday?: string | null): number | null {
+  if (!birthday) return null;
+  const b = new Date(birthday);
+  if (isNaN(b.getTime())) return null;
+  const t = new Date();
+  let age = t.getFullYear() - b.getFullYear();
+  const m = t.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && t.getDate() < b.getDate())) age--;
+  return age >= 0 && age < 130 ? age : null;
+}
 
 interface ProfileHeroCardProps {
   profile: any;
@@ -67,6 +79,8 @@ export function ProfileHeroCard({
   const navigate = useNavigate();
   const createConversation = useCreateConversation();
   const { data: status } = useUserStatusById(profile?.id);
+  const { data: about } = useUserAbout(profile?.id);
+  const age = about?.show_age ? calcAge(profile?.date_of_birth || profile?.birthday) : null;
   const cardRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
@@ -115,8 +129,8 @@ export function ProfileHeroCard({
       className="relative rounded-3xl overflow-hidden border border-border/30"
     >
       {/* Card background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-accent/10 to-secondary/30 backdrop-blur-xl" />
-      <div className="absolute inset-0 bg-card/40" />
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-accent/5 to-secondary/20 backdrop-blur-xl" />
+      <div className="absolute inset-0 bg-card/20" />
 
       <div className="relative p-5 pb-4">
         {/* Top row: Avatar + identity + actions */}
@@ -160,35 +174,40 @@ export function ProfileHeroCard({
               {showModBadge && profileRole && <ModBadge role={profileRole} />}
             </div>
 
-            {profile.display_name && (
-              <p className="text-xs text-muted-foreground mt-0.5">@{profile.username}</p>
-            )}
+            {/* Handle + meta sub-row */}
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {profile.display_name ? <>@{profile.username}</> : null}
+              {profile.display_name && (age !== null || about?.mbti) ? <span className="opacity-50"> · </span> : null}
+              {age !== null && <span className="font-medium text-foreground/70">{age}</span>}
+              {age !== null && about?.mbti ? <span className="opacity-50"> · </span> : null}
+              {about?.mbti && <span className="font-medium text-foreground/70">{about.mbti}</span>}
+            </p>
 
-            <div className="mt-1.5">
+            {/* Chip strip: vybe score · status · title */}
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
               <VybeScore profileId={profile.id} isOwnProfile={isOwnProfile} />
-            </div>
-
-            {/* Vibe status pill */}
-            {status && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-full bg-primary/15 border border-primary/20"
-              >
-                <span className="text-sm">{status.emoji}</span>
-                <span className="text-[11px] font-medium text-foreground/80">{status.text}</span>
-              </motion.div>
-            )}
-
-            {/* Badges + title */}
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              {displayBadges.length > 0 && <BadgeRow badges={displayBadges} maxVisible={3} size="sm" />}
+              {status && (
+                <motion.span
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/15 border border-primary/20 text-[11px] font-medium text-foreground/80 h-6"
+                >
+                  <span>{status.emoji}</span>
+                  <span className="max-w-[110px] truncate">{status.text}</span>
+                </motion.span>
+              )}
               {lockerData?.equippedTitle && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/30 text-primary">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/30 text-primary h-6">
                   {lockerData.equippedTitle}
                 </span>
               )}
             </div>
+
+            {displayBadges.length > 0 && (
+              <div className="mt-2">
+                <BadgeRow badges={displayBadges} maxVisible={3} size="sm" />
+              </div>
+            )}
           </div>
 
           {/* Action buttons - inline icons (own profile) or dropdown (mod) */}

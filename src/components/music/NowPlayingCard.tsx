@@ -1,21 +1,29 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ExternalLink, Music2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ExternalLink, Music2, Headphones, Loader2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
+import { toast } from 'sonner';
 import type { LiveMusicPresence } from '@/hooks/useLiveMusicPresence';
 import { cn } from '@/lib/utils';
 
 interface Props {
-  presence: LiveMusicPresence | null;
+  presence: (LiveMusicPresence & { tempo?: number | null; energy?: number | null }) | null;
   className?: string;
+  /** Hide listen-along button (e.g. when viewing own profile). */
+  hideListenAlong?: boolean;
 }
 
 /**
  * Glassmorphism Spotify "now playing" card.
- * Animated equalizer, glowing green dot, progress bar that interpolates locally
- * between server pushes so it feels live without spamming the network.
+ * Beat-matched waveform (driven by tempo/energy if available),
+ * progress bar interpolated locally, plus Open + Listen-along actions.
  */
-export function NowPlayingCard({ presence, className }: Props) {
+export function NowPlayingCard({ presence, className, hideListenAlong }: Props) {
+  const { user } = useAuth();
   const [progress, setProgress] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const isOwn = !!user && !!presence && user.id === presence.user_id;
 
   // Interpolate progress locally
   useEffect(() => {
@@ -33,21 +41,49 @@ export function NowPlayingCard({ presence, className }: Props) {
     return () => clearInterval(id);
   }, [presence?.progress_ms, presence?.is_playing, presence?.duration_ms, presence?.track_id]);
 
+  const handleListenAlong = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!presence?.track_id) return;
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('spotify-listen-along', {
+        body: { track_id: presence.track_id, position_ms: progress },
+      });
+      if (error) throw error;
+      if ((data as any)?.needs_connect) {
+        toast.message('Connect Spotify first', { description: 'Open Settings → Connections to link your account.' });
+        return;
+      }
+      if ((data as any)?.no_device) {
+        toast.message('Open Spotify first', { description: 'Start Spotify on any device, then tap Listen along again.' });
+        return;
+      }
+      toast.success('Listening along');
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not start playback');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (presence?.track_url) window.open(presence.track_url, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <AnimatePresence mode="wait">
       {presence?.is_playing && presence.title && (
-        <motion.a
+        <motion.div
           key={presence.track_id || presence.title}
-          href={presence.track_url || '#'}
-          target="_blank"
-          rel="noopener noreferrer"
           initial={{ opacity: 0, y: 8, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -8, scale: 0.98 }}
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
           className={cn(
             'block relative overflow-hidden rounded-2xl liquid-glass-card p-4 group',
-            'border border-[#1DB954]/20 hover:border-[#1DB954]/40 transition-colors',
+            'border border-[#1DB954]/20',
             className,
           )}
         >
@@ -57,7 +93,7 @@ export function NowPlayingCard({ presence, className }: Props) {
 
           <div className="relative flex items-center gap-3">
             {/* Album art */}
-            <div className="relative w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden shadow-lg">
+            <div className="relative w-14 h-14 flex-shrink-0 rounded-xl overflow-hidden shadow-lg">
               {presence.album_art_url ? (
                 <img src={presence.album_art_url} alt={presence.album || ''} className="w-full h-full object-cover" />
               ) : (
@@ -66,19 +102,17 @@ export function NowPlayingCard({ presence, className }: Props) {
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 mb-1">
+              <div className="flex items-center gap-1.5 mb-0.5">
                 <span className="relative flex w-2 h-2">
                   <span className="absolute inset-0 rounded-full bg-[#1DB954] animate-ping opacity-75" />
                   <span className="relative rounded-full w-2 h-2 bg-[#1DB954] shadow-[0_0_8px_#1DB954]" />
                 </span>
                 <span className="text-[10px] uppercase tracking-wider font-bold text-[#1DB954]">Listening on Spotify</span>
-                <Equalizer />
+                <BeatWaveform tempo={presence.tempo ?? null} energy={presence.energy ?? null} />
               </div>
               <p className="font-bold text-sm text-foreground truncate">{presence.title}</p>
               <p className="text-xs text-muted-foreground truncate">{presence.artist}{presence.album ? ` · ${presence.album}` : ''}</p>
             </div>
-
-            <ExternalLink className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
           </div>
 
           {/* Progress bar */}
@@ -91,23 +125,71 @@ export function NowPlayingCard({ presence, className }: Props) {
               />
             </div>
           ) : null}
-        </motion.a>
+
+          {/* Actions */}
+          <div className="relative flex items-center gap-2 mt-3">
+            <button
+              type="button"
+              onClick={handleOpen}
+              className="flex-1 h-9 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1.5 bg-foreground/5 hover:bg-foreground/10 border border-border/30 text-foreground/90 active:scale-95 transition"
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Open in Spotify
+            </button>
+            {!hideListenAlong && !isOwn && (
+              <button
+                type="button"
+                onClick={handleListenAlong}
+                disabled={syncing}
+                className="flex-1 h-9 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1.5 bg-[#1DB954] hover:bg-[#1ed760] text-black active:scale-95 transition disabled:opacity-60"
+              >
+                {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Headphones className="w-3.5 h-3.5" />}
+                Listen along
+              </button>
+            )}
+          </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );
 }
 
-function Equalizer() {
+/**
+ * Beat-matched equalizer. When tempo (BPM) is known we drive a CSS animation
+ * at exactly `60_000 / tempo` ms per beat and scale amplitude by energy.
+ * Falls back to gentle pulse when audio features are unavailable.
+ */
+function BeatWaveform({ tempo, energy }: { tempo: number | null; energy: number | null }) {
+  const bars = 5;
+  const beatMs = tempo && tempo > 0 ? 60_000 / tempo : null;
+  const amp = Math.max(0.5, Math.min(1, energy ?? 0.7));
+  // We need a per-bar phase so they're staggered.
+  const phases = useMemo(() => Array.from({ length: bars }, (_, i) => (i / bars)), []);
   return (
-    <span className="ml-1 inline-flex items-end gap-[2px] h-3">
-      {[0, 1, 2].map((i) => (
-        <motion.span
+    <span className="ml-1 inline-flex items-end gap-[2px] h-3" aria-hidden>
+      {phases.map((p, i) => (
+        <span
           key={i}
           className="w-[2px] bg-[#1DB954] rounded-full"
-          animate={{ height: ['30%', '100%', '50%', '90%', '30%'] }}
-          transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
+          style={
+            beatMs
+              ? {
+                  height: `${30 + amp * 70}%`,
+                  animation: `vybe-beat ${beatMs}ms cubic-bezier(.4,0,.2,1) -${p * beatMs}ms infinite`,
+                }
+              : {
+                  height: '50%',
+                  animation: `vybe-beat 900ms ease-in-out -${p * 180}ms infinite`,
+                }
+          }
         />
       ))}
+      <style>{`
+        @keyframes vybe-beat {
+          0%, 100% { transform: scaleY(0.35); }
+          20% { transform: scaleY(1); }
+          60% { transform: scaleY(0.55); }
+        }
+      `}</style>
     </span>
   );
 }

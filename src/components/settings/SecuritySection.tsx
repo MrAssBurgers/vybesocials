@@ -57,17 +57,19 @@ export function SecuritySection() {
     const prev = settings;
     const next = { ...settings, ...patch };
     setSettings(next);
-    const { data, error } = await supabase
-      .from('user_2fa_settings')
-      .upsert({ user_id: user.id, ...next }, { onConflict: 'user_id' })
-      .select('email_2fa_enabled, login_approvals_enabled')
-      .single();
-    if (error || !data) {
+    const { data, error } = await supabase.rpc('update_2fa_settings', {
+      p_email_2fa: next.email_2fa_enabled,
+      p_login_approvals: next.login_approvals_enabled,
+    });
+    const row = Array.isArray(data) ? data[0] : data;
+    if (error || !row) {
       setSettings(prev);
       toast.error(error?.message ? `Could not save: ${error.message}` : 'Could not save');
     } else {
-      // Sync state with what actually persisted in the row
-      setSettings((s) => (s ? { ...s, ...data } : s));
+      setSettings({
+        email_2fa_enabled: !!row.email_2fa_enabled,
+        login_approvals_enabled: !!row.login_approvals_enabled,
+      });
       toast.success('Saved');
     }
   };

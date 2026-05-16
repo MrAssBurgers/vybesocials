@@ -5957,9 +5957,11 @@ export type Database = {
           album_art_url: string | null
           artist: string | null
           duration_ms: number | null
+          energy: number | null
           is_playing: boolean
           progress_ms: number | null
           provider: Database["public"]["Enums"]["music_provider"]
+          tempo: number | null
           title: string | null
           track_id: string | null
           track_url: string | null
@@ -5971,9 +5973,11 @@ export type Database = {
           album_art_url?: string | null
           artist?: string | null
           duration_ms?: number | null
+          energy?: number | null
           is_playing?: boolean
           progress_ms?: number | null
           provider?: Database["public"]["Enums"]["music_provider"]
+          tempo?: number | null
           title?: string | null
           track_id?: string | null
           track_url?: string | null
@@ -5985,9 +5989,11 @@ export type Database = {
           album_art_url?: string | null
           artist?: string | null
           duration_ms?: number | null
+          energy?: number | null
           is_playing?: boolean
           progress_ms?: number | null
           provider?: Database["public"]["Enums"]["music_provider"]
+          tempo?: number | null
           title?: string | null
           track_id?: string | null
           track_url?: string | null
@@ -13406,6 +13412,13 @@ export type Database = {
       trigger_badge_sync_for_user: {
         Args: { p_username: string }
         Returns: undefined
+      }
+      update_2fa_settings: {
+        Args: { p_email_2fa: boolean; p_login_approvals: boolean }
+        Returns: {
+          email_2fa_enabled: boolean
+          login_approvals_enabled: boolean
+        }[]
       }
       update_login_streak:
         | { Args: never; Returns: Json }
