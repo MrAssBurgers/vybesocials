@@ -3,7 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
-import { setCachedProfile, clearProfileCache } from '@/lib/profileCache';
+import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache } from '@/lib/profileCache';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import { logEvent } from '@/lib/debugLogger';
 import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
@@ -197,6 +197,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           username: profileData.username,
           display_name: profileData.display_name || null,
           avatar_url: profileData.avatar_url,
+          bio: profileData.bio,
+        });
+        setCachedCurrentProfile({
+          id: profileData.id,
+          username: profileData.username,
+          display_name: profileData.display_name || null,
+          avatar_url: profileData.avatar_url,
+          bio: profileData.bio,
         });
         // Check ban status and subscribe to realtime changes
         checkBanStatus(profileData.id);
@@ -229,6 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           onboarding_completed: false,
         };
         setProfile(fallbackProfile as any);
+        setCachedCurrentProfile(fallbackProfile as any);
         console.warn('[Auth] Using fallback profile, app may have limited functionality');
         return fallbackProfile;
       }
@@ -249,6 +258,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           username: profileData.username,
           display_name: profileData.display_name || null,
           avatar_url: profileData.avatar_url,
+          bio: profileData.bio,
+        });
+        setCachedCurrentProfile({
+          id: profileData.id,
+          username: profileData.username,
+          display_name: profileData.display_name || null,
+          avatar_url: profileData.avatar_url,
+          bio: profileData.bio,
         });
         // Check ban status and subscribe to realtime changes
         checkBanStatus(profileData.id);
