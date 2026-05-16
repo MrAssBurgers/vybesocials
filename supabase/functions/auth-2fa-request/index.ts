@@ -66,16 +66,18 @@ Deno.serve(async (req) => {
     const device = parseUserAgent(ua);
     const geo = await geolocateIp(ip);
 
-    const reusableSession = challengeId
-      ? ((await admin
-        .from('auth_challenges')
-        .select('metadata')
-        .eq('id', challengeId)
-        .eq('user_id', userId)
-        .eq('challenge_type', 'email_2fa')
-        .eq('status', 'pending')
-        .maybeSingle()).data?.metadata as Record<string, any> | null)?.session
-      : null;
+    const reusableSession = (oauthSession?.access_token && oauthSession?.refresh_token)
+      ? { access_token: oauthSession.access_token, refresh_token: oauthSession.refresh_token }
+      : (challengeId
+        ? ((await admin
+          .from('auth_challenges')
+          .select('metadata')
+          .eq('id', challengeId)
+          .eq('user_id', userId)
+          .eq('challenge_type', 'email_2fa')
+          .eq('status', 'pending')
+          .maybeSingle()).data?.metadata as Record<string, any> | null)?.session
+        : null);
 
     // Invalidate previous pending email_2fa challenges for this user, then
     // create a fresh challenge id so the newly emailed code is the only valid one.
