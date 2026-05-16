@@ -79,6 +79,8 @@ export function ProfileHeroCard({
   const navigate = useNavigate();
   const createConversation = useCreateConversation();
   const { data: status } = useUserStatusById(profile?.id);
+  const { data: about } = useUserAbout(profile?.id);
+  const age = about?.show_age ? calcAge(profile?.date_of_birth || profile?.birthday) : null;
   const cardRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
