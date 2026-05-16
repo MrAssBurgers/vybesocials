@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return jsonResponse({ error: 'method_not_allowed' }, 405);
 
   try {
-    const { email, challengeId } = await req.json().catch(() => ({}));
+    const { email, challengeId, oauthSession } = await req.json().catch(() => ({}));
     if (!email || typeof email !== 'string' || email.length > 320) {
       return jsonResponse({ error: 'invalid_email' }, 400);
     }
