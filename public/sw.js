@@ -232,38 +232,6 @@ async function cacheFirst(request, cacheName) {
   }
 }
 
-// Strategy: Serve from cache immediately, update in background
-async function staleWhileRevalidate(request, cacheName) {
-  const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
-
-  const fetchPromise = fetch(request)
-    .then((response) => {
-      if (response.ok) {
-        cache.put(request, response.clone());
-      }
-      return response;
-    })
-    .catch(() => null);
-
-  // Return cached immediately, or wait for network
-  if (cached) {
-    // Update in background
-    fetchPromise;
-    return cached;
-  }
-
-  const networkResponse = await fetchPromise;
-  if (networkResponse) return networkResponse;
-
-  // Last resort: offline page for navigation requests
-  if (request.mode === 'navigate') {
-    return caches.match('/offline.html') || new Response('Offline', { status: 503 });
-  }
-
-  return new Response('', { status: 408 });
-}
-
 // Push notification event - handle incoming push messages
 self.addEventListener('push', (event) => {
   console.log('[SW] Push received:', event);
