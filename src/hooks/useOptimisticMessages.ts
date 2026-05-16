@@ -76,16 +76,60 @@ export function useOptimisticMessages(conversationId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
     onError: (error, variables) => {
-      // Mark as failed
+      const msg = (error as Error)?.message || '';
+      const isNetwork =
+        typeof navigator !== 'undefined' && navigator.onLine === false ||
+        /network|failed to fetch|timeout|fetch/i.test(msg);
+
+      // Offline / transient failure → queue for automatic retry on reconnect.
+      // Keep the optimistic bubble visible as "sending" so the user sees it.
+      if (isNetwork && profile?.id && conversationId) {
+        const expiresAt =
+          variables.viewMode === '24h'
+            ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+            : null;
+        void outboxEnqueue({
+          tempId: variables.tempId,
+          conversationId,
+          senderId: profile.id,
+          content: variables.content,
+          mediaUrl: variables.mediaUrl,
+          mediaType: variables.mediaType,
+          viewMode: variables.viewMode || 'permanent',
+          replyToId: variables.replyToId,
+          expiresAt,
+        });
+        return;
+      }
+
+      // Hard failure (e.g. permission denied) → surface to UI for retry.
       setOptimisticMessages((prev) =>
         prev.map((m) =>
           m.tempId === variables.tempId
-            ? { ...m, status: 'failed' as MessageStatus, error: (error as Error).message }
+            ? { ...m, status: 'failed' as MessageStatus, error: msg }
             : m
         )
       );
     },
   });
+
+  // When the outbox flushes successfully, drop the matching optimistic bubble
+  // and refetch the thread so the real message replaces it.
+  useEffect(() => {
+    const off = onOutboxChange(() => {
+      setOptimisticMessages((prev) => prev);
+      if (conversationId) {
+        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      }
+    });
+    return off;
+  }, [conversationId, queryClient]);
+
+  // Kick a flush on mount in case we have queued items waiting.
+  useEffect(() => {
+    void outboxFlush();
+  }, []);
 
   const send = useCallback(
     (content: string, viewMode: ViewMode = 'permanent') => {
