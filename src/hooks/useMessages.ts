@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
 import { sendMessagePush } from '@/lib/pushNotifications';
+import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
 
 export type ViewMode = 'view_once' | '24h' | 'permanent';
 
