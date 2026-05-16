@@ -93,10 +93,11 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 30, // 30 minutes - maximize cache hits
-      gcTime: 1000 * 60 * 180, // 3 hour cache for even better persistence
+      gcTime: 1000 * 60 * 60 * 24 * 14, // 14 days — match persisted cache so hydrated
+                                         // queries aren't GC'd before they're shown offline
       refetchOnWindowFocus: false,
       refetchOnMount: false,
-      refetchOnReconnect: false,
+      refetchOnReconnect: true, // When connectivity returns, pull fresh content
       retry: (failureCount, error: any) => {
         // Don't retry auth errors or client errors
         const status = error?.status || error?.statusCode;
@@ -107,6 +108,7 @@ const queryClient = new QueryClient({
       networkMode: 'offlineFirst',
       structuralSharing: true,
       refetchInterval: false,
+      placeholderData: (prev: any) => prev, // Keep last good data visible while refetching
     },
     mutations: {
       retry: 0,
