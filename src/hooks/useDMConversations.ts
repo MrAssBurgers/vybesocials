@@ -283,7 +283,10 @@ export function useDMConversations(searchQuery: string = '') {
     pinnedConversations,
     unpinnedConversations,
     totalUnreadCount,
-    isLoading: conversationsQuery.isLoading || friendsLoading,
+    // Only show skeleton when we truly have NOTHING cached. If we have any
+    // cached conversations (even stale), render them instantly — never flash
+    // a loading skeleton on top of usable data.
+    isLoading: !conversationsQuery.data && (conversationsQuery.isLoading || friendsLoading),
     error: conversationsQuery.error,
     refetch: conversationsQuery.refetch,
   };
