@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     });
 
     // 204 = no active playback
-    let payload: any = { provider: 'spotify', is_playing: false, track_id: null, title: null, artist: null, album: null, album_art_url: null, duration_ms: null, progress_ms: null, track_url: null };
+    let payload: any = { provider: 'spotify', is_playing: false, track_id: null, title: null, artist: null, album: null, album_art_url: null, duration_ms: null, progress_ms: null, track_url: null, tempo: null, energy: null };
     if (r.status === 200) {
       const j = await r.json();
       const item = j.item;
@@ -64,7 +64,20 @@ Deno.serve(async (req) => {
           duration_ms: item.duration_ms || null,
           progress_ms: j.progress_ms || 0,
           track_url: item.external_urls?.spotify || null,
+          tempo: null,
+          energy: null,
         };
+        // Fetch audio features (tempo/energy) for beat-matched waveform — best effort.
+        try {
+          const fr = await fetch(`https://api.spotify.com/v1/audio-features/${item.id}`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+          });
+          if (fr.ok) {
+            const fj = await fr.json();
+            payload.tempo = typeof fj.tempo === 'number' ? fj.tempo : null;
+            payload.energy = typeof fj.energy === 'number' ? fj.energy : null;
+          }
+        } catch (_) { /* ignore */ }
       }
     } else if (r.status === 401) {
       return new Response(JSON.stringify({ error: 'token_invalid' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
