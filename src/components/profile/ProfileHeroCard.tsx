@@ -129,8 +129,8 @@ export function ProfileHeroCard({
       className="relative rounded-3xl overflow-hidden border border-border/30"
     >
       {/* Card background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-accent/10 to-secondary/30 backdrop-blur-xl" />
-      <div className="absolute inset-0 bg-card/40" />
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-accent/5 to-secondary/20 backdrop-blur-xl" />
+      <div className="absolute inset-0 bg-card/20" />
 
       <div className="relative p-5 pb-4">
         {/* Top row: Avatar + identity + actions */}
