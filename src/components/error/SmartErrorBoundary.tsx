@@ -41,12 +41,12 @@ class SmartErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     this.setState({ errorInfo });
     const msg = error?.message || '';
-    const isChunkError = msg.includes('Loading chunk') || 
+    const isChunkError = msg.includes('Loading chunk') ||
       msg.includes('Failed to fetch dynamically imported module') ||
       msg.includes('Importing a module script failed') ||
       msg.includes('error loading dynamically imported module') ||
       msg.includes('Unable to preload CSS');
-    
+
     if (isChunkError) {
       if ('caches' in window) {
         caches.keys().then(names => names.forEach(name => caches.delete(name)));
@@ -55,13 +55,28 @@ class SmartErrorBoundary extends Component<Props, State> {
       return;
     }
 
+    // Treat transient network/fetch errors (slow internet, offline blips) as
+    // recoverable — never show the "Something went wrong" screen for these.
+    const isNetworkError =
+      !navigator.onLine ||
+      /Failed to fetch|NetworkError|Load failed|TypeError: fetch|ERR_NETWORK|ERR_INTERNET|timeout|AbortError|The operation was aborted/i.test(msg) ||
+      (error?.name === 'TypeError' && /fetch/i.test(msg));
+
+    if (isNetworkError) {
+      console.warn('[SmartErrorBoundary] Suppressed transient network error:', msg);
+      // Silently recover — keep the last good UI on screen.
+      setTimeout(() => this.setState({ hasError: false, error: null, errorInfo: null }), 0);
+      return;
+    }
+
     console.error('[SmartErrorBoundary] Caught error:', error?.message, error?.stack);
     console.error('[SmartErrorBoundary] Component stack:', errorInfo.componentStack);
 
+    // Still report the crash silently in the background so monitoring works.
     void this.reportCrash(error, errorInfo.componentStack, 'auto');
 
-    // Ask AI to explain the error
-    this.analyzeError(error, errorInfo);
+    // Auto-recover after a brief delay instead of showing the error UI.
+    setTimeout(() => this.setState({ hasError: false, error: null, errorInfo: null }), 50);
   }
 
   reportCrash = async (
