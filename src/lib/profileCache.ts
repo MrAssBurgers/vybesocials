@@ -16,6 +16,7 @@ export interface CachedProfile {
 // In-memory cache for instant lookups
 const profileCache = new Map<string, CachedProfile>();
 const pendingFetches = new Map<string, Promise<CachedProfile | null>>();
+const CURRENT_PROFILE_KEY = 'vybe-current-profile-v1';
 
 // Cache TTL - 5 minutes
 const CACHE_TTL = 5 * 60 * 1000;
@@ -41,6 +42,37 @@ export function getCachedProfile(profileId: string): CachedProfile | null {
 export function setCachedProfile(profile: CachedProfile): void {
   profileCache.set(profile.id, profile);
   cacheTimestamps.set(profile.id, Date.now());
+}
+
+/** Persist the signed-in profile so protected areas can render cached data while auth restores/offline. */
+export function setCachedCurrentProfile(profile: CachedProfile): void {
+  setCachedProfile(profile);
+  try {
+    localStorage.setItem(CURRENT_PROFILE_KEY, JSON.stringify(profile));
+  } catch {
+    // ignore storage failures
+  }
+}
+
+/** Read the last signed-in profile from disk for offline-first boot. */
+export function getCachedCurrentProfile(): CachedProfile | null {
+  try {
+    const raw = localStorage.getItem(CURRENT_PROFILE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.id !== 'string' || typeof parsed.username !== 'string') return null;
+    const profile = {
+      id: parsed.id,
+      username: parsed.username,
+      display_name: typeof parsed.display_name === 'string' ? parsed.display_name : null,
+      avatar_url: typeof parsed.avatar_url === 'string' ? parsed.avatar_url : null,
+      bio: typeof parsed.bio === 'string' ? parsed.bio : '',
+    };
+    setCachedProfile(profile);
+    return profile;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -180,4 +212,14 @@ export function clearProfileCache(): void {
   profileCache.clear();
   cacheTimestamps.clear();
   pendingFetches.clear();
+}
+
+/** Clear the persisted signed-in profile on explicit sign-out. */
+export function clearCachedCurrentProfile(): void {
+  clearProfileCache();
+  try {
+    localStorage.removeItem(CURRENT_PROFILE_KEY);
+  } catch {
+    // ignore
+  }
 }
