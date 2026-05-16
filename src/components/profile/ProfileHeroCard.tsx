@@ -132,11 +132,11 @@ export function ProfileHeroCard({
       <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-accent/5 to-secondary/20 backdrop-blur-xl" />
       <div className="absolute inset-0 bg-card/20" />
 
-      <div className="relative p-5 pb-4">
+      <div className="relative p-4 pb-4 sm:p-5">
         {/* Top row: Avatar + identity + actions */}
-          <div className="flex items-start gap-3 sm:gap-4">
+        <div className="flex items-start gap-3 sm:gap-4">
           {/* Avatar */}
-          <div className="relative group flex-shrink-0 -mt-1">
+          <div className="relative group flex-shrink-0">
             <div className={cn(
               "p-[3px] rounded-2xl transition-all duration-500",
               frameClass || "bg-gradient-to-br from-primary via-accent to-primary"
@@ -156,16 +156,16 @@ export function ProfileHeroCard({
             )}
           </div>
 
-          {/* Identity */}
-          <div className="flex-1 min-w-0 pt-0.5 overflow-hidden">
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              <h1 className={cn("text-lg sm:text-xl font-bold leading-tight truncate max-w-[160px] sm:max-w-none", effectClass)}>
+          {/* Identity (name + meta) */}
+          <div className="flex-1 min-w-0 pt-0.5">
+            <div className="flex items-center gap-1 flex-wrap">
+              <h1 className={cn("text-lg sm:text-xl font-bold leading-tight truncate min-w-0 max-w-full", effectClass)}>
                 <StyledUsername
                   userId={profile.id}
                   username={profile.username}
                   displayName={profile.display_name}
                   preferDisplayName={!!profile.display_name}
-                  className="text-xl font-bold"
+                  className="text-lg sm:text-xl font-bold"
                   nameColorOverride={nameColor}
                 />
               </h1>
@@ -174,52 +174,38 @@ export function ProfileHeroCard({
               {showModBadge && profileRole && <ModBadge role={profileRole} />}
             </div>
 
-            {/* Handle + meta sub-row */}
+            {/* Handle · age · MBTI */}
             <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {profile.display_name ? <>@{profile.username}</> : null}
+              {profile.display_name ? <>@{profile.username}</> : <>&nbsp;</>}
               {profile.display_name && (age !== null || about?.mbti) ? <span className="opacity-50"> · </span> : null}
               {age !== null && <span className="font-medium text-foreground/70">{age}</span>}
               {age !== null && about?.mbti ? <span className="opacity-50"> · </span> : null}
               {about?.mbti && <span className="font-medium text-foreground/70">{about.mbti}</span>}
             </p>
 
-            {/* Chip strip: vybe score · status · title */}
-            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              <VybeScore profileId={profile.id} isOwnProfile={isOwnProfile} />
-              {status && (
-                <motion.span
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/15 border border-primary/20 text-[11px] font-medium text-foreground/80 h-6"
-                >
-                  <span>{status.emoji}</span>
-                  <span className="max-w-[110px] truncate">{status.text}</span>
-                </motion.span>
-              )}
-              {lockerData?.equippedTitle && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/30 text-primary h-6">
-                  {lockerData.equippedTitle}
-                </span>
-              )}
-            </div>
-
-            {displayBadges.length > 0 && (
-              <div className="mt-2">
-                <BadgeRow badges={displayBadges} maxVisible={3} size="sm" />
-              </div>
+            {/* Status pill — compact, inline under handle */}
+            {status && (
+              <motion.span
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-primary/15 border border-primary/20 text-[11px] font-medium text-foreground/80 max-w-full"
+              >
+                <span>{status.emoji}</span>
+                <span className="truncate">{status.text}</span>
+              </motion.span>
             )}
           </div>
 
           {/* Action buttons - inline icons (own profile) or dropdown (mod) */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-1 flex-shrink-0">
             {isOwnProfile ? (
               <>
                 <Link to="/settings">
-                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-foreground/5 hover:bg-foreground/10">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg bg-foreground/5 hover:bg-foreground/10">
                     <Settings className="h-4 w-4" />
                   </Button>
                 </Link>
-                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-foreground/5 hover:bg-foreground/10" onClick={handleShare}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg bg-foreground/5 hover:bg-foreground/10" onClick={handleShare}>
                   <Share2 className="h-4 w-4" />
                 </Button>
               </>
@@ -227,7 +213,7 @@ export function ProfileHeroCard({
               isModOrAdmin && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-foreground/5 hover:bg-foreground/10">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg bg-foreground/5 hover:bg-foreground/10">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -254,6 +240,21 @@ export function ProfileHeroCard({
               )
             )}
           </div>
+        </div>
+
+        {/* Full-width chip strip — vybe score · title · badges. Horizontally scrolls if overflow. */}
+        <div className="flex items-center gap-1.5 mt-3 overflow-x-auto no-scrollbar -mx-1 px-1">
+          <VybeScore profileId={profile.id} isOwnProfile={isOwnProfile} />
+          {lockerData?.equippedTitle && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/30 text-primary h-6 flex-shrink-0">
+              {lockerData.equippedTitle}
+            </span>
+          )}
+          {displayBadges.length > 0 && (
+            <div className="flex-shrink-0">
+              <BadgeRow badges={displayBadges} maxVisible={3} size="sm" />
+            </div>
+          )}
         </div>
 
         {/* Stats capsules row */}
