@@ -196,10 +196,6 @@ async function staleWhileRevalidateCapped(request, cacheName, maxEntries) {
   const network = await networkPromise;
   return network || new Response('', { status: 504 });
 }
-  } catch {
-    // Ignore URL parsing errors
-  }
-});
 
 // Strategy: Network first, fallback to cache, then lightweight empty response
 async function networkFirst(request) {
