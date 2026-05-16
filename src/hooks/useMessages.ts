@@ -276,12 +276,14 @@ export function useMessages(conversationId: string | undefined) {
     },
     enabled: !!conversationId && !!profile?.id,
     staleTime: 30000,
-    gcTime: 1000 * 60 * 60 * 24, // 24h — keep past messages cached for offline
+    gcTime: 1000 * 60 * 60 * 24 * 14, // 14d — keep past messages cached for offline
     refetchOnWindowFocus: false,
     refetchOnMount: false, // Show cached thread instantly; realtime keeps it fresh
     refetchOnReconnect: true, // Refetch when connection is restored
     placeholderData: (prev) => prev,
     networkMode: 'offlineFirst',
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 
   // Realtime is now handled by useGlobalRealtimeMessages at the App level
