@@ -344,6 +344,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch { return false; }
     };
 
+    const hydrateCachedProfile = () => {
+      const cachedProfile = getCachedCurrentProfile();
+      if (!cachedProfile) return false;
+      setProfile((prev) => prev ?? ({
+        id: cachedProfile.id,
+        user_id: '',
+        username: cachedProfile.username,
+        display_name: cachedProfile.display_name,
+        avatar_url: cachedProfile.avatar_url,
+        bio: cachedProfile.bio || '',
+        created_at: new Date().toISOString(),
+      } as Profile));
+      return true;
+    };
+
+    if (hasStoredToken()) {
+      hydrateCachedProfile();
+    }
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -377,7 +396,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Only clear state on explicit sign-out, not on ambiguous events
           logEvent('auth', 'Explicit sign out — clearing state');
           setProfile(null);
-          clearProfileCache();
+          clearCachedCurrentProfile();
           stopHeartbeat();
           setBanInfo(null);
           if (refreshTimerRef.current) {
@@ -416,8 +435,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           logEvent('auth', 'getSession error (stale token?) — starting fresh', { error: error.message });
           setSession(null);
           setUser(null);
-          setProfile(null);
-          clearProfileCache();
+          if (typeof navigator !== 'undefined' && !navigator.onLine && hasStoredToken()) {
+            hydrateCachedProfile();
+          } else {
+            setProfile(null);
+            clearProfileCache();
+          }
           sessionStorage.removeItem('vybe-oauth-pending');
           authInitializedRef.current = true;
           setLoading(false);
@@ -455,8 +478,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             logEvent('auth', 'No session after refresh wait — finalizing as signed out');
             setSession(null);
             setUser(null);
-            setProfile(null);
-            clearProfileCache();
+            if (typeof navigator !== 'undefined' && !navigator.onLine && hasStoredToken()) {
+              hydrateCachedProfile();
+            } else {
+              setProfile(null);
+              clearProfileCache();
+            }
             authInitializedRef.current = true;
             setLoading(false);
             setIsInitialized(true);
@@ -559,7 +586,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
     setUser(null);
     setSession(null);
-    clearProfileCache();
+    clearCachedCurrentProfile();
 
     // 2) Clear local Supabase session synchronously (no network round-trip).
     //    The global revoke happens in the background.
