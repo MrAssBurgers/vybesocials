@@ -11,6 +11,8 @@ interface Profile {
   avatar_url: string | null;
   bio: string;
   created_at: string;
+  date_of_birth?: string | null;
+  feature_on_landing?: boolean | null;
   follower_count: number;
   following_count: number;
   post_count: number;
@@ -111,6 +113,14 @@ export function useProfileByUsername(username: string) {
       }
       
       if (!profile) return null;
+
+      const { data: fullProfile } = await supabase
+        .from('profiles')
+        .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth, feature_on_landing')
+        .eq('id', profile.id)
+        .maybeSingle();
+
+      if (fullProfile) profile = { ...profile, ...fullProfile } as any;
 
       // Get counts in parallel
       const [followerCount, followingCount, postCount, isFollowing] = await Promise.all([
