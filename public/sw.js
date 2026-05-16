@@ -37,6 +37,7 @@ const NETWORK_FIRST_PATTERNS = [
 // Media paths that should use cache-first (long-lived)
 const CACHE_FIRST_PATTERNS = [
   '/storage/v1/object/public/',
+  '/storage/v1/object/sign/',
   'fonts.googleapis.com',
   'fonts.gstatic.com',
 ];
