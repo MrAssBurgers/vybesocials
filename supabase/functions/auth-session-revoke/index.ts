@@ -10,6 +10,7 @@ Deno.serve(async (req) => {
   try {
     const user = await getUserFromAuthHeader(req);
     if (!user) return jsonResponse({ error: 'unauthorized' }, 401);
+    const jwt = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || '';
 
     const { sessionId, all } = await req.json().catch(() => ({}));
     const admin = getServiceClient();
@@ -21,7 +22,7 @@ Deno.serve(async (req) => {
         .eq('user_id', user.id)
         .is('revoked_at', null);
       // Force sign-out everywhere via Supabase admin API
-      try { await admin.auth.admin.signOut(user.id, 'global' as any); } catch {}
+      try { if (jwt) await admin.auth.admin.signOut(jwt, 'global' as any); } catch {}
       return jsonResponse({ ok: true, revokedAll: true });
     }
 

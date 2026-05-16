@@ -6,6 +6,18 @@ import {
   getClientIp, parseUserAgent, geolocateIp, sendTransactional,
 } from '../_shared/security.ts';
 
+function getJwtSessionId(req: Request): string | null {
+  try {
+    const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '');
+    const payload = token?.split('.')[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(normalized))?.session_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return jsonResponse({ error: 'method_not_allowed' }, 405);
@@ -16,7 +28,8 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const method: string = body.method || 'password';
-    const deviceFingerprint: string | null = body.deviceFingerprint || null;
+    const authSessionId = getJwtSessionId(req);
+    const deviceFingerprint: string | null = body.deviceFingerprint || authSessionId;
 
     const ip = getClientIp(req);
     const ua = req.headers.get('user-agent');
@@ -28,13 +41,15 @@ Deno.serve(async (req) => {
     // Check for an existing active session matching this device (UA + IP rough match)
     const { data: existing } = await admin
       .from('user_sessions')
-      .select('id, ip, user_agent, last_seen_at')
+      .select('id, ip, user_agent, session_token_hash, last_seen_at')
       .eq('user_id', user.id)
       .is('revoked_at', null)
       .order('last_seen_at', { ascending: false })
       .limit(50);
 
-    const sameDevice = (existing ?? []).find(s =>
+    const sameDevice = deviceFingerprint
+      ? (existing ?? []).find(s => s.session_token_hash === deviceFingerprint)
+      : (existing ?? []).find(s =>
       (s.user_agent ?? '') === (ua ?? '') && (s.ip ?? '') === (ip ?? '')
     );
 
@@ -43,7 +58,7 @@ Deno.serve(async (req) => {
     if (sameDevice) {
       sessionId = sameDevice.id as string;
       await admin.from('user_sessions')
-        .update({ last_seen_at: new Date().toISOString(), city: geo.city, region: geo.region, country: geo.country })
+        .update({ last_seen_at: new Date().toISOString(), city: geo.city, region: geo.region, country: geo.country, session_token_hash: deviceFingerprint })
         .eq('id', sessionId);
     } else {
       isNewDevice = true;

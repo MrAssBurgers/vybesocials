@@ -72,7 +72,7 @@ self.addEventListener('activate', (event) => {
 });
 
 // Paths that must NEVER be intercepted by the service worker (OAuth redirects, etc.)
-const SW_BYPASS_PATHS = ['/~oauth'];
+const SW_BYPASS_PATHS = ['/~oauth', '/spotify/callback'];
 
 // Fetch handler - routing strategy
 self.addEventListener('fetch', (event) => {
