@@ -1,13 +1,13 @@
 // VYBE Service Worker
-// Version 7.0 - App-shell only offline support (no static offline page fallback)
+// Version 8.0 - App-shell + media offline caching for instant cold-start
 
-const CACHE_NAME = 'vybe-v7';
-const STATIC_CACHE = 'vybe-static-v7';
-const MEDIA_CACHE = 'vybe-media-v1';
-const SHELL_CACHE = 'vybe-shell-v2';
-const ASSETS_CACHE = 'vybe-assets-v2';
+const CACHE_NAME = 'vybe-v8';
+const STATIC_CACHE = 'vybe-static-v8';
+const MEDIA_CACHE = 'vybe-media-v2';
+const SHELL_CACHE = 'vybe-shell-v3';
+const ASSETS_CACHE = 'vybe-assets-v3';
 const SHELL_URL = '/';
-const ASSETS_CACHE_MAX = 60;
+const ASSETS_CACHE_MAX = 180;
 const APP_ICON = '/icons/icon-192x192.png';
 const BADGE_ICON = '/icons/icon-96x96.png';
 
