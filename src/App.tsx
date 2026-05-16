@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { queryPersister, shouldPersistQueryKey } from "@/lib/queryPersister";
 import { startReconnectManager } from "@/lib/reconnectManager";
+import { startOutbox } from "@/lib/dmOutbox";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import { AuthProvider } from "@/lib/auth";
@@ -120,6 +121,7 @@ const queryClient = new QueryClient({
 // Start global reconnect manager (refreshes active queries the instant
 // connectivity is restored, polls aggressively while offline).
 startReconnectManager(queryClient);
+startOutbox();
 
 // Build-hash based cache buster so deployments invalidate persisted cache.
 const PERSIST_BUSTER = (import.meta as any).env?.VITE_BUILD_ID || 'vybe-cache-v1';
