@@ -86,6 +86,24 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     approvalLocation?: { city?: string | null; country?: string | null; ip?: string | null };
   }>(null);
   const [gatePending, setGatePending] = useState(false);
+
+  // Restore a pending OAuth 2FA challenge handed off from AuthCallback.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('vybe-oauth-2fa');
+      if (!raw) return;
+      sessionStorage.removeItem('vybe-oauth-2fa');
+      const parsed = JSON.parse(raw);
+      if (parsed?.challengeId && parsed?.email) {
+        setLoginGate({
+          mode: 'code',
+          email: parsed.email,
+          challengeId: parsed.challengeId,
+          expiresAt: parsed.expiresAt,
+        });
+      }
+    } catch { /* ignore */ }
+  }, []);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
