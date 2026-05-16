@@ -1,11 +1,11 @@
 // VYBE Service Worker
-// Version 6.0 - True app-shell offline (no static offline.html fallback for known clients)
+// Version 7.0 - App-shell only offline support (no static offline page fallback)
 
-const CACHE_NAME = 'vybe-v6';
-const STATIC_CACHE = 'vybe-static-v6';
+const CACHE_NAME = 'vybe-v7';
+const STATIC_CACHE = 'vybe-static-v7';
 const MEDIA_CACHE = 'vybe-media-v1';
-const SHELL_CACHE = 'vybe-shell-v1';
-const ASSETS_CACHE = 'vybe-assets-v1';
+const SHELL_CACHE = 'vybe-shell-v2';
+const ASSETS_CACHE = 'vybe-assets-v2';
 const SHELL_URL = '/';
 const ASSETS_CACHE_MAX = 60;
 const APP_ICON = '/icons/icon-192x192.png';
@@ -13,7 +13,6 @@ const BADGE_ICON = '/icons/icon-96x96.png';
 
 // Assets to precache on install
 const PRECACHE_ASSETS = [
-  '/offline.html',
   '/favicon.ico',
   '/favicon.png',
   APP_ICON,
@@ -48,7 +47,7 @@ const isAndroid = () => /Android/.test(self.navigator?.userAgent || '');
 
 // Install event - precache critical assets + warm app shell
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing VYBE Service Worker v6');
+  console.log('[SW] Installing VYBE Service Worker v7');
   event.waitUntil(
     Promise.all([
       caches.open(STATIC_CACHE).then((cache) =>
@@ -69,7 +68,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean old caches, claim clients
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating VYBE Service Worker v6');
+  console.log('[SW] Activating VYBE Service Worker v7');
   const VALID_CACHES = new Set([CACHE_NAME, STATIC_CACHE, MEDIA_CACHE, SHELL_CACHE, ASSETS_CACHE]);
   event.waitUntil(
     Promise.all([
@@ -109,7 +108,7 @@ self.addEventListener('fetch', (event) => {
     if (!url.protocol.startsWith('http')) return;
 
     // Navigation requests: network-first, fall back to cached app shell so the
-    // real Vybe UI loads offline (not the static offline.html placeholder).
+    // real Vybe UI loads offline instead of a placeholder page.
     if (event.request.mode === 'navigate') {
       event.respondWith(navigationStrategy(event.request));
       return;
@@ -164,12 +163,7 @@ async function navigationStrategy(request) {
   } catch {
     const cachedShell = (await cache.match(SHELL_URL)) || (await caches.match(SHELL_URL));
     if (cachedShell) return cachedShell;
-    const offline = await caches.match('/offline.html');
-    if (offline) return offline;
-    return new Response('Offline', {
-      status: 503,
-      headers: { 'Content-Type': 'text/html' },
-    });
+    return new Response('', { status: 204 });
   }
 }
 
@@ -202,12 +196,8 @@ async function staleWhileRevalidateCapped(request, cacheName, maxEntries) {
   const network = await networkPromise;
   return network || new Response('', { status: 504 });
 }
-  } catch {
-    // Ignore URL parsing errors
-  }
-});
 
-// Strategy: Network first, fallback to cache, then offline page
+// Strategy: Network first, fallback to cache, then lightweight empty response
 async function networkFirst(request) {
   try {
     const response = await fetch(request);
@@ -236,38 +226,6 @@ async function cacheFirst(request, cacheName) {
   } catch {
     return new Response('', { status: 408 });
   }
-}
-
-// Strategy: Serve from cache immediately, update in background
-async function staleWhileRevalidate(request, cacheName) {
-  const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
-
-  const fetchPromise = fetch(request)
-    .then((response) => {
-      if (response.ok) {
-        cache.put(request, response.clone());
-      }
-      return response;
-    })
-    .catch(() => null);
-
-  // Return cached immediately, or wait for network
-  if (cached) {
-    // Update in background
-    fetchPromise;
-    return cached;
-  }
-
-  const networkResponse = await fetchPromise;
-  if (networkResponse) return networkResponse;
-
-  // Last resort: offline page for navigation requests
-  if (request.mode === 'navigate') {
-    return caches.match('/offline.html') || new Response('Offline', { status: 503 });
-  }
-
-  return new Response('', { status: 408 });
 }
 
 // Push notification event - handle incoming push messages

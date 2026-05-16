@@ -41,9 +41,9 @@ import {
 
 export default function ProfilePage() {
   const { username, usernameOrId } = useParams<{ username?: string; usernameOrId?: string }>();
-  const resolvedUsername = username || usernameOrId;
   const navigate = useNavigate();
   const { profile: currentProfile } = useAuth();
+  const resolvedUsername = username || usernameOrId || currentProfile?.username;
   const { data: profile, isLoading } = useProfileByUsername(resolvedUsername!);
   const { data: posts } = usePosts(undefined, profile?.id);
   const { data: savedPosts } = useSavedPosts();

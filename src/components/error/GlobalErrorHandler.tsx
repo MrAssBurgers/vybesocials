@@ -28,8 +28,6 @@ export function GlobalErrorHandler() {
       lastToastAt = now;
       if (next === 'online') {
         toast.success('Back online', { description: 'Your connection has been restored.', id: 'net-status' });
-      } else {
-        toast.error("You're offline", { description: 'Check your internet connection.', id: 'net-status' });
       }
     };
 

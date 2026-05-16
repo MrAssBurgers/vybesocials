@@ -14,7 +14,7 @@ import { haptics } from '@/lib/haptics';
 
 export function PrivacySection() {
   const { t } = useTranslation();
-  const { profile } = useAuth();
+  const { profile, updateProfile } = useAuth();
   const [isPrivate, setIsPrivate] = useState(false);
   const [privacyLoading, setPrivacyLoading] = useState(false);
   const [featureOnLanding, setFeatureOnLanding] = useState(false);
@@ -47,10 +47,7 @@ export function PrivacySection() {
     setLandingLoading(true);
     haptics.tap();
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ feature_on_landing: value } as any)
-        .eq('id', profile.id);
+      const { error } = await updateProfile({ feature_on_landing: value } as any);
       if (error) throw error;
       setFeatureOnLanding(value);
       haptics.success();

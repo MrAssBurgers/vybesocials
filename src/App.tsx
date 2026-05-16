@@ -9,7 +9,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { queryPersister, shouldPersistQueryKey } from "@/lib/queryPersister";
 import { startReconnectManager } from "@/lib/reconnectManager";
-import { OfflineIndicator } from "@/components/system/OfflineIndicator";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import { AuthProvider } from "@/lib/auth";
@@ -317,7 +316,6 @@ function AppWithPreloader() {
                                       <FounderAppreciation />
                                       <CookieConsentBanner />
                                       <RatePromptSheet />
-                                      <OfflineIndicator />
                                     </Suspense>
                                   </TutorialProvider>
                                 </Suspense>
