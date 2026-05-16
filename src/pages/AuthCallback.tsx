@@ -15,6 +15,29 @@ export default function AuthCallback() {
   const profileCheckTimer = useRef<NodeJS.Timeout | null>(null);
   const [profileSettled, setProfileSettled] = useState(false);
 
+  // If the user cancelled the OAuth flow (or the broker returned an error),
+  // the URL will contain ?error=… / #error=… instead of access tokens. In that
+  // case bail to the landing page immediately instead of sitting on the spinner.
+  useEffect(() => {
+    try {
+      const hash = window.location.hash || '';
+      const search = window.location.search || '';
+      const hasError = /(?:^|[?&#])error=/.test(hash) || /(?:^|[?&])error=/.test(search);
+      const hasTokens = /access_token=|code=/.test(hash) || /code=/.test(search);
+      if (hasError || !hasTokens) {
+        sessionStorage.removeItem('vybe-oauth-pending');
+        // Tiny delay lets Supabase's detectSessionInUrl run if tokens *are*
+        // actually present and just need a tick to parse.
+        const t = setTimeout(() => {
+          if (!sessionStorage.getItem('vybe-oauth-pending')) {
+            navigate('/', { replace: true });
+          }
+        }, 250);
+        return () => clearTimeout(t);
+      }
+    } catch { /* ignore */ }
+  }, [navigate]);
+
   // Safety timeout — if session never establishes after 10s, go to login
   useEffect(() => {
     const timer = setTimeout(() => setTimedOut(true), 10000);
