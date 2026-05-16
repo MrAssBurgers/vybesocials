@@ -30,7 +30,7 @@ export interface Post {
 const INITIAL_PAGE_SIZE = 15; // Slightly larger for better initial content
 const PAGE_SIZE = 15; // Load 15 more when scrolling
 const STALE_TIME = 5 * 60 * 1000; // 5 minutes - show cached instantly, background refresh
-const GC_TIME = 60 * 60 * 1000; // 1 hour cache
+const GC_TIME = 1000 * 60 * 60 * 24 * 14; // 14 days - keep feed cached for offline
 
 // Transform RPC result to Post format
 function transformPost(row: any): Post & { view_count?: number } {
