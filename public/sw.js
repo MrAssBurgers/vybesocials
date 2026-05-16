@@ -1,9 +1,13 @@
 // VYBE Service Worker
-// Version 5.0 - Push Notifications + Offline-First Caching
+// Version 6.0 - True app-shell offline (no static offline.html fallback for known clients)
 
-const CACHE_NAME = 'vybe-v5';
-const STATIC_CACHE = 'vybe-static-v5';
+const CACHE_NAME = 'vybe-v6';
+const STATIC_CACHE = 'vybe-static-v6';
 const MEDIA_CACHE = 'vybe-media-v1';
+const SHELL_CACHE = 'vybe-shell-v1';
+const ASSETS_CACHE = 'vybe-assets-v1';
+const SHELL_URL = '/';
+const ASSETS_CACHE_MAX = 60;
 const APP_ICON = '/icons/icon-192x192.png';
 const BADGE_ICON = '/icons/icon-96x96.png';
 
@@ -42,23 +46,31 @@ const CACHE_FIRST_PATTERNS = [
 const isIOS = () => /iPad|iPhone|iPod/.test(self.navigator?.userAgent || '');
 const isAndroid = () => /Android/.test(self.navigator?.userAgent || '');
 
-// Install event - precache critical assets
+// Install event - precache critical assets + warm app shell
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing VYBE Service Worker v5');
+  console.log('[SW] Installing VYBE Service Worker v6');
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn('[SW] Precache partial failure:', err);
-      });
-    })
+    Promise.all([
+      caches.open(STATIC_CACHE).then((cache) =>
+        cache.addAll(PRECACHE_ASSETS).catch((err) => {
+          console.warn('[SW] Precache partial failure:', err);
+        })
+      ),
+      // Best-effort warm the SPA shell so first offline reload works.
+      caches.open(SHELL_CACHE).then((cache) =>
+        fetch(SHELL_URL, { cache: 'reload' })
+          .then((res) => (res && res.ok ? cache.put(SHELL_URL, res.clone()) : null))
+          .catch(() => null)
+      ),
+    ])
   );
   self.skipWaiting();
 });
 
 // Activate event - clean old caches, claim clients
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating VYBE Service Worker v5');
-  const VALID_CACHES = new Set([CACHE_NAME, STATIC_CACHE, MEDIA_CACHE]);
+  console.log('[SW] Activating VYBE Service Worker v6');
+  const VALID_CACHES = new Set([CACHE_NAME, STATIC_CACHE, MEDIA_CACHE, SHELL_CACHE, ASSETS_CACHE]);
   event.waitUntil(
     Promise.all([
       clients.claim(),
@@ -96,17 +108,10 @@ self.addEventListener('fetch', (event) => {
     // Skip chrome-extension, devtools, etc.
     if (!url.protocol.startsWith('http')) return;
 
-    // Navigation requests: network-first with offline.html fallback
-    // This gives users a proper offline page instead of a browser error
+    // Navigation requests: network-first, fall back to cached app shell so the
+    // real Vybe UI loads offline (not the static offline.html placeholder).
     if (event.request.mode === 'navigate') {
-      event.respondWith(
-        fetch(event.request).catch(() => {
-          return caches.match('/offline.html') || new Response('Offline', {
-            status: 503,
-            headers: { 'Content-Type': 'text/html' },
-          });
-        })
-      );
+      event.respondWith(navigationStrategy(event.request));
       return;
     }
 
@@ -122,8 +127,81 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
-    // JS/CSS use content-hashed filenames from Vite — browser caching is sufficient.
-    // Do NOT intercept these with SW caching strategies as stale bundles cause black screens.
+    // Same-origin hashed Vite bundles: stale-while-revalidate so the app
+    // shell can boot offline. Hashed filenames are immutable, so this is
+    // safe — new deploys ship new hashes and old chunks are evicted by
+    // the FIFO cap below.
+    if (
+      url.origin === self.location.origin &&
+      /\/assets\/.+\.[a-f0-9]{8,}\.(?:js|css|woff2?)(?:\?.*)?$/i.test(url.pathname)
+    ) {
+      event.respondWith(staleWhileRevalidateCapped(event.request, ASSETS_CACHE, ASSETS_CACHE_MAX));
+      return;
+    }
+  } catch {
+    // Ignore URL parsing errors
+  }
+});
+
+// Navigation strategy: try network with a short timeout, otherwise serve
+// the cached SPA shell so React boots and renders persisted data offline.
+async function navigationStrategy(request) {
+  const cache = await caches.open(SHELL_CACHE);
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const networkResponse = await fetch(request, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (networkResponse && networkResponse.ok && networkResponse.type !== 'opaqueredirect') {
+      // Keep a single canonical shell entry keyed to '/'.
+      try {
+        cache.put(SHELL_URL, networkResponse.clone());
+      } catch {
+        /* ignore quota */
+      }
+    }
+    return networkResponse;
+  } catch {
+    const cachedShell = (await cache.match(SHELL_URL)) || (await caches.match(SHELL_URL));
+    if (cachedShell) return cachedShell;
+    const offline = await caches.match('/offline.html');
+    if (offline) return offline;
+    return new Response('Offline', {
+      status: 503,
+      headers: { 'Content-Type': 'text/html' },
+    });
+  }
+}
+
+// Stale-while-revalidate with simple FIFO cap to prevent unbounded growth
+// across deploys (each deploy ships fresh content-hashed filenames).
+async function staleWhileRevalidateCapped(request, cacheName, maxEntries) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
+  const networkPromise = fetch(request)
+    .then(async (response) => {
+      if (response && response.ok) {
+        try {
+          await cache.put(request, response.clone());
+          const keys = await cache.keys();
+          if (keys.length > maxEntries) {
+            const excess = keys.length - maxEntries;
+            for (let i = 0; i < excess; i++) await cache.delete(keys[i]);
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      return response;
+    })
+    .catch(() => null);
+  if (cached) {
+    networkPromise; // fire-and-forget revalidation
+    return cached;
+  }
+  const network = await networkPromise;
+  return network || new Response('', { status: 504 });
+}
   } catch {
     // Ignore URL parsing errors
   }
