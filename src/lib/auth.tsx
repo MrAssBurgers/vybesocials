@@ -435,7 +435,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           logEvent('auth', 'getSession error (stale token?) — starting fresh', { error: error.message });
           setSession(null);
           setUser(null);
-          if (typeof navigator !== 'undefined' && !navigator.onLine && hasStoredToken()) {
+          if (hasStoredToken() && hydrateCachedProfile()) {
+            logEvent('auth', 'Keeping cached profile after getSession error');
+          } else if (typeof navigator !== 'undefined' && !navigator.onLine && hasStoredToken()) {
             hydrateCachedProfile();
           } else {
             setProfile(null);
@@ -478,7 +480,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             logEvent('auth', 'No session after refresh wait — finalizing as signed out');
             setSession(null);
             setUser(null);
-            if (typeof navigator !== 'undefined' && !navigator.onLine && hasStoredToken()) {
+            if (hasStoredToken() && hydrateCachedProfile()) {
+              logEvent('auth', 'Keeping cached profile after refresh timeout');
+            } else if (typeof navigator !== 'undefined' && !navigator.onLine && hasStoredToken()) {
               hydrateCachedProfile();
             } else {
               setProfile(null);
