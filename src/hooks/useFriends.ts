@@ -165,9 +165,14 @@ export function useFriends() {
     },
     enabled: !!profile?.id,
     staleTime: 2 * 60 * 1000, // 2 minutes cache
-    gcTime: 30 * 60 * 1000, // 30 min gc
+    gcTime: 1000 * 60 * 60 * 24 * 14, // 14 days — keep friends available offline for DMs
     refetchOnMount: false,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+    placeholderData: (prev) => prev,
+    networkMode: 'offlineFirst',
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 }
 

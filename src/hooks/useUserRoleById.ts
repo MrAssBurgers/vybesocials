@@ -45,7 +45,12 @@ export function useUsersRoles(userIds: string[]) {
         .select('user_id, role')
         .in('user_id', userIds);
       
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) {
+        // Non-critical for the DM list. During slow/offline auth restore this can run
+        // with an anonymous token; return no badges instead of breaking chat rendering.
+        if (error.code === '42501' || error.status === 401 || error.code === 'PGRST116') return {};
+        throw error;
+      }
       
       // Build a map of userId -> highest role
       const roleMap: Record<string, 'admin' | 'moderator' | 'owner' | null> = {};
@@ -65,5 +70,9 @@ export function useUsersRoles(userIds: string[]) {
     },
     enabled: userIds.length > 0,
     staleTime: 5 * 60 * 1000,
+    gcTime: 1000 * 60 * 60 * 24 * 14,
+    refetchOnReconnect: true,
+    placeholderData: (prev) => prev,
+    networkMode: 'offlineFirst',
   });
 }
