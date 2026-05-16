@@ -316,30 +316,67 @@ export function useSendMessage() {
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      const { data, error } = await supabase
-        .from('messages')
-        .insert({
-          conversation_id: conversationId,
-          sender_id: profile.id,
-          content,
-          media_url: mediaUrl,
-          media_type: mediaType,
-          view_mode: viewMode,
-          expires_at: expiresAt,
-          reply_to_id: replyToId,
-        })
-        .select()
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('messages')
+          .insert({
+            conversation_id: conversationId,
+            sender_id: profile.id,
+            content,
+            media_url: mediaUrl,
+            media_type: mediaType,
+            view_mode: viewMode,
+            expires_at: expiresAt,
+            reply_to_id: replyToId,
+          })
+          .select()
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
 
-      // Update conversation updated_at
-      await supabase
-        .from('conversations')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversationId);
+        // Update conversation updated_at
+        await supabase
+          .from('conversations')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', conversationId);
 
-      return data;
+        return data;
+      } catch (err: any) {
+        const msg = (err?.message || '').toLowerCase();
+        const isNetwork =
+          (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+          /network|failed to fetch|timeout|fetch/.test(msg);
+        if (isNetwork) {
+          // Queue for automatic delivery when we reconnect.
+          await outboxEnqueue({
+            tempId: `out-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            conversationId,
+            senderId: profile.id,
+            content,
+            mediaUrl,
+            mediaType,
+            viewMode,
+            replyToId,
+            expiresAt,
+          });
+          // Return a synthetic record so onSuccess fires and UI stays smooth.
+          return {
+            id: `queued-${Date.now()}`,
+            conversation_id: conversationId,
+            sender_id: profile.id,
+            content: content ?? null,
+            media_url: mediaUrl ?? null,
+            media_type: mediaType ?? null,
+            view_mode: viewMode,
+            expires_at: expiresAt,
+            reply_to_id: replyToId ?? null,
+            created_at: new Date().toISOString(),
+            is_deleted: false,
+            _queued: true,
+          } as any;
+        }
+        throw err;
+      }
     },
     onSuccess: async (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['messages', variables.conversationId] });
