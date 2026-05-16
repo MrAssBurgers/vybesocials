@@ -4,25 +4,11 @@ const SPOTIFY_CLIENT_ID = Deno.env.get('SPOTIFY_CLIENT_ID')!;
 const SPOTIFY_CLIENT_SECRET = Deno.env.get('SPOTIFY_CLIENT_SECRET')!;
 const FALLBACK_REDIRECT_URI = Deno.env.get('SPOTIFY_REDIRECT_URI') || 'https://vybehub.app/spotify/callback';
 
-const html = (msg: string, returnTo: string, ok: boolean) => `<!doctype html>
-<html><head><meta charset="utf-8"><title>Spotify</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  body{margin:0;background:#0B0B10;color:#fff;font-family:-apple-system,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:24px}
-  .card{max-width:380px}
-  .ico{width:64px;height:64px;border-radius:50%;background:${ok ? '#1DB954' : '#ef4444'};margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:32px}
-  h1{font-size:22px;margin:0 0 8px}
-  p{color:#9ca3af;margin:0 0 24px;font-size:14px}
-  a{display:inline-block;background:#8B5CF6;color:#fff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:600}
-</style></head>
-<body><div class="card">
-  <div class="ico">${ok ? '✓' : '!'}</div>
-  <h1>${ok ? 'Spotify connected' : 'Connection failed'}</h1>
-  <p>${msg}</p>
-  <a href="${returnTo}">Return to Vybe</a>
-</div>
-<script>setTimeout(()=>{location.href=${JSON.stringify(returnTo)}}, 1500)</script>
-</body></html>`;
+const redirect = (returnTo: string, params: Record<string, string>) => {
+  const u = new URL(returnTo);
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+  return new Response(null, { status: 302, headers: { Location: u.toString() } });
+};
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
@@ -43,10 +29,10 @@ Deno.serve(async (req) => {
   } catch { /* ignore */ }
 
   if (errorParam) {
-    return new Response(html(`Spotify said: ${errorParam}`, returnTo, false), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    return redirect(returnTo, { spotify: 'error', reason: errorParam });
   }
   if (!code || !userId) {
-    return new Response(html('Missing code or state.', returnTo, false), { status: 400, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    return redirect(returnTo, { spotify: 'error', reason: 'missing_code' });
   }
 
   try {
@@ -87,8 +73,8 @@ Deno.serve(async (req) => {
     // Ensure music_settings row exists
     await admin.from('music_settings').upsert({ user_id: userId }, { onConflict: 'user_id', ignoreDuplicates: true });
 
-    return new Response(html(`Connected as ${me.display_name || me.id}.`, returnTo, true), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    return redirect(returnTo, { spotify: 'connected' });
   } catch (e) {
-    return new Response(html((e as Error).message, returnTo, false), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    return redirect(returnTo, { spotify: 'error', reason: (e as Error).message.slice(0, 120) });
   }
 });
