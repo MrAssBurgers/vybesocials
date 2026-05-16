@@ -14,7 +14,9 @@ import type { QueryClient } from '@tanstack/react-query';
  *   reconnects the OS never fires events for.
  */
 
-const HEALTH_URL = `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/health`;
+// Probe a static asset on our own origin — never sends auth headers, never
+// generates 401 spam, works even when Supabase is reachable but rate-limited.
+const HEALTH_URL = `${typeof window !== 'undefined' ? window.location.origin : ''}/favicon.ico`;
 const PROBE_TIMEOUT_MS = 2500;
 const MIN_INTERVAL_MS = 3000;
 const MAX_INTERVAL_MS = 15000;
@@ -33,12 +35,13 @@ export function onReconnect(cb: () => void): () => void {
 
 async function probeReachable(): Promise<boolean> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
-  if (!HEALTH_URL || HEALTH_URL === 'undefined/auth/v1/health') return navigator.onLine;
+  if (!HEALTH_URL) return navigator.onLine;
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
-    const res = await fetch(HEALTH_URL, {
-      method: 'GET',
+    // HEAD + cache-bust to avoid SW returning a cached 200 while truly offline
+    const res = await fetch(`${HEALTH_URL}?_probe=${Date.now()}`, {
+      method: 'HEAD',
       cache: 'no-store',
       signal: controller.signal,
     });
