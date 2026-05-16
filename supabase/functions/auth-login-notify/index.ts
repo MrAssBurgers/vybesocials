@@ -47,9 +47,9 @@ Deno.serve(async (req) => {
       .order('last_seen_at', { ascending: false })
       .limit(50);
 
-    const sameDevice = (deviceFingerprint
+    const sameDevice = deviceFingerprint
       ? (existing ?? []).find(s => s.session_token_hash === deviceFingerprint)
-      : null) || (existing ?? []).find(s =>
+      : (existing ?? []).find(s =>
       (s.user_agent ?? '') === (ua ?? '') && (s.ip ?? '') === (ip ?? '')
     );
 
