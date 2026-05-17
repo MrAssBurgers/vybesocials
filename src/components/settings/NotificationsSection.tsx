@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export function NotificationsSection() {
   const { profile } = useAuth();
-  const { data: prefs, isLoading } = useNotificationPreferences();
+  const { data: prefs } = useNotificationPreferences();
   const updatePref = useUpdateNotificationPreference();
   const queryClient = useQueryClient();
   const { 
