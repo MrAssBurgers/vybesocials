@@ -34,7 +34,7 @@ export default function RootGate() {
   const showIntro = !introDone && (isNativePlatform || isMobile);
   if (showIntro) {
     return (
-      <Suspense fallback={<div className="min-h-screen" />}>
+      <Suspense fallback={<VybePageLoader />}>
         <MobileIntro onDone={() => setIntroDone(true)} />
       </Suspense>
     );
@@ -42,13 +42,13 @@ export default function RootGate() {
 
   if (isNativePlatform || isMobile) {
     return (
-      <Suspense fallback={<div className="min-h-screen" />}>
+      <Suspense fallback={<VybePageLoader />}>
         <Landing />
       </Suspense>
     );
   }
   return (
-    <Suspense fallback={<div className="min-h-screen" />}>
+    <Suspense fallback={<VybePageLoader />}>
       <VybeHome />
     </Suspense>
   );

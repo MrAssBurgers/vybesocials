@@ -9,6 +9,7 @@ import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { CrashReportConsent } from '@/components/error/CrashReportConsent';
+import { VybePageLoader } from '@/components/ui/VybeLoader';
 // VYBELogo removed from fallback for instant navigation
 
 // Lazy-load all pages to reduce unused JavaScript in the initial bundle
