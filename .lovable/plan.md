@@ -1,48 +1,119 @@
-## 1. Notifications settings page loads forever
+# Why DMs don't arrive instantly on the recipient
 
-**Cause:** `NotificationsSection` blocks the entire page on `useNotificationPreferences().isLoading`, and that query waits for `useAuth().profile` to resolve. On slow auth boots the skeleton sits there.
+## How the pipeline is supposed to work
 
-**Fix:**
-- Remove the full-page skeleton gate. Render the cards immediately with the defaults (`useNotificationPreferences` already returns defaults when no row exists), and let individual toggles update once data arrives.
-- Pass `staleTime: 5 * 60_000` and `placeholderData: <defaults>` to the query so it stops re-fetching on every mount.
-- Skip the `pushSupported` check / SW registration until the user actually interacts — defer `registerServiceWorker()` to the first `subscribe()` call instead of in the mount `useEffect`. This shaves the "checking subscription" delay.
+```
+SENDER device                                     RECEIVER device
+─────────────                                     ───────────────
+useInstantSend.sendText()
+  1. optimistic add to local cache  ──────────►   (sender sees it instantly ✅)
+  2. INSERT into public.messages    ──┐
+  3. supabase.channel("dm-broadcast")  │
+       .send(new-message)              │
+                                       ▼
+                            Supabase Realtime
+                                       │
+                  ┌────────────────────┴──────────────────┐
+                  ▼                                       ▼
+        postgres_changes INSERT                    broadcast "new-message"
+        on `messages` table                        on dm-broadcast:{convoId}
+                  │                                       │
+                  ▼                                       ▼
+        useGlobalRealtimeMessages         ONLY if receiver currently has
+        (always on, App level)            this exact convo OPEN
+                  │
+                  ▼
+        update ['messages', convoId] cache
+        update ['dm-conversations', profile.id] cache
+        play sound
+```
 
-## 2. "Feature me on landing" toggle doesn't show your pic
+Both paths are wired in code, but each has a real bug that explains the symptoms you saw.
 
-**Cause:** `get_landing_top_creators` only returns users who posted in the last 24h **and** have an engagement score > 0. So flipping the toggle on a quiet account shows nothing.
+## Bugs found
 
-**Fix migration:** rewrite `get_landing_top_creators(_limit)` so opted-in profiles always surface, ordered by 24h score when present, then by total followers/recent activity, then by `created_at` — and remove the `s.score > 0` filter. Keeps `is_private = false AND feature_on_landing = true` as the only hard gates.
+### 1. The broadcast fast-path doesn't actually deliver (silent failure)
 
-## 3. Daily brief (morning / midday / afternoon) never arrives on the public build
+`src/hooks/useInstantSend.ts` lines 209-213 and 285-289:
 
-**Cause:** `send-brief-notification` exists but there is **no `cron.schedule` row** that actually calls it. The prewarm cron exists, but nothing fires the brief push itself.
+```ts
+const bc = supabase.channel(`dm-broadcast:${conversationId}`);
+await bc.send({ type: 'broadcast', event: 'new-message', payload: { message: ... } });
+supabase.removeChannel(bc);
+```
 
-**Fix migration:** add three `cron.schedule` entries (`brief-push-morning` 13:00 UTC ≈ 6am PT-ish, `brief-push-lunch` 19:00 UTC, `brief-push-dinner` 01:00 UTC) that `net.http_post` to `…/functions/v1/send-brief-notification` with the service-role bearer. Use the same pattern as the existing prewarm cron in `20260517040426_*.sql`.
+The channel is created and `send()` is called **without ever calling `.subscribe()`**. In `@supabase/supabase-js` the channel transport isn't open until the join is acked, so this send is dropped on the floor (no error thrown). The receiver's `dm-broadcast:{id}` subscription in `useGlobalRealtimeMessages` (line 358) never receives the payload, so the "open-convo instant delivery" path is dead. Everything falls back on postgres_changes — which has its own issue (#2).
 
-## 4. Phone push notifications don't arrive at all (DMs / friend requests / etc.)
+### 2. Receiver's postgres_changes channel listens to ALL inserts, then relies on RLS
 
-**Cause:** OneSignal's `external_id` is bound to **auth user id** by `DespiaOneSignalSync` (`data.user?.id`), but most app call sites (`sendMessagePush`, `sendFriendRequestPush`, comment/like notifications, brief push for the in-app row, etc.) pass **profile.id** as the target. OneSignal then has nobody to deliver to.
+`useGlobalRealtimeMessages` subscribes to `INSERT on public.messages` with no `filter`. Realtime then runs the SELECT RLS policy `can_access_message` for each row. That policy calls `current_profile_id()` → `SELECT id FROM profiles WHERE user_id = auth.uid()`. If the receiver's realtime socket hasn't been re-authed with the current JWT (e.g. token refreshed mid-session, or app opened from cold-start with a stale anon socket), `auth.uid()` is NULL and the row is filtered out — no INSERT event reaches the client. This matches "I opened the other account and the message wasn't there".
 
-**Fix:** standardize on `profile.id` everywhere.
-- `DespiaOneSignalSync`: after auth resolves, look up `profiles.id` for the auth user and call `setonesignalplayerid://?user_id=${profile.id}` (instead of auth uid). Re-run on `onAuthStateChange`.
-- `usePushNotifications.subscribeDespia`: already uses `profile.id` — leave as-is.
-- `send-brief-notification`: it currently passes `authUserId` to `send-push-notification`. Change the call to pass `profile.id` (it already looks up the profile a few lines above for the in-app row).
-- Leave `send-push-notification` untouched; it forwards whatever id it's given to OneSignal `external_id`, which will now consistently match.
+We can't filter server-side by `sender_id != me` (Realtime filters don't support `neq` reliably for our case) but we CAN explicitly call `supabase.realtime.setAuth(token)` on auth state changes and after `setupChannel()` so the socket is always authenticated.
+
+### 3. "Not online" — receiver was online but sender saw them offline
+
+`useUsersOnlineStatus` (`src/hooks/usePresence.ts:244`) only refreshes via `refetchInterval: 20000` and a per-user channel that the **conversation list doesn't subscribe to** (only `useUserOnlineStatus` does, and only when a specific chat is open). So when you opened the DM list on the sender, you saw a stale snapshot up to 20s old. Combined with the 90s "considered offline" grace, the receiver could be active but rendered as offline for ~25s after they came back.
+
+### 4. New conversations don't appear in the receiver's list until 300ms+ refetch
+
+When the very first message in a brand-new convo arrives, the receiver's `['dm-conversations']` cache doesn't have it. `useGlobalRealtimeMessages` debounces an invalidate by 300ms then refetches. If the realtime event never fires (bug #2) this never happens either. Once #2 is fixed this fallback works; we can also tighten the debounce to 100ms.
+
+## Fix plan
+
+### A. Make broadcast actually subscribe before sending (sender side)
+
+In `useInstantSend.ts`, replace the throwaway-channel pattern with a long-lived per-conversation broadcast channel kept in a `useRef`. Subscribe once, reuse for every send, tear down on unmount.
+
+```ts
+const broadcastChannelRef = useRef<RealtimeChannel | null>(null);
+
+// lazy init
+const getBroadcastChannel = () => {
+  if (!conversationId) return null;
+  if (broadcastChannelRef.current) return broadcastChannelRef.current;
+  const ch = supabase
+    .channel(`dm-broadcast:${conversationId}`, { config: { broadcast: { ack: true, self: false } } })
+    .subscribe();
+  broadcastChannelRef.current = ch;
+  return ch;
+};
+```
+
+Then in sendText/sendMedia/sendVideo: `await getBroadcastChannel()?.send({ type:'broadcast', event:'new-message', payload:{ message } })`. Cleanup channel on unmount.
+
+### B. Re-auth the realtime socket on every auth change
+
+In `src/lib/auth.tsx` (or wherever `onAuthStateChange` lives), after `supabase.auth.getSession()` and on every `TOKEN_REFRESHED` / `SIGNED_IN` event:
+
+```ts
+const { data: { session } } = await supabase.auth.getSession();
+if (session?.access_token) supabase.realtime.setAuth(session.access_token);
+```
+
+Also call it once inside `useGlobalRealtimeMessages.setupChannel` right before `.subscribe()` so cold-start always has fresh auth.
+
+### C. Make the DM list reflect presence in near-realtime
+
+Add a single global `user_presence` postgres_changes listener (alongside `useGlobalRealtimeMessages`) that patches `['users-presence', ...]` cache directly when any presence row changes for a user in any of the current user's conversations. Drop the 20s refetch interval on `useUsersOnlineStatus` once realtime patches are in.
+
+### D. Tighten the unknown-convo refetch debounce
+
+`scheduleUnknownConvoRefetch` debounce 300 → 100ms. Cheap and makes new threads pop in faster.
 
 ## Technical details
 
-**Files**
-- `src/components/settings/NotificationsSection.tsx` — drop the loading skeleton early-return; render with defaults.
-- `src/hooks/useNotificationPreferences.ts` — add `staleTime` + `placeholderData`.
-- `src/hooks/usePushNotifications.ts` — lazy-register SW on first `subscribe()`; keep `checkSubscription` but don't gate UI.
-- `src/components/notifications/DespiaOneSignalSync.tsx` — resolve profile id and use it for `setonesignalplayerid://`.
-- `supabase/functions/send-brief-notification/index.ts` — send push with `profile.id`, not `authUserId`.
+**Files to edit**
+- `src/hooks/useInstantSend.ts` — long-lived broadcast channel, subscribe before send (fixes #1)
+- `src/lib/auth.tsx` (or equivalent auth provider) — call `supabase.realtime.setAuth()` on session/refresh (fixes #2)
+- `src/hooks/useGlobalRealtimeMessages.ts` — call `setAuth` before `.subscribe()`; tighten unknown-convo debounce 300→100ms (fixes #2, #4); add presence INSERT/UPDATE listener that patches `['users-presence', ...]` cache (fixes #3)
+- `src/hooks/usePresence.ts` — once realtime presence patching is in, drop `refetchInterval` on `useUsersOnlineStatus` to 0 (it becomes purely event-driven)
 
-**Migrations**
-1. Replace `public.get_landing_top_creators(_limit int)`:
-   - Left-join opted-in profiles to 24h-scored posts.
-   - Filter: `is_private = false AND feature_on_landing = true`.
-   - Order: `score DESC NULLS LAST, created_at DESC`.
-2. Three new `cron.schedule(...)` rows invoking `send-brief-notification` via `net.http_post` (morning/lunch/dinner UTC).
+**No DB migrations needed.** `messages`, `conversations`, and `user_presence` are already in the `supabase_realtime` publication and RLS is correct.
 
-No new secrets needed — `ONESIGNAL_APP_ID` and `ONESIGNAL_REST_API_KEY` are already set.
+**Diagnostic logs to add (kept behind `import.meta.env.DEV`)**
+- `[GlobalRT] subscribe status` already logs `SUBSCRIBED` / `CHANNEL_ERROR`. Add `setAuth applied` to confirm the JWT was attached.
+- `[InstantSend] broadcast send ack` to verify the new long-lived channel actually delivered.
+
+## Out of scope (intentionally)
+
+- OneSignal / Despia push delivery — that's a separate flow (covered in `.lovable/plan.md` item #4) and only matters when the receiver has the app **closed**. The "not showing instantly while I was looking" symptom is the in-app realtime path above, which is what this plan fixes.
