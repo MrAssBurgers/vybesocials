@@ -3718,6 +3718,33 @@ export type Database = {
           },
         ]
       }
+      daily_brief_cache: {
+        Row: {
+          expires_at: string
+          generated_at: string
+          id: string
+          payload: Json
+          slot: string
+          user_id: string
+        }
+        Insert: {
+          expires_at?: string
+          generated_at?: string
+          id?: string
+          payload: Json
+          slot: string
+          user_id: string
+        }
+        Update: {
+          expires_at?: string
+          generated_at?: string
+          id?: string
+          payload?: Json
+          slot?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       dismissed_announcements: {
         Row: {
           announcement_id: string
@@ -12938,6 +12965,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      ensure_active_challenges: { Args: never; Returns: Json }
       ensure_profile: { Args: never; Returns: string }
       execute_admin_sql: { Args: { sql_query: string }; Returns: Json }
       filter_profanity: { Args: { input_text: string }; Returns: string }
