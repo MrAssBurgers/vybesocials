@@ -25,6 +25,28 @@ export interface NotificationPreferences {
   quiet_hours_end: string | null;
 }
 
+const DEFAULTS = (userId: string): NotificationPreferences => ({
+  id: '',
+  user_id: userId,
+  likes_enabled: true,
+  comments_enabled: true,
+  follows_enabled: true,
+  mentions_enabled: true,
+  dms_enabled: true,
+  marketplace_enabled: true,
+  events_enabled: true,
+  system_enabled: true,
+  announcements_enabled: true,
+  nearby_enabled: true,
+  brief_pings_enabled: true,
+  friend_activity_enabled: true,
+  trending_local_enabled: true,
+  smart_ping_radius_miles: 5,
+  smart_ping_max_per_day: 6,
+  quiet_hours_start: null,
+  quiet_hours_end: null,
+});
+
 export function useNotificationPreferences() {
   const { profile } = useAuth();
 
@@ -40,35 +62,13 @@ export function useNotificationPreferences() {
         .maybeSingle();
 
       if (error) throw error;
-
-      // If no preferences exist, return defaults
-      if (!data) {
-        return {
-          id: '',
-          user_id: profile.id,
-          likes_enabled: true,
-          comments_enabled: true,
-          follows_enabled: true,
-          mentions_enabled: true,
-          dms_enabled: true,
-          marketplace_enabled: true,
-          events_enabled: true,
-          system_enabled: true,
-          announcements_enabled: true,
-          nearby_enabled: true,
-          brief_pings_enabled: true,
-          friend_activity_enabled: true,
-          trending_local_enabled: true,
-          smart_ping_radius_miles: 5,
-          smart_ping_max_per_day: 6,
-          quiet_hours_start: null,
-          quiet_hours_end: null,
-        } as NotificationPreferences;
-      }
-
+      if (!data) return DEFAULTS(profile.id);
       return data as NotificationPreferences;
     },
     enabled: !!profile?.id,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: profile?.id ? DEFAULTS(profile.id) : undefined,
+    refetchOnWindowFocus: false,
   });
 }
 
