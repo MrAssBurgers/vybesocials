@@ -134,6 +134,37 @@ Deno.serve(async (req) => {
         .single();
       if (insErr || !chal) return jsonResponse({ error: 'create_challenge_failed' }, 500);
 
+      // Fire-and-forget push to the user's other signed-in devices so they
+      // see "Was this you?" even if the app isn't currently open. The
+      // in-app realtime sheet still handles the actual approve/deny.
+      try {
+        const { data: prof } = await admin
+          .from('profiles')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
+        const profileId = prof?.id as string | undefined;
+        if (profileId) {
+          const where = [geo.city, geo.country].filter(Boolean).join(', ') || ip || 'a new location';
+          fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            },
+            body: JSON.stringify({
+              userId: profileId,
+              title: 'Approve sign-in?',
+              body: `${device} from ${where}`,
+              url: '/home',
+              tag: `login-approval-${chal.id}`,
+              type: 'security',
+              data: { challengeId: chal.id, kind: 'login_approval' },
+            }),
+          }).catch(() => {});
+        }
+      } catch { /* never block login */ }
+
       return jsonResponse({
         stage: 'approval',
         challengeId: chal.id,
