@@ -69,7 +69,7 @@ export function useDMConversations(searchQuery: string = '') {
         if (import.meta.env.DEV) console.error('[DM] conversations query error:', convError);
         const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profile.id]);
         if (prev?.length) return prev;
-        throw convError;
+        return [];
       }
       if (!conversationsRaw?.length) return [];
 
