@@ -1,13 +1,30 @@
+import { useQuery } from '@tanstack/react-query';
 import { useReports, useUpdateReport } from '@/hooks/useModeration';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Flag, Eye, CheckCircle, XCircle } from 'lucide-react';
+import { Flag, Eye, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+
+function useDeletionLog() {
+  return useQuery({
+    queryKey: ['post-deletion-log'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('post_deletion_log' as any)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+}
 
 export function AdminReportsSection() {
   const { profile } = useAuth();
