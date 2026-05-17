@@ -147,6 +147,18 @@ Deno.serve(async (req) => {
         consumed_at: new Date().toISOString(),
       }).eq('id', chal.id);
 
+      // Instant broadcast so the waiting (signed-out) device resolves immediately
+      // without needing to wait for the next 3s poll tick.
+      try {
+        const ch = admin.channel(`login-approval:${chal.id}`);
+        await ch.send({
+          type: 'broadcast',
+          event: 'resolved',
+          payload: { status: newStatus, challengeId: chal.id },
+        });
+        await admin.removeChannel(ch);
+      } catch { /* best-effort */ }
+
       return jsonResponse({ ok: true, status: newStatus });
     }
 
