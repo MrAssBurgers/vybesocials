@@ -107,6 +107,7 @@ function subscribe(authUserId: string, listener: Listener): () => void {
     e.refCount -= 1;
     if (e.refCount <= 0) {
       if (e.channel) supabase.removeChannel(e.channel);
+      if (e.pollTimer) clearInterval(e.pollTimer);
       registry.delete(authUserId);
     }
   };
