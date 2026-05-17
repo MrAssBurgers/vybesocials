@@ -280,7 +280,17 @@ export function useMessages(conversationId: string | undefined) {
         return true;
       });
 
-      return filtered as Message[];
+      // CRITICAL: preserve any in-flight optimistic messages (temp-*) that the
+      // user just sent. Without this, a server refetch landing right after an
+      // optimistic insert would wipe the bubble from the UI and make it look
+      // like the message never sent.
+      const existing = queryClient.getQueryData<Message[]>(['messages', conversationId]) || [];
+      const serverIds = new Set(filtered.map((m: any) => m.id));
+      const pendingTemps = existing.filter(
+        (m: any) => typeof m.id === 'string' && m.id.startsWith('temp-') && !serverIds.has(m.id)
+      );
+
+      return [...(filtered as Message[]), ...pendingTemps];
     },
     enabled: !!conversationId && !!profile?.id,
     staleTime: 30000,
