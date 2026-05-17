@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { isNativePlatform } from '@/lib/capacitor';
+import { VybePageLoader } from '@/components/ui/VybeLoader';
 
 const VybeHome = lazy(() => import('@/pages/VybeHome'));
 const Landing = lazy(() => import('@/pages/Landing'));
@@ -34,7 +35,7 @@ export default function RootGate() {
   const showIntro = !introDone && (isNativePlatform || isMobile);
   if (showIntro) {
     return (
-      <Suspense fallback={<div className="min-h-screen" />}>
+      <Suspense fallback={<VybePageLoader />}>
         <MobileIntro onDone={() => setIntroDone(true)} />
       </Suspense>
     );
@@ -42,13 +43,13 @@ export default function RootGate() {
 
   if (isNativePlatform || isMobile) {
     return (
-      <Suspense fallback={<div className="min-h-screen" />}>
+      <Suspense fallback={<VybePageLoader />}>
         <Landing />
       </Suspense>
     );
   }
   return (
-    <Suspense fallback={<div className="min-h-screen" />}>
+    <Suspense fallback={<VybePageLoader />}>
       <VybeHome />
     </Suspense>
   );

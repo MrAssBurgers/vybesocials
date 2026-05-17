@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { VybePageLoader } from '@/components/ui/VybeLoader';
 
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg';
@@ -36,41 +37,9 @@ export function LoadingSpinner({ size = 'md', className, label }: LoadingSpinner
   );
 }
 
-// Full page loader for route transitions
-export function PageLoader({ message }: { message?: string }) {
-  return (
-    <div className="flex-1 flex items-center justify-center min-h-[50vh]">
-      <div className="flex flex-col items-center gap-4">
-        <motion.div
-          data-allow-animation="true"
-          className="relative h-12 w-12"
-        >
-          {/* Outer ring */}
-          <motion.div
-            className="absolute inset-0 rounded-full border-2 border-primary/20"
-          />
-          {/* Spinning ring */}
-          <motion.div
-            className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          />
-          {/* Inner glow */}
-          <div className="absolute inset-2 rounded-full bg-gradient-to-br from-primary/10 to-accent/10" />
-        </motion.div>
-        {message && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-sm text-muted-foreground"
-          >
-            {message}
-          </motion.p>
-        )}
-      </div>
-    </div>
-  );
+// Full page loader for route transitions — now uses breathing VYBE logo + rotating tips
+export function PageLoader(_props: { message?: string } = {}) {
+  return <VybePageLoader />;
 }
 
 // Inline content loader

@@ -9,6 +9,7 @@ import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { CrashReportConsent } from '@/components/error/CrashReportConsent';
+import { VybePageLoader } from '@/components/ui/VybeLoader';
 // VYBELogo removed from fallback for instant navigation
 
 // Lazy-load all pages to reduce unused JavaScript in the initial bundle
@@ -113,10 +114,8 @@ const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => 
 const ProductionDebugPanel = lazy(() => import("@/components/debug/ProductionDebugPanel").then(m => ({ default: m.ProductionDebugPanel })));
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
-// Invisible fallback - no spinner, instant feel
-const PageFallback = memo(() => (
-  <div className="min-h-screen" />
-));
+// Breathing VYBE logo + rotating tips (only renders after 350ms so fast loads don't flash)
+const PageFallback = memo(() => <VybePageLoader />);
 
 /**
  * Animated Routes component - provides smooth page transitions
