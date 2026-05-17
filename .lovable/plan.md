@@ -1,38 +1,44 @@
-## Push Notification Opt-In Prompt (only when OFF)
+## Fix DMs (revert offline-loading regressions)
 
-A friendly modal that appears **only when push notifications are currently disabled**, prompting the user to turn them on. One tap enables them via the existing native (Despia) or web push flow.
+The offline-loading changes left DMs reading from stale cache and never re-fetching on mobile. Fix without ripping everything out: revert the two React Query configs that caused it, keep the outbox so messages still queue if you're actually offline.
 
-### Show conditions (ALL must be true)
+### Changes
 
-- User is signed in (`profile?.id` exists)
-- `usePushNotifications().isSupported === true`
-- `isCheckingSubscription === false` (finished initial check)
-- `isSubscribed === false` (no token row in `push_tokens` for this platform)
-- `permission !== 'denied'` (if browser/OS-denied, don't nag — they must change OS settings)
-- Not snoozed in the last 7 days (`localStorage` key `vybe_push_prompt_snoozed_until`)
+**`src/hooks/useMessages.ts`** — two queries:
 
-If any condition fails → modal never renders.
+1. `useDMConversations` (~line 222–231): replace
+   ```
+   refetchOnMount: false
+   networkMode: 'offlineFirst'
+   ```
+   with
+   ```
+   refetchOnMount: 'always'
+   networkMode: 'online'
+   ```
+   Keep `gcTime` cache + `placeholderData` so the list still shows instantly while it refetches.
 
-### What to build
+2. `useMessages(conversationId)` (~line 277–286): same swap — `refetchOnMount: 'always'`, `networkMode: 'online'`. Keep cache + placeholder so threads open instantly but always re-pull truth from the server.
 
-1. **`src/components/notifications/EnablePushPrompt.tsx`**
-   - Centered Dialog, max-w-sm, dark glass aesthetic matching brand
-   - Bell icon, headline "Turn on notifications", body explaining DMs, calls, daily briefs, friend activity
-   - Primary button "Enable" → calls `subscribe()` from `usePushNotifications` (handles Despia OS prompt + token registration on mobile, VAPID on web)
-   - Ghost button "Not now" → sets snooze timestamp (now + 7 days) and closes
-   - On successful subscribe → close modal (toast already fires inside the hook)
+**Outbox stays as-is.** The `outboxEnqueue` in `useSendMessage` only fires on real network errors (catch block), so genuine offline sends still queue and flush on reconnect — that piece was never the bug.
 
-2. **`src/hooks/useEnablePushPrompt.ts`**
-   - Encapsulates the show-conditions logic above
-   - Returns `{ open, onEnable, onDismiss }`
-   - 3-second delay after mount before first show so it doesn't slam on cold load
+### Why this fixes it
 
-3. **Mount in `src/App.tsx`** (authenticated tree, next to `DespiaOneSignalSync`)
-   - Single render at app root; component self-gates visibility
+`offlineFirst` + `refetchOnMount: false` means React Query serves whatever's in cache and skips the network request entirely if it considers the cache fresh. On Despia's WebView, the network detection sometimes flags the app as offline mid-session, which froze conversation lists and threads on an old snapshot. Going back to standard `online` mode + `refetchOnMount: 'always'` restores the previous behavior: instant cache paint, immediate background refetch, realtime keeps it live.
 
-### Technical notes
+### Push notifications (OneSignal via Despia)
 
-- Reuses existing `usePushNotifications` hook — no new push logic
-- Live-reactive: if user disables push elsewhere, `isSubscribed` flips to false and prompt becomes eligible again (after snooze expires)
-- Snooze key: `vybe_push_prompt_snoozed_until` (ISO timestamp)
-- No DB changes, no edge function changes
+Already wired correctly:
+- `send-push-notification` edge function posts to OneSignal with `include_external_user_ids`
+- Despia auto-registers the device and `DespiaOneSignalSync` binds the OneSignal external user ID to `profile.id` at sign-in
+- DMs (`sendMessagePush`), calls (`sendCallPush`), friend requests, daily briefs, smart pings all already call this same path
+
+I'll verify each call site after the DM fix lands; no changes expected unless something is bypassing `send-push-notification`.
+
+### What I am NOT touching
+
+- DM UI components
+- Realtime subscriptions
+- Send flow / optimistic bubbles
+- Outbox library
+- Any other hook
