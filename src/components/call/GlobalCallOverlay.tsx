@@ -1128,51 +1128,50 @@ export function GlobalCallOverlay() {
             )}
           </AnimatePresence>
 
-          {/* Video Container */}
-          {isVideoCall && (
-            <>
-              <div className="absolute inset-0" onClick={handleScreenTap} onTouchEnd={handleScreenTap}>
-                <video ref={remoteVideoRef} autoPlay playsInline muted className={cn("w-full h-full object-cover transition-opacity duration-200", hasRemoteVideo ? "opacity-100" : "opacity-0")} style={{ willChange: 'auto', transform: 'translateZ(0)' }} />
-                {!hasRemoteVideo && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="relative text-center">
-                      <div className="animate-pulse">
-                        <Avatar className="h-28 w-28 sm:h-40 sm:w-40 ring-4 ring-white/10 shadow-2xl">
-                          <AvatarImage src={displayAvatar || undefined} />
-                          <AvatarFallback className="text-4xl sm:text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
-                        </Avatar>
-                      </div>
-                      {isRingingOut && <p className="mt-4 sm:mt-6 text-white/60 text-base sm:text-lg font-light animate-pulse">Ringing...</p>}
-                      {!isConnected && !isRingingOut && <p className="mt-4 sm:mt-6 text-white/60 text-base sm:text-lg font-light animate-pulse">Waiting for video...</p>}
-                    </div>
+          {/* Remote video — full-bg whenever a remote video track is published
+              (works on video calls AND on audio calls where someone enabled camera) */}
+          <div className="absolute inset-0" onClick={handleScreenTap} onTouchEnd={handleScreenTap}>
+            <video ref={remoteVideoRef} autoPlay playsInline muted className={cn("w-full h-full object-cover transition-opacity duration-200", hasRemoteVideo ? "opacity-100" : "opacity-0 pointer-events-none")} style={{ willChange: 'auto', transform: 'translateZ(0)' }} />
+            {isVideoCall && !hasRemoteVideo && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="relative text-center">
+                  <div className="animate-pulse">
+                    <Avatar className="h-28 w-28 sm:h-40 sm:w-40 ring-4 ring-white/10 shadow-2xl">
+                      <AvatarImage src={displayAvatar || undefined} />
+                      <AvatarFallback className="text-4xl sm:text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
+                    </Avatar>
                   </div>
-                )}
+                  {isRingingOut && <p className="mt-4 sm:mt-6 text-white/60 text-base sm:text-lg font-light animate-pulse">Ringing...</p>}
+                  {!isConnected && !isRingingOut && <p className="mt-4 sm:mt-6 text-white/60 text-base sm:text-lg font-light animate-pulse">Waiting for video...</p>}
+                </div>
               </div>
-              {hasLocalVideo && !isVideoOff && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, ease: 'linear' }}
-                  drag
-                  dragMomentum={false}
-                  dragElastic={0}
-                  dragConstraints={callContainerRef}
-                  whileDrag={{ cursor: 'grabbing' }}
-                  className="absolute top-20 sm:top-24 right-3 sm:right-4 w-24 h-36 sm:w-32 sm:h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/30 z-30 cursor-grab touch-none active:ring-primary/60"
-                  style={{ touchAction: 'none' }}
-                >
-                  <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover pointer-events-none" style={{ transform: 'scaleX(-1) translateZ(0)' }} />
-                  <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/40 to-transparent pointer-events-none flex items-end justify-center pb-1">
-                    <div className="w-8 h-1 rounded-full bg-white/40" />
-                  </div>
-                </motion.div>
-              )}
-            </>
+            )}
+          </div>
+
+          {/* Local camera PiP — shown whenever local camera is on, on any call type */}
+          {hasLocalVideo && !isVideoOff && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, ease: 'linear' }}
+              drag
+              dragMomentum={false}
+              dragElastic={0}
+              dragConstraints={callContainerRef}
+              whileDrag={{ cursor: 'grabbing' }}
+              className="absolute top-20 sm:top-24 right-3 sm:right-4 w-24 h-36 sm:w-32 sm:h-48 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/30 z-30 cursor-grab touch-none active:ring-primary/60"
+              style={{ touchAction: 'none' }}
+            >
+              <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover pointer-events-none" style={{ transform: 'scaleX(-1) translateZ(0)' }} />
+              <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/40 to-transparent pointer-events-none flex items-end justify-center pb-1">
+                <div className="w-8 h-1 rounded-full bg-white/40" />
+              </div>
+            </motion.div>
           )}
 
 
-          {/* Audio Call — Avatar */}
-          {!isVideoCall && (
+          {/* Audio Call — Avatar aura (hidden when remote video takes over) */}
+          {!isVideoCall && !hasRemoteVideo && (
             <div className="absolute inset-0 flex items-center justify-center" onClick={handleScreenTap} onTouchEnd={handleScreenTap}>
               <div className="text-center px-4">
                 {/* Square aura container — keeps every ring perfectly concentric */}
