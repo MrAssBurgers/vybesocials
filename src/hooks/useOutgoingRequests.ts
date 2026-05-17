@@ -108,5 +108,17 @@ export function useHiddenFromDiscovery() {
     },
     enabled: !!profile?.id,
     staleTime: 1000 * 30,
+    // Defensive: query persister can deserialize a Set into a plain object/array,
+    // stripping `.has()`. Always re-normalize to a real Set at the consumer boundary.
+    select: (data: unknown): Set<string> => {
+      if (data instanceof Set) return data as Set<string>;
+      if (Array.isArray(data)) return new Set<string>(data.filter((v): v is string => typeof v === 'string'));
+      if (data && typeof data === 'object') {
+        return new Set<string>(
+          Object.values(data as Record<string, unknown>).filter((v): v is string => typeof v === 'string')
+        );
+      }
+      return new Set<string>();
+    },
   });
 }
