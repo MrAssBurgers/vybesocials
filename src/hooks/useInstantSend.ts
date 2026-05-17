@@ -108,13 +108,14 @@ export function useInstantSend(conversationId: string | undefined) {
 
     queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
       if (!old) return [realMessage];
-      
-      return old.map(m => {
-        if (m.id === tempId) {
-          return realMessage;
-        }
-        return m;
-      });
+
+      // If the real message already arrived via realtime, just drop the temp.
+      const realAlreadyPresent = old.some(m => m.id === realMessage.id);
+      if (realAlreadyPresent) {
+        return old.filter(m => m.id !== tempId);
+      }
+
+      return old.map(m => (m.id === tempId ? realMessage : m));
     });
 
     pendingMessagesRef.current.delete(tempId);
