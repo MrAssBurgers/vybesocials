@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -30,6 +30,47 @@ export function useInstantSend(conversationId: string | undefined) {
   
   const pendingMessagesRef = useRef<Map<string, PendingMessage>>(new Map());
   const [videoUploadProgress, setVideoUploadProgress] = useState<Record<string, number>>({});
+
+  // Long-lived broadcast channel for instant delivery to receivers viewing this convo.
+  // Created lazily and kept subscribed; throwaway channels never finish joining
+  // before `.send()` is called, so broadcasts get silently dropped.
+  const broadcastChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const broadcastConvoIdRef = useRef<string | undefined>(undefined);
+
+  const getBroadcastChannel = useCallback(() => {
+    if (!conversationId) return null;
+    if (broadcastChannelRef.current && broadcastConvoIdRef.current === conversationId) {
+      return broadcastChannelRef.current;
+    }
+    // Conversation changed — tear down old channel
+    if (broadcastChannelRef.current) {
+      try { supabase.removeChannel(broadcastChannelRef.current); } catch { /* noop */ }
+      broadcastChannelRef.current = null;
+    }
+    const ch = supabase
+      .channel(`dm-broadcast:${conversationId}`, {
+        config: { broadcast: { ack: false, self: false } },
+      })
+      .subscribe((status) => {
+        if (import.meta.env.DEV) {
+          console.log('[InstantSend] broadcast channel status:', status, conversationId);
+        }
+      });
+    broadcastChannelRef.current = ch;
+    broadcastConvoIdRef.current = conversationId;
+    return ch;
+  }, [conversationId]);
+
+  // Clean up when convo changes or component unmounts
+  useEffect(() => {
+    return () => {
+      if (broadcastChannelRef.current) {
+        try { supabase.removeChannel(broadcastChannelRef.current); } catch { /* noop */ }
+        broadcastChannelRef.current = null;
+        broadcastConvoIdRef.current = undefined;
+      }
+    };
+  }, [conversationId]);
 
   // Generate a temporary ID for optimistic updates
   const generateTempId = useCallback(() => {
@@ -205,11 +246,10 @@ export function useInstantSend(conversationId: string | undefined) {
       const messageWithViewMode = { ...data, view_mode: data.view_mode as ViewMode, views: [], reactions: [] };
       confirmMessage(tempId, messageWithViewMode);
 
-      // Broadcast for instant delivery to receiver
+      // Broadcast for instant delivery to receiver (long-lived subscribed channel)
       try {
-        const bc = supabase.channel(`dm-broadcast:${conversationId}`);
-        await bc.send({ type: 'broadcast', event: 'new-message', payload: { message: messageWithViewMode } });
-        supabase.removeChannel(bc);
+        const bc = getBroadcastChannel();
+        await bc?.send({ type: 'broadcast', event: 'new-message', payload: { message: messageWithViewMode } });
       } catch { /* best-effort */ }
 
       // Update conversation timestamp
@@ -224,7 +264,7 @@ export function useInstantSend(conversationId: string | undefined) {
       markFailed(tempId, error.message || 'Failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed]);
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel]);
 
   // Send media message
   const sendMedia = useCallback(async (
@@ -281,11 +321,10 @@ export function useInstantSend(conversationId: string | undefined) {
       const messageWithViewMode = { ...data, view_mode: data.view_mode as ViewMode, views: [], reactions: [] };
       confirmMessage(tempId, messageWithViewMode);
 
-      // Broadcast for instant delivery
+      // Broadcast for instant delivery (long-lived subscribed channel)
       try {
-        const bc = supabase.channel(`dm-broadcast:${conversationId}`);
-        await bc.send({ type: 'broadcast', event: 'new-message', payload: { message: messageWithViewMode } });
-        supabase.removeChannel(bc);
+        const bc = getBroadcastChannel();
+        await bc?.send({ type: 'broadcast', event: 'new-message', payload: { message: messageWithViewMode } });
       } catch { /* best-effort */ }
 
       await supabase
@@ -299,7 +338,7 @@ export function useInstantSend(conversationId: string | undefined) {
       markFailed(tempId, error.message || 'Failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed]);
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel]);
 
   // Send video with optimistic UI and progress tracking
   const sendVideo = useCallback(async (
@@ -434,7 +473,7 @@ export function useInstantSend(conversationId: string | undefined) {
       URL.revokeObjectURL(localUrl);
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed]);
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel]);
 
   // Retry a failed message
   const retry = useCallback(async (tempId: string) => {

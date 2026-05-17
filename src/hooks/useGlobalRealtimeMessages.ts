@@ -89,7 +89,7 @@ function scheduleUnknownConvoRefetch(qc: ReturnType<typeof useQueryClient>, prof
     unknownConvoRefetchTimer = null;
     qc.invalidateQueries({ queryKey: ['dm-conversations', profileId] });
     qc.invalidateQueries({ queryKey: ['conversations', profileId] });
-  }, 300);
+  }, 100);
 }
 
 export function useGlobalRealtimeMessages() {
@@ -98,12 +98,24 @@ export function useGlobalRealtimeMessages() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const setupChannel = useCallback(() => {
+  const setupChannel = useCallback(async () => {
     if (!profile?.id) return;
 
     // Clean up existing channel
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
+    }
+
+    // Ensure the Realtime socket carries the current JWT so RLS-filtered
+    // postgres_changes events (e.g. messages INSERT) actually reach us.
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        supabase.realtime.setAuth(session.access_token);
+        if (import.meta.env.DEV) console.log('[GlobalRT] setAuth applied');
+      }
+    } catch (e) {
+      if (import.meta.env.DEV) console.warn('[GlobalRT] setAuth failed', e);
     }
 
     // Create a single global channel for all message events
@@ -335,6 +347,42 @@ export function useGlobalRealtimeMessages() {
       });
 
     channelRef.current = channel;
+  }, [profile?.id, queryClient]);
+
+  // Global presence channel — patches ['user-presence', id] and
+  // ['users-presence', ...] caches as soon as anyone toggles online/offline,
+  // so the DM list reflects status in near-realtime instead of waiting 20s.
+  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  useEffect(() => {
+    if (!profile?.id) return;
+    if (presenceChannelRef.current) {
+      supabase.removeChannel(presenceChannelRef.current);
+    }
+    const ch = supabase
+      .channel(`global-presence:${profile.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_presence' },
+        (payload: any) => {
+          const row = payload.new || payload.old;
+          if (!row?.user_id) return;
+          // Patch single-user cache
+          queryClient.setQueryData(['user-presence', row.user_id], {
+            is_online: row.is_online,
+            last_seen_at: row.last_seen_at,
+          });
+          // Invalidate any multi-user presence queries so they recompute
+          queryClient.invalidateQueries({ queryKey: ['users-presence'], exact: false });
+        }
+      )
+      .subscribe();
+    presenceChannelRef.current = ch;
+    return () => {
+      if (presenceChannelRef.current) {
+        supabase.removeChannel(presenceChannelRef.current);
+        presenceChannelRef.current = null;
+      }
+    };
   }, [profile?.id, queryClient]);
 
   // Broadcast listener for instant delivery on the currently viewed conversation
