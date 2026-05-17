@@ -7443,6 +7443,39 @@ export type Database = {
           },
         ]
       }
+      post_deletion_log: {
+        Row: {
+          author_id: string | null
+          caption: string | null
+          created_at: string
+          deleted_by: string
+          id: string
+          post_id: string
+          post_type: string | null
+          reason: string | null
+        }
+        Insert: {
+          author_id?: string | null
+          caption?: string | null
+          created_at?: string
+          deleted_by: string
+          id?: string
+          post_id: string
+          post_type?: string | null
+          reason?: string | null
+        }
+        Update: {
+          author_id?: string | null
+          caption?: string | null
+          created_at?: string
+          deleted_by?: string
+          id?: string
+          post_id?: string
+          post_type?: string | null
+          reason?: string | null
+        }
+        Relationships: []
+      }
       post_mood_signals: {
         Row: {
           created_at: string
