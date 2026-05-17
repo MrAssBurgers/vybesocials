@@ -256,7 +256,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               body: { email: formData.email, password: formData.password },
             }),
             new Promise<{ data: null; error: Error }>((resolve) =>
-              setTimeout(() => resolve({ data: null, error: new Error('timeout') }), 5000),
+              setTimeout(() => resolve({ data: null, error: new Error('timeout') }), 15000),
             ),
           ]);
           pre = (result as any).data;
