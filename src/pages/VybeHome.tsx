@@ -60,7 +60,7 @@ const RealPhone = memo(function RealPhone({
         width={280}
         height={600}
         loading={priority ? 'eager' : 'lazy'}
-        fetchPriority={priority ? 'high' : 'auto'}
+        {...({ fetchpriority: priority ? 'high' : 'auto' } as any)}
         decoding="async"
         className="block w-[260px] sm:w-[280px] h-auto drop-shadow-[0_30px_80px_rgba(139,92,246,0.45)]"
       />
