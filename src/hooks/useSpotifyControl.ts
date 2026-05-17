@@ -18,10 +18,16 @@ export function useSpotifyControl() {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('spotify-control', { body: payload });
-      if (error) throw error;
-      const d = data as any;
+      const d = (data as any) || {};
+      if (error && !d?.ok && !d?.needs_connect && !d?.needs_reconnect && !d?.no_device && !d?.premium_required) {
+        throw error;
+      }
       if (d?.needs_connect) {
         toast.message('Connect Spotify first', { description: 'Open Settings → Connections to link your account.' });
+        return false;
+      }
+      if (d?.needs_reconnect) {
+        toast.message('Reconnect Spotify', { description: 'Playback permission expired. Open Settings → Connections and reconnect.' });
         return false;
       }
       if (d?.no_device) {
@@ -29,7 +35,11 @@ export function useSpotifyControl() {
         return false;
       }
       if (d?.premium_required) {
-        toast.error('Spotify Premium required for playback control');
+        toast.error('Spotify Premium is required for playback control');
+        return false;
+      }
+      if (d?.error) {
+        toast.error(d.error);
         return false;
       }
       return !!d?.ok;
