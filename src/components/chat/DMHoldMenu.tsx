@@ -116,13 +116,13 @@ export const DMHoldMenu = memo(function DMHoldMenu({
             style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-around px-4 py-3 border-b border-white/[0.08]">
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/[0.08]">
               {smartEmojis.map((emoji) => (
                 <button
                   key={emoji}
                   onClick={(e) => { e.stopPropagation(); handleReaction(emoji); }}
                   className={cn(
-                    'text-2xl p-1 hover:scale-125 active:scale-90 transition-transform rounded-full',
+                    'text-xl p-0.5 hover:scale-125 active:scale-90 transition-transform rounded-full',
                     userReaction === emoji && 'bg-white/10'
                   )}
                 >
