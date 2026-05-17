@@ -13,6 +13,7 @@ import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
 import { Enable2FANudge } from '@/components/auth/Enable2FANudge';
 import { navVisibility } from '@/lib/navVisibility';
+import { SelfNowPlayingPill } from '@/components/music/SelfNowPlayingPill';
 
 interface AppLayoutProps {
   children: ReactNode;
