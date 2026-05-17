@@ -421,26 +421,43 @@ serve(async (req) => {
         : `Hey ${userName}! Everything's caught up — time to create something new! 🚀`;
     }
 
+    const responsePayload = {
+      summary,
+      hasPosts: recentPostCount > 0,
+      hasMessages: unreadConvos > 0,
+      unreadCount: unreadConvos,
+      notificationCount: realNotifCount,
+      newFollowerCount,
+      recentPostCount,
+      pendingFriendRequests,
+      streak,
+      userLevel,
+      userXp,
+      activeChallenges,
+      interests: allInterests,
+      liveUpdates,
+      hasLiveData,
+      unreadMessagePreviews,
+      notificationDetails,
+    };
+
+    // Persist to daily_brief_cache when called via service-role pre-warm
+    if (isServiceRole && cacheSlot && user?.id) {
+      try {
+        await supabase.from('daily_brief_cache').upsert({
+          user_id: user.id,
+          slot: cacheSlot,
+          payload: responsePayload,
+          generated_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+        }, { onConflict: 'user_id,slot' });
+      } catch (e) {
+        console.warn('[ai-catch-up] cache upsert failed', e);
+      }
+    }
+
     return new Response(
-      JSON.stringify({ 
-        summary,
-        hasPosts: recentPostCount > 0,
-        hasMessages: unreadConvos > 0,
-        unreadCount: unreadConvos,
-        notificationCount: realNotifCount,
-        newFollowerCount,
-        recentPostCount,
-        pendingFriendRequests,
-        streak,
-        userLevel,
-        userXp,
-        activeChallenges,
-        interests: allInterests,
-        liveUpdates,
-        hasLiveData,
-        unreadMessagePreviews,
-        notificationDetails,
-      }),
+      JSON.stringify(responsePayload),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
