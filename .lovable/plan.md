@@ -1,56 +1,76 @@
-# Plan: Fix DMs, push delivery, and audio-call camera UI
+## 1. Spotify "Now Playing" pill → mini-player
 
-## What I found
+**Visual change (`SelfNowPlayingPill.tsx`):**
+- Flip the pill layout: album art stays on the **right**, everything else (live waveform, "LISTENING ON SPOTIFY", track title + artist) slides to the **left**. Dismiss `X` moves to the far right after the art, or is hidden by default and only shown via long-press to keep the pill clean.
+- Tapping the pill no longer opens the Spotify web URL — it triggers a Framer Motion **expand animation** (spring 260/22, scale + height + opacity) into a "mini player" card anchored above the pill.
 
-There are now three separate issues:
+**Mini-player card (new `SpotifyMiniPlayer.tsx`):**
+- Layout: large album art on the left, title/artist on the right, progress bar underneath, transport row with **Previous · Play/Pause · Next** circular buttons, and a "Open Spotify" + "Playlists" pill row at the bottom.
+- Tap any control → calls a new edge function (see backend). UI updates optimistically (icon swap, progress reset on skip) and re-syncs from the next `useLiveMusicPresence` payload.
+- Tap "Playlists" → slides a second panel (same card, swap content) showing the user's Spotify playlists in a scrollable list. Tap a playlist → starts it on the active device.
+- Backdrop tap or pull-down gesture closes the mini player back into the pill.
 
-1. **Sent messages can fail to appear in the chat UI immediately.**
-   - `ChatView` clears the input before awaiting `sendText()`.
-   - `useInstantSend` is responsible for the optimistic bubble, but it does not register the optimistic message with the global realtime dedupe helper already defined in `useGlobalRealtimeMessages`.
-   - A refetch/realtime event can race the optimistic update, so the sender can see the bubble disappear or never visibly land.
+**Backend additions:**
+- New edge function `spotify-control` (verify_jwt=false, validates JWT in code) — accepts `{ action: 'play' | 'pause' | 'next' | 'previous' | 'seek' | 'start_playlist', position_ms?, playlist_id? }` and calls the matching `https://api.spotify.com/v1/me/player/*` endpoint. Reuses the `refreshIfNeeded` helper pattern from `spotify-listen-along`. Returns `{ needs_connect, no_device, premium_required, ok }` so the UI can show the same toasts already used by listen-along.
+- New edge function `spotify-playlists` — `GET https://api.spotify.com/v1/me/playlists?limit=50`, returns trimmed `{ id, name, image, tracks }[]`. Cached in `sessionStorage` for 5 min on the client.
+- Both functions registered in `supabase/config.toml` with `verify_jwt = false`.
 
-2. **Phone push notifications are failing because web push subscriptions were created with the wrong VAPID public key.**
-   - Edge logs show `VapidPkHashMismatch` / `403 VAPID credentials do not correspond...`.
-   - `usePushNotifications.ts` falls back to a hardcoded sample public key, while the backend signs with the real private key.
-   - Existing browser push subscriptions must be re-created with the matching public key.
+**Files**
+- `src/components/music/SelfNowPlayingPill.tsx` — layout flip + tap handler opens mini player
+- `src/components/music/SpotifyMiniPlayer.tsx` *(new)* — expanded card with transport + playlists
+- `src/hooks/useSpotifyControl.ts` *(new)* — wraps invoke of `spotify-control`
+- `src/hooks/useSpotifyPlaylists.ts` *(new)* — fetches and caches playlists
+- `supabase/functions/spotify-control/index.ts` *(new)*
+- `supabase/functions/spotify-playlists/index.ts` *(new)*
+- `supabase/config.toml` — register both new functions
 
-3. **Audio-call animation/camera upgrade needs final polish.**
-   - The visualizer should be centered off the avatar/ring, not scaled by loose percentage wrappers.
-   - Camera enable during an audio call should be driven by actual local video track state, and the camera request must happen directly from the button tap.
+## 2. Video posts: kill the white-bg / black play-circle placeholder
 
-## Implementation
+In `src/components/posts/PostCard.tsx` `VideoPlayer`:
+- Replace `bg-muted/30` outer wrapper and inner `bg-muted` with **solid `bg-black`** so the moment the post mounts you see a clean black frame instead of a light/white skeleton.
+- Replace `MediaSkeleton` (which shimmers white) with a transparent placeholder over `bg-black`, so only the black surface shows until the first frame paints.
+- Keep the play affordance, but drop its surrounding `bg-black/30` veil (already black underneath) and shrink the icon (`h-14 w-14`, no fill-white halo) so it reads as a subtle Play glyph on pure black, matching the reference image.
 
-### 1. Make sent DMs always show in chat
+**Files**
+- `src/components/posts/PostCard.tsx` — `VideoPlayer` background + skeleton swap
 
-- Update `src/hooks/useInstantSend.ts` to call `registerOptimisticMessage(conversationId, content, profile.id)` when a text message is optimistically added.
-- Strengthen `confirmMessage()` so if a temp bubble was wiped by a refetch, the confirmed server message is appended instead of doing nothing.
-- Apply the same “append if missing” behavior for media/video confirmation paths.
-- Add best-effort conversation-list patching immediately after confirmed send so the thread row updates without waiting for a refetch.
-- In `src/components/chat/ChatView.tsx`, make `handleSend` await `sendText()` and restore the draft if the send fails, so a failed send does not look like the message vanished.
+## 3. Composer "Video" tab crash
 
-### 2. Fix DM push notifications on phones
+When the user opens the Create sheet and taps the **Video** mode in `CreateModeSelector`, the app crashes. Root cause to verify during build: `MobileCreateStudio.startCamera` calls `getUserMedia` with `audio: mode === 'video'`, but on mode switch the previous stream isn't always stopped before re-requesting with audio, which throws `NotReadableError` and the error path doesn't always return cleanly (it can re-throw inside a `useEffect`, crashing the tree).
 
-- Add a small backend function `get-vapid-key` that returns the current public VAPID key from backend secrets.
-- Update `src/hooks/usePushNotifications.ts` to fetch/cache that key instead of using the hardcoded sample fallback.
-- If the key cannot be loaded, show a clear error and do not create a broken subscription.
-- Add a one-time migration to delete stale `web` push tokens so browsers re-subscribe with the correct key next time users enable/open push. Native/Despia tokens stay untouched.
+Fix:
+- In `MobileCreateStudio.tsx`, wrap the mode-change effect so it: (a) calls `stopCameraStream()` + `streamRef.current?.getTracks().forEach(t => t.stop())`, (b) awaits a 300ms tick, (c) only then re-calls `startCamera()`.
+- Wrap `startCamera`'s outer `try` to catch **all** errors (currently `secondErr` re-throws), surface as a toast, and leave `phase === 'camera'` with a "Tap to retry" overlay instead of unmounting.
+- Add an `ErrorBoundary` wrapper around `MobileCreateStudio` in `MobilePostComposer` so any future render failure surfaces a recoverable UI instead of crashing the whole app.
 
-### 3. Finalize audio-call animation + camera during audio calls
+**Files**
+- `src/components/create/MobileCreateStudio.tsx`
+- `src/components/create/MobilePostComposer.tsx`
 
-- Recheck `src/components/call/GlobalCallOverlay.tsx`.
-- Center the `AudioVisualizer` with fixed avatar-relative dimensions so the ring does not drift in audio calls.
-- Ensure the video button appears for connected audio calls.
-- Ensure enabling camera in an audio call requests video directly from the tap handler and attaches the local track/PiP immediately.
+## 4. Daily Brief → instant load
 
-## Technical notes
+Today: `useBriefPreFetch` waits **5 seconds after mount** before prefetching, and `AIBriefSheet` shows a loading spinner whenever cached data is older than the current 30-min window.
 
-- No change to the generated Supabase client/types files.
-- Realtime on `messages` is already enabled in migrations, so I will not duplicate that unless the live backend says otherwise.
-- The push fix requires backend secrets `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` to match. If one is missing, I will ask for the missing secret before finishing the push part.
+Changes:
 
-## Verification
+**Client (`useBriefPreFetch.ts`):**
+- Remove the 5-second `setTimeout`; kick `prefetchBrief()` immediately on first authenticated mount.
+- On app launch, **always** check `daily_brief_cache` table for the current slot first; if found, hydrate `localStorage` synchronously so `AIBriefSheet`'s `useState(() => getCachedBrief())` already has data on first render.
+- Move the periodic refresh from a wall-clock 30-min interval to **slot boundaries** (6 AM, 12 PM, 6 PM local time) — schedule a single timeout to the next slot, then re-arm. When a slot fires: regenerate in background, write to cache, then `toast.message('Your new Daily Brief is ready')` + `haptics.success()`.
 
-- Send a DM and confirm the sender immediately sees the bubble in the active chat.
-- Confirm failed sends keep/restore text instead of silently disappearing.
-- Confirm `send-push-notification` logs stop showing `VapidPkHashMismatch` after re-subscribe.
-- Start an audio call, confirm the visualizer is centered and the camera button upgrades the call without dropping it.
+**Sheet (`AIBriefSheet.tsx`):**
+- On open, if `briefData` is non-null (cached), **never show the loading screen** — render immediately and only call `fetchBrief(true)` in the background to revalidate. The existing `isRefreshing` already shows a small spinner in the header; no full-screen takeover.
+- Only show `GeneratingScreen` when there is truly no cached data **and** no server cache (first-ever run).
+
+**Server-side warm cache (already exists via `prewarm-daily-briefs`):**
+- Confirm cron is hitting all three slots (6/12/18 in user timezone bucket). If timezone isn't already captured, fall back to UTC slots — no schema change needed.
+
+**Files**
+- `src/hooks/useBriefPreFetch.ts` — instant kick + slot-boundary scheduling + alert toast
+- `src/components/home/AIBriefSheet.tsx` — render cached instantly, background revalidate only
+
+## Notes for the user
+
+- Spotify transport requires Spotify Premium and an active device — same constraint as today's Listen-Along. The mini-player will surface the existing "Open Spotify first" / "Premium required" toasts.
+- The Daily Brief "alert" is an in-app toast + haptic. Push-notification delivery of the new brief already exists via `send-brief-notification` and is unchanged.
+- No database migrations needed.
