@@ -29,6 +29,7 @@ function interpretStatus(status: number) {
   if (status === 204 || status === 202 || status === 200) return { ok: true };
   if (status === 404) return { no_device: true };
   if (status === 403) return { premium_required: true };
+  if (status === 401) return { needs_reconnect: true };
   return null;
 }
 
