@@ -56,7 +56,7 @@ export function useSpotifyPresence() {
     (async () => {
       await checkConnection();
       if (connected) tick();
-      timer.current = setInterval(tick, 8_000);
+      timer.current = setInterval(tick, 12_000);
     })();
 
     const onVis = () => { if (document.visibilityState === 'visible') tick(); };
