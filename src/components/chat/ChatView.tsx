@@ -602,7 +602,7 @@ export function ChatView() {
     handleInputChange(next);
   }, [writeInputDom, handleInputChange]);
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     const raw = messageTextRef.current;
     if (!raw.trim() || !conversationId) return;
 
@@ -628,12 +628,23 @@ export function ChatView() {
     setHasText(false);
     setTyping(false);
 
-    sendText(text, viewMode, replyingTo?.id);
+    const replyId = replyingTo?.id;
     setReplyingTo(null);
 
-    // Bump reaction streak with recipient (for DMs only)
-    if (!isGroupChat && otherMember?.id) {
-      bumpStreak(otherMember.id);
+    try {
+      await sendText(text, viewMode, replyId);
+      // Bump reaction streak with recipient (for DMs only)
+      if (!isGroupChat && otherMember?.id) {
+        bumpStreak(otherMember.id);
+      }
+    } catch (err) {
+      // Restore the unsent text so the user doesn't lose what they typed.
+      messageTextRef.current = text;
+      writeInputDom(text);
+      setHasText(true);
+      if (replyId) {
+        // Best-effort: nothing to restore reliably here, replyingTo was cleared.
+      }
     }
   }, [conversationId, viewMode, replyingTo, setTyping, sendText, editingMessageId, editMessage, isGroupChat, otherMember?.id, bumpStreak, writeInputDom]);
 

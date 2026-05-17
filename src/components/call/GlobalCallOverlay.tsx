@@ -1176,12 +1176,14 @@ export function GlobalCallOverlay() {
               <div className="text-center px-4">
                 {/* Square aura container — keeps every ring perfectly concentric */}
                 <div className="relative mx-auto h-32 w-32 sm:h-40 sm:w-40 grid place-items-center">
-                  {/* Audio Visualizer — outermost ring, sits OUTSIDE the breathing
-                      rings so they never cross. Only when remote is present. */}
+                  {/* Audio Visualizer — fixed square that's larger than the
+                      breathing rings (which scale to 1.5x). Sized to match
+                      its SVG so the bars stay perfectly concentric with the
+                      avatar at every breakpoint. */}
                   {isConnected && !remoteUserLeft && (
-                    <div className="absolute inset-0 m-auto grid place-items-center pointer-events-none" style={{ width: '185%', height: '185%' }}>
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none h-[220px] w-[220px] sm:h-[280px] sm:w-[280px]">
                       <AudioVisualizer
-                        size={240}
+                        size={280}
                         stream={remoteAudioRef.current?.srcObject as MediaStream | null}
                         active={isConnected}
                       />
