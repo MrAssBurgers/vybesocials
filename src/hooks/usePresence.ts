@@ -199,8 +199,9 @@ export function useUserOnlineStatus(userId: string | undefined) {
       return data;
     },
     enabled: !!userId,
-    staleTime: 5000, // 5 seconds stale time for live sync
-    refetchInterval: 10000, // 10 seconds refetch interval for responsive updates
+    staleTime: 5000,
+    // Global realtime presence listener keeps cache fresh — no polling needed.
+    refetchInterval: false,
   });
 
   // Subscribe to realtime updates
