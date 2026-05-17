@@ -47,12 +47,14 @@ export function useSpotifyPlaylists(enabled: boolean) {
       }
 
       if (d?.needs_connect) {
+        try { sessionStorage.removeItem(CACHE_KEY); } catch {}
         setStatus('needs_connect');
         setError('Connect Spotify to see your playlists');
         setPlaylists([]);
         return;
       }
       if (d?.needs_reconnect) {
+        try { sessionStorage.removeItem(CACHE_KEY); } catch {}
         setStatus('needs_reconnect');
         setError('Reconnect Spotify to refresh access');
         setPlaylists([]);

@@ -94,12 +94,15 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ needs_connect: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // If the stored scope doesn't include playback control, tell the client to reconnect — no point asking Spotify.
-    if (conn.scope && !String(conn.scope).split(/\s+/).includes(REQUIRED_SCOPE)) {
-      return new Response(JSON.stringify({ needs_reconnect: true, reason: 'missing_scope' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
+    // Note: we don't pre-block on stored scope — old connections may have a stale
+    // scope string. Try Spotify and only ask for reconnect on a real 401.
 
-    let accessToken = await ensureFreshToken(admin, userId, conn);
+    let accessToken: string;
+    try {
+      accessToken = await ensureFreshToken(admin, userId, conn);
+    } catch (_) {
+      return new Response(JSON.stringify({ needs_reconnect: true, reason: 'refresh_failed' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     const doFetch = (token: string) => fetch(req_.url, {
       method: req_.method,
