@@ -255,5 +255,17 @@ export function useTrashedConversationIds() {
     },
     enabled: !!profile?.id,
     staleTime: 30000,
+    // Persisted query cache can deserialize a Set into a plain object/array,
+    // stripping `.has()` and causing runtime errors on the Messages page.
+    select: (data: unknown): Set<string> => {
+      if (data instanceof Set) return data as Set<string>;
+      if (Array.isArray(data)) return new Set<string>(data.filter((v): v is string => typeof v === 'string'));
+      if (data && typeof data === 'object') {
+        return new Set<string>(
+          Object.values(data as Record<string, unknown>).filter((v): v is string => typeof v === 'string')
+        );
+      }
+      return new Set<string>();
+    },
   });
 }
