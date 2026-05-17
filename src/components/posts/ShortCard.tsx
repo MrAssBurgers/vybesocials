@@ -619,10 +619,12 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
               <ModeratorMenuItems
                 userId={post.author.id}
                 username={post.author.username}
+                postId={post.id}
                 onWarnClick={() => setWarnDialogOpen(true)}
                 onBanClick={() => setBanDialogOpen(true)}
                 onMemeBanClick={() => setMemeBanDialogOpen(true)}
                 onDeleteContentClick={(type, id) => setDeleteContentDialog({ type, id })}
+                onPostDelete={() => setIsHidden(true)}
               />
             )}
             {!isOwnPost && post.author && (
