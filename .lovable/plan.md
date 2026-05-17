@@ -1,48 +1,48 @@
-## Problem
+## Goal
+The Chat page on the live app flickers/glitches constantly for your account. Fix the root causes without touching any unrelated logic (DM data, accounts, RLS).
 
-When you tap DMs the chat screen renders correctly (header, search, filters, Add Note, VYBE-AI row) but the conversation list is empty and shows "No conversations yet" — even though your account (`mrassburgers`) has **16 active 1:1 conversations** in the database (2 trashed, 0 hidden, 14 should be visible).
+## Root causes identified
 
-This means `useDMConversations` is returning `[]` on the client even though the rows exist. RLS policies look correct (`current_profile_id()` resolves your profile id, and your 16 `conversation_members` rows all use that id), so the breakage is somewhere in the client query itself — most likely:
+1. **Auto-create-friend-DMs infinite render loop** (`src/hooks/useDMConversations.ts`)
+   - The `ensureConversationsForFriends` callback depends on `conversationsQuery.data`.
+   - Every refetch returns a new array reference → the callback identity changes → the `useEffect` that runs it fires again → it `invalidateQueries(['dm-conversations'])` whenever it creates anything (and even on benign re-runs the closure churn forces re-evaluations across 14 ConversationItems).
+   - Net effect: the whole conversation list re-renders in a tight loop = visible flicker.
 
-- the embedded join `members:conversation_members(...profile:profiles(...))` silently failing/erroring,
-- or the query returning an empty array because of an error that is being swallowed by `placeholderData: (prev) => prev` and the "only show skeleton when truly empty" guard,
-- or `profile.id` not being ready the first render and the cache never repopulating.
+2. **`refetchOnMount: 'always'`** on the DM query
+   - Forces a network refetch every time `ConversationList` mounts (tab switches, route returns, drawer opens). Combined with `placeholderData: prev`, `isFetching` toggles → list flashes.
 
-## Fix Plan
+3. **Global realtime over-invalidation** (`src/hooks/useGlobalRealtimeMessages.ts`)
+   - When ANY message lands in a conversation not yet in cache, it invalidates `['dm-conversations']` and `['conversations']` even though the optimistic patch already updated the cache. This can re-pull the full list mid-render.
 
-### 1. Make the failure visible (diagnose before patching)
+## Changes
 
-In `src/hooks/useDMConversations.ts`:
-- Replace the silent `throw` with `console.error('[DM]', ...)` for both the `conversation_members` query and the embedded `conversations` query, and also log how many rows came back at each step.
-- Surface `convError` to the UI debug log that already exists in `ConversationList` so we can see exactly which step is returning empty when this reproduces.
+### 1. `src/hooks/useDMConversations.ts` — stop the loop
+- Replace `refetchOnMount: 'always'` with `refetchOnMount: true` (only refetch when stale).
+- Stabilize the auto-create effect:
+  - Use a `useRef` to track the last `conversationsQuery.dataUpdatedAt` we processed and bail out if unchanged.
+  - Drop `conversationsQuery.data` from the effect's dep array; read it via `queryClient.getQueryData` inside the function instead.
+  - Only call `invalidateQueries(['dm-conversations', profile.id])` (scoped key) after auto-creation, and only if at least one convo was actually created — already the case, but ensure the call happens at most once per friends-list change by gating on a `processedFriendsHashRef`.
+- Memoize `friendsWithoutConvos` derivation so identical friend lists don't re-trigger work.
 
-### 2. Stop trusting the embedded join
+### 2. `src/hooks/useGlobalRealtimeMessages.ts` — surgical invalidation
+- When a new message arrives for a conversation already in cache, the existing `setQueryData` patch is sufficient → remove the now-redundant `invalidateQueries` fallback for that case.
+- Keep the invalidation only for the unknown-conversation branch (legitimately new convo).
+- Also debounce the unknown-conversation invalidate by 300ms so a burst of messages doesn't trigger N refetches.
 
-The single big query that does `conversations → members → profiles` is the most fragile piece. Split it into:
+### 3. `src/components/chat/ConversationList.tsx` — render stability
+- Wrap the per-conversation render rows (`filteredPinned.map` / `filteredUnpinned.map`) in `React.memo`'d `ConversationItem` if not already memoized; if it is, just ensure the props passed are stable (move inline lookups like `userStoryMap.get(...)` into a `useMemo` keyed by the conversation id list and the map).
+- Make `onTrash` / `onClick` callbacks stable via `useCallback` keyed by `conv.id`.
 
-1. `conversation_members` for the current user → list of conversation ids (already done).
-2. `conversations` by id list (no embed).
-3. `conversation_members` for those conversation ids (all members, flat).
-4. `profiles` for all member user_ids in one `.in('id', ...)` call.
+### 4. Light verification
+- Reload `/messages` in the live app and watch the React render count for `ConversationItem` (or just visually confirm no flicker).
+- Confirm new DMs still appear instantly (realtime patch still runs).
 
-Then stitch them together in JS. This removes the PostgREST embed (which is what most commonly returns empty/partial results when one nested table's RLS hiccups) and guarantees we return every conversation the user is a member of.
+## Out of scope
+- No RLS or DB changes.
+- No changes to the empty-state logic, the "VYBE-AI" row, the Notes row, accepted friend requests, or auto-create-friend-DM behavior itself (only how often it fires).
+- No changes to account/auth.
 
-### 3. Render cached conversations immediately
-
-- Set `refetchOnMount: 'always'` so opening DMs always re-pulls in the background instead of relying on a 30s stale window.
-- Keep `placeholderData: prev` so the list never blanks, but only show the "No conversations yet" empty state when `conversationsQuery.isFetched && conversationsQuery.data?.length === 0`. Right now the empty-state can fire while the query is mid-flight on cold cache.
-
-### 4. Gate the query on `profile.id` correctly
-
-Confirm `useAuth().profile?.id` is populated before `useDMConversations` runs (it currently is via `enabled`), and invalidate `['dm-conversations']` whenever the profile id flips from undefined → defined so the first successful auth always triggers a fresh fetch.
-
-### 5. Verify in DB after deploy
-
-Re-check that `select count(*) from conversations c join conversation_members cm on cm.conversation_id=c.id where cm.user_id='<your profile id>'` still returns 16, then confirm the client logs from step 1 show all 16 making it through each of the new split queries.
-
-## Files to touch
-
-- `src/hooks/useDMConversations.ts` — split query, add logging, fix empty-state gating.
-- `src/components/chat/ConversationList.tsx` — only render the empty state when the query has actually finished with zero results; surface `convError` in the existing dev log.
-
-No DB migrations or RLS changes needed — the data is already there and the policies already allow you to see it. This is purely a client query/UI bug.
+## Files
+- `src/hooks/useDMConversations.ts`
+- `src/hooks/useGlobalRealtimeMessages.ts`
+- `src/components/chat/ConversationList.tsx`

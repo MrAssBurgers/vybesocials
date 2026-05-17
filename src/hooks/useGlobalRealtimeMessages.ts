@@ -68,6 +68,18 @@ function isOptimisticDuplicate(conversationId: string, content: string, senderId
 let retryCount = 0;
 const MAX_RETRIES = 5;
 
+// Debounced refetch for the unknown-conversation case so a burst of
+// realtime messages doesn't trigger N back-to-back full list refetches.
+let unknownConvoRefetchTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleUnknownConvoRefetch(qc: ReturnType<typeof useQueryClient>, profileId: string) {
+  if (unknownConvoRefetchTimer) return;
+  unknownConvoRefetchTimer = setTimeout(() => {
+    unknownConvoRefetchTimer = null;
+    qc.invalidateQueries({ queryKey: ['dm-conversations', profileId] });
+    qc.invalidateQueries({ queryKey: ['conversations', profileId] });
+  }, 300);
+}
+
 export function useGlobalRealtimeMessages() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -220,11 +232,12 @@ export function useGlobalRealtimeMessages() {
           queryClient.setQueryData<any[]>(['conversations', profile.id], updateConversations);
           queryClient.setQueryData<any[]>(['dm-conversations', profile.id], updateConversations);
 
-          // If conversation doesn't exist in cache, trigger a full refetch
+          // Only invalidate when the conversation is genuinely new to the cache.
+          // The setQueryData patch above already handles known conversations
+          // — invalidating in that case causes a full refetch and visible flicker.
           const cached = queryClient.getQueryData<any[]>(['dm-conversations', profile.id]);
           if (cached && !cached.some(c => c.id === conversationId)) {
-            queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
-            queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
+            scheduleUnknownConvoRefetch(queryClient, profile.id);
           }
         }
       )

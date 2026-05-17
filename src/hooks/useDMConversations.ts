@@ -197,7 +197,7 @@ export function useDMConversations(searchQuery: string = '') {
     staleTime: 30_000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: true,
-    refetchOnMount: 'always', // always refresh when DMs open
+    refetchOnMount: true, // only refetch when stale (avoids flicker on remount)
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
     networkMode: 'offlineFirst',
@@ -205,11 +205,15 @@ export function useDMConversations(searchQuery: string = '') {
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 
-  // Auto-create conversations for friends who don't have one
+  // Auto-create conversations for friends who don't have one.
+  // Read latest data from the cache on demand so this callback's identity
+  // does NOT change every refetch (which was causing a render loop / flicker).
+  const lastProcessedUpdateRef = useRef<number>(0);
   const ensureConversationsForFriends = useCallback(async () => {
     if (!profile?.id || !friends?.length) return;
 
-    const conversations = conversationsQuery.data || [];
+    const conversations =
+      queryClient.getQueryData<DMConversation[]>(['dm-conversations', profile.id]) || [];
 
     // Find friends without conversations
     const friendsWithConvos = new Set<string>();
@@ -256,16 +260,25 @@ export function useDMConversations(searchQuery: string = '') {
     }
 
     if (created) {
-      queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
     }
-  }, [profile?.id, friends, conversationsQuery.data, queryClient]);
+  }, [profile?.id, friends, queryClient]);
 
-  // Run auto-creation once when data is available
+  // Run auto-creation once per data update; gated by dataUpdatedAt so
+  // re-renders triggered by other state don't keep firing this effect.
   useEffect(() => {
-    if (!conversationsQuery.isLoading && !friendsLoading && friends?.length) {
-      ensureConversationsForFriends();
-    }
-  }, [conversationsQuery.isLoading, friendsLoading, friends, ensureConversationsForFriends]);
+    if (conversationsQuery.isLoading || friendsLoading) return;
+    if (!friends?.length) return;
+    if (conversationsQuery.dataUpdatedAt === lastProcessedUpdateRef.current) return;
+    lastProcessedUpdateRef.current = conversationsQuery.dataUpdatedAt;
+    ensureConversationsForFriends();
+  }, [
+    conversationsQuery.isLoading,
+    conversationsQuery.dataUpdatedAt,
+    friendsLoading,
+    friends,
+    ensureConversationsForFriends,
+  ]);
 
   // Filter conversations by search query
   const filteredConversations = useMemo(() => {
