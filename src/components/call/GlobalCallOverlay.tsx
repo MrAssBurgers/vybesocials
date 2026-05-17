@@ -817,15 +817,30 @@ export function GlobalCallOverlay() {
       const newOff = !isVideoOff;
       if (state.call?.callMode === 'persistent' && roomRef.current) {
         await roomRef.current.localParticipant.setCameraEnabled(!newOff);
+        // Attach the newly-published local camera track to the PiP preview
+        if (!newOff) {
+          const cameraPub = roomRef.current.localParticipant.getTrackPublication(Track.Source.Camera);
+          const mt = cameraPub?.track?.mediaStreamTrack;
+          if (mt) attachLocalVideo(mt);
+        } else {
+          setHasLocalVideo(false);
+        }
       } else if (p2pRef.current) {
         await p2pRef.current.setCameraEnabled(!newOff);
+        if (!newOff) {
+          const stream = p2pRef.current.getLocalStream();
+          const videoTrack = stream?.getVideoTracks()[0];
+          if (videoTrack) attachLocalVideo(videoTrack);
+        } else {
+          setHasLocalVideo(false);
+        }
       }
       setIsVideoOff(newOff);
       setCameraError(null);
     } catch (err: any) {
       setCameraError(err.message || 'Failed to toggle camera');
     }
-  }, [state.phase, state.call?.callMode, isVideoOff]);
+  }, [state.phase, state.call?.callMode, isVideoOff, attachLocalVideo]);
 
   const handleRetryVideo = useCallback(async () => {
     setCameraError(null);
