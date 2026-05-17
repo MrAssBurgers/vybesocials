@@ -247,9 +247,13 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     );
   }
 
+  if (isHidden) return null;
+
   const isOwnPost = profile?.id === post.author.id;
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
-  const canDelete = isOwnPost || isAdmin;
+  // Only the author sees the personal "Delete" item. Mods use Mod Actions →
+  // "Delete Post (Mod)" so they never see two delete buttons on the same clip.
+  const canDelete = isOwnPost;
 
   const handleReaction = async (reactionType: ReactionType | null) => {
     if (!profile || !post.author) return;
