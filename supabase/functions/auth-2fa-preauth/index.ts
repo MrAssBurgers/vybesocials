@@ -58,6 +58,17 @@ Deno.serve(async (req) => {
 
     // 2. Check 2FA / approval settings using service-role client.
     const admin = getServiceClient();
+
+    // Bypass 2FA / login approval entirely on the Lovable preview sandbox.
+    // The id-preview-*.lovable.app host is the in-editor preview iframe — we
+    // never want the user to be locked out while iterating in the builder.
+    const origin = req.headers.get('origin') || req.headers.get('referer') || '';
+    const isLovablePreview = /(^|\/\/)(id-preview--|.*\.lovableproject\.com|.*\.lovable\.app)/.test(origin)
+      && !/vybehub\.app/.test(origin);
+    if (isLovablePreview) {
+      return jsonResponse({ stage: 'none', session });
+    }
+
     const { data: settings } = await admin
       .from('user_2fa_settings')
       .select('email_2fa_enabled, login_approvals_enabled')
