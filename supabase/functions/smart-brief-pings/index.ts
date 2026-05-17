@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
 
         const title = "🧠 Top story for you";
         const body = headline.slice(0, 110);
-        const deepLink = `/?openBrief=true&topic=${encodeURIComponent(topic)}`;
+        const deepLink = `/brief?topic=${encodeURIComponent(topic)}&headline=${encodeURIComponent(headline)}`;
 
         await supabase.from("notifications").insert({
           user_id: prefs.user_id,
