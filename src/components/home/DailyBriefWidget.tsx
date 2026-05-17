@@ -5,27 +5,26 @@ import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { haptics } from '@/lib/haptics';
 import { AIBriefSheet } from './AIBriefSheet';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export function DailyBriefWidget() {
   const [showBrief, setShowBrief] = useState(false);
   const [focusTopic, setFocusTopic] = useState<string | null>(null);
   const [focusHeadline, setFocusHeadline] = useState<string | null>(null);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
+  // Legacy push deep-link (?openBrief=true) — redirect to dedicated /brief page
   useEffect(() => {
     if (searchParams.get('openBrief') === 'true') {
-      setShowBrief(true);
       const t = searchParams.get('topic');
       const h = searchParams.get('headline');
-      if (t) setFocusTopic(t);
-      if (h) setFocusHeadline(h);
-      searchParams.delete('openBrief');
-      searchParams.delete('topic');
-      searchParams.delete('headline');
-      setSearchParams(searchParams, { replace: true });
+      const qs = new URLSearchParams();
+      if (t) qs.set('topic', t);
+      if (h) qs.set('headline', h);
+      navigate(`/brief${qs.toString() ? `?${qs}` : ''}`, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, navigate]);
 
   const handleOpenBrief = () => {
     haptics.tap();
