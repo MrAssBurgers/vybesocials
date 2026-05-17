@@ -1176,11 +1176,12 @@ export function GlobalCallOverlay() {
               <div className="text-center px-4">
                 {/* Square aura container — keeps every ring perfectly concentric */}
                 <div className="relative mx-auto h-32 w-32 sm:h-40 sm:w-40 grid place-items-center">
-                  {/* Audio Visualizer ring — only when remote is present */}
+                  {/* Audio Visualizer — outermost ring, sits OUTSIDE the breathing
+                      rings so they never cross. Only when remote is present. */}
                   {isConnected && !remoteUserLeft && (
-                    <div className="absolute inset-0 m-auto grid place-items-center" style={{ width: '140%', height: '140%' }}>
+                    <div className="absolute inset-0 m-auto grid place-items-center pointer-events-none" style={{ width: '185%', height: '185%' }}>
                       <AudioVisualizer
-                        size={180}
+                        size={240}
                         stream={remoteAudioRef.current?.srcObject as MediaStream | null}
                         active={isConnected}
                       />
