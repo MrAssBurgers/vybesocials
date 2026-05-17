@@ -38,6 +38,25 @@ function getSlot(): 'morning' | 'lunch' | 'dinner' {
   return 'dinner';
 }
 
+// MUST match AIBriefSheet.getTimeSlot() exactly — the reader rejects cache
+// entries whose timeSlot doesn't equal the current slot.
+function getTimeSlot(): 'morning' | 'afternoon' | 'evening' {
+  const hour = new Date().getHours();
+  if (hour >= 6 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 18) return 'afternoon';
+  return 'evening';
+}
+
+function writeBriefCache(data: unknown) {
+  try {
+    localStorage.setItem(BRIEF_CACHE_KEY, JSON.stringify({
+      data,
+      timestamp: Date.now(),
+      timeSlot: getTimeSlot(),
+    }));
+  } catch { /* ignore */ }
+}
+
 async function tryServerCache(userId: string): Promise<boolean> {
   try {
     const slot = getSlot();
@@ -49,10 +68,7 @@ async function tryServerCache(userId: string): Promise<boolean> {
       .gt('expires_at', new Date().toISOString())
       .maybeSingle();
     if (data?.payload) {
-      localStorage.setItem(BRIEF_CACHE_KEY, JSON.stringify({
-        data: data.payload,
-        timestamp: new Date(data.generated_at).getTime(),
-      }));
+      writeBriefCache(data.payload);
       return true;
     }
   } catch { /* ignore */ }
@@ -64,7 +80,7 @@ async function prefetchBrief(authUserId?: string, force = false): Promise<boolea
 
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) return false;
 
     // Prefer server-pre-warmed cache (zero AI cost, instant)
     if (!force && authUserId && await tryServerCache(authUserId)) return true;
@@ -103,7 +119,7 @@ async function prefetchBrief(authUserId?: string, force = false): Promise<boolea
 
     const data = await response.json();
     if (data && typeof data.summary === 'string' && data.summary.trim().length > 0) {
-      localStorage.setItem(BRIEF_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+      writeBriefCache(data);
       return true;
     }
   } catch {

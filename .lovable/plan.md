@@ -1,37 +1,50 @@
-## Problems
+## What's actually broken (deep scan results)
 
-1. **"Edge Function returned a non-2xx status code"** toast appears when opening the mini player. Direct curl to `/spotify-control` and `/spotify-playlists` both return `401 Unauthorized`, and the functions have **zero log entries**, meaning they're either not deployed or the auth check rejects the call before logging.
-2. **Mini player is anchored off to the right** and clipped by the viewport edge, despite using `fixed left-1/2 -translate-x-1/2`. The pill it lives next to is wrapped in `motion.a` (a transformed ancestor), and `position: fixed` resolves against the nearest transformed ancestor, so it's no longer truly viewport-centered.
+### 1. Daily Brief — always shows the generating screen
+The AI gateway is fine — server logs prove it returns full 4 KB responses every ~7 s. The bug is a **cache-key mismatch** between writer and reader:
 
-## Fixes
+- `AIBriefSheet.getCachedBrief()` (line 322) requires `timeSlot === currentSlot`.
+- `useBriefPreFetch.prefetchBrief()` writes `{ data, timestamp }` with **no `timeSlot` field**.
+- Result: every cached brief written by the background prefetch is rejected and deleted on the very next read → the sheet always falls into the "no cache → fetch with full loading UI" path → user sees `GeneratingScreen` every time.
 
-### 1. Render mini player + backdrop via portal (`SelfNowPlayingPill.tsx`)
+### 2. Messages — stuck on loading skeleton
+`ConversationList` renders the skeleton whenever `useDMConversations().isLoading` is true. That flag is `!data && (conversationsQuery.isLoading || friendsLoading)`. Two real failure modes keep it stuck:
 
-- Import `createPortal` from `react-dom`.
-- Wrap the `AnimatePresence` containing the backdrop and `<SpotifyMiniPlayer />` in `createPortal(..., document.body)` so they escape every transformed ancestor and `fixed` resolves against the viewport.
-- Tighten the mini player width to `w-[min(340px,calc(100vw-32px))]` and keep it `left-1/2 -translate-x-1/2 bottom-[148px]` — once portaled, this centers cleanly on a 384px viewport.
+- `useDMConversations` has **no `enabled` guard**. If `profile?.id` is briefly undefined, the query fires immediately, the `if (!profile?.id) return []` branch resolves to a successful `[]`, but the `placeholderData: (prev) => prev` keeps the *previous* undefined data alive across the refetch — and React Query reports the next fetch as `isLoading=true` again. Combined with `friendsLoading`, the skeleton can pin forever when auth is slow.
+- If the conversations or members fetch throws (RLS/network), `throw membershipError` runs with `retry: 2` + exponential backoff up to 8 s. While retrying, `isLoading` stays true and `data` stays undefined → skeleton forever, no error UI, no retry button.
 
-### 2. Re-deploy + harden the two Spotify edge functions
+## Plan
 
-- Deploy `spotify-control` and `spotify-playlists` explicitly (they currently return 401 with no log line, so the running build is stale or never booted).
-- In both functions, replace `userClient.auth.getClaims(token)` with `userClient.auth.getUser(token)` and pull `userId` from `data.user.id`. `getClaims` can reject valid sessions when signing-key rotation is mid-flight; `getUser` is the pattern used by `spotify-listen-along` (which works today) and is more forgiving.
-- Keep `verify_jwt = false` (already set in `supabase/config.toml`).
-- Keep the existing `needs_connect / no_device / premium_required` response shape so the UI toasts in `useSpotifyControl` / `useSpotifyPlaylists` still match.
+### A. Daily Brief
 
-### 3. Sanity-check after deploy
+**File: `src/hooks/useBriefPreFetch.ts`**
+- Add the same `getTimeSlot()` helper used by `AIBriefSheet` (4–10 = morning, 10–16 = lunch/afternoon, 16–24/0–4 = evening) and write the cache as `{ data, timestamp: Date.now(), timeSlot: getTimeSlot() }` so `getCachedBrief()` will accept it.
+- Same fix in the `tryServerCache` branch (the server-prewarmed payload).
+- Fix the `if (!session) return;` in a `Promise<boolean>` to `return false;` (type safety / clarity).
 
-- Re-issue curl with the preview session for both endpoints; expect either `{ ok: true }`, `{ no_device: true }`, `{ needs_connect: true }`, or a populated `playlists` array — never a 401.
-- Tap the pill in preview: mini player should appear centered with margins on both sides, transport buttons should respond, and Playlists tab should load the user's library.
+**File: `src/components/home/AIBriefSheet.tsx`**
+- In the `open` effect, if `getCachedBrief()` returns null but `localStorage` has a `vybe_ai_brief_cache` entry from the same day, hydrate it as a soft cache (show it instantly, mark stale, revalidate in background) instead of dumping straight into `GeneratingScreen`. This guarantees that even cross-version cache drift never blocks the user on the spinner.
+- When background revalidation completes, smoothly swap content in (no flash, no spinner takeover).
 
-## Files
+### B. Messages
 
-- `src/components/music/SelfNowPlayingPill.tsx` — portal the backdrop + mini player to `document.body`
-- `src/components/music/SpotifyMiniPlayer.tsx` — width clamp tweak (`calc(100vw-32px)`)
-- `supabase/functions/spotify-control/index.ts` — swap `getClaims` → `getUser`
-- `supabase/functions/spotify-playlists/index.ts` — swap `getClaims` → `getUser`
-- Deploy: `spotify-control`, `spotify-playlists`
+**File: `src/hooks/useDMConversations.ts`**
+- Add `enabled: !!profile?.id` to the `conversationsQuery` so it only runs once auth is ready (matches the existing `useFriends` guard).
+- Replace `throw membershipError` / `throw convError` with returning `[]` when there's no prior cache, so a transient RLS/network failure surfaces an empty state instead of pinning React Query in `isLoading=true` through three retries.
+- Tighten the returned `isLoading` to `(conversationsQuery.isPending || friendsLoading) && !conversationsQuery.data` — `isPending` is the correct "no data yet" signal in v5; `isLoading` flips true on every background refetch when there's no prior data, which is what's wedging us.
 
-## Notes
+**File: `src/components/chat/ConversationList.tsx`**
+- After ~6 s of `isLoading` with no data, render a small "Taking longer than usual — Retry" inline message above the skeleton with a button wired to `refetch()` from `useDMConversations`. This makes the failure mode recoverable instead of a black hole.
+- Surface `convError` (already destructured but unused) with a friendly inline error + retry button when present.
 
-- No DB migration, no new secrets — `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` already configured.
-- Spotify still requires Premium + an active device for transport control; the existing toasts already handle those branches.
+**File: `src/pages/Messages.tsx`**
+- Keep the `MessagesLoadingSkeleton` for the first-mount frame, but cap it at one paint. The current `setMounted(true)` gate is fine — no change needed beyond the hook-level fixes above.
+
+### Verification
+1. Hard refresh → tap Messages → list appears within ~1 s; if backend is slow, the retry affordance shows by 6 s.
+2. Open the Daily Brief immediately after app launch (≥ 7 s after first paint) → cached content renders instantly. Open it a second time → still instant. Open it across a slot boundary (e.g. 5:59 → 6:01) → background regeneration fires, toast appears, next open shows the new brief instantly.
+3. Confirm via edge function logs that `ai-catch-up` is called once on launch (prefetch) and not again per open within the same slot.
+
+## Out of scope
+- Spotify mini-player, video composer crash, post placeholder play button — already shipped in prior turns and not reported regressed.
+- Edge function code changes — `ai-catch-up` is healthy per logs.
