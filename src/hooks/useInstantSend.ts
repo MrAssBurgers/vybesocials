@@ -246,11 +246,10 @@ export function useInstantSend(conversationId: string | undefined) {
       const messageWithViewMode = { ...data, view_mode: data.view_mode as ViewMode, views: [], reactions: [] };
       confirmMessage(tempId, messageWithViewMode);
 
-      // Broadcast for instant delivery to receiver
+      // Broadcast for instant delivery to receiver (long-lived subscribed channel)
       try {
-        const bc = supabase.channel(`dm-broadcast:${conversationId}`);
-        await bc.send({ type: 'broadcast', event: 'new-message', payload: { message: messageWithViewMode } });
-        supabase.removeChannel(bc);
+        const bc = getBroadcastChannel();
+        await bc?.send({ type: 'broadcast', event: 'new-message', payload: { message: messageWithViewMode } });
       } catch { /* best-effort */ }
 
       // Update conversation timestamp
