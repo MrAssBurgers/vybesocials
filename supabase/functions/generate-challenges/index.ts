@@ -320,15 +320,15 @@ Rules:
   } catch (error) {
     console.error("generate-challenges error:", error);
     
-    // Fallback: just run the normal rotation from existing templates
+    // Fallback: ensure slots are filled from templates (SQL safety net)
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
-      await supabase.rpc("rotate_challenges");
-      console.log("Fallback: used existing template rotation");
+      await supabase.rpc("ensure_active_challenges");
+      console.log("Fallback: ensured active challenges from templates");
     } catch (fallbackErr) {
-      console.error("Fallback rotation also failed:", fallbackErr);
+      console.error("Fallback ensure_active_challenges also failed:", fallbackErr);
     }
 
     return new Response(JSON.stringify({ 
