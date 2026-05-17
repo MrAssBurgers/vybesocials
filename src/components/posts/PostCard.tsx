@@ -483,13 +483,27 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
 
       if (error) throw error;
 
+      // Log deletion for admin audit (best effort)
+      if (profile?.id) {
+        supabase.from('post_deletion_log').insert({
+          post_id: post.id,
+          author_id: post.author?.id ?? null,
+          deleted_by: profile.id,
+          post_type: (post as any).type ?? null,
+          caption: post.caption ?? null,
+          reason: 'user_self_delete',
+        }).then(({ error: logErr }) => {
+          if (logErr) console.warn('[DeletionLog] insert failed', logErr);
+        });
+      }
+
       toast.success('Post deleted');
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     } catch (error) {
       console.error('Failed to delete post:', error);
       toast.error('Failed to delete post');
     }
-  }, [post.id, queryClient]);
+  }, [post.id, post.author?.id, post.caption, profile?.id, queryClient]);
 
   return (
     <motion.article
