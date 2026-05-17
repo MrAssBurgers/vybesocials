@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     const timeOfDay = getTimeOfDay(hour);
     const title = getGreeting(timeOfDay);
     const body = getBody(timeOfDay);
-    const deepLink = "/brief";
+    const deepLink = `/brief?nTitle=${encodeURIComponent(title)}&nBody=${encodeURIComponent(body)}`;
 
     console.log(`[brief-push] tod=${timeOfDay} hour=${hour}`);
 
