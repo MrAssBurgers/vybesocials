@@ -128,32 +128,20 @@ export function usePushNotifications() {
   const subscribeDespia = async (): Promise<boolean> => {
     if (!profile) return false;
     try {
-      // Despia auto-registers the device with OneSignal at native launch.
-      // We just bind OneSignal external_user_id to our user. We do NOT call
-      // any unsupported schemes (e.g. registerpush://) — those can hang the
-      // native bridge or look like a crash on Android.
+      // Bind OneSignal external user ID
       try { despia(`setonesignalplayerid://?user_id=${profile.id}`); } catch (err) {
         console.warn('[Push] setonesignalplayerid failed', err);
       }
 
-      // Best-effort permission check. Don't block enabling if it doesn't respond.
-      let granted = true;
-      try {
-        const result: any = await Promise.race([
-          despia('checkNativePushPermissions://', ['nativePushEnabled']),
-          new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
-        ]);
-        const v = result?.nativePushEnabled;
-        if (v === false || v === 'false') granted = false;
-      } catch {}
-
-      if (!granted) {
-        toast.error('Notifications are off. Enable them in your phone settings, then try again.');
-        // Do NOT auto-open settings — let the user choose.
-        return false;
+      // Explicitly trigger the native OS permission dialog. This is the
+      // call that surfaces the iOS/Android system prompt. Fire-and-forget
+      // so we don't block the UI on the user's decision.
+      try { despia('checknativepushpermissions://'); } catch (err) {
+        console.warn('[Push] checknativepushpermissions failed', err);
       }
 
-      // Persist a marker row so the toggle reflects subscribed state.
+      // Persist token row optimistically so the toggle reflects subscribed state.
+      // OneSignal handles delivery server-side once the user accepts.
       await supabase.from('push_tokens').delete()
         .eq('user_id', profile.id).eq('platform', 'despia');
       const { error } = await supabase.from('push_tokens').insert({
