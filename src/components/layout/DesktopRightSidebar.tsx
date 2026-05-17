@@ -211,6 +211,8 @@ export function DesktopRightSidebar() {
     >
       <ScrollArea className="flex-1 h-full">
         <div className="p-3 pt-5 space-y-3">
+          {/* Discord-style self Now Playing */}
+          <SelfNowPlayingPill className="!max-w-full w-full" />
 
           {/* Online Friends Strip */}
           <div>
