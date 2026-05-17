@@ -112,5 +112,53 @@ export function AdminReportsSection() {
         )}
       </CardContent>
     </Card>
+
+    <Card className="liquid-glass rounded-3xl border-white/10 overflow-hidden">
+      <CardHeader className="pb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-2xl bg-destructive/15">
+            <Trash2 className="h-5 w-5 text-destructive drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+          </div>
+          <div>
+            <CardTitle className="text-lg text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Deleted Posts</CardTitle>
+            <CardDescription className="text-foreground/70">Audit log of post deletions (latest 100)</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {deletionsLoading ? (
+          <div className="text-center py-8 text-muted-foreground">Loading...</div>
+        ) : deletions.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">No deletions logged</div>
+        ) : (
+          <ScrollArea className="max-h-[400px] pr-3">
+            <div className="space-y-2">
+              {deletions.map((d: any) => (
+                <div key={d.id} className="p-3 rounded-xl bg-card/60 border border-white/5 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge variant="outline" className="rounded-full">{d.post_type || 'post'}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(d.created_at), { addSuffix: true })}
+                    </span>
+                  </div>
+                  {d.caption && (
+                    <p className="text-foreground/80 mt-1 line-clamp-2">{d.caption}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    post_id: <code className="text-foreground/70">{d.post_id}</code>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    deleted_by: <code className="text-foreground/70">{d.deleted_by}</code>
+                    {d.author_id && <> · author: <code className="text-foreground/70">{d.author_id}</code></>}
+                  </p>
+                  {d.reason && <p className="text-xs text-muted-foreground">reason: {d.reason}</p>}
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+      </CardContent>
+    </Card>
+    </div>
   );
 }
