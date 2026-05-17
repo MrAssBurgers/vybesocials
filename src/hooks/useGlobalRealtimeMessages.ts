@@ -14,11 +14,23 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { callSounds } from '@/lib/callSounds';
 
-// Track the current conversation globally
+// Track the current conversation globally with a tiny pub/sub so React
+// effects can react to changes (a plain module variable did not trigger
+// re-subscription of the broadcast channel when the user opened a DM).
 let currentConversationId: string | null = null;
+const currentConversationListeners = new Set<(id: string | null) => void>();
 
 export function setCurrentConversationId(id: string | null) {
+  if (currentConversationId === id) return;
   currentConversationId = id;
+  currentConversationListeners.forEach(l => {
+    try { l(id); } catch { /* noop */ }
+  });
+}
+
+function subscribeCurrentConversationId(listener: (id: string | null) => void) {
+  currentConversationListeners.add(listener);
+  return () => currentConversationListeners.delete(listener);
 }
 
 // Deduplication: Track recently processed message IDs (30 second window)
