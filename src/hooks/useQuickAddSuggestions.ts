@@ -23,7 +23,20 @@ export function useQuickAddSuggestions(limit = 8) {
   const { profile } = useAuth();
   const { data: mutualSuggestions, isLoading: loadingMutual } = useSuggestedFriends();
   const { data: friends } = useFriends();
-  const { data: hiddenIds } = useHiddenFromDiscovery();
+  const { data: hiddenIdsRaw } = useHiddenFromDiscovery();
+  // Defensive: query persister can deserialize a Set into a plain object/array,
+  // stripping `.has()`. Re-normalize on every render so the call sites never crash.
+  const hiddenIds = hiddenIdsRaw instanceof Set
+    ? hiddenIdsRaw
+    : new Set<string>(
+        Array.isArray(hiddenIdsRaw)
+          ? hiddenIdsRaw
+          : hiddenIdsRaw && typeof hiddenIdsRaw === 'object'
+            ? Object.values(hiddenIdsRaw as Record<string, unknown>).filter(
+                (v): v is string => typeof v === 'string'
+              )
+            : []
+      );
   const { isDismissed } = useDismissedQuickAdd();
 
   // Fallback: interest-based / general users — ALWAYS fetched so Quick Add never empty
