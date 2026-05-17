@@ -224,10 +224,10 @@ export function useConversations() {
     staleTime: 60000, // 1 minute cache
     gcTime: 1000 * 60 * 60 * 24, // 24h — keep conversations cached for offline
     refetchOnWindowFocus: true, // Refetch when user returns to app
-    refetchOnMount: false, // Show cached instantly; realtime + reconnect refresh it
-    refetchOnReconnect: true, // Refetch when connection is restored
+    refetchOnMount: 'always', // Always re-pull truth on mount; cache shows instantly via placeholderData
+    refetchOnReconnect: true,
     placeholderData: (prev) => prev,
-    networkMode: 'offlineFirst',
+    networkMode: 'online',
   });
 
   // Realtime updates are now handled by useGlobalRealtimeMessages at App level
@@ -278,10 +278,10 @@ export function useMessages(conversationId: string | undefined) {
     staleTime: 30000,
     gcTime: 1000 * 60 * 60 * 24 * 14, // 14d — keep past messages cached for offline
     refetchOnWindowFocus: false,
-    refetchOnMount: false, // Show cached thread instantly; realtime keeps it fresh
-    refetchOnReconnect: true, // Refetch when connection is restored
+    refetchOnMount: 'always', // Always re-pull thread on mount; cache shows instantly via placeholderData
+    refetchOnReconnect: true,
     placeholderData: (prev) => prev,
-    networkMode: 'offlineFirst',
+    networkMode: 'online',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
