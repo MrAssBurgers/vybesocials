@@ -65,10 +65,11 @@ export function useDMConversations(searchQuery: string = '') {
         .order('updated_at', { ascending: false });
 
       if (convError) {
-        console.error('[DM] conversations query error:', convError);
+        if (import.meta.env.DEV) console.error('[DM] conversations query error:', convError);
+        const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profile.id]);
+        if (prev?.length) return prev;
         throw convError;
       }
-      console.log('[DM] conversations returned:', conversationsRaw?.length || 0);
       if (!conversationsRaw?.length) return [];
 
       // 2) all members for those conversations (flat)
