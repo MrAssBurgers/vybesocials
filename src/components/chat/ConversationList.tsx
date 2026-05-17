@@ -116,7 +116,16 @@ export function ConversationList() {
     isFetched,
     error: convError,
     totalUnreadCount,
+    refetch: refetchConversations,
   } = useDMConversations(debouncedSearch);
+  
+  // Show a recoverable retry affordance if the skeleton lingers past 6s.
+  const [slowLoad, setSlowLoad] = useState(false);
+  useEffect(() => {
+    if (!isLoading) { setSlowLoad(false); return; }
+    const t = setTimeout(() => setSlowLoad(true), 6000);
+    return () => clearTimeout(t);
+  }, [isLoading]);
   
   // Enable instant realtime updates for conversations
   useRealtimeConversations();
@@ -248,6 +257,16 @@ export function ConversationList() {
   if (isLoading) {
     return (
       <div className="space-y-4 p-4">
+        {(slowLoad || convError) && (
+          <div className="rounded-xl border border-border/40 bg-card/40 p-3 flex items-center justify-between gap-3">
+            <div className="text-xs text-muted-foreground">
+              {convError ? "Couldn't load messages." : 'Taking longer than usual…'}
+            </div>
+            <Button size="sm" variant="secondary" className="h-7 px-3 text-xs" onClick={() => refetchConversations()}>
+              Retry
+            </Button>
+          </div>
+        )}
         {[...Array(5)].map((_, i) => (
           <div key={i} className="flex items-center gap-3">
             <Skeleton className="h-12 w-12 rounded-full" />
