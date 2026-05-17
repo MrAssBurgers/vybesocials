@@ -194,11 +194,11 @@ function MenuRow({ icon: Icon, label, onClick, destructive, muted }: {
     <button
       onClick={onClick}
       className={cn(
-        'w-full px-4 py-3 text-left text-[14px] font-normal active:bg-white/10 flex items-center gap-3 transition-colors',
+        'w-full px-3.5 py-2.5 text-left text-[13px] font-normal active:bg-white/10 flex items-center gap-2.5 transition-colors',
         destructive ? 'text-red-400' : muted ? 'text-white/40' : 'text-white/90'
       )}
     >
-      <Icon className="h-[18px] w-[18px]" />
+      <Icon className="h-4 w-4" />
       {label}
     </button>
   );
