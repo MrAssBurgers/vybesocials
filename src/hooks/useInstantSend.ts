@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { Message, ViewMode } from './useMessages';
-
+import { registerOptimisticMessage } from './useGlobalRealtimeMessages';
 
 export interface PendingMessage {
   tempId: string;
@@ -143,20 +143,30 @@ export function useInstantSend(conversationId: string | undefined) {
     return tempId;
   }, [conversationId, profile, queryClient]);
 
-  // Replace temp message with real one from server
+  // Replace temp message with real one from server. If the temp was wiped by a
+  // background refetch (rare race), append the real message instead of dropping
+  // it — that race used to make the sender's bubble visibly disappear.
   const confirmMessage = useCallback((tempId: string, realMessage: Message) => {
     if (!conversationId) return;
 
     queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
-      if (!old) return [realMessage];
+      if (!old || old.length === 0) return [realMessage];
 
-      // If the real message already arrived via realtime, just drop the temp.
       const realAlreadyPresent = old.some(m => m.id === realMessage.id);
+      const tempPresent = old.some(m => m.id === tempId);
+
       if (realAlreadyPresent) {
-        return old.filter(m => m.id !== tempId);
+        // Drop the temp (if any) — realtime delivered it first.
+        return tempPresent ? old.filter(m => m.id !== tempId) : old;
       }
 
-      return old.map(m => (m.id === tempId ? realMessage : m));
+      if (tempPresent) {
+        return old.map(m => (m.id === tempId ? realMessage : m));
+      }
+
+      // Temp was wiped by a refetch and realtime hasn't filled it in yet —
+      // append the confirmed message so the sender always sees it.
+      return [...old, realMessage];
     });
 
     pendingMessagesRef.current.delete(tempId);
@@ -216,8 +226,11 @@ export function useInstantSend(conversationId: string | undefined) {
       createdAt: new Date().toISOString(),
     });
 
-    // Add to UI immediately
+    // Add to UI immediately AND register with the global realtime dedupe so
+    // the postgres_changes echo of our own insert can't accidentally remove
+    // or duplicate the bubble we just rendered.
     addOptimisticMessage(tempId, { content, view_mode: viewMode, reply_to_id: replyToId });
+    registerOptimisticMessage(conversationId, content, profile.id);
 
     try {
       const expiresAt = viewMode === '24h' 
