@@ -976,7 +976,7 @@ export function GlobalCallOverlay() {
       setHasRemoteVideo(false);
       setHasLocalVideo(false);
       setIsMuted(false);
-      setIsVideoOff(false);
+      setIsVideoOff(true);
       setIsReconnecting(false);
       setP2pFailCount(0);
       if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
