@@ -65,12 +65,21 @@ export function SecuritySection() {
     if (error || !row) {
       setSettings(prev);
       toast.error(error?.message ? `Could not save: ${error.message}` : 'Could not save');
-    } else {
+      return;
+    }
+    setSettings({
+      email_2fa_enabled: !!row.email_2fa_enabled,
+      login_approvals_enabled: !!row.login_approvals_enabled,
+    });
+    toast.success('Saved');
+    // Defensive resync from DB so the toggle reflects persisted state
+    const { data: fresh } = await supabase.rpc('ensure_2fa_settings');
+    const freshRow = Array.isArray(fresh) ? fresh[0] : fresh;
+    if (freshRow) {
       setSettings({
-        email_2fa_enabled: !!row.email_2fa_enabled,
-        login_approvals_enabled: !!row.login_approvals_enabled,
+        email_2fa_enabled: !!freshRow.email_2fa_enabled,
+        login_approvals_enabled: !!freshRow.login_approvals_enabled,
       });
-      toast.success('Saved');
     }
   };
 

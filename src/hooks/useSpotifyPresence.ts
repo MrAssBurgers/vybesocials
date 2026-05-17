@@ -35,12 +35,19 @@ export function useSpotifyPresence() {
       if (connected === false) return;
       inflight.current = true;
       try {
-        const { error } = await supabase.functions.invoke('spotify-now-playing');
-        if (error?.message?.includes('Unauthorized') || error?.message?.includes('token_invalid')) {
-          connected = false;
+        const { data, error } = await supabase.functions.invoke('spotify-now-playing');
+        if (error) {
+          console.warn('[SpotifyPresence] invoke error', error);
+          if (error?.message?.includes('Unauthorized') || error?.message?.includes('token_invalid')) {
+            connected = false;
+          }
+        } else if (data) {
+          // Helpful trace so we can see whether presence is being upserted
+          // eslint-disable-next-line no-console
+          console.debug('[SpotifyPresence] tick', data);
         }
       } catch (e) {
-        // swallow transient
+        console.warn('[SpotifyPresence] threw', e);
       } finally {
         inflight.current = false;
       }
