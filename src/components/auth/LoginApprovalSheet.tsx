@@ -67,9 +67,9 @@ export function LoginApprovalSheet() {
       })
       .subscribe();
 
-    // Realtime can drop INSERT events on flaky networks. Re-poll every 8s as
-    // a safety net so an approval prompt is never permanently missed.
-    const pollId = window.setInterval(refresh, 8000);
+    // Realtime should now fire INSERTs reliably (auth_challenges is in the
+    // realtime publication). Keep a slower polling safety net for offline gaps.
+    const pollId = window.setInterval(refresh, 15000);
 
     return () => {
       cancelled = true;
