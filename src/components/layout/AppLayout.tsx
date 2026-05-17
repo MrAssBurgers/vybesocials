@@ -13,6 +13,7 @@ import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
 import { Enable2FANudge } from '@/components/auth/Enable2FANudge';
 import { navVisibility } from '@/lib/navVisibility';
+import { SelfNowPlayingPill } from '@/components/music/SelfNowPlayingPill';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -158,6 +159,9 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
       {/* PWA Install Prompt */}
       <PWAInstallBanner />
+
+      {/* Discord-style "Listening on Spotify" pill for the signed-in user */}
+      {!hideNav && <SelfNowPlayingPill floating />}
 
       {/* One-time soft prompt to enable 2FA so users don't lose access */}
       <Enable2FANudge />

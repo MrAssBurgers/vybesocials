@@ -59,6 +59,28 @@ Deno.serve(async (req) => {
       }).select('id').single();
       if (error || !chal) return jsonResponse({ error: 'create_failed' }, 500);
 
+      // Fire-and-forget push to wake any trusted device (web/Despia/native).
+      try {
+        const where = [geo?.city, geo?.country].filter(Boolean).join(', ') || ip || 'Unknown location';
+        const deviceLabel = (device as any)?.label || (device as any)?.os || (device as any)?.browser || 'Unknown device';
+        fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({
+            userId: user.id,
+            title: 'Approve sign-in?',
+            body: `${deviceLabel} · ${where}`,
+            url: `/?login-approval=${chal.id}`,
+            tag: `vybe-login-approval-${chal.id}`,
+            type: 'general',
+            data: { challengeId: chal.id, kind: 'login_approval' },
+          }),
+        }).catch(() => {});
+      } catch { /* best-effort */ }
+
       return jsonResponse({ ok: true, requiresApproval: true, challengeId: chal.id });
     }
 
@@ -129,7 +151,7 @@ Deno.serve(async (req) => {
 
       const { data: chal } = await admin
         .from('auth_challenges')
-        .select('id, user_id, status, expires_at')
+        .select('id, user_id, status, expires_at, metadata')
         .eq('id', challengeId)
         .eq('challenge_type', 'login_approval')
         .maybeSingle();
@@ -142,19 +164,25 @@ Deno.serve(async (req) => {
       }
 
       const newStatus = intent === 'approve' ? 'approved' : 'denied';
+      const meta = (chal.metadata as Record<string, any>) || {};
+      const session = newStatus === 'approved' ? (meta.session ?? null) : null;
+      // Scrub the session from metadata so it can't be replayed via poll.
+      const scrubbed = { ...meta };
+      delete scrubbed.session;
       await admin.from('auth_challenges').update({
         status: newStatus,
         consumed_at: new Date().toISOString(),
+        metadata: scrubbed,
       }).eq('id', chal.id);
 
-      // Instant broadcast so the waiting (signed-out) device resolves immediately
-      // without needing to wait for the next 3s poll tick.
+      // Instant broadcast carrying the session so the waiting device finalizes
+      // without an extra poll round-trip.
       try {
         const ch = admin.channel(`login-approval:${chal.id}`);
         await ch.send({
           type: 'broadcast',
           event: 'resolved',
-          payload: { status: newStatus, challengeId: chal.id },
+          payload: { status: newStatus, challengeId: chal.id, session },
         });
         await admin.removeChannel(ch);
       } catch { /* best-effort */ }
