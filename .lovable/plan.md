@@ -1,33 +1,27 @@
-## Bug
+## Plan
 
-On the live site (desktop `/messages`), the conversation list panel and the "Select a conversation" empty‑state card only occupy the top half of the screen. The empty‑state card floats in the upper‑right of the chat pane and the list's right border stops mid‑page — everything below is empty black space.
+### 1. Stabilize DM loading and sending
+- Fix remaining profile/Auth ID mismatches in DM hidden/trash filtering so conversations are not accidentally hidden or filtered incorrectly.
+- Make message send confirmation update the local cache without forcing full message/conversation refetches that cause lag and flicker.
+- Make the global realtime handler ignore unrelated message events earlier and patch only the current user’s conversations.
+- Keep optimistic sends, but replace temp messages cleanly and only refetch when the conversation is genuinely missing from cache.
 
-Root cause: `src/pages/Messages.tsx` relies on a `h-full` chain (`AppLayout` main → `h-full` wrapper → Messages outer `h-full w-full flex`). In the desktop `noPadding` branch of `AppLayout` the inner `mx-auto w-full h-full` div has no defined flex context, and on the live build the main element's effective height collapses, so `h-full` resolves to the natural content height of the conversation list. The empty state then centers inside that short box, which sits at the top of the chat pane.
+### 2. Fix realtime coverage for DMs
+- Ensure DM-related realtime tables are published where needed, especially `conversation_members` for read/unread cross-device sync and `auth_challenges` for login approval prompts.
+- Keep RLS scoped to real members only; do not make DMs public.
+- Avoid broad invalidations from read-state sync so opening DMs on one device doesn’t make the list reload/flicker on another.
 
-## Fix
+### 3. Make login approval notify and resolve instantly
+- Update the login approval flow so creating an approval request sends a push notification to the trusted devices.
+- Extend the push notification type support for security/login approval payloads.
+- Subscribe the approving device to realtime approval rows and keep the existing polling fallback.
+- When approve/deny is tapped, update the row immediately; the waiting device should react through realtime first and polling as backup.
 
-Only change `src/pages/Messages.tsx` — no business logic, no AppLayout changes.
+### 4. Validate the live behavior
+- Check backend health and recent logs again after changes.
+- Verify DM queries can read/write for the active profile path.
+- Verify the login approval edge function can create/poll/respond cleanly and that push dispatch no longer rejects the security notification type.
 
-1. In the desktop (non‑immersive, non‑mobileListMode) branch, replace `h-full w-full` on the outer wrapper with an explicit viewport height so it no longer depends on the `h-full` chain:
-   - className: `h-[100dvh] w-full flex max-w-full bg-background`
-   - style: `{ overflow: 'hidden' }`
-   - Keep the existing immersive (`100dvh fixed inset-0 z-50`) and mobileListMode (`fixed inset-x-0 top-14 bottom-0`) branches as-is.
-
-2. Make both child panels true flex children of that full‑height row:
-   - Conversation list column: keep `w-full md:w-80 lg:w-96 border-r ... flex-shrink-0 min-w-0 bg-card/30 backdrop-blur-xl`, add `h-full` and `min-h-0`, drop the inline `height: '100%'` (now redundant).
-   - Chat column: keep `flex-1 min-w-0 ... flex flex-col`, add `h-full min-h-0`.
-
-3. Re‑center the empty state reliably inside the chat column regardless of parent height:
-   - Wrap the existing empty-state card in a `flex-1 flex items-center justify-center w-full h-full` container.
-   - Keep the floating particles and `liquid-glass-depth` card untouched visually.
-
-## Out of scope
-
-- No changes to `AppLayout`, `ConversationList`, `ChatView`, realtime hooks, or DM send logic.
-- Mobile DM view (`/messages/:id`) is unaffected — the `isImmersive` branch is untouched.
-
-## Verification
-
-- Desktop `/messages` (no conversation selected): conversation list panel and right empty‑state pane both span full viewport height; "Select a conversation" card is centered both horizontally and vertically in the chat pane.
-- Desktop `/messages/:id`: chat view still fills the pane.
-- Mobile `/messages` and `/messages/:id`: unchanged (immersive + mobileListMode branches untouched).
+## Technical details
+- Files likely touched: `src/hooks/useDMConversations.ts`, `src/hooks/useInstantSend.ts`, `src/hooks/useGlobalRealtimeMessages.ts`, `src/hooks/useMessageNotifications.ts`, `src/lib/pushNotifications.ts`, `src/components/auth/LoginApprovalSheet.tsx`, `src/components/auth/LoginGateModal.tsx`, and `supabase/functions/auth-login-approval/index.ts` / `supabase/functions/auth-2fa-preauth/index.ts`.
+- A database migration may be needed to add realtime publication for `conversation_members` and `auth_challenges` if not already enabled on live.
