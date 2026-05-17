@@ -168,7 +168,9 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
           });
           return;
         }
-        try { stopCameraStream(); } catch {}
+        // Do NOT call stopCameraStream() here — that shared global stream may
+        // belong to call-warmup or another consumer; tearing it down can crash
+        // the WebView. Just fall through and acquire our own.
       }
 
       // Skip Permissions API on Despia/Android WebView — it can throw.
@@ -188,16 +190,19 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         streamRef.current = null;
       }
 
-      // Try simple constraints first, then refine.
+      // Acquire VIDEO-ONLY first. iOS Safari refuses to autoplay a muted
+      // <video> when its MediaStream carries an audio track, which is what
+      // surfaces the white "play button" poster. Audio is added on demand
+      // when the user actually starts recording (still inside a tap gesture).
       let stream: MediaStream | null = null;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode },
-          audio: soundEnabled,
+          audio: false,
         });
       } catch (simpleErr: any) {
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: soundEnabled });
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         } catch (fallbackErr: any) {
           console.warn('[VybeSnapCamera] getUserMedia fallback failed', fallbackErr);
           setPermissionDenied(true);
@@ -235,8 +240,10 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         setPermissionDenied(true);
         console.warn('[VybeSnapCamera] Camera error:', name || error);
       }
+    } finally {
+      startingRef.current = false;
     }
-  }, [facingMode, soundEnabled, flashEnabled, initialStream]);
+  }, [facingMode, flashEnabled, initialStream]);
 
   // Toggle torch
   useEffect(() => {
