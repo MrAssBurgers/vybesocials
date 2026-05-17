@@ -98,12 +98,24 @@ export function useGlobalRealtimeMessages() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const setupChannel = useCallback(() => {
+  const setupChannel = useCallback(async () => {
     if (!profile?.id) return;
 
     // Clean up existing channel
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
+    }
+
+    // Ensure the Realtime socket carries the current JWT so RLS-filtered
+    // postgres_changes events (e.g. messages INSERT) actually reach us.
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        supabase.realtime.setAuth(session.access_token);
+        if (import.meta.env.DEV) console.log('[GlobalRT] setAuth applied');
+      }
+    } catch (e) {
+      if (import.meta.env.DEV) console.warn('[GlobalRT] setAuth failed', e);
     }
 
     // Create a single global channel for all message events
