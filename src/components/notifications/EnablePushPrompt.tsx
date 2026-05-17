@@ -15,7 +15,7 @@ export function EnablePushPrompt() {
           </div>
           <DialogTitle className="text-xl">Turn on notifications</DialogTitle>
           <DialogDescription className="text-center text-muted-foreground">
-            Get DMs, calls, daily briefs, and friend activity in real time. You can turn this off anytime.
+            Get DMs, calls, daily briefs, and friend activity in real time. Your device will ask for permission next — tap Allow.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2 mt-2">
