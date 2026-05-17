@@ -78,7 +78,7 @@ export function useDMConversations(searchQuery: string = '') {
         .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
         .in('conversation_id', userConversationIds);
 
-      if (membersError) {
+      if (membersError && import.meta.env.DEV) {
         console.error('[DM] all-members query error:', membersError);
       }
 
@@ -91,7 +91,7 @@ export function useDMConversations(searchQuery: string = '') {
             .in('id', memberUserIds)
         : { data: [], error: null } as any;
 
-      if (profilesError) {
+      if (profilesError && import.meta.env.DEV) {
         console.error('[DM] member profiles query error:', profilesError);
       }
       const profileById = new Map((memberProfiles || []).map((p: any) => [p.id, p]));
