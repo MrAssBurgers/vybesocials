@@ -2,6 +2,7 @@ import { useLiveMusicPresence } from '@/hooks/useLiveMusicPresence';
 import { useListenAlong } from '@/hooks/useListenAlong';
 import { useAuth } from '@/lib/auth';
 import { LiveSpotifyWaveform } from '@/components/music/LiveSpotifyWaveform';
+import { providerTheme } from '@/components/music/providerTheme';
 import { Headphones } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -11,14 +12,14 @@ interface Props {
   className?: string;
   /** Compact = single line truncated, used in DM list rows */
   compact?: boolean;
-  /** Show a headphones "listen along" affordance when not self */
+  /** Show a headphones "listen along" affordance when not self (Spotify only) */
   enableListenAlong?: boolean;
 }
 
 /**
- * Tiny inline "Listening on Spotify" badge. Shown in DM rows + chat header.
- * Renders nothing when the user is not playing anything. When viewing
- * someone else, tap to listen along on your own Spotify.
+ * Provider-aware inline now-playing badge. Shown in DM rows + chat header.
+ * Renders nothing when the user isn't playing/watching anything.
+ * Spotify viewers get a "listen along" tap target.
  */
 export function NowPlayingInline({ authUserId, className, compact = true, enableListenAlong = true }: Props) {
   const presence = useLiveMusicPresence(authUserId);
@@ -27,17 +28,18 @@ export function NowPlayingInline({ authUserId, className, compact = true, enable
 
   if (!presence?.is_playing || !presence.title) return null;
 
+  const theme = providerTheme(presence.provider);
   const meta = [presence.title, presence.artist].filter(Boolean).join(' · ');
   const isOther = !!user?.id && !!authUserId && user.id !== authUserId;
-  const interactive = isOther && enableListenAlong;
+  const canListenAlong = presence.provider === 'spotify' && isOther && enableListenAlong;
 
   const inner = (
     <>
-      <LiveSpotifyWaveform tempo={presence.tempo} energy={presence.energy} isPlaying={presence.is_playing} height={10} bars={3} />
-      <span className="text-[#1DB954] font-semibold whitespace-nowrap">Listening</span>
+      <LiveSpotifyWaveform tempo={presence.tempo} energy={presence.energy} isPlaying={presence.is_playing} height={10} bars={3} color={theme.color} />
+      <span className="font-semibold whitespace-nowrap" style={{ color: theme.color }}>{theme.shortLabel}</span>
       <span className="text-muted-foreground truncate">· {meta}</span>
-      {interactive && (
-        <Headphones className="w-3 h-3 text-[#1DB954] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+      {canListenAlong && (
+        <Headphones className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" style={{ color: theme.color }} />
       )}
     </>
   );
@@ -45,11 +47,11 @@ export function NowPlayingInline({ authUserId, className, compact = true, enable
   const baseClass = cn(
     'inline-flex items-center gap-1.5 min-w-0 group',
     compact ? 'text-[11px]' : 'text-xs',
-    interactive && 'cursor-pointer hover:text-foreground active:scale-[0.98] transition',
+    canListenAlong && 'cursor-pointer hover:text-foreground active:scale-[0.98] transition',
     className,
   );
 
-  if (interactive) {
+  if (canListenAlong) {
     return (
       <button
         type="button"
@@ -72,3 +74,4 @@ export function NowPlayingInline({ authUserId, className, compact = true, enable
     </div>
   );
 }
+
