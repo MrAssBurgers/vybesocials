@@ -1416,12 +1416,10 @@ export function GlobalCallOverlay() {
                   {isMuted ? <MicOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Mic className="h-5 w-5 sm:h-6 sm:w-6" />}
                 </motion.button>
 
-                {/* Video toggle */}
-                {isVideoCall && (
-                  <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('medium'); handleToggleVideo(); }} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isVideoOff ? "bg-white text-black shadow-lg ring-2 ring-accent/50" : "bg-white/10 text-white hover:bg-white/20")}>
-                    {isVideoOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
-                  </motion.button>
-                )}
+                {/* Video toggle — available on audio calls too (enables camera mid-call) */}
+                <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('medium'); handleToggleVideo(); }} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isVideoOff ? "bg-white/10 text-white hover:bg-white/20" : "bg-white text-black shadow-lg ring-2 ring-accent/50")} title={isVideoOff ? "Turn camera on" : "Turn camera off"}>
+                  {isVideoOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
+                </motion.button>
 
                 <div className="w-px h-8 sm:h-10 bg-white/20 flex-shrink-0" />
 
