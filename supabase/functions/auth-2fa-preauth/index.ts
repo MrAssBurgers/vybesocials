@@ -159,19 +159,18 @@ Deno.serve(async (req) => {
       .eq('user_id', userId)
       .maybeSingle();
 
-    // Fast path: no second factor — return the session immediately and skip
-    // all the geo/UA/device work below. Saves ~300-800ms on every login.
-    if (!settings?.email_2fa_enabled && !settings?.login_approvals_enabled) {
-      return jsonResponse({ stage: 'none', session });
-    }
-
     const ip = getClientIp(req);
     const ua = req.headers.get('user-agent');
     const device = parseUserAgent(ua);
     const geo = await geolocateIp(ip);
 
-    // 3a. Email 2FA path
-    if (settings?.email_2fa_enabled) {
+    // Login approval still respects the user's explicit setting and takes
+    // precedence over email 2FA when enabled. Otherwise, email 2FA is now
+    // REQUIRED on every live login — every user gets a verification code
+    // emailed before the session lands on the device.
+    const wantsEmail2fa = !settings?.login_approvals_enabled;
+
+    if (wantsEmail2fa) {
       // Invalidate previous pending email_2fa challenges
       await admin
         .from('auth_challenges')
@@ -196,13 +195,25 @@ Deno.serve(async (req) => {
         .single();
       if (insErr || !chal) return jsonResponse({ error: 'create_challenge_failed' }, 500);
 
-      const sendResult = await sendTransactional('login-verification', normalized, {
-        code, ip, city: geo.city, country: geo.country, device,
-      }, `2fa-${chal.id}`);
+      // Primary path: enqueue directly into the auth_emails pgmq queue (the
+      // same proven pipeline auth-email-hook uses). Fall back to
+      // send-transactional-email only if the direct enqueue fails.
+      let sendResult = await enqueueLoginCodeEmail({
+        recipient: normalized,
+        code,
+        ip,
+        city: geo.city,
+        country: geo.country,
+        device,
+        idempotencyKey: `2fa-${chal.id}`,
+      });
+      if (!sendResult.ok) {
+        sendResult = await sendTransactional('login-verification', normalized, {
+          code, ip, city: geo.city, country: geo.country, device,
+        }, `2fa-${chal.id}`);
+      }
 
       if (!sendResult.ok) {
-        // Hard fail — drop the challenge so the client never sees a "code sent"
-        // toast for a code we couldn't actually deliver.
         await admin.from('auth_challenges').delete().eq('id', chal.id);
         return jsonResponse({ error: 'email_failed', detail: sendResult.error }, 502);
       }
