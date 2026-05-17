@@ -84,6 +84,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isHolding, setIsHolding] = useState(false);
   const [showCommentSheet, setShowCommentSheet] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
@@ -246,9 +247,13 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     );
   }
 
+  if (isHidden) return null;
+
   const isOwnPost = profile?.id === post.author.id;
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
-  const canDelete = isOwnPost || isAdmin;
+  // Only the author sees the personal "Delete" item. Mods use Mod Actions →
+  // "Delete Post (Mod)" so they never see two delete buttons on the same clip.
+  const canDelete = isOwnPost;
 
   const handleReaction = async (reactionType: ReactionType | null) => {
     if (!profile || !post.author) return;
@@ -347,6 +352,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       }
 
       toast.success('Clip deleted');
+      setIsHidden(true);
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     } catch (error) {
       console.error('Failed to delete clip:', error);
@@ -613,10 +619,12 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
               <ModeratorMenuItems
                 userId={post.author.id}
                 username={post.author.username}
+                postId={post.id}
                 onWarnClick={() => setWarnDialogOpen(true)}
                 onBanClick={() => setBanDialogOpen(true)}
                 onMemeBanClick={() => setMemeBanDialogOpen(true)}
                 onDeleteContentClick={(type, id) => setDeleteContentDialog({ type, id })}
+                onPostDelete={() => setIsHidden(true)}
               />
             )}
             {!isOwnPost && post.author && (
@@ -719,6 +727,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           setMemeBanDialogOpen={setMemeBanDialogOpen}
           deleteContentDialog={deleteContentDialog}
           setDeleteContentDialog={setDeleteContentDialog}
+          onPostDelete={() => setIsHidden(true)}
         />
       )}
       {post.author && (

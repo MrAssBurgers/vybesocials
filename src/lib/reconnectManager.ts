@@ -3,28 +3,35 @@ import type { QueryClient } from '@tanstack/react-query';
 /**
  * Global reconnect manager.
  *
- * - Detects when the browser comes back online (or the app becomes visible
- *   on a previously offline tab).
- * - Verifies actual reachability with a fast HEAD probe (since
- *   `navigator.onLine` lies on captive portals, mobile, and PWAs).
- * - Once reachability is confirmed, invalidates active queries so every
- *   visible screen refreshes immediately, just like every other major
- *   social app.
- * - While offline, polls every 3s (backing off to 15s) so we catch
- *   reconnects the OS never fires events for.
+ * The app should never need to be closed and reopened to come back online.
+ * On mobile WebViews (Despia/Capacitor) and PWAs, `navigator.onLine` can lie
+ * for long stretches after a real reconnect, so we treat a fast HEAD probe
+ * against our own origin as the single source of truth and poll continuously:
+ *
+ * - Fast cadence (3s → 15s backoff) while we believe we're offline.
+ * - Slow heartbeat (60s) while online, so signal loss is caught even when the
+ *   OS never fires an `offline` event (cellular handoff, captive portal, etc.).
+ * - We also listen to every event that can mean "we might be live again":
+ *   `online`, `focus`, `visibilitychange`, `pageshow`, connection change.
+ *
+ * On every confirmed reconnect we invalidate active stale queries so DMs,
+ * feeds, notifications and everything else repaint automatically — no manual
+ * refresh or app restart required.
  */
 
 // Probe a static asset on our own origin — never sends auth headers, never
 // generates 401 spam, works even when Supabase is reachable but rate-limited.
-const HEALTH_URL = `${typeof window !== 'undefined' ? window.location.origin : ''}/favicon.ico`;
+// Relative path so it works under capacitor://localhost and PWA shells too.
+const HEALTH_URL = './favicon.ico';
 const PROBE_TIMEOUT_MS = 2500;
-const MIN_INTERVAL_MS = 3000;
-const MAX_INTERVAL_MS = 15000;
+const OFFLINE_MIN_MS = 3000;
+const OFFLINE_MAX_MS = 15000;
+const ONLINE_HEARTBEAT_MS = 60000;
 
 let started = false;
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
-let currentInterval = MIN_INTERVAL_MS;
-let lastKnownOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+let currentInterval = OFFLINE_MIN_MS;
+let lastKnownOnline = true;
 
 const reconnectListeners = new Set<() => void>();
 
@@ -34,12 +41,10 @@ export function onReconnect(cb: () => void): () => void {
 }
 
 async function probeReachable(): Promise<boolean> {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
-  if (!HEALTH_URL) return navigator.onLine;
+  // Don't trust navigator.onLine — it sticks on mobile WebViews. Always probe.
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
-    // HEAD + cache-bust to avoid SW returning a cached 200 while truly offline
     const res = await fetch(`${HEALTH_URL}?_probe=${Date.now()}`, {
       method: 'HEAD',
       cache: 'no-store',
@@ -70,10 +75,11 @@ function fireReconnect(queryClient: QueryClient) {
 
 function schedulePoll(queryClient: QueryClient) {
   if (pollTimer) clearTimeout(pollTimer);
+  const delay = lastKnownOnline ? ONLINE_HEARTBEAT_MS : currentInterval;
   pollTimer = setTimeout(async () => {
     const online = await probeReachable();
     if (online) {
-      currentInterval = MIN_INTERVAL_MS;
+      currentInterval = OFFLINE_MIN_MS;
       if (!lastKnownOnline) {
         lastKnownOnline = true;
         window.dispatchEvent(new CustomEvent('vybe:online'));
@@ -82,49 +88,56 @@ function schedulePoll(queryClient: QueryClient) {
     } else {
       if (lastKnownOnline) {
         lastKnownOnline = false;
+        currentInterval = OFFLINE_MIN_MS;
         window.dispatchEvent(new CustomEvent('vybe:offline'));
+      } else {
+        currentInterval = Math.min(currentInterval * 1.5, OFFLINE_MAX_MS);
       }
-      currentInterval = Math.min(currentInterval * 1.5, MAX_INTERVAL_MS);
     }
-    // Only keep polling while offline — when online we rely on events.
-    if (!lastKnownOnline) schedulePoll(queryClient);
-  }, currentInterval);
+    // Always keep polling — heartbeat while online, fast probe while offline.
+    schedulePoll(queryClient);
+  }, delay);
 }
 
 export function startReconnectManager(queryClient: QueryClient) {
   if (started || typeof window === 'undefined') return;
   started = true;
 
-  const handleOnline = async () => {
+  const handleMaybeOnline = async () => {
     const ok = await probeReachable();
-    if (ok && !lastKnownOnline) {
-      lastKnownOnline = true;
-      window.dispatchEvent(new CustomEvent('vybe:online'));
-      fireReconnect(queryClient);
-    } else if (!ok) {
+    if (ok) {
+      if (!lastKnownOnline) {
+        lastKnownOnline = true;
+        currentInterval = OFFLINE_MIN_MS;
+        window.dispatchEvent(new CustomEvent('vybe:online'));
+        fireReconnect(queryClient);
+      }
+    } else if (lastKnownOnline) {
       lastKnownOnline = false;
-      schedulePoll(queryClient);
+      currentInterval = OFFLINE_MIN_MS;
+      window.dispatchEvent(new CustomEvent('vybe:offline'));
     }
   };
 
   const handleOffline = () => {
-    lastKnownOnline = false;
-    currentInterval = MIN_INTERVAL_MS;
-    window.dispatchEvent(new CustomEvent('vybe:offline'));
-    schedulePoll(queryClient);
+    // Browser told us we're offline — verify, don't trust blindly.
+    void handleMaybeOnline();
   };
 
   const handleVisibility = () => {
-    if (document.visibilityState === 'visible') void handleOnline();
+    if (document.visibilityState === 'visible') void handleMaybeOnline();
   };
 
-  window.addEventListener('online', handleOnline);
+  window.addEventListener('online', handleMaybeOnline);
   window.addEventListener('offline', handleOffline);
+  window.addEventListener('focus', handleMaybeOnline);
+  window.addEventListener('pageshow', handleMaybeOnline);
   document.addEventListener('visibilitychange', handleVisibility);
 
   const conn = (navigator as any).connection;
-  conn?.addEventListener?.('change', handleOnline);
+  conn?.addEventListener?.('change', handleMaybeOnline);
 
-  // Initial probe so we recover from "loaded while offline" cold starts.
-  void handleOnline();
+  // Initial probe + continuous loop (heartbeat while online, fast retry while offline)
+  void handleMaybeOnline();
+  schedulePoll(queryClient);
 }
