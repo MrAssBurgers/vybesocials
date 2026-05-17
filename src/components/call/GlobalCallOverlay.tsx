@@ -159,6 +159,8 @@ export function GlobalCallOverlay() {
         premiumSounds.stopAllCallSounds();
         premiumSounds.callConnect();
         setPhase('connected');
+        // Initial camera state — on for video calls, off for audio calls
+        setIsVideoOff(stateRef.current.call?.callType !== 'video');
         setIsReconnecting(false);
         setP2pFailCount(0);
         p2pEndedRef.current = false;
