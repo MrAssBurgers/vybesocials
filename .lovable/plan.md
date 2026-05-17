@@ -1,119 +1,56 @@
-# Why DMs don't arrive instantly on the recipient
+# Plan: Fix DMs, push delivery, and audio-call camera UI
 
-## How the pipeline is supposed to work
+## What I found
 
-```
-SENDER device                                     RECEIVER device
-─────────────                                     ───────────────
-useInstantSend.sendText()
-  1. optimistic add to local cache  ──────────►   (sender sees it instantly ✅)
-  2. INSERT into public.messages    ──┐
-  3. supabase.channel("dm-broadcast")  │
-       .send(new-message)              │
-                                       ▼
-                            Supabase Realtime
-                                       │
-                  ┌────────────────────┴──────────────────┐
-                  ▼                                       ▼
-        postgres_changes INSERT                    broadcast "new-message"
-        on `messages` table                        on dm-broadcast:{convoId}
-                  │                                       │
-                  ▼                                       ▼
-        useGlobalRealtimeMessages         ONLY if receiver currently has
-        (always on, App level)            this exact convo OPEN
-                  │
-                  ▼
-        update ['messages', convoId] cache
-        update ['dm-conversations', profile.id] cache
-        play sound
-```
+There are now three separate issues:
 
-Both paths are wired in code, but each has a real bug that explains the symptoms you saw.
+1. **Sent messages can fail to appear in the chat UI immediately.**
+   - `ChatView` clears the input before awaiting `sendText()`.
+   - `useInstantSend` is responsible for the optimistic bubble, but it does not register the optimistic message with the global realtime dedupe helper already defined in `useGlobalRealtimeMessages`.
+   - A refetch/realtime event can race the optimistic update, so the sender can see the bubble disappear or never visibly land.
 
-## Bugs found
+2. **Phone push notifications are failing because web push subscriptions were created with the wrong VAPID public key.**
+   - Edge logs show `VapidPkHashMismatch` / `403 VAPID credentials do not correspond...`.
+   - `usePushNotifications.ts` falls back to a hardcoded sample public key, while the backend signs with the real private key.
+   - Existing browser push subscriptions must be re-created with the matching public key.
 
-### 1. The broadcast fast-path doesn't actually deliver (silent failure)
+3. **Audio-call animation/camera upgrade needs final polish.**
+   - The visualizer should be centered off the avatar/ring, not scaled by loose percentage wrappers.
+   - Camera enable during an audio call should be driven by actual local video track state, and the camera request must happen directly from the button tap.
 
-`src/hooks/useInstantSend.ts` lines 209-213 and 285-289:
+## Implementation
 
-```ts
-const bc = supabase.channel(`dm-broadcast:${conversationId}`);
-await bc.send({ type: 'broadcast', event: 'new-message', payload: { message: ... } });
-supabase.removeChannel(bc);
-```
+### 1. Make sent DMs always show in chat
 
-The channel is created and `send()` is called **without ever calling `.subscribe()`**. In `@supabase/supabase-js` the channel transport isn't open until the join is acked, so this send is dropped on the floor (no error thrown). The receiver's `dm-broadcast:{id}` subscription in `useGlobalRealtimeMessages` (line 358) never receives the payload, so the "open-convo instant delivery" path is dead. Everything falls back on postgres_changes — which has its own issue (#2).
+- Update `src/hooks/useInstantSend.ts` to call `registerOptimisticMessage(conversationId, content, profile.id)` when a text message is optimistically added.
+- Strengthen `confirmMessage()` so if a temp bubble was wiped by a refetch, the confirmed server message is appended instead of doing nothing.
+- Apply the same “append if missing” behavior for media/video confirmation paths.
+- Add best-effort conversation-list patching immediately after confirmed send so the thread row updates without waiting for a refetch.
+- In `src/components/chat/ChatView.tsx`, make `handleSend` await `sendText()` and restore the draft if the send fails, so a failed send does not look like the message vanished.
 
-### 2. Receiver's postgres_changes channel listens to ALL inserts, then relies on RLS
+### 2. Fix DM push notifications on phones
 
-`useGlobalRealtimeMessages` subscribes to `INSERT on public.messages` with no `filter`. Realtime then runs the SELECT RLS policy `can_access_message` for each row. That policy calls `current_profile_id()` → `SELECT id FROM profiles WHERE user_id = auth.uid()`. If the receiver's realtime socket hasn't been re-authed with the current JWT (e.g. token refreshed mid-session, or app opened from cold-start with a stale anon socket), `auth.uid()` is NULL and the row is filtered out — no INSERT event reaches the client. This matches "I opened the other account and the message wasn't there".
+- Add a small backend function `get-vapid-key` that returns the current public VAPID key from backend secrets.
+- Update `src/hooks/usePushNotifications.ts` to fetch/cache that key instead of using the hardcoded sample fallback.
+- If the key cannot be loaded, show a clear error and do not create a broken subscription.
+- Add a one-time migration to delete stale `web` push tokens so browsers re-subscribe with the correct key next time users enable/open push. Native/Despia tokens stay untouched.
 
-We can't filter server-side by `sender_id != me` (Realtime filters don't support `neq` reliably for our case) but we CAN explicitly call `supabase.realtime.setAuth(token)` on auth state changes and after `setupChannel()` so the socket is always authenticated.
+### 3. Finalize audio-call animation + camera during audio calls
 
-### 3. "Not online" — receiver was online but sender saw them offline
+- Recheck `src/components/call/GlobalCallOverlay.tsx`.
+- Center the `AudioVisualizer` with fixed avatar-relative dimensions so the ring does not drift in audio calls.
+- Ensure the video button appears for connected audio calls.
+- Ensure enabling camera in an audio call requests video directly from the tap handler and attaches the local track/PiP immediately.
 
-`useUsersOnlineStatus` (`src/hooks/usePresence.ts:244`) only refreshes via `refetchInterval: 20000` and a per-user channel that the **conversation list doesn't subscribe to** (only `useUserOnlineStatus` does, and only when a specific chat is open). So when you opened the DM list on the sender, you saw a stale snapshot up to 20s old. Combined with the 90s "considered offline" grace, the receiver could be active but rendered as offline for ~25s after they came back.
+## Technical notes
 
-### 4. New conversations don't appear in the receiver's list until 300ms+ refetch
+- No change to the generated Supabase client/types files.
+- Realtime on `messages` is already enabled in migrations, so I will not duplicate that unless the live backend says otherwise.
+- The push fix requires backend secrets `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` to match. If one is missing, I will ask for the missing secret before finishing the push part.
 
-When the very first message in a brand-new convo arrives, the receiver's `['dm-conversations']` cache doesn't have it. `useGlobalRealtimeMessages` debounces an invalidate by 300ms then refetches. If the realtime event never fires (bug #2) this never happens either. Once #2 is fixed this fallback works; we can also tighten the debounce to 100ms.
+## Verification
 
-## Fix plan
-
-### A. Make broadcast actually subscribe before sending (sender side)
-
-In `useInstantSend.ts`, replace the throwaway-channel pattern with a long-lived per-conversation broadcast channel kept in a `useRef`. Subscribe once, reuse for every send, tear down on unmount.
-
-```ts
-const broadcastChannelRef = useRef<RealtimeChannel | null>(null);
-
-// lazy init
-const getBroadcastChannel = () => {
-  if (!conversationId) return null;
-  if (broadcastChannelRef.current) return broadcastChannelRef.current;
-  const ch = supabase
-    .channel(`dm-broadcast:${conversationId}`, { config: { broadcast: { ack: true, self: false } } })
-    .subscribe();
-  broadcastChannelRef.current = ch;
-  return ch;
-};
-```
-
-Then in sendText/sendMedia/sendVideo: `await getBroadcastChannel()?.send({ type:'broadcast', event:'new-message', payload:{ message } })`. Cleanup channel on unmount.
-
-### B. Re-auth the realtime socket on every auth change
-
-In `src/lib/auth.tsx` (or wherever `onAuthStateChange` lives), after `supabase.auth.getSession()` and on every `TOKEN_REFRESHED` / `SIGNED_IN` event:
-
-```ts
-const { data: { session } } = await supabase.auth.getSession();
-if (session?.access_token) supabase.realtime.setAuth(session.access_token);
-```
-
-Also call it once inside `useGlobalRealtimeMessages.setupChannel` right before `.subscribe()` so cold-start always has fresh auth.
-
-### C. Make the DM list reflect presence in near-realtime
-
-Add a single global `user_presence` postgres_changes listener (alongside `useGlobalRealtimeMessages`) that patches `['users-presence', ...]` cache directly when any presence row changes for a user in any of the current user's conversations. Drop the 20s refetch interval on `useUsersOnlineStatus` once realtime patches are in.
-
-### D. Tighten the unknown-convo refetch debounce
-
-`scheduleUnknownConvoRefetch` debounce 300 → 100ms. Cheap and makes new threads pop in faster.
-
-## Technical details
-
-**Files to edit**
-- `src/hooks/useInstantSend.ts` — long-lived broadcast channel, subscribe before send (fixes #1)
-- `src/lib/auth.tsx` (or equivalent auth provider) — call `supabase.realtime.setAuth()` on session/refresh (fixes #2)
-- `src/hooks/useGlobalRealtimeMessages.ts` — call `setAuth` before `.subscribe()`; tighten unknown-convo debounce 300→100ms (fixes #2, #4); add presence INSERT/UPDATE listener that patches `['users-presence', ...]` cache (fixes #3)
-- `src/hooks/usePresence.ts` — once realtime presence patching is in, drop `refetchInterval` on `useUsersOnlineStatus` to 0 (it becomes purely event-driven)
-
-**No DB migrations needed.** `messages`, `conversations`, and `user_presence` are already in the `supabase_realtime` publication and RLS is correct.
-
-**Diagnostic logs to add (kept behind `import.meta.env.DEV`)**
-- `[GlobalRT] subscribe status` already logs `SUBSCRIBED` / `CHANNEL_ERROR`. Add `setAuth applied` to confirm the JWT was attached.
-- `[InstantSend] broadcast send ack` to verify the new long-lived channel actually delivered.
-
-## Out of scope (intentionally)
-
-- OneSignal / Despia push delivery — that's a separate flow (covered in `.lovable/plan.md` item #4) and only matters when the receiver has the app **closed**. The "not showing instantly while I was looking" symptom is the in-app realtime path above, which is what this plan fixes.
+- Send a DM and confirm the sender immediately sees the bubble in the active chat.
+- Confirm failed sends keep/restore text instead of silently disappearing.
+- Confirm `send-push-notification` logs stop showing `VapidPkHashMismatch` after re-subscribe.
+- Start an audio call, confirm the visualizer is centered and the camera button upgrades the call without dropping it.
