@@ -84,6 +84,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isHolding, setIsHolding] = useState(false);
   const [showCommentSheet, setShowCommentSheet] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
