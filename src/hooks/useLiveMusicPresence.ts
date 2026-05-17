@@ -93,6 +93,30 @@ function subscribe(authUserId: string, listener: Listener): () => void {
  * Subscribe to a user's live music presence. Pass the auth user id
  * (profiles.user_id), NOT profiles.id.
  */
+/**
+ * Optimistically push a presence row into the shared registry — used by
+ * `useSpotifyPresence` so the signed-in user sees their own track changes
+ * the instant polling returns, without waiting for the Realtime round-trip.
+ */
+export function setLocalPresence(authUserId: string, payload: Partial<LiveMusicPresence> | null) {
+  const entry = registry.get(authUserId);
+  const next = payload
+    ? ({ ...(entry?.latest ?? {}), ...payload, user_id: authUserId, updated_at: new Date().toISOString() } as LiveMusicPresence)
+    : null;
+  if (!entry) {
+    // No subscribers yet — stash so the next subscribe() hand-off sees it
+    registry.set(authUserId, {
+      channel: null as any,
+      listeners: new Set(),
+      latest: next,
+      refCount: 0,
+    });
+    return;
+  }
+  entry.latest = next;
+  entry.listeners.forEach((l) => l(next));
+}
+
 export function useLiveMusicPresence(authUserId: string | null | undefined) {
   const [presence, setPresence] = useState<LiveMusicPresence | null>(null);
 
