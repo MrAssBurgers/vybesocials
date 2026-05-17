@@ -612,9 +612,9 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
             className="flex-1 overflow-y-auto overscroll-contain touch-pan-y px-5 pb-10"
             style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}
           >
-            {isLoading ? (
+            {isLoading && !briefData ? (
               <GeneratingScreen />
-            ) : error ? (
+            ) : error && !briefData ? (
               <div className="flex flex-col items-center justify-center py-16">
                 <div className="p-3 rounded-full bg-destructive/10 mb-4">
                   <AlertCircle className="h-6 w-6 text-destructive" />
