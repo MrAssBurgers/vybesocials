@@ -37,10 +37,12 @@ export function useDMConversations(searchQuery: string = '') {
         .eq('user_id', profile.id);
 
       if (membershipError) {
-        console.error('[DM] membership query error:', membershipError);
+        if (import.meta.env.DEV) console.error('[DM] membership query error:', membershipError);
+        // Preserve previously cached conversations instead of collapsing to empty
+        const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profile.id]);
+        if (prev?.length) return prev;
         throw membershipError;
       }
-      console.log('[DM] memberships found:', membershipData?.length || 0);
       if (!membershipData?.length) return [];
 
       const userConversationIds = membershipData.map(m => m.conversation_id);
