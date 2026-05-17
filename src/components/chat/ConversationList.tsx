@@ -442,14 +442,14 @@ export function ConversationList() {
             <div className="flex flex-col items-center justify-center py-12 text-center px-4">
               <p className="text-sm text-muted-foreground">No {chatFilter} conversations</p>
             </div>
-          ) : !acceptedRequests?.length ? (
+          ) : !isFetched ? null : !acceptedRequests?.length ? (
             <div className="flex flex-col items-center justify-center py-12 text-center px-4">
               <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                 <MessageCircle className="h-7 w-7 text-primary" />
               </div>
               <h3 className="text-base font-semibold mb-1">{t('messages.noConversations')}</h3>
               <p className="text-xs text-muted-foreground mb-5 max-w-[240px]">
-                Add friends to start chatting. Your conversations will show up here.
+                {convError ? "We couldn't load your chats. Pull down to retry." : "Add friends to start chatting. Your conversations will show up here."}
               </p>
               <div className="flex gap-2">
                 <Button onClick={() => navigate('/messages/new')} className="rounded-full px-5 h-9 text-sm">
