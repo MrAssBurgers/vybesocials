@@ -409,11 +409,14 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           autoPlay
           playsInline
           muted
+          controls={false}
+          disablePictureInPicture
           className={cn(
-            "w-full h-full object-cover transition-transform duration-75",
+            "w-full h-full object-cover bg-black transition-transform duration-75",
             facingMode === 'user' && "scale-x-[-1]"
           )}
           style={{
+            backgroundColor: '#000',
             filter: [getFilterCSS(currentFilter) || '', arFilter?.cssFilter || ''].filter(Boolean).join(' ') || undefined,
           }}
         />
