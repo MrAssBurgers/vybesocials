@@ -264,7 +264,7 @@ export function useInstantSend(conversationId: string | undefined) {
       markFailed(tempId, error.message || 'Failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed]);
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel]);
 
   // Send media message
   const sendMedia = useCallback(async (
@@ -338,7 +338,7 @@ export function useInstantSend(conversationId: string | undefined) {
       markFailed(tempId, error.message || 'Failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed]);
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel]);
 
   // Send video with optimistic UI and progress tracking
   const sendVideo = useCallback(async (
@@ -473,7 +473,7 @@ export function useInstantSend(conversationId: string | undefined) {
       URL.revokeObjectURL(localUrl);
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed]);
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel]);
 
   // Retry a failed message
   const retry = useCallback(async (tempId: string) => {
