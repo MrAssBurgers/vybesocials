@@ -23,6 +23,8 @@ import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { EditPostDialog } from './EditPostDialog';
+import { YouTubePlayer } from '@/components/music/YouTubePlayer';
+import { findFirstYouTubeId } from '@/lib/youtube';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { ModBadge } from '@/components/ui/ModBadge';
