@@ -168,8 +168,26 @@ export function SpotifyMiniPlayer({ presence, onClose }: Props) {
                 <div className="flex items-center justify-center py-10 text-muted-foreground text-xs">
                   <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading playlists…
                 </div>
+              ) : (playlistsStatus === 'needs_connect' || playlistsStatus === 'needs_reconnect') ? (
+                <div className="py-6 flex flex-col items-center gap-3 text-center">
+                  <p className="text-xs text-muted-foreground px-4">{playlistsError}</p>
+                  <button
+                    onClick={reconnectSpotify}
+                    className="h-9 px-4 rounded-full text-xs font-semibold bg-[#1DB954] hover:bg-[#1ed760] text-black active:scale-95 transition shadow-md shadow-[#1DB954]/30"
+                  >
+                    {playlistsStatus === 'needs_connect' ? 'Connect Spotify' : 'Reconnect Spotify'}
+                  </button>
+                </div>
               ) : playlistsError ? (
-                <div className="py-8 text-center text-xs text-muted-foreground">{playlistsError}</div>
+                <div className="py-6 flex flex-col items-center gap-3 text-center">
+                  <div className="text-xs text-muted-foreground px-4">{playlistsError}</div>
+                  <button
+                    onClick={refreshPlaylists}
+                    className="h-8 px-3 rounded-full text-[11px] font-semibold bg-foreground/10 hover:bg-foreground/15 text-foreground active:scale-95 transition"
+                  >
+                    Try again
+                  </button>
+                </div>
               ) : !playlists || playlists.length === 0 ? (
                 <div className="py-8 text-center text-xs text-muted-foreground">No playlists yet</div>
               ) : (
