@@ -52,6 +52,14 @@ const EPHEMERAL_KEY_FRAGMENTS = [
   'call',
   'spotify-now-playing',
   'audio-features',
+  // DM / chat data must NOT be persisted to IndexedDB — replaying stale
+  // offline snapshots on app boot was causing the DM list to flash empty
+  // / out-of-date conversations before the live refetch landed.
+  'dm-conversations',
+  'conversations',
+  'messages',
+  'unread-messages',
+  'unread-messages-count',
 ];
 
 export function shouldPersistQueryKey(queryKey: readonly unknown[]): boolean {

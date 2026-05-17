@@ -1,32 +1,23 @@
-## Plan: stabilize the DM section on mobile
+## Plan: stabilize DMs on mobile
 
-### What I found
-- The hosted backend is healthy.
-- The `Bakrix` live account has DM data: 29 memberships, 24 visible conversations, and recent message rows, so this is not an empty-account/database issue.
-- The DM screen is doing too much work while rendering: multiple realtime subscriptions, broad query invalidations, online/status/streak polling, and swipe/animation state for every row.
-- There are still unscoped invalidations that can refetch the whole conversation list and cause the “no DMs / flicker / lag” behavior.
+1. **Stop presence from causing DM-page churn**
+   - Update the presence hook so it does **not** write `offline` during normal route remounts, StrictMode cleanup, mobile tab hiding, or app backgrounding.
+   - Keep heartbeat updates while visible, but only mark offline on real page unload when safe.
+   - Remove the immediate refetch after presence realtime changes; update/cache presence status without forcing network refetch storms.
 
-### Patch scope
-1. **Fix DM loading reliability**
-   - Harden `useDMConversations` so a failed/partial secondary query does not collapse the entire DM list.
-   - Stop returning unstable empty states while cached DM data exists.
-   - Scope every DM-list invalidation to `['dm-conversations', profile.id]`.
+2. **Keep DM data online-first**
+   - Change `dm-conversations` from `offlineFirst` to `online` so it does not trust stale/offline state when the live app is reachable.
+   - Exclude `dm-conversations`, `conversations`, and `messages` from long-lived IndexedDB query persistence so old/offline DM snapshots cannot override fresh data on app boot.
+   - Preserve current in-memory placeholder behavior so the list does not flash empty during normal refreshes.
 
-2. **Stop realtime refetch storms**
-   - Update `useGlobalRealtimeMessages` so delete/update events do not invalidate broad `['dm-conversations']` / `['conversations']` keys.
-   - Debounce/refine refetches for unknown conversations only.
-   - Remove production console spam from the DM query/realtime path.
+3. **Narrow reconnect/offline refreshes**
+   - Replace global “invalidate every active query” reconnect behavior with a safer active refetch that avoids presence-driven full-app churn.
+   - Keep reconnect refresh for important mounted data, but prevent presence/offline probes from cascading into DM list reload loops.
 
-3. **Reduce mobile row lag**
-   - In `ConversationList`, precompute per-conversation row metadata once with `useMemo` instead of doing repeated `.find()` / map lookups inside every render.
-   - Pass stable `onClick` / `onTrash` handlers to `ConversationItem` instead of new inline functions per row.
-   - Add a memo comparison to `ConversationItem` so typing/status updates do not rerender every DM row unnecessarily.
+4. **Patch remaining broad DM invalidations**
+   - Scope the broad `['dm-conversations']` / `['conversations']` invalidations in trash/options/share/message paths to the current profile where practical.
+   - This prevents unrelated cache keys from refetching and flashing the DM list.
 
-4. **Trim duplicated DM side effects**
-   - Remove or narrow duplicate notification/prefetch invalidations that refresh conversation lists already patched by global realtime.
-   - Keep notification sounds/toasts working, but stop them from forcing the DM list to reload.
-
-5. **Verify**
-   - Check the DM query path against the live `Bakrix` data assumptions.
-   - Run a targeted static check/search for remaining broad DM invalidations.
-   - Confirm the final implementation keeps new messages updating instantly without full-list flashing.
+5. **Verify the fix**
+   - Re-scan for broad DM invalidations and presence forced refetches.
+   - Confirm the DM page will show cached in-memory data while refreshing, but will not boot from stale offline DM persistence or flip online/offline every remount.
