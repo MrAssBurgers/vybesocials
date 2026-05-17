@@ -267,8 +267,7 @@ export function useGlobalRealtimeMessages() {
 
           // Also update conversation list to reflect unsent last message
           if (updatedMessage.is_deleted) {
-            queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            scheduleUnknownConvoRefetch(queryClient, profile.id);
           }
         }
       )
@@ -287,9 +286,8 @@ export function useGlobalRealtimeMessages() {
             return old.filter(m => m.id !== deletedMessage.id);
           });
 
-          // Update conversation list
-          queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
+          // Update conversation list (debounced + scoped)
+          scheduleUnknownConvoRefetch(queryClient, profile.id);
         }
       )
       .subscribe((status) => {

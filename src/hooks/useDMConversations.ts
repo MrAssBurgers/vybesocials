@@ -37,10 +37,12 @@ export function useDMConversations(searchQuery: string = '') {
         .eq('user_id', profile.id);
 
       if (membershipError) {
-        console.error('[DM] membership query error:', membershipError);
+        if (import.meta.env.DEV) console.error('[DM] membership query error:', membershipError);
+        // Preserve previously cached conversations instead of collapsing to empty
+        const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profile.id]);
+        if (prev?.length) return prev;
         throw membershipError;
       }
-      console.log('[DM] memberships found:', membershipData?.length || 0);
       if (!membershipData?.length) return [];
 
       const userConversationIds = membershipData.map(m => m.conversation_id);
@@ -63,10 +65,11 @@ export function useDMConversations(searchQuery: string = '') {
         .order('updated_at', { ascending: false });
 
       if (convError) {
-        console.error('[DM] conversations query error:', convError);
+        if (import.meta.env.DEV) console.error('[DM] conversations query error:', convError);
+        const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profile.id]);
+        if (prev?.length) return prev;
         throw convError;
       }
-      console.log('[DM] conversations returned:', conversationsRaw?.length || 0);
       if (!conversationsRaw?.length) return [];
 
       // 2) all members for those conversations (flat)
@@ -75,7 +78,7 @@ export function useDMConversations(searchQuery: string = '') {
         .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
         .in('conversation_id', userConversationIds);
 
-      if (membersError) {
+      if (membersError && import.meta.env.DEV) {
         console.error('[DM] all-members query error:', membersError);
       }
 
@@ -88,7 +91,7 @@ export function useDMConversations(searchQuery: string = '') {
             .in('id', memberUserIds)
         : { data: [], error: null } as any;
 
-      if (profilesError) {
+      if (profilesError && import.meta.env.DEV) {
         console.error('[DM] member profiles query error:', profilesError);
       }
       const profileById = new Map((memberProfiles || []).map((p: any) => [p.id, p]));
@@ -360,9 +363,10 @@ export function useMarkConversationRead() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+      if (!profile?.id) return;
+      queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
+      queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
+      queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
     },
   });
 }

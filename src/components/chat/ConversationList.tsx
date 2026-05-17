@@ -384,50 +384,36 @@ export function ConversationList() {
         <div className="px-3 pb-4 space-y-0.5">
           {(filteredPinned.length > 0 || filteredUnpinned.length > 0) ? (
             <>
-              {filteredPinned.map((conv) => {
-                const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
-                const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
-                const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
-                const streak = otherMemberId ? streakMap.get(otherMemberId) : undefined;
-                return (
-                  <ConversationItem
-                    key={conv.id}
-                    conversation={conv}
-                    onClick={() => handleConversationClick(conv.id)}
-                    isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
-                    isTyping={checkTyping(conv.id)}
-                    currentUserId={profile?.id}
-                    userRole={otherMemberId ? usersRoles[otherMemberId] : null}
-                    onTrash={() => handleTrashConversation(conv.id)}
-                    hasStory={hasStory}
-                    storyGroup={storyGroup}
-                    streak={streak}
-                    userStatus={otherMemberId ? statusMap.get(otherMemberId) : undefined}
-                  />
-                );
-              })}
-              {filteredUnpinned.map((conv) => {
-                const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
-                const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
-                const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
-                const streak = otherMemberId ? streakMap.get(otherMemberId) : undefined;
-                return (
-                  <ConversationItem
-                    key={conv.id}
-                    conversation={conv}
-                    onClick={() => handleConversationClick(conv.id)}
-                    isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
-                    isTyping={checkTyping(conv.id)}
-                    currentUserId={profile?.id}
-                    userRole={otherMemberId ? usersRoles[otherMemberId] : null}
-                    onTrash={() => handleTrashConversation(conv.id)}
-                    hasStory={hasStory}
-                    storyGroup={storyGroup}
-                    streak={streak}
-                    userStatus={otherMemberId ? statusMap.get(otherMemberId) : undefined}
-                  />
-                );
-              })}
+              {filteredPinned.map((conv) => (
+                <ConversationRow
+                  key={conv.id}
+                  conv={conv}
+                  currentUserId={profile?.id}
+                  userStoryMap={userStoryMap}
+                  streakMap={streakMap}
+                  onlineStatus={onlineStatus}
+                  usersRoles={usersRoles}
+                  statusMap={statusMap}
+                  isTypingFn={checkTyping}
+                  onClick={handleConversationClick}
+                  onTrash={handleTrashConversation}
+                />
+              ))}
+              {filteredUnpinned.map((conv) => (
+                <ConversationRow
+                  key={conv.id}
+                  conv={conv}
+                  currentUserId={profile?.id}
+                  userStoryMap={userStoryMap}
+                  streakMap={streakMap}
+                  onlineStatus={onlineStatus}
+                  usersRoles={usersRoles}
+                  statusMap={statusMap}
+                  isTypingFn={checkTyping}
+                  onClick={handleConversationClick}
+                  onTrash={handleTrashConversation}
+                />
+              ))}
             </>
           ) : searchQuery ? (
             <div className="flex flex-col items-center justify-center py-12 text-center px-4">
@@ -757,6 +743,59 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
 }));
 
 // Memoized conversation item with swipe-to-delete on mobile and long-press for options
+// Lightweight wrapper that derives row-specific props from shared maps,
+// passes stable id-based onClick/onTrash through, and lets memo skip rerenders
+// when only unrelated conversations change.
+interface ConversationRowProps {
+  conv: Conversation;
+  currentUserId?: string;
+  userStoryMap: Map<string, StoryGroup>;
+  streakMap: Map<string, Streak>;
+  onlineStatus: Record<string, boolean>;
+  usersRoles: Record<string, 'admin' | 'moderator' | 'owner' | null>;
+  statusMap: Map<string, { emoji: string; text: string } | undefined>;
+  isTypingFn: (id: string) => boolean;
+  onClick: (id: string) => void;
+  onTrash: (id: string) => void;
+}
+
+const ConversationRow = memo(function ConversationRow({
+  conv,
+  currentUserId,
+  userStoryMap,
+  streakMap,
+  onlineStatus,
+  usersRoles,
+  statusMap,
+  isTypingFn,
+  onClick,
+  onTrash,
+}: ConversationRowProps) {
+  const otherMemberId = !conv.is_group
+    ? conv.members?.find(m => m.user_id !== currentUserId)?.profile?.id
+    : undefined;
+  const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
+  const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
+  const streak = otherMemberId ? streakMap.get(otherMemberId) : undefined;
+  const handleClick = useCallback(() => onClick(conv.id), [onClick, conv.id]);
+  const handleTrash = useCallback(() => onTrash(conv.id), [onTrash, conv.id]);
+  return (
+    <ConversationItem
+      conversation={conv}
+      onClick={handleClick}
+      isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
+      isTyping={isTypingFn(conv.id)}
+      currentUserId={currentUserId}
+      userRole={otherMemberId ? usersRoles[otherMemberId] : null}
+      onTrash={handleTrash}
+      hasStory={hasStory}
+      storyGroup={storyGroup}
+      streak={streak}
+      userStatus={otherMemberId ? (statusMap as any).get?.(otherMemberId) : undefined}
+    />
+  );
+});
+
 interface ConversationItemProps {
   conversation: Conversation; 
   onClick: () => void;
