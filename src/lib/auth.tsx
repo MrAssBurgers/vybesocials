@@ -379,7 +379,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         setSession(session);
         setUser(session?.user ?? null);
-        
+
+        // Keep the Realtime socket authenticated so RLS-filtered postgres_changes
+        // events (e.g. DM INSERT on `messages`) actually reach the client.
+        try {
+          if (session?.access_token) {
+            supabase.realtime.setAuth(session.access_token);
+          }
+        } catch { /* noop */ }
+
         if (session?.user) {
           logEvent('auth', 'Session active, fetching profile', { userId: session.user.id });
           startHeartbeat();
