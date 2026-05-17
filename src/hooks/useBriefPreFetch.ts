@@ -101,10 +101,10 @@ export function useBriefPreFetch(userId?: string) {
     started.current = true;
 
     // Initial prefetch after a short delay to not block app startup
-    const initialTimeout = setTimeout(() => prefetchBrief(), 5000);
+    const initialTimeout = setTimeout(() => prefetchBrief(userId), 5000);
 
     // Periodic refresh
-    const interval = setInterval(() => prefetchBrief(), PREFETCH_INTERVAL);
+    const interval = setInterval(() => prefetchBrief(userId), PREFETCH_INTERVAL);
 
     return () => {
       clearTimeout(initialTimeout);
