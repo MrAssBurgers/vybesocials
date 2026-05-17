@@ -21,14 +21,17 @@ export function WelcomeHeader() {
   const { currentLevel, progressPercent, xpToNextLevel, currentXP } = useNextLevelProgress();
   const navigate = useNavigate();
 
-  // Auto-open brief from push notification link (?openBrief=true)
+  // Legacy push deep-link (?openBrief=true) — redirect to dedicated /brief page
   useEffect(() => {
     if (searchParams.get('openBrief') === 'true') {
-      setShowBrief(true);
-      searchParams.delete('openBrief');
-      setSearchParams(searchParams, { replace: true });
+      const topic = searchParams.get('topic');
+      const headline = searchParams.get('headline');
+      const qs = new URLSearchParams();
+      if (topic) qs.set('topic', topic);
+      if (headline) qs.set('headline', headline);
+      navigate(`/brief${qs.toString() ? `?${qs}` : ''}`, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, navigate]);
 
   // Get time-aware greeting
   const greeting = useMemo(() => {
