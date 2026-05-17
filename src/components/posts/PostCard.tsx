@@ -664,6 +664,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                   onBanClick={() => setBanDialogOpen(true)}
                   onMemeBanClick={() => setMemeBanDialogOpen(true)}
                   onDeleteContentClick={(type, id) => setDeleteContentDialog({ type, id })}
+                  onPostDelete={() => setIsHidden(true)}
                 />
               )}
               {/* Premium meme ban - available to premium users on others' posts */}
@@ -689,6 +690,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
           setMemeBanDialogOpen={setMemeBanDialogOpen}
           deleteContentDialog={deleteContentDialog}
           setDeleteContentDialog={setDeleteContentDialog}
+          onPostDelete={() => setIsHidden(true)}
         />
         <PremiumMemeBanDialog
           userId={post.author.id}
