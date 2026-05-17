@@ -59,7 +59,7 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
             exit={{ opacity: 0, y: 12, scale: 0.9 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className={cn(
-              'group flex items-center gap-2 rounded-full bg-card border border-border shadow-lg shadow-black/30 pl-1.5 pr-2.5 py-1.5 max-w-[200px] cursor-pointer',
+              'group flex items-center gap-2.5 rounded-2xl bg-card border border-border shadow-lg shadow-black/30 pl-1.5 pr-2 py-1.5 max-w-[230px] cursor-pointer',
               'ring-1 transition-all',
               theme.ring,
               theme.ringHover,
@@ -68,28 +68,38 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
             )}
             aria-label={isSpotify ? 'Open Spotify mini player' : theme.label}
           >
-            {/* Album art (left, compact) */}
+            {/* Album art */}
             {presence?.album_art_url ? (
               <img
                 src={presence.album_art_url}
                 alt=""
-                className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+                className="w-9 h-9 rounded-xl object-cover flex-shrink-0"
               />
             ) : (
               <div
-                className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{ background: `${theme.color}33` }}
               >
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: theme.color }} />
+                <span className="w-2 h-2 rounded-full" style={{ background: theme.color }} />
               </div>
             )}
 
-            {/* Waveform + title */}
-            <div className="flex items-center gap-1.5 min-w-0">
-              <LiveSpotifyWaveform tempo={presence?.tempo} energy={presence?.energy} isPlaying={!!presence?.is_playing} height={10} bars={3} color={theme.color} />
-              <span className="text-[11px] text-foreground truncate font-medium max-w-[110px]">
+            {/* Two-line track info */}
+            <div className="flex flex-col min-w-0 flex-1 text-left">
+              <div className="flex items-center gap-1.5">
+                <LiveSpotifyWaveform tempo={presence?.tempo} energy={presence?.energy} isPlaying={!!presence?.is_playing} height={8} bars={3} color={theme.color} />
+                <span className="text-[9px] font-bold tracking-wider uppercase truncate" style={{ color: theme.color }}>
+                  {theme.label}
+                </span>
+              </div>
+              <span className="text-[13px] leading-tight font-semibold text-foreground truncate">
                 {presence?.title}
               </span>
+              {presence?.artist && (
+                <span className="text-[10px] leading-tight text-muted-foreground truncate">
+                  {presence.artist}
+                </span>
+              )}
             </div>
 
             {/* Dismiss the track entirely */}
@@ -102,10 +112,10 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
                 setDismissedTrackId(trackId);
                 setMiniOpen(false);
               }}
-              className="ml-0.5 p-0.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 active:scale-95 transition flex-shrink-0 opacity-60 group-hover:opacity-100"
+              className="ml-0.5 w-6 h-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 active:scale-95 transition flex items-center justify-center flex-shrink-0 opacity-70 group-hover:opacity-100"
               aria-label="Dismiss"
             >
-              <X className="w-3 h-3" />
+              <X className="w-3.5 h-3.5" />
             </span>
           </motion.button>
         )}
