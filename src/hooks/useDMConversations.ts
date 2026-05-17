@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useCallback, useRef } from 'react';
+// Track which friend ids we've already tried to create a DM for in this session.
+// Using a module-level set (instead of a ref) means a transient failure can be
+// retried on the next render cycle without being permanently locked out.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
