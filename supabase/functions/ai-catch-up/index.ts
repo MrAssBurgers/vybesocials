@@ -173,25 +173,37 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Invalid user" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
-    // Parse body for optional GPS coordinates
+    // Parse body (GPS, optional service-role overrides)
     let latitude: number | null = null;
     let longitude: number | null = null;
+    let overrideUserId: string | null = null;
+    let cacheSlot: 'morning' | 'lunch' | 'dinner' | null = null;
     try {
       const body = await req.json();
       if (body.latitude && body.longitude) {
         latitude = body.latitude;
         longitude = body.longitude;
       }
+      if (body.user_id && typeof body.user_id === 'string') overrideUserId = body.user_id;
+      if (body.cache_slot && ['morning','lunch','dinner'].includes(body.cache_slot)) cacheSlot = body.cache_slot;
     } catch {}
+
+    // Auth: support service-role override for server-side pre-warming
+    const isServiceRole = token === supabaseServiceKey;
+    let user: { id: string } | null = null;
+    if (isServiceRole && overrideUserId) {
+      user = { id: overrideUserId };
+    } else {
+      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !authUser) {
+        return new Response(
+          JSON.stringify({ error: "Invalid user" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      user = authUser;
+    }
 
     // Get user's profile with interests
     const { data: userProfile } = await supabase
