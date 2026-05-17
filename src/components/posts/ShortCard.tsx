@@ -727,6 +727,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           setMemeBanDialogOpen={setMemeBanDialogOpen}
           deleteContentDialog={deleteContentDialog}
           setDeleteContentDialog={setDeleteContentDialog}
+          onPostDelete={() => setIsHidden(true)}
         />
       )}
       {post.author && (
