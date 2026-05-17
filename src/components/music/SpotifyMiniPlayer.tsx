@@ -19,7 +19,11 @@ export function SpotifyMiniPlayer({ presence, onClose }: Props) {
   const { control, loading } = useSpotifyControl();
   const [view, setView] = useState<'player' | 'playlists'>('player');
   const [optimisticPlaying, setOptimisticPlaying] = useState<boolean | null>(null);
-  const { playlists, loading: loadingPlaylists, error: playlistsError } = useSpotifyPlaylists(view === 'playlists');
+  const { playlists, loading: loadingPlaylists, error: playlistsError, status: playlistsStatus, refresh: refreshPlaylists } = useSpotifyPlaylists(view === 'playlists');
+
+  const reconnectSpotify = () => {
+    window.open('/settings?connect=spotify', '_blank', 'noopener,noreferrer');
+  };
 
   const isPlaying = optimisticPlaying ?? !!presence?.is_playing;
 
