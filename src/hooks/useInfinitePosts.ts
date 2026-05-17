@@ -292,6 +292,27 @@ export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
       if (error) throw error;
 
       const posts = filterFeed((data || []).map(transformRankedPost));
+
+      // Hydrate per-post reaction_type from likes (RPC doesn't return it)
+      const postIds = posts.map((p) => p.id);
+      if (postIds.length > 0 && profile?.id) {
+        const { data: likeRows } = await supabase
+          .from('likes')
+          .select('post_id, reaction_type')
+          .eq('user_id', profile.id)
+          .in('post_id', postIds);
+        if (likeRows && likeRows.length > 0) {
+          const map = new Map(likeRows.map((r: any) => [r.post_id, r.reaction_type]));
+          posts.forEach((p) => {
+            const rt = map.get(p.id);
+            if (rt) {
+              (p as any).reaction_type = rt;
+              p.is_liked = true;
+            }
+          });
+        }
+      }
+
       presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
       return {
