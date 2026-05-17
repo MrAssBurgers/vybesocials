@@ -1,49 +1,38 @@
-## Three independent fixes
+## Goal
+Whenever the app is loading content or a route inside the shell (slow internet, lazy chunk, data fetch), show a centered **breathing VYBE "V" logo** with a single line of rotating tips underneath — instead of bare spinners, blank screens, or "Loading…" text. The boot SplashScreen is untouched.
 
-### 1. Auto-reconnect without closing/reopening the app
+## New component
+`src/components/ui/VybeLoader.tsx`
 
-Today the reconnect manager (`src/lib/reconnectManager.ts`) early-returns false whenever `navigator.onLine === false`. On mobile WebViews (Despia) and PWAs that flag is unreliable — it can stick at "offline" long after the network is back, so the only fix is killing the app.
+- Exports two things:
+  - `<VybeLoader />` — flex-1 / `min-h-[40vh]`, centered, used inline.
+  - `<VybePageLoader />` — fullscreen-ish wrapper (`min-h-screen flex items-center justify-center`) for route fallbacks.
+- Both render the same internals:
+  - The existing two-stroke VYBE "V" SVG (reused from `SplashScreen.tsx`, simplified — gradient strokes, glow filter).
+  - **Breathing animation**: Framer Motion `animate={{ scale: [1, 1.12, 1], opacity: [0.85, 1, 0.85] }}`, `transition={{ duration: 2.2, ease: 'easeInOut', repeat: Infinity }}`. Soft radial glow behind it pulses on the same cadence.
+  - Below the logo (after ~24px gap): a small uppercase muted "TIP" eyebrow + one rotating tip line.
+  - Tips array (~15 entries, same on-brand list as planned for splash; lives inside the component file so any consumer gets them for free).
+  - Tip index advances every 3.5s via `setInterval`. `AnimatePresence mode="wait"` cross-fades each tip (fade + 4px lift, 280ms).
+  - Random starting tip index per mount.
+  - Container `min-h-[3.5rem] w-[min(22rem,80vw)] text-center` so tip length changes don't reflow.
+- **Delay guard**: an internal 350ms `setTimeout` before anything renders. If the parent unmounts the loader before 350ms (fast load), nothing ever flashes. Prevents the "blink" on quick navigations.
 
-Changes in `src/lib/reconnectManager.ts`:
-- Drop the early `navigator.onLine === false` short-circuits inside `probeReachable` and `handleOnline` — always run the HEAD probe and trust its result. The probe itself is the source of truth.
-- Start the polling loop on boot (not just after an `offline` event) and keep it running at all times: fast poll (3s, growing to 15s) while offline, slow heartbeat (60s) while online so we instantly detect signal loss without waiting for OS events.
-- On every probe success, if `lastKnownOnline` was false, fire `vybe:online` and invalidate active stale queries (already wired) so DMs, feeds, notifications all repaint without any manual refresh.
-- Also re-fire reconnect on `pageshow` (covers iOS/Capacitor cold-resume from background where neither `online` nor `visibilitychange` always fires).
-- Use a probe URL that survives Capacitor (`./favicon.ico` relative + cache-bust) so it works under `capacitor://localhost` and PWA shells.
+## Wiring
 
-Net effect: app is "always trying"; the moment any connection (Wi-Fi → cellular handoff, captive portal release, background→foreground) is reachable, queries refetch automatically — no reopen needed.
+### `src/components/layout/AnimatedRoutes.tsx`
+- Replace `PageFallback` body with `<VybePageLoader />`. This covers every lazy route Suspense.
 
-### 2. Single delete button for mods/owners + instant disappear
+### `src/components/ui/LoadingSpinner.tsx`
+- Rewrite `PageLoader` (the exported full-page loader many pages already use) to render `<VybePageLoader />`. Keep the function signature (`message?` arg becomes a no-op so we don't break callers). This single change upgrades every consumer found in `Home`, `Watch`, `ChallengesHub`, `Search`, etc.
+- Leave `LoadingSpinner`, `InlineLoader`, `ButtonLoader` untouched — they're used for tiny inline cases (buttons, list rows) where a breathing logo would be overkill.
 
-In `src/components/posts/PostCard.tsx`, mods currently see **two** delete entries on someone else's post:
-- "Delete Post" (from the `canDelete` branch because `isAdmin` is true) — uses `window.confirm` and only invalidates queries.
-- "Delete Post (Mod)" (from `ModeratorMenuItems`) — instant, no confirm, but the card itself doesn't disappear because PostCard never passes `onPostDelete`.
+### `src/components/auth/RootGate.tsx`
+- Replace the three `<Suspense fallback={<div className="min-h-screen" />}>` fallbacks with `<VybePageLoader />` so post-auth route loads also get the breathing logo.
 
-Changes:
-- `src/components/posts/PostCard.tsx`
-  - Change `canDelete` gate so the personal "Delete Post" only appears when `isOwnPost` is true. Mods/owners use the Mod Actions entry instead. (On a mod's own post they still see Edit/Pin/Delete as the author.)
-  - Add local `isHidden` state. Pass `onPostDelete={() => setIsHidden(true)}` into `<ModeratorMenuItems …>` and into `<ModeratorDialogs …>`. When `isHidden` is true, return `null` from the component so the card vanishes the instant the mod taps Delete — no list refresh required.
-  - Also call the same setter inside the author's own `handleDelete` after a successful delete so own-deletes disappear instantly too.
-- Same two changes in `src/components/posts/ShortCard.tsx` (it has the identical dual-delete bug). Apply the `isOwnPost`-only gate on its `canDelete` mod-delete dropdown item and wire its own `isHidden` state.
+## Out of scope
+- `SplashScreen.tsx` (boot) — left untouched per request.
+- Skeleton loaders inside feeds (Home/Clips/etc.) — those are intentional placeholders for layout, not "loading the page". Swapping them would feel slower.
+- Tiny inline spinners (`LoadingSpinner`, button spinners, list-row spinners) — kept as is.
 
-### 3. Reports + bug reports actually reaching the admin panel
-
-Bug reports: RLS already uses `has_role(auth.uid(), …)` and `useAutoBugReporter`/`bugReportClient` insert with `reporter_id = auth user id`, so they should land. Confirm by spot-checking `select count(*) from bug_reports` in the migration step; if rows exist and `useAdminBugReports` still shows nothing, the cause is the SELECT policy mismatch fixed below.
-
-User reports: the bug is in the database. The `reports` table SELECT/UPDATE policies are:
-
-```
-has_role(current_profile_id(), 'admin') OR has_role(current_profile_id(), 'moderator')
-```
-
-`current_profile_id()` returns `profiles.id`, but `has_role` looks up `user_roles_auth.user_id` which stores `auth.uid()`. The check therefore never matches, so the admin panel (`useReports`) returns zero rows even though `reports` rows are being inserted correctly. `bug_reports` policies already use `auth.uid()` and work.
-
-Migration (single SQL):
-- Drop and recreate "Admins can view all reports" and "Admins can update reports" on `public.reports` using `has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'moderator')`.
-- Leave INSERT policy ("Users can create reports") untouched.
-- No app code change needed; once the policy is fixed, existing reports immediately appear in `AdminReportsSection` and new reports stream in normally.
-
-### Out of scope (untouched)
-- OneSignal / Despia push pipeline (already verified routing through `send-push-notification`).
-- DM React Query configs (already reverted last turn).
-- Outbox, realtime subscriptions, and any UI styling.
+## Result
+On slow connections, any route change or page-level data load shows: VYBE V breathing softly in the center + a rotating tip every 3.5s. Fast loads (<350ms) show nothing — no flash. Boot splash stays exactly as it is today.
