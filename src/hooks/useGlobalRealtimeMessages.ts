@@ -68,6 +68,18 @@ function isOptimisticDuplicate(conversationId: string, content: string, senderId
 let retryCount = 0;
 const MAX_RETRIES = 5;
 
+// Debounced refetch for the unknown-conversation case so a burst of
+// realtime messages doesn't trigger N back-to-back full list refetches.
+let unknownConvoRefetchTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleUnknownConvoRefetch(qc: ReturnType<typeof useQueryClient>, profileId: string) {
+  if (unknownConvoRefetchTimer) return;
+  unknownConvoRefetchTimer = setTimeout(() => {
+    unknownConvoRefetchTimer = null;
+    qc.invalidateQueries({ queryKey: ['dm-conversations', profileId] });
+    qc.invalidateQueries({ queryKey: ['conversations', profileId] });
+  }, 300);
+}
+
 export function useGlobalRealtimeMessages() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
