@@ -664,19 +664,24 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
               </Button>
             </div>
           ) : (
-            <>
+            <div className="absolute inset-0 bg-black">
               <video
                 ref={videoRef}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover bg-black"
                 style={{
+                  backgroundColor: '#000',
                   transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
                   filter: selectedFilter !== 'none'
                     ? LENS_FILTERS.find(f => f.id === selectedFilter)?.filter
                     : (nightMode ? 'brightness(1.4) contrast(0.9)' : 'none'),
+                  opacity: cameraReady ? 1 : 0,
+                  transition: 'opacity 200ms ease-out',
                 }}
                 playsInline
                 muted
                 autoPlay
+                controls={false}
+                disablePictureInPicture
               />
               {!cameraReady && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
@@ -685,7 +690,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
                   </motion.div>
                 </div>
               )}
-            </>
+            </div>
           )}
 
           {/* Grid */}
