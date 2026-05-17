@@ -815,6 +815,19 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         );
       })()}
 
+      {/* Auto-embed: if caption contains a YouTube link, render in-app player */}
+      {(() => {
+        const ytId = findFirstYouTubeId(post.caption);
+        if (!ytId) return null;
+        return (
+          <div className="px-4 pt-4">
+            <div className="overflow-hidden rounded-2xl border border-border/40 bg-black">
+              <YouTubePlayer videoId={ytId} />
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Caption — now ABOVE the action bar so the user's words lead */}
       {post.caption && (
         <div className="px-4 pt-4">
