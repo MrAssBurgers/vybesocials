@@ -21,7 +21,7 @@ export function useDMConversations(searchQuery: string = '') {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const { data: friends, isLoading: friendsLoading } = useFriends();
-  const ensuredRef = useRef(false);
+  const attemptedFriendIdsRef = useRef<Set<string>>(new Set());
 
   // Fetch all conversations with proper sorting
   const conversationsQuery = useQuery({
