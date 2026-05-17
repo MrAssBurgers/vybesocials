@@ -339,7 +339,7 @@ export function useDMConversations(searchQuery: string = '') {
     pinnedConversations,
     unpinnedConversations,
     totalUnreadCount,
-    isLoading: !conversationsQuery.data && (conversationsQuery.isLoading || friendsLoading),
+    isLoading: !conversationsQuery.data && (conversationsQuery.isPending || friendsLoading),
     isFetched: conversationsQuery.isFetched,
     isFetching: conversationsQuery.isFetching,
     error: conversationsQuery.error,
