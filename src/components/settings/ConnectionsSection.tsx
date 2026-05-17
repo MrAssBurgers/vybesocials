@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { ExternalPresenceConnections } from '@/components/music/ExternalPresenceConnections';
 
 interface SpotifyConn {
   spotify_user_id: string;
@@ -290,6 +291,16 @@ export function ConnectionsSection() {
           </div>
         </div>
       ))}
+
+      <div className="mt-6 pt-6 border-t border-border/40">
+        <div className="mb-3">
+          <h3 className="text-sm font-bold">Live presence — Twitch & Steam</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Show friends what you're streaming or playing in real time.
+          </p>
+        </div>
+        <ExternalPresenceConnections />
+      </div>
 
       <p className="text-[10px] text-muted-foreground/50 mt-3 text-center">
         Linking accounts lets you sign in with any connected method

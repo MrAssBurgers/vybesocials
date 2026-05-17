@@ -4616,6 +4616,27 @@ export type Database = {
           },
         ]
       }
+      external_account_handles: {
+        Row: {
+          steam_id: string | null
+          twitch_login: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          steam_id?: string | null
+          twitch_login?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          steam_id?: string | null
+          twitch_login?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       feature_requests: {
         Row: {
           created_at: string
