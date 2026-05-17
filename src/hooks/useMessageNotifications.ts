@@ -186,9 +186,8 @@ export function useMessageNotifications() {
               // The actual push to other users is handled by database triggers
             }
             
-            // Only invalidate when showing notification to update badge
-            queryClient.invalidateQueries({ queryKey: ['conversations'] });
-            queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+            // Only invalidate the badge count; the DM list is already patched by global realtime
+            queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
           }
         }
       )
