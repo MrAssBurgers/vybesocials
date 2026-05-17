@@ -366,17 +366,19 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     const reason = prompt('Why are you reporting this post?');
     if (!reason) return;
 
-    try {
-      await supabase.from('reports').insert({
-        reporter_id: profile.id,
-        post_id: post.id,
-        reason,
-      });
-      toast.success('Post reported. We will review it shortly.');
-    } catch (error) {
-      toast.error('Failed to report post');
+    const { error } = await supabase.from('reports').insert({
+      reporter_id: profile.id,
+      reported_user_id: post.author?.id ?? null,
+      post_id: post.id,
+      reason,
+    });
+    if (error) {
+      console.error('[Report] insert failed', error);
+      toast.error(`Failed to report post: ${error.message}`);
+      return;
     }
-  }, [profile, post.id]);
+    toast.success('Post reported. We will review it shortly.');
+  }, [profile, post.id, post.author?.id]);
 
   const handleTogglePin = useCallback(() => {
     togglePin.mutate({ postId: post.id, isPinned: !post.is_pinned });
