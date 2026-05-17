@@ -487,10 +487,15 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
     if (open && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
       const cached = getCachedBrief();
-      if (cached && !briefData) {
-        setBriefData(cached);
+      if (cached) {
+        // Always show cached content INSTANTLY — never block on the loading screen.
+        if (!briefData) setBriefData(cached);
+        // Revalidate silently in the background.
+        fetchBrief(true);
+      } else {
+        // No cache at all — first-ever run. Fetch with full loading UI.
+        fetchBrief(false);
       }
-      fetchBrief(true);
       // Request notification permission + schedule
       if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
