@@ -295,9 +295,10 @@ export function useCrossDeviceSync() {
           filter: `user_id=eq.${profile.id}`,
         },
         () => {
-          // Another device marked as read, refresh counts
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
-          queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+          // Another device marked as read, refresh counts (scoped)
+          queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
+          queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
+          queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
         }
       )
       .subscribe();
