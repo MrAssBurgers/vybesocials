@@ -64,9 +64,9 @@ Deno.serve(async (req) => {
       return ok({ needs_connect: true, playlists: [] });
     }
 
-    if (conn.scope && !String(conn.scope).split(/\s+/).includes(REQUIRED_SCOPE)) {
-      return ok({ needs_reconnect: true, reason: 'missing_scope', playlists: [] });
-    }
+    // Note: we no longer pre-block based on stored scope string — old connections
+    // may have a stale `scope` value. Try Spotify first and only require reconnect
+    // if Spotify itself rejects the request.
 
     let accessToken: string;
     try {

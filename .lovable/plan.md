@@ -1,31 +1,31 @@
-## Fixes
+## Plan: make Spotify controls and playlists work reliably
 
-### 1. Spotify controls + "Your Playlists" failing instantly
-Root cause: `spotify-playlists` still throws raw non-2xx errors (no scope/refresh handling, no graceful payload) — that's the "Edge Function returned a non-2xx status code" toast. And the playlists hook treats any `error` as a hard failure, so the sheet shows the raw message instead of `needs_connect`/`needs_reconnect`.
+1. **Fix playback controls so taps respond instantly**
+   - Update `spotify-control` to always return app-readable status payloads instead of hard failures where possible.
+   - Treat common Spotify playback responses correctly:
+     - `404` → open Spotify on a device first
+     - `403` with premium/player restrictions → clear friendly status
+     - `401` → refresh token and retry once before asking reconnect
+   - For `play`, `pause`, `next`, `previous`, and playlist start, keep the UI optimistic so buttons visually respond immediately while the backend request completes.
 
-- `supabase/functions/spotify-playlists/index.ts` — match the new `spotify-control` pattern: always return HTTP 200, retry on 401 by force-refreshing, return `{ needs_connect }` / `{ needs_reconnect, reason }` / `{ error }` payloads instead of HTTP errors. Add `REQUIRED_SCOPE = 'playlist-read-private'` guard against the stored `conn.scope`.
-- `src/hooks/useSpotifyPlaylists.ts` — read `needs_connect` / `needs_reconnect` / `error` from the payload and surface friendly messages; never throw on functions-invoke `error` when the payload has a status field; cache only on success.
-- `src/components/music/SpotifyMiniPlayer.tsx` — render the `needs_reconnect` / `needs_connect` states as a small "Reconnect Spotify" CTA inside the playlists view instead of a raw error string.
-- Redeploy `spotify-playlists`.
+2. **Fix playlist loading**
+   - Update `spotify-playlists` to be more tolerant of existing connections:
+     - Do not block users just because an old stored scope string is missing `playlist-read-private`; try Spotify first and only request reconnect if Spotify actually denies access.
+     - Refresh expired tokens before fetching playlists.
+     - Retry once after a Spotify `401`.
+     - Return clean `{ playlists: [] }`, `{ needs_connect }`, `{ needs_reconnect }`, or `{ error }` payloads that the frontend can render.
 
-### 2. Bottom nav covers the VYBE-AI chat
-- `src/components/layout/RootBottomNavMount.tsx` — add `/VYBE-AI` to `HIDDEN_NAV_ROUTES` so the floating nav doesn't sit on top of the composer.
-- `src/pages/AIChat.tsx` — drop the extra bottom safe-area padding that was compensating for the (now hidden) nav so the quick-prompt list fits the viewport.
+3. **Fix starting playlists from the mini player**
+   - Make playlist row taps optimistically close back to the player immediately.
+   - If Spotify rejects the request, return to playlists and show the correct reconnect/open-Spotify message.
+   - Prevent double taps while a playlist start is in flight.
 
-### 3. Colorful aura "falling" from the VYBE-AI avatar
-Root cause: the outer pulsing blur and the `-top-1 -right-1` glow chip sit outside the rounded avatar without clipping, so they bleed into the header.
+4. **Clean the frontend error handling**
+   - Update `useSpotifyControl` and `useSpotifyPlaylists` so function invocation errors don’t mask useful payloads.
+   - Show simple user-facing messages instead of raw function/Spotify errors.
+   - Refresh playlist state after reconnect/error retry without stale cache getting stuck.
 
-- `src/pages/AIChat.tsx` (header avatar block, lines ~505-515) — wrap the avatar in a `relative h-10 w-10 rounded-full overflow-hidden` container, move the pulsing gradient + glow chip inside it, and keep the green online dot as a sibling outside the clip so it still pokes out cleanly.
-
-### 4. Opening a user's DM takes forever
-Likely cause: navigating to `/messages/:id` waits on conversation hydration before the screen paints. We'll:
-
-- `src/components/chat/ConversationList.tsx` — on row tap, navigate immediately and prefetch the conversation's last messages via the existing query client (optimistic `setQueryData` from the row's preview).
-- Verify the DM page renders skeleton/header instantly while messages stream in (no work if it already does).
-
-## Technical notes
-- Keep `spotify-playlists` response shape backwards-compatible: still include `playlists: []` alongside status flags so existing consumers don't crash.
-- No DB / RLS changes.
-- No UI design changes beyond the avatar clip fix and a tiny reconnect CTA.
-
-Files touched: `supabase/functions/spotify-playlists/index.ts`, `src/hooks/useSpotifyPlaylists.ts`, `src/components/music/SpotifyMiniPlayer.tsx`, `src/components/layout/RootBottomNavMount.tsx`, `src/pages/AIChat.tsx`, `src/components/chat/ConversationList.tsx`.
+5. **Deploy and validate**
+   - Deploy the updated Spotify functions.
+   - Test both deployed function endpoints with the current preview auth session where available.
+   - Confirm the app receives structured responses for controls and playlist pulling.

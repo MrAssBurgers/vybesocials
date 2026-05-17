@@ -42,9 +42,15 @@ export function SpotifyMiniPlayer({ presence, onClose }: Props) {
     if (presence?.track_url) window.open(presence.track_url, '_blank', 'noopener,noreferrer');
   };
 
+  const [startingId, setStartingId] = useState<string | null>(null);
   const handlePlaylistTap = async (id: string) => {
+    if (startingId) return;
+    setStartingId(id);
+    // Optimistically jump back to the player so the tap feels instant
+    setView('player');
     const ok = await control({ action: 'start_playlist', playlist_id: id });
-    if (ok) setView('player');
+    if (!ok) setView('playlists');
+    setStartingId(null);
   };
 
   return (
