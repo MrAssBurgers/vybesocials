@@ -333,6 +333,19 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
 
       if (error) throw error;
 
+      if (profile?.id) {
+        supabase.from('post_deletion_log').insert({
+          post_id: post.id,
+          author_id: (post as any).author?.id ?? null,
+          deleted_by: profile.id,
+          post_type: (post as any).type ?? 'short',
+          caption: post.caption ?? null,
+          reason: 'user_self_delete',
+        }).then(({ error: logErr }) => {
+          if (logErr) console.warn('[DeletionLog] insert failed', logErr);
+        });
+      }
+
       toast.success('Clip deleted');
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     } catch (error) {
@@ -346,16 +359,18 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     const reason = prompt('Why are you reporting this clip?');
     if (!reason) return;
 
-    try {
-      await supabase.from('reports').insert({
-        reporter_id: profile.id,
-        post_id: post.id,
-        reason,
-      });
-      toast.success('Clip reported. We will review it shortly.');
-    } catch (error) {
-      toast.error('Failed to report clip');
+    const { error } = await supabase.from('reports').insert({
+      reporter_id: profile.id,
+      reported_user_id: (post as any).author?.id ?? null,
+      post_id: post.id,
+      reason,
+    });
+    if (error) {
+      console.error('[Report] insert failed', error);
+      toast.error(`Failed to report clip: ${error.message}`);
+      return;
     }
+    toast.success('Clip reported. We will review it shortly.');
   };
 
   const handleShare = () => setShowShareSheet(true);
