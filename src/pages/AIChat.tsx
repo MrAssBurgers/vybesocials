@@ -502,13 +502,12 @@ export default function AIChat() {
           </Button>
           
           <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-2.5 flex-1 min-w-0">
-            <div className="relative flex-shrink-0">
-              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary blur-md opacity-60 animate-pulse" />
-              <div className="relative h-10 w-10 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary shadow-lg shadow-primary/40">
-                <div className="h-full w-full rounded-full bg-gradient-to-br from-background via-card to-background flex items-center justify-center overflow-hidden relative">
+            <div className="relative flex-shrink-0 h-10 w-10">
+              <div className="absolute inset-0 rounded-full overflow-hidden">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary opacity-60 animate-pulse" />
+                <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-background via-card to-background flex items-center justify-center overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 via-transparent to-accent/20" />
                   <VybeMiniIcon size={20} showSparkles className="relative z-10 drop-shadow-[0_0_6px_hsl(var(--primary)/0.8)]" />
-                  <div className="absolute -top-1 -right-1 w-7 h-7 bg-primary/30 rounded-full blur-xl" />
                 </div>
               </div>
               <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-background shadow-md shadow-green-500/50" />
