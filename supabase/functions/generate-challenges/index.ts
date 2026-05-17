@@ -225,44 +225,27 @@ Rules:
     const dailyChallenges = validChallenges.filter(c => c.type === "daily").slice(0, 6);
     const weeklyChallenges = validChallenges.filter(c => c.type === "weekly").slice(0, 6);
 
-    // === DIRECTLY INSERT AS ACTIVE CHALLENGES (not templates) ===
-    
-    // 1. Deactivate old daily challenges for today (replace them)
-    if (dailyChallenges.length > 0) {
-      await supabase
-        .from("challenges")
-        .update({ is_active: false })
-        .eq("type", "daily")
-        .eq("active_date", today);
-      
-      // Also deactivate any older daily challenges still marked active  
-      await supabase
-        .from("challenges")
-        .update({ is_active: false })
-        .eq("type", "daily")
-        .lt("active_date", today)
-        .eq("is_active", true);
-    }
+    // Check existing active counts for the target date / week (idempotency)
+    const { count: existingDailyCount } = await supabase
+      .from("challenges")
+      .select("*", { count: "exact", head: true })
+      .eq("type", "daily")
+      .eq("active_date", today)
+      .eq("is_active", true);
 
-    // 2. Deactivate old weekly challenges for this week (replace them)
-    if (weeklyChallenges.length > 0) {
-      await supabase
-        .from("challenges")
-        .update({ is_active: false })
-        .eq("type", "weekly")
-        .eq("active_week_start", weekStart);
+    const { count: existingWeeklyCount } = await supabase
+      .from("challenges")
+      .select("*", { count: "exact", head: true })
+      .eq("type", "weekly")
+      .eq("active_week_start", weekStart)
+      .eq("is_active", true);
 
-      await supabase
-        .from("challenges")
-        .update({ is_active: false })
-        .eq("type", "weekly")
-        .lt("active_week_start", weekStart)
-        .eq("is_active", true);
-    }
+    const shouldInsertDaily = (onlyType !== 'weekly') && dailyChallenges.length > 0 && (existingDailyCount || 0) < 6;
+    const shouldInsertWeekly = (onlyType !== 'daily') && weeklyChallenges.length > 0 && (existingWeeklyCount || 0) < 6;
 
-    // 3. Insert new AI-generated challenges directly into the challenges table
-    const challengeRows = [
-      ...dailyChallenges.map(c => ({
+    const challengeRows: any[] = [];
+    if (shouldInsertDaily) {
+      challengeRows.push(...dailyChallenges.map(c => ({
         title: c.title,
         description: c.description,
         type: "daily",
@@ -272,8 +255,10 @@ Rules:
         is_active: true,
         active_date: today,
         active_week_start: null,
-      })),
-      ...weeklyChallenges.map(c => ({
+      })));
+    }
+    if (shouldInsertWeekly) {
+      challengeRows.push(...weeklyChallenges.map(c => ({
         title: c.title,
         description: c.description,
         type: "weekly",
@@ -283,20 +268,25 @@ Rules:
         is_active: true,
         active_date: null,
         active_week_start: weekStart,
-      })),
-    ];
-
-    const { data: inserted, error: insertError } = await supabase
-      .from("challenges")
-      .insert(challengeRows)
-      .select();
-
-    if (insertError) {
-      console.error("Insert error:", insertError);
-      throw insertError;
+      })));
     }
 
-    // 4. Also save as templates for fallback rotation
+    let inserted: any[] = [];
+    if (challengeRows.length > 0) {
+      const { data, error: insertError } = await supabase
+        .from("challenges")
+        .insert(challengeRows)
+        .select();
+      if (insertError) {
+        console.error("Insert error:", insertError);
+        throw insertError;
+      }
+      inserted = data || [];
+    } else {
+      console.log(`Skipped insert — target ${today}/${weekStart} already has ${existingDailyCount} daily and ${existingWeeklyCount} weekly active.`);
+    }
+
+    // Save as templates for fallback rotation (always — grows the template library)
     const templateRows = validChallenges.map(c => ({
       title: c.title,
       description: c.description,
@@ -306,8 +296,9 @@ Rules:
       reward_xp: c.reward_xp,
       is_active: true,
     }));
-
-    await supabase.from("challenge_templates").insert(templateRows);
+    if (templateRows.length > 0) {
+      await supabase.from("challenge_templates").insert(templateRows);
+    }
 
     // 5. PURGE old challenges to save DB space
     // Keep 7 days of dailies, 4 weeks of weeklies. Delete everything older.
