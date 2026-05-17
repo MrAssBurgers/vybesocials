@@ -339,9 +339,14 @@ export function useGlobalRealtimeMessages() {
 
   // Broadcast listener for instant delivery on the currently viewed conversation
   const broadcastChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const [activeConvoId, setActiveConvoId] = useState<string | null>(currentConversationId);
 
   useEffect(() => {
-    if (!profile?.id || !currentConversationId) {
+    return subscribeCurrentConversationId(setActiveConvoId);
+  }, []);
+
+  useEffect(() => {
+    if (!profile?.id || !activeConvoId) {
       if (broadcastChannelRef.current) {
         supabase.removeChannel(broadcastChannelRef.current);
         broadcastChannelRef.current = null;
@@ -349,7 +354,7 @@ export function useGlobalRealtimeMessages() {
       return;
     }
 
-    const convoId = currentConversationId;
+    const convoId = activeConvoId;
     const bc = supabase
       .channel(`dm-broadcast:${convoId}`)
       .on('broadcast', { event: 'new-message' }, (payload: any) => {
@@ -378,7 +383,7 @@ export function useGlobalRealtimeMessages() {
       supabase.removeChannel(bc);
       broadcastChannelRef.current = null;
     };
-  }, [profile?.id, queryClient]);
+  }, [profile?.id, queryClient, activeConvoId]);
 
   useEffect(() => {
     setupChannel();
