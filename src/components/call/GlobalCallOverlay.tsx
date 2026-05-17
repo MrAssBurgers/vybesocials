@@ -804,7 +804,10 @@ export function GlobalCallOverlay() {
   }, [isMuted, state.phase, state.call?.callMode]);
 
   const handleToggleVideo = useCallback(async () => {
-    if (state.phase !== 'connected' || state.call?.callType !== 'video') return;
+    // Allow toggling camera on ANY connected call (audio or video).
+    // Enabling camera mid audio-call upgrades the connection — both P2P
+    // (renegotiates) and LiveKit support adding video tracks on the fly.
+    if (state.phase !== 'connected') return;
     try {
       const newOff = !isVideoOff;
       if (state.call?.callMode === 'persistent' && roomRef.current) {
@@ -817,7 +820,7 @@ export function GlobalCallOverlay() {
     } catch (err: any) {
       setCameraError(err.message || 'Failed to toggle camera');
     }
-  }, [state.phase, state.call?.callType, state.call?.callMode, isVideoOff]);
+  }, [state.phase, state.call?.callMode, isVideoOff]);
 
   const handleRetryVideo = useCallback(async () => {
     setCameraError(null);
