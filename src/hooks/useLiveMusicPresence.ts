@@ -38,7 +38,7 @@ const registry = new Map<string, Entry>();
 function subscribe(authUserId: string, listener: Listener): () => void {
   let entry = registry.get(authUserId);
 
-  if (!entry) {
+  if (!entry || !entry.channel) {
     const channel = supabase
       .channel(`music-presence:${authUserId}`)
       .on('postgres_changes', {
@@ -55,8 +55,12 @@ function subscribe(authUserId: string, listener: Listener): () => void {
       })
       .subscribe();
 
-    entry = { channel, listeners: new Set(), latest: null, refCount: 0 };
-    registry.set(authUserId, entry);
+    if (entry) {
+      entry.channel = channel;
+    } else {
+      entry = { channel, listeners: new Set(), latest: null, refCount: 0 };
+      registry.set(authUserId, entry);
+    }
 
     // initial fetch once per shared entry
     supabase
@@ -67,8 +71,11 @@ function subscribe(authUserId: string, listener: Listener): () => void {
       .then(({ data }) => {
         const e = registry.get(authUserId);
         if (!e) return;
-        e.latest = (data as any) || null;
-        e.listeners.forEach((l) => l(e.latest));
+        // Don't clobber an optimistic local update that arrived first
+        if (e.latest === null && data) {
+          e.latest = data as any;
+          e.listeners.forEach((l) => l(e.latest));
+        }
       });
   }
 
