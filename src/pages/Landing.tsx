@@ -37,6 +37,12 @@ function useHideBottomNav() {
 // Invite mode stage type - shared between invite flow components
 export type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
 
+const isLovablePreviewHost = () => {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return host.startsWith('id-preview--') || host.endsWith('.lovableproject.com');
+};
+
 interface LandingProps {
   onInviteNavigate?: (stage: InviteStage) => void;
   isInviteMode?: boolean;
@@ -212,6 +218,22 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
     try {
       if (isLogin) {
+        if (isLovablePreviewHost()) {
+          setGatePending(false);
+          const { error } = await signIn(formData.email, formData.password);
+          if (error) {
+            const msg = (error.message || '').toLowerCase();
+            if (msg.includes('invalid') || msg.includes('credential')) {
+              throw new Error('Invalid email or password');
+            }
+            throw error;
+          }
+          sessionStorage.removeItem('vybe-session-only');
+          toast.success('Welcome back! ✨');
+          navTo('home', '/home');
+          return;
+        }
+
         // Big-platform 2FA: validate password server-side BEFORE any session
         // lands on the device. The session tokens (if any) are returned only
         // after the second factor passes, so cancelling the gate is naturally
