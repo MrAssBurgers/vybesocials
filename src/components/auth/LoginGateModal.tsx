@@ -124,18 +124,20 @@ export function LoginGateModal({
         }
       } catch {}
       if (document.visibilityState === 'visible' && !cancelledRef.current) {
-        pollTimerRef.current = window.setTimeout(poll, 3000);
+        pollTimerRef.current = window.setTimeout(poll, 1500);
       }
     };
 
-    // Instant resolution via broadcast from auth-login-approval `respond`
+    // Instant resolution via broadcast from auth-login-approval `respond`.
+    // The payload now carries the session directly — no extra poll needed.
     const bc = supabase
       .channel(`login-approval:${challengeId}`)
       .on('broadcast', { event: 'resolved' }, (payload: any) => {
         const status = payload?.payload?.status;
+        const session = payload?.payload?.session;
         if (status === 'approved') {
-          // We still need to call poll() once to consume + receive the session
-          poll();
+          if (session) finalize('approved', session);
+          else poll(); // fallback for older edge function versions
         } else if (status) {
           finalize(status);
         }
