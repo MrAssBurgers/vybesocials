@@ -36,47 +36,75 @@ export function useDMConversations(searchQuery: string = '') {
         .select('conversation_id, last_read_at, is_pinned, is_muted')
         .eq('user_id', profile.id);
 
-      if (membershipError) throw membershipError;
+      if (membershipError) {
+        console.error('[DM] membership query error:', membershipError);
+        throw membershipError;
+      }
+      console.log('[DM] memberships found:', membershipData?.length || 0);
       if (!membershipData?.length) return [];
 
       const userConversationIds = membershipData.map(m => m.conversation_id);
       const membershipMap = new Map(membershipData.map(m => [m.conversation_id, m]));
 
-      // Fetch hidden conversations
-      const { data: hiddenData } = await supabase
-        .from('hidden_conversations')
-        .select('conversation_id')
-        .eq('user_id', profile.id);
-
+      // Fetch hidden + trashed in parallel
+      const [{ data: hiddenData }, { data: trashedData }] = await Promise.all([
+        supabase.from('hidden_conversations').select('conversation_id').eq('user_id', profile.id),
+        supabase.from('trashed_conversations').select('conversation_id').eq('user_id', profile.id),
+      ]);
       const hiddenIds = new Set((hiddenData || []).map(h => h.conversation_id));
-
-      // Fetch trashed conversations
-      const { data: trashedData } = await supabase
-        .from('trashed_conversations')
-        .select('conversation_id')
-        .eq('user_id', profile.id);
-
       const trashedIds = new Set((trashedData || []).map(t => t.conversation_id));
 
-      // Fetch conversations with members
-      const { data: conversationsData, error: convError } = await supabase
+      // Split query: avoid fragile PostgREST embedded join.
+      // 1) conversations themselves
+      const { data: conversationsRaw, error: convError } = await supabase
         .from('conversations')
-        .select(`
-          *,
-          members:conversation_members(
-            user_id,
-            role,
-            is_muted,
-            is_pinned,
-            last_read_at,
-            profile:profiles(id, user_id, username, avatar_url, display_name)
-          )
-        `)
+        .select('*')
         .in('id', userConversationIds)
         .order('updated_at', { ascending: false });
 
-      if (convError) throw convError;
-      if (!conversationsData?.length) return [];
+      if (convError) {
+        console.error('[DM] conversations query error:', convError);
+        throw convError;
+      }
+      console.log('[DM] conversations returned:', conversationsRaw?.length || 0);
+      if (!conversationsRaw?.length) return [];
+
+      // 2) all members for those conversations (flat)
+      const { data: allMembers, error: membersError } = await supabase
+        .from('conversation_members')
+        .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
+        .in('conversation_id', userConversationIds);
+
+      if (membersError) {
+        console.error('[DM] all-members query error:', membersError);
+      }
+
+      // 3) profiles for every member user_id
+      const memberUserIds = Array.from(new Set((allMembers || []).map(m => m.user_id)));
+      const { data: memberProfiles, error: profilesError } = memberUserIds.length
+        ? await supabase
+            .from('profiles')
+            .select('id, user_id, username, avatar_url, display_name')
+            .in('id', memberUserIds)
+        : { data: [], error: null } as any;
+
+      if (profilesError) {
+        console.error('[DM] member profiles query error:', profilesError);
+      }
+      const profileById = new Map((memberProfiles || []).map((p: any) => [p.id, p]));
+
+      // Stitch members onto each conversation
+      const membersByConv = new Map<string, any[]>();
+      (allMembers || []).forEach(m => {
+        const arr = membersByConv.get(m.conversation_id) || [];
+        arr.push({ ...m, profile: profileById.get(m.user_id) || null });
+        membersByConv.set(m.conversation_id, arr);
+      });
+
+      const conversationsData = conversationsRaw.map(c => ({
+        ...c,
+        members: membersByConv.get(c.id) || [],
+      }));
 
       // Batch fetch last messages for all conversations.
       // Slim payload: only the fields the conversation list actually renders.
@@ -166,13 +194,13 @@ export function useDMConversations(searchQuery: string = '') {
       return result;
     },
     enabled: !!profile?.id,
-    staleTime: 30_000, // 30s — realtime handles live updates
-    gcTime: 1000 * 60 * 60 * 24 * 14, // 14 days — keep DM list cached for offline
-    refetchOnWindowFocus: true, // refresh when user returns
-    refetchOnMount: false, // show cached instantly; reconnect manager refreshes
-    refetchOnReconnect: true, // pull fresh as soon as we're back online
-    placeholderData: (prev) => prev, // never blank-out while refetching
-    networkMode: 'offlineFirst', // serve cache offline instead of hanging in "loading"
+    staleTime: 30_000,
+    gcTime: 1000 * 60 * 60 * 24 * 14,
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always', // always refresh when DMs open
+    refetchOnReconnect: true,
+    placeholderData: (prev) => prev,
+    networkMode: 'offlineFirst',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
@@ -291,10 +319,9 @@ export function useDMConversations(searchQuery: string = '') {
     pinnedConversations,
     unpinnedConversations,
     totalUnreadCount,
-    // Only show skeleton when we truly have NOTHING cached. If we have any
-    // cached conversations (even stale), render them instantly — never flash
-    // a loading skeleton on top of usable data.
     isLoading: !conversationsQuery.data && (conversationsQuery.isLoading || friendsLoading),
+    isFetched: conversationsQuery.isFetched,
+    isFetching: conversationsQuery.isFetching,
     error: conversationsQuery.error,
     refetch: conversationsQuery.refetch,
   };
