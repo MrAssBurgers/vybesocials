@@ -344,6 +344,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authPromptAction, setAuthPromptAction] = useState('');
   const [showCommentSheet, setShowCommentSheet] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
 
   const signedMediaUrl = useFastSignedUrl(post.media_url);
   const signedAvatarUrl = useFastSignedUrl(post.author.avatar_url);
@@ -353,7 +354,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const isAdmin = useMemo(() => userRole === 'admin' || userRole === 'moderator', [userRole]);
   const { data: pinnedCount = 0 } = usePinnedPostCount(isOwnPost ? profile?.id : undefined);
   const atPinCap = isOwnPost && !post.is_pinned && pinnedCount >= PIN_LIMIT;
-  const canDelete = isOwnPost || isAdmin;
+  // Only the author sees the personal "Delete Post" item. Mods use Mod Actions →
+  // "Delete Post (Mod)" so they never see two delete buttons on the same post.
+  const canDelete = isOwnPost;
   
   // Memoize formatted date
   const formattedDate = useMemo(() => 
