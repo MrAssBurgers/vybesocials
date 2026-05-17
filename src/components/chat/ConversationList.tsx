@@ -113,6 +113,7 @@ export function ConversationList() {
     pinnedConversations, 
     unpinnedConversations, 
     isLoading, 
+    isFetched,
     error: convError,
     totalUnreadCount,
   } = useDMConversations(debouncedSearch);
