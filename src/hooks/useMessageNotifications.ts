@@ -294,10 +294,24 @@ export function useCrossDeviceSync() {
           table: 'conversation_members',
           filter: `user_id=eq.${profile.id}`,
         },
-        () => {
-          // Another device marked as read, refresh counts (scoped)
-          queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
-          queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
+        (payload) => {
+          // Patch caches in place instead of invalidating — invalidations
+          // were causing the entire conversation list to refetch and visibly
+          // flicker every time the user opened a DM on any device.
+          const row: any = payload.new;
+          if (!row?.conversation_id) return;
+
+          const patch = (old: any[] | undefined) => {
+            if (!old) return old;
+            return old.map((c) =>
+              c.id === row.conversation_id
+                ? { ...c, unread_count: 0, _hasUnread: false }
+                : c
+            );
+          };
+          queryClient.setQueryData<any[]>(['dm-conversations', profile.id], patch);
+          queryClient.setQueryData<any[]>(['conversations', profile.id], patch);
+          // The badge count is cheap to recompute; let it refresh.
           queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
         }
       )
