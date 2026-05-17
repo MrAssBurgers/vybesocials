@@ -285,10 +285,17 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           setGatePending(false);
           throw createHandledLoginError('Invalid email or password');
         }
-        // email_failed → fall through to direct sign-in below (don't block user)
+        // email_failed → tell the user clearly; do NOT silently bypass the
+        // verification step (the whole point is to require the code).
+        if (code === 'email_failed') {
+          setGatePending(false);
+          throw createHandledLoginError(
+            "We couldn't send your verification code. Please try again in a moment.",
+          );
+        }
 
         // Any other failure (network, 5xx, timeout, cold-start) → fall back to
-        // direct password sign-in so users without 2FA can still get in.
+        // direct password sign-in so users are never locked out by an outage.
         if (preErr || !pre || (pre as any)?.error) {
           const { error: directErr } = await supabase.auth.signInWithPassword({
             email: formData.email,
