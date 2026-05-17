@@ -3,24 +3,57 @@ import { ConversationList } from '@/components/chat/ConversationList';
 import { ChatView } from '@/components/chat/ChatView';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useBreakpoint } from '@/hooks/usePlatform';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { MessageCircle, Send } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+
+function MessagesLoadingSkeleton() {
+  return (
+    <AppLayout hideRightSidebar fullWidth noPadding>
+      <div className="h-[100dvh] w-full flex bg-background overflow-hidden">
+        <div className="w-full md:w-80 lg:w-96 border-r border-border/50 flex-shrink-0 bg-card/30 p-3 space-y-3">
+          <Skeleton className="h-10 w-full rounded-xl" />
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <Skeleton variant="circular" className="h-12 w-12" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-48" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden md:flex flex-1" />
+      </div>
+    </AppLayout>
+  );
+}
 
 export default function Messages() {
   const location = useLocation();
   const { isDesktop } = useBreakpoint();
+  const [mounted, setMounted] = useState(false);
   const isInChat = location.pathname !== '/messages';
   const isImmersive = isInChat && !isDesktop;
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     if (!isDesktop) {
       document.documentElement.setAttribute('data-dm-active', 'true');
       return () => {
         document.documentElement.removeAttribute('data-dm-active');
       };
     }
-  }, [isDesktop]);
+  }, [isDesktop, mounted]);
+
+  if (!mounted) {
+    return <MessagesLoadingSkeleton />;
+  }
 
   // On mobile (not in chat), pin to viewport so bg-background covers area behind bottom nav
   const mobileListMode = !isDesktop && !isInChat;
