@@ -60,18 +60,30 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get today's date and week start for setting active_date/active_week_start
+    // Parse optional body overrides (target_date / target_week_start)
+    let bodyTargetDate: string | null = null;
+    let bodyTargetWeek: string | null = null;
+    let onlyType: 'daily' | 'weekly' | null = null;
+    try {
+      const body = await req.json();
+      if (body?.target_date && /^\d{4}-\d{2}-\d{2}$/.test(body.target_date)) bodyTargetDate = body.target_date;
+      if (body?.target_week_start && /^\d{4}-\d{2}-\d{2}$/.test(body.target_week_start)) bodyTargetWeek = body.target_week_start;
+      if (body?.type === 'daily' || body?.type === 'weekly') onlyType = body.type;
+    } catch {}
+
+    // Compute defaults (UTC today / current ISO week Monday)
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
     const day = now.getUTCDay();
     const mondayOffset = day === 0 ? -6 : 1 - day;
-    const monday = new Date(now);
-    monday.setUTCDate(now.getUTCDate() + mondayOffset);
-    const weekStart = monday.toISOString().split("T")[0];
+    const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + mondayOffset));
 
-    const dayOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][now.getUTCDay()];
-    const month = now.toLocaleString("en-US", { month: "long" });
-    const dayOfMonth = now.getUTCDate();
+    const today = bodyTargetDate || now.toISOString().split("T")[0];
+    const weekStart = bodyTargetWeek || monday.toISOString().split("T")[0];
+
+    const targetDateObj = new Date(today + 'T00:00:00Z');
+    const dayOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][targetDateObj.getUTCDay()];
+    const month = targetDateObj.toLocaleString("en-US", { month: "long" });
+    const dayOfMonth = targetDateObj.getUTCDate();
 
     // Get existing active challenge titles to avoid duplicates
     const { data: existingChallenges } = await supabase
@@ -163,13 +175,13 @@ Rules:
       
       if (response.status === 429) {
         // Rate limited — fall back to template rotation
-        await supabase.rpc("rotate_challenges");
+        await supabase.rpc("ensure_active_challenges");
         return new Response(JSON.stringify({ error: "Rate limited, used fallback rotation" }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (response.status === 402) {
-        await supabase.rpc("rotate_challenges");
+        await supabase.rpc("ensure_active_challenges");
         return new Response(JSON.stringify({ error: "Credits exhausted, used fallback rotation" }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -213,44 +225,27 @@ Rules:
     const dailyChallenges = validChallenges.filter(c => c.type === "daily").slice(0, 6);
     const weeklyChallenges = validChallenges.filter(c => c.type === "weekly").slice(0, 6);
 
-    // === DIRECTLY INSERT AS ACTIVE CHALLENGES (not templates) ===
-    
-    // 1. Deactivate old daily challenges for today (replace them)
-    if (dailyChallenges.length > 0) {
-      await supabase
-        .from("challenges")
-        .update({ is_active: false })
-        .eq("type", "daily")
-        .eq("active_date", today);
-      
-      // Also deactivate any older daily challenges still marked active  
-      await supabase
-        .from("challenges")
-        .update({ is_active: false })
-        .eq("type", "daily")
-        .lt("active_date", today)
-        .eq("is_active", true);
-    }
+    // Check existing active counts for the target date / week (idempotency)
+    const { count: existingDailyCount } = await supabase
+      .from("challenges")
+      .select("*", { count: "exact", head: true })
+      .eq("type", "daily")
+      .eq("active_date", today)
+      .eq("is_active", true);
 
-    // 2. Deactivate old weekly challenges for this week (replace them)
-    if (weeklyChallenges.length > 0) {
-      await supabase
-        .from("challenges")
-        .update({ is_active: false })
-        .eq("type", "weekly")
-        .eq("active_week_start", weekStart);
+    const { count: existingWeeklyCount } = await supabase
+      .from("challenges")
+      .select("*", { count: "exact", head: true })
+      .eq("type", "weekly")
+      .eq("active_week_start", weekStart)
+      .eq("is_active", true);
 
-      await supabase
-        .from("challenges")
-        .update({ is_active: false })
-        .eq("type", "weekly")
-        .lt("active_week_start", weekStart)
-        .eq("is_active", true);
-    }
+    const shouldInsertDaily = (onlyType !== 'weekly') && dailyChallenges.length > 0 && (existingDailyCount || 0) < 6;
+    const shouldInsertWeekly = (onlyType !== 'daily') && weeklyChallenges.length > 0 && (existingWeeklyCount || 0) < 6;
 
-    // 3. Insert new AI-generated challenges directly into the challenges table
-    const challengeRows = [
-      ...dailyChallenges.map(c => ({
+    const challengeRows: any[] = [];
+    if (shouldInsertDaily) {
+      challengeRows.push(...dailyChallenges.map(c => ({
         title: c.title,
         description: c.description,
         type: "daily",
@@ -260,8 +255,10 @@ Rules:
         is_active: true,
         active_date: today,
         active_week_start: null,
-      })),
-      ...weeklyChallenges.map(c => ({
+      })));
+    }
+    if (shouldInsertWeekly) {
+      challengeRows.push(...weeklyChallenges.map(c => ({
         title: c.title,
         description: c.description,
         type: "weekly",
@@ -271,20 +268,25 @@ Rules:
         is_active: true,
         active_date: null,
         active_week_start: weekStart,
-      })),
-    ];
-
-    const { data: inserted, error: insertError } = await supabase
-      .from("challenges")
-      .insert(challengeRows)
-      .select();
-
-    if (insertError) {
-      console.error("Insert error:", insertError);
-      throw insertError;
+      })));
     }
 
-    // 4. Also save as templates for fallback rotation
+    let inserted: any[] = [];
+    if (challengeRows.length > 0) {
+      const { data, error: insertError } = await supabase
+        .from("challenges")
+        .insert(challengeRows)
+        .select();
+      if (insertError) {
+        console.error("Insert error:", insertError);
+        throw insertError;
+      }
+      inserted = data || [];
+    } else {
+      console.log(`Skipped insert — target ${today}/${weekStart} already has ${existingDailyCount} daily and ${existingWeeklyCount} weekly active.`);
+    }
+
+    // Save as templates for fallback rotation (always — grows the template library)
     const templateRows = validChallenges.map(c => ({
       title: c.title,
       description: c.description,
@@ -294,42 +296,15 @@ Rules:
       reward_xp: c.reward_xp,
       is_active: true,
     }));
+    if (templateRows.length > 0) {
+      await supabase.from("challenge_templates").insert(templateRows);
+    }
 
-    await supabase.from("challenge_templates").insert(templateRows);
-
-    // 5. PURGE old challenges to save DB space
-    // Keep 7 days of dailies, 4 weeks of weeklies. Delete everything older.
+    // 5. Cleanup + safety top-up via SQL (timezone-aware)
     try {
-      const purgeDailyBefore = new Date(now);
-      purgeDailyBefore.setUTCDate(now.getUTCDate() - 7);
-      const purgeWeeklyBefore = new Date(now);
-      purgeWeeklyBefore.setUTCDate(now.getUTCDate() - 28);
-      const dailyCutoff = purgeDailyBefore.toISOString().split("T")[0];
-      const weeklyCutoff = purgeWeeklyBefore.toISOString().split("T")[0];
-
-      const { count: deletedDaily } = await supabase
-        .from("challenges")
-        .delete({ count: "exact" })
-        .eq("type", "daily")
-        .lt("active_date", dailyCutoff);
-
-      const { count: deletedWeekly } = await supabase
-        .from("challenges")
-        .delete({ count: "exact" })
-        .eq("type", "weekly")
-        .lt("active_week_start", weeklyCutoff);
-
-      // Trim challenge_templates older than 30 days
-      const tplCutoff = new Date(now);
-      tplCutoff.setUTCDate(now.getUTCDate() - 30);
-      const { count: deletedTpl } = await supabase
-        .from("challenge_templates")
-        .delete({ count: "exact" })
-        .lt("created_at", tplCutoff.toISOString());
-
-      console.log(`Purged old challenges: daily=${deletedDaily ?? 0}, weekly=${deletedWeekly ?? 0}, templates=${deletedTpl ?? 0}`);
-    } catch (purgeErr) {
-      console.error("Purge step failed (non-fatal):", purgeErr);
+      await supabase.rpc("ensure_active_challenges");
+    } catch (cleanupErr) {
+      console.error("ensure_active_challenges failed (non-fatal):", cleanupErr);
     }
 
     console.log(`Generated ${challengeRows.length} AI challenges for today (${today}), week (${weekStart})`);
@@ -345,15 +320,15 @@ Rules:
   } catch (error) {
     console.error("generate-challenges error:", error);
     
-    // Fallback: just run the normal rotation from existing templates
+    // Fallback: ensure slots are filled from templates (SQL safety net)
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
-      await supabase.rpc("rotate_challenges");
-      console.log("Fallback: used existing template rotation");
+      await supabase.rpc("ensure_active_challenges");
+      console.log("Fallback: ensured active challenges from templates");
     } catch (fallbackErr) {
-      console.error("Fallback rotation also failed:", fallbackErr);
+      console.error("Fallback ensure_active_challenges also failed:", fallbackErr);
     }
 
     return new Response(JSON.stringify({ 
