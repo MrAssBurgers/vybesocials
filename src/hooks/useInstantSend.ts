@@ -31,6 +31,47 @@ export function useInstantSend(conversationId: string | undefined) {
   const pendingMessagesRef = useRef<Map<string, PendingMessage>>(new Map());
   const [videoUploadProgress, setVideoUploadProgress] = useState<Record<string, number>>({});
 
+  // Long-lived broadcast channel for instant delivery to receivers viewing this convo.
+  // Created lazily and kept subscribed; throwaway channels never finish joining
+  // before `.send()` is called, so broadcasts get silently dropped.
+  const broadcastChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const broadcastConvoIdRef = useRef<string | undefined>(undefined);
+
+  const getBroadcastChannel = useCallback(() => {
+    if (!conversationId) return null;
+    if (broadcastChannelRef.current && broadcastConvoIdRef.current === conversationId) {
+      return broadcastChannelRef.current;
+    }
+    // Conversation changed — tear down old channel
+    if (broadcastChannelRef.current) {
+      try { supabase.removeChannel(broadcastChannelRef.current); } catch { /* noop */ }
+      broadcastChannelRef.current = null;
+    }
+    const ch = supabase
+      .channel(`dm-broadcast:${conversationId}`, {
+        config: { broadcast: { ack: false, self: false } },
+      })
+      .subscribe((status) => {
+        if (import.meta.env.DEV) {
+          console.log('[InstantSend] broadcast channel status:', status, conversationId);
+        }
+      });
+    broadcastChannelRef.current = ch;
+    broadcastConvoIdRef.current = conversationId;
+    return ch;
+  }, [conversationId]);
+
+  // Clean up when convo changes or component unmounts
+  useEffect(() => {
+    return () => {
+      if (broadcastChannelRef.current) {
+        try { supabase.removeChannel(broadcastChannelRef.current); } catch { /* noop */ }
+        broadcastChannelRef.current = null;
+        broadcastConvoIdRef.current = undefined;
+      }
+    };
+  }, [conversationId]);
+
   // Generate a temporary ID for optimistic updates
   const generateTempId = useCallback(() => {
     return `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
