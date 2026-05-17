@@ -197,7 +197,7 @@ export function useDMConversations(searchQuery: string = '') {
     staleTime: 30_000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: true,
-    refetchOnMount: 'always', // always refresh when DMs open
+    refetchOnMount: true, // only refetch when stale (avoids flicker on remount)
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
     networkMode: 'offlineFirst',
