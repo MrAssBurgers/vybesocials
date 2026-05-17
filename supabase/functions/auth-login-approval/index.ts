@@ -59,6 +59,28 @@ Deno.serve(async (req) => {
       }).select('id').single();
       if (error || !chal) return jsonResponse({ error: 'create_failed' }, 500);
 
+      // Fire-and-forget push to wake any trusted device (web/Despia/native).
+      try {
+        const where = [geo?.city, geo?.country].filter(Boolean).join(', ') || ip || 'Unknown location';
+        const deviceLabel = (device as any)?.label || (device as any)?.os || (device as any)?.browser || 'Unknown device';
+        fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({
+            userId: user.id,
+            title: 'Approve sign-in?',
+            body: `${deviceLabel} · ${where}`,
+            url: `/?login-approval=${chal.id}`,
+            tag: `vybe-login-approval-${chal.id}`,
+            type: 'general',
+            data: { challengeId: chal.id, kind: 'login_approval' },
+          }),
+        }).catch(() => {});
+      } catch { /* best-effort */ }
+
       return jsonResponse({ ok: true, requiresApproval: true, challengeId: chal.id });
     }
 
