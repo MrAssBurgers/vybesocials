@@ -10,13 +10,97 @@
 //   3. If neither factor is enabled, returns the session tokens directly
 //      so the client can call supabase.auth.setSession(...) and proceed.
 import { createClient } from 'npm:@supabase/supabase-js@2.90.1';
+import * as React from 'npm:react@18.3.1';
+import { renderAsync } from 'npm:@react-email/components@0.0.22';
 import {
   corsHeaders, jsonResponse, getServiceClient, getClientIp, parseUserAgent,
   geolocateIp, sha256Hex, generate6DigitCode, sendTransactional,
 } from '../_shared/security.ts';
+import { template as loginVerificationTemplate } from '../_shared/transactional-email-templates/login-verification.tsx';
 
 const TWOFA_TTL_MS = 10 * 60 * 1000;
 const APPROVAL_TTL_MS = 5 * 60 * 1000;
+
+const SITE_NAME = 'VYBE';
+const SENDER_DOMAIN = 'notify.vybehub.app';
+const FROM_DOMAIN = 'vybehub.app';
+
+// Enqueue the login-verification email directly into the high-priority
+// `auth_emails` pgmq queue. This is the same pipeline auth-email-hook uses,
+// which is far more reliable than invoking send-transactional-email (which
+// has been intermittently failing for this project). Returns ok=false only
+// if we genuinely could not enqueue.
+async function enqueueLoginCodeEmail(opts: {
+  recipient: string;
+  code: string;
+  ip?: string;
+  city?: string;
+  country?: string;
+  device?: string;
+  idempotencyKey: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const admin = getServiceClient();
+    const props = {
+      code: opts.code,
+      ip: opts.ip,
+      city: opts.city,
+      country: opts.country,
+      device: opts.device,
+    };
+    const Component: any = (loginVerificationTemplate as any).component;
+    const subject =
+      typeof (loginVerificationTemplate as any).subject === 'function'
+        ? (loginVerificationTemplate as any).subject(props)
+        : (loginVerificationTemplate as any).subject || 'Your VYBE login code';
+    const html = await renderAsync(React.createElement(Component, props));
+    const text = await renderAsync(React.createElement(Component, props), { plainText: true });
+
+    const messageId = crypto.randomUUID();
+
+    // Log pending so we have a record even if enqueue crashes.
+    await admin.from('email_send_log').insert({
+      message_id: messageId,
+      template_name: 'login-verification',
+      recipient_email: opts.recipient,
+      status: 'pending',
+    });
+
+    const { error: enqueueError } = await admin.rpc('enqueue_email', {
+      queue_name: 'auth_emails',
+      payload: {
+        message_id: messageId,
+        to: opts.recipient,
+        from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+        sender_domain: SENDER_DOMAIN,
+        subject,
+        html,
+        text,
+        purpose: 'transactional',
+        label: 'login-verification',
+        idempotency_key: opts.idempotencyKey,
+        queued_at: new Date().toISOString(),
+      },
+    });
+
+    if (enqueueError) {
+      console.error('enqueueLoginCodeEmail failed', enqueueError);
+      await admin.from('email_send_log').insert({
+        message_id: messageId,
+        template_name: 'login-verification',
+        recipient_email: opts.recipient,
+        status: 'failed',
+        error_message: enqueueError.message || 'enqueue failed',
+      });
+      return { ok: false, error: enqueueError.message || 'enqueue failed' };
+    }
+    return { ok: true };
+  } catch (e) {
+    const msg = (e as any)?.message || String(e);
+    console.error('enqueueLoginCodeEmail exception', msg);
+    return { ok: false, error: msg };
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -75,19 +159,18 @@ Deno.serve(async (req) => {
       .eq('user_id', userId)
       .maybeSingle();
 
-    // Fast path: no second factor — return the session immediately and skip
-    // all the geo/UA/device work below. Saves ~300-800ms on every login.
-    if (!settings?.email_2fa_enabled && !settings?.login_approvals_enabled) {
-      return jsonResponse({ stage: 'none', session });
-    }
-
     const ip = getClientIp(req);
     const ua = req.headers.get('user-agent');
     const device = parseUserAgent(ua);
     const geo = await geolocateIp(ip);
 
-    // 3a. Email 2FA path
-    if (settings?.email_2fa_enabled) {
+    // Login approval still respects the user's explicit setting and takes
+    // precedence over email 2FA when enabled. Otherwise, email 2FA is now
+    // REQUIRED on every live login — every user gets a verification code
+    // emailed before the session lands on the device.
+    const wantsEmail2fa = !settings?.login_approvals_enabled;
+
+    if (wantsEmail2fa) {
       // Invalidate previous pending email_2fa challenges
       await admin
         .from('auth_challenges')
@@ -112,13 +195,25 @@ Deno.serve(async (req) => {
         .single();
       if (insErr || !chal) return jsonResponse({ error: 'create_challenge_failed' }, 500);
 
-      const sendResult = await sendTransactional('login-verification', normalized, {
-        code, ip, city: geo.city, country: geo.country, device,
-      }, `2fa-${chal.id}`);
+      // Primary path: enqueue directly into the auth_emails pgmq queue (the
+      // same proven pipeline auth-email-hook uses). Fall back to
+      // send-transactional-email only if the direct enqueue fails.
+      let sendResult = await enqueueLoginCodeEmail({
+        recipient: normalized,
+        code,
+        ip,
+        city: geo.city,
+        country: geo.country,
+        device,
+        idempotencyKey: `2fa-${chal.id}`,
+      });
+      if (!sendResult.ok) {
+        sendResult = await sendTransactional('login-verification', normalized, {
+          code, ip, city: geo.city, country: geo.country, device,
+        }, `2fa-${chal.id}`);
+      }
 
       if (!sendResult.ok) {
-        // Hard fail — drop the challenge so the client never sees a "code sent"
-        // toast for a code we couldn't actually deliver.
         await admin.from('auth_challenges').delete().eq('id', chal.id);
         return jsonResponse({ error: 'email_failed', detail: sendResult.error }, 502);
       }
