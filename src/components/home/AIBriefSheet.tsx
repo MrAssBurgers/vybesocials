@@ -17,6 +17,7 @@ interface AIBriefSheetProps {
   onOpenChange: (open: boolean) => void;
   focusTopic?: string | null;
   focusHeadline?: string | null;
+  notifBody?: string | null;
 }
 
 interface BriefUpdate {
