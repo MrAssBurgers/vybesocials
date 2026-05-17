@@ -451,6 +451,7 @@ export function GlobalCallOverlay() {
       premiumSounds.stopAllCallSounds();
       premiumSounds.callConnect();
       setPhase('connected');
+      setIsVideoOff(stateRef.current.call?.callType !== 'video');
 
       const remotes = Array.from(room.remoteParticipants.values());
       if (remotes.length > 0) {
