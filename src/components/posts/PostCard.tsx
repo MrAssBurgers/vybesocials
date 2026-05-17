@@ -509,6 +509,8 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     }
   }, [post.id, post.author?.id, post.caption, profile?.id, queryClient]);
 
+  if (isHidden) return null;
+
   return (
     <motion.article
       ref={viewRef}
