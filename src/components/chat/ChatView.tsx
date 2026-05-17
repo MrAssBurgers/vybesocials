@@ -2130,16 +2130,8 @@ const MessageInputArea = memo(function MessageInputArea({
                 onChange={(e) => handleInputChange(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder={t('messages.typeMessage')}
-                className="h-9 sm:h-10 text-sm rounded-full pl-4 pr-10"
+                className="h-9 sm:h-10 text-sm rounded-full px-4"
               />
-              <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                <EmojiPicker
-                  onEmojiSelect={(emoji) => {
-                    appendToInput(emoji);
-                    inputRef.current?.focus();
-                  }}
-                />
-              </div>
             </div>
 
             {!hasText ? (
