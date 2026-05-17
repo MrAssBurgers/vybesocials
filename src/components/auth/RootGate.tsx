@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { isNativePlatform } from '@/lib/capacitor';
+import { VybePageLoader } from '@/components/ui/VybeLoader';
 
 const VybeHome = lazy(() => import('@/pages/VybeHome'));
 const Landing = lazy(() => import('@/pages/Landing'));
