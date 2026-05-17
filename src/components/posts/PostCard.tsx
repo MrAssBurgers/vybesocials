@@ -501,6 +501,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
       }
 
       toast.success('Post deleted');
+      setIsHidden(true);
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     } catch (error) {
       console.error('Failed to delete post:', error);
