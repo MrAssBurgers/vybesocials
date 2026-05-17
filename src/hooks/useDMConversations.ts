@@ -194,13 +194,13 @@ export function useDMConversations(searchQuery: string = '') {
       return result;
     },
     enabled: !!profile?.id,
-    staleTime: 30_000, // 30s — realtime handles live updates
-    gcTime: 1000 * 60 * 60 * 24 * 14, // 14 days — keep DM list cached for offline
-    refetchOnWindowFocus: true, // refresh when user returns
-    refetchOnMount: false, // show cached instantly; reconnect manager refreshes
-    refetchOnReconnect: true, // pull fresh as soon as we're back online
-    placeholderData: (prev) => prev, // never blank-out while refetching
-    networkMode: 'offlineFirst', // serve cache offline instead of hanging in "loading"
+    staleTime: 30_000,
+    gcTime: 1000 * 60 * 60 * 24 * 14,
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always', // always refresh when DMs open
+    refetchOnReconnect: true,
+    placeholderData: (prev) => prev,
+    networkMode: 'offlineFirst',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
