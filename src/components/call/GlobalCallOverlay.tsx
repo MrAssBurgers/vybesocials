@@ -72,7 +72,9 @@ export function GlobalCallOverlay() {
 
   // Local UI state
   const [isMuted, setIsMuted] = useState(false);
-  const [isVideoOff, setIsVideoOff] = useState(false);
+  // Default to "off" — flipped on for video calls once they connect.
+  // Lets the audio-call camera toggle show the correct (off) state at start.
+  const [isVideoOff, setIsVideoOff] = useState(true);
   const [callDuration, setCallDuration] = useState(0);
   const [isHangingUp, setIsHangingUp] = useState(false);
   const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
