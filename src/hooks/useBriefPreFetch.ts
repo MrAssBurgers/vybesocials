@@ -14,12 +14,43 @@ function isCacheFresh(): boolean {
   } catch { return false; }
 }
 
-async function prefetchBrief() {
+function getSlot(): 'morning' | 'lunch' | 'dinner' {
+  const h = new Date().getHours();
+  if (h >= 4 && h < 10) return 'morning';
+  if (h >= 10 && h < 16) return 'lunch';
+  return 'dinner';
+}
+
+async function tryServerCache(userId: string): Promise<boolean> {
+  try {
+    const slot = getSlot();
+    const { data } = await supabase
+      .from('daily_brief_cache')
+      .select('payload, generated_at, expires_at')
+      .eq('user_id', userId)
+      .eq('slot', slot)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+    if (data?.payload) {
+      localStorage.setItem(BRIEF_CACHE_KEY, JSON.stringify({
+        data: data.payload,
+        timestamp: new Date(data.generated_at).getTime(),
+      }));
+      return true;
+    }
+  } catch { /* ignore */ }
+  return false;
+}
+
+async function prefetchBrief(authUserId?: string) {
   if (isCacheFresh()) return;
 
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
+
+    // Prefer server-pre-warmed cache (zero AI cost, instant)
+    if (authUserId && await tryServerCache(authUserId)) return;
 
     // Try to get GPS location (non-blocking)
     let latitude: number | null = null;
