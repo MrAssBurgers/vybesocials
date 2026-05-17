@@ -712,10 +712,24 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
   const shouldGoToPost = (notification.type === 'like' || notification.type === 'comment') && notification.post_id;
   const shouldGoToChat = notification.type === 'message';
 
+  const navigate = useNavigate();
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
+    // Honor explicit deep_link first (daily_brief, announcements, etc.)
+    if (notification.deep_link) {
+      // Forward the in-app notification title/body so the destination can
+      // render exactly what the user saw in the notification.
+      const sep = notification.deep_link.includes('?') ? '&' : '?';
+      const extra = new URLSearchParams();
+      if (notification.title) extra.set('nTitle', notification.title);
+      if (notification.body) extra.set('nBody', notification.body);
+      extra.set('nid', notification.id);
+      navigate(`${notification.deep_link}${sep}${extra.toString()}`);
+      return;
+    }
+
     if (shouldGoToPost && notification.post_id) {
       triggerTransition(e, { type: 'post', postId: notification.post_id });
     } else if (shouldGoToChat && notification.actor?.id) {
@@ -723,7 +737,7 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
     } else {
       triggerTransition(e, { type: 'profile', userId: notification.actor.id, username: notification.actor.username, avatarUrl: notification.actor.avatar_url, displayName: notification.actor.display_name });
     }
-  }, [shouldGoToPost, shouldGoToChat, notification, startChatTransition, triggerTransition]);
+  }, [shouldGoToPost, shouldGoToChat, notification, startChatTransition, triggerTransition, navigate]);
 
   const handleMouseEnter = useCallback(() => {
     if (shouldGoToChat && notification.actor?.id) onHover(notification.actor.id);

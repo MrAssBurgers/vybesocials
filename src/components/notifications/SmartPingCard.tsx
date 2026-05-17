@@ -41,7 +41,12 @@ export function SmartPingCard({
 
   const handleTap = () => {
     haptics.tap();
-    if (deepLink) navigate(deepLink);
+    if (!deepLink) return;
+    const sep = deepLink.includes('?') ? '&' : '?';
+    const extra = new URLSearchParams();
+    if (title) extra.set('nTitle', title);
+    if (body) extra.set('nBody', body);
+    navigate(`${deepLink}${sep}${extra.toString()}`);
   };
 
   return (

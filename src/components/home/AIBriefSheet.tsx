@@ -17,6 +17,7 @@ interface AIBriefSheetProps {
   onOpenChange: (open: boolean) => void;
   focusTopic?: string | null;
   focusHeadline?: string | null;
+  notifBody?: string | null;
 }
 
 interface BriefUpdate {
@@ -367,7 +368,7 @@ const SectionHeader = memo(function SectionHeader({ icon: Icon, label }: { icon:
   );
 });
 
-export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: AIBriefSheetProps) {
+export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, notifBody }: AIBriefSheetProps) {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -636,6 +637,11 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
                         {focusHeadline}
                       </p>
                     )}
+                    {notifBody && (
+                      <p className="text-[13px] text-foreground/90 leading-relaxed mb-2 whitespace-pre-line">
+                        {notifBody}
+                      </p>
+                    )}
                     {focusLoading ? (
                       <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
                         <RefreshCw className="h-3 w-3 animate-spin" />
@@ -645,11 +651,11 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline }: 
                       <p className="text-[13px] text-foreground/85 leading-relaxed whitespace-pre-line">
                         {focusDetail}
                       </p>
-                    ) : (
+                    ) : !notifBody ? (
                       <p className="text-[12px] text-muted-foreground">
                         Tap refresh to load more on this story.
                       </p>
-                    )}
+                    ) : null}
                     {!focusLoading && (focusSourceUrl || focusSearchUrl) && (
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         {focusSourceUrl && (

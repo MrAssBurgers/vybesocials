@@ -17,14 +17,13 @@ export default function BriefPage() {
 
   // Parse params from either a real query string OR a malformed
   // `/brief&topic=...&headline=...` pathname (no `?`).
-  const { focusTopic, focusHeadline, needsRepair, repairedSearch } = useMemo(() => {
+  const { focusTopic, focusHeadline, notifTitle, notifBody, needsRepair, repairedSearch } = useMemo(() => {
     if (typeof window === 'undefined') {
-      return { focusTopic: null, focusHeadline: null, needsRepair: false, repairedSearch: '' };
+      return { focusTopic: null, focusHeadline: null, notifTitle: null, notifBody: null, needsRepair: false, repairedSearch: '' };
     }
     const { pathname, search } = window.location;
     let qs = search;
     let needsRepair = false;
-    // Malformed: e.g. "/brief&topic=Climate" or "/brief/&topic=Climate"
     if (!qs && pathname.startsWith('/brief') && pathname.includes('&')) {
       const idx = pathname.indexOf('&');
       qs = '?' + pathname.slice(idx + 1);
@@ -34,19 +33,19 @@ export default function BriefPage() {
     return {
       focusTopic: params.get('topic'),
       focusHeadline: params.get('headline'),
+      notifTitle: params.get('nTitle'),
+      notifBody: params.get('nBody'),
       needsRepair,
       repairedSearch: qs,
     };
   }, []);
 
-  // Rewrite the URL so it's clean (`/brief?topic=...`) without losing params
   useEffect(() => {
     if (needsRepair) {
       navigate(`/brief${repairedSearch}`, { replace: true });
     }
   }, [needsRepair, repairedSearch, navigate]);
 
-  // When user closes the sheet, navigate back to home.
   useEffect(() => {
     if (!open) {
       const t = setTimeout(() => navigate('/home', { replace: true }), 220);
@@ -60,7 +59,8 @@ export default function BriefPage() {
         open={open}
         onOpenChange={setOpen}
         focusTopic={focusTopic}
-        focusHeadline={focusHeadline}
+        focusHeadline={focusHeadline || notifTitle}
+        notifBody={notifBody}
       />
     </div>
   );
