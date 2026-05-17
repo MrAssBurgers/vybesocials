@@ -30,7 +30,7 @@ export function setCurrentConversationId(id: string | null) {
 
 function subscribeCurrentConversationId(listener: (id: string | null) => void) {
   currentConversationListeners.add(listener);
-  return () => currentConversationListeners.delete(listener);
+  return () => { currentConversationListeners.delete(listener); };
 }
 
 // Deduplication: Track recently processed message IDs (30 second window)
