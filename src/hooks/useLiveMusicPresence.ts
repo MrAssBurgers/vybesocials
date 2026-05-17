@@ -33,9 +33,29 @@ interface Entry {
   listeners: Set<Listener>;
   latest: LiveMusicPresence | null;
   refCount: number;
+  pollTimer?: ReturnType<typeof setInterval> | null;
 }
 
 const registry = new Map<string, Entry>();
+
+async function fetchPresence(authUserId: string) {
+  const { data } = await supabase
+    .from('live_music_presence')
+    .select('*')
+    .eq('user_id', authUserId)
+    .maybeSingle();
+  const e = registry.get(authUserId);
+  if (!e) return;
+  const next = (data as any) ?? null;
+  // Only push if changed (avoid spurious renders)
+  const prev = e.latest;
+  const sameTrack = prev?.track_id === next?.track_id;
+  const samePlay = prev?.is_playing === next?.is_playing;
+  const sameProg = prev?.progress_ms === next?.progress_ms;
+  if (prev && next && sameTrack && samePlay && sameProg) return;
+  e.latest = next;
+  e.listeners.forEach((l) => l(next));
+}
 
 function subscribe(authUserId: string, listener: Listener): () => void {
   let entry = registry.get(authUserId);
@@ -60,25 +80,19 @@ function subscribe(authUserId: string, listener: Listener): () => void {
     if (entry) {
       entry.channel = channel;
     } else {
-      entry = { channel, listeners: new Set(), latest: null, refCount: 0 };
+      entry = { channel, listeners: new Set(), latest: null, refCount: 0, pollTimer: null };
       registry.set(authUserId, entry);
     }
 
-    // initial fetch once per shared entry
-    supabase
-      .from('live_music_presence')
-      .select('*')
-      .eq('user_id', authUserId)
-      .maybeSingle()
-      .then(({ data }) => {
-        const e = registry.get(authUserId);
-        if (!e) return;
-        // Don't clobber an optimistic local update that arrived first
-        if (e.latest === null && data) {
-          e.latest = data as any;
-          e.listeners.forEach((l) => l(e.latest));
-        }
-      });
+    // initial fetch
+    fetchPresence(authUserId);
+
+    // Polling fallback every 15s in case Realtime drops (channels TIMED_OUT in logs).
+    // Only polls while tab is visible to save quota.
+    entry.pollTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      fetchPresence(authUserId);
+    }, 15_000);
   }
 
   entry.listeners.add(listener);
