@@ -38,10 +38,11 @@ export function useDMConversations(searchQuery: string = '') {
 
       if (membershipError) {
         if (import.meta.env.DEV) console.error('[DM] membership query error:', membershipError);
-        // Preserve previously cached conversations instead of collapsing to empty
         const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profile.id]);
         if (prev?.length) return prev;
-        throw membershipError;
+        // Don't throw — that pins React Query in isLoading through 3 retries
+        // (~8s) and leaves the user stuck on the skeleton with no recovery UI.
+        return [];
       }
       if (!membershipData?.length) return [];
 
