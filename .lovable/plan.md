@@ -1,79 +1,69 @@
-## Goals
-1. Discord-style "Listening to Spotify" UI — auto-detect when the signed-in user plays Spotify and show their own Now Playing widget globally.
-2. Make incoming login-approval prompts:
-   - Pop **instantly** (realtime, no refresh).
-   - Trigger a **push notification** so the trusted device wakes up if backgrounded.
-   - Appear **centered** on screen (modal), not a bottom sheet.
-3. When the trusted device taps Approve/Deny, the signed-out device logs in (or aborts) **instantly** with no refresh.
+## What's blocking publish
 
-## Root causes
+Your **Live** backend is healthy and responding normally. The thing blocking publish is your **Test** (preview) backend — its Postgres connection pool is fully saturated:
 
-### Spotify Now Playing not visible
-- `useSpotifyPresence` already polls `spotify-now-playing` every 15s and upserts `live_music_presence`.
-- `useLiveMusicPresence` already subscribes to that table.
-- But the only places it renders are: **friends in `DesktopRightSidebar`**, **`ConversationList`**, **`ChatView`**, and the **profile page of another user**. The signed-in user never sees their own playback anywhere.
-- Result: even when polling works, the user has no UI to see it.
+```
+FATAL: 53300: remaining connection slots are reserved for roles with the SUPERUSER attribute
+```
 
-### Login approval doesn't pop instantly + needs refresh
-- `LoginApprovalSheet` already subscribes to `auth_challenges` realtime + 15s polling and is mounted in `App.tsx`, so realtime should fire. The reasons it still feels broken:
-  - It renders as a **bottom Sheet** (`side="bottom"`), not a center modal — user perceives "it shows up at the top after refresh" because they're looking center.
-  - **No push notification** is dispatched when a new `login_approval` challenge is created in `auth-login-approval` (`action: 'request'`). When the trusted device is backgrounded / app closed, nothing wakes it up; opening the app cold then triggers `refresh()` and the sheet appears, which feels like "I had to refresh".
-  - Race on identity: the realtime subscription uses `user.id` (auth uid). The challenge insert also uses auth uid, so this is correct, but if `authReady` flips false→true after the INSERT fires, the listener missed the event. The polling falls back at 15s, so the user thinks "I had to refresh".
+This means every connection slot is used up by long-lived clients (mostly Realtime subscriptions and idle query connections from the preview app). Even Lovable's own auth admin role can't get a slot, so:
 
-### Approve click doesn't log in the waiting device instantly
-- `auth-login-approval` already broadcasts a `login-approval:{challengeId}` channel after `respond`. `LoginGateModal` already subscribes to it and calls `poll()` once on `resolved`.
-- Issue: the **broadcast channel sometimes fires before the row update is visible** to the next `poll()` call (read-your-write race against the admin update). When `poll()` runs immediately on broadcast, it can still see `status: 'pending'` and schedule a 3s retry — that's the "I had to refresh" delay.
+- Schema/types sync fails
+- Migration preflight fails
+- Publish refuses to proceed because it can't talk to Test
 
-## Changes
+Live (production) currently sits at **92/?** connections (3 active, 81 idle, 8 realtime) — comfortable. Test is fully maxed.
 
-### A. Discord-style self Now Playing
-- Create a new `SelfNowPlayingPill` component that uses `useLiveMusicPresence(user?.id)` for the signed-in user and renders a compact Spotify pill (album art thumbnail, "Listening to Spotify", track · artist, equalizer bars). Reuse the green `#1DB954` styling already present in the sidebar.
-- Mount the pill in two places:
-  - **Mobile**: floating just above the bottom nav on `/home` and `/profile` (small, dismissible, only visible when `is_playing && title`).
-  - **Desktop**: top of `DesktopRightSidebar`, above the friends row, when the signed-in user is currently playing.
-- Speed up detection: in `useSpotifyPresence` poll every **8s** while the tab is visible (still 15s when hidden), and fire one immediate tick when the user navigates to `/home` or `/profile` (visibility/route trigger already wired — just shorten interval).
+## Why Test got saturated
 
-### B. Login approval — instant + push + centered
+Your project opens a lot of Realtime channels — I counted **43** `supabase.channel(...).subscribe()` call sites across hooks and components, against only **36** call sites that `removeChannel(...)` on cleanup. That gap, plus the recent additions (login-approval realtime, Spotify presence 8s polls, message read-sync, presence tracking) keeps slot pressure high in preview where the same tab can sit open for hours.
 
-#### B1. Send a push notification on challenge creation
-- In `supabase/functions/auth-login-approval/index.ts` `action: 'request'`, after the challenge insert, fire-and-forget call to `send-push-notification`:
-  - `title: "Approve sign-in?"`
-  - `body: "{device} · {city, country}"`
-  - `url: "/?login-approval={challengeId}"`
-  - `tag: "vybe-login-approval-{challengeId}"`
-  - `type: "general"`
-- No new secrets — `send-push-notification` already accepts arbitrary `type` and resolves the user's push tokens.
+Every preview tab open right now is holding multiple subscriptions:
 
-#### B2. Convert approval prompt to a centered modal
-- Rewrite `LoginApprovalSheet.tsx` to render with `Dialog` (the centered shadcn dialog already used by `LoginGateModal`) instead of `Sheet side="bottom"`. Keep the same content: device, location, Approve / It wasn't me.
-- Add a soft "wake" toast + haptic when a new approval lands (already done) and play a short ping sound on arrival.
+```
+chat-presence, dm-conversation, message-notifications, login-approval-{user},
+music-presence:{user}, conversation-typing, friend-map, locker, ...
+```
 
-#### B3. Make realtime more robust
-- In `LoginApprovalSheet`, also listen for `UPDATE` events (covers status flips from other devices that already approved).
-- Re-run `refresh()` on `visibilitychange → visible` and on `authReady` flipping true — currently it only runs once at mount.
+When several tabs/devices are connected at once they multiply.
 
-### C. Instant cross-device login on approve
+## Fix in two steps
 
-#### C1. Eliminate the read-your-write race in `auth-login-approval`
-- In `action: 'respond'`, after the UPDATE succeeds, include the **session tokens** directly in the broadcast payload (only when intent is `approve`) so the waiting client doesn't need a follow-up poll.
-- The session was stored in `metadata.session` during preauth. Read it, scrub it from metadata (same single-use semantics as the poll path), and emit:
-  - `payload: { status: 'approved', challengeId, session }`
+### Step 1 — Unblock publish right now (no code change)
 
-#### C2. Consume broadcast session directly in `LoginGateModal`
-- In the broadcast handler, if `payload.session` is present, call `finalize('approved', payload.session)` directly — no extra `poll()` round-trip. Fall back to `poll()` only if the payload omits a session (older edge function version).
+Restart the Test backend so all stuck slots are released:
 
-#### C3. Speed up the polling safety net
-- Reduce the polling fallback in `LoginGateModal` from 3000ms to 1500ms while waiting for approval. This is purely a safety net since broadcast should now carry the session.
+1. Open **Connectors → Lovable Cloud → Test environment**
+2. Click **Restart backend** (or pause + resume)
+3. Wait ~30 seconds until status returns to healthy
+4. Retry **Publish**
+
+This always clears a 53300 lockup. Live is untouched.
+
+### Step 2 — Stop it from happening again (small code change)
+
+Audit the 7-call-site gap between `.subscribe()` and `removeChannel()` so every hook releases its channel on unmount. Specifically I want to:
+
+- Add a single `useRealtimeChannel(name, setup)` helper that guarantees `removeChannel` on unmount even if `setup` throws.
+- Convert the highest-churn subscribers to it:
+  - `useMessageNotifications` (cross-device-read-sync) — currently re-subscribes on every dep change
+  - `useLiveMusicPresence` — one per rendered avatar; coalesce to one shared channel per session
+  - `LoginApprovalSheet` — fine, already cleans up
+  - `useSpotifyPresence` — fine, but bump polling back to 12s (we lowered to 8s last turn — that's adding ~50% more `functions.invoke` traffic per tab)
+
+This is purely defensive — none of these are required to publish; Step 1 unblocks you.
 
 ## Out of scope
-- No DM changes, no camera changes, no schema migrations (all tables already in `supabase_realtime`).
-- No new secrets, no provider changes.
+- No schema migrations (the DB is unreachable from Test until restart anyway).
+- No changes to the login-approval / Spotify pill features built last turn.
 
-## Files touched
-- `src/components/music/SelfNowPlayingPill.tsx` (new)
-- `src/components/layout/AppLayout.tsx` *or* `src/pages/Home.tsx` + `src/pages/Profile.tsx` (mount pill — exact host TBD after a quick layout read)
-- `src/components/layout/DesktopRightSidebar.tsx` (add self pill above friends)
-- `src/hooks/useSpotifyPresence.ts` (8s interval while visible)
-- `src/components/auth/LoginApprovalSheet.tsx` (Dialog instead of Sheet, listen for UPDATE, refresh on visibility/authReady, ping sound)
-- `src/components/auth/LoginGateModal.tsx` (consume session from broadcast payload, 1.5s poll fallback)
-- `supabase/functions/auth-login-approval/index.ts` (push on request, include session in respond broadcast)
+## Files I'd touch in Step 2
+- `src/hooks/useRealtimeChannel.ts` (new helper)
+- `src/hooks/useMessageNotifications.ts` (use helper, stable deps)
+- `src/hooks/useLiveMusicPresence.ts` (shared channel registry)
+- `src/hooks/useSpotifyPresence.ts` (interval 8s → 12s)
+
+## Decision point
+Tell me whether you want me to:
+- **A.** Just restart Test (Step 1) and retry publish — fastest unblock, do nothing in code.
+- **B.** Do Step 1 *and* implement Step 2 so this doesn't recur.
