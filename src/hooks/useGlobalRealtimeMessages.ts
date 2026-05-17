@@ -220,11 +220,12 @@ export function useGlobalRealtimeMessages() {
           queryClient.setQueryData<any[]>(['conversations', profile.id], updateConversations);
           queryClient.setQueryData<any[]>(['dm-conversations', profile.id], updateConversations);
 
-          // If conversation doesn't exist in cache, trigger a full refetch
+          // Only invalidate when the conversation is genuinely new to the cache.
+          // The setQueryData patch above already handles known conversations
+          // — invalidating in that case causes a full refetch and visible flicker.
           const cached = queryClient.getQueryData<any[]>(['dm-conversations', profile.id]);
           if (cached && !cached.some(c => c.id === conversationId)) {
-            queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
-            queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
+            scheduleUnknownConvoRefetch(queryClient, profile.id);
           }
         }
       )
