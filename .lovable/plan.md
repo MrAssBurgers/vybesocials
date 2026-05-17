@@ -1,58 +1,48 @@
-## Short answer
-Spotify works because it has an official **Currently Playing** API. Most other platforms — especially **YouTube** — don't expose what a user is watching in real time, so the same pattern isn't universally possible. Here's what's actually doable.
+## 1. Notifications settings page loads forever
 
-## Platform-by-platform reality check
+**Cause:** `NotificationsSection` blocks the entire page on `useNotificationPreferences().isLoading`, and that query waits for `useAuth().profile` to resolve. On slow auth boots the skeleton sits there.
 
-| Platform | Real-time "now watching/playing"? | Notes |
-|---|---|---|
-| **YouTube** | No public API for it. The Data API only returns history if the user enabled it (and YouTube has been removing watch-history endpoints). No "currently watching" endpoint exists. | Workarounds below. |
-| **Twitch** | Partial. Can show **what channel/stream they're watching** only if they're the streamer (Helix `streams` endpoint). Cannot see what stream a *viewer* is watching. | Good for "X is live streaming now". |
-| **Apple Music** | Yes — MusicKit JS exposes the user's current track. Same pattern as Spotify. | Requires Apple Developer membership. |
-| **SoundCloud** | API closed to new apps since 2021. | Skip. |
-| **Steam** | Yes — Web API `GetPlayerSummaries` returns `gameextrainfo` (current game). | Easy add, same pattern as Spotify pill. |
-| **Discord** | Yes — Discord exposes user presence (game/Spotify/custom status) via a bot in a shared server. | Requires bot + shared guild; viable. |
-| **Last.fm** | Yes — `user.getRecentTracks` includes a `nowplaying` flag. | Aggregates scrobbles from many players. |
-| **Netflix / Hulu / Disney+ / HBO / Prime** | No public API at all. | Not possible. |
-| **TikTok / Instagram** | No "now watching" API. | Not possible. |
+**Fix:**
+- Remove the full-page skeleton gate. Render the cards immediately with the defaults (`useNotificationPreferences` already returns defaults when no row exists), and let individual toggles update once data arrives.
+- Pass `staleTime: 5 * 60_000` and `placeholderData: <defaults>` to the query so it stops re-fetching on every mount.
+- Skip the `pushSupported` check / SW registration until the user actually interacts — defer `registerServiceWorker()` to the first `subscribe()` call instead of in the mount `useEffect`. This shaves the "checking subscription" delay.
 
-## YouTube — what we *can* actually do
-Since "currently watching on YouTube.com" is impossible from a server, pick one of:
+## 2. "Feature me on landing" toggle doesn't show your pic
 
-1. **In-app YouTube player (recommended)** — when a user plays a YouTube video *inside Vybe* via the IFrame Player API, we already know the videoId and can write to `live_music_presence` exactly like Spotify. Shows up as a "Watching on YouTube" pill on their profile/DM. Only works while they watch inside our app.
-2. **Recently liked / uploaded** — OAuth Google sign-in with the `youtube.readonly` scope, periodically pull `playlistItems` for the "Liked videos" playlist. Shows "Recently liked: <title>". Not real-time, but real signal.
-3. **Browser extension (future)** — a tiny extension that reads the active YouTube tab and pings our `live_music_presence` endpoint. Real-time, but requires installing the extension.
+**Cause:** `get_landing_top_creators` only returns users who posted in the last 24h **and** have an engagement score > 0. So flipping the toggle on a quiet account shows nothing.
 
-## Recommended rollout (incremental, reusing today's plumbing)
-Today's `live_music_presence` table + shared realtime channel + `LiveSpotifyWaveform`/`NowPlayingInline` pills already generalize cleanly. We add new providers without schema changes.
+**Fix migration:** rewrite `get_landing_top_creators(_limit)` so opted-in profiles always surface, ordered by 24h score when present, then by total followers/recent activity, then by `created_at` — and remove the `s.score > 0` filter. Keeps `is_private = false AND feature_on_landing = true` as the only hard gates.
 
-### Phase 1 — Steam (smallest win, ~1 day)
-- New edge function `steam-now-playing` polled by a `useSteamPresence` hook (mirrors `useSpotifyPresence`).
-- Settings → Connections: "Connect Steam" → ask for SteamID64 + store Steam Web API key as a project secret.
-- Reuse `live_music_presence` row with `provider = 'steam'`, `title = gameextrainfo`, `album_art_url = game header image`.
-- Pill copy switches to "Playing on Steam".
+## 3. Daily brief (morning / midday / afternoon) never arrives on the public build
 
-### Phase 2 — YouTube in-app player
-- New `YouTubePlayer` component using IFrame API; on `onStateChange = PLAYING`, upsert to `live_music_presence` with `provider = 'youtube'`, `title`, `album_art_url = video thumbnail`, `track_url`.
-- On stop/route-change, clear the row.
-- No OAuth needed for this path.
+**Cause:** `send-brief-notification` exists but there is **no `cron.schedule` row** that actually calls it. The prewarm cron exists, but nothing fires the brief push itself.
 
-### Phase 3 — Apple Music
-- Same pattern as Spotify (MusicKit JS handles auth + currentItem). Requires Apple Developer credentials from you.
+**Fix migration:** add three `cron.schedule` entries (`brief-push-morning` 13:00 UTC ≈ 6am PT-ish, `brief-push-lunch` 19:00 UTC, `brief-push-dinner` 01:00 UTC) that `net.http_post` to `…/functions/v1/send-brief-notification` with the service-role bearer. Use the same pattern as the existing prewarm cron in `20260517040426_*.sql`.
 
-### Phase 4 — Discord-style rich presence aggregator
-- Optional Discord bot in a shared guild that pushes each user's presence (game, Spotify, custom status) into `live_music_presence` via webhook. Lets us show *anything* Discord already tracks without us reinventing each integration.
+## 4. Phone push notifications don't arrive at all (DMs / friend requests / etc.)
 
-### Out of scope
-- Netflix/Hulu/TikTok/Instagram "now watching" — no API, not possible.
-- Live scraping of YouTube watch history — against ToS.
+**Cause:** OneSignal's `external_id` is bound to **auth user id** by `DespiaOneSignalSync` (`data.user?.id`), but most app call sites (`sendMessagePush`, `sendFriendRequestPush`, comment/like notifications, brief push for the in-app row, etc.) pass **profile.id** as the target. OneSignal then has nobody to deliver to.
 
-## DB changes (one small migration, total)
-- Extend the `provider` check / enum on `live_music_presence` to include `'youtube' | 'steam' | 'apple_music' | 'discord'`. Everything else (title/artist/album_art_url/track_url/is_playing/updated_at) already fits the existing row.
+**Fix:** standardize on `profile.id` everywhere.
+- `DespiaOneSignalSync`: after auth resolves, look up `profiles.id` for the auth user and call `setonesignalplayerid://?user_id=${profile.id}` (instead of auth uid). Re-run on `onAuthStateChange`.
+- `usePushNotifications.subscribeDespia`: already uses `profile.id` — leave as-is.
+- `send-brief-notification`: it currently passes `authUserId` to `send-push-notification`. Change the call to pass `profile.id` (it already looks up the profile a few lines above for the in-app row).
+- Leave `send-push-notification` untouched; it forwards whatever id it's given to OneSignal `external_id`, which will now consistently match.
 
-## What I need from you before building
-1. Which platforms do you want first? (Pick any subset of: Steam, YouTube in-app, Apple Music, Twitch live-streamer badge, Discord bot.)
-2. For Steam: confirm you'll generate a Steam Web API key (free, takes ~1 min at steamcommunity.com/dev/apikey).
-3. For Apple Music: confirm you have (or will get) an Apple Developer account.
-4. For Discord: do you want me to set up a bot, or skip this phase?
+## Technical details
 
-Once you tell me which ones, I'll build them in one pass, reusing the Spotify pipeline so each new provider is ~150 lines of code instead of a separate system.
+**Files**
+- `src/components/settings/NotificationsSection.tsx` — drop the loading skeleton early-return; render with defaults.
+- `src/hooks/useNotificationPreferences.ts` — add `staleTime` + `placeholderData`.
+- `src/hooks/usePushNotifications.ts` — lazy-register SW on first `subscribe()`; keep `checkSubscription` but don't gate UI.
+- `src/components/notifications/DespiaOneSignalSync.tsx` — resolve profile id and use it for `setonesignalplayerid://`.
+- `supabase/functions/send-brief-notification/index.ts` — send push with `profile.id`, not `authUserId`.
+
+**Migrations**
+1. Replace `public.get_landing_top_creators(_limit int)`:
+   - Left-join opted-in profiles to 24h-scored posts.
+   - Filter: `is_private = false AND feature_on_landing = true`.
+   - Order: `score DESC NULLS LAST, created_at DESC`.
+2. Three new `cron.schedule(...)` rows invoking `send-brief-notification` via `net.http_post` (morning/lunch/dinner UTC).
+
+No new secrets needed — `ONESIGNAL_APP_ID` and `ONESIGNAL_REST_API_KEY` are already set.

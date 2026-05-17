@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export function NotificationsSection() {
   const { profile } = useAuth();
-  const { data: prefs, isLoading } = useNotificationPreferences();
+  const { data: prefs } = useNotificationPreferences();
   const updatePref = useUpdateNotificationPreference();
   const queryClient = useQueryClient();
   const { 
@@ -52,22 +52,7 @@ export function NotificationsSection() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="liquid-glass-card p-4 sm:p-6">
-          <div className="flex items-start gap-4 mb-6">
-            <Skeleton className="w-12 h-12 rounded-xl" />
-            <div className="flex-1">
-              <Skeleton className="h-5 w-40 mb-2" />
-              <Skeleton className="h-4 w-64" />
-            </div>
-          </div>
-          <Skeleton className="h-20 rounded-xl" />
-        </div>
-      </div>
-    );
-  }
+  // Render immediately with defaults from the hook — no blocking skeleton.
 
   return (
     <div className="space-y-6">

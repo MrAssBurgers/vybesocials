@@ -109,13 +109,17 @@ Deno.serve(async (req) => {
         else console.warn("[brief-push] notif insert failed", notifErr.message);
       }
 
-      // Push fan-out via shared function (handles web + Despia native)
+      // Push fan-out via shared function (handles web + Despia native via OneSignal).
+      // IMPORTANT: send-push-notification targets profile.id (matches DespiaOneSignalSync
+      // external_id binding and all other push call sites). Fall back to auth uid only
+      // when no profile row exists.
+      const pushTarget = profile?.id ?? authUserId;
       try {
         const { error: pushErr } = await supabase.functions.invoke(
           "send-push-notification",
           {
             body: {
-              userId: authUserId,
+              userId: pushTarget,
               title,
               body,
               url: deepLink,
@@ -127,13 +131,13 @@ Deno.serve(async (req) => {
         );
         if (pushErr) {
           pushFailed++;
-          console.warn(`[brief-push] push failed for ${authUserId}`, pushErr.message);
+          console.warn(`[brief-push] push failed for ${pushTarget}`, pushErr.message);
         } else {
           pushSent++;
         }
       } catch (e) {
         pushFailed++;
-        console.error(`[brief-push] push error for ${authUserId}`, e);
+        console.error(`[brief-push] push error for ${pushTarget}`, e);
       }
     }
 
