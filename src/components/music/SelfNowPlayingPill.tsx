@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLiveMusicPresence } from '@/hooks/useLiveMusicPresence';
 import { LiveSpotifyWaveform } from '@/components/music/LiveSpotifyWaveform';
+import { providerTheme } from '@/components/music/providerTheme';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -13,10 +14,8 @@ interface Props {
 }
 
 /**
- * Discord-style "Listening to Spotify" pill for the signed-in user.
- * Reads the user's own live_music_presence row (upserted by useSpotifyPresence
- * every ~8s) and renders a compact, dismissible widget. Hidden when nothing
- * is playing.
+ * Discord-style "Listening to / Watching on …" pill for the signed-in user.
+ * Provider-aware (Spotify · Apple Music · YouTube · Twitch · Steam).
  */
 export function SelfNowPlayingPill({ className, floating = false }: Props) {
   const { user } = useAuth();
@@ -26,6 +25,7 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
   const visible = !!presence?.is_playing && !!presence?.title;
   const trackId = presence?.track_id ?? presence?.title ?? null;
   const showing = visible && trackId !== dismissedTrackId;
+  const theme = providerTheme(presence?.provider);
 
   return (
     <AnimatePresence>
@@ -40,11 +40,13 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
           transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
           className={cn(
             'group flex items-center gap-2.5 rounded-full bg-card border border-border shadow-lg shadow-black/30 pl-1.5 pr-3 py-1.5 max-w-[280px]',
-            'ring-1 ring-[#1DB954]/30 hover:ring-[#1DB954]/60 transition-all',
+            'ring-1 transition-all',
+            theme.ring,
+            theme.ringHover,
             floating && 'fixed left-1/2 -translate-x-1/2 bottom-[88px] z-40',
             className,
           )}
-          aria-label="Listening on Spotify"
+          aria-label={theme.label}
         >
           {presence?.album_art_url ? (
             <img
@@ -53,15 +55,18 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
               className="w-8 h-8 rounded-full object-cover flex-shrink-0"
             />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-[#1DB954]/20 flex items-center justify-center flex-shrink-0">
-              <SpotifyMark />
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: `${theme.color}33` }}
+            >
+              <span className="w-2 h-2 rounded-full" style={{ background: theme.color }} />
             </div>
           )}
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5">
-              <LiveSpotifyWaveform tempo={presence?.tempo} energy={presence?.energy} isPlaying={!!presence?.is_playing} height={10} bars={4} />
-              <span className="text-[10px] font-bold text-[#1DB954] tracking-wide uppercase">
-                Listening on Spotify
+              <LiveSpotifyWaveform tempo={presence?.tempo} energy={presence?.energy} isPlaying={!!presence?.is_playing} height={10} bars={4} color={theme.color} />
+              <span className="text-[10px] font-bold tracking-wide uppercase" style={{ color: theme.color }}>
+                {theme.label}
               </span>
             </div>
             <span className="text-xs text-foreground truncate font-medium">
@@ -87,25 +92,3 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
   );
 }
 
-function Equalizer() {
-  return (
-    <span className="inline-flex items-end gap-[1.5px] h-2.5 flex-shrink-0">
-      {[0, 1, 2].map((i) => (
-        <motion.span
-          key={i}
-          className="w-[2px] bg-[#1DB954] rounded-full"
-          animate={{ height: ['30%', '100%', '50%', '90%', '30%'] }}
-          transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
-        />
-      ))}
-    </span>
-  );
-}
-
-function SpotifyMark() {
-  return (
-    <svg viewBox="0 0 24 24" className="w-4 h-4 text-[#1DB954]" fill="currentColor" aria-hidden="true">
-      <path d="M12 0a12 12 0 1 0 12 12A12 12 0 0 0 12 0Zm5.5 17.3a.75.75 0 0 1-1 .25c-2.8-1.7-6.3-2-10.5-1.1a.75.75 0 1 1-.3-1.5c4.5-1 8.4-.6 11.5 1.3a.75.75 0 0 1 .3 1Zm1.5-3.3a.94.94 0 0 1-1.3.3c-3.2-2-8-2.5-11.8-1.4a.94.94 0 1 1-.5-1.8c4.3-1.3 9.6-.7 13.2 1.5a.94.94 0 0 1 .4 1.4Zm.1-3.4c-3.8-2.3-10.2-2.5-13.9-1.4a1.13 1.13 0 1 1-.6-2.2c4.2-1.3 11.3-1 15.7 1.6a1.13 1.13 0 0 1-1.2 2Z" />
-    </svg>
-  );
-}
