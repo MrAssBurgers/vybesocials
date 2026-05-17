@@ -182,6 +182,7 @@ export function AnimatedRoutes() {
             
             {/* CRITICAL ROUTES - Eagerly loaded, instant navigation */}
             <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/brief" element={<ProtectedRoute><BriefPage /></ProtectedRoute>} />
             <Route path="/welcome" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />
             <Route path="/vision" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />
             <Route path="/clips" element={<ProtectedRoute><Shorts /></ProtectedRoute>} />
