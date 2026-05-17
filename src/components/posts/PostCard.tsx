@@ -23,6 +23,8 @@ import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { EditPostDialog } from './EditPostDialog';
+import { YouTubePlayer } from '@/components/music/YouTubePlayer';
+import { findFirstYouTubeId } from '@/lib/youtube';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { ModBadge } from '@/components/ui/ModBadge';
@@ -809,6 +811,19 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 <ProductTagBadge tags={post.tags} />
               </div>
             )}
+          </div>
+        );
+      })()}
+
+      {/* Auto-embed: if caption contains a YouTube link, render in-app player */}
+      {(() => {
+        const ytId = findFirstYouTubeId(post.caption);
+        if (!ytId) return null;
+        return (
+          <div className="px-4 pt-4">
+            <div className="overflow-hidden rounded-2xl border border-border/40 bg-black">
+              <YouTubePlayer videoId={ytId} />
+            </div>
           </div>
         );
       })()}
