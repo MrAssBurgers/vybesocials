@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLiveMusicPresence } from '@/hooks/useLiveMusicPresence';
@@ -110,23 +111,26 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
         )}
       </AnimatePresence>
 
-      {/* Backdrop + Mini Player */}
-      <AnimatePresence>
-        {miniOpen && isSpotify && showing && (
-          <>
-            <motion.div
-              key="mini-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-40 bg-black/30"
-              onClick={() => setMiniOpen(false)}
-            />
-            <SpotifyMiniPlayer presence={presence} onClose={() => setMiniOpen(false)} />
-          </>
-        )}
-      </AnimatePresence>
+      {/* Backdrop + Mini Player — portaled to body to escape transformed ancestors */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {miniOpen && isSpotify && showing && (
+            <>
+              <motion.div
+                key="mini-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 z-40 bg-black/30"
+                onClick={() => setMiniOpen(false)}
+              />
+              <SpotifyMiniPlayer presence={presence} onClose={() => setMiniOpen(false)} />
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 }
