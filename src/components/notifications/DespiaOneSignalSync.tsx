@@ -21,10 +21,18 @@ export function DespiaOneSignalSync() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const setPlayerId = (userId: string | undefined | null) => {
-      if (!userId) return;
+    const setPlayerIdForAuthUser = async (authUserId: string | undefined | null) => {
+      if (!authUserId) return;
       try {
-        despia(`setonesignalplayerid://?user_id=${userId}`);
+        // OneSignal external_id must match the id used by app push call sites,
+        // which is profiles.id (NOT auth.users.id). Resolve and bind.
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', authUserId)
+          .maybeSingle();
+        const externalId = profile?.id ?? authUserId;
+        despia(`setonesignalplayerid://?user_id=${externalId}`);
       } catch (err) {
         console.warn('[Despia] Failed to set OneSignal player id:', err);
       }
@@ -44,11 +52,11 @@ export function DespiaOneSignalSync() {
     };
 
     supabase.auth.getUser().then(({ data }) => {
-      setPlayerId(data.user?.id);
+      void setPlayerIdForAuthUser(data.user?.id);
     }).catch(() => {});
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setPlayerId(session?.user?.id);
+      void setPlayerIdForAuthUser(session?.user?.id);
     });
 
     // Request push permission on the FIRST authenticated user gesture
