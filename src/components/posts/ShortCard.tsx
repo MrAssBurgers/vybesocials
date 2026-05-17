@@ -352,6 +352,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       }
 
       toast.success('Clip deleted');
+      setIsHidden(true);
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     } catch (error) {
       console.error('Failed to delete clip:', error);
