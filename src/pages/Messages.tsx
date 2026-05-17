@@ -33,7 +33,7 @@ export default function Messages() {
             ? 'h-[100dvh] fixed inset-0 z-50'
             : mobileListMode
               ? 'fixed inset-x-0 top-14 bottom-0 z-[1]'
-              : 'h-full w-full'
+              : 'h-[100dvh] w-full'
           } 
           flex max-w-full pb-0 bg-background
         `}
@@ -46,21 +46,21 @@ export default function Messages() {
       >
         {/* Conversation list */}
         <div 
-          className={`w-full md:w-80 lg:w-96 border-r border-border/50 flex-shrink-0 min-w-0 bg-card/30 backdrop-blur-xl ${isInChat ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}
-          style={{ overflow: 'hidden', height: '100%' }}
+          className={`w-full md:w-80 lg:w-96 border-r border-border/50 flex-shrink-0 min-w-0 min-h-0 h-full bg-card/30 backdrop-blur-xl ${isInChat ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}
+          style={{ overflow: 'hidden' }}
         >
           <ConversationList />
         </div>
         
         {/* Chat area */}
         <div 
-          className={`flex-1 min-w-0 ${!isInChat ? 'hidden md:flex' : 'flex'} flex-col`}
-          style={{ overflow: 'hidden', height: '100%' }}
+          className={`flex-1 min-w-0 min-h-0 h-full ${!isInChat ? 'hidden md:flex' : 'flex'} flex-col`}
+          style={{ overflow: 'hidden' }}
         >
           {isInChat ? (
             <ChatView />
           ) : (
-            <div className="hidden md:flex flex-1 items-center justify-center relative overflow-hidden">
+            <div className="hidden md:flex flex-1 w-full h-full items-center justify-center relative overflow-hidden">
               {/* Floating background particles */}
               <div className="absolute inset-0 pointer-events-none">
                 {[...Array(5)].map((_, i) => (
