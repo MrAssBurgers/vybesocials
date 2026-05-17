@@ -13533,7 +13533,7 @@ export type Database = {
       dna_agent_intensity: "gentle" | "balanced" | "bold"
       dna_agent_mode: "off" | "suggest" | "autonomous"
       group_role: "owner" | "admin" | "member"
-      music_provider: "spotify" | "apple_music"
+      music_provider: "spotify" | "apple_music" | "youtube" | "steam" | "twitch"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -13684,7 +13684,7 @@ export const Constants = {
       dna_agent_intensity: ["gentle", "balanced", "bold"],
       dna_agent_mode: ["off", "suggest", "autonomous"],
       group_role: ["owner", "admin", "member"],
-      music_provider: ["spotify", "apple_music"],
+      music_provider: ["spotify", "apple_music", "youtube", "steam", "twitch"],
     },
   },
 } as const
