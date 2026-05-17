@@ -363,9 +363,10 @@ export function useMarkConversationRead() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+      if (!profile?.id) return;
+      queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
+      queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
+      queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
     },
   });
 }
