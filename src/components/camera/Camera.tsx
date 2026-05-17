@@ -323,8 +323,10 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
         <video
           ref={videoRef}
           autoPlay playsInline muted
-          className={cn("w-full h-full object-cover", facingMode === 'user' && "scale-x-[-1]")}
-          style={{ filter: combinedFilter }}
+          controls={false}
+          disablePictureInPicture
+          className={cn("w-full h-full object-cover bg-black", facingMode === 'user' && "scale-x-[-1]")}
+          style={{ backgroundColor: '#000', filter: combinedFilter }}
         />
 
         {/* Grid overlay */}

@@ -297,11 +297,13 @@ export function Camera({ onClose, initialSound }: CameraProps) {
           autoPlay
           playsInline
           muted
+          controls={false}
+          disablePictureInPicture
           className={cn(
-            "w-full h-full object-cover",
+            "w-full h-full object-cover bg-black",
             facingMode === 'user' && "scale-x-[-1]"
           )}
-          style={{ filter: getFilterCSS(currentFilter) }}
+          style={{ backgroundColor: '#000', filter: getFilterCSS(currentFilter) }}
         />
 
         {/* Flash overlay */}

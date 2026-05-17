@@ -112,9 +112,13 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   const shouldFinalizeOnStopRef = useRef(false);
   const isRecordingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const startingRef = useRef(false);
 
   // ── Defensive camera open ──
   const startCamera = useCallback(async () => {
+    // Re-entrancy guard: prevents overlapping getUserMedia calls that crash WebViews
+    if (startingRef.current) return;
+    startingRef.current = true;
     try {
       // Hard guard: media API may be entirely missing in some WebViews
       if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
@@ -164,7 +168,9 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
           });
           return;
         }
-        try { stopCameraStream(); } catch {}
+        // Do NOT call stopCameraStream() here — that shared global stream may
+        // belong to call-warmup or another consumer; tearing it down can crash
+        // the WebView. Just fall through and acquire our own.
       }
 
       // Skip Permissions API on Despia/Android WebView — it can throw.
@@ -184,16 +190,19 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         streamRef.current = null;
       }
 
-      // Try simple constraints first, then refine.
+      // Acquire VIDEO-ONLY first. iOS Safari refuses to autoplay a muted
+      // <video> when its MediaStream carries an audio track, which is what
+      // surfaces the white "play button" poster. Audio is added on demand
+      // when the user actually starts recording (still inside a tap gesture).
       let stream: MediaStream | null = null;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode },
-          audio: soundEnabled,
+          audio: false,
         });
       } catch (simpleErr: any) {
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: soundEnabled });
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         } catch (fallbackErr: any) {
           console.warn('[VybeSnapCamera] getUserMedia fallback failed', fallbackErr);
           setPermissionDenied(true);
@@ -231,8 +240,10 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         setPermissionDenied(true);
         console.warn('[VybeSnapCamera] Camera error:', name || error);
       }
+    } finally {
+      startingRef.current = false;
     }
-  }, [facingMode, soundEnabled, flashEnabled, initialStream]);
+  }, [facingMode, flashEnabled, initialStream]);
 
   // Toggle torch
   useEffect(() => {
@@ -280,6 +291,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     const id = requestAnimationFrame(() => { startCamera(); });
     return () => {
       cancelAnimationFrame(id);
+      startingRef.current = false;
       stopCamera();
     };
   }, [isOpen, stopCamera, startCamera]);
@@ -652,19 +664,24 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
               </Button>
             </div>
           ) : (
-            <>
+            <div className="absolute inset-0 bg-black">
               <video
                 ref={videoRef}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover bg-black"
                 style={{
+                  backgroundColor: '#000',
                   transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
                   filter: selectedFilter !== 'none'
                     ? LENS_FILTERS.find(f => f.id === selectedFilter)?.filter
                     : (nightMode ? 'brightness(1.4) contrast(0.9)' : 'none'),
+                  opacity: cameraReady ? 1 : 0,
+                  transition: 'opacity 200ms ease-out',
                 }}
                 playsInline
                 muted
                 autoPlay
+                controls={false}
+                disablePictureInPicture
               />
               {!cameraReady && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
@@ -673,7 +690,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
                   </motion.div>
                 </div>
               )}
-            </>
+            </div>
           )}
 
           {/* Grid */}
