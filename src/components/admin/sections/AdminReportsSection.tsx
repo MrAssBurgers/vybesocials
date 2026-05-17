@@ -29,6 +29,7 @@ function useDeletionLog() {
 export function AdminReportsSection() {
   const { profile } = useAuth();
   const { data: reports = [], isLoading } = useReports();
+  const { data: deletions = [], isLoading: deletionsLoading } = useDeletionLog();
   const updateReport = useUpdateReport();
 
   const handleReportAction = async (id: string, status: 'reviewed' | 'dismissed' | 'actioned') => {
@@ -42,6 +43,7 @@ export function AdminReportsSection() {
   };
 
   return (
+    <div className="space-y-4">
     <Card className="liquid-glass rounded-3xl border-white/10 overflow-hidden">
       <CardHeader className="pb-4">
         <div className="flex items-center gap-3">
