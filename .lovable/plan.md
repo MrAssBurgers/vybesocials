@@ -1,25 +1,38 @@
-# Fix Daily Brief 404 from malformed deep links
+## Push Notification Opt-In Prompt (only when OFF)
 
-## What's broken
+A friendly modal that appears **only when push notifications are currently disabled**, prompting the user to turn them on. One tap enables them via the existing native (Despia) or web push flow.
 
-Your current URL is `/brief&topic=Climate` — note the missing `?`. That's not a valid query string, so React Router can't match it to `/brief` and falls through to the NotFound page.
+### Show conditions (ALL must be true)
 
-Root cause: the backfill migration I ran earlier used regex `^/\?openBrief=true` → `/brief`, which turned old links like `/?openBrief=true&topic=X` into `/brief&topic=X` instead of `/brief?topic=X`. New notifications generated after the edge function deploy are fine; only the backfilled rows are broken — and those are exactly the ones you're tapping.
+- User is signed in (`profile?.id` exists)
+- `usePushNotifications().isSupported === true`
+- `isCheckingSubscription === false` (finished initial check)
+- `isSubscribed === false` (no token row in `push_tokens` for this platform)
+- `permission !== 'denied'` (if browser/OS-denied, don't nag — they must change OS settings)
+- Not snoozed in the last 7 days (`localStorage` key `vybe_push_prompt_snoozed_until`)
 
-## Fix (one page, no new routes)
+If any condition fails → modal never renders.
 
-1. **Data migration** to repair existing notification rows:
-   - `UPDATE public.notifications SET deep_link = replace(deep_link, '/brief&', '/brief?') WHERE deep_link LIKE '/brief&%'`
+### What to build
 
-2. **Client-side guard** in `src/pages/BriefPage.tsx` so any malformed `/brief&...` URL the service worker / OS notification cache already opened still works:
-   - On mount, if `window.location.search` is empty AND `window.location.pathname` contains a `&`, rewrite the URL to `/brief?<rest>` via `navigate(..., { replace: true })` before reading params.
+1. **`src/components/notifications/EnablePushPrompt.tsx`**
+   - Centered Dialog, max-w-sm, dark glass aesthetic matching brand
+   - Bell icon, headline "Turn on notifications", body explaining DMs, calls, daily briefs, friend activity
+   - Primary button "Enable" → calls `subscribe()` from `usePushNotifications` (handles Despia OS prompt + token registration on mobile, VAPID on web)
+   - Ghost button "Not now" → sets snooze timestamp (now + 7 days) and closes
+   - On successful subscribe → close modal (toast already fires inside the hook)
 
-3. **Also add a NotFound fallback** for `/brief*` paths (e.g. `/brief&topic=Climate`) → redirect to `/brief` so stale OS-cached notifications never 404 again. Done with a single `<Route path="/brief*" element={<Navigate to="/brief" replace />} />` line in `AnimatedRoutes.tsx` (placed after the exact `/brief` route).
+2. **`src/hooks/useEnablePushPrompt.ts`**
+   - Encapsulates the show-conditions logic above
+   - Returns `{ open, onEnable, onDismiss }`
+   - 3-second delay after mount before first show so it doesn't slam on cold load
 
-No new pages, no UI changes — the existing `/brief` page stays as the one place the brief renders.
+3. **Mount in `src/App.tsx`** (authenticated tree, next to `DespiaOneSignalSync`)
+   - Single render at app root; component self-gates visibility
 
-## Files
+### Technical notes
 
-- Migration: backfill repair (one `UPDATE`)
-- `src/pages/BriefPage.tsx` — URL repair on mount
-- `src/components/layout/AnimatedRoutes.tsx` — wildcard `/brief*` redirect
+- Reuses existing `usePushNotifications` hook — no new push logic
+- Live-reactive: if user disables push elsewhere, `isSubscribed` flips to false and prompt becomes eligible again (after snooze expires)
+- Snooze key: `vybe_push_prompt_snoozed_until` (ISO timestamp)
+- No DB changes, no edge function changes
