@@ -349,6 +349,42 @@ export function useGlobalRealtimeMessages() {
     channelRef.current = channel;
   }, [profile?.id, queryClient]);
 
+  // Global presence channel — patches ['user-presence', id] and
+  // ['users-presence', ...] caches as soon as anyone toggles online/offline,
+  // so the DM list reflects status in near-realtime instead of waiting 20s.
+  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  useEffect(() => {
+    if (!profile?.id) return;
+    if (presenceChannelRef.current) {
+      supabase.removeChannel(presenceChannelRef.current);
+    }
+    const ch = supabase
+      .channel(`global-presence:${profile.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_presence' },
+        (payload: any) => {
+          const row = payload.new || payload.old;
+          if (!row?.user_id) return;
+          // Patch single-user cache
+          queryClient.setQueryData(['user-presence', row.user_id], {
+            is_online: row.is_online,
+            last_seen_at: row.last_seen_at,
+          });
+          // Invalidate any multi-user presence queries so they recompute
+          queryClient.invalidateQueries({ queryKey: ['users-presence'], exact: false });
+        }
+      )
+      .subscribe();
+    presenceChannelRef.current = ch;
+    return () => {
+      if (presenceChannelRef.current) {
+        supabase.removeChannel(presenceChannelRef.current);
+        presenceChannelRef.current = null;
+      }
+    };
+  }, [profile?.id, queryClient]);
+
   // Broadcast listener for instant delivery on the currently viewed conversation
   const broadcastChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [activeConvoId, setActiveConvoId] = useState<string | null>(currentConversationId);
