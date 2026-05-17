@@ -173,8 +173,11 @@ Deno.serve(async (req) => {
             chrome_web_image: (data as any)?.image_url,
             data: { type: type || "general", url: url || "/notifications", ...(data || {}) },
             ios_sound: type === "call" ? "ringtone.caf" : "default",
-            android_sound: type === "call" ? "ringtone" : undefined,
-            android_channel_id: type === "call" ? "calls" : "messages",
+            // NOTE: android_channel_id intentionally omitted — custom channels
+            // ("calls"/"messages") are not configured in the OneSignal app, and
+            // sending an unknown channel id causes OneSignal to reject the
+            // entire push with HTTP 400, blocking ALL phone notifications.
+            // OneSignal falls back to its default channel when omitted.
             android_visibility: 1,
             mutable_content: true,
             content_available: true,
