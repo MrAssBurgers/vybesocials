@@ -53,8 +53,12 @@ async function probeReachable(): Promise<boolean> {
 }
 
 function fireReconnect(queryClient: QueryClient) {
-  // Refetch only active (currently mounted) queries — keeps cost low.
-  void queryClient.invalidateQueries({ refetchType: 'active' });
+  // Refetch only ACTIVE + STALE mounted queries. Hitting every active query
+  // (including presence/typing/etc.) caused cascading flicker on the DM page.
+  void queryClient.invalidateQueries({
+    refetchType: 'active',
+    predicate: (q) => q.isStale(),
+  });
   reconnectListeners.forEach((cb) => {
     try {
       cb();

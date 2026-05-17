@@ -111,7 +111,10 @@ export function usePresence() {
     // Update presence every 20 seconds for faster online indicators
     intervalRef.current = setInterval(updatePresence, 20000);
 
-    // Debounced visibility change handler
+    // Visibility: only re-ping presence on visible. We intentionally do NOT
+    // flip to offline on hidden — mobile tab-switching, briefly backgrounding
+    // the app, or React StrictMode remounts otherwise cause an online/offline
+    // flap that cascades into DM list refetch storms and visible flicker.
     let visibilityTimeout: ReturnType<typeof setTimeout> | null = null;
     const handleVisibilityChange = () => {
       if (visibilityTimeout) clearTimeout(visibilityTimeout);
@@ -119,18 +122,17 @@ export function usePresence() {
         if (document.visibilityState === 'visible') {
           logPresence('App became visible, updating presence');
           updatePresence();
-        } else {
-          logPresence('App became hidden, setting offline');
-          setOffline();
         }
       }, 300);
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Handle beforeunload - use fetch with keepalive instead of sendBeacon for better reliability
-    const handleBeforeUnload = () => {
-      logPresence('Window closing, setting offline via keepalive fetch');
+    // Only mark offline on true page unload (real tab close / hard navigation).
+    // Use pagehide which fires reliably on mobile Safari and modern browsers.
+    const handlePageHide = (e: PageTransitionEvent) => {
+      // bfcache navigations should NOT mark offline — the session stays alive.
+      if (e.persisted) return;
       try {
         fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_presence?user_id=eq.${profile.id}`, {
           method: 'PATCH',
@@ -147,7 +149,7 @@ export function usePresence() {
       }
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handlePageHide);
 
     return () => {
       logPresence('Cleaning up presence');
@@ -156,10 +158,13 @@ export function usePresence() {
         clearInterval(intervalRef.current);
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      setOffline();
+      window.removeEventListener('pagehide', handlePageHide);
+      // NOTE: do NOT call setOffline() here. The presence hook lives at
+      // AppLayout level and unmounts on every route change / StrictMode pass.
+      // Marking offline on unmount caused presence to flap and triggered
+      // DM cache invalidations, which is the root cause of the flicker.
     };
-  }, [profile?.id, updatePresence, setOffline]);
+  }, [profile?.id, updatePresence]);
 
   return { updatePresence, setOffline };
 }
@@ -212,10 +217,17 @@ export function useUserOnlineStatus(userId: string | undefined) {
           table: 'user_presence',
           filter: `user_id=eq.${userId}`,
         },
-        () => {
-          // Force immediate refetch on realtime change for live sync
-          queryClient.invalidateQueries({ queryKey: ['user-presence', userId] });
-          queryClient.refetchQueries({ queryKey: ['user-presence', userId] });
+        (payload) => {
+          // Patch cache directly — avoid forced refetch storms on every event.
+          const next = (payload as any).new;
+          if (next) {
+            queryClient.setQueryData(['user-presence', userId], {
+              is_online: next.is_online,
+              last_seen_at: next.last_seen_at,
+            });
+          } else {
+            queryClient.invalidateQueries({ queryKey: ['user-presence', userId] });
+          }
         }
       )
       .subscribe();

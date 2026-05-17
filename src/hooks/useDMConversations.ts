@@ -203,7 +203,10 @@ export function useDMConversations(searchQuery: string = '') {
     refetchOnMount: true, // only refetch when stale (avoids flicker on remount)
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
-    networkMode: 'offlineFirst',
+    // 'online' (not offlineFirst): never trust a stale offline snapshot
+    // when the network is actually reachable. Combined with placeholderData,
+    // the cached list still renders instantly while the live fetch resolves.
+    networkMode: 'online',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
