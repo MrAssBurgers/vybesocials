@@ -60,18 +60,30 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get today's date and week start for setting active_date/active_week_start
+    // Parse optional body overrides (target_date / target_week_start)
+    let bodyTargetDate: string | null = null;
+    let bodyTargetWeek: string | null = null;
+    let onlyType: 'daily' | 'weekly' | null = null;
+    try {
+      const body = await req.json();
+      if (body?.target_date && /^\d{4}-\d{2}-\d{2}$/.test(body.target_date)) bodyTargetDate = body.target_date;
+      if (body?.target_week_start && /^\d{4}-\d{2}-\d{2}$/.test(body.target_week_start)) bodyTargetWeek = body.target_week_start;
+      if (body?.type === 'daily' || body?.type === 'weekly') onlyType = body.type;
+    } catch {}
+
+    // Compute defaults (UTC today / current ISO week Monday)
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
     const day = now.getUTCDay();
     const mondayOffset = day === 0 ? -6 : 1 - day;
-    const monday = new Date(now);
-    monday.setUTCDate(now.getUTCDate() + mondayOffset);
-    const weekStart = monday.toISOString().split("T")[0];
+    const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + mondayOffset));
 
-    const dayOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][now.getUTCDay()];
-    const month = now.toLocaleString("en-US", { month: "long" });
-    const dayOfMonth = now.getUTCDate();
+    const today = bodyTargetDate || now.toISOString().split("T")[0];
+    const weekStart = bodyTargetWeek || monday.toISOString().split("T")[0];
+
+    const targetDateObj = new Date(today + 'T00:00:00Z');
+    const dayOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][targetDateObj.getUTCDay()];
+    const month = targetDateObj.toLocaleString("en-US", { month: "long" });
+    const dayOfMonth = targetDateObj.getUTCDate();
 
     // Get existing active challenge titles to avoid duplicates
     const { data: existingChallenges } = await supabase
