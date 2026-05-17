@@ -112,9 +112,13 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   const shouldFinalizeOnStopRef = useRef(false);
   const isRecordingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const startingRef = useRef(false);
 
   // ── Defensive camera open ──
   const startCamera = useCallback(async () => {
+    // Re-entrancy guard: prevents overlapping getUserMedia calls that crash WebViews
+    if (startingRef.current) return;
+    startingRef.current = true;
     try {
       // Hard guard: media API may be entirely missing in some WebViews
       if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
