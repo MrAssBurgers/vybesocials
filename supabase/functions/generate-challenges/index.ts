@@ -175,13 +175,13 @@ Rules:
       
       if (response.status === 429) {
         // Rate limited — fall back to template rotation
-        await supabase.rpc("rotate_challenges");
+        await supabase.rpc("ensure_active_challenges");
         return new Response(JSON.stringify({ error: "Rate limited, used fallback rotation" }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (response.status === 402) {
-        await supabase.rpc("rotate_challenges");
+        await supabase.rpc("ensure_active_challenges");
         return new Response(JSON.stringify({ error: "Credits exhausted, used fallback rotation" }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
