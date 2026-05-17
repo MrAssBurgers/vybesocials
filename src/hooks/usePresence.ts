@@ -289,7 +289,9 @@ export function useUsersOnlineStatus(userIds: string[]) {
       return statusMap;
     },
     enabled: userIds.length > 0,
-    staleTime: 10000, // 10 seconds stale for faster updates
-    refetchInterval: 20000, // 20 seconds check
+    staleTime: 10000,
+    // Realtime patches via useGlobalRealtimeMessages presence channel keep this
+    // cache fresh — no polling needed.
+    refetchInterval: false,
   });
 }
