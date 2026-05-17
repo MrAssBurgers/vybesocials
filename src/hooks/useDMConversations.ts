@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useCallback, useRef } from 'react';
+// Track which friend ids we've already tried to create a DM for in this session.
+// Using a module-level set (instead of a ref) means a transient failure can be
+// retried on the next render cycle without being permanently locked out.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -18,7 +21,7 @@ export function useDMConversations(searchQuery: string = '') {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const { data: friends, isLoading: friendsLoading } = useFriends();
-  const ensuredRef = useRef(false);
+  const attemptedFriendIdsRef = useRef<Set<string>>(new Set());
 
   // Fetch all conversations with proper sorting
   const conversationsQuery = useQuery({
@@ -176,13 +179,13 @@ export function useDMConversations(searchQuery: string = '') {
 
   // Auto-create conversations for friends who don't have one
   const ensureConversationsForFriends = useCallback(async () => {
-    if (!profile?.id || !friends?.length || ensuredRef.current) return;
+    if (!profile?.id || !friends?.length) return;
 
     const conversations = conversationsQuery.data || [];
-    
+
     // Find friends without conversations
     const friendsWithConvos = new Set<string>();
-    
+
     conversations.forEach(conv => {
       if (!conv.is_group) {
         conv.members?.forEach(m => {
@@ -194,28 +197,33 @@ export function useDMConversations(searchQuery: string = '') {
     });
 
     const friendsWithoutConvos = friends.filter(
-      (friend: any) => friend?.id && !friendsWithConvos.has(friend.id)
+      (friend: any) =>
+        friend?.id &&
+        !friendsWithConvos.has(friend.id) &&
+        !attemptedFriendIdsRef.current.has(friend.id)
     );
 
-    if (friendsWithoutConvos.length === 0) {
-      ensuredRef.current = true;
-      return;
-    }
-
-    ensuredRef.current = true; // Set before async work to prevent re-entry
+    if (friendsWithoutConvos.length === 0) return;
 
     // Create conversations for friends without one (batch)
     let created = false;
     for (const friend of friendsWithoutConvos) {
       if (!friend?.id) continue;
-      
+      attemptedFriendIdsRef.current.add(friend.id);
+
       try {
-        await supabase.rpc('create_dm_conversation', { 
-          other_profile_id: friend.id 
+        const { error } = await supabase.rpc('create_dm_conversation', {
+          other_profile_id: friend.id,
         });
-        created = true;
+        if (error) {
+          // Allow a retry on next data update if it failed
+          attemptedFriendIdsRef.current.delete(friend.id);
+        } else {
+          created = true;
+        }
       } catch (error) {
         console.error('Failed to create conversation for friend:', friend.id, error);
+        attemptedFriendIdsRef.current.delete(friend.id);
       }
     }
 
