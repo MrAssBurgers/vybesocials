@@ -85,12 +85,26 @@ export function LoginGateModal({
     }
   }, [open, mode]);
 
-  // ── Approval polling (recursive setTimeout — survives iOS PWA pause) ──
+  // ── Approval realtime + polling fallback ─────────────────
   useEffect(() => {
     if (!open || mode !== 'approval') return;
     cancelledRef.current = false;
 
-    const tick = async () => {
+    const finalize = (status: string, session?: any) => {
+      if (cancelledRef.current) return;
+      cancelledRef.current = true;
+      if (status === 'approved') {
+        onSuccess(session ?? null);
+      } else if (status === 'denied') {
+        toast.error('Sign-in was denied');
+        onCancel();
+      } else if (status === 'expired' || status === 'not_found') {
+        toast.error('Approval request expired');
+        onCancel();
+      }
+    };
+
+    const poll = async () => {
       if (cancelledRef.current) return;
       try {
         const { data, error } = await supabase.functions.invoke('auth-login-approval', {
@@ -100,40 +114,48 @@ export function LoginGateModal({
         if (!error) {
           const status = (data as any)?.status;
           if (status === 'approved') {
-            const session = (data as any)?.session ?? null;
-            onSuccess(session);
+            finalize('approved', (data as any)?.session ?? null);
             return;
           }
-          if (status === 'denied') {
-            toast.error('Sign-in was denied');
-            onCancel();
-            return;
-          }
-          if (status === 'expired' || status === 'not_found') {
-            toast.error('Approval request expired');
-            onCancel();
+          if (status === 'denied' || status === 'expired' || status === 'not_found') {
+            finalize(status);
             return;
           }
         }
       } catch {}
-      if (document.visibilityState === 'visible') {
-        pollTimerRef.current = window.setTimeout(tick, 3000);
+      if (document.visibilityState === 'visible' && !cancelledRef.current) {
+        pollTimerRef.current = window.setTimeout(poll, 3000);
       }
     };
+
+    // Instant resolution via broadcast from auth-login-approval `respond`
+    const bc = supabase
+      .channel(`login-approval:${challengeId}`)
+      .on('broadcast', { event: 'resolved' }, (payload: any) => {
+        const status = payload?.payload?.status;
+        if (status === 'approved') {
+          // We still need to call poll() once to consume + receive the session
+          poll();
+        } else if (status) {
+          finalize(status);
+        }
+      })
+      .subscribe();
 
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
         if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
-        tick();
+        poll();
       }
     };
 
-    tick();
+    poll();
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelledRef.current = true;
       if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
       document.removeEventListener('visibilitychange', onVisible);
+      supabase.removeChannel(bc);
     };
   }, [open, mode, challengeId, onSuccess, onCancel]);
 
