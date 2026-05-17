@@ -285,10 +285,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           setGatePending(false);
           throw createHandledLoginError('Invalid email or password');
         }
-        if (code === 'email_failed') {
-          setGatePending(false);
-          throw createHandledLoginError("We couldn't send your verification email. Try again in a moment.");
-        }
+        // email_failed → fall through to direct sign-in below (don't block user)
 
         // Any other failure (network, 5xx, timeout, cold-start) → fall back to
         // direct password sign-in so users without 2FA can still get in.
