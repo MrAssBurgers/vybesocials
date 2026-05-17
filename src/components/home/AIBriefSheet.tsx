@@ -319,13 +319,26 @@ function getCachedBrief(): BriefData | null {
   try {
     const cached = localStorage.getItem(BRIEF_CACHE_KEY);
     if (!cached) return null;
-    const { data, timestamp, timeSlot } = JSON.parse(cached);
+    const { data, timeSlot } = JSON.parse(cached);
     const currentSlot = getTimeSlot();
     // Valid if same time slot
     if (timeSlot === currentSlot && isValidBrief(data)) return data;
-    localStorage.removeItem(BRIEF_CACHE_KEY);
+    // Fall through — don't delete; getStaleBrief can still serve it instantly.
     return null;
   } catch { localStorage.removeItem(BRIEF_CACHE_KEY); return null; }
+}
+
+// Soft cache: return ANY valid payload even if the slot is stale, so the user
+// sees content instantly while a background refetch revalidates.
+function getStaleBrief(): BriefData | null {
+  try {
+    const cached = localStorage.getItem(BRIEF_CACHE_KEY);
+    if (!cached) return null;
+    const { data, timestamp } = JSON.parse(cached);
+    // Reject anything older than 24h — past that it's not useful even as a flash.
+    if (typeof timestamp === 'number' && Date.now() - timestamp > 24 * 60 * 60 * 1000) return null;
+    return isValidBrief(data) ? data : null;
+  } catch { return null; }
 }
 
 function setCachedBrief(data: BriefData) {
@@ -373,7 +386,7 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [briefData, setBriefData] = useState<BriefData | null>(() => getCachedBrief());
+  const [briefData, setBriefData] = useState<BriefData | null>(() => getCachedBrief() ?? getStaleBrief());
   const [showCustomize, setShowCustomize] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -486,11 +499,13 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
   useEffect(() => {
     if (open && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
-      const cached = getCachedBrief();
-      if (cached) {
-        // Always show cached content INSTANTLY — never block on the loading screen.
-        if (!briefData) setBriefData(cached);
-        // Revalidate silently in the background.
+      const fresh = getCachedBrief();
+      const stale = fresh ?? getStaleBrief();
+      if (stale) {
+        // Always show SOMETHING instantly — never block on the loading screen
+        // when we have any prior content, even if its slot rolled over.
+        if (!briefData) setBriefData(stale);
+        // Revalidate silently in the background (force-refresh if stale).
         fetchBrief(true);
       } else {
         // No cache at all — first-ever run. Fetch with full loading UI.
