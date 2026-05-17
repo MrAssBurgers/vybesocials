@@ -291,6 +291,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     const id = requestAnimationFrame(() => { startCamera(); });
     return () => {
       cancelAnimationFrame(id);
+      startingRef.current = false;
       stopCamera();
     };
   }, [isOpen, stopCamera, startCamera]);
