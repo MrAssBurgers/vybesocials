@@ -14,6 +14,8 @@ export function useRealtimeMessages(conversationId: string | undefined) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const reactionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const viewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Update existing message in cache (for edits)
   const updateMessageInCache = useCallback((updatedMessage: any) => {
@@ -45,6 +47,31 @@ export function useRealtimeMessages(conversationId: string | undefined) {
       supabase.removeChannel(channelRef.current);
     }
 
+    // Debounced refetchers — bursts of reactions/views across the whole app
+    // were invalidating this conversation many times per second, causing the
+    // message list to refetch and flicker on the live site.
+    const scheduleReactionRefetch = () => {
+      if (reactionDebounceRef.current) return;
+      reactionDebounceRef.current = setTimeout(() => {
+        reactionDebounceRef.current = null;
+        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+      }, 600);
+    };
+    const scheduleViewRefetch = () => {
+      if (viewDebounceRef.current) return;
+      viewDebounceRef.current = setTimeout(() => {
+        viewDebounceRef.current = null;
+        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+      }, 800);
+    };
+
+    // Track message ids that belong to this conversation so we can ignore
+    // reaction/view events for unrelated messages.
+    const knownMessageIds = () => {
+      const list = queryClient.getQueryData<Message[]>(['messages', conversationId]);
+      return new Set((list || []).map(m => m.id));
+    };
+
     const channel = supabase
       .channel(`conv-events:${conversationId}`)
       .on(
@@ -59,15 +86,10 @@ export function useRealtimeMessages(conversationId: string | undefined) {
           const updatedMessage = payload.new as any;
           const oldMessage = payload.old as any;
           
-          // Handle deleted messages - remove from cache instantly
           if (updatedMessage.is_deleted) {
             removeMessageFromCache(updatedMessage.id);
           } else {
-            // Handle edits and viewed_at updates - update in cache instantly
-            // This includes realtime "Opened" status for VYBE snaps
             updateMessageInCache(updatedMessage);
-            
-            // If viewed_at just changed (VYBE was opened), log for debugging
             if (updatedMessage.viewed_at && !oldMessage?.viewed_at) {
               console.log('[ConvRT] VYBE viewed:', updatedMessage.id);
             }
@@ -81,9 +103,11 @@ export function useRealtimeMessages(conversationId: string | undefined) {
           schema: 'public',
           table: 'message_reactions',
         },
-        () => {
-          // Refresh to get updated reactions
-          queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+        (payload) => {
+          const row: any = (payload.new as any) || (payload.old as any);
+          if (!row?.message_id) return;
+          if (!knownMessageIds().has(row.message_id)) return;
+          scheduleReactionRefetch();
         }
       )
       .on(
@@ -93,9 +117,11 @@ export function useRealtimeMessages(conversationId: string | undefined) {
           schema: 'public',
           table: 'message_views',
         },
-        () => {
-          // Refresh to get updated read receipts
-          queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+        (payload) => {
+          const row: any = (payload.new as any) || (payload.old as any);
+          if (!row?.message_id) return;
+          if (!knownMessageIds().has(row.message_id)) return;
+          scheduleViewRefetch();
         }
       )
       .subscribe((status) => {
@@ -107,6 +133,10 @@ export function useRealtimeMessages(conversationId: string | undefined) {
     channelRef.current = channel;
 
     return () => {
+      if (reactionDebounceRef.current) clearTimeout(reactionDebounceRef.current);
+      if (viewDebounceRef.current) clearTimeout(viewDebounceRef.current);
+      reactionDebounceRef.current = null;
+      viewDebounceRef.current = null;
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
