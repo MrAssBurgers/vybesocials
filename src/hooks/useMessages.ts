@@ -245,6 +245,10 @@ export function useMessages(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId) return [];
 
+      // Hard cap: pull only the most recent 100 messages. For very active
+      // threads (e.g. VYBEOfficial) the un-bounded query was returning many
+      // thousands of rows with embedded views/reactions arrays, which made
+      // the response so large it timed out before the chat could render.
       const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -255,9 +259,13 @@ export function useMessages(conversationId: string | undefined) {
         `)
         .eq('conversation_id', conversationId)
         .eq('is_deleted', false)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (error) throw error;
+
+      // We fetched newest-first for the LIMIT — flip back to chronological.
+      if (data) data.reverse();
 
       // Filter out expired view_once messages that have been viewed
       // But keep vybe messages — they show as "Opened" after viewing, not hidden
