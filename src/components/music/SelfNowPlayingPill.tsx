@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLiveMusicPresence } from '@/hooks/useLiveMusicPresence';
+import { LiveSpotifyWaveform } from '@/components/music/LiveSpotifyWaveform';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -58,7 +59,7 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
           )}
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5">
-              <Equalizer />
+              <LiveSpotifyWaveform tempo={presence?.tempo} energy={presence?.energy} isPlaying={!!presence?.is_playing} height={10} bars={4} />
               <span className="text-[10px] font-bold text-[#1DB954] tracking-wide uppercase">
                 Listening on Spotify
               </span>

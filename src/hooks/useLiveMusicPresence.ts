@@ -38,7 +38,7 @@ const registry = new Map<string, Entry>();
 function subscribe(authUserId: string, listener: Listener): () => void {
   let entry = registry.get(authUserId);
 
-  if (!entry) {
+  if (!entry || !entry.channel) {
     const channel = supabase
       .channel(`music-presence:${authUserId}`)
       .on('postgres_changes', {
@@ -55,8 +55,12 @@ function subscribe(authUserId: string, listener: Listener): () => void {
       })
       .subscribe();
 
-    entry = { channel, listeners: new Set(), latest: null, refCount: 0 };
-    registry.set(authUserId, entry);
+    if (entry) {
+      entry.channel = channel;
+    } else {
+      entry = { channel, listeners: new Set(), latest: null, refCount: 0 };
+      registry.set(authUserId, entry);
+    }
 
     // initial fetch once per shared entry
     supabase
@@ -67,8 +71,11 @@ function subscribe(authUserId: string, listener: Listener): () => void {
       .then(({ data }) => {
         const e = registry.get(authUserId);
         if (!e) return;
-        e.latest = (data as any) || null;
-        e.listeners.forEach((l) => l(e.latest));
+        // Don't clobber an optimistic local update that arrived first
+        if (e.latest === null && data) {
+          e.latest = data as any;
+          e.listeners.forEach((l) => l(e.latest));
+        }
       });
   }
 
@@ -83,7 +90,7 @@ function subscribe(authUserId: string, listener: Listener): () => void {
     e.listeners.delete(listener);
     e.refCount -= 1;
     if (e.refCount <= 0) {
-      supabase.removeChannel(e.channel);
+      if (e.channel) supabase.removeChannel(e.channel);
       registry.delete(authUserId);
     }
   };
@@ -93,6 +100,30 @@ function subscribe(authUserId: string, listener: Listener): () => void {
  * Subscribe to a user's live music presence. Pass the auth user id
  * (profiles.user_id), NOT profiles.id.
  */
+/**
+ * Optimistically push a presence row into the shared registry — used by
+ * `useSpotifyPresence` so the signed-in user sees their own track changes
+ * the instant polling returns, without waiting for the Realtime round-trip.
+ */
+export function setLocalPresence(authUserId: string, payload: Partial<LiveMusicPresence> | null) {
+  const entry = registry.get(authUserId);
+  const next = payload
+    ? ({ ...(entry?.latest ?? {}), ...payload, user_id: authUserId, updated_at: new Date().toISOString() } as LiveMusicPresence)
+    : null;
+  if (!entry) {
+    // No subscribers yet — stash so the next subscribe() hand-off sees it
+    registry.set(authUserId, {
+      channel: null as any,
+      listeners: new Set(),
+      latest: next,
+      refCount: 0,
+    });
+    return;
+  }
+  entry.latest = next;
+  entry.listeners.forEach((l) => l(next));
+}
+
 export function useLiveMusicPresence(authUserId: string | null | undefined) {
   const [presence, setPresence] = useState<LiveMusicPresence | null>(null);
 
