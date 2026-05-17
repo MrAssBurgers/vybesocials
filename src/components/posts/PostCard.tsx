@@ -154,22 +154,19 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   }
 
   return (
-    <div className="w-full flex justify-center bg-muted/30" onClick={handleClick}>
+    <div className="w-full flex justify-center bg-black" onClick={handleClick}>
       <div
         className={cn(
-          "relative overflow-hidden bg-muted",
+          "relative overflow-hidden bg-black",
           isTall ? "h-[70vh] w-auto max-w-full" : "w-full"
         )}
         style={{ aspectRatio: dimensions ? `${dimensions.width} / ${dimensions.height}` : '4 / 5' }}
       >
-        {/* Loading skeleton */}
-        {!isLoaded && <MediaSkeleton className="absolute inset-0" />}
-
         <video
           ref={videoRef}
           src={src}
           className={cn(
-            "absolute inset-0 w-full h-full object-contain transition-opacity",
+            "absolute inset-0 w-full h-full object-contain bg-black transition-opacity",
             isLoaded ? "opacity-100" : "opacity-0"
           )}
           loop
@@ -182,11 +179,11 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
           onError={handleError}
         />
 
-        {/* Play indicator when not playing - CSS only */}
-        {!isPlaying && isLoaded && !hasError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+        {/* Play indicator when not playing - subtle, on pure black */}
+        {!isPlaying && !hasError && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="hover:scale-110 active:scale-90 transition-transform">
-              <Play className="h-16 w-16 text-white/90 fill-white/90" />
+              <Play className="h-14 w-14 text-white/80" strokeWidth={1.5} />
             </div>
           </div>
         )}

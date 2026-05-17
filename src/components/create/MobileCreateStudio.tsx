@@ -142,8 +142,11 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       }
       zoomRef.current = 1;
       setZoomLevel(1);
-    } catch (err) {
-      console.error('[MobileCreateStudio] Camera error:', err);
+    } catch (err: any) {
+      // Swallow ALL camera errors so a failed getUserMedia (audio permission
+      // denied when switching to Video mode, device busy, etc.) never crashes
+      // the React tree. The UI stays on the camera phase and the user can retry.
+      console.warn('[MobileCreateStudio] Camera error (suppressed):', err?.name || err);
     }
   }, [facingMode, mode, startTracking]);
 
@@ -164,7 +167,13 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
 
   useEffect(() => {
     if (phase === 'camera' && mode !== 'text') {
-      startCamera();
+      // Always tear the current stream down first so switching modes
+      // (e.g. photo → video which adds an audio track) can't collide with
+      // an in-flight getUserMedia call and crash the device.
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+      const t = setTimeout(() => { startCamera(); }, 120);
+      return () => { clearTimeout(t); stopCamera(); };
     }
     return () => stopCamera();
   }, [phase, startCamera, stopCamera, mode]);
