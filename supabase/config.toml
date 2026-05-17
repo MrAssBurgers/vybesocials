@@ -103,3 +103,5 @@ project_id = "agtcyxjxgkdyoxwxkjth"
     verify_jwt = false
   [functions.handle-email-suppression]
     verify_jwt = false
+  [functions.get-vapid-key]
+    verify_jwt = false

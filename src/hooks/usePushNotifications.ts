@@ -11,9 +11,28 @@ function isDespiaWebView(): boolean {
   return ua.includes('despia') || ua.includes('vybeapp');
 }
 
-// VAPID public key - this must match the VAPID_PUBLIC_KEY secret in Supabase
-// Generate a new key pair with: npx web-push generate-vapid-keys
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+// VAPID public key — fetched from the server (`get-vapid-key` edge function)
+// so the browser subscribes with the SAME key the server signs pushes with.
+// Cached in sessionStorage to avoid an extra round-trip on every subscribe.
+let cachedVapidPublicKey: string | null = null;
+async function fetchVapidPublicKey(): Promise<string> {
+  if (cachedVapidPublicKey) return cachedVapidPublicKey;
+  try {
+    const stored = sessionStorage.getItem('vapid_public_key');
+    if (stored) {
+      cachedVapidPublicKey = stored;
+      return stored;
+    }
+  } catch { /* sessionStorage unavailable */ }
+
+  const { data, error } = await supabase.functions.invoke('get-vapid-key');
+  if (error || !data?.publicKey) {
+    throw new Error('Could not load push notification configuration. Please try again.');
+  }
+  cachedVapidPublicKey = data.publicKey;
+  try { sessionStorage.setItem('vapid_public_key', data.publicKey); } catch { /* */ }
+  return data.publicKey;
+}
 
 // Convert base64 to Uint8Array for VAPID key
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
@@ -198,10 +217,20 @@ export function usePushNotifications() {
         throw new Error('Could not register service worker');
       }
 
+      // Get the server's current VAPID public key (matches the private key it signs with)
+      const vapidPublicKey = await fetchVapidPublicKey();
+
+      // Reuse existing subscription if it was created with the SAME public key,
+      // otherwise tear it down so we re-subscribe with the matching key.
+      const existing = await (registration as any).pushManager.getSubscription();
+      if (existing) {
+        try { await existing.unsubscribe(); } catch { /* */ }
+      }
+
       // Subscribe to push notifications
       const subscription = await (registration as any).pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
       });
 
       console.log('[Push] Push subscription created:', subscription.endpoint);
