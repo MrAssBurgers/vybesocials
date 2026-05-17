@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLiveMusicPresence } from '@/hooks/useLiveMusicPresence';
+import { LiveSpotifyWaveform } from '@/components/music/LiveSpotifyWaveform';
 import { cn } from '@/lib/utils';
 
 interface Props {
