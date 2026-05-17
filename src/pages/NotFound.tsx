@@ -10,8 +10,17 @@ const NotFound = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Repair malformed brief deep links like `/brief&topic=Climate`
+    // (missing `?` separator) by redirecting to the proper `/brief?…`.
+    if (location.pathname.startsWith('/brief') && location.pathname !== '/brief') {
+      const rest = location.pathname.slice('/brief'.length);
+      // Strip leading non-alnum chars (`&`, `/`, etc.) and turn the first one into `?`
+      const cleaned = rest.replace(/^[^a-zA-Z0-9]+/, '');
+      navigate(`/brief${cleaned ? `?${cleaned}` : ''}`, { replace: true });
+      return;
+    }
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
-  }, [location.pathname]);
+  }, [location.pathname, navigate]);
 
   return (
     <div className="fixed inset-0 flex items-center justify-center overflow-hidden bg-background">
