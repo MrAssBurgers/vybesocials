@@ -1,5 +1,6 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { VYBE_TIPS } from './vybeTips';
 
 interface SplashScreenProps {
   isVisible: boolean;
@@ -21,6 +22,15 @@ export const SplashScreen = memo(function SplashScreen({
   const statusRef = useRef<HTMLSpanElement>(null);
   const percentRef = useRef<HTMLSpanElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
+  const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * VYBE_TIPS.length));
+
+  useEffect(() => {
+    if (!isVisible) return;
+    const id = setInterval(() => {
+      setTipIndex((i) => (i + 1) % VYBE_TIPS.length);
+    }, 3500);
+    return () => clearInterval(id);
+  }, [isVisible]);
 
   useEffect(() => {
     if (barRef.current) barRef.current.style.transform = `scaleX(${progress / 100})`;
@@ -176,6 +186,30 @@ export const SplashScreen = memo(function SplashScreen({
               <span ref={statusRef} className="text-[11px] text-muted-foreground/70 truncate max-w-[70%]">{status}</span>
               <span ref={percentRef} className="text-[11px] tabular-nums text-muted-foreground/50 font-medium">{Math.round(progress)}%</span>
             </div>
+          </motion.div>
+
+          {/* Rotating tip */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.9, duration: 0.5, ease: 'easeOut' }}
+            className="mt-8 w-[min(22rem,82vw)] min-h-[3.5rem] text-center flex flex-col items-center gap-1.5"
+          >
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60 font-semibold">
+              Tip
+            </span>
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={tipIndex}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                className="text-sm text-muted-foreground/85 leading-snug"
+              >
+                {VYBE_TIPS[tipIndex]}
+              </motion.p>
+            </AnimatePresence>
           </motion.div>
         </motion.div>
       )}

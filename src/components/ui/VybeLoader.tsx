@@ -1,24 +1,7 @@
 import { memo, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-
-const TIPS = [
-  'Long-press a message to react with any emoji',
-  'Swipe right on a message to quick-reply',
-  'Hold the camera button to record a Snap',
-  'Your VYBE DNA evolves the more you use the app',
-  'Pull down on the feed to refresh',
-  'Tap an avatar to peek their Vibe Check',
-  'Earn XP every day you log in — streaks count',
-  'Star a chat to keep it pinned to the top',
-  'Tap the V at any time to jump home',
-  'Drag a sticker onto a post to react publicly',
-  'Spotlight search finds anything in two taps',
-  'Themes you love can be shared with friends',
-  'Mute notifications per-chat from the chat menu',
-  'Your Daily Brief updates at 6am, noon, and 6pm',
-  'Slow connection? VYBE auto-retries in the background',
-];
+import { VYBE_TIPS as TIPS } from './vybeTips';
 
 interface VybeLoaderProps {
   className?: string;
