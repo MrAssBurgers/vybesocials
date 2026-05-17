@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+export type LivePresenceProvider = 'spotify' | 'apple_music' | 'youtube' | 'steam' | 'twitch';
+
 export interface LiveMusicPresence {
   user_id: string;
-  provider: 'spotify' | 'apple_music';
+  provider: LivePresenceProvider;
   track_id: string | null;
   title: string | null;
   artist: string | null;
