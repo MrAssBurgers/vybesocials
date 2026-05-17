@@ -89,7 +89,7 @@ function scheduleUnknownConvoRefetch(qc: ReturnType<typeof useQueryClient>, prof
     unknownConvoRefetchTimer = null;
     qc.invalidateQueries({ queryKey: ['dm-conversations', profileId] });
     qc.invalidateQueries({ queryKey: ['conversations', profileId] });
-  }, 300);
+  }, 100);
 }
 
 export function useGlobalRealtimeMessages() {
