@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
           .from("conversation_members")
           .select("conversation_id")
           .eq("user_id", callerProfileId);
-        const convIds = (callerConvs || []).map((r: any) => r.conversation_id);
+        const convIds = ((callerConvs || []) as Array<{ conversation_id: string }>).map((r) => r.conversation_id);
         let allowed = false;
         if (convIds.length > 0) {
           const { data: shared } = await supabase
@@ -184,6 +184,7 @@ Deno.serve(async (req) => {
         const target = subscriptionIds.length > 0
           ? { include_subscription_ids: subscriptionIds }
           : { include_external_user_ids: [userId] };
+        const imageUrl = typeof data?.image_url === "string" ? data.image_url : undefined;
         const res = await fetchJsonWithTimeout("https://api.onesignal.com/notifications", {
           method: "POST",
           headers: {
@@ -198,9 +199,9 @@ Deno.serve(async (req) => {
             target_channel: "push",
             headings: { en: title },
             contents: { en: body },
-            big_picture: (data as any)?.image_url,
-            ios_attachments: (data as any)?.image_url ? { id1: (data as any).image_url } : undefined,
-            chrome_web_image: (data as any)?.image_url,
+            big_picture: imageUrl,
+            ios_attachments: imageUrl ? { id1: imageUrl } : undefined,
+            chrome_web_image: imageUrl,
             data: { type: type || "general", url: url || "/notifications", ...(data || {}) },
             ios_sound: type === "call" ? "ringtone.caf" : "default",
             // NOTE: android_channel_id intentionally omitted — custom channels
