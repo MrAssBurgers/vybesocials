@@ -17,7 +17,9 @@ export function isDespiaRuntime(): boolean {
   const ua = navigator.userAgent || '';
   if (DESPIA_UA_HINT.test(ua)) return true;
   const w = window as any;
+  const isAndroidWebView = /Android/i.test(ua) && (/; wv\)/i.test(ua) || /Version\/4\.0.*Chrome/i.test(ua));
   return Boolean(
+    isAndroidWebView ||
     w.ReactNativeWebView ||
     w.webkit?.messageHandlers?.despia ||
     w.despiaVersion ||
