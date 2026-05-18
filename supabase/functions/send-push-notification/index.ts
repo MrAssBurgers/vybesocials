@@ -45,6 +45,7 @@ async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, ex
     .filter((sub) =>
       sub?.id &&
       sub.enabled !== false &&
+      typeof sub.type === "string" &&
       ["iOSPush", "AndroidPush", "ChromePush", "FirefoxPush", "SafariPush", "HuaweiPush"].includes(sub.type)
     )
     .map((sub) => String(sub.id));
@@ -262,7 +263,7 @@ Deno.serve(async (req) => {
 
     // Send push to all registered devices
     const results = await Promise.all(
-      tokens.map(async ({ id, token, platform }: any) => {
+      (tokens as PushTokenRow[]).map(async ({ id, token, platform }) => {
         // Despia native rows are markers only — OneSignal handled delivery above.
         if (platform === "despia" || (typeof token === "string" && token.startsWith("despia:"))) {
           return { success: true, native: true };
