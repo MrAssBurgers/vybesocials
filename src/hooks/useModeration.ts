@@ -144,6 +144,17 @@ export function useUserRole() {
     queryFn: async () => {
       if (!profile?.id && !user?.id) return null;
 
+      // 1) Authoritative path: SECURITY DEFINER RPC bypasses any RLS edge cases
+      try {
+        const { data: rpcRole, error: rpcErr } = await supabase.rpc('get_my_highest_role');
+        if (!rpcErr && rpcRole) {
+          return rpcRole as 'owner' | 'admin' | 'moderator';
+        }
+      } catch {
+        // fall through to table queries
+      }
+
+      // 2) Fallback: query both role tables directly (may be hidden by RLS)
       const [profileRoles, authRoles] = await Promise.all([
         profile?.id
           ? supabase.from('user_roles').select('role').eq('user_id', profile.id)
@@ -153,13 +164,9 @@ export function useUserRole() {
           : Promise.resolve({ data: [], error: null }),
       ]);
 
-      if (profileRoles.error) throw profileRoles.error;
-      if (authRoles.error) throw authRoles.error;
-
-      // Return highest role (owner > admin > moderator > user)
       const roles = [
-        ...((profileRoles.data || []).map((r) => r.role)),
-        ...((authRoles.data || []).map((r) => r.role)),
+        ...((profileRoles.data || []).map((r: any) => r.role)),
+        ...((authRoles.data || []).map((r: any) => r.role)),
       ];
       if (roles.includes('owner')) return 'owner';
       if (roles.includes('admin')) return 'admin';
