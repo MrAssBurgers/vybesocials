@@ -1,5 +1,6 @@
 import { Home, Compass, Plus, MessageCircle, User, GripVertical, Check } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { preloadRoute } from '@/lib/routePreloader';
 import { cn } from '@/lib/utils';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
