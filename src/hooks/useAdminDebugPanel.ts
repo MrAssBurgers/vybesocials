@@ -2,19 +2,22 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 
+const DEV_USERNAMES = ['bakrix', 'mrassburgers'];
+
 /**
  * Hook to manage debug panel access control.
  * Opens via Cmd+Shift+D (desktop) or 7 taps on logo (mobile).
- * Only accessible to admin users.
+ * Only accessible to admin users or whitelisted dev usernames.
  */
 export function useAdminDebugPanel() {
   const [isOpen, setIsOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { data: role } = useUserRoleById(user?.id);
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const isAdmin = role === 'admin' || role === 'owner';
+  const isDevUser = !!profile?.username && DEV_USERNAMES.includes(profile.username.toLowerCase());
+  const isAdmin = role === 'admin' || role === 'owner' || isDevUser;
 
   // Keyboard shortcut: Cmd/Ctrl + Shift + D
   useEffect(() => {
