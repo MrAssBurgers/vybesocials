@@ -13135,6 +13135,7 @@ export type Database = {
           username: string
         }[]
       }
+      get_my_highest_role: { Args: never; Returns: string }
       get_own_sensitive_profile: {
         Args: never
         Returns: {
