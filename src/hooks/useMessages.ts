@@ -398,55 +398,15 @@ export function useSendMessage() {
         throw err;
       }
     },
-    onSuccess: async (data, variables) => {
+    onSuccess: async (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['messages', variables.conversationId] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      
-      // Send push notifications to other conversation members
-      if (data && profile) {
-        try {
-          // Get conversation members (excluding sender)
-          const { data: members } = await supabase
-            .from('conversation_members')
-            .select('user_id, is_muted')
-            .eq('conversation_id', variables.conversationId)
-            .neq('user_id', profile.id);
-          
-          // Get conversation info
-          const { data: conversation } = await supabase
-            .from('conversations')
-            .select('is_group, name')
-            .eq('id', variables.conversationId)
-            .single();
-          
-          const senderName = profile.display_name || profile.username || 'Someone';
-          const messagePreview = variables.mediaType 
-            ? (variables.mediaType === 'image' ? '📷 Photo' : 
-               variables.mediaType === 'voice' ? '🎤 Voice' : '📎 Media')
-            : (variables.content?.slice(0, 50) || 'New message');
-          
-          // Send push to each non-muted member
-          const pushPromises = (members || [])
-            .filter(m => !m.is_muted)
-            .map(member => 
-              sendMessagePush(
-                member.user_id,
-                senderName,
-                messagePreview,
-                variables.conversationId,
-                conversation?.is_group || false,
-                conversation?.name || undefined
-              )
-            );
-          
-          // Fire and forget - don't wait for pushes
-          Promise.all(pushPromises).catch(err => {
-            console.error('[Push] Failed to send message pushes:', err);
-          });
-        } catch (err) {
-          console.error('[Push] Error sending push notifications:', err);
-        }
-      }
+
+      // Push notifications are handled server-side by the
+      // `on_message_insert_notify` AFTER INSERT trigger on `messages`, which
+      // fires `send-push-notification` for every recipient via pg_net. The
+      // previous client-side fan-out here caused duplicate pushes and only
+      // worked while the sender's tab was alive, so it has been removed.
     },
   });
 }
