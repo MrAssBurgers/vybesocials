@@ -178,7 +178,11 @@ Deno.serve(async (req) => {
     let onesignalResult: unknown = null;
     if (onesignalAppId && onesignalRestKey) {
       try {
-        const res = await fetch("https://api.onesignal.com/notifications", {
+        const subscriptionIds = await lookupOneSignalSubscriptionIds(onesignalAppId, onesignalRestKey, userId);
+        const target = subscriptionIds.length > 0
+          ? { include_subscription_ids: subscriptionIds }
+          : { include_external_user_ids: [userId] };
+        const res = await fetchJsonWithTimeout("https://api.onesignal.com/notifications", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -188,10 +192,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             app_id: onesignalAppId,
-            // Send to BOTH new (aliases) and legacy (external_user_ids) targeting
-            // so this works regardless of which OneSignal SDK Despia is using.
-            include_aliases: { external_id: [userId] },
-            include_external_user_ids: [userId],
+            ...target,
             target_channel: "push",
             headings: { en: title },
             contents: { en: body },
@@ -212,8 +213,8 @@ Deno.serve(async (req) => {
             ttl: type === "call" ? 30 : 86400,
             collapse_id: tag || undefined,
           }),
-        });
-        onesignalResult = { status: res.status, ok: res.ok };
+        }, 4_000);
+        onesignalResult = { status: res.status, ok: res.ok, subscriptionIds: subscriptionIds.length };
         if (!res.ok) {
           const txt = await res.text().catch(() => "");
           console.warn("[push] OneSignal non-OK", res.status, txt.slice(0, 200));
