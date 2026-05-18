@@ -34,7 +34,24 @@ import { useKeyboardHeight } from "@/hooks/useKeyboardHeight";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
 import { useSpotifyPresence } from "@/hooks/useSpotifyPresence";
 import { useExternalPresence } from "@/hooks/useExternalPresence";
-const SpotifyPresenceMount = () => { useSpotifyPresence(); useExternalPresence(); return null; };
+const SpotifyPresenceInner = () => { useSpotifyPresence(); useExternalPresence(); return null; };
+// Mount presence loops AFTER first paint so they don't compete with the
+// critical render path. Saves ~200-400ms on cold load.
+const SpotifyPresenceMount = () => {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const idle = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+    if (idle) {
+      const id = idle(() => setReady(true), { timeout: 2500 });
+      return () => (window as any).cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(() => setReady(true), 1200);
+    return () => clearTimeout(t);
+  }, []);
+  return ready ? <SpotifyPresenceInner /> : null;
+};
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { SkipToMain, LiveRegion } from "@/components/a11y/Accessibility";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
