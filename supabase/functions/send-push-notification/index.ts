@@ -21,6 +21,33 @@ interface PushPayload {
   data?: Record<string, unknown>;
 }
 
+async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs = 3_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, externalId: string): Promise<string[]> {
+  const res = await fetchJsonWithTimeout(
+    `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(externalId)}`,
+    { headers: { Authorization: `Key ${restKey}`, Accept: "application/json" } },
+  );
+  if (!res.ok) return [];
+  const user = await res.json().catch(() => null);
+  const subs = Array.isArray(user?.subscriptions) ? user.subscriptions : [];
+  return subs
+    .filter((sub: any) =>
+      sub?.id &&
+      sub.enabled !== false &&
+      ["iOSPush", "AndroidPush", "ChromePush", "FirefoxPush", "SafariPush", "HuaweiPush"].includes(sub.type)
+    )
+    .map((sub: any) => String(sub.id));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
