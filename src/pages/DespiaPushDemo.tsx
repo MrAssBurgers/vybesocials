@@ -113,7 +113,10 @@ export default function DespiaPushDemo() {
         },
         body: JSON.stringify({
           app_id: ONESIGNAL_APP_ID,
+          target_channel: 'push',
+          include_aliases: { external_id: [externalId] },
           include_external_user_ids: [externalId],
+          channel_for_external_user_ids: 'push',
           headings: { en: title || 'Notification' },
           contents: { en: message || ' ' },
         }),
