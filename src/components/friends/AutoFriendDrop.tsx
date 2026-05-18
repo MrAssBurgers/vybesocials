@@ -430,16 +430,13 @@ export function AutoFriendDrop() {
     };
   }, [isActive]);
 
-  // Start camera only when QR scanning is visible. The tab onClick also kicks
-  // startCamera() inside the user gesture so iOS doesn't reject getUserMedia.
+  // Stop camera when leaving QR. Starting stays in the tab/button tap handler
+  // so native shells don't reject getUserMedia or show a browser placeholder.
   useEffect(() => {
     if (!isActive || phase !== 'activated') return;
-    if (activeTab === 'qr') {
-      startCamera();
-      return () => { stopScanning(); };
-    }
-    stopScanning();
-  }, [isActive, phase, activeTab, startCamera, stopScanning]);
+    if (activeTab !== 'qr') stopScanning();
+    return () => { if (activeTab !== 'qr') stopScanning(); };
+  }, [isActive, phase, activeTab, stopScanning]);
 
   // Start NFC/native tap when switching to Phone Tap. Falls back to Web NFC.
   const despiaNfcAutoStartedRef = useRef(false);
