@@ -1,44 +1,87 @@
-## Why DM pushes aren't firing today
+## The real bug
 
-Three independent failures combine:
+The bug-reports admin page (and pretty much every authenticated page) is unreachable on the live site because **the root `SmartErrorBoundary` catches a crash from `<DeferredAuthHooks>` and momentarily unmounts the entire app — including `<AuthProvider>` — every render cycle.**
 
-1. **Server-side trigger is silently broken.** A trigger `on_message_insert_notify` on `messages` calls a helper that reads `current_setting('app.settings.supabase_url')` and `current_setting('app.settings.service_role_key')`. Neither GUC is set on this Postgres instance (verified: both return empty). So for every DM, the trigger fires but `net.http_post` is called with `url := '/functions/v1/send-push-notification'` and a `Bearer ` header with no key — the request never reaches the edge function. Result: **no DM push has ever been delivered via the server trigger.**
+Trace in the console you pasted:
 
-2. **Client-side push only fires while the sender's tab is alive.** `useSendMessage.onSuccess` in `src/hooks/useMessages.ts` calls `sendMessagePush(...)`. If the sender closes the app right after sending, or the network blip drops the follow-up call, the recipient gets nothing. It also can't fire for messages inserted by other paths (offline outbox, edge functions, group fan-outs).
+```
+Cannot read properties of null (reading 'destroy')
+   at updateEffectImpl ...
+[SmartErrorBoundary] Caught error: Cannot read properties of null (reading 'destroy')
+[SmartErrorBoundary] Component stack: at DeferredAuthHooks → Suspense → AuthProvider
+useAuth must be used within an AuthProvider   (x many)
+HTTP 400 from /rest/v1/follows … uuid: "undefined"
+HTTP 400 from /rest/v1/friend_requests … uuid: "undefined"
+HTTP 400 from /rest/v1/notifications … uuid: "undefined"
+HTTP 400 from /rest/v1/conversation_members … uuid: "undefined"
+HTTP 400 from /rest/v1/posts
+```
 
-3. **Web users have no OneSignal identity binding.** `index.html` initializes the OneSignal Web SDK on `vybehub.app`, but nothing ever calls `OneSignal.login(profileId)`. The edge function targets users via `include_aliases.external_id = [profileId]`, so OneSignal returns "no recipients" for every web user. Only Despia (native APK) users currently have `external_id` bound (via `DespiaOneSignalSync`).
+What's actually happening, in order:
 
-## What we'll change
+1. One of the nine hooks inside `DeferredAuthHooks` (`usePrefetchBackgrounds`, `useGlobalRealtimeMessages`, `useDynamicFavicon`, `useDynamicManifest`, `useRetroactiveSync`, `useDailyLoginChallenge`, `useCaptureNotifications`, `useApplyAutoTheme`, `useSessionTracking`) is producing a React-internal "destroy" error during an effect cleanup — most likely because a Realtime channel/subscriber it returned from a `useEffect` got nulled before unmount (consistent with `useGlobalRealtimeMessages` keeping multiple channels and the recent realtime subscription refactor).
+2. `SmartErrorBoundary` in `App.tsx` wraps the **entire app, above `AuthProvider`**. Its `componentDidCatch` does `setState({ hasError: true })` → render returns `null` → auto-resets 50 ms later. So on every crash the whole tree (AuthProvider included) is torn down and re-mounted.
+3. Children that call `useAuth()` outside an `<AuthProvider>` throw "useAuth must be used within an AuthProvider".
+4. On re-mount, queries fire before the auth session has been re-resolved, so `profile?.id` is `undefined` and PostgREST gets `?id=eq.undefined` — every one of those 400s is the same root cause.
+5. The `/rest/v1/user_backgrounds` 500 (`statement timeout`) is unrelated noise — indexes are already in place. Leave it alone for now.
 
-### 1. Make the server-side push trigger actually work
+End result: `AdminErrorsSection` and `AdminBugReports` mount, fire their `bug_reports` query, the whole tree gets blown away mid-flight, and the page never finishes rendering on production. The `bug_reports` table itself is healthy (126 rows in the last 24h, 5 in the last hour — verified directly), so auto-bug-finding is still working; it's just the **viewer** that's broken.
 
-- Store the Supabase service-role key in `vault.secrets` under a stable name (e.g. `push_service_role_key`) via the migration.
-- Rewrite `public.notify_message_recipients()` and `public.fire_push_notification()` to:
-  - Read the service-role key from `vault.decrypted_secrets`.
-  - Use the hardcoded project URL `https://agtcyxjxgkdyoxwxkjth.supabase.co` (it's public — same value already shipped in `.env`).
-  - Build the push body with **title = sender display_name (fallback username)** and **body = message text** (or `📷 Photo` / `🎤 Voice` / `🎬 Video` for media).
-  - Keep `SECURITY DEFINER` + `SET search_path = public` and the existing `EXCEPTION WHEN OTHERS THEN NULL` so a push failure never blocks the INSERT.
-- Re-attach the `on_message_insert_notify` AFTER INSERT trigger (it already exists; just confirm it points at the new function body).
+## What we will change
 
-### 2. Bind every web user to OneSignal so pushes reach them
+### 1. Stop letting one optional hook take down the whole app
 
-- In `src/components/notifications/DespiaOneSignalSync.tsx` (or a new sibling `OneSignalWebSync.tsx` mounted alongside it), additionally call `window.OneSignalDeferred.push(OneSignal => OneSignal.login(profileId))` whenever the auth profile changes — on web, not just inside the Despia shell. Wrap in a try/catch so it's a no-op when the SDK didn't load (preview hosts, native wrappers, blocked CDN).
-- Call `OneSignal.logout()` on sign-out so devices don't keep receiving pushes for the wrong account.
+In `src/App.tsx`, wrap `<DeferredAuthHooks />` (and the other lazy notification/overlay mounts that call `useAuth`) in their own tiny `LocalErrorBoundary` that:
 
-### 3. Remove the now-redundant client-side push
+- Catches errors from its children only.
+- Renders `null` (no fallback UI — these mounts have no visible output anyway).
+- Logs the error to `bug_reports` via the existing `reportAppCrash` helper.
+- Does **not** unmount its siblings.
 
-- Delete the `sendMessagePush` fan-out block from `useSendMessage.onSuccess` in `src/hooks/useMessages.ts` (lines ~405–449). The server trigger now handles 100% of DM pushes, so this block only causes double notifications. Keep the `sendMessagePush` helper in `src/lib/pushNotifications.ts` since calls and other flows still use it.
+Concretely:
 
-### 4. Verify
+```tsx
+<AuthProvider>
+  <SpotifyPresenceMount />
+  <LocalErrorBoundary label="DeferredAuthHooks">
+    <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
+  </LocalErrorBoundary>
+  <LocalErrorBoundary label="LoginApprovalSheet">
+    <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
+  </LocalErrorBoundary>
+  ...
+```
 
-- After migration: send a DM from account A to account B with B's app fully closed; B receives a push titled with A's name and bodied with the message text.
-- Inspect `select * from net._http_response order by created desc limit 5;` to confirm a 200 response from `send-push-notification` after each DM insert.
-- Check edge function logs for `OneSignal non-OK` warnings; if recipient is web-only and `OneSignal.login` ran, OneSignal should accept and deliver.
+Also wrap the inner `Suspense` block that mounts `<GlobalMessageNotifications />`, `<DespiaOneSignalSync />`, `<EnablePushPrompt />`, `<SmartPingBridge />`, `<TabNotificationBadge />`, `<GlobalCallOverlay />`, `<WarningPopup />`, `<InvitePopup />`, `<BanCheck />`, `<PremiumGiftChecker />`, `<TrackingConsentDialog />`, `<FounderAppreciation />`, `<CookieConsentBanner />`, `<RatePromptSheet />` in one `LocalErrorBoundary` so any one of those failing can't blank the page either.
+
+New file: `src/components/error/LocalErrorBoundary.tsx` — ~40-line class component, no UI, fire-and-forget crash report.
+
+### 2. Make the root SmartErrorBoundary stop blanking the whole tree
+
+In `src/components/error/SmartErrorBoundary.tsx`, change the "render `null` then reset 50 ms later" pattern. Instead, when an error is caught **and it's not a chunk-load error**, keep rendering `this.props.children` (do not flip `hasError`). The root boundary should only ever blank the screen for chunk-load reload, never for runtime crashes. Step 1 already shifts the responsibility for catching subtree crashes to the local boundaries, so the root one no longer needs to recover by unmounting.
+
+Specifically: in `componentDidCatch`, drop the `setState({ hasError: true })` path for non-chunk, non-network errors. Keep the bug-report call. Always leave `hasError = false`.
+
+### 3. Patch the actual `destroy` source in DeferredAuthHooks
+
+Even with #1 in place, we want the underlying crash gone so it stops spamming `bug_reports`. The signature ("destroy" called on null at `updateEffectImpl`) almost always means a `useEffect` cleanup is trying to use a value that was set to `null` between mount and cleanup. In this codebase the suspect is `useGlobalRealtimeMessages` (454 lines, multiple Supabase channels). The fix is to:
+
+- Replace any `let channel: RealtimeChannel | null = null; … return () => { supabase.removeChannel(channel) }` patterns with `if (channel) supabase.removeChannel(channel)` guards.
+- Wrap the cleanup function body in `try { … } catch {}` so a failing `removeChannel` cannot bubble into React's effect runner.
+
+(Apply the same defensive cleanup pattern to `useApplyAutoTheme`, which also calls `removeChannel` on a captured ref.)
+
+### 4. Verify the bug-reports viewer loads
+
+- After change, visit `/admin` on live and confirm `AdminErrorsSection` lists the 50 most recent rows (the underlying query and FK `bug_reports_reporter_id_fkey` are correct — verified directly in DB).
+- Visit `/admin/bugs` and confirm the standalone page renders.
+- Confirm console no longer cycles through "useAuth must be used within an AuthProvider" and the wave of `uuid: "undefined"` 400s.
 
 ## Files touched
 
-- New migration: `supabase/migrations/<timestamp>_dm_push_trigger_vault.sql` — vault secret + rewritten `fire_push_notification` and `notify_message_recipients`.
-- `src/components/notifications/DespiaOneSignalSync.tsx` — also bind `OneSignal.login(profileId)` on web; `OneSignal.logout()` on sign-out.
-- `src/hooks/useMessages.ts` — remove duplicate client-side push fan-out in `useSendMessage.onSuccess`.
+- New: `src/components/error/LocalErrorBoundary.tsx` (small class component, no UI fallback).
+- `src/App.tsx` — wrap `<DeferredAuthHooks>` and the deferred notification/overlay Suspense block in `LocalErrorBoundary`.
+- `src/components/error/SmartErrorBoundary.tsx` — never flip `hasError` for runtime errors; keep the chunk-load reload branch only.
+- `src/hooks/useGlobalRealtimeMessages.ts` and `src/hooks/useApplyAutoTheme.ts` — guard `removeChannel` cleanups against null refs and wrap in `try/catch`.
 
-No UI changes. No design changes.
+No design changes, no schema changes, no new dependencies.
