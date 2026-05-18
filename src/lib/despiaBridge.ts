@@ -100,19 +100,31 @@ export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> 
   return await new Promise<string | null>(async (resolve) => {
     let settled = false;
     const previousCallback = w.readNFCResult;
+    const initialValues = new Map(DESPIA_CALLBACK_KEYS.map((key) => [key, normalizeNfcPayload(w[key])]));
     const finish = (payload: unknown, source: string) => {
       if (settled) return;
       const normalized = normalizeNfcPayload(payload);
       console.log('[despiaBridge] NFC result', { source, hasPayload: Boolean(normalized), tag: typeof payload });
       if (!normalized) return;
       settled = true;
+      clearInterval(poll);
       clearTimeout(timer);
       w.readNFCResult = previousCallback;
       resolve(normalized);
     };
+    const poll = window.setInterval(() => {
+      for (const key of DESPIA_CALLBACK_KEYS) {
+        const current = normalizeNfcPayload(w[key]);
+        if (current && current !== initialValues.get(key)) {
+          finish(current, key);
+          return;
+        }
+      }
+    }, 100);
     const timer = window.setTimeout(() => {
       if (settled) return;
       settled = true;
+      clearInterval(poll);
       w.readNFCResult = previousCallback;
       console.warn('[despiaBridge] NFC read timed out');
       resolve(null);
@@ -125,15 +137,12 @@ export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> 
       }
     };
 
-    const bridges = ['nfcread://', 'scannfc://', 'nfc://read'];
-    console.log('[despiaBridge] requesting NFC bridge', 'readnfc://');
-    void despiaCall('readnfc://');
-    await new Promise((r) => setTimeout(r, 300));
+    const bridges = ['readnfc://', 'nfcread://', 'scannfc://', 'nfc://read'];
     for (const url of bridges) {
       if (settled) break;
       console.log('[despiaBridge] requesting NFC bridge', url);
-      const result = await despiaCall(url, DESPIA_CALLBACK_KEYS, Math.min(timeoutMs, 30_000));
-      if (result) finish(result, url);
+      void despiaCall(url);
+      await new Promise((r) => setTimeout(r, 150));
     }
   });
 }
