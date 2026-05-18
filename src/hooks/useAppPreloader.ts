@@ -109,11 +109,11 @@ export function useAppPreloader() {
         try {
           const authResult = await Promise.race([
             supabase.auth.getSession(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 1000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 400))
           ]) as { data: { session: any } };
           session = authResult.data.session;
         } catch {
-          console.warn('[Preloader] Auth check slow, continuing — page-level queries will hydrate');
+          /* splash continues — page-level queries hydrate in background */
         }
 
         if (!session?.user) {
