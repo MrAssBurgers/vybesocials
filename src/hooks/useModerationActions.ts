@@ -61,6 +61,8 @@ export function useUserBans(userId?: string) {
 
 // Fetch all warnings (for admin)
 export function useAllWarnings() {
+  const { user, authReady } = useAuth();
+
   return useQuery({
     queryKey: ['all-warnings'],
     queryFn: async () => {
@@ -76,11 +78,14 @@ export function useAllWarnings() {
       if (error) throw error;
       return data;
     },
+    enabled: authReady && !!user,
   });
 }
 
 // Fetch all bans (for admin)
 export function useAllBans() {
+  const { user, authReady } = useAuth();
+
   return useQuery({
     queryKey: ['all-bans'],
     queryFn: async () => {
@@ -98,6 +103,7 @@ export function useAllBans() {
       if (error) throw error;
       return data;
     },
+    enabled: authReady && !!user,
   });
 }
 
