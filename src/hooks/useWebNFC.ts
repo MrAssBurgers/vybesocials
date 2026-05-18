@@ -84,7 +84,7 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
         if (ok) return true;
         const msg = 'No NFC tag detected — try again';
         setError(msg);
-        toast.error(msg);
+        toast.info(msg);
         return false;
       }
       const msg = isIOS()
@@ -132,6 +132,11 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
       if (isDespiaRuntime() && isAndroidUA()) {
         const ok = await tryDespiaBridge();
         if (ok) return true;
+        const msg = 'No NFC tag detected — try again';
+        setError(msg);
+        toast.info(msg);
+        setIsScanning(false);
+        return false;
       }
       const name = err?.name || '';
       const msg =
