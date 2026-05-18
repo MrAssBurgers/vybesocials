@@ -430,7 +430,9 @@ export function useGlobalRealtimeMessages() {
     broadcastChannelRef.current = bc;
 
     return () => {
-      supabase.removeChannel(bc);
+      try {
+        if (bc) supabase.removeChannel(bc);
+      } catch { /* noop */ }
       broadcastChannelRef.current = null;
     };
   }, [profile?.id, queryClient, activeConvoId]);
