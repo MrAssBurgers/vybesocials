@@ -230,11 +230,9 @@ export function AutoFriendDrop() {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
       if (code) {
-        const url = code.data;
-        const dropMatch = url?.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
-        if (dropMatch) { await handleDropScan(dropMatch[1]); return; }
-        const userMatch = url?.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
-        if (userMatch && userMatch[1] !== user?.id) { handleFoundUser(userMatch[1]); return; }
+        const target = extractFriendTarget(code.data || '');
+        if (target?.type === 'drop') { await handleDropScan(target.id); return; }
+        if (target?.type === 'user' && target.id !== user?.id) { handleFoundUser(target.id); return; }
       }
       animationFrameRef.current = requestAnimationFrame(scanFrame);
     };
