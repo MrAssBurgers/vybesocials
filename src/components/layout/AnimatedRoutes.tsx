@@ -178,6 +178,7 @@ export function AnimatedRoutes() {
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/spotify/callback" element={<SpotifyCallback />} />
+            <Route path="/despia-push-demo" element={<DespiaPushDemo />} />
             <Route path="/invite/:identifier" element={<InviteRedeem />} />
             
             {/* CRITICAL ROUTES - Eagerly loaded, instant navigation */}
