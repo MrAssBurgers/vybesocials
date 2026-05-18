@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
-import { X, Play, Pause, SkipBack, SkipForward, ExternalLink, ListMusic, ArrowLeft, Loader2, Music2 } from 'lucide-react';
+import { X, Play, Pause, SkipBack, SkipForward, ExternalLink, ListMusic, ArrowLeft, Loader2, Music2, Shuffle } from 'lucide-react';
 import { useSpotifyControl } from '@/hooks/useSpotifyControl';
 import { useSpotifyPlaylists } from '@/hooks/useSpotifyPlaylists';
 import type { LiveMusicPresence } from '@/hooks/useLiveMusicPresence';
@@ -19,6 +19,7 @@ export function SpotifyMiniPlayer({ presence, onClose }: Props) {
   const { control, loading } = useSpotifyControl();
   const [view, setView] = useState<'player' | 'playlists'>('player');
   const [optimisticPlaying, setOptimisticPlaying] = useState<boolean | null>(null);
+  const [shuffleOn, setShuffleOn] = useState(false);
   const { playlists, loading: loadingPlaylists, error: playlistsError, status: playlistsStatus, refresh: refreshPlaylists } = useSpotifyPlaylists(view === 'playlists');
 
   const reconnectSpotify = () => {
@@ -38,8 +39,18 @@ export function SpotifyMiniPlayer({ presence, onClose }: Props) {
   const handleNext = async () => { await control({ action: 'next' }); };
   const handlePrev = async () => { await control({ action: 'previous' }); };
 
+  const handleShuffle = async () => {
+    const next = !shuffleOn;
+    setShuffleOn(next);
+    const ok = await control({ action: 'shuffle', state: next });
+    if (!ok) setShuffleOn(!next);
+  };
+
   const handleOpenSpotify = () => {
-    if (presence?.track_url) window.open(presence.track_url, '_blank', 'noopener,noreferrer');
+    const trackUrl = presence?.track_id
+      ? `https://open.spotify.com/track/${presence.track_id}`
+      : presence?.track_url;
+    if (trackUrl) window.open(trackUrl, '_blank', 'noopener,noreferrer');
   };
 
   const [startingId, setStartingId] = useState<string | null>(null);
@@ -111,7 +122,21 @@ export function SpotifyMiniPlayer({ presence, onClose }: Props) {
             </div>
 
             {/* Transport */}
-            <div className="flex items-center justify-center gap-4 mt-4">
+            <div className="flex items-center justify-center gap-3 mt-4">
+              <button
+                onClick={handleShuffle}
+                disabled={loading}
+                aria-label={`Shuffle ${shuffleOn ? 'on' : 'off'}`}
+                aria-pressed={shuffleOn}
+                className={cn(
+                  'w-9 h-9 rounded-full inline-flex items-center justify-center active:scale-90 transition disabled:opacity-50',
+                  shuffleOn
+                    ? 'text-[#1DB954] bg-[#1DB954]/10 shadow-[0_0_10px_rgba(29,185,84,0.45)]'
+                    : 'text-foreground/70 hover:bg-foreground/10'
+                )}
+              >
+                <Shuffle className="w-4 h-4" />
+              </button>
               <button
                 onClick={handlePrev}
                 disabled={loading}
