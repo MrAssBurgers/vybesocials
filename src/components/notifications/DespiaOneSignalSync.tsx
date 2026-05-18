@@ -80,8 +80,12 @@ export function DespiaOneSignalSync() {
       void setPlayerIdForAuthUser(data.user?.id);
     }).catch(() => {});
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      void setPlayerIdForAuthUser(session?.user?.id);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session?.user?.id) {
+        clearPlayerId();
+        return;
+      }
+      void setPlayerIdForAuthUser(session.user.id);
     });
 
     // Request push permission on the FIRST authenticated user gesture
