@@ -29,7 +29,7 @@ function normalizeId(value: unknown): string {
 
 function readWindowPlayerId(): string {
   if (typeof window === 'undefined') return '';
-  const w = window as any;
+  const w = window as unknown as Record<string, unknown>;
   for (const key of PLAYER_ID_KEYS) {
     const id = normalizeId(w[key]);
     if (id) return id;
