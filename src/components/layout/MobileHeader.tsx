@@ -46,74 +46,89 @@ export const MobileHeader = React.forwardRef<HTMLElement, {}>(function MobileHea
   }
 
   return (
-    <header data-no-auto-contrast className="fixed top-0 left-0 right-0 z-50 liquid-glass border-b border-foreground/5">
-      <div className="safe-area-top">
-        <div className="flex items-center justify-between h-14 px-3 relative z-10">
+    <header
+      data-no-auto-contrast
+      className="fixed top-0 left-0 right-0 z-50 backdrop-blur-2xl bg-background/60"
+    >
+      {/* Ambient gradient wash — replaces the boxy border */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-16 left-1/4 h-32 w-1/2 rounded-full bg-primary/10 blur-3xl" />
+        <div className="absolute -top-12 right-0 h-24 w-1/3 rounded-full bg-accent/10 blur-3xl" />
+      </div>
 
-          {/* Logo - clean and minimal */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <Link 
-              to="/home" 
-              className="flex items-center justify-center h-9 w-9 rounded-xl hover:bg-muted/30 transition-colors"
-              onClick={(e) => {
-                if (debugPanel?.handleLogoTap) {
-                  debugPanel.handleLogoTap();
-                }
-              }}
-            >
+      <div className="safe-area-top relative">
+        <div className="flex items-center gap-2 h-14 px-4 relative z-10">
+
+          {/* Logo — naked with a soft gradient halo on press */}
+          <Link
+            to="/home"
+            className="group relative flex items-center justify-center h-10 w-10 -ml-1 flex-shrink-0 active:scale-90 transition-transform"
+            onClick={() => debugPanel?.handleLogoTap?.()}
+          >
+            <span className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/40 to-accent/40 blur-md opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity" />
+            <span className="relative">
               <VYBELogo size="sm" showText={false} />
-            </Link>
-          </div>
+            </span>
+          </Link>
 
-          {/* Center - Search - clean styling */}
-          <HeaderSearch className="flex-1 mx-3" />
+          {/* Center — fluid pill search with gradient ring on focus */}
+          <HeaderSearch className="flex-1 mx-1" />
 
-          {/* Right side - Notifications & Challenges */}
+          {/* Right side — naked icons, generous spacing */}
           <div className="flex items-center gap-1 flex-shrink-0">
-            {/* Notifications */}
+            {/* Notifications — circular, no box */}
             <Link
               to="/notifications"
               data-tutorial="notifications-badge"
               className={cn(
-                "relative flex items-center justify-center h-9 w-9 rounded-xl transition-all",
-                isNotificationsActive 
-                  ? "bg-primary/15 text-primary" 
-                  : "hover:bg-muted/30 text-muted-foreground hover:text-foreground"
+                "relative flex items-center justify-center h-10 w-10 rounded-full transition-all active:scale-90",
+                isNotificationsActive
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <Bell className={cn("h-5 w-5", bellBounce && "animate-bell-ring")} />
+              <Bell className={cn("h-[22px] w-[22px]", bellBounce && "animate-bell-ring")} strokeWidth={1.75} />
               {unreadCount > 0 && (
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.6)]"
+                  className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_hsl(var(--primary))]"
                 />
               )}
             </Link>
 
-            {/* Challenges with streak indicator */}
+            {/* Challenges + integrated streak chip */}
             <Link
               to="/challenges"
               className={cn(
-                "relative flex items-center justify-center h-9 w-9 rounded-xl transition-all",
-                isChallengesActive 
-                  ? "bg-accent/15 text-accent" 
-                  : "hover:bg-muted/30 text-muted-foreground hover:text-foreground"
+                "relative flex items-center gap-1.5 h-10 pl-2 pr-1 rounded-full transition-all active:scale-95",
+                isChallengesActive
+                  ? "text-accent"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <Target className="h-5 w-5" />
-              {/* Streak badge */}
+              <Target className="h-[22px] w-[22px]" strokeWidth={1.75} />
+
+              {/* Inline streak pill — flows next to the icon, not a floating badge */}
               <AnimatePresence>
                 {streakCount > 0 && (
                   <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    exit={{ scale: 0 }}
-                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-                    className="absolute -top-1 -right-1 flex items-center gap-0.5 h-4 min-w-4 px-1 bg-gradient-to-r from-orange-500 to-red-500 rounded-full shadow-sm"
+                    initial={{ opacity: 0, scale: 0.6, x: -4 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.6, x: -4 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+                    className="relative flex items-center gap-0.5 h-6 px-1.5 rounded-full overflow-hidden"
                   >
-                    <Flame className="h-2.5 w-2.5 text-white" />
-                    <span className="text-[9px] text-white font-bold">{streakCount > 99 ? '99' : streakCount}</span>
+                    {/* Gradient fill */}
+                    <span className="absolute inset-0 bg-gradient-to-r from-orange-500 via-rose-500 to-fuchsia-500" />
+                    {/* Glossy highlight */}
+                    <span className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent" />
+                    {/* Outer glow */}
+                    <span className="absolute -inset-px rounded-full shadow-[0_0_12px_-2px_rgba(244,63,94,0.7)]" />
+                    <Flame className="relative h-3 w-3 text-white drop-shadow" fill="currentColor" strokeWidth={0} />
+                    <span className="relative text-[10px] leading-none font-bold text-white tabular-nums tracking-tight">
+                      {streakCount > 99 ? '99+' : streakCount}
+                    </span>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -121,8 +136,9 @@ export const MobileHeader = React.forwardRef<HTMLElement, {}>(function MobileHea
           </div>
         </div>
       </div>
-      {/* Bottom glow line */}
-      <div className="h-[1px] bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+
+      {/* Whisper-thin gradient hairline instead of a hard border */}
+      <div className="h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
     </header>
   );
 });
