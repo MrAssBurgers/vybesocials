@@ -20,6 +20,8 @@ interface PushPayload {
   type?: string;
   data?: Record<string, unknown>;
 }
+type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean };
+type PushTokenRow = { id: string; token: string; platform: string };
 
 async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs = 3_000) {
   const controller = new AbortController();
@@ -38,14 +40,14 @@ async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, ex
   );
   if (!res.ok) return [];
   const user = await res.json().catch(() => null);
-  const subs = Array.isArray(user?.subscriptions) ? user.subscriptions : [];
+  const subs: OneSignalSubscription[] = Array.isArray(user?.subscriptions) ? user.subscriptions : [];
   return subs
-    .filter((sub: any) =>
+    .filter((sub) =>
       sub?.id &&
       sub.enabled !== false &&
       ["iOSPush", "AndroidPush", "ChromePush", "FirefoxPush", "SafariPush", "HuaweiPush"].includes(sub.type)
     )
-    .map((sub: any) => String(sub.id));
+    .map((sub) => String(sub.id));
 }
 
 Deno.serve(async (req) => {
