@@ -21,6 +21,9 @@ import { haptics } from '@/lib/haptics';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/lib/auth';
+
+const DEV_USERNAMES = ['bakrix', 'mrassburgers'];
 
 export type SettingsCategory = 
   | 'profile' 
@@ -61,7 +64,9 @@ const baseCategories = [
 
 function useCategories() {
   const debugPanel = useDebugPanel();
-  const showDev = import.meta.env.DEV || debugPanel?.isAdmin;
+  const { profile } = useAuth();
+  const isDevUser = !!profile?.username && DEV_USERNAMES.includes(profile.username.toLowerCase());
+  const showDev = import.meta.env.DEV || debugPanel?.isAdmin || isDevUser;
   if (showDev) {
     return [...baseCategories, { id: 'developer' as const, labelKey: 'settingsNav.developer', icon: Code2, descKey: 'settingsNav.developerDesc' }];
   }
