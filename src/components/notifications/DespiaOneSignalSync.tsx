@@ -64,7 +64,6 @@ export function DespiaOneSignalSync() {
     const requestPushPermissionOnce = () => {
       if (!isDespiaRuntime()) return;
       try {
-        if (localStorage.getItem(PUSH_PERM_KEY)) return;
         localStorage.setItem(PUSH_PERM_KEY, String(Date.now()));
         void supabase.auth.getUser().then(({ data }) => {
           if (!data.user?.id) return;
