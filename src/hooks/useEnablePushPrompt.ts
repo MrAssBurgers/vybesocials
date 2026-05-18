@@ -3,10 +3,12 @@ import { usePushNotifications } from './usePushNotifications';
 import { useAuth } from '@/lib/auth';
 
 const SNOOZE_KEY = 'vybe_push_prompt_snoozed_until';
-const SNOOZE_DAYS = 7;
+const DISABLED_KEY = 'vybe_push_prompt_disabled';
+const SNOOZE_DAYS = 30;
 
 function isSnoozed(): boolean {
   try {
+    if (localStorage.getItem(DISABLED_KEY) === '1') return true;
     const raw = localStorage.getItem(SNOOZE_KEY);
     if (!raw) return false;
     const until = new Date(raw).getTime();
