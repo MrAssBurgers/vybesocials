@@ -131,27 +131,36 @@ export function useUpdateReport() {
 }
 
 export function useUserRole() {
-  const { profile } = useAuth();
+  const { profile, user, authReady } = useAuth();
 
   return useQuery({
-    queryKey: ['user-role', profile?.id],
+    queryKey: ['user-role', profile?.id, user?.id],
     queryFn: async () => {
-      if (!profile?.id) return null;
+      if (!profile?.id && !user?.id) return null;
 
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', profile.id);
+      const [profileRoles, authRoles] = await Promise.all([
+        profile?.id
+          ? supabase.from('user_roles').select('role').eq('user_id', profile.id)
+          : Promise.resolve({ data: [], error: null }),
+        user?.id
+          ? supabase.from('user_roles_auth').select('role').eq('user_id', user.id)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
 
-      if (error) throw error;
+      if (profileRoles.error) throw profileRoles.error;
+      if (authRoles.error) throw authRoles.error;
 
-      // Return highest role (admin > moderator > user)
-      const roles = (data || []).map((r) => r.role);
+      // Return highest role (owner > admin > moderator > user)
+      const roles = [
+        ...((profileRoles.data || []).map((r) => r.role)),
+        ...((authRoles.data || []).map((r) => r.role)),
+      ];
+      if (roles.includes('owner')) return 'owner';
       if (roles.includes('admin')) return 'admin';
       if (roles.includes('moderator')) return 'moderator';
       return null;
     },
-    enabled: !!profile?.id,
+    enabled: authReady && (!!profile?.id || !!user?.id),
     staleTime: 60 * 1000,
   });
 }
