@@ -13,6 +13,7 @@ import {
   Terminal,
   Crown,
   Trash2,
+  Bell,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -142,6 +143,24 @@ export function DeveloperSection() {
             </Button>
           </div>
         )}
+
+        {/* Despia Push Demo */}
+        <div className="mb-4 sm:mb-6">
+          <Button
+            variant="outline"
+            className="w-full justify-between h-10 sm:h-12 text-xs sm:text-sm"
+            onClick={() => {
+              haptics.tap();
+              navigate('/despia-push-demo');
+            }}
+          >
+            <span className="flex items-center gap-2">
+              <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              Despia Push Demo
+            </span>
+            <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          </Button>
+        </div>
 
         {/* Feature Flags */}
         <div className="space-y-3 sm:space-y-4">
