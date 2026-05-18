@@ -173,7 +173,7 @@ export function useAppPreloader() {
         try {
           const result = await Promise.race([
             profilePromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Profile timeout')), 800)),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Profile timeout')), 400)),
           ]) as any;
           profileData = result?.data || null;
         } catch {
