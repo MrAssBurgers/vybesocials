@@ -118,21 +118,24 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   };
 
   const handleClick = async () => {
-    if (!videoRef.current || hasError) return;
+    try {
+      if (!videoRef.current || hasError) return;
 
-    if (!isPlaying) {
-      // YouTube-style pre-video ad on first manual play (frequency-capped inside the hook)
-      if (!adShownRef.current) {
-        adShownRef.current = true;
-        try { await showVideoAd('pre_video'); } catch {}
-        if (!videoRef.current) return;
+      if (!isPlaying) {
+        if (!adShownRef.current) {
+          adShownRef.current = true;
+          try { await showVideoAd('pre_video'); } catch (e) { console.warn('[VideoPlayer] ad failed', e); }
+          if (!videoRef.current) return;
+        }
+        try { videoRef.current.currentTime = 0; } catch {}
+        try { await videoRef.current.play(); } catch (e) { console.warn('[VideoPlayer] play failed', e); }
+        setIsPlaying(true);
+      } else {
+        videoRef.current.muted = !videoRef.current.muted;
+        setIsMuted(!isMuted);
       }
-      videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(() => {});
-      setIsPlaying(true);
-    } else {
-      videoRef.current.muted = !videoRef.current.muted;
-      setIsMuted(!isMuted);
+    } catch (e) {
+      console.error('[VideoPlayer] handleClick crashed', e);
     }
   };
 
