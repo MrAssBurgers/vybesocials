@@ -20,6 +20,7 @@ const DevMockupCompare = lazy(() => import("@/pages/DevMockupCompare"));
 const RootGate = lazy(() => import("@/components/auth/RootGate"));
 const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 const SpotifyCallback = lazy(() => import("@/pages/SpotifyCallback"));
+const DespiaPushDemo = lazy(() => import("@/pages/DespiaPushDemo"));
 
 // High-priority but lazy-loaded to reduce main-thread work
 const Home = lazy(() => import("@/pages/Home"));
