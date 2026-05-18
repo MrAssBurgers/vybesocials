@@ -122,6 +122,33 @@ export default function DespiaPushDemo() {
     }
   };
 
+  // Look up subscription IDs for an external_id via OneSignal's User Identity API.
+  // This is the reliable way to send when we don't have a player_id cached client-side.
+  const resolveSubscriptionIds = async (extId: string): Promise<string[]> => {
+    try {
+      const url = `https://api.onesignal.com/apps/${ONESIGNAL_APP_ID}/users/by/external_id/${encodeURIComponent(extId)}`;
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Key ${ONESIGNAL_REST_KEY}`,
+          Accept: 'application/json',
+        },
+      });
+      if (!res.ok) {
+        console.warn('[OneSignal] user lookup failed', res.status, await res.text().catch(() => ''));
+        return [];
+      }
+      const data = await res.json();
+      const subs: any[] = data?.subscriptions || [];
+      // Only push subscriptions that are enabled.
+      return subs
+        .filter((s) => (s.type === 'iOSPush' || s.type === 'AndroidPush' || s.type === 'ChromePush' || s.type === 'FirefoxPush' || s.type === 'SafariPush' || s.type === 'HuaweiPush') && s.enabled !== false && s.id)
+        .map((s) => s.id as string);
+    } catch (e) {
+      console.warn('[OneSignal] user lookup error', e);
+      return [];
+    }
+  };
+
   const handleSend = async () => {
     if (!externalId && !playerId) {
       toast.error('No target yet.');
@@ -129,26 +156,42 @@ export default function DespiaPushDemo() {
     }
     setSending(true);
     try {
-      // Prefer player_id when we have it (most reliable); fall back to external_id alias.
       const body: Record<string, any> = {
         app_id: ONESIGNAL_APP_ID,
         target_channel: 'push',
         headings: { en: title || 'Notification' },
         contents: { en: message || ' ' },
       };
+
+      // Resolve a concrete subscription target. Order of preference:
+      //  1. Cached player_id from the Despia bridge.
+      //  2. Subscription IDs looked up from OneSignal via external_id.
+      // We never send with include_aliases/external_id alone because OneSignal
+      // rejects it with "invalid_aliases" when the alias isn't registered yet.
+      let subscriptionIds: string[] = [];
       if (playerId) {
-        body.include_player_ids = [playerId];
-      } else {
-        body.include_aliases = { external_id: [externalId] };
-        body.include_external_user_ids = [externalId];
-        body.channel_for_external_user_ids = 'push';
+        subscriptionIds = [playerId];
+      } else if (externalId) {
+        subscriptionIds = await resolveSubscriptionIds(externalId);
+        // Cache the first one for next time.
+        if (subscriptionIds[0]) setPlayerId(subscriptionIds[0]);
       }
+
+      if (subscriptionIds.length === 0) {
+        toast.error(
+          'No push subscription found for this user. Open the app in Despia, allow notifications, then tap "Re-link device".',
+        );
+        setSending(false);
+        return;
+      }
+
+      body.include_subscription_ids = subscriptionIds;
 
       const res = await fetch('https://onesignal.com/api/v1/notifications', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Basic ${ONESIGNAL_REST_KEY}`,
+          Authorization: `Key ${ONESIGNAL_REST_KEY}`,
         },
         body: JSON.stringify(body),
       });
