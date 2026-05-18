@@ -1,87 +1,57 @@
-## The real bug
+## What's actually happening
 
-The bug-reports admin page (and pretty much every authenticated page) is unreachable on the live site because **the root `SmartErrorBoundary` catches a crash from `<DeferredAuthHooks>` and momentarily unmounts the entire app — including `<AuthProvider>` — every render cycle.**
+Publishing is failing because the **Test database is out of connection slots**, not because of a code or migration bug.
 
-Trace in the console you pasted:
+Every connection attempt — including the ones the publish pipeline makes to verify the schema — is being rejected with:
 
 ```
-Cannot read properties of null (reading 'destroy')
-   at updateEffectImpl ...
-[SmartErrorBoundary] Caught error: Cannot read properties of null (reading 'destroy')
-[SmartErrorBoundary] Component stack: at DeferredAuthHooks → Suspense → AuthProvider
-useAuth must be used within an AuthProvider   (x many)
-HTTP 400 from /rest/v1/follows … uuid: "undefined"
-HTTP 400 from /rest/v1/friend_requests … uuid: "undefined"
-HTTP 400 from /rest/v1/notifications … uuid: "undefined"
-HTTP 400 from /rest/v1/conversation_members … uuid: "undefined"
-HTTP 400 from /rest/v1/posts
+FATAL: 53300: remaining connection slots are reserved for roles with the SUPERUSER attribute
 ```
 
-What's actually happening, in order:
+This is showing up continuously in Postgres logs (dozens of FATALs per minute, ongoing right now). It's why:
+- The schema metadata fetch in this session failed
+- `read_query` returns the same error
+- Publishing can't complete its pre-flight DB checks
 
-1. One of the nine hooks inside `DeferredAuthHooks` (`usePrefetchBackgrounds`, `useGlobalRealtimeMessages`, `useDynamicFavicon`, `useDynamicManifest`, `useRetroactiveSync`, `useDailyLoginChallenge`, `useCaptureNotifications`, `useApplyAutoTheme`, `useSessionTracking`) is producing a React-internal "destroy" error during an effect cleanup — most likely because a Realtime channel/subscriber it returned from a `useEffect` got nulled before unmount (consistent with `useGlobalRealtimeMessages` keeping multiple channels and the recent realtime subscription refactor).
-2. `SmartErrorBoundary` in `App.tsx` wraps the **entire app, above `AuthProvider`**. Its `componentDidCatch` does `setState({ hasError: true })` → render returns `null` → auto-resets 50 ms later. So on every crash the whole tree (AuthProvider included) is torn down and re-mounted.
-3. Children that call `useAuth()` outside an `<AuthProvider>` throw "useAuth must be used within an AuthProvider".
-4. On re-mount, queries fire before the auth session has been re-resolved, so `profile?.id` is `undefined` and PostgREST gets `?id=eq.undefined` — every one of those 400s is the same root cause.
-5. The `/rest/v1/user_backgrounds` 500 (`statement timeout`) is unrelated noise — indexes are already in place. Leave it alone for now.
+Production (Live) reports healthy, but publish has to touch Test first, so the whole pipeline stalls.
 
-End result: `AdminErrorsSection` and `AdminBugReports` mount, fire their `bug_reports` query, the whole tree gets blown away mid-flight, and the page never finishes rendering on production. The `bug_reports` table itself is healthy (126 rows in the last 24h, 5 in the last hour — verified directly), so auto-bug-finding is still working; it's just the **viewer** that's broken.
+## Root cause
 
-## What we will change
+Something is holding too many open Postgres connections on the Test instance and never releasing them. The pool is saturated, so any new role (including the migration runner) gets refused. Common culprits in this codebase:
 
-### 1. Stop letting one optional hook take down the whole app
+1. An edge function calling `createClient(...)` inside the request handler and not closing it — every invocation leaks one connection.
+2. A recently deployed edge function with a hot loop / cron that opens connections faster than they idle out.
+3. Long-lived realtime subscriptions or admin tools holding sessions open.
 
-In `src/App.tsx`, wrap `<DeferredAuthHooks />` (and the other lazy notification/overlay mounts that call `useAuth`) in their own tiny `LocalErrorBoundary` that:
+## Plan
 
-- Catches errors from its children only.
-- Renders `null` (no fallback UI — these mounts have no visible output anyway).
-- Logs the error to `bug_reports` via the existing `reportAppCrash` helper.
-- Does **not** unmount its siblings.
+### Step 1 — Free the pool (immediate unblock)
+Ask the user to **pause and resume the Test backend** from Lovable Cloud settings. This forcibly drops all existing Postgres connections and resets the pool. Within ~30 seconds the publish pipeline should succeed.
 
-Concretely:
+If pause/resume isn't accessible, the alternative is to wait ~5–10 minutes for idle connections to time out, then retry publish.
 
-```tsx
-<AuthProvider>
-  <SpotifyPresenceMount />
-  <LocalErrorBoundary label="DeferredAuthHooks">
-    <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
-  </LocalErrorBoundary>
-  <LocalErrorBoundary label="LoginApprovalSheet">
-    <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
-  </LocalErrorBoundary>
-  ...
-```
+### Step 2 — Verify the unblock
+After resume, re-run `cloud_status` + a trivial `SELECT 1`. Both should succeed cleanly. Then retry publish.
 
-Also wrap the inner `Suspense` block that mounts `<GlobalMessageNotifications />`, `<DespiaOneSignalSync />`, `<EnablePushPrompt />`, `<SmartPingBridge />`, `<TabNotificationBadge />`, `<GlobalCallOverlay />`, `<WarningPopup />`, `<InvitePopup />`, `<BanCheck />`, `<PremiumGiftChecker />`, `<TrackingConsentDialog />`, `<FounderAppreciation />`, `<CookieConsentBanner />`, `<RatePromptSheet />` in one `LocalErrorBoundary` so any one of those failing can't blank the page either.
+### Step 3 — Audit edge functions for connection leaks (prevent recurrence)
+Once Test is breathing again, grep every edge function for:
 
-New file: `src/components/error/LocalErrorBoundary.tsx` — ~40-line class component, no UI, fire-and-forget crash report.
+- `createClient(` calls made **inside** the request handler (should be module-scope, created once per cold start).
+- Any function using `postgres`, `pg`, or raw connection libraries instead of the Supabase JS client.
+- Recently added/edited functions (Spotify control, push notifications, ai-catch-up, analyze-bug-report — these were touched today).
 
-### 2. Make the root SmartErrorBoundary stop blanking the whole tree
+Fix any that instantiate clients per-request. Move the `createClient` call to module scope so it's reused across invocations on the same warm instance.
 
-In `src/components/error/SmartErrorBoundary.tsx`, change the "render `null` then reset 50 ms later" pattern. Instead, when an error is caught **and it's not a chunk-load error**, keep rendering `this.props.children` (do not flip `hasError`). The root boundary should only ever blank the screen for chunk-load reload, never for runtime crashes. Step 1 already shifts the responsibility for catching subtree crashes to the local boundaries, so the root one no longer needs to recover by unmounting.
+### Step 4 — Add a guard (optional, recommended)
+Add lightweight logging on the top 3–5 most-invoked edge functions so we can see invocation rate and catch leaks earlier next time.
 
-Specifically: in `componentDidCatch`, drop the `setState({ hasError: true })` path for non-chunk, non-network errors. Keep the bug-report call. Always leave `hasError = false`.
+## Technical detail
 
-### 3. Patch the actual `destroy` source in DeferredAuthHooks
+- Error code `53300` = `too_many_connections`.
+- Lovable Cloud Test runs with a small connection ceiling; the reserve for SUPERUSER is what migrations need, so once the regular pool is full publishing breaks first.
+- Pause/resume is safe — no data loss, only kicks active sessions.
+- No migration is needed for this fix; it's an operational + edge-function hygiene issue.
 
-Even with #1 in place, we want the underlying crash gone so it stops spamming `bug_reports`. The signature ("destroy" called on null at `updateEffectImpl`) almost always means a `useEffect` cleanup is trying to use a value that was set to `null` between mount and cleanup. In this codebase the suspect is `useGlobalRealtimeMessages` (454 lines, multiple Supabase channels). The fix is to:
+## What I need from you to proceed
 
-- Replace any `let channel: RealtimeChannel | null = null; … return () => { supabase.removeChannel(channel) }` patterns with `if (channel) supabase.removeChannel(channel)` guards.
-- Wrap the cleanup function body in `try { … } catch {}` so a failing `removeChannel` cannot bubble into React's effect runner.
-
-(Apply the same defensive cleanup pattern to `useApplyAutoTheme`, which also calls `removeChannel` on a captured ref.)
-
-### 4. Verify the bug-reports viewer loads
-
-- After change, visit `/admin` on live and confirm `AdminErrorsSection` lists the 50 most recent rows (the underlying query and FK `bug_reports_reporter_id_fkey` are correct — verified directly in DB).
-- Visit `/admin/bugs` and confirm the standalone page renders.
-- Confirm console no longer cycles through "useAuth must be used within an AuthProvider" and the wave of `uuid: "undefined"` 400s.
-
-## Files touched
-
-- New: `src/components/error/LocalErrorBoundary.tsx` (small class component, no UI fallback).
-- `src/App.tsx` — wrap `<DeferredAuthHooks>` and the deferred notification/overlay Suspense block in `LocalErrorBoundary`.
-- `src/components/error/SmartErrorBoundary.tsx` — never flip `hasError` for runtime errors; keep the chunk-load reload branch only.
-- `src/hooks/useGlobalRealtimeMessages.ts` and `src/hooks/useApplyAutoTheme.ts` — guard `removeChannel` cleanups against null refs and wrap in `try/catch`.
-
-No design changes, no schema changes, no new dependencies.
+Confirm you want me to (a) walk you through pause/resume, and then (b) audit the edge functions touched today for connection leaks. I'll implement step 3 once Test is responsive again.
