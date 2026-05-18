@@ -97,22 +97,27 @@ export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> 
   if (typeof window === 'undefined') return null;
   const w = window as any;
 
-  return await new Promise<string | null>(async (resolve) => {
+  return await new Promise<string | null>((resolve) => {
     let settled = false;
     const previousCallback = w.readNFCResult;
     const initialValues = new Map(DESPIA_CALLBACK_KEYS.map((key) => [key, normalizeNfcPayload(w[key])]));
+    let timer: number | undefined;
+    let poll: number | undefined;
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      if (poll) clearInterval(poll);
+      w.readNFCResult = previousCallback;
+    };
     const finish = (payload: unknown, source: string) => {
       if (settled) return;
       const normalized = normalizeNfcPayload(payload);
       console.log('[despiaBridge] NFC result', { source, hasPayload: Boolean(normalized), tag: typeof payload });
       if (!normalized) return;
       settled = true;
-      clearInterval(poll);
-      clearTimeout(timer);
-      w.readNFCResult = previousCallback;
+      cleanup();
       resolve(normalized);
     };
-    const poll = window.setInterval(() => {
+    poll = window.setInterval(() => {
       for (const key of DESPIA_CALLBACK_KEYS) {
         const current = normalizeNfcPayload(w[key]);
         if (current && current !== initialValues.get(key)) {
@@ -121,11 +126,10 @@ export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> 
         }
       }
     }, 100);
-    const timer = window.setTimeout(() => {
+    timer = window.setTimeout(() => {
       if (settled) return;
       settled = true;
-      clearInterval(poll);
-      w.readNFCResult = previousCallback;
+      cleanup();
       console.warn('[despiaBridge] NFC read timed out');
       resolve(null);
     }, timeoutMs);
@@ -137,13 +141,15 @@ export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> 
       }
     };
 
-    const bridges = ['readnfc://', 'nfcread://', 'scannfc://', 'nfc://read'];
-    for (const url of bridges) {
-      if (settled) break;
-      console.log('[despiaBridge] requesting NFC bridge', url);
-      void despiaCall(url);
-      await new Promise((r) => setTimeout(r, 150));
-    }
+    void (async () => {
+      const bridges = ['readnfc://', 'nfcread://', 'scannfc://', 'nfc://read'];
+      for (const url of bridges) {
+        if (settled) break;
+        console.log('[despiaBridge] requesting NFC bridge', url);
+        void despiaCall(url);
+        await new Promise((r) => setTimeout(r, 150));
+      }
+    })();
   });
 }
 
