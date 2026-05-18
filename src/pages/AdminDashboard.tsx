@@ -60,7 +60,7 @@ const navItems: NavItem[] = [
 ];
 
 export default function AdminDashboard() {
-  const { profile } = useAuth();
+  const { authReady, user } = useAuth();
   const { data: userRole, isLoading: roleLoading } = useUserRole();
   const { data: reports = [] } = useReports();
   const { data: flags = [] } = useContentFlags();
@@ -82,6 +82,7 @@ export default function AdminDashboard() {
       if (error) throw error;
       return data || [];
     },
+    enabled: authReady && !!user,
   });
 
   // Appeals query
@@ -95,6 +96,7 @@ export default function AdminDashboard() {
       if (error) throw error;
       return data || [];
     },
+    enabled: authReady && !!user,
   });
 
   // Bug reports count for badge
@@ -109,6 +111,7 @@ export default function AdminDashboard() {
       return count || 0;
     },
     staleTime: 30_000,
+    enabled: authReady && !!user && (userRole === 'admin' || userRole === 'owner'),
   });
 
   // Submissions count for badge (mod apps + creator apps)
@@ -122,12 +125,13 @@ export default function AdminDashboard() {
       return (modRes.count || 0) + (creatorRes.count || 0);
     },
     staleTime: 30_000,
+    enabled: authReady && !!user && (userRole === 'admin' || userRole === 'owner'),
   });
 
-  const isAdmin = userRole === 'admin';
-  const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
+  const isAdmin = userRole === 'admin' || userRole === 'owner';
+  const isModOrAdmin = userRole === 'admin' || userRole === 'owner' || userRole === 'moderator';
 
-  if (roleLoading) {
+  if (!authReady || roleLoading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-screen">
