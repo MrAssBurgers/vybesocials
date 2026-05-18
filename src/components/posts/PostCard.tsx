@@ -716,7 +716,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         return (
           <div className="relative w-full cursor-pointer" onDoubleClick={handleDoubleTap}>
             {post.type === 'video' ? (
-              <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />
+              <SmartErrorBoundary fallback={<div className="w-full aspect-video bg-black" />}>
+                <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />
+              </SmartErrorBoundary>
             ) : allUrls.length > 1 ? (
               <PostCarousel urls={allUrls} onDoubleTap={handleDoubleTap} />
             ) : (
