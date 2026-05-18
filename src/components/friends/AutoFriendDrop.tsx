@@ -15,13 +15,29 @@ import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { getPreloadedStream } from '@/hooks/useCameraPreload';
+import { getPreloadedStream, requestCameraStream, stopCameraStream } from '@/hooks/useCameraPreload';
 import jsQR from 'jsqr';
 import { getPrimaryHex } from '@/lib/themeColor';
 import { navVisibility } from '@/lib/navVisibility';
 import { cn } from '@/lib/utils';
 import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
 import { despiaScanNFC, isDespiaRuntime, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
+
+function decodeNfcText(text: string): string {
+  const trimmed = text.trim();
+  try { return decodeURIComponent(trimmed); } catch { return trimmed; }
+}
+
+function extractFriendTarget(text: string): { type: 'drop' | 'user'; id: string } | null {
+  const decoded = decodeNfcText(text);
+  const dropMatch = decoded.match(/(?:https?:\/\/[^\s]+)?\/friend-drop\/([a-zA-Z0-9-]+)/);
+  if (dropMatch) return { type: 'drop', id: dropMatch[1] };
+  const userMatch = decoded.match(/(?:https?:\/\/[^\s]+)?\/add-friend\/([a-zA-Z0-9-]+)/);
+  if (userMatch) return { type: 'user', id: userMatch[1] };
+  const schemeMatch = decoded.match(/^vybe:friend:([a-zA-Z0-9-]+)$/);
+  if (schemeMatch) return { type: 'user', id: schemeMatch[1] };
+  return null;
+}
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 type ActiveTab = 'tap' | 'qr';
@@ -47,6 +63,7 @@ export function AutoFriendDrop() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('tap');
   const [qrSvg, setQrSvg] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const webNfcRef = useRef<AbortController | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -168,6 +185,9 @@ export function AutoFriendDrop() {
   const stopScanning = useCallback(() => {
     if (animationFrameRef.current) { cancelAnimationFrame(animationFrameRef.current); animationFrameRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    try { stopCameraStream(); } catch {}
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraStarting(false);
     setCameraActive(false);
   }, []);
 
@@ -210,11 +230,9 @@ export function AutoFriendDrop() {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
       if (code) {
-        const url = code.data;
-        const dropMatch = url?.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
-        if (dropMatch) { await handleDropScan(dropMatch[1]); return; }
-        const userMatch = url?.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
-        if (userMatch && userMatch[1] !== user?.id) { handleFoundUser(userMatch[1]); return; }
+        const target = extractFriendTarget(code.data || '');
+        if (target?.type === 'drop') { await handleDropScan(target.id); return; }
+        if (target?.type === 'user' && target.id !== user?.id) { handleFoundUser(target.id); return; }
       }
       animationFrameRef.current = requestAnimationFrame(scanFrame);
     };
@@ -225,14 +243,14 @@ export function AutoFriendDrop() {
 
   const startCamera = useCallback(async () => {
     if (streamRef.current) return; // already running
+    setCameraStarting(true);
     setCameraError(null);
     try {
       let stream = getPreloadedStream();
       if (!stream) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
-        });
+        stream = await requestCameraStream({ facingMode: 'environment', width: 640, height: 480 });
       }
+      if (!stream) throw new Error('Camera stream unavailable');
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -248,32 +266,45 @@ export function AutoFriendDrop() {
         : 'Camera unavailable — try again or use Phone Tap';
       setCameraError(msg);
       toast.error(msg);
+    } finally {
+      setCameraStarting(false);
     }
   }, []);
 
   // Route an NFC payload string into either /friend-drop/:id or /add-friend/:id
   const dispatchNfcPayload = useCallback((text: string): boolean => {
-    const dropMatch = text.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
-    if (dropMatch) { handleDropScan(dropMatch[1]); return true; }
-    const userMatch = text.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
-    if (userMatch && userMatch[1] !== user?.id) { handleFoundUser(userMatch[1]); return true; }
+    const target = extractFriendTarget(text);
+    console.log('[FriendLink] NFC payload parsed', { hasTarget: Boolean(target), targetType: target?.type });
+    if (!target) return false;
+    if (target.type === 'drop') { handleDropScan(target.id); return true; }
+    if (target.id !== user?.id) { handleFoundUser(target.id); return true; }
     return false;
   }, [handleDropScan, handleFoundUser, user?.id]);
 
   // NFC scan — prefers Despia's native bridge in the wrapped Android app,
   // falls back to Web NFC for Chrome on Android. iOS shows a "use QR" toast.
   const startWebNfcScan = useCallback(async () => {
+    const inDespiaAndroid = isDespiaRuntime() && isAndroidUA();
+    console.log('[FriendLink] NFC start', {
+      inDespia: isDespiaRuntime(),
+      isAndroid: isAndroidUA(),
+      hasWebNfc: typeof window !== 'undefined' && 'NDEFReader' in window,
+    });
     // 1) Despia Android shell → native bridge first.
-    if (isDespiaRuntime() && isAndroidUA()) {
+    if (inDespiaAndroid) {
       toast.success('NFC scanning — hold phones together back-to-back', { duration: 4000 });
       const payload = await despiaScanNFC();
+      console.log('[FriendLink] Despia NFC completed', { hasPayload: Boolean(payload) });
       if (payload) {
         if (!dispatchNfcPayload(payload)) {
           toast.error("That tag isn't a VYBE link");
         }
         return;
       }
-      // Despia bridge timed out / no tag — try Web NFC if the WebView happens to expose it.
+      // Despia's native bridge is the source of truth inside the app. If it
+      // timed out, don't fall through to Web NFC and show the wrong error.
+      toast.info('No NFC tag detected — try again or use QR');
+      return;
     }
 
     // 2) iOS (Despia or browser) — Web NFC isn't supported.
@@ -312,7 +343,7 @@ export function AutoFriendDrop() {
     } catch (err: any) {
       console.warn('[FriendLink] Web NFC failed:', err);
       // Despia Android: WebView rejected — retry via native bridge once.
-      if (isDespiaRuntime() && isAndroidUA()) {
+      if (inDespiaAndroid) {
         const payload = await despiaScanNFC();
         if (payload) {
           if (!dispatchNfcPayload(payload)) toast.error("That tag isn't a VYBE link");
@@ -399,16 +430,13 @@ export function AutoFriendDrop() {
     };
   }, [isActive]);
 
-  // Start camera only when QR scanning is visible. The tab onClick also kicks
-  // startCamera() inside the user gesture so iOS doesn't reject getUserMedia.
+  // Stop camera when leaving QR. Starting stays in the tab/button tap handler
+  // so native shells don't reject getUserMedia or show a browser placeholder.
   useEffect(() => {
     if (!isActive || phase !== 'activated') return;
-    if (activeTab === 'qr') {
-      startCamera();
-      return () => { stopScanning(); };
-    }
-    stopScanning();
-  }, [isActive, phase, activeTab, startCamera, stopScanning]);
+    if (activeTab !== 'qr') stopScanning();
+    return () => { if (activeTab !== 'qr') stopScanning(); };
+  }, [isActive, phase, activeTab, stopScanning]);
 
   // Start NFC/native tap when switching to Phone Tap. Falls back to Web NFC.
   const despiaNfcAutoStartedRef = useRef(false);
@@ -717,8 +745,24 @@ export function AutoFriendDrop() {
                       </div>
 
                       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[24px] border border-primary/20 bg-card">
-                        <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
+                        <video ref={videoRef} className={cn('h-full w-full object-cover', !cameraActive && 'opacity-0')} playsInline muted autoPlay />
                         <canvas ref={canvasRef} className="hidden" />
+                        {cameraStarting && !cameraActive && !cameraError && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-secondary/70 px-4 text-center">
+                            <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                            <span className="text-xs font-bold text-foreground">Opening camera…</span>
+                          </div>
+                        )}
+                        {!cameraStarting && !cameraActive && !cameraError && (
+                          <button
+                            type="button"
+                            onClick={() => startCamera()}
+                            className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-secondary/70 px-4 text-center active:scale-[0.99]"
+                          >
+                            <ScanLine className="h-7 w-7 text-primary" />
+                            <span className="text-xs font-bold text-foreground">Tap to open camera</span>
+                          </button>
+                        )}
                         {cameraError && !cameraActive && (
                           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-secondary/60 px-4 text-center">
                             <ScanLine className="h-7 w-7 text-primary" />
@@ -751,14 +795,18 @@ export function AutoFriendDrop() {
                             />
                           ))}
                         </div>
-                        <motion.div
-                          className="absolute left-6 right-6 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent shadow-lg shadow-primary"
-                          animate={{ top: ['22px', 'calc(100% - 24px)', '22px'] }}
-                          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-                        />
-                        <div className="absolute bottom-4 inset-x-0 flex justify-center">
-                          <span className="rounded-full bg-card/90 px-4 py-1.5 text-xs font-bold text-foreground backdrop-blur-sm">Point at a friend's QR</span>
-                        </div>
+                        {cameraActive && (
+                          <>
+                            <motion.div
+                              className="absolute left-6 right-6 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent shadow-lg shadow-primary"
+                              animate={{ top: ['22px', 'calc(100% - 24px)', '22px'] }}
+                              transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                            />
+                            <div className="absolute bottom-4 inset-x-0 flex justify-center">
+                              <span className="rounded-full bg-card/90 px-4 py-1.5 text-xs font-bold text-foreground backdrop-blur-sm">Point at a friend's QR</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </motion.div>
                   )}
