@@ -89,12 +89,11 @@ export function useAppPreloader() {
       return;
     }
 
-    // Safety timeout - 1.5 seconds max so the splash never blocks the user.
+    // Safety timeout - 600ms max so the splash never blocks the user.
     // Page-level queries will hydrate behind the scenes via React Query.
     const safetyTimeout = setTimeout(() => {
-      console.warn('[Preloader] Safety timeout reached, forcing complete');
       animateTo(100, 'Ready!', true);
-    }, 1500);
+    }, 600);
 
     const preload = async () => {
       const startTime = performance.now();
@@ -102,7 +101,6 @@ export function useAppPreloader() {
       try {
         // Step 1: Initialize
         updateStatus('init');
-        await new Promise(r => setTimeout(r, 80)); // tiny delay so user sees first frame
 
         // Step 2: Check authentication with tight timeout — splash should never wait long.
         updateStatus('auth');
@@ -111,11 +109,11 @@ export function useAppPreloader() {
         try {
           const authResult = await Promise.race([
             supabase.auth.getSession(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 1000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 400))
           ]) as { data: { session: any } };
           session = authResult.data.session;
         } catch {
-          console.warn('[Preloader] Auth check slow, continuing — page-level queries will hydrate');
+          /* splash continues — page-level queries hydrate in background */
         }
 
         if (!session?.user) {
@@ -175,7 +173,7 @@ export function useAppPreloader() {
         try {
           const result = await Promise.race([
             profilePromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Profile timeout')), 800)),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Profile timeout')), 400)),
           ]) as any;
           profileData = result?.data || null;
         } catch {

@@ -104,7 +104,17 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1000,
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query', 'framer-motion'],
+      include: [
+        'react', 'react-dom', 'react-router-dom',
+        '@tanstack/react-query', '@tanstack/react-query-persist-client',
+        'framer-motion',
+        '@supabase/supabase-js',
+        'lucide-react',
+        'clsx', 'tailwind-merge', 'class-variance-authority',
+        'date-fns',
+        'i18next', 'react-i18next', 'i18next-browser-languagedetector',
+        'zod', 'react-hook-form', '@hookform/resolvers/zod',
+      ],
     },
   };
 });

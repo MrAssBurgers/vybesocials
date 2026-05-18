@@ -390,7 +390,7 @@ const App = memo(() => {
             <AccessibilityProvider>
               {/* Tween defaults remove per-frame spring physics app-wide; components that
                   need a spring still opt-in explicitly via their own `transition` prop. */}
-              <MotionConfig reducedMotion="user" transition={{ type: 'tween', ease: [0.22, 1, 0.36, 1], duration: 0.22 }}>
+              <MotionConfig reducedMotion="user" transition={{ type: 'tween', ease: [0.22, 1, 0.36, 1], duration: 0.18 }}>
                 <AppWithPreloader />
               </MotionConfig>
             </AccessibilityProvider>
