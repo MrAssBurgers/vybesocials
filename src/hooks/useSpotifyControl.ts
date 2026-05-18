@@ -8,6 +8,7 @@ export type SpotifyAction =
   | { action: 'next' }
   | { action: 'previous' }
   | { action: 'seek'; position_ms: number }
+  | { action: 'shuffle'; state: boolean }
   | { action: 'start_playlist'; playlist_id: string }
   | { action: 'start_track'; track_id: string; position_ms?: number };
 

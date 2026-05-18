@@ -41,13 +41,14 @@ function interpretStatus(status: number) {
   return null;
 }
 
-function buildRequest(action: string, params: { positionMs: number | null; playlistId: string | null; trackId: string | null }) {
+function buildRequest(action: string, params: { positionMs: number | null; playlistId: string | null; trackId: string | null; shuffleState: boolean | null }) {
   switch (action) {
     case 'play': return { url: 'https://api.spotify.com/v1/me/player/play', method: 'PUT', body: undefined };
     case 'pause': return { url: 'https://api.spotify.com/v1/me/player/pause', method: 'PUT', body: undefined };
     case 'next': return { url: 'https://api.spotify.com/v1/me/player/next', method: 'POST', body: undefined };
     case 'previous': return { url: 'https://api.spotify.com/v1/me/player/previous', method: 'POST', body: undefined };
     case 'seek': return { url: `https://api.spotify.com/v1/me/player/seek?position_ms=${params.positionMs ?? 0}`, method: 'PUT', body: undefined };
+    case 'shuffle': return { url: `https://api.spotify.com/v1/me/player/shuffle?state=${params.shuffleState ? 'true' : 'false'}`, method: 'PUT', body: undefined };
     case 'start_playlist': return { url: 'https://api.spotify.com/v1/me/player/play', method: 'PUT', body: JSON.stringify({ context_uri: `spotify:playlist:${params.playlistId}` }) };
     case 'start_track': return { url: 'https://api.spotify.com/v1/me/player/play', method: 'PUT', body: JSON.stringify({ uris: [`spotify:track:${params.trackId}`], position_ms: params.positionMs ?? 0 }) };
     default: return null;
@@ -67,8 +68,9 @@ Deno.serve(async (req) => {
     const positionMs = Number.isFinite(body?.position_ms) ? Math.max(0, Number(body.position_ms)) : null;
     const playlistId = body?.playlist_id ? String(body.playlist_id) : null;
     const trackId = body?.track_id ? String(body.track_id) : null;
+    const shuffleState = typeof body?.state === 'boolean' ? body.state : null;
 
-    const req_ = buildRequest(action, { positionMs, playlistId, trackId });
+    const req_ = buildRequest(action, { positionMs, playlistId, trackId, shuffleState });
     if (!req_) {
       return new Response(JSON.stringify({ error: 'invalid action' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
