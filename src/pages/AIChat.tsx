@@ -546,73 +546,62 @@ export default function AIChat() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-3">
-          {messages.map((message, index) => (
-            <motion.div
-              key={index}
-              initial={index === messages.length - 1 ? { opacity: 0, y: 8 } : false}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              className={cn("flex gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}
-            >
-              {message.role === 'assistant' && (
-                <div className="relative flex-shrink-0 mt-0.5">
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary blur-sm opacity-50 animate-pulse" />
-                  <div className="relative h-7 w-7 rounded-full p-[1.5px] bg-gradient-to-br from-primary via-accent to-primary shadow-sm shadow-primary/40">
-                    <div className="h-full w-full rounded-full bg-gradient-to-br from-background via-card to-background flex items-center justify-center overflow-hidden">
-                      <VybeMiniIcon size={14} showSparkles className="relative z-10 drop-shadow-[0_0_4px_hsl(var(--primary)/0.8)]" />
-                    </div>
+          {messages.map((message, index) => {
+            const isOwn = message.role === 'user';
+            return (
+              <motion.div
+                key={index}
+                initial={index === messages.length - 1 ? { opacity: 0, y: 8 } : false}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className={cn("flex", isOwn ? 'justify-end' : 'justify-start')}
+              >
+                <div className="flex flex-col max-w-[78%]">
+                  <div
+                    className={cn(
+                      'relative rounded-[20px] break-words overflow-hidden max-w-full min-w-0 w-fit',
+                      'px-[14px] py-[10px] sm:px-4 sm:py-3 text-[14px] leading-relaxed',
+                      isOwn
+                        ? 'bg-primary text-primary-foreground rounded-br-lg'
+                        : 'bg-muted/70 text-foreground rounded-bl-lg'
+                    )}
+                  >
+                    {message.imageUrl && (
+                      <img
+                        src={message.imageUrl}
+                        alt="Uploaded"
+                        className="rounded-lg mb-1.5 max-w-full max-h-48 object-cover"
+                      />
+                    )}
+                    {!isOwn ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-1 [&_p:last-child]:mb-0 [&_pre]:text-xs [&_code]:text-xs">
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      </div>
+                    ) : (message.content !== '📷 [Image]' ? message.content : null)}
                   </div>
+                  <span
+                    className={cn(
+                      'text-[10px] text-muted-foreground/60 mt-1 px-1',
+                      isOwn ? 'text-right' : 'text-left'
+                    )}
+                  >
+                    {formatTime(message.timestamp)}
+                  </span>
                 </div>
-              )}
-              <div className="flex flex-col max-w-[82%]">
-                <div className={cn(
-                  "rounded-2xl px-3 py-2 text-[13px] leading-relaxed",
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground rounded-tr-md'
-                    : 'bg-muted/60 rounded-tl-md border border-border/30'
-                )}>
-                  {/* Render image if present */}
-                  {message.imageUrl && (
-                    <img 
-                      src={message.imageUrl} 
-                      alt="Uploaded" 
-                      className="rounded-lg mb-1.5 max-w-full max-h-48 object-cover"
-                    />
-                  )}
-                  {message.role === 'assistant' ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-1 [&_p:last-child]:mb-0 [&_pre]:text-xs [&_code]:text-xs">
-                      <ReactMarkdown>{message.content}</ReactMarkdown>
-                    </div>
-                  ) : (message.content !== '📷 [Image]' ? message.content : null)}
-                </div>
-                <span className={cn(
-                  "text-[9px] text-muted-foreground/60 mt-0.5 px-1",
-                  message.role === 'user' ? 'text-right' : 'text-left'
-                )}>
-                  {formatTime(message.timestamp)}
-                </span>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
 
-          {/* Live streaming bubble */}
+          {/* Live streaming bubble — matches DM incoming style */}
           {isLoading && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.2 }}
-              className="flex gap-2 justify-start"
+              className="flex justify-start"
             >
-              <div className="relative flex-shrink-0 mt-0.5">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary blur-sm opacity-50 animate-pulse" />
-                <div className="relative h-7 w-7 rounded-full p-[1.5px] bg-gradient-to-br from-primary via-accent to-primary shadow-sm shadow-primary/40">
-                  <div className="h-full w-full rounded-full bg-gradient-to-br from-background via-card to-background flex items-center justify-center overflow-hidden">
-                    <VybeMiniIcon size={14} showSparkles className="relative z-10 drop-shadow-[0_0_4px_hsl(var(--primary)/0.8)]" />
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-col max-w-[82%]">
-                <div className="rounded-2xl px-3 py-2 text-[13px] leading-relaxed bg-muted/60 rounded-tl-md border border-border/30">
+              <div className="flex flex-col max-w-[78%]">
+                <div className="relative rounded-[20px] rounded-bl-lg break-words overflow-hidden max-w-full min-w-0 w-fit px-[14px] py-[10px] sm:px-4 sm:py-3 text-[14px] leading-relaxed bg-muted/70 text-foreground">
                   {streamingText ? (
                     <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-1 [&_p:last-child]:mb-0 [&_pre]:text-xs [&_code]:text-xs">
                       <ReactMarkdown>{streamingText}</ReactMarkdown>

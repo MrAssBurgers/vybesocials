@@ -95,12 +95,12 @@ export const VideoThumbnail = memo(function VideoThumbnail({
     if (signedThumbnail) setIsLoading(false);
   }, [signedThumbnail]);
 
-  // Soft dark gradient placeholder — never the white play-button fallback
+  // Solid black placeholder — never a white/play-button flash
   if (hasError || !displayUrl) {
     return (
       <div
         className={cn(
-          'w-full h-full bg-gradient-to-br from-muted/80 via-muted/60 to-background/80',
+          'w-full h-full bg-black',
           isLoading && 'animate-pulse',
           className
         )}

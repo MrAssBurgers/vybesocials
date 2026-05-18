@@ -3,10 +3,12 @@ import { usePushNotifications } from './usePushNotifications';
 import { useAuth } from '@/lib/auth';
 
 const SNOOZE_KEY = 'vybe_push_prompt_snoozed_until';
-const SNOOZE_DAYS = 7;
+const DISABLED_KEY = 'vybe_push_prompt_disabled';
+const SNOOZE_DAYS = 30;
 
 function isSnoozed(): boolean {
   try {
+    if (localStorage.getItem(DISABLED_KEY) === '1') return true;
     const raw = localStorage.getItem(SNOOZE_KEY);
     if (!raw) return false;
     const until = new Date(raw).getTime();
@@ -42,19 +44,25 @@ export function useEnablePushPrompt() {
     if (!isSupported) return;
     if (isCheckingSubscription) return;
     if (isSubscribed) return;
-    if (permission === 'denied') return;
+    if (permission === 'denied' || permission === 'granted') return;
     if (isSnoozed()) return;
     setOpen(true);
   }, [ready, profile?.id, isSupported, isCheckingSubscription, isSubscribed, permission]);
 
-  // If user subscribes elsewhere, close
+  // If user subscribes elsewhere (or browser flips to granted), close and lock
   useEffect(() => {
-    if (isSubscribed) setOpen(false);
-  }, [isSubscribed]);
+    if (isSubscribed || permission === 'granted') {
+      setOpen(false);
+      try { localStorage.setItem(DISABLED_KEY, '1'); } catch {}
+    }
+  }, [isSubscribed, permission]);
 
   const onEnable = useCallback(async () => {
     const ok = await subscribe();
-    if (ok) setOpen(false);
+    if (ok) {
+      setOpen(false);
+      try { localStorage.setItem(DISABLED_KEY, '1'); } catch {}
+    }
   }, [subscribe]);
 
   const onDismiss = useCallback(() => {

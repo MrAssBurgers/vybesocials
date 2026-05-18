@@ -47,6 +47,7 @@ import { useInteractionFeedback } from '@/hooks/useInteractionFeedback';
 import { AIBadge } from './AIBadge';
 import { ProductTagBadge } from './ProductTagBadge';
 import { useVideoAds } from '@/hooks/useVideoAds';
+import SmartErrorBoundary from '@/components/error/SmartErrorBoundary';
 // Video player component - maintains the video's native aspect ratio (no cropping)
 // NEVER shows broken placeholder - graceful degradation
 function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
@@ -118,21 +119,24 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   };
 
   const handleClick = async () => {
-    if (!videoRef.current || hasError) return;
+    try {
+      if (!videoRef.current || hasError) return;
 
-    if (!isPlaying) {
-      // YouTube-style pre-video ad on first manual play (frequency-capped inside the hook)
-      if (!adShownRef.current) {
-        adShownRef.current = true;
-        try { await showVideoAd('pre_video'); } catch {}
-        if (!videoRef.current) return;
+      if (!isPlaying) {
+        if (!adShownRef.current) {
+          adShownRef.current = true;
+          try { await showVideoAd('pre_video'); } catch (e) { console.warn('[VideoPlayer] ad failed', e); }
+          if (!videoRef.current) return;
+        }
+        try { videoRef.current.currentTime = 0; } catch {}
+        try { await videoRef.current.play(); } catch (e) { console.warn('[VideoPlayer] play failed', e); }
+        setIsPlaying(true);
+      } else {
+        videoRef.current.muted = !videoRef.current.muted;
+        setIsMuted(!isMuted);
       }
-      videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(() => {});
-      setIsPlaying(true);
-    } else {
-      videoRef.current.muted = !videoRef.current.muted;
-      setIsMuted(!isMuted);
+    } catch (e) {
+      console.error('[VideoPlayer] handleClick crashed', e);
     }
   };
 
@@ -144,11 +148,11 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
     }
   };
 
-  // Failed after retries - show subtle gradient (never broken icon)
+  // Failed after retries - solid black (no broken icon, no gradient flash)
   if (hasError && retryCount >= 2) {
     return (
-      <div className="w-full aspect-video bg-gradient-to-br from-muted/60 via-muted/40 to-muted/20 flex items-end p-4">
-        {caption && <p className="text-sm text-muted-foreground/70 line-clamp-2">✨ {caption}</p>}
+      <div className="w-full aspect-video bg-black flex items-end p-4">
+        {caption && <p className="text-sm text-white/60 line-clamp-2">✨ {caption}</p>}
       </div>
     );
   }
@@ -174,17 +178,17 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
           playsInline
           webkit-playsinline="true"
           preload="metadata"
+          poster=""
+          style={{ backgroundColor: '#000' }}
           onLoadedMetadata={handleLoadedMetadata}
           onLoadedData={handleLoadedData}
           onError={handleError}
         />
 
-        {/* Play indicator when not playing - subtle, on pure black */}
-        {!isPlaying && !hasError && (
+        {/* Subtle play affordance — only after the frame is ready, low-key */}
+        {isLoaded && !isPlaying && !hasError && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="hover:scale-110 active:scale-90 transition-transform">
-              <Play className="h-14 w-14 text-white/80" strokeWidth={1.5} />
-            </div>
+            <Play className="h-12 w-12 text-white/40" strokeWidth={1.5} fill="currentColor" />
           </div>
         )}
 
@@ -713,7 +717,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         return (
           <div className="relative w-full cursor-pointer" onDoubleClick={handleDoubleTap}>
             {post.type === 'video' ? (
-              <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />
+              <SmartErrorBoundary fallback={<div className="w-full aspect-video bg-black" />}>
+                <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />
+              </SmartErrorBoundary>
             ) : allUrls.length > 1 ? (
               <PostCarousel urls={allUrls} onDoubleTap={handleDoubleTap} />
             ) : (
