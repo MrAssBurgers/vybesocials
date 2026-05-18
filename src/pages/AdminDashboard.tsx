@@ -148,7 +148,7 @@ export default function AdminDashboard() {
   // Calculate badges for nav items
   const pendingReports = reports.filter(r => r.status === 'pending').length;
   const pendingFlags = flags.filter(f => f.status === 'pending').length;
-  const pendingAppeals = appeals.filter((a: any) => a.status === 'pending').length;
+  const pendingAppeals = appeals.filter((a) => a.status === 'pending').length;
 
   const getNavBadge = (id: string): number | undefined => {
     switch (id) {
