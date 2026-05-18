@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import despia from 'despia-native';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
+import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
 
 const isDespiaRuntime = () =>
   typeof navigator !== 'undefined' &&
@@ -33,8 +33,9 @@ export function DespiaOneSignalSync() {
           .maybeSingle();
         const externalId = profile?.id ?? authUserId;
 
-        // Despia native shell bridge (no-op on web)
-        despia(`setonesignalplayerid://?user_id=${externalId}`);
+        // Despia native shell bridge (no-op on web). Keep this bounded so
+        // startup/auth never hangs while OneSignal creates the subscription.
+        void ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 0 });
 
         // Web OneSignal SDK bridge — required so web/PWA users receive
         // pushes targeted via include_aliases.external_id. Safe on hosts
@@ -68,9 +69,9 @@ export function DespiaOneSignalSync() {
       try {
         if (localStorage.getItem(PUSH_PERM_KEY)) return;
         localStorage.setItem(PUSH_PERM_KEY, String(Date.now()));
-        // Triggers the native OS push permission dialog. Safe to call once;
-        // subsequent invocations are no-ops on Android/iOS shells.
-        despia('checknativepushpermissions://');
+        void supabase.auth.getUser().then(({ data }) =>
+          setPlayerIdForAuthUser(data.user?.id),
+        );
       } catch (err) {
         console.warn('[Despia] checknativepushpermissions failed:', err);
       }
