@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled } from '@/lib/serviceWorker';
-import despia from 'despia-native';
+import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
 
 function isDespiaWebView(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -147,17 +147,11 @@ export function usePushNotifications() {
   const subscribeDespia = async (): Promise<boolean> => {
     if (!profile) return false;
     try {
-      // Bind OneSignal external user ID
-      try { despia(`setonesignalplayerid://?user_id=${profile.id}`); } catch (err) {
-        console.warn('[Push] setonesignalplayerid failed', err);
-      }
-
-      // Explicitly trigger the native OS permission dialog. This is the
-      // call that surfaces the iOS/Android system prompt. Fire-and-forget
-      // so we don't block the UI on the user's decision.
-      try { despia('checknativepushpermissions://'); } catch (err) {
-        console.warn('[Push] checknativepushpermissions failed', err);
-      }
+      const link = await ensureDespiaOneSignalLinked(profile.id, {
+        requestPermission: true,
+        waitForPlayerIdMs: 1_500,
+      });
+      if (!link.linked) throw new Error('Open the app in Despia to enable push notifications.');
 
       // Persist token row optimistically so the toggle reflects subscribed state.
       // OneSignal handles delivery server-side once the user accepts.
@@ -165,7 +159,7 @@ export function usePushNotifications() {
         .eq('user_id', profile.id).eq('platform', 'despia');
       const { error } = await supabase.from('push_tokens').insert({
         user_id: profile.id,
-        token: `despia:${profile.id}`,
+        token: link.playerId || `despia:${profile.id}`,
         platform: 'despia',
       });
       if (error) throw error;
