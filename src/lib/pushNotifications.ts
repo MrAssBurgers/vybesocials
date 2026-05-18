@@ -1,4 +1,5 @@
- import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
+import { scheduleOfflinePush, isNativeShell } from '@/lib/despiaPush';
  
  /**
   * Send a push notification to a specific user via the edge function
