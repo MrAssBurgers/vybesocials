@@ -85,7 +85,7 @@ export async function fetchDespiaOneSignalPlayerId(waitMs = 0): Promise<string> 
 
 export async function ensureDespiaOneSignalLinked(
   externalId: string,
-  options: { requestPermission?: boolean; waitForPlayerIdMs?: number } = {},
+  options: { requestPermission?: boolean; waitForPlayerIdMs?: number; persistToken?: boolean } = {},
 ): Promise<{ linked: boolean; playerId: string; permission: boolean | null }> {
   if (!externalId || !isDespiaRuntime()) {
     return { linked: false, playerId: '', permission: null };
@@ -110,8 +110,10 @@ export async function ensureDespiaOneSignalLinked(
   window.setTimeout(() => void despiaCall(linkUrl, [], 1_200), 2_500);
 
   const playerId = await fetchDespiaOneSignalPlayerId(options.waitForPlayerIdMs ?? 1_500);
-  persistDespiaPushToken(externalId, playerId).catch((err) => {
-    console.warn('[despiaOneSignal] push token marker save failed', err);
-  });
+  if (options.persistToken !== false) {
+    persistDespiaPushToken(externalId, playerId).catch((err) => {
+      console.warn('[despiaOneSignal] push token marker save failed', err);
+    });
+  }
   return { linked: true, playerId, permission };
 }
