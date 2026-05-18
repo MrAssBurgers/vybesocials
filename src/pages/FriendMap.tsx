@@ -952,8 +952,49 @@ function FriendMapInner() {
     rafId = requestAnimationFrame(tick);
 
     let timeoutId: number | undefined;
+    const isDespia = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('despia');
+    let despiaActive = false;
+    const prevGyroHandler = (window as any).onGyroscopeChange;
     const start = async () => {
       try {
+        // Despia native gyroscope+compass: single channel, no permission prompt.
+        if (isDespia && !fake) {
+          (window as any).onGyroscopeChange = (data: any) => {
+            if (!data) return;
+            if (data.status === 'error') {
+              setHeadingUp(false);
+              toast.error('No compass detected on this device');
+              return;
+            }
+            if (data.status === 'calibration_required') {
+              toast('Move your phone in a figure-8 to calibrate the compass');
+              return;
+            }
+            if (data.status !== 'success') return;
+            if (typeof data.heading !== 'number' || data.heading < 0) return;
+            gotReading = true;
+            const raw = (data.heading + screenAngle()) % 360;
+            targetHeadingRef.current = ((raw % 360) + 360) % 360;
+          };
+          try {
+            const despiaMod: any = await import('despia-native').catch(() => null);
+            const despia = despiaMod?.default || (window as any).despia;
+            if (despia && !despia.gyroscopeActive) {
+              despia('gyroscope://start?threshold=0');
+            }
+            despiaActive = true;
+          } catch (e) {
+            console.warn('[FriendMap] despia gyroscope start failed:', e);
+          }
+          timeoutId = window.setTimeout(() => {
+            if (!gotReading) {
+              setHeadingUp(false);
+              toast.error('No compass detected on this device');
+            }
+          }, 2500);
+          return;
+        }
+
         const Req = (DeviceOrientationEvent as any).requestPermission;
         if (typeof Req === 'function') {
           const res = await Req();
@@ -980,6 +1021,13 @@ function FriendMapInner() {
       if (timeoutId) clearTimeout(timeoutId);
       window.removeEventListener('deviceorientationabsolute', absoluteHandler as any, true);
       window.removeEventListener('deviceorientation', relativeHandler as any, true);
+      if (despiaActive) {
+        try {
+          const despia = (window as any).despia;
+          if (despia) despia('gyroscope://stop');
+        } catch {}
+        (window as any).onGyroscopeChange = prevGyroHandler;
+      }
     };
   }, [headingUp]);
 
