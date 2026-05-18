@@ -58,6 +58,26 @@ export async function despiaCall(
 }
 
 /**
+ * Scan an NFC tag via Despia's native bridge. Returns the raw decoded
+ * payload string (URL/text) from the first responding bridge, or null
+ * if not in Despia, not Android, or nothing was scanned.
+ *
+ * Callers are responsible for parsing the payload (e.g. friend URL).
+ */
+export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> {
+  if (!isDespiaRuntime() || !isAndroidUA()) return null;
+  const bridges = ['nfcread://', 'scannfc://', 'nfc://read'];
+  for (const url of bridges) {
+    const result = await despiaCall(url, ['nfcResult', 'payload', 'data', 'url'], timeoutMs);
+    if (!result) continue;
+    const raw =
+      result.nfcResult || result.payload || result.data || result.url || '';
+    if (typeof raw === 'string' && raw) return raw;
+  }
+  return null;
+}
+
+/**
  * Open the OS app-settings page for the wrapped app so the user can
  * grant NFC / Camera / etc. permission. Falls back to a generic settings URL.
  */

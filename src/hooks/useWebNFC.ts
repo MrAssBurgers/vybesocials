@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { despiaScanNFC, isDespiaRuntime, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
 
 /**
  * Web NFC hook — works on Android Chrome (and Despia Android WebView).
@@ -10,14 +11,11 @@ import { toast } from 'sonner';
  */
 
 function isDespiaWebView(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent.toLowerCase();
-  return ua.includes('despia') || ua.includes('vybeapp');
+  return isDespiaRuntime();
 }
 
 function isIOS(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+  return isIOSUA();
 }
 
 export interface NFCRecord {
@@ -47,7 +45,10 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
   onReadRef.current = onRead;
 
   useEffect(() => {
-    setIsAvailable(typeof window !== 'undefined' && 'NDEFReader' in window);
+    const hasWeb = typeof window !== 'undefined' && 'NDEFReader' in window;
+    // Despia Android shell exposes a native NFC bridge even without Web NFC.
+    const hasDespia = isDespiaRuntime() && isAndroidUA();
+    setIsAvailable(hasWeb || hasDespia);
   }, []);
 
   const stop = useCallback(() => {
@@ -59,9 +60,33 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
     setIsScanning(false);
   }, []);
 
+  const tryDespiaBridge = useCallback(async (): Promise<boolean> => {
+    if (!isDespiaRuntime() || !isAndroidUA()) return false;
+    setIsScanning(true);
+    toast.success('Hold a tag near your phone…', { duration: 3000 });
+    const payload = await despiaScanNFC();
+    setIsScanning(false);
+    if (!payload) return false;
+    onReadRef.current?.({
+      serialNumber: '',
+      records: [{ recordType: payload.startsWith('http') ? 'url' : 'text', data: payload }],
+      raw: { source: 'despia', payload },
+    });
+    return true;
+  }, []);
+
   const start = useCallback(async () => {
     setError(null);
     if (!('NDEFReader' in window)) {
+      // Despia Android: use the native NFC bridge instead.
+      if (isDespiaRuntime() && isAndroidUA()) {
+        const ok = await tryDespiaBridge();
+        if (ok) return true;
+        const msg = 'No NFC tag detected — try again';
+        setError(msg);
+        toast.error(msg);
+        return false;
+      }
       const msg = isIOS()
         ? 'NFC isn\'t supported on iOS — use the QR code instead'
         : isDespiaWebView()
@@ -103,6 +128,11 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
       return true;
     } catch (err: any) {
       console.error('[NFC] start failed', err);
+      // Web NFC rejected in Despia Android shell — fall back to native bridge.
+      if (isDespiaRuntime() && isAndroidUA()) {
+        const ok = await tryDespiaBridge();
+        if (ok) return true;
+      }
       const name = err?.name || '';
       const msg =
         name === 'NotAllowedError'
@@ -115,7 +145,7 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
       setIsScanning(false);
       return false;
     }
-  }, []);
+  }, [tryDespiaBridge]);
 
   useEffect(() => {
     if (autoStart && isAvailable) {

@@ -21,6 +21,7 @@ import { getPrimaryHex } from '@/lib/themeColor';
 import { navVisibility } from '@/lib/navVisibility';
 import { cn } from '@/lib/utils';
 import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
+import { despiaScanNFC, isDespiaRuntime, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 type ActiveTab = 'tap' | 'qr';
@@ -250,11 +251,46 @@ export function AutoFriendDrop() {
     }
   }, []);
 
-  // Web NFC fallback for non-native devices (Chrome Android over HTTPS).
+  // Route an NFC payload string into either /friend-drop/:id or /add-friend/:id
+  const dispatchNfcPayload = useCallback((text: string): boolean => {
+    const dropMatch = text.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
+    if (dropMatch) { handleDropScan(dropMatch[1]); return true; }
+    const userMatch = text.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
+    if (userMatch && userMatch[1] !== user?.id) { handleFoundUser(userMatch[1]); return true; }
+    return false;
+  }, [handleDropScan, handleFoundUser, user?.id]);
+
+  // NFC scan — prefers Despia's native bridge in the wrapped Android app,
+  // falls back to Web NFC for Chrome on Android. iOS shows a "use QR" toast.
   const startWebNfcScan = useCallback(async () => {
+    // 1) Despia Android shell → native bridge first.
+    if (isDespiaRuntime() && isAndroidUA()) {
+      toast.success('NFC scanning — hold phones together back-to-back', { duration: 4000 });
+      const payload = await despiaScanNFC();
+      if (payload) {
+        if (!dispatchNfcPayload(payload)) {
+          toast.error("That tag isn't a VYBE link");
+        }
+        return;
+      }
+      // Despia bridge timed out / no tag — try Web NFC if the WebView happens to expose it.
+    }
+
+    // 2) iOS (Despia or browser) — Web NFC isn't supported.
+    if (isIOSUA()) {
+      toast.error("NFC isn't supported on iPhone — use the QR tab", { duration: 5000 });
+      return;
+    }
+
+    // 3) Web NFC (Chrome on Android).
     const NDEFReader = (window as any).NDEFReader;
     if (!NDEFReader) {
-      toast.error('NFC not supported on this device — use the QR tab');
+      // Last-ditch: Despia Android with no Web NFC and no payload received — be clear.
+      if (isDespiaRuntime() && isAndroidUA()) {
+        toast.error('No NFC tag detected — try again or use QR');
+      } else {
+        toast.error("This device can't scan NFC — switch to QR");
+      }
       return;
     }
     try {
@@ -268,19 +304,28 @@ export function AutoFriendDrop() {
           try {
             const decoder = new TextDecoder(record.encoding || 'utf-8');
             const text = decoder.decode(record.data);
-            const dropMatch = text.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
-            if (dropMatch) { handleDropScan(dropMatch[1]); return; }
-            const userMatch = text.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
-            if (userMatch && userMatch[1] !== user?.id) { handleFoundUser(userMatch[1]); return; }
+            if (dispatchNfcPayload(text)) return;
           } catch {}
         }
       };
-      toast.success('Hold your phone near a friend\'s phone');
+      toast.success("Hold your phone near a friend's phone");
     } catch (err: any) {
       console.warn('[FriendLink] Web NFC failed:', err);
-      toast.error(err?.name === 'NotAllowedError' ? 'NFC permission denied' : 'NFC unavailable on this device');
+      // Despia Android: WebView rejected — retry via native bridge once.
+      if (isDespiaRuntime() && isAndroidUA()) {
+        const payload = await despiaScanNFC();
+        if (payload) {
+          if (!dispatchNfcPayload(payload)) toast.error("That tag isn't a VYBE link");
+          return;
+        }
+      }
+      toast.error(
+        err?.name === 'NotAllowedError'
+          ? 'NFC permission denied — enable it in app settings'
+          : "This device can't scan NFC — switch to QR"
+      );
     }
-  }, [handleDropScan, handleFoundUser, user?.id]);
+  }, [dispatchNfcPayload]);
 
   const handleBump = useCallback(async () => {
     if (!profile?.username || !user) return;
@@ -366,16 +411,25 @@ export function AutoFriendDrop() {
   }, [isActive, phase, activeTab, startCamera, stopScanning]);
 
   // Start NFC/native tap when switching to Phone Tap. Falls back to Web NFC.
+  const despiaNfcAutoStartedRef = useRef(false);
   useEffect(() => {
     if (isActive && activeTab === 'tap') {
       if (nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
         nativeFriendDrop.startSession();
+      } else if (!nativeFriendDrop.isAvailable && isDespiaRuntime() && isAndroidUA() && !despiaNfcAutoStartedRef.current) {
+        // Inside Despia Android: auto-fire the native NFC bridge so the user
+        // doesn't need an extra tap. Guard ref prevents re-firing on rerenders.
+        despiaNfcAutoStartedRef.current = true;
+        startWebNfcScan();
       }
+    }
+    if (!isActive || activeTab !== 'tap') {
+      despiaNfcAutoStartedRef.current = false;
     }
     return () => {
       if (webNfcRef.current) { webNfcRef.current.abort(); webNfcRef.current = null; }
     };
-  }, [isActive, activeTab, nativeFriendDrop]);
+  }, [isActive, activeTab, nativeFriendDrop, startWebNfcScan]);
 
   const tapLive = activeTab === 'tap' && (nativeFriendDrop.isActive || !nativeFriendDrop.isAvailable);
 

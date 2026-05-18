@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
-import { isDespiaRuntime, despiaCall, openAppSettings, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
+import { isDespiaRuntime, despiaCall, despiaScanNFC, openAppSettings, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
 
 interface NFCState {
   isSupported: boolean;
@@ -84,23 +84,16 @@ function isWebNFCSupported(): boolean {
 // Despia native NFC bridge — available in the wrapped Android app even when
 // Web NFC permission has been denied. Returns true if a payload was decoded.
 async function despiaNFCScan(onTagScanned: (userId: string) => void): Promise<boolean> {
-  // Try a few known Despia NFC bridge URLs — Despia has shipped under several names.
-  const bridges = ['nfcread://', 'scannfc://', 'nfc://read'];
-  for (const url of bridges) {
-    const result = await despiaCall(url, ['nfcResult', 'payload', 'data', 'url'], 30_000);
-    if (!result) continue;
-    const raw =
-      result.nfcResult || result.payload || result.data || result.url || '';
-    if (typeof raw !== 'string' || !raw) continue;
-    const userId = parseFriendAddUrl(raw);
-    if (userId) {
-      onTagScanned(userId);
-      return true;
-    }
-    if (raw.startsWith('vybe:friend:')) {
-      onTagScanned(raw.replace('vybe:friend:', ''));
-      return true;
-    }
+  const raw = await despiaScanNFC();
+  if (!raw) return false;
+  const userId = parseFriendAddUrl(raw);
+  if (userId) {
+    onTagScanned(userId);
+    return true;
+  }
+  if (raw.startsWith('vybe:friend:')) {
+    onTagScanned(raw.replace('vybe:friend:', ''));
+    return true;
   }
   return false;
 }
