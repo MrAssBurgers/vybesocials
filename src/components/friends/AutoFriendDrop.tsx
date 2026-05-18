@@ -21,6 +21,7 @@ import { getPrimaryHex } from '@/lib/themeColor';
 import { navVisibility } from '@/lib/navVisibility';
 import { cn } from '@/lib/utils';
 import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
+import { despiaScanNFC, isDespiaRuntime, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 type ActiveTab = 'tap' | 'qr';
