@@ -16,6 +16,7 @@ const isDespia =
 
 export default function DespiaPushDemo() {
   const [externalId, setExternalId] = useState('');
+  const [playerId, setPlayerId] = useState('');
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
   const [title, setTitle] = useState('Hello from VYBE');
   const [message, setMessage] = useState('This is a test push notification.');
@@ -56,7 +57,26 @@ export default function DespiaPushDemo() {
     return returnKeys.length ? despia(scheme, returnKeys) : despia(scheme);
   };
 
-  // Link external_id to the device on this page (every authenticated load pattern).
+  const fetchPlayerId = async () => {
+    // Try a few known Despia scheme variants to retrieve the OneSignal player/subscription id.
+    const attempts: Array<[string, string[]]> = [
+      ['getonesignalplayerid://', ['playerId', 'onesignal_player_id', 'player_id']],
+      ['onesignalplayerid://', ['playerId', 'player_id']],
+    ];
+    for (const [scheme, keys] of attempts) {
+      try {
+        const res: any = await callDespia(scheme, keys);
+        const id =
+          res?.playerId || res?.player_id || res?.onesignal_player_id || res?.[keys[0]];
+        if (id && typeof id === 'string') return id;
+      } catch {
+        // try next
+      }
+    }
+    return '';
+  };
+
+  // Link external_id to the device + fetch player id.
   useEffect(() => {
     if (!isDespia || !externalId) return;
     (async () => {
@@ -71,6 +91,8 @@ export default function DespiaPushDemo() {
       } catch {
         setPushEnabled(null);
       }
+      const pid = await fetchPlayerId();
+      if (pid) setPlayerId(pid);
     })();
   }, [externalId]);
 
@@ -82,7 +104,9 @@ export default function DespiaPushDemo() {
     setLinking(true);
     try {
       await callDespia(`setonesignalplayerid://?user_id=${encodeURIComponent(externalId)}`);
-      toast.success('Device linked to external_id');
+      const pid = await fetchPlayerId();
+      if (pid) setPlayerId(pid);
+      toast.success('Device linked');
     } catch (e: any) {
       toast.error(`Link failed: ${e?.message || e}`);
     } finally {
@@ -99,34 +123,41 @@ export default function DespiaPushDemo() {
   };
 
   const handleSend = async () => {
-    if (!externalId) {
-      toast.error('No external_id yet.');
+    if (!externalId && !playerId) {
+      toast.error('No target yet.');
       return;
     }
     setSending(true);
     try {
+      // Prefer player_id when we have it (most reliable); fall back to external_id alias.
+      const body: Record<string, any> = {
+        app_id: ONESIGNAL_APP_ID,
+        target_channel: 'push',
+        headings: { en: title || 'Notification' },
+        contents: { en: message || ' ' },
+      };
+      if (playerId) {
+        body.include_player_ids = [playerId];
+      } else {
+        body.include_aliases = { external_id: [externalId] };
+        body.include_external_user_ids = [externalId];
+        body.channel_for_external_user_ids = 'push';
+      }
+
       const res = await fetch('https://onesignal.com/api/v1/notifications', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Basic ${ONESIGNAL_REST_KEY}`,
         },
-        body: JSON.stringify({
-          app_id: ONESIGNAL_APP_ID,
-          target_channel: 'push',
-          include_aliases: { external_id: [externalId] },
-          include_external_user_ids: [externalId],
-          channel_for_external_user_ids: 'push',
-          headings: { en: title || 'Notification' },
-          contents: { en: message || ' ' },
-        }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!res.ok || json?.errors) {
         console.error('OneSignal error:', json);
         toast.error(`Send failed: ${JSON.stringify(json?.errors || json)}`);
       } else if (json?.recipients === 0) {
-        toast.warning('Sent, but no recipients matched this external_id yet.');
+        toast.warning('Sent, but no recipients matched.');
       } else {
         toast.success(`Sent to ${json?.recipients ?? '?'} device(s).`);
       }
@@ -144,6 +175,13 @@ export default function DespiaPushDemo() {
     } catch {}
   };
 
+  const copyPlayerId = async () => {
+    try {
+      await navigator.clipboard.writeText(playerId);
+      toast.success('Copied');
+    } catch {}
+  };
+
   return (
     <div className="min-h-screen bg-background page-scroll-fix p-4 md:p-8">
       <div className="mx-auto w-full max-w-xl space-y-4">
@@ -151,11 +189,11 @@ export default function DespiaPushDemo() {
         <p className="text-sm text-muted-foreground">
           {isDespia
             ? 'Running inside Despia — your external_id is linked to this device.'
-            : 'Not running inside Despia. The textarea will show your external_id, but linking and notifications will only deliver inside the native Despia app.'}
+            : 'Not running inside Despia. Linking and notifications only work inside the native Despia app.'}
         </p>
 
         <Card className="space-y-3 p-4">
-          <label className="text-sm font-medium">Your external_id (OneSignal target)</label>
+          <label className="text-sm font-medium">Your external_id (OneSignal alias)</label>
           <Textarea
             readOnly
             value={externalId}
@@ -165,7 +203,7 @@ export default function DespiaPushDemo() {
           />
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" size="sm" onClick={copyId}>
-              Copy ID
+              Copy external_id
             </Button>
             <Button variant="outline" size="sm" onClick={handleRelink} disabled={linking}>
               {linking ? 'Linking…' : 'Re-link device'}
@@ -176,6 +214,21 @@ export default function DespiaPushDemo() {
               </Button>
             )}
           </div>
+
+          <label className="text-sm font-medium pt-2">OneSignal player_id (subscription)</label>
+          <Textarea
+            readOnly
+            value={playerId || (isDespia ? 'Not available yet — tap Re-link device.' : '—')}
+            className="font-mono text-xs"
+            rows={2}
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          {playerId && (
+            <Button variant="secondary" size="sm" onClick={copyPlayerId}>
+              Copy player_id
+            </Button>
+          )}
+
           {pushEnabled !== null && (
             <p className="text-xs text-muted-foreground">
               Push permission: {pushEnabled ? 'granted ✅' : 'not granted ❌'}
@@ -188,12 +241,11 @@ export default function DespiaPushDemo() {
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           <label className="text-sm font-medium">Message</label>
           <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} />
-          <Button onClick={handleSend} disabled={sending || !externalId} className="w-full">
-            {sending ? 'Sending…' : 'Send push notification'}
+          <Button onClick={handleSend} disabled={sending || (!externalId && !playerId)} className="w-full">
+            {sending ? 'Sending…' : `Send via ${playerId ? 'player_id' : 'external_id'}`}
           </Button>
           <p className="text-[10px] text-muted-foreground">
-            Demo only — calls OneSignal REST API directly from the browser. Move this to an edge
-            function before shipping.
+            Demo only — calls OneSignal REST API directly from the browser. Move to an edge function before shipping.
           </p>
         </Card>
       </div>
