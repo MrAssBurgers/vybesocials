@@ -27,6 +27,7 @@ import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import { useContrastAutoGuard } from "@/hooks/useContrastAutoGuard";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
+import LocalErrorBoundary from "@/components/error/LocalErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
