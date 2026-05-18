@@ -86,14 +86,18 @@ export function ConnectionsSection() {
     };
     checkLinks();
 
-    // React to ?spotify=connected returning from OAuth
+    // React to OAuth return params
     const params = new URLSearchParams(window.location.search);
     if (params.get('spotify') === 'connected') {
       toast.success('Spotify connected');
-      // refresh after a beat
       setTimeout(checkLinks, 500);
     } else if (params.get('spotify') === 'error') {
       toast.error('Spotify connection failed');
+    }
+    const linked = params.get('linked');
+    if (linked === 'google' || linked === 'apple') {
+      toast.success(`${linked === 'google' ? 'Google' : 'Apple'} connected`);
+      setTimeout(checkLinks, 500);
     }
   }, []);
 
