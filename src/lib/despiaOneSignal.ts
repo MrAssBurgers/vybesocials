@@ -51,6 +51,18 @@ export async function resolveCurrentOneSignalExternalId(): Promise<string | null
   return profile?.id || authUserId;
 }
 
+export async function persistDespiaPushToken(profileId: string, playerId = ''): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(profileId)) return;
+  const token = playerId || `despia:${profileId}`;
+  await supabase.from('push_tokens').delete().eq('user_id', profileId).eq('platform', 'despia');
+  const { error } = await supabase.from('push_tokens').insert({
+    user_id: profileId,
+    platform: 'despia',
+    token,
+  });
+  if (error) throw error;
+}
+
 export async function fetchDespiaOneSignalPlayerId(waitMs = 0): Promise<string> {
   if (!isDespiaRuntime()) return '';
 
@@ -98,5 +110,8 @@ export async function ensureDespiaOneSignalLinked(
   window.setTimeout(() => void despiaCall(linkUrl, [], 1_200), 2_500);
 
   const playerId = await fetchDespiaOneSignalPlayerId(options.waitForPlayerIdMs ?? 1_500);
+  persistDespiaPushToken(externalId, playerId).catch((err) => {
+    console.warn('[despiaOneSignal] push token marker save failed', err);
+  });
   return { linked: true, playerId, permission };
 }
