@@ -101,7 +101,6 @@ export function useAppPreloader() {
       try {
         // Step 1: Initialize
         updateStatus('init');
-        await new Promise(r => setTimeout(r, 80)); // tiny delay so user sees first frame
 
         // Step 2: Check authentication with tight timeout — splash should never wait long.
         updateStatus('auth');
