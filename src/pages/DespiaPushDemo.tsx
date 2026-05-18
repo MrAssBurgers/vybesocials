@@ -5,14 +5,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  ensureDespiaOneSignalLinked,
+  fetchDespiaOneSignalPlayerId,
+} from '@/lib/despiaOneSignal';
+import { despiaCall, isDespiaRuntime } from '@/lib/despiaBridge';
 
 const ONESIGNAL_APP_ID = '85bcf4b4-16fb-4101-90b3-59ca9574e57b';
 // NOTE: client-side key for demo purposes only — never ship a real REST API key in production.
 const ONESIGNAL_REST_KEY =
   'os_v2_app_qw6pjnaw7naqdeftlhfjk5hfpp7ffcc24keu5mvni4pb3ro253k6c6usokshxlvabzdbe3v63ntvr3szbivddsbfb3r36rftn3vwmvq';
 
-const isDespia =
-  typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('despia');
+const isDespia = isDespiaRuntime();
 
 export default function DespiaPushDemo() {
   const [externalId, setExternalId] = useState('');
@@ -29,17 +33,20 @@ export default function DespiaPushDemo() {
     (async () => {
       try {
         const { data } = await supabase.auth.getUser();
-        const id =
-          data.user?.id ||
-          (() => {
-            const k = 'despia.demo.externalId';
-            let v = localStorage.getItem(k);
-            if (!v) {
-              v = `demo_${Math.random().toString(36).slice(2, 10)}`;
-              localStorage.setItem(k, v);
-            }
-            return v;
-          })();
+        let id = data.user?.id || '';
+        if (data.user?.id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('user_id', data.user.id)
+            .maybeSingle();
+          id = profile?.id || data.user.id;
+        }
+        if (!id) {
+          const k = 'despia.demo.externalId';
+          id = localStorage.getItem(k) || `demo_${Math.random().toString(36).slice(2, 10)}`;
+          localStorage.setItem(k, id);
+        }
         if (!cancelled) setExternalId(id);
       } catch {
         if (!cancelled) setExternalId(`demo_${Math.random().toString(36).slice(2, 10)}`);
@@ -50,48 +57,13 @@ export default function DespiaPushDemo() {
     };
   }, []);
 
-  const callDespia = async (scheme: string, returnKeys: string[] = []) => {
-    const mod: any = await import('despia-native').catch(() => null);
-    const despia = mod?.default || (window as any).despia;
-    if (!despia) throw new Error('despia-native not available');
-    return returnKeys.length ? despia(scheme, returnKeys) : despia(scheme);
-  };
-
-  const fetchPlayerId = async () => {
-    // Try a few known Despia scheme variants to retrieve the OneSignal player/subscription id.
-    const attempts: Array<[string, string[]]> = [
-      ['getonesignalplayerid://', ['playerId', 'onesignal_player_id', 'player_id']],
-      ['onesignalplayerid://', ['playerId', 'player_id']],
-    ];
-    for (const [scheme, keys] of attempts) {
-      try {
-        const res: any = await callDespia(scheme, keys);
-        const id =
-          res?.playerId || res?.player_id || res?.onesignal_player_id || res?.[keys[0]];
-        if (id && typeof id === 'string') return id;
-      } catch {
-        // try next
-      }
-    }
-    return '';
-  };
-
   // Link external_id to the device + fetch player id.
   useEffect(() => {
     if (!isDespia || !externalId) return;
     (async () => {
-      try {
-        await callDespia(`setonesignalplayerid://?user_id=${encodeURIComponent(externalId)}`);
-      } catch (e) {
-        console.warn('[DespiaPushDemo] link failed:', e);
-      }
-      try {
-        const res: any = await callDespia('checkNativePushPermissions://', ['nativePushEnabled']);
-        setPushEnabled(!!res?.nativePushEnabled);
-      } catch {
-        setPushEnabled(null);
-      }
-      const pid = await fetchPlayerId();
+      const link = await ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 1_500 });
+      setPushEnabled(link.permission);
+      const pid = link.playerId || await fetchDespiaOneSignalPlayerId(1_500);
       if (pid) setPlayerId(pid);
     })();
   }, [externalId]);
@@ -103,10 +75,14 @@ export default function DespiaPushDemo() {
     }
     setLinking(true);
     try {
-      await callDespia(`setonesignalplayerid://?user_id=${encodeURIComponent(externalId)}`);
-      const pid = await fetchPlayerId();
+      const link = await ensureDespiaOneSignalLinked(externalId, {
+        requestPermission: true,
+        waitForPlayerIdMs: 3_000,
+      });
+      if (link.permission !== null) setPushEnabled(link.permission);
+      const pid = link.playerId || await fetchDespiaOneSignalPlayerId(1_000);
       if (pid) setPlayerId(pid);
-      toast.success('Device linked');
+      toast.success(pid ? 'Device linked' : 'Link queued — OneSignal is still creating the subscription. Try send again in a few seconds.');
     } catch (e: any) {
       toast.error(`Link failed: ${e?.message || e}`);
     } finally {
@@ -116,7 +92,7 @@ export default function DespiaPushDemo() {
 
   const handleOpenSettings = async () => {
     try {
-      await callDespia('settingsapp://');
+      await despiaCall('appsettings://');
     } catch {
       toast.error('Only works inside the Despia app.');
     }
