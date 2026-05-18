@@ -411,16 +411,25 @@ export function AutoFriendDrop() {
   }, [isActive, phase, activeTab, startCamera, stopScanning]);
 
   // Start NFC/native tap when switching to Phone Tap. Falls back to Web NFC.
+  const despiaNfcAutoStartedRef = useRef(false);
   useEffect(() => {
     if (isActive && activeTab === 'tap') {
       if (nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
         nativeFriendDrop.startSession();
+      } else if (!nativeFriendDrop.isAvailable && isDespiaRuntime() && isAndroidUA() && !despiaNfcAutoStartedRef.current) {
+        // Inside Despia Android: auto-fire the native NFC bridge so the user
+        // doesn't need an extra tap. Guard ref prevents re-firing on rerenders.
+        despiaNfcAutoStartedRef.current = true;
+        startWebNfcScan();
       }
+    }
+    if (!isActive || activeTab !== 'tap') {
+      despiaNfcAutoStartedRef.current = false;
     }
     return () => {
       if (webNfcRef.current) { webNfcRef.current.abort(); webNfcRef.current = null; }
     };
-  }, [isActive, activeTab, nativeFriendDrop]);
+  }, [isActive, activeTab, nativeFriendDrop, startWebNfcScan]);
 
   const tapLive = activeTab === 'tap' && (nativeFriendDrop.isActive || !nativeFriendDrop.isAvailable);
 
