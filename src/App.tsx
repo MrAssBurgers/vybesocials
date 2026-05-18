@@ -27,6 +27,7 @@ import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import { useContrastAutoGuard } from "@/hooks/useContrastAutoGuard";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
+import LocalErrorBoundary from "@/components/error/LocalErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
@@ -299,8 +300,12 @@ function AppWithPreloader() {
       <GlobalErrorHandler />
       <AuthProvider>
         <SpotifyPresenceMount />
-        <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
-        <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
+        <LocalErrorBoundary label="DeferredAuthHooks">
+          <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
+        </LocalErrorBoundary>
+        <LocalErrorBoundary label="LoginApprovalSheet">
+          <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
+        </LocalErrorBoundary>
         <BriefPreFetchInit />
         <LocationProvider>
         {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
@@ -324,23 +329,25 @@ function AppWithPreloader() {
                                     <ScrollRestoration />
                                     <AnimatedRoutes />
                                     <RootBottomNavMount />
-                                    <Suspense fallback={null}>
-                                      {/* PushNotificationPrompt removed */}
-                                      <GlobalMessageNotifications />
-                                      <DespiaOneSignalSync />
-                                      <EnablePushPrompt />
-                                      <SmartPingBridge />
-                                      <TabNotificationBadge />
-                                      <GlobalCallOverlay />
-                                      <WarningPopup />
-                                      <InvitePopup />
-                                      <BanCheck />
-                                      <PremiumGiftChecker />
-                                      <TrackingConsentDialog />
-                                      <FounderAppreciation />
-                                      <CookieConsentBanner />
-                                      <RatePromptSheet />
-                                    </Suspense>
+                                    <LocalErrorBoundary label="DeferredOverlays">
+                                      <Suspense fallback={null}>
+                                        {/* PushNotificationPrompt removed */}
+                                        <GlobalMessageNotifications />
+                                        <DespiaOneSignalSync />
+                                        <EnablePushPrompt />
+                                        <SmartPingBridge />
+                                        <TabNotificationBadge />
+                                        <GlobalCallOverlay />
+                                        <WarningPopup />
+                                        <InvitePopup />
+                                        <BanCheck />
+                                        <PremiumGiftChecker />
+                                        <TrackingConsentDialog />
+                                        <FounderAppreciation />
+                                        <CookieConsentBanner />
+                                        <RatePromptSheet />
+                                      </Suspense>
+                                    </LocalErrorBoundary>
                                   </TutorialProvider>
                                 </Suspense>
                               </DebugPanelProvider>

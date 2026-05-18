@@ -75,8 +75,14 @@ class SmartErrorBoundary extends Component<Props, State> {
     // Still report the crash silently in the background so monitoring works.
     void this.reportCrash(error, errorInfo.componentStack, 'auto');
 
-    // Auto-recover after a brief delay instead of showing the error UI.
-    setTimeout(() => this.setState({ hasError: false, error: null, errorInfo: null }), 50);
+    // IMPORTANT: Never flip hasError for runtime errors. Subtree errors are
+    // now caught by LocalErrorBoundary wrappers around DeferredAuthHooks and
+    // the deferred notification overlays, so the root boundary should NOT
+    // unmount the whole app (which would tear down AuthProvider and cause a
+    // cascade of "useAuth must be used within AuthProvider" + uuid:"undefined"
+    // 400s on every render cycle). Keep the tree mounted and let local
+    // boundaries handle their own subtree.
+    this.setState({ hasError: false, error: null, errorInfo: null });
   }
 
   reportCrash = async (
