@@ -441,18 +441,21 @@ export function useGlobalRealtimeMessages() {
     setupChannel();
 
     return () => {
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-      }
-      if (channelRef.current) {
-        if (import.meta.env.DEV) console.log('[GlobalRT] Cleaning up global channel');
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-      if (broadcastChannelRef.current) {
-        supabase.removeChannel(broadcastChannelRef.current);
-        broadcastChannelRef.current = null;
-      }
+      try {
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = null;
+        }
+        if (channelRef.current) {
+          if (import.meta.env.DEV) console.log('[GlobalRT] Cleaning up global channel');
+          supabase.removeChannel(channelRef.current);
+          channelRef.current = null;
+        }
+        if (broadcastChannelRef.current) {
+          supabase.removeChannel(broadcastChannelRef.current);
+          broadcastChannelRef.current = null;
+        }
+      } catch { /* never throw from cleanup */ }
     };
   }, [setupChannel]);
 }
