@@ -8,6 +8,16 @@ import { useAuth } from '@/lib/auth';
 import { useUserRole } from '@/hooks/useModeration';
 
 type BugStatus = 'pending' | 'reviewing' | 'fixed' | 'wont_fix' | 'duplicate';
+type AdminBugReport = {
+  id: string;
+  status: string;
+  error_message: string;
+  error_stack?: string | null;
+  page_url?: string | null;
+  ai_analysis?: string | null;
+  created_at: string;
+  reporter?: { username: string | null; display_name: string | null; avatar_url: string | null } | null;
+};
 
 const STATUS_CONFIG: Record<BugStatus, { label: string; icon: typeof Bug; color: string }> = {
   pending: { label: 'Pending', icon: Clock, color: 'text-yellow-500' },
@@ -41,7 +51,7 @@ export default function AdminBugReports() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      return (data || []) as AdminBugReport[];
     },
     enabled: authReady && !!user && canViewBugs,
   });
@@ -76,7 +86,7 @@ export default function AdminBugReports() {
     },
   });
 
-  const pendingCount = bugs.filter((b: any) => b.status === 'pending').length;
+  const pendingCount = bugs.filter((b) => b.status === 'pending').length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -128,7 +138,7 @@ export default function AdminBugReports() {
             <p className="text-xs text-muted-foreground/60 mt-1">Users will find them soon! 🐛</p>
           </div>
         ) : (
-          bugs.map((bug: any) => {
+          bugs.map((bug) => {
             const expanded = expandedId === bug.id;
             const status = STATUS_CONFIG[bug.status as BugStatus] || STATUS_CONFIG.pending;
             const StatusIcon = status.icon;
