@@ -157,6 +157,10 @@ const DraggableNavItem = memo(({
     }
   };
 
+  const handlePrefetch = useCallback(() => {
+    try { preloadRoute(path); } catch { /* noop */ }
+  }, [path]);
+
   // Profile item with avatar
   if (item.isProfile) {
     return (
