@@ -2,10 +2,7 @@ import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
-
-const isDespiaRuntime = () =>
-  typeof navigator !== 'undefined' &&
-  navigator.userAgent.toLowerCase().includes('despia');
+import { isDespiaRuntime } from '@/lib/despiaBridge';
 
 const PUSH_PERM_KEY = 'vybe_push_permission_asked_v1';
 
@@ -69,9 +66,21 @@ export function DespiaOneSignalSync() {
       try {
         if (localStorage.getItem(PUSH_PERM_KEY)) return;
         localStorage.setItem(PUSH_PERM_KEY, String(Date.now()));
-        void supabase.auth.getUser().then(({ data }) =>
-          setPlayerIdForAuthUser(data.user?.id),
-        );
+        void supabase.auth.getUser().then(({ data }) => {
+          if (!data.user?.id) return;
+          void supabase
+            .from('profiles')
+            .select('id')
+            .eq('user_id', data.user.id)
+            .maybeSingle()
+            .then(({ data: profile }) => {
+              const externalId = profile?.id ?? data.user!.id;
+              void ensureDespiaOneSignalLinked(externalId, {
+                requestPermission: true,
+                waitForPlayerIdMs: 0,
+              });
+            });
+        });
       } catch (err) {
         console.warn('[Despia] checknativepushpermissions failed:', err);
       }
