@@ -86,14 +86,18 @@ export function ConnectionsSection() {
     };
     checkLinks();
 
-    // React to ?spotify=connected returning from OAuth
+    // React to OAuth return params
     const params = new URLSearchParams(window.location.search);
     if (params.get('spotify') === 'connected') {
       toast.success('Spotify connected');
-      // refresh after a beat
       setTimeout(checkLinks, 500);
     } else if (params.get('spotify') === 'error') {
       toast.error('Spotify connection failed');
+    }
+    const linked = params.get('linked');
+    if (linked === 'google' || linked === 'apple') {
+      toast.success(`${linked === 'google' ? 'Google' : 'Apple'} connected`);
+      setTimeout(checkLinks, 500);
     }
   }, []);
 
@@ -102,7 +106,7 @@ export function ConnectionsSection() {
     try {
       const { error } = await supabase.auth.linkIdentity({
         provider: providerId as 'google' | 'apple',
-        options: { redirectTo: window.location.origin + '/settings' },
+        options: { redirectTo: window.location.origin + '/settings?tab=connections&linked=' + providerId },
       });
       if (error) {
         if (error.message?.includes('already linked')) toast.error('This account is already linked to another user.');
@@ -137,7 +141,7 @@ export function ConnectionsSection() {
   const connectSpotify = async () => {
     setSpotifyBusy(true);
     try {
-      const returnTo = window.location.origin + '/settings?spotify=connected';
+      const returnTo = window.location.origin + '/settings?tab=connections&spotify=connected';
       const { data, error } = await supabase.functions.invoke('spotify-oauth-start', { body: { returnTo } });
       if (error) throw error;
       if (!data?.url) throw new Error('No auth URL returned');
