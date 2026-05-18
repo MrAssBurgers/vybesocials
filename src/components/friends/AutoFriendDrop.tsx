@@ -15,13 +15,29 @@ import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { getPreloadedStream } from '@/hooks/useCameraPreload';
+import { getPreloadedStream, requestCameraStream, stopCameraStream } from '@/hooks/useCameraPreload';
 import jsQR from 'jsqr';
 import { getPrimaryHex } from '@/lib/themeColor';
 import { navVisibility } from '@/lib/navVisibility';
 import { cn } from '@/lib/utils';
 import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
 import { despiaScanNFC, isDespiaRuntime, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
+
+function decodeNfcText(text: string): string {
+  const trimmed = text.trim();
+  try { return decodeURIComponent(trimmed); } catch { return trimmed; }
+}
+
+function extractFriendTarget(text: string): { type: 'drop' | 'user'; id: string } | null {
+  const decoded = decodeNfcText(text);
+  const dropMatch = decoded.match(/(?:https?:\/\/[^\s]+)?\/friend-drop\/([a-zA-Z0-9-]+)/);
+  if (dropMatch) return { type: 'drop', id: dropMatch[1] };
+  const userMatch = decoded.match(/(?:https?:\/\/[^\s]+)?\/add-friend\/([a-zA-Z0-9-]+)/);
+  if (userMatch) return { type: 'user', id: userMatch[1] };
+  const schemeMatch = decoded.match(/^vybe:friend:([a-zA-Z0-9-]+)$/);
+  if (schemeMatch) return { type: 'user', id: schemeMatch[1] };
+  return null;
+}
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 type ActiveTab = 'tap' | 'qr';
@@ -47,6 +63,7 @@ export function AutoFriendDrop() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('tap');
   const [qrSvg, setQrSvg] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const webNfcRef = useRef<AbortController | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
