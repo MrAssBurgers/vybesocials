@@ -21,6 +21,9 @@ import { haptics } from '@/lib/haptics';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/lib/auth';
+
+const DEV_USERNAMES = ['bakrix', 'mrassburgers'];
 
 export type SettingsCategory = 
   | 'profile' 
