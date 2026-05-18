@@ -70,8 +70,10 @@ export function useApplyAutoTheme() {
 
     return () => {
       active = false;
-      supabase.removeChannel(ch);
-      APPLIED_VARS.forEach(v => document.documentElement.style.removeProperty(v));
+      try {
+        if (ch) supabase.removeChannel(ch);
+        APPLIED_VARS.forEach(v => document.documentElement.style.removeProperty(v));
+      } catch { /* never throw from cleanup */ }
     };
   }, [user?.id]);
 }
