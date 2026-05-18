@@ -10,10 +10,22 @@
  */
 
 const DESPIA_UA_HINT = /despia|vybeapp|app\.lovable\.416714c8d0134aff984d522418a9bbc7|com\.despia\.vybe/i;
+const DESPIA_CALLBACK_KEYS = ['nfcResult', 'payload', 'data', 'url', 'readNFCData'];
 
 export function isDespiaRuntime(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return DESPIA_UA_HINT.test(navigator.userAgent || '');
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (DESPIA_UA_HINT.test(ua)) return true;
+  const w = window as any;
+  return Boolean(
+    w.ReactNativeWebView ||
+    w.webkit?.messageHandlers?.despia ||
+    w.despiaVersion ||
+    w.Despia ||
+    w.__DESPIA__ ||
+    w.nativePushEnabled !== undefined ||
+    /app\.lovable\.416714c8-d013-4aff-984d-522418a9bbc7/i.test(ua)
+  );
 }
 
 export function isAndroidUA(): boolean {
@@ -57,6 +69,22 @@ export async function despiaCall(
   }
 }
 
+function normalizeNfcPayload(raw: unknown): string | null {
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    try { return decodeURIComponent(trimmed); } catch { return trimmed; }
+  }
+  if (raw && typeof raw === 'object') {
+    const record = raw as Record<string, any>;
+    for (const key of DESPIA_CALLBACK_KEYS) {
+      const value = normalizeNfcPayload(record[key]);
+      if (value) return value;
+    }
+  }
+  return null;
+}
+
 /**
  * Scan an NFC tag via Despia's native bridge. Returns the raw decoded
  * payload string (URL/text) from the first responding bridge, or null
@@ -66,15 +94,46 @@ export async function despiaCall(
  */
 export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> {
   if (!isDespiaRuntime() || !isAndroidUA()) return null;
-  const bridges = ['nfcread://', 'scannfc://', 'nfc://read'];
-  for (const url of bridges) {
-    const result = await despiaCall(url, ['nfcResult', 'payload', 'data', 'url'], timeoutMs);
-    if (!result) continue;
-    const raw =
-      result.nfcResult || result.payload || result.data || result.url || '';
-    if (typeof raw === 'string' && raw) return raw;
-  }
-  return null;
+  if (typeof window === 'undefined') return null;
+  const w = window as any;
+
+  return await new Promise<string | null>(async (resolve) => {
+    let settled = false;
+    const previousCallback = w.readNFCResult;
+    const finish = (payload: unknown, source: string) => {
+      if (settled) return;
+      const normalized = normalizeNfcPayload(payload);
+      console.log('[despiaBridge] NFC result', { source, hasPayload: Boolean(normalized), tag: typeof payload });
+      if (!normalized) return;
+      settled = true;
+      clearTimeout(timer);
+      w.readNFCResult = previousCallback;
+      resolve(normalized);
+    };
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      w.readNFCResult = previousCallback;
+      console.warn('[despiaBridge] NFC read timed out');
+      resolve(null);
+    }, timeoutMs);
+
+    w.readNFCResult = (data: string, id?: string, tag?: string) => {
+      finish(data, 'readNFCResult');
+      if (typeof previousCallback === 'function') {
+        try { previousCallback(data, id, tag); } catch {}
+      }
+    };
+
+    const bridges = ['readnfc://', 'nfcread://', 'scannfc://', 'nfc://read'];
+    for (const url of bridges) {
+      if (settled) break;
+      console.log('[despiaBridge] requesting NFC bridge', url);
+      const result = await despiaCall(url, DESPIA_CALLBACK_KEYS, Math.min(timeoutMs, 30_000));
+      if (result) finish(result, url);
+      if (url === 'readnfc://') await new Promise((r) => setTimeout(r, 250));
+    }
+  });
 }
 
 /**
