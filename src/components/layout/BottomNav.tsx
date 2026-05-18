@@ -228,6 +228,9 @@ const DraggableNavItem = memo(({
         to={path}
         className="relative flex items-center justify-center min-h-[48px] group w-full"
         onClick={handleClick}
+        onPointerEnter={handlePrefetch}
+        onTouchStart={handlePrefetch}
+        onFocus={handlePrefetch}
         data-tutorial={item.tutorialId}
       >
         <motion.div 
