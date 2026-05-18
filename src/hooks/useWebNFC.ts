@@ -45,7 +45,10 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
   onReadRef.current = onRead;
 
   useEffect(() => {
-    setIsAvailable(typeof window !== 'undefined' && 'NDEFReader' in window);
+    const hasWeb = typeof window !== 'undefined' && 'NDEFReader' in window;
+    // Despia Android shell exposes a native NFC bridge even without Web NFC.
+    const hasDespia = isDespiaRuntime() && isAndroidUA();
+    setIsAvailable(hasWeb || hasDespia);
   }, []);
 
   const stop = useCallback(() => {
