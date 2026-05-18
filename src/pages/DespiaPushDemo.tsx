@@ -17,6 +17,7 @@ const ONESIGNAL_REST_KEY =
   'os_v2_app_qw6pjnaw7naqdeftlhfjk5hfpp7ffcc24keu5mvni4pb3ro253k6c6usokshxlvabzdbe3v63ntvr3szbivddsbfb3r36rftn3vwmvq';
 
 const isDespia = isDespiaRuntime();
+type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean };
 
 export default function DespiaPushDemo() {
   const [externalId, setExternalId] = useState('');
@@ -83,8 +84,8 @@ export default function DespiaPushDemo() {
       const pid = link.playerId || await fetchDespiaOneSignalPlayerId(1_000);
       if (pid) setPlayerId(pid);
       toast.success(pid ? 'Device linked' : 'Link queued — OneSignal is still creating the subscription. Try send again in a few seconds.');
-    } catch (e: any) {
-      toast.error(`Link failed: ${e?.message || e}`);
+    } catch (e: unknown) {
+      toast.error(`Link failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setLinking(false);
     }
@@ -114,7 +115,7 @@ export default function DespiaPushDemo() {
         return [];
       }
       const data = await res.json();
-      const subs: any[] = data?.subscriptions || [];
+      const subs: OneSignalSubscription[] = Array.isArray(data?.subscriptions) ? data.subscriptions : [];
       // Only push subscriptions that are enabled.
       return subs
         .filter((s) => (s.type === 'iOSPush' || s.type === 'AndroidPush' || s.type === 'ChromePush' || s.type === 'FirefoxPush' || s.type === 'SafariPush' || s.type === 'HuaweiPush') && s.enabled !== false && s.id)
@@ -132,7 +133,7 @@ export default function DespiaPushDemo() {
     }
     setSending(true);
     try {
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         app_id: ONESIGNAL_APP_ID,
         target_channel: 'push',
         headings: { en: title || 'Notification' },
@@ -180,8 +181,8 @@ export default function DespiaPushDemo() {
       } else {
         toast.success(`Sent to ${json?.recipients ?? '?'} device(s).`);
       }
-    } catch (e: any) {
-      toast.error(`Network error: ${e?.message || e}`);
+    } catch (e: unknown) {
+      toast.error(`Network error: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setSending(false);
     }
@@ -191,14 +192,14 @@ export default function DespiaPushDemo() {
     try {
       await navigator.clipboard.writeText(externalId);
       toast.success('Copied');
-    } catch {}
+    } catch { /* clipboard unavailable */ }
   };
 
   const copyPlayerId = async () => {
     try {
       await navigator.clipboard.writeText(playerId);
       toast.success('Copied');
-    } catch {}
+    } catch { /* clipboard unavailable */ }
   };
 
   return (
