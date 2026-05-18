@@ -4,8 +4,20 @@ import { supabase } from '@/integrations/supabase/client';
 import { Bug, CheckCircle2, Clock, AlertTriangle, Trash2, MessageSquare, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/auth';
+import { useUserRole } from '@/hooks/useModeration';
 
 type BugStatus = 'pending' | 'reviewing' | 'fixed' | 'wont_fix' | 'duplicate';
+type AdminBugReport = {
+  id: string;
+  status: string;
+  error_message: string;
+  error_stack?: string | null;
+  page_url?: string | null;
+  ai_analysis?: string | null;
+  created_at: string;
+  reporter?: { username: string | null; display_name: string | null; avatar_url: string | null } | null;
+};
 
 const STATUS_CONFIG: Record<BugStatus, { label: string; icon: typeof Bug; color: string }> = {
   pending: { label: 'Pending', icon: Clock, color: 'text-yellow-500' },
@@ -18,10 +30,13 @@ const STATUS_CONFIG: Record<BugStatus, { label: string; icon: typeof Bug; color:
 export default function AdminBugReports() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { authReady, user } = useAuth();
+  const { data: userRole, isLoading: roleLoading } = useUserRole();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BugStatus | 'all'>('all');
+  const canViewBugs = userRole === 'admin' || userRole === 'owner';
 
-  const { data: bugs = [], isLoading } = useQuery({
+  const { data: bugs = [], isLoading, isError, error } = useQuery({
     queryKey: ['admin-bug-reports', filter],
     queryFn: async () => {
       let query = supabase
@@ -36,8 +51,9 @@ export default function AdminBugReports() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      return (data || []) as AdminBugReport[];
     },
+    enabled: authReady && !!user && canViewBugs,
   });
 
   const updateStatus = useMutation({
@@ -70,7 +86,7 @@ export default function AdminBugReports() {
     },
   });
 
-  const pendingCount = bugs.filter((b: any) => b.status === 'pending').length;
+  const pendingCount = bugs.filter((b) => b.status === 'pending').length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -109,8 +125,12 @@ export default function AdminBugReports() {
 
       {/* Bug list */}
       <div className="p-4 space-y-3">
-        {isLoading ? (
+        {!authReady || roleLoading || isLoading ? (
           <div className="text-center text-muted-foreground py-12 text-sm">Loading bug reports...</div>
+        ) : !canViewBugs ? (
+          <div className="text-center text-muted-foreground py-12 text-sm">Admin access required.</div>
+        ) : isError ? (
+          <div className="text-center text-destructive py-12 text-sm">Failed to load bug reports: {(error as Error).message}</div>
         ) : bugs.length === 0 ? (
           <div className="text-center py-12">
             <Bug className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
@@ -118,7 +138,7 @@ export default function AdminBugReports() {
             <p className="text-xs text-muted-foreground/60 mt-1">Users will find them soon! 🐛</p>
           </div>
         ) : (
-          bugs.map((bug: any) => {
+          bugs.map((bug) => {
             const expanded = expandedId === bug.id;
             const status = STATUS_CONFIG[bug.status as BugStatus] || STATUS_CONFIG.pending;
             const StatusIcon = status.icon;
