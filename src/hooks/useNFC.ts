@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
-import { isDespiaRuntime, despiaCall, despiaScanNFC, openAppSettings, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
+import { isDespiaRuntime, despiaScanNFC, openAppSettings, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
 
 interface NFCState {
   isSupported: boolean;
@@ -58,14 +58,19 @@ export function generateFriendAddUrl(userId: string): string {
 }
 
 export function parseFriendAddUrl(url: string): string | null {
+  const raw = url.trim();
+  const decoded = (() => {
+    try { return decodeURIComponent(raw); } catch { return raw; }
+  })();
+  const directMatch = decoded.match(/(?:https?:\/\/[^\s]+)?\/add-friend\/([a-zA-Z0-9-]+)/);
+  if (directMatch) return directMatch[1];
+  const friendSchemeMatch = decoded.match(/^vybe:friend:([a-zA-Z0-9-]+)$/);
+  if (friendSchemeMatch) return friendSchemeMatch[1];
   try {
-    const urlObj = new URL(url);
+    const urlObj = new URL(decoded);
     const match = urlObj.pathname.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
     return match ? match[1] : null;
   } catch {
-    if (url.startsWith('vybe:friend:')) {
-      return url.replace('vybe:friend:', '');
-    }
     return null;
   }
 }
