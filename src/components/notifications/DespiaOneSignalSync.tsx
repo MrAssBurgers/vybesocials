@@ -5,6 +5,8 @@ import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 
 const PUSH_PERM_KEY = 'vybe_push_permission_asked_v1';
+type OneSignalApi = { login?: (id: string) => Promise<void>; logout?: () => Promise<void> };
+type OneSignalDeferredWindow = Window & { OneSignalDeferred?: Array<(api: OneSignalApi) => Promise<void>> };
 
 /**
  * Syncs the authenticated Supabase user ID with OneSignal's external user ID
@@ -38,9 +40,9 @@ export function DespiaOneSignalSync() {
         // pushes targeted via include_aliases.external_id. Safe on hosts
         // where the SDK didn't load (preview/native/disabled-host).
         try {
-          const w = window as any;
+          const w = window as OneSignalDeferredWindow;
           if (Array.isArray(w.OneSignalDeferred)) {
-            w.OneSignalDeferred.push(async (OneSignal: any) => {
+            w.OneSignalDeferred.push(async (OneSignal) => {
               try { await OneSignal?.login?.(externalId); } catch { /* ignore */ }
             });
           }
@@ -52,9 +54,9 @@ export function DespiaOneSignalSync() {
 
     const clearPlayerId = () => {
       try {
-        const w = window as any;
+        const w = window as OneSignalDeferredWindow;
         if (Array.isArray(w.OneSignalDeferred)) {
-          w.OneSignalDeferred.push(async (OneSignal: any) => {
+          w.OneSignalDeferred.push(async (OneSignal) => {
             try { await OneSignal?.logout?.(); } catch { /* ignore */ }
           });
         }
