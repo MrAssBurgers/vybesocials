@@ -20,6 +20,36 @@ interface PushPayload {
   type?: string;
   data?: Record<string, unknown>;
 }
+type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean };
+type PushTokenRow = { id: string; token: string; platform: string };
+
+async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs = 3_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, externalId: string): Promise<string[]> {
+  const res = await fetchJsonWithTimeout(
+    `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(externalId)}`,
+    { headers: { Authorization: `Key ${restKey}`, Accept: "application/json" } },
+  );
+  if (!res.ok) return [];
+  const user = await res.json().catch(() => null);
+  const subs: OneSignalSubscription[] = Array.isArray(user?.subscriptions) ? user.subscriptions : [];
+  return subs
+    .filter((sub) =>
+      sub?.id &&
+      sub.enabled !== false &&
+      typeof sub.type === "string" &&
+      ["iOSPush", "AndroidPush", "ChromePush", "FirefoxPush", "SafariPush", "HuaweiPush"].includes(sub.type)
+    )
+    .map((sub) => String(sub.id));
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -124,7 +154,7 @@ Deno.serve(async (req) => {
           .from("conversation_members")
           .select("conversation_id")
           .eq("user_id", callerProfileId);
-        const convIds = (callerConvs || []).map((r: any) => r.conversation_id);
+        const convIds = ((callerConvs || []) as Array<{ conversation_id: string }>).map((r) => r.conversation_id);
         let allowed = false;
         if (convIds.length > 0) {
           const { data: shared } = await supabase
@@ -151,7 +181,12 @@ Deno.serve(async (req) => {
     let onesignalResult: unknown = null;
     if (onesignalAppId && onesignalRestKey) {
       try {
-        const res = await fetch("https://api.onesignal.com/notifications", {
+        const subscriptionIds = await lookupOneSignalSubscriptionIds(onesignalAppId, onesignalRestKey, userId);
+        const target = subscriptionIds.length > 0
+          ? { include_subscription_ids: subscriptionIds }
+          : { include_external_user_ids: [userId] };
+        const imageUrl = typeof data?.image_url === "string" ? data.image_url : undefined;
+        const res = await fetchJsonWithTimeout("https://api.onesignal.com/notifications", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -161,16 +196,13 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             app_id: onesignalAppId,
-            // Send to BOTH new (aliases) and legacy (external_user_ids) targeting
-            // so this works regardless of which OneSignal SDK Despia is using.
-            include_aliases: { external_id: [userId] },
-            include_external_user_ids: [userId],
+            ...target,
             target_channel: "push",
             headings: { en: title },
             contents: { en: body },
-            big_picture: (data as any)?.image_url,
-            ios_attachments: (data as any)?.image_url ? { id1: (data as any).image_url } : undefined,
-            chrome_web_image: (data as any)?.image_url,
+            big_picture: imageUrl,
+            ios_attachments: imageUrl ? { id1: imageUrl } : undefined,
+            chrome_web_image: imageUrl,
             data: { type: type || "general", url: url || "/notifications", ...(data || {}) },
             ios_sound: type === "call" ? "ringtone.caf" : "default",
             // NOTE: android_channel_id intentionally omitted — custom channels
@@ -185,8 +217,8 @@ Deno.serve(async (req) => {
             ttl: type === "call" ? 30 : 86400,
             collapse_id: tag || undefined,
           }),
-        });
-        onesignalResult = { status: res.status, ok: res.ok };
+        }, 4_000);
+        onesignalResult = { status: res.status, ok: res.ok, subscriptionIds: subscriptionIds.length };
         if (!res.ok) {
           const txt = await res.text().catch(() => "");
           console.warn("[push] OneSignal non-OK", res.status, txt.slice(0, 200));
@@ -231,7 +263,7 @@ Deno.serve(async (req) => {
 
     // Send push to all registered devices
     const results = await Promise.all(
-      tokens.map(async ({ id, token, platform }: any) => {
+      (tokens as PushTokenRow[]).map(async ({ id, token, platform }) => {
         // Despia native rows are markers only — OneSignal handled delivery above.
         if (platform === "despia" || (typeof token === "string" && token.startsWith("despia:"))) {
           return { success: true, native: true };
