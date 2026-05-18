@@ -1,4 +1,5 @@
- import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
+import { scheduleOfflinePush, isNativeShell } from '@/lib/despiaPush';
  
  /**
   * Send a push notification to a specific user via the edge function
@@ -127,5 +128,67 @@
      data: {
        senderName: acceptorName,
      },
-   });
- }
+  });
+}
+
+/**
+ * Schedule a reminder for the CURRENT user with dual delivery:
+ *   1. Despia local push — fires fully offline on the native shell (primary)
+ *   2. OneSignal server push — fires when device is online (fallback for web/PWA
+ *      or when the local push silently failed)
+ *
+ * Use for user-initiated reminders ("remind me in 1 hour", timers, scheduled
+ * nudges). Not for cross-user notifications.
+ */
+export async function scheduleReminder(options: {
+  /** Current user's ID — required so OneSignal can target their devices. */
+  userId: string;
+  delaySeconds: number;
+  title: string;
+  body: string;
+  /** Deep link opened on tap. Defaults to current origin. */
+  url?: string;
+  tag?: string;
+}) {
+  const delay = Math.max(0, Math.floor(options.delaySeconds));
+  let localScheduled = false;
+
+  // 1. Local offline push (Despia native shell only)
+  if (isNativeShell()) {
+    localScheduled = scheduleOfflinePush({
+      delaySeconds: delay,
+      title: options.title,
+      body: options.body,
+      url: options.url,
+    });
+  }
+
+  // 2. Server-side OneSignal as fallback (works for web/PWA, and as a backup
+  //    when the local push didn't register). The edge function handles the
+  //    delay if `delaySeconds` is provided; otherwise fires immediately.
+  let serverResult: { success: boolean; error?: unknown } = { success: false };
+  try {
+    serverResult = await sendPushNotification({
+      userId: options.userId,
+      title: options.title,
+      body: options.body,
+      url: options.url,
+      tag: options.tag || `vybe-reminder-${Date.now()}`,
+      type: 'general',
+      data: {
+        kind: 'reminder',
+        delaySeconds: delay,
+        scheduledFor: new Date(Date.now() + delay * 1000).toISOString(),
+      },
+    });
+  } catch (err) {
+    serverResult = { success: false, error: err };
+  }
+
+  return {
+    localScheduled,
+    serverScheduled: serverResult.success,
+    // True if at least one delivery path succeeded.
+    success: localScheduled || serverResult.success,
+  };
+}
