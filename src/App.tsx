@@ -300,8 +300,12 @@ function AppWithPreloader() {
       <GlobalErrorHandler />
       <AuthProvider>
         <SpotifyPresenceMount />
-        <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
-        <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
+        <LocalErrorBoundary label="DeferredAuthHooks">
+          <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
+        </LocalErrorBoundary>
+        <LocalErrorBoundary label="LoginApprovalSheet">
+          <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
+        </LocalErrorBoundary>
         <BriefPreFetchInit />
         <LocationProvider>
         {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
