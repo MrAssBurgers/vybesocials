@@ -185,6 +185,9 @@ export function AutoFriendDrop() {
   const stopScanning = useCallback(() => {
     if (animationFrameRef.current) { cancelAnimationFrame(animationFrameRef.current); animationFrameRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    try { stopCameraStream(); } catch {}
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraStarting(false);
     setCameraActive(false);
   }, []);
 
@@ -242,14 +245,14 @@ export function AutoFriendDrop() {
 
   const startCamera = useCallback(async () => {
     if (streamRef.current) return; // already running
+    setCameraStarting(true);
     setCameraError(null);
     try {
       let stream = getPreloadedStream();
       if (!stream) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
-        });
+        stream = await requestCameraStream({ facingMode: 'environment', width: 640, height: 480 });
       }
+      if (!stream) throw new Error('Camera stream unavailable');
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -265,15 +268,18 @@ export function AutoFriendDrop() {
         : 'Camera unavailable — try again or use Phone Tap';
       setCameraError(msg);
       toast.error(msg);
+    } finally {
+      setCameraStarting(false);
     }
   }, []);
 
   // Route an NFC payload string into either /friend-drop/:id or /add-friend/:id
   const dispatchNfcPayload = useCallback((text: string): boolean => {
-    const dropMatch = text.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
-    if (dropMatch) { handleDropScan(dropMatch[1]); return true; }
-    const userMatch = text.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
-    if (userMatch && userMatch[1] !== user?.id) { handleFoundUser(userMatch[1]); return true; }
+    const target = extractFriendTarget(text);
+    console.log('[FriendLink] NFC payload parsed', { hasTarget: Boolean(target), targetType: target?.type });
+    if (!target) return false;
+    if (target.type === 'drop') { handleDropScan(target.id); return true; }
+    if (target.id !== user?.id) { handleFoundUser(target.id); return true; }
     return false;
   }, [handleDropScan, handleFoundUser, user?.id]);
 
