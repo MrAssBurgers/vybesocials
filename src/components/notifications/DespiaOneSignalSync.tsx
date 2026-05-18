@@ -32,10 +32,35 @@ export function DespiaOneSignalSync() {
           .eq('user_id', authUserId)
           .maybeSingle();
         const externalId = profile?.id ?? authUserId;
+
+        // Despia native shell bridge (no-op on web)
         despia(`setonesignalplayerid://?user_id=${externalId}`);
+
+        // Web OneSignal SDK bridge — required so web/PWA users receive
+        // pushes targeted via include_aliases.external_id. Safe on hosts
+        // where the SDK didn't load (preview/native/disabled-host).
+        try {
+          const w = window as any;
+          if (Array.isArray(w.OneSignalDeferred)) {
+            w.OneSignalDeferred.push(async (OneSignal: any) => {
+              try { await OneSignal?.login?.(externalId); } catch { /* ignore */ }
+            });
+          }
+        } catch { /* ignore */ }
       } catch (err) {
         console.warn('[Despia] Failed to set OneSignal player id:', err);
       }
+    };
+
+    const clearPlayerId = () => {
+      try {
+        const w = window as any;
+        if (Array.isArray(w.OneSignalDeferred)) {
+          w.OneSignalDeferred.push(async (OneSignal: any) => {
+            try { await OneSignal?.logout?.(); } catch { /* ignore */ }
+          });
+        }
+      } catch { /* ignore */ }
     };
 
     const requestPushPermissionOnce = () => {
@@ -55,8 +80,12 @@ export function DespiaOneSignalSync() {
       void setPlayerIdForAuthUser(data.user?.id);
     }).catch(() => {});
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      void setPlayerIdForAuthUser(session?.user?.id);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session?.user?.id) {
+        clearPlayerId();
+        return;
+      }
+      void setPlayerIdForAuthUser(session.user.id);
     });
 
     // Request push permission on the FIRST authenticated user gesture
