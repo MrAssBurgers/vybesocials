@@ -102,7 +102,7 @@ export function ConnectionsSection() {
     try {
       const { error } = await supabase.auth.linkIdentity({
         provider: providerId as 'google' | 'apple',
-        options: { redirectTo: window.location.origin + '/settings' },
+        options: { redirectTo: window.location.origin + '/settings?tab=connections&linked=' + providerId },
       });
       if (error) {
         if (error.message?.includes('already linked')) toast.error('This account is already linked to another user.');
@@ -137,7 +137,7 @@ export function ConnectionsSection() {
   const connectSpotify = async () => {
     setSpotifyBusy(true);
     try {
-      const returnTo = window.location.origin + '/settings?spotify=connected';
+      const returnTo = window.location.origin + '/settings?tab=connections&spotify=connected';
       const { data, error } = await supabase.functions.invoke('spotify-oauth-start', { body: { returnTo } });
       if (error) throw error;
       if (!data?.url) throw new Error('No auth URL returned');
