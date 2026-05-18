@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { despiaScanNFC, isDespiaRuntime, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
 
 /**
  * Web NFC hook — works on Android Chrome (and Despia Android WebView).
@@ -10,14 +11,11 @@ import { toast } from 'sonner';
  */
 
 function isDespiaWebView(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent.toLowerCase();
-  return ua.includes('despia') || ua.includes('vybeapp');
+  return isDespiaRuntime();
 }
 
 function isIOS(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+  return isIOSUA();
 }
 
 export interface NFCRecord {
