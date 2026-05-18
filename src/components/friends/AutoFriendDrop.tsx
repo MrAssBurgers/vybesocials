@@ -750,8 +750,24 @@ export function AutoFriendDrop() {
                       </div>
 
                       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[24px] border border-primary/20 bg-card">
-                        <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
+                        <video ref={videoRef} className={cn('h-full w-full object-cover', !cameraActive && 'opacity-0')} playsInline muted autoPlay />
                         <canvas ref={canvasRef} className="hidden" />
+                        {cameraStarting && !cameraActive && !cameraError && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-secondary/70 px-4 text-center">
+                            <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                            <span className="text-xs font-bold text-foreground">Opening camera…</span>
+                          </div>
+                        )}
+                        {!cameraStarting && !cameraActive && !cameraError && (
+                          <button
+                            type="button"
+                            onClick={() => startCamera()}
+                            className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-secondary/70 px-4 text-center active:scale-[0.99]"
+                          >
+                            <ScanLine className="h-7 w-7 text-primary" />
+                            <span className="text-xs font-bold text-foreground">Tap to open camera</span>
+                          </button>
+                        )}
                         {cameraError && !cameraActive && (
                           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-secondary/60 px-4 text-center">
                             <ScanLine className="h-7 w-7 text-primary" />
@@ -784,14 +800,18 @@ export function AutoFriendDrop() {
                             />
                           ))}
                         </div>
-                        <motion.div
-                          className="absolute left-6 right-6 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent shadow-lg shadow-primary"
-                          animate={{ top: ['22px', 'calc(100% - 24px)', '22px'] }}
-                          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-                        />
-                        <div className="absolute bottom-4 inset-x-0 flex justify-center">
-                          <span className="rounded-full bg-card/90 px-4 py-1.5 text-xs font-bold text-foreground backdrop-blur-sm">Point at a friend's QR</span>
-                        </div>
+                        {cameraActive && (
+                          <>
+                            <motion.div
+                              className="absolute left-6 right-6 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent shadow-lg shadow-primary"
+                              animate={{ top: ['22px', 'calc(100% - 24px)', '22px'] }}
+                              transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                            />
+                            <div className="absolute bottom-4 inset-x-0 flex justify-center">
+                              <span className="rounded-full bg-card/90 px-4 py-1.5 text-xs font-bold text-foreground backdrop-blur-sm">Point at a friend's QR</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </motion.div>
                   )}
