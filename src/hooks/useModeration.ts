@@ -33,6 +33,8 @@ export interface Report {
 }
 
 export function useContentFlags() {
+  const { user, authReady } = useAuth();
+
   return useQuery({
     queryKey: ['content-flags'],
     queryFn: async () => {
@@ -44,10 +46,13 @@ export function useContentFlags() {
       if (error) throw error;
       return data as ContentFlag[];
     },
+    enabled: authReady && !!user,
   });
 }
 
 export function useReports() {
+  const { user, authReady } = useAuth();
+
   return useQuery({
     queryKey: ['admin-reports'],
     queryFn: async () => {
@@ -64,6 +69,7 @@ export function useReports() {
       if (error) throw error;
       return data as Report[];
     },
+    enabled: authReady && !!user,
   });
 }
 
