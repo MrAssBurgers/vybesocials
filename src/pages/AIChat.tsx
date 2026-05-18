@@ -495,57 +495,76 @@ export default function AIChat() {
   return (
     <>
       <div className="fixed inset-0 z-[100] flex flex-col bg-background">
-        {/* Header */}
-        <div className="px-3 py-2.5 border-b border-border/50 flex items-center gap-2.5 bg-card/80 backdrop-blur-md sticky top-0 z-10">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/messages')} className="h-8 w-8 -ml-1">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          
-          <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-2.5 flex-1 min-w-0">
-            <div className="relative flex-shrink-0 h-10 w-10">
-              <div className="absolute inset-0 rounded-full overflow-hidden">
+        {/* Floating header — matches DM ChatView (two frosted-glass pills floating over content) */}
+        <header
+          className="absolute top-0 left-0 right-0 px-2 sm:px-3 pb-2 flex items-center gap-2 sm:gap-3 bg-transparent z-20 pointer-events-none"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
+        >
+          {/* LEFT pill: back + avatar + name */}
+          <div className="pointer-events-auto flex items-center gap-2 sm:gap-2.5 min-w-0 max-w-[68%] mr-auto pl-1.5 pr-4 py-1.5 rounded-full bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)] ring-1 ring-inset ring-white/[0.04]">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/messages')}
+              className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 group"
+            >
+              <div className="relative flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9">
                 <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary opacity-60 animate-pulse" />
                 <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-background via-card to-background flex items-center justify-center overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 via-transparent to-accent/20" />
-                  <VybeMiniIcon size={20} showSparkles className="relative z-10 drop-shadow-[0_0_6px_hsl(var(--primary)/0.8)]" />
+                  <VybeMiniIcon size={18} showSparkles className="relative z-10 drop-shadow-[0_0_6px_hsl(var(--primary)/0.8)]" />
                 </div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-background shadow-md shadow-green-500/50" />
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-background shadow-md shadow-green-500/50" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="font-semibold text-sm truncate flex items-center gap-1">
-                {aiName}
-                <Sparkles className="h-3 w-3 text-primary flex-shrink-0" />
-              </h2>
-              <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
-                VYBE AI
-                {feedDNA && <Dna className="h-2.5 w-2.5 text-accent" />}
-                {locationEnabled && <MapPin className="h-2.5 w-2.5 text-primary" />}
-              </p>
-            </div>
-          </button>
+              <div className="flex-1 min-w-0 text-left">
+                <h2 className="font-semibold text-sm sm:text-base truncate leading-tight flex items-center gap-1.5">
+                  <span className="truncate">{aiName}</span>
+                  <Sparkles className="h-3 w-3 text-primary flex-shrink-0" />
+                </h2>
+                <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight truncate flex items-center gap-1">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
+                  Active now
+                  {feedDNA && <Dna className="h-2.5 w-2.5 text-accent ml-1" />}
+                  {locationEnabled && <MapPin className="h-2.5 w-2.5 text-primary" />}
+                </p>
+              </div>
+            </button>
+          </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
-                <Settings className="h-4 w-4 mr-2" /> Customize AI
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setIsHumanizerOpen(true)}>
-                <Wand2 className="h-4 w-4 mr-2" /> AI Humanizer ✍️
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={clearChat}>Clear Chat</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+          {/* RIGHT pill: options */}
+          <div className="pointer-events-auto flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)] ring-1 ring-inset ring-white/[0.04] flex-shrink-0">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
+                  <Settings className="h-4 w-4 mr-2" /> Customize AI
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsHumanizerOpen(true)}>
+                  <Wand2 className="h-4 w-4 mr-2" /> AI Humanizer ✍️
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={clearChat}>Clear Chat</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-3">
+        <div
+          className="flex-1 overflow-y-auto overscroll-contain px-3 pb-4 space-y-3"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4.75rem)' }}
+        >
           {messages.map((message, index) => {
             const isOwn = message.role === 'user';
             return (

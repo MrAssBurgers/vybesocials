@@ -167,6 +167,8 @@ export function SpotifyMiniPlayer({ presence, onClose }: Props) {
               >
                 <SkipForward className="w-5 h-5 fill-current" />
               </button>
+              {/* Invisible spacer to mirror shuffle button so play button stays visually centered */}
+              <span aria-hidden="true" className="w-9 h-9 inline-block" />
             </div>
 
             {/* Bottom pills */}
