@@ -144,11 +144,11 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
     }
   };
 
-  // Failed after retries - show subtle gradient (never broken icon)
+  // Failed after retries - solid black (no broken icon, no gradient flash)
   if (hasError && retryCount >= 2) {
     return (
-      <div className="w-full aspect-video bg-gradient-to-br from-muted/60 via-muted/40 to-muted/20 flex items-end p-4">
-        {caption && <p className="text-sm text-muted-foreground/70 line-clamp-2">✨ {caption}</p>}
+      <div className="w-full aspect-video bg-black flex items-end p-4">
+        {caption && <p className="text-sm text-white/60 line-clamp-2">✨ {caption}</p>}
       </div>
     );
   }
@@ -174,17 +174,17 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
           playsInline
           webkit-playsinline="true"
           preload="metadata"
+          poster=""
+          style={{ backgroundColor: '#000' }}
           onLoadedMetadata={handleLoadedMetadata}
           onLoadedData={handleLoadedData}
           onError={handleError}
         />
 
-        {/* Play indicator when not playing - subtle, on pure black */}
-        {!isPlaying && !hasError && (
+        {/* Subtle play affordance — only after the frame is ready, low-key */}
+        {isLoaded && !isPlaying && !hasError && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="hover:scale-110 active:scale-90 transition-transform">
-              <Play className="h-14 w-14 text-white/80" strokeWidth={1.5} />
-            </div>
+            <Play className="h-12 w-12 text-white/40" strokeWidth={1.5} fill="currentColor" />
           </div>
         )}
 
