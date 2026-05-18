@@ -378,10 +378,12 @@ export function useGlobalRealtimeMessages() {
       .subscribe();
     presenceChannelRef.current = ch;
     return () => {
-      if (presenceChannelRef.current) {
-        supabase.removeChannel(presenceChannelRef.current);
-        presenceChannelRef.current = null;
-      }
+      try {
+        if (presenceChannelRef.current) {
+          supabase.removeChannel(presenceChannelRef.current);
+          presenceChannelRef.current = null;
+        }
+      } catch { /* never throw from cleanup */ }
     };
   }, [profile?.id, queryClient]);
 
