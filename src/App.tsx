@@ -329,23 +329,25 @@ function AppWithPreloader() {
                                     <ScrollRestoration />
                                     <AnimatedRoutes />
                                     <RootBottomNavMount />
-                                    <Suspense fallback={null}>
-                                      {/* PushNotificationPrompt removed */}
-                                      <GlobalMessageNotifications />
-                                      <DespiaOneSignalSync />
-                                      <EnablePushPrompt />
-                                      <SmartPingBridge />
-                                      <TabNotificationBadge />
-                                      <GlobalCallOverlay />
-                                      <WarningPopup />
-                                      <InvitePopup />
-                                      <BanCheck />
-                                      <PremiumGiftChecker />
-                                      <TrackingConsentDialog />
-                                      <FounderAppreciation />
-                                      <CookieConsentBanner />
-                                      <RatePromptSheet />
-                                    </Suspense>
+                                    <LocalErrorBoundary label="DeferredOverlays">
+                                      <Suspense fallback={null}>
+                                        {/* PushNotificationPrompt removed */}
+                                        <GlobalMessageNotifications />
+                                        <DespiaOneSignalSync />
+                                        <EnablePushPrompt />
+                                        <SmartPingBridge />
+                                        <TabNotificationBadge />
+                                        <GlobalCallOverlay />
+                                        <WarningPopup />
+                                        <InvitePopup />
+                                        <BanCheck />
+                                        <PremiumGiftChecker />
+                                        <TrackingConsentDialog />
+                                        <FounderAppreciation />
+                                        <CookieConsentBanner />
+                                        <RatePromptSheet />
+                                      </Suspense>
+                                    </LocalErrorBoundary>
                                   </TutorialProvider>
                                 </Suspense>
                               </DebugPanelProvider>
