@@ -32,10 +32,35 @@ export function DespiaOneSignalSync() {
           .eq('user_id', authUserId)
           .maybeSingle();
         const externalId = profile?.id ?? authUserId;
+
+        // Despia native shell bridge (no-op on web)
         despia(`setonesignalplayerid://?user_id=${externalId}`);
+
+        // Web OneSignal SDK bridge — required so web/PWA users receive
+        // pushes targeted via include_aliases.external_id. Safe on hosts
+        // where the SDK didn't load (preview/native/disabled-host).
+        try {
+          const w = window as any;
+          if (Array.isArray(w.OneSignalDeferred)) {
+            w.OneSignalDeferred.push(async (OneSignal: any) => {
+              try { await OneSignal?.login?.(externalId); } catch { /* ignore */ }
+            });
+          }
+        } catch { /* ignore */ }
       } catch (err) {
         console.warn('[Despia] Failed to set OneSignal player id:', err);
       }
+    };
+
+    const clearPlayerId = () => {
+      try {
+        const w = window as any;
+        if (Array.isArray(w.OneSignalDeferred)) {
+          w.OneSignalDeferred.push(async (OneSignal: any) => {
+            try { await OneSignal?.logout?.(); } catch { /* ignore */ }
+          });
+        }
+      } catch { /* ignore */ }
     };
 
     const requestPushPermissionOnce = () => {
