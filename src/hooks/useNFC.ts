@@ -123,7 +123,12 @@ export function useNFC() {
   const nfcSupported = hasWebNFC || hasDespiaNFC;
 
   useEffect(() => {
-    console.log('[NFC] hasWebNFC:', hasWebNFC, 'hasDespiaNFC:', hasDespiaNFC);
+    console.log('[NFC] availability', {
+      hasWebNFC,
+      hasDespiaNFC,
+      isDespia: isDespiaRuntime(),
+      isAndroid: isAndroidUA(),
+    });
     setState(prev => ({
       ...prev,
       isSupported: nfcSupported,
@@ -172,7 +177,7 @@ export function useNFC() {
       const ok = await despiaNFCScan(onTagScanned);
       setState(prev => ({ ...prev, isScanning: false }));
       if (!ok) {
-        toast.info('No VYBE data found on that tag');
+        toast.info('No NFC tag detected — try again or use QR');
       } else {
         haptics.success();
       }
