@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
-import { isDespiaRuntime, despiaCall, openAppSettings, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
+import { isDespiaRuntime, despiaCall, despiaScanNFC, openAppSettings, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
 
 interface NFCState {
   isSupported: boolean;
