@@ -286,17 +286,27 @@ export function AutoFriendDrop() {
   // NFC scan — prefers Despia's native bridge in the wrapped Android app,
   // falls back to Web NFC for Chrome on Android. iOS shows a "use QR" toast.
   const startWebNfcScan = useCallback(async () => {
+    const inDespiaAndroid = isDespiaRuntime() && isAndroidUA();
+    console.log('[FriendLink] NFC start', {
+      inDespia: isDespiaRuntime(),
+      isAndroid: isAndroidUA(),
+      hasWebNfc: typeof window !== 'undefined' && 'NDEFReader' in window,
+    });
     // 1) Despia Android shell → native bridge first.
-    if (isDespiaRuntime() && isAndroidUA()) {
+    if (inDespiaAndroid) {
       toast.success('NFC scanning — hold phones together back-to-back', { duration: 4000 });
       const payload = await despiaScanNFC();
+      console.log('[FriendLink] Despia NFC completed', { hasPayload: Boolean(payload) });
       if (payload) {
         if (!dispatchNfcPayload(payload)) {
           toast.error("That tag isn't a VYBE link");
         }
         return;
       }
-      // Despia bridge timed out / no tag — try Web NFC if the WebView happens to expose it.
+      // Despia's native bridge is the source of truth inside the app. If it
+      // timed out, don't fall through to Web NFC and show the wrong error.
+      toast.info('No NFC tag detected — try again or use QR');
+      return;
     }
 
     // 2) iOS (Despia or browser) — Web NFC isn't supported.
@@ -335,7 +345,7 @@ export function AutoFriendDrop() {
     } catch (err: any) {
       console.warn('[FriendLink] Web NFC failed:', err);
       // Despia Android: WebView rejected — retry via native bridge once.
-      if (isDespiaRuntime() && isAndroidUA()) {
+      if (inDespiaAndroid) {
         const payload = await despiaScanNFC();
         if (payload) {
           if (!dispatchNfcPayload(payload)) toast.error("That tag isn't a VYBE link");
