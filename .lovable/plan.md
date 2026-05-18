@@ -1,57 +1,34 @@
-## What's actually happening
+## Findings
 
-Publishing is failing because the **Test database is out of connection slots**, not because of a code or migration bug.
-
-Every connection attempt — including the ones the publish pipeline makes to verify the schema — is being rejected with:
-
-```
-FATAL: 53300: remaining connection slots are reserved for roles with the SUPERUSER attribute
-```
-
-This is showing up continuously in Postgres logs (dozens of FATALs per minute, ongoing right now). It's why:
-- The schema metadata fetch in this session failed
-- `read_query` returns the same error
-- Publishing can't complete its pre-flight DB checks
-
-Production (Live) reports healthy, but publish has to touch Test first, so the whole pipeline stalls.
-
-## Root cause
-
-Something is holding too many open Postgres connections on the Test instance and never releasing them. The pool is saturated, so any new role (including the migration runner) gets refused. Common culprits in this codebase:
-
-1. An edge function calling `createClient(...)` inside the request handler and not closing it — every invocation leaks one connection.
-2. A recently deployed edge function with a hot loop / cron that opens connections faster than they idle out.
-3. Long-lived realtime subscriptions or admin tools holding sessions open.
+- Lovable Cloud is currently healthy for both Test and Live.
+- The previous connection-slot failure is not present in the last few hours.
+- The audit/database logs now show a recurring error every 5 seconds:
+  - `relation "pgmq.q_auth_emails" does not exist`
+- The source is cron job `process-email-queue`, which runs every 5 seconds and checks `pgmq.q_auth_emails` / `pgmq.q_transactional_emails` before calling the email queue processor.
+- The `pgmq` extension exists, but only `pgmq.meta` exists; the actual queue tables are missing.
+- This creates constant database errors and connection churn, which can destabilize publishing even when the backend looks healthy.
 
 ## Plan
 
-### Step 1 — Free the pool (immediate unblock)
-Ask the user to **pause and resume the Test backend** from Lovable Cloud settings. This forcibly drops all existing Postgres connections and resets the pool. Within ~30 seconds the publish pipeline should succeed.
+1. Repair the email queue infrastructure with a database migration:
+   - Ensure `pgmq` exists.
+   - Recreate the missing queues:
+     - `auth_emails`
+     - `transactional_emails`
+     - `auth_emails_dlq`
+     - `transactional_emails_dlq`
+   - Make the migration idempotent so it is safe if queues already exist.
 
-If pause/resume isn't accessible, the alternative is to wait ~5–10 minutes for idle connections to time out, then retry publish.
+2. Harden the cron job so it cannot spam errors again:
+   - Update `process-email-queue` cron to use safe helper functions instead of directly referencing `pgmq.q_*` tables.
+   - If a queue is missing in the future, the helper should recreate it or return safely.
+   - Keep the 5-second schedule only if the queue checks are safe.
 
-### Step 2 — Verify the unblock
-After resume, re-run `cloud_status` + a trivial `SELECT 1`. Both should succeed cleanly. Then retry publish.
+3. Verify after the migration:
+   - Confirm the queue tables exist.
+   - Confirm the cron job is active and no longer producing `pgmq.q_auth_emails` errors.
+   - Re-check recent auth/database logs for publishing-related failures.
 
-### Step 3 — Audit edge functions for connection leaks (prevent recurrence)
-Once Test is breathing again, grep every edge function for:
+## Expected result
 
-- `createClient(` calls made **inside** the request handler (should be module-scope, created once per cold start).
-- Any function using `postgres`, `pg`, or raw connection libraries instead of the Supabase JS client.
-- Recently added/edited functions (Spotify control, push notifications, ai-catch-up, analyze-bug-report — these were touched today).
-
-Fix any that instantiate clients per-request. Move the `createClient` call to module scope so it's reused across invocations on the same warm instance.
-
-### Step 4 — Add a guard (optional, recommended)
-Add lightweight logging on the top 3–5 most-invoked edge functions so we can see invocation rate and catch leaks earlier next time.
-
-## Technical detail
-
-- Error code `53300` = `too_many_connections`.
-- Lovable Cloud Test runs with a small connection ceiling; the reserve for SUPERUSER is what migrations need, so once the regular pool is full publishing breaks first.
-- Pause/resume is safe — no data loss, only kicks active sessions.
-- No migration is needed for this fix; it's an operational + edge-function hygiene issue.
-
-## What I need from you to proceed
-
-Confirm you want me to (a) walk you through pause/resume, and then (b) audit the edge functions touched today for connection leaks. I'll implement step 3 once Test is responsive again.
+Publishing should stop failing from backend audit-log noise or connection churn caused by the broken email queue cron job.
