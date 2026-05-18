@@ -150,6 +150,7 @@ export function usePushNotifications() {
       const link = await ensureDespiaOneSignalLinked(profile.id, {
         requestPermission: true,
         waitForPlayerIdMs: 1_500,
+        persistToken: false,
       });
       if (!link.linked) throw new Error('Open the app in Despia to enable push notifications.');
 
