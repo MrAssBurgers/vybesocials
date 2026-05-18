@@ -20,6 +20,7 @@ const DevMockupCompare = lazy(() => import("@/pages/DevMockupCompare"));
 const RootGate = lazy(() => import("@/components/auth/RootGate"));
 const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 const SpotifyCallback = lazy(() => import("@/pages/SpotifyCallback"));
+const DespiaPushDemo = lazy(() => import("@/pages/DespiaPushDemo"));
 
 // High-priority but lazy-loaded to reduce main-thread work
 const Home = lazy(() => import("@/pages/Home"));
@@ -177,6 +178,7 @@ export function AnimatedRoutes() {
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/spotify/callback" element={<SpotifyCallback />} />
+            <Route path="/despia-push-demo" element={<DespiaPushDemo />} />
             <Route path="/invite/:identifier" element={<InviteRedeem />} />
             
             {/* CRITICAL ROUTES - Eagerly loaded, instant navigation */}
