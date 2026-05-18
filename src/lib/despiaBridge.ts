@@ -125,13 +125,15 @@ export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> 
       }
     };
 
-    const bridges = ['readnfc://', 'nfcread://', 'scannfc://', 'nfc://read'];
+    const bridges = ['nfcread://', 'scannfc://', 'nfc://read'];
+    console.log('[despiaBridge] requesting NFC bridge', 'readnfc://');
+    void despiaCall('readnfc://');
+    await new Promise((r) => setTimeout(r, 300));
     for (const url of bridges) {
       if (settled) break;
       console.log('[despiaBridge] requesting NFC bridge', url);
       const result = await despiaCall(url, DESPIA_CALLBACK_KEYS, Math.min(timeoutMs, 30_000));
       if (result) finish(result, url);
-      if (url === 'readnfc://') await new Promise((r) => setTimeout(r, 250));
     }
   });
 }
