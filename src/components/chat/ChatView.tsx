@@ -1393,7 +1393,7 @@ export function ChatView() {
               <div className="flex flex-col gap-0.5 min-w-0">
                 <LivePresenceBar
                   isOnline={otherMemberOnline}
-                  isTyping={typingUsers.length > 0}
+                  isTyping={false}
                   isInChat={presentUsers.length > 0}
                   username={otherMember?.username}
                   lastReadAt={lastReadAt}
