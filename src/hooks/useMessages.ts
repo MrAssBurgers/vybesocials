@@ -4,7 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
-import { sendMessagePush } from '@/lib/pushNotifications';
+// Push notifications for new messages are dispatched server-side by the
+// `on_message_insert_notify` trigger; no client-side helper needed here.
 import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
 
 export type ViewMode = 'view_once' | '24h' | 'permanent';
