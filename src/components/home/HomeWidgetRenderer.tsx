@@ -448,7 +448,15 @@ function InlinePostList({
       <PostNudgeWidget />
 
       {posts.map((post, index) => (
-        <div key={post.id} ref={registerPostRef(index)}>
+        <div
+          key={post.id}
+          ref={registerPostRef(index)}
+          style={{
+            // Browser skips layout/paint for cards offscreen — major scroll win
+            contentVisibility: 'auto',
+            containIntrinsicSize: '0 720px',
+          }}
+        >
           <MemoizedPostCard post={post} />
           {/* Early load-more sentinel — fires 5 posts before the end */}
           {index === earlyTriggerIndex && (

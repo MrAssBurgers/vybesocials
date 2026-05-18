@@ -1,5 +1,6 @@
 import { Home, Compass, Plus, MessageCircle, User, GripVertical, Check } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { preloadRoute } from '@/lib/routePreloader';
 import { cn } from '@/lib/utils';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
@@ -156,6 +157,10 @@ const DraggableNavItem = memo(({
     }
   };
 
+  const handlePrefetch = useCallback(() => {
+    try { preloadRoute(path); } catch { /* noop */ }
+  }, [path]);
+
   // Profile item with avatar
   if (item.isProfile) {
     return (
@@ -169,6 +174,9 @@ const DraggableNavItem = memo(({
           to={path}
           className="relative flex items-center justify-center min-h-[48px] group w-full"
           onClick={handleClick}
+          onPointerEnter={handlePrefetch}
+          onTouchStart={handlePrefetch}
+          onFocus={handlePrefetch}
           data-tutorial={item.tutorialId}
         >
           <motion.div 
@@ -220,6 +228,9 @@ const DraggableNavItem = memo(({
         to={path}
         className="relative flex items-center justify-center min-h-[48px] group w-full"
         onClick={handleClick}
+        onPointerEnter={handlePrefetch}
+        onTouchStart={handlePrefetch}
+        onFocus={handlePrefetch}
         data-tutorial={item.tutorialId}
       >
         <motion.div 
