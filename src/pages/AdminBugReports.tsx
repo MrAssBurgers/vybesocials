@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Bug, CheckCircle2, Clock, AlertTriangle, Trash2, MessageSquare, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/auth';
+import { useUserRole } from '@/hooks/useModeration';
 
 type BugStatus = 'pending' | 'reviewing' | 'fixed' | 'wont_fix' | 'duplicate';
 
@@ -18,10 +20,13 @@ const STATUS_CONFIG: Record<BugStatus, { label: string; icon: typeof Bug; color:
 export default function AdminBugReports() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { authReady, user } = useAuth();
+  const { data: userRole, isLoading: roleLoading } = useUserRole();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BugStatus | 'all'>('all');
+  const canViewBugs = userRole === 'admin' || userRole === 'owner';
 
-  const { data: bugs = [], isLoading } = useQuery({
+  const { data: bugs = [], isLoading, isError, error } = useQuery({
     queryKey: ['admin-bug-reports', filter],
     queryFn: async () => {
       let query = supabase
@@ -38,6 +43,7 @@ export default function AdminBugReports() {
       if (error) throw error;
       return data || [];
     },
+    enabled: authReady && !!user && canViewBugs,
   });
 
   const updateStatus = useMutation({
@@ -109,8 +115,12 @@ export default function AdminBugReports() {
 
       {/* Bug list */}
       <div className="p-4 space-y-3">
-        {isLoading ? (
+        {!authReady || roleLoading || isLoading ? (
           <div className="text-center text-muted-foreground py-12 text-sm">Loading bug reports...</div>
+        ) : !canViewBugs ? (
+          <div className="text-center text-muted-foreground py-12 text-sm">Admin access required.</div>
+        ) : isError ? (
+          <div className="text-center text-destructive py-12 text-sm">Failed to load bug reports: {(error as Error).message}</div>
         ) : bugs.length === 0 ? (
           <div className="text-center py-12">
             <Bug className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
