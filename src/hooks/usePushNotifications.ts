@@ -52,6 +52,19 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+const PUSH_INTENT_KEY = 'vybe.push.intent';
+
+function readIntent(userId?: string): boolean {
+  if (!userId) return false;
+  try { return localStorage.getItem(`${PUSH_INTENT_KEY}:${userId}`) === '1'; } catch { return false; }
+}
+function writeIntent(userId: string, enabled: boolean) {
+  try {
+    if (enabled) localStorage.setItem(`${PUSH_INTENT_KEY}:${userId}`, '1');
+    else localStorage.removeItem(`${PUSH_INTENT_KEY}:${userId}`);
+  } catch { /* */ }
+}
+
 export function usePushNotifications() {
   const { profile } = useAuth();
   const [isSupported, setIsSupported] = useState(false);
@@ -77,6 +90,8 @@ export function usePushNotifications() {
     }
 
     if (supported && profile) {
+      // Hydrate from intent immediately so toggle doesn't flicker off on reload.
+      setIsSubscribed(readIntent(profile.id));
       if (!onDespia) registerServiceWorker();
       checkSubscription();
     } else if (!profile) {
@@ -113,6 +128,7 @@ export function usePushNotifications() {
       }
 
       const platform = isDespiaWebView() ? 'despia' : 'web';
+      const intent = readIntent(profile.id);
 
       const { data, error } = await supabase
         .from('push_tokens')
@@ -123,14 +139,28 @@ export function usePushNotifications() {
 
       if (error) {
         console.error('[Push] Error checking subscription:', error);
+        // Don't flip the toggle off on a transient read error — keep user intent.
         setIsCheckingSubscription(false);
         return;
       }
 
-      setIsSubscribed(!!data);
+      // Source of truth = user intent. Toggle stays on until manually turned off.
+      // If intent is on but the token row is missing, silently re-link in background.
+      if (intent) {
+        setIsSubscribed(true);
+        if (!data && isDespiaWebView()) {
+          ensureDespiaOneSignalLinked(profile.id, {
+            requestPermission: false,
+            waitForPlayerIdMs: 2_000,
+            persistToken: true,
+          }).catch((err) => console.warn('[Push] background relink failed', err));
+        }
+      } else {
+        setIsSubscribed(!!data);
+      }
 
-      // Web-only: reconcile with browser subscription
-      if (!isDespiaWebView() && registrationRef.current) {
+      // Web-only: reconcile with browser subscription (only if user hasn't opted in)
+      if (!isDespiaWebView() && registrationRef.current && !intent) {
         const subscription = await registrationRef.current.pushManager.getSubscription();
         if (!subscription && data) {
           await supabase
