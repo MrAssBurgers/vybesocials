@@ -20,6 +20,15 @@ const ONESIGNAL_REST_KEY =
 const isDespia = isDespiaRuntime();
 type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean; notification_types?: number | null };
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+const PUSH_SUBSCRIPTION_TYPES = ['iOSPush', 'AndroidPush', 'ChromePush', 'FirefoxPush', 'SafariPush', 'HuaweiPush'];
+
+const isActivePushSubscription = (subscription: OneSignalSubscription) => {
+  if (!subscription.id || !subscription.type || !PUSH_SUBSCRIPTION_TYPES.includes(subscription.type)) return false;
+  // `enabled` is not always returned by OneSignal's User lookup. Treat only
+  // an explicit false as disabled, and rely on notification_types for the
+  // subscribed/permission state. Positive notification_types means subscribed.
+  return subscription.enabled !== false && (subscription.notification_types ?? 1) > 0;
+};
 
 export default function DespiaPushDemo() {
   const [externalId, setExternalId] = useState('');
@@ -137,10 +146,7 @@ export default function DespiaPushDemo() {
       }
       const data = await res.json();
       const subs: OneSignalSubscription[] = Array.isArray(data?.subscriptions) ? data.subscriptions : [];
-      // Only push subscriptions that are enabled and currently subscribed.
-      return subs
-        .filter((s) => (s.type === 'iOSPush' || s.type === 'AndroidPush' || s.type === 'ChromePush' || s.type === 'FirefoxPush' || s.type === 'SafariPush' || s.type === 'HuaweiPush') && s.enabled === true && (s.notification_types ?? 1) > 0 && s.id)
-        .map((s) => s.id as string);
+      return subs.filter(isActivePushSubscription).map((s) => s.id as string);
     } catch (e) {
       console.warn('[OneSignal] user lookup error', e);
       return [];
@@ -188,7 +194,7 @@ export default function DespiaPushDemo() {
       if (subscriptionIds[0]) setPlayerId(subscriptionIds[0]);
 
       if (!subscriptionIds.length) {
-        toast.error('No subscribed push device found yet — allow notifications, reopen VYBE, then tap Re-link device.');
+        toast.error('No OneSignal subscription found yet — reopen VYBE, then tap Re-link device.');
         return;
       }
 
