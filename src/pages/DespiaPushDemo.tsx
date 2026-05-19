@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   ensureDespiaOneSignalLinked,
   fetchDespiaOneSignalPlayerId,
+  resolveCurrentOneSignalExternalId,
 } from '@/lib/despiaOneSignal';
 import { despiaCall, isDespiaRuntime } from '@/lib/despiaBridge';
 
@@ -28,6 +29,12 @@ export default function DespiaPushDemo() {
   const [message, setMessage] = useState('This is a test push notification.');
   const [sending, setSending] = useState(false);
   const [linking, setLinking] = useState(false);
+
+  const getTargetExternalId = async () => {
+    const current = externalId.trim() || (await resolveCurrentOneSignalExternalId()) || '';
+    if (current && current !== externalId) setExternalId(current);
+    return current;
+  };
 
   // Resolve the external user id from Supabase auth, fallback to a generated demo id.
   useEffect(() => {
@@ -76,14 +83,19 @@ export default function DespiaPushDemo() {
       toast.error('Open this page inside the Despia app to link push.');
       return;
     }
+    const targetExternalId = await getTargetExternalId();
+    if (!targetExternalId) {
+      toast.error('Sign in first so VYBE can link this device to your account.');
+      return;
+    }
     setLinking(true);
     try {
-      const link = await ensureDespiaOneSignalLinked(externalId, {
+      const link = await ensureDespiaOneSignalLinked(targetExternalId, {
         requestPermission: true,
         waitForPlayerIdMs: 2_500,
       });
       if (link.permission !== null) setPushEnabled(link.permission);
-      const pid = await resolveLinkedPlayerId(link.playerId);
+      const pid = await resolveLinkedPlayerId(targetExternalId, link.playerId);
       if (pid) setPlayerId(pid);
       toast.success(pid ? 'Device linked — push target found.' : 'Device link sent. If no notification arrives, reopen VYBE once and tap Re-link again.');
     } catch (e: unknown) {
@@ -128,15 +140,15 @@ export default function DespiaPushDemo() {
     }
   };
 
-  const resolveLinkedPlayerId = async (initialId = ''): Promise<string> => {
+  const resolveLinkedPlayerId = async (targetExternalId: string, initialId = ''): Promise<string> => {
     if (initialId) return initialId;
     for (let attempt = 0; attempt < 6; attempt += 1) {
       const nativeId = await fetchDespiaOneSignalPlayerId(attempt === 0 ? 800 : 400);
       if (nativeId) return nativeId;
-      const lookedUpId = (await resolveSubscriptionIds(externalId))[0] || '';
+      const lookedUpId = (await resolveSubscriptionIds(targetExternalId))[0] || '';
       if (lookedUpId) return lookedUpId;
       await delay(650);
-      void ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 0, persistToken: false });
+      void ensureDespiaOneSignalLinked(targetExternalId, { waitForPlayerIdMs: 0, persistToken: false });
     }
     return '';
   };
