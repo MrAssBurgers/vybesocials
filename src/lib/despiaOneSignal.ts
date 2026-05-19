@@ -39,6 +39,11 @@ function readWindowPlayerId(): string {
     const id = normalizeId(w[key]);
     if (id) return id;
   }
+  const oneSignal = w.OneSignal as Record<string, unknown> | undefined;
+  const user = oneSignal?.User as Record<string, unknown> | undefined;
+  const pushSubscription = user?.PushSubscription as Record<string, unknown> | undefined;
+  const sdkId = normalizeId(pushSubscription?.id || pushSubscription?.subscriptionId);
+  if (sdkId) return sdkId;
   return '';
 }
 
