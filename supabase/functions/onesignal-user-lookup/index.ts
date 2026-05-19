@@ -52,20 +52,26 @@ Deno.serve(async (req) => {
       `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(external_id)}`,
       { headers: { Authorization: `Key ${onesignalRestKey}`, Accept: "application/json" } },
     );
+    const bodyText = await res.text().catch(() => "");
+    let user: Record<string, unknown> = {};
+    try { user = bodyText ? JSON.parse(bodyText) : {}; } catch { user = {}; }
     if (!res.ok) {
-      return new Response(JSON.stringify({ subscriptions: [], status: res.status }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({
+        subscriptions: [], status: res.status, error: bodyText.slice(0, 300),
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    const user = await res.json().catch(() => ({}));
-    const subscriptions = Array.isArray(user?.subscriptions)
-      ? user.subscriptions.map((s: Record<string, unknown>) => ({
-          id: s.id, type: s.type, enabled: s.enabled,
+    const subscriptions = Array.isArray((user as { subscriptions?: unknown }).subscriptions)
+      ? ((user as { subscriptions: Array<Record<string, unknown>> }).subscriptions).map((s) => ({
+          id: s.id, type: s.type, enabled: s.enabled, has_token: Boolean(s.token),
         }))
       : [];
-    return new Response(JSON.stringify({ subscriptions }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const identity = (user as { identity?: Record<string, unknown> }).identity || {};
+    return new Response(JSON.stringify({
+      status: res.status,
+      subscriptions,
+      onesignal_id: identity.onesignal_id ?? null,
+      external_id: identity.external_id ?? external_id,
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
