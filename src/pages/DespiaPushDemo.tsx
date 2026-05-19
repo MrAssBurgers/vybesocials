@@ -18,6 +18,7 @@ const ONESIGNAL_REST_KEY =
 
 const isDespia = isDespiaRuntime();
 type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean };
+const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 export default function DespiaPushDemo() {
   const [externalId, setExternalId] = useState('');
@@ -64,7 +65,8 @@ export default function DespiaPushDemo() {
     (async () => {
       const link = await ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 1_500 });
       setPushEnabled(link.permission);
-      const pid = link.playerId || await fetchDespiaOneSignalPlayerId(1_500);
+      let pid = link.playerId || await fetchDespiaOneSignalPlayerId(1_500);
+      if (!pid) pid = (await resolveSubscriptionIds(externalId))[0] || '';
       if (pid) setPlayerId(pid);
     })();
   }, [externalId]);
@@ -78,12 +80,12 @@ export default function DespiaPushDemo() {
     try {
       const link = await ensureDespiaOneSignalLinked(externalId, {
         requestPermission: true,
-        waitForPlayerIdMs: 3_000,
+        waitForPlayerIdMs: 2_500,
       });
       if (link.permission !== null) setPushEnabled(link.permission);
-      const pid = link.playerId || await fetchDespiaOneSignalPlayerId(1_000);
+      const pid = await resolveLinkedPlayerId(link.playerId);
       if (pid) setPlayerId(pid);
-      toast.success(pid ? 'Device linked' : 'Link queued — OneSignal is still creating the subscription. Try send again in a few seconds.');
+      toast.success(pid ? 'Device linked — push target found.' : 'Device link sent. If no notification arrives, reopen VYBE once and tap Re-link again.');
     } catch (e: unknown) {
       toast.error(`Link failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -124,6 +126,19 @@ export default function DespiaPushDemo() {
       console.warn('[OneSignal] user lookup error', e);
       return [];
     }
+  };
+
+  const resolveLinkedPlayerId = async (initialId = ''): Promise<string> => {
+    if (initialId) return initialId;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const nativeId = await fetchDespiaOneSignalPlayerId(attempt === 0 ? 800 : 400);
+      if (nativeId) return nativeId;
+      const lookedUpId = (await resolveSubscriptionIds(externalId))[0] || '';
+      if (lookedUpId) return lookedUpId;
+      await delay(650);
+      void ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 0, persistToken: false });
+    }
+    return '';
   };
 
   const handleSend = async () => {
