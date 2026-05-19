@@ -20,7 +20,7 @@ interface PushPayload {
   type?: string;
   data?: Record<string, unknown>;
 }
-type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean };
+type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean; notification_types?: number | null };
 type PushTokenRow = { id: string; token: string; platform: string };
 
 async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs = 3_000) {
@@ -45,6 +45,7 @@ async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, ex
     .filter((sub) =>
       sub?.id &&
       sub.enabled === true &&
+      (sub.notification_types ?? 1) > 0 &&
       typeof sub.type === "string" &&
       ["iOSPush", "AndroidPush", "ChromePush", "FirefoxPush", "SafariPush", "HuaweiPush"].includes(sub.type)
     )
