@@ -199,6 +199,7 @@ export function usePushNotifications() {
       });
       if (error) throw error;
 
+      writeIntent(profile.id, true);
       setIsSubscribed(true);
       setPermission('granted');
       toast.success('Push notifications enabled!');
