@@ -17,7 +17,7 @@ const ONESIGNAL_APP_ID = '85bcf4b4-16fb-4101-90b3-59ca9574e57b';
 const isDespia = isDespiaRuntime();
 type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean };
 const PUSH_SUB_TYPES = new Set([
-  'iOSPush', 'AndroidPush', 'ChromePush', 'FirefoxPush', 'SafariPush', 'HuaweiPush',
+  'iOSPush', 'AndroidPush', 'ChromePush', 'FirefoxPush', 'SafariPush', 'HuaweiPush', 'FireOSPush',
 ]);
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
