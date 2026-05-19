@@ -173,8 +173,9 @@ export default function DespiaPushDemo() {
       // Resolve a concrete subscription target. Order of preference:
       //  1. Cached player_id from the Despia bridge.
       //  2. Subscription IDs looked up from OneSignal via external_id.
-      // We never send with include_aliases/external_id alone because OneSignal
-      // rejects it with "invalid_aliases" when the alias isn't registered yet.
+      // Prefer a concrete subscription when OneSignal exposes it; otherwise use
+      // the Despia-documented external_id alias path because native shells may
+      // not expose a legacy player_id to JavaScript.
       let subscriptionIds: string[] = [];
       if (playerId) {
         subscriptionIds = [playerId];
@@ -193,11 +194,11 @@ export default function DespiaPushDemo() {
         body.target_channel = 'push';
       }
 
-      const res = await fetch('https://onesignal.com/api/v1/notifications', {
+      const res = await fetch('https://api.onesignal.com/notifications', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Basic ${ONESIGNAL_REST_KEY}`,
+          Authorization: `Key ${ONESIGNAL_REST_KEY}`,
         },
         body: JSON.stringify(body),
       });
