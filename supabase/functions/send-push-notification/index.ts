@@ -217,11 +217,24 @@ Deno.serve(async (req) => {
             collapse_id: tag || undefined,
           }),
         }, 4_000);
-        onesignalDelivered = res.ok;
-        onesignalResult = { status: res.status, ok: res.ok, subscriptionIds: subscriptionIds.length, aliasFallback: subscriptionIds.length === 0 };
-        if (!res.ok) {
-          const txt = await res.text().catch(() => "");
-          console.warn("[push] OneSignal non-OK", res.status, txt.slice(0, 200));
+        const osJson = await res.json().catch(() => null) as { id?: string; recipients?: number; errors?: unknown } | null;
+        const recipients = typeof osJson?.recipients === "number" ? osJson.recipients : undefined;
+        const errors = osJson?.errors ?? undefined;
+        // Only count as delivered when OneSignal accepted the request AND
+        // reported at least one recipient AND returned no errors. Otherwise
+        // errors like "All included players are not subscribed" silently
+        // looked like a successful send.
+        onesignalDelivered = res.ok && !errors && (recipients ?? 0) > 0;
+        onesignalResult = {
+          status: res.status,
+          ok: res.ok,
+          recipients,
+          errors,
+          subscriptionIds: subscriptionIds.length,
+          aliasFallback: subscriptionIds.length === 0,
+        };
+        if (!onesignalDelivered) {
+          console.warn("[push] OneSignal not delivered", res.status, JSON.stringify(osJson).slice(0, 300));
         }
       } catch (err) {
         console.warn("[push] OneSignal send failed:", err);
