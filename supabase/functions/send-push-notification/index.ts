@@ -46,7 +46,7 @@ async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, ex
       sub?.id &&
       sub.enabled !== false &&
       typeof sub.type === "string" &&
-      ["iOSPush", "AndroidPush", "ChromePush", "FirefoxPush", "SafariPush", "HuaweiPush"].includes(sub.type)
+      ["iOSPush", "AndroidPush", "ChromePush", "FirefoxPush", "SafariPush", "HuaweiPush", "FireOSPush"].includes(sub.type)
     )
     .map((sub) => String(sub.id));
 }
