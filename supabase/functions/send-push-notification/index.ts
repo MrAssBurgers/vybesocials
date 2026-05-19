@@ -22,6 +22,14 @@ interface PushPayload {
 }
 type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean; notification_types?: number | null };
 type PushTokenRow = { id: string; token: string; platform: string };
+const PUSH_SUBSCRIPTION_TYPES = ["iOSPush", "AndroidPush", "ChromePush", "FirefoxPush", "SafariPush", "HuaweiPush"];
+
+function isActivePushSubscription(sub: OneSignalSubscription) {
+  if (!sub?.id || !sub.type || !PUSH_SUBSCRIPTION_TYPES.includes(sub.type)) return false;
+  // OneSignal's User lookup can omit `enabled`. Only explicit false is disabled;
+  // positive notification_types is the source of truth for subscribed devices.
+  return sub.enabled !== false && (sub.notification_types ?? 1) > 0;
+}
 
 async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs = 3_000) {
   const controller = new AbortController();
@@ -41,15 +49,7 @@ async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, ex
   if (!res.ok) return [];
   const user = await res.json().catch(() => null);
   const subs: OneSignalSubscription[] = Array.isArray(user?.subscriptions) ? user.subscriptions : [];
-  return subs
-    .filter((sub) =>
-      sub?.id &&
-      sub.enabled === true &&
-      (sub.notification_types ?? 1) > 0 &&
-      typeof sub.type === "string" &&
-      ["iOSPush", "AndroidPush", "ChromePush", "FirefoxPush", "SafariPush", "HuaweiPush"].includes(sub.type)
-    )
-    .map((sub) => String(sub.id));
+  return subs.filter(isActivePushSubscription).map((sub) => String(sub.id));
 }
 
 Deno.serve(async (req) => {

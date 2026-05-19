@@ -21,6 +21,16 @@ const PLAYER_ID_KEYS = [
 
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
+async function checkNativePushPermission(): Promise<boolean | null> {
+  for (const checkUrl of ['checkNativePushPermissions://', 'checknativepushpermissions://']) {
+    const permissionResult = await despiaCall(checkUrl, ['nativePushEnabled'], 1_500);
+    if (permissionResult && 'nativePushEnabled' in permissionResult) {
+      return Boolean(permissionResult.nativePushEnabled);
+    }
+  }
+  return null;
+}
+
 function normalizeId(value: unknown): string {
   if (typeof value === 'string') return value.trim();
   if (!value || typeof value !== 'object') return '';
@@ -109,14 +119,12 @@ export async function ensureDespiaOneSignalLinked(
   // may not return a player id synchronously, so also repeat it below.
   await despiaCall(linkUrl, [], 1_000);
 
+  permission = await checkNativePushPermission();
+
   if (options.requestPermission) {
-    await despiaCall('registerpush://', [], 1_500);
-    for (const checkUrl of ['checkNativePushPermissions://', 'checknativepushpermissions://']) {
-      const permissionResult = await despiaCall(checkUrl, ['nativePushEnabled'], 1_500);
-      if (permissionResult && 'nativePushEnabled' in permissionResult) {
-        permission = Boolean(permissionResult.nativePushEnabled);
-        break;
-      }
+    if (permission !== true) {
+      await despiaCall('registerpush://', [], 1_500);
+      permission = await checkNativePushPermission();
     }
   }
 
