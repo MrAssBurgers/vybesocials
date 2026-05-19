@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled } from '@/lib/serviceWorker';
-import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
+import { checkDespiaPushPermission, ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
 
 function isDespiaWebView(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -127,6 +127,13 @@ export function usePushNotifications() {
         return;
       }
 
+      if (isDespiaWebView()) {
+        const nativePermission = await checkDespiaPushPermission();
+        setIsSubscribed(Boolean(data) && nativePermission !== false);
+        setPermission(nativePermission === false ? 'denied' : nativePermission === true ? 'granted' : 'default');
+        return;
+      }
+
       setIsSubscribed(!!data);
 
       // Web-only: reconcile with browser subscription
@@ -153,6 +160,7 @@ export function usePushNotifications() {
     try {
       const link = await ensureDespiaOneSignalLinked(profile.id, {
         requestPermission: true,
+        refreshRegistration: true,
         waitForPlayerIdMs: 4_000,
         persistToken: true,
       });
