@@ -179,20 +179,19 @@ Deno.serve(async (req) => {
     const onesignalAppId = Deno.env.get("ONESIGNAL_APP_ID");
     const onesignalRestKey = Deno.env.get("ONESIGNAL_REST_API_KEY");
     let onesignalResult: unknown = null;
+    let onesignalDelivered = false;
     if (onesignalAppId && onesignalRestKey) {
       try {
         const subscriptionIds = await lookupOneSignalSubscriptionIds(onesignalAppId, onesignalRestKey, userId);
         const target = subscriptionIds.length > 0
           ? { include_subscription_ids: subscriptionIds }
-          : { include_external_user_ids: [userId] };
+          : { include_aliases: { external_id: [userId] }, target_channel: "push" };
         const imageUrl = typeof data?.image_url === "string" ? data.image_url : undefined;
         const res = await fetchJsonWithTimeout("https://api.onesignal.com/notifications", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // OneSignal accepts both "Basic <key>" (legacy) and "Key <key>" (new).
-            // Despia docs show "Basic"; keep that for maximum compatibility.
-            Authorization: `Basic ${onesignalRestKey}`,
+            Authorization: `Key ${onesignalRestKey}`,
           },
           body: JSON.stringify({
             app_id: onesignalAppId,
@@ -218,7 +217,8 @@ Deno.serve(async (req) => {
             collapse_id: tag || undefined,
           }),
         }, 4_000);
-        onesignalResult = { status: res.status, ok: res.ok, subscriptionIds: subscriptionIds.length };
+        onesignalDelivered = res.ok;
+        onesignalResult = { status: res.status, ok: res.ok, subscriptionIds: subscriptionIds.length, aliasFallback: subscriptionIds.length === 0 };
         if (!res.ok) {
           const txt = await res.text().catch(() => "");
           console.warn("[push] OneSignal non-OK", res.status, txt.slice(0, 200));
@@ -242,7 +242,7 @@ Deno.serve(async (req) => {
     if (!tokens || tokens.length === 0) {
       // Web Push has no targets, but OneSignal may have already delivered to native devices.
       return new Response(
-        JSON.stringify({ success: !!onesignalResult, sent: 0, onesignal: onesignalResult, error: onesignalResult ? undefined : "No push tokens found" }),
+        JSON.stringify({ success: onesignalDelivered, sent: 0, onesignal: onesignalResult, error: onesignalDelivered ? undefined : "No push tokens found" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -356,7 +356,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        success: successCount > 0 || !!onesignalResult,
+        success: successCount > 0 || onesignalDelivered,
         sent: successCount,
         cleaned: cleanedCount,
         total: tokens.length,

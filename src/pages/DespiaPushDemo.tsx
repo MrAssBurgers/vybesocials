@@ -24,6 +24,7 @@ const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve
 export default function DespiaPushDemo() {
   const [externalId, setExternalId] = useState('');
   const [playerId, setPlayerId] = useState('');
+  const [linkedByDevice, setLinkedByDevice] = useState(false);
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
   const [title, setTitle] = useState('Hello from VYBE');
   const [message, setMessage] = useState('This is a test push notification.');
@@ -71,6 +72,7 @@ export default function DespiaPushDemo() {
     if (!isDespia || !externalId) return;
     (async () => {
       const link = await ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 1_500 });
+      if (link.linked) setLinkedByDevice(true);
       setPushEnabled(link.permission);
       let pid = link.playerId || await fetchDespiaOneSignalPlayerId(1_500);
       if (!pid) pid = (await resolveSubscriptionIds(externalId))[0] || '';
@@ -94,10 +96,11 @@ export default function DespiaPushDemo() {
         requestPermission: true,
         waitForPlayerIdMs: 2_500,
       });
+      if (link.linked) setLinkedByDevice(true);
       if (link.permission !== null) setPushEnabled(link.permission);
       const pid = await resolveLinkedPlayerId(targetExternalId, link.playerId);
       if (pid) setPlayerId(pid);
-      toast.success(pid ? 'Device linked — push target found.' : 'Device link sent. If no notification arrives, reopen VYBE once and tap Re-link again.');
+      toast.success(pid ? 'Device linked — push target found.' : 'Device linked by external_id — ready to receive pushes.');
     } catch (e: unknown) {
       toast.error(`Link failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -170,8 +173,9 @@ export default function DespiaPushDemo() {
       // Resolve a concrete subscription target. Order of preference:
       //  1. Cached player_id from the Despia bridge.
       //  2. Subscription IDs looked up from OneSignal via external_id.
-      // We never send with include_aliases/external_id alone because OneSignal
-      // rejects it with "invalid_aliases" when the alias isn't registered yet.
+      // Prefer a concrete subscription when OneSignal exposes it; otherwise use
+      // the Despia-documented external_id alias path because native shells may
+      // not expose a legacy player_id to JavaScript.
       let subscriptionIds: string[] = [];
       if (playerId) {
         subscriptionIds = [playerId];
@@ -181,21 +185,20 @@ export default function DespiaPushDemo() {
         if (subscriptionIds[0]) setPlayerId(subscriptionIds[0]);
       }
 
-      if (subscriptionIds.length === 0) {
-        toast.error(
-          'No push subscription found for this user. Open the app in Despia, allow notifications, then tap "Re-link device".',
-        );
-        setSending(false);
-        return;
+      if (subscriptionIds.length > 0) {
+        body.include_subscription_ids = subscriptionIds;
+      } else {
+        // Despia links by external_id and may not expose a legacy player_id to JS.
+        // Use OneSignal aliases so the linked native device can still receive immediately.
+        body.include_aliases = { external_id: [externalId] };
+        body.target_channel = 'push';
       }
 
-      body.include_subscription_ids = subscriptionIds;
-
-      const res = await fetch('https://onesignal.com/api/v1/notifications', {
+      const res = await fetch('https://api.onesignal.com/notifications', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Basic ${ONESIGNAL_REST_KEY}`,
+          Authorization: `Key ${ONESIGNAL_REST_KEY}`,
         },
         body: JSON.stringify(body),
       });
@@ -262,17 +265,17 @@ export default function DespiaPushDemo() {
             )}
           </div>
 
-          <label className="text-sm font-medium pt-2">OneSignal player_id (subscription)</label>
+          <label className="text-sm font-medium pt-2">OneSignal push target</label>
           <Textarea
             readOnly
-            value={playerId || (isDespia ? 'Not available yet — tap Re-link device.' : '—')}
+            value={playerId || (linkedByDevice ? `Linked by device — using external_id ${externalId}` : (isDespia ? 'Not linked yet — tap Re-link device.' : '—'))}
             className="font-mono text-xs"
             rows={2}
             onFocus={(e) => e.currentTarget.select()}
           />
           {playerId && (
             <Button variant="secondary" size="sm" onClick={copyPlayerId}>
-              Copy player_id
+              Copy push target
             </Button>
           )}
 
