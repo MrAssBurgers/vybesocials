@@ -195,7 +195,7 @@ export default function DespiaPushDemo() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Key ${ONESIGNAL_REST_KEY}`,
+          Authorization: `Basic ${ONESIGNAL_REST_KEY}`,
         },
         body: JSON.stringify(body),
       });
