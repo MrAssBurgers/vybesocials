@@ -122,7 +122,7 @@ export default function DespiaPushDemo() {
 
   const handleOpenSettings = async () => {
     try {
-      await despiaCall('appsettings://');
+      await despiaCall('settingsapp://');
     } catch {
       toast.error('Only works inside the Despia app.');
     }
