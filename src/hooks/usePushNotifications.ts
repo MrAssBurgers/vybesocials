@@ -331,6 +331,7 @@ export function usePushNotifications() {
         throw error;
       }
 
+      writeIntent(profile.id, false);
       setIsSubscribed(false);
       toast.success('Push notifications disabled');
       return true;
