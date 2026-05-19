@@ -183,12 +183,12 @@ Deno.serve(async (req) => {
     if (onesignalAppId && onesignalRestKey) {
       try {
         const subscriptionIds = await lookupOneSignalSubscriptionIds(onesignalAppId, onesignalRestKey, userId);
+        const imageUrl = typeof data?.image_url === "string" ? data.image_url : undefined;
         if (subscriptionIds.length === 0) {
           console.warn("[push] No actively subscribed OneSignal subscriptions", userId);
-        }
-        const target = { include_subscription_ids: subscriptionIds };
-        const imageUrl = typeof data?.image_url === "string" ? data.image_url : undefined;
-        const res = await fetchJsonWithTimeout("https://api.onesignal.com/notifications", {
+          onesignalResult = { status: 0, ok: false, subscriptionIds: 0, recipients: 0, errors: ["No actively subscribed OneSignal subscriptions"] };
+        } else {
+          const res = await fetchJsonWithTimeout("https://api.onesignal.com/notifications", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             app_id: onesignalAppId,
-            ...target,
+            include_subscription_ids: subscriptionIds,
             target_channel: "push",
             headings: { en: title },
             contents: { en: body },
@@ -217,12 +217,13 @@ Deno.serve(async (req) => {
             ttl: type === "call" ? 30 : 86400,
             collapse_id: tag || undefined,
           }),
-        }, 4_000);
-        const json = await res.json().catch(() => null);
-        onesignalDelivered = res.ok && !json?.errors && (json?.recipients ?? 0) > 0;
-        onesignalResult = { status: res.status, ok: res.ok, subscriptionIds: subscriptionIds.length, recipients: json?.recipients ?? 0, errors: json?.errors };
-        if (!res.ok) {
-          console.warn("[push] OneSignal non-OK", res.status, JSON.stringify(json).slice(0, 200));
+          }, 4_000);
+          const json = await res.json().catch(() => null);
+          onesignalDelivered = res.ok && !json?.errors && (json?.recipients ?? 0) > 0;
+          onesignalResult = { status: res.status, ok: res.ok, subscriptionIds: subscriptionIds.length, recipients: json?.recipients ?? 0, errors: json?.errors };
+          if (!res.ok) {
+            console.warn("[push] OneSignal non-OK", res.status, JSON.stringify(json).slice(0, 200));
+          }
         }
       } catch (err) {
         console.warn("[push] OneSignal send failed:", err);
