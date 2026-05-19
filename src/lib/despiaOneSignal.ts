@@ -6,12 +6,17 @@ const PLAYER_ID_KEYS = [
   'onesignalPlayerId',
   'OneSignalPlayerId',
   'OneSignalPlayerID',
+  'oneSignalPlayerID',
   'playerId',
   'player_id',
   'onesignal_player_id',
+  'oneSignalSubscriptionID',
   'subscriptionId',
   'subscription_id',
   'oneSignalSubscriptionId',
+  'onesignalSubscriptionId',
+  'pushSubscriptionId',
+  'push_subscription_id',
 ];
 
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -92,14 +97,21 @@ export async function ensureDespiaOneSignalLinked(
   }
 
   const encoded = encodeURIComponent(externalId);
-  const linkUrl = `setonesignalplayerid://?user_id=${encoded}&external_id=${encoded}`;
+  const linkUrl = `setonesignalplayerid://?user_id=${encoded}`;
   let permission: boolean | null = null;
 
+  // Bind immediately on every call. Despia's OneSignal command is queued and
+  // may not return a player id synchronously, so also repeat it below.
+  await despiaCall(linkUrl, [], 1_000);
+
   if (options.requestPermission) {
-    void despiaCall('registerpush://', [], 1_200);
-    const permissionResult = await despiaCall('checknativepushpermissions://', ['nativePushEnabled'], 2_000);
-    if (permissionResult && 'nativePushEnabled' in permissionResult) {
-      permission = Boolean(permissionResult.nativePushEnabled);
+    await despiaCall('registerpush://', [], 1_500);
+    for (const checkUrl of ['checkNativePushPermissions://', 'checknativepushpermissions://']) {
+      const permissionResult = await despiaCall(checkUrl, ['nativePushEnabled'], 1_500);
+      if (permissionResult && 'nativePushEnabled' in permissionResult) {
+        permission = Boolean(permissionResult.nativePushEnabled);
+        break;
+      }
     }
   }
 
