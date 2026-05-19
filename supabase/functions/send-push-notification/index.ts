@@ -191,9 +191,7 @@ Deno.serve(async (req) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // OneSignal accepts both "Basic <key>" (legacy) and "Key <key>" (new).
-            // Despia docs show "Basic"; keep that for maximum compatibility.
-            Authorization: `Basic ${onesignalRestKey}`,
+            Authorization: `Key ${onesignalRestKey}`,
           },
           body: JSON.stringify({
             app_id: onesignalAppId,
