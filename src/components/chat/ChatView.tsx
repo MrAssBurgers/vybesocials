@@ -1309,13 +1309,12 @@ export function ChatView() {
       </AnimatePresence>
 
 
-      {/* Floating header — no bar, two frosted-glass pills floating over content */}
+      {/* Floating header — single unified pill spanning the top */}
       <header
-        className="absolute top-0 left-0 right-0 px-2 sm:px-3 pb-2 flex items-center gap-2 sm:gap-3 bg-transparent z-20 pointer-events-none"
+        className="absolute top-0 left-0 right-0 px-2 sm:px-3 pb-2 flex items-center bg-transparent z-20 pointer-events-none"
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
       >
-        {/* LEFT pill: back + avatar + name */}
-        <div className="pointer-events-auto flex items-center gap-2 sm:gap-2.5 min-w-0 max-w-[58%] mr-auto pl-1.5 pr-4 py-1.5 rounded-full bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)] ring-1 ring-inset ring-white/[0.04]">
+        <div className="pointer-events-auto flex items-center gap-2 w-full min-w-0 pl-1.5 pr-1.5 py-1.5 rounded-full bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)] ring-1 ring-inset ring-white/[0.04]">
           <Button
             variant="ghost"
             size="icon"
@@ -1402,51 +1401,52 @@ export function ChatView() {
               </div>
             )}
           </div>
+
+          {/* Inline actions: call buttons + overflow menu */}
+          <div className="flex items-center gap-0.5 flex-shrink-0 ml-1">
+            {!isGroupChat && otherMember?.id && (
+              <CallButtons
+                conversationId={conversationId!}
+                receiverId={otherMember.id}
+                receiverUsername={otherMember.username}
+                receiverDisplayName={otherMember.display_name}
+                receiverAvatarUrl={otherMember.avatar_url}
+              />
+            )}
+
+            {isGroupChat && otherMember?.id && (
+              <CallButtons
+                conversationId={conversationId!}
+                receiverId={otherMember.id}
+                receiverUsername={otherMember.username}
+                receiverDisplayName={otherMember.display_name}
+                receiverAvatarUrl={otherMember.avatar_url}
+                isGroupCall={true}
+                groupName={conversation?.name || 'Group Chat'}
+                groupAvatar={conversation?.avatar_url}
+                participantIds={otherMembers.map(m => m.user_id)}
+              />
+            )}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-50 bg-popover">
+                <DropdownMenuItem onClick={handleAvatarClick}>{t('messages.viewProfile')}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowMediaSettings(true)}>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Media Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem>{t('messages.muteNotifications')}</DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
-        {/* RIGHT pill: phone + facetime + chat settings */}
-        <div className="pointer-events-auto flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)] ring-1 ring-inset ring-white/[0.04] flex-shrink-0">
-          {!isGroupChat && otherMember?.id && (
-            <CallButtons
-              conversationId={conversationId!}
-              receiverId={otherMember.id}
-              receiverUsername={otherMember.username}
-              receiverDisplayName={otherMember.display_name}
-              receiverAvatarUrl={otherMember.avatar_url}
-            />
-          )}
-
-          {isGroupChat && otherMember?.id && (
-            <CallButtons
-              conversationId={conversationId!}
-              receiverId={otherMember.id}
-              receiverUsername={otherMember.username}
-              receiverDisplayName={otherMember.display_name}
-              receiverAvatarUrl={otherMember.avatar_url}
-              isGroupCall={true}
-              groupName={conversation?.name || 'Group Chat'}
-              groupAvatar={conversation?.avatar_url}
-              participantIds={otherMembers.map(m => m.user_id)}
-            />
-          )}
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="z-50 bg-popover">
-              <DropdownMenuItem onClick={handleAvatarClick}>{t('messages.viewProfile')}</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowMediaSettings(true)}>
-                <Settings className="h-4 w-4 mr-2" />
-                Media Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem>{t('messages.muteNotifications')}</DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
 
 
         {/* DM Feature Sheets - triggered from Toybox */}
