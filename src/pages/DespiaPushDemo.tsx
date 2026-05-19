@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   ensureDespiaOneSignalLinked,
   fetchDespiaOneSignalPlayerId,
+  resolveCurrentOneSignalExternalId,
 } from '@/lib/despiaOneSignal';
 import { despiaCall, isDespiaRuntime } from '@/lib/despiaBridge';
 
@@ -18,6 +19,7 @@ const ONESIGNAL_REST_KEY =
 
 const isDespia = isDespiaRuntime();
 type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean };
+const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 export default function DespiaPushDemo() {
   const [externalId, setExternalId] = useState('');
@@ -27,6 +29,12 @@ export default function DespiaPushDemo() {
   const [message, setMessage] = useState('This is a test push notification.');
   const [sending, setSending] = useState(false);
   const [linking, setLinking] = useState(false);
+
+  const getTargetExternalId = async () => {
+    const current = externalId.trim() || (await resolveCurrentOneSignalExternalId()) || '';
+    if (current && current !== externalId) setExternalId(current);
+    return current;
+  };
 
   // Resolve the external user id from Supabase auth, fallback to a generated demo id.
   useEffect(() => {
@@ -64,7 +72,8 @@ export default function DespiaPushDemo() {
     (async () => {
       const link = await ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 1_500 });
       setPushEnabled(link.permission);
-      const pid = link.playerId || await fetchDespiaOneSignalPlayerId(1_500);
+      let pid = link.playerId || await fetchDespiaOneSignalPlayerId(1_500);
+      if (!pid) pid = (await resolveSubscriptionIds(externalId))[0] || '';
       if (pid) setPlayerId(pid);
     })();
   }, [externalId]);
@@ -74,16 +83,21 @@ export default function DespiaPushDemo() {
       toast.error('Open this page inside the Despia app to link push.');
       return;
     }
+    const targetExternalId = await getTargetExternalId();
+    if (!targetExternalId) {
+      toast.error('Sign in first so VYBE can link this device to your account.');
+      return;
+    }
     setLinking(true);
     try {
-      const link = await ensureDespiaOneSignalLinked(externalId, {
+      const link = await ensureDespiaOneSignalLinked(targetExternalId, {
         requestPermission: true,
-        waitForPlayerIdMs: 3_000,
+        waitForPlayerIdMs: 2_500,
       });
       if (link.permission !== null) setPushEnabled(link.permission);
-      const pid = link.playerId || await fetchDespiaOneSignalPlayerId(1_000);
+      const pid = await resolveLinkedPlayerId(targetExternalId, link.playerId);
       if (pid) setPlayerId(pid);
-      toast.success(pid ? 'Device linked' : 'Link queued — OneSignal is still creating the subscription. Try send again in a few seconds.');
+      toast.success(pid ? 'Device linked — push target found.' : 'Device link sent. If no notification arrives, reopen VYBE once and tap Re-link again.');
     } catch (e: unknown) {
       toast.error(`Link failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -124,6 +138,19 @@ export default function DespiaPushDemo() {
       console.warn('[OneSignal] user lookup error', e);
       return [];
     }
+  };
+
+  const resolveLinkedPlayerId = async (targetExternalId: string, initialId = ''): Promise<string> => {
+    if (initialId) return initialId;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const nativeId = await fetchDespiaOneSignalPlayerId(attempt === 0 ? 800 : 400);
+      if (nativeId) return nativeId;
+      const lookedUpId = (await resolveSubscriptionIds(targetExternalId))[0] || '';
+      if (lookedUpId) return lookedUpId;
+      await delay(650);
+      void ensureDespiaOneSignalLinked(targetExternalId, { waitForPlayerIdMs: 0, persistToken: false });
+    }
+    return '';
   };
 
   const handleSend = async () => {
@@ -168,7 +195,7 @@ export default function DespiaPushDemo() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Key ${ONESIGNAL_REST_KEY}`,
+          Authorization: `Basic ${ONESIGNAL_REST_KEY}`,
         },
         body: JSON.stringify(body),
       });

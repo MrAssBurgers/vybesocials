@@ -48,6 +48,10 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   return outputArray.buffer as ArrayBuffer;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export function usePushNotifications() {
   const { profile } = useAuth();
   const [isSupported, setIsSupported] = useState(false);
@@ -127,7 +131,7 @@ export function usePushNotifications() {
 
       // Web-only: reconcile with browser subscription
       if (!isDespiaWebView() && registrationRef.current) {
-        const subscription = await (registrationRef.current as any).pushManager.getSubscription();
+        const subscription = await registrationRef.current.pushManager.getSubscription();
         if (!subscription && data) {
           await supabase
             .from('push_tokens')
@@ -149,8 +153,8 @@ export function usePushNotifications() {
     try {
       const link = await ensureDespiaOneSignalLinked(profile.id, {
         requestPermission: true,
-        waitForPlayerIdMs: 1_500,
-        persistToken: false,
+        waitForPlayerIdMs: 4_000,
+        persistToken: true,
       });
       if (!link.linked) throw new Error('Open the app in Despia to enable push notifications.');
 
@@ -169,9 +173,9 @@ export function usePushNotifications() {
       setPermission('granted');
       toast.success('Push notifications enabled!');
       return true;
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[Push] Despia subscribe failed:', e);
-      toast.error(e?.message || 'Failed to enable notifications');
+      toast.error(getErrorMessage(e, 'Failed to enable notifications'));
       return false;
     }
   };
@@ -217,13 +221,13 @@ export function usePushNotifications() {
 
       // Reuse existing subscription if it was created with the SAME public key,
       // otherwise tear it down so we re-subscribe with the matching key.
-      const existing = await (registration as any).pushManager.getSubscription();
+      const existing = await registration.pushManager.getSubscription();
       if (existing) {
         try { await existing.unsubscribe(); } catch { /* */ }
       }
 
       // Subscribe to push notifications
-      const subscription = await (registration as any).pushManager.subscribe({
+      const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
       });
@@ -252,16 +256,16 @@ export function usePushNotifications() {
       setIsSubscribed(true);
       toast.success('Push notifications enabled!');
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Push] Error subscribing:', error);
       
       // Handle specific errors
-      if (error.name === 'NotAllowedError') {
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
         toast.error('Notifications blocked. Enable them in browser settings.');
-      } else if (error.name === 'AbortError') {
+      } else if (error instanceof DOMException && error.name === 'AbortError') {
         toast.error('Subscription was cancelled');
       } else {
-        toast.error(error?.message || 'Failed to enable notifications');
+        toast.error(getErrorMessage(error, 'Failed to enable notifications'));
       }
       return false;
     } finally {
@@ -277,7 +281,7 @@ export function usePushNotifications() {
       const onDespia = isDespiaWebView();
 
       if (!onDespia && registrationRef.current) {
-        const subscription = await (registrationRef.current as any).pushManager.getSubscription();
+        const subscription = await registrationRef.current.pushManager.getSubscription();
         if (subscription) {
           await subscription.unsubscribe();
           console.log('[Push] Unsubscribed from push');
@@ -298,9 +302,9 @@ export function usePushNotifications() {
       setIsSubscribed(false);
       toast.success('Push notifications disabled');
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Push] Error unsubscribing:', error);
-      toast.error(error?.message || 'Failed to disable notifications');
+      toast.error(getErrorMessage(error, 'Failed to disable notifications'));
       return false;
     } finally {
       setIsLoading(false);
