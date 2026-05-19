@@ -43,12 +43,12 @@ export function NotificationsSection() {
     }
   };
 
-  const handlePushToggle = async () => {
+  const handlePushToggle = async (next: boolean) => {
     haptics.tap();
-    if (pushSubscribed) {
-      await unsubscribePush();
-    } else {
+    if (next) {
       await subscribePush();
+    } else {
+      await unsubscribePush();
     }
   };
 

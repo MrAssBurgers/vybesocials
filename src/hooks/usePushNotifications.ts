@@ -180,35 +180,34 @@ export function usePushNotifications() {
 
   const subscribeDespia = async (): Promise<boolean> => {
     if (!profile) return false;
-    try {
-      const link = await ensureDespiaOneSignalLinked(profile.id, {
-        requestPermission: true,
-        waitForPlayerIdMs: 4_000,
-        persistToken: true,
-      });
-      if (!link.linked) throw new Error('Open the app in Despia to enable push notifications.');
+    // OPTIMISTIC: flip the toggle on immediately and persist intent so the UI
+    // never feels stuck waiting on Despia's native bridge (which can take 30s
+    // to return nativePushEnabled and would otherwise leave the switch off).
+    writeIntent(profile.id, true);
+    setIsSubscribed(true);
+    setPermission('granted');
 
-      // Persist token row optimistically so the toggle reflects subscribed state.
-      // OneSignal handles delivery server-side once the user accepts.
+    try {
       await supabase.from('push_tokens').delete()
         .eq('user_id', profile.id).eq('platform', 'despia');
-      const { error } = await supabase.from('push_tokens').insert({
+      await supabase.from('push_tokens').insert({
         user_id: profile.id,
-        token: link.playerId || `despia:${profile.id}`,
+        token: `despia:${profile.id}`,
         platform: 'despia',
       });
-      if (error) throw error;
-
-      writeIntent(profile.id, true);
-      setIsSubscribed(true);
-      setPermission('granted');
-      toast.success('Push notifications enabled!');
-      return true;
-    } catch (e: unknown) {
-      console.error('[Push] Despia subscribe failed:', e);
-      toast.error(getErrorMessage(e, 'Failed to enable notifications'));
-      return false;
+    } catch (err) {
+      console.warn('[Push] placeholder token insert failed', err);
     }
+
+    // Kick off real OneSignal linking in the background — never blocks the toggle.
+    ensureDespiaOneSignalLinked(profile.id, {
+      requestPermission: true,
+      waitForPlayerIdMs: 6_000,
+      persistToken: true,
+    }).catch((err) => console.warn('[Push] background despia link failed', err));
+
+    toast.success('Push notifications enabled!');
+    return true;
   };
 
   const subscribe = useCallback(async () => {
