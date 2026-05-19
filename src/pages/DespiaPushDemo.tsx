@@ -18,7 +18,7 @@ const ONESIGNAL_REST_KEY =
   'os_v2_app_qw6pjnaw7naqdeftlhfjk5hfpp7ffcc24keu5mvni4pb3ro253k6c6usokshxlvabzdbe3v63ntvr3szbivddsbfb3r36rftn3vwmvq';
 
 const isDespia = isDespiaRuntime();
-type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean };
+type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean; notification_types?: number | null };
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 export default function DespiaPushDemo() {
@@ -74,8 +74,11 @@ export default function DespiaPushDemo() {
       const link = await ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 1_500 });
       if (link.linked) setLinkedByDevice(true);
       setPushEnabled(link.permission);
-      let pid = link.playerId || await fetchDespiaOneSignalPlayerId(1_500);
-      if (!pid) pid = (await resolveSubscriptionIds(externalId))[0] || '';
+      let pid = (await resolveSubscriptionIds(externalId))[0] || '';
+      if (!pid) {
+        await fetchDespiaOneSignalPlayerId(1_500);
+        pid = (await resolveSubscriptionIds(externalId))[0] || '';
+      }
       if (pid) setPlayerId(pid);
     })();
   }, [externalId]);
@@ -136,7 +139,7 @@ export default function DespiaPushDemo() {
       const subs: OneSignalSubscription[] = Array.isArray(data?.subscriptions) ? data.subscriptions : [];
       // Only push subscriptions that are enabled and currently subscribed.
       return subs
-        .filter((s) => (s.type === 'iOSPush' || s.type === 'AndroidPush' || s.type === 'ChromePush' || s.type === 'FirefoxPush' || s.type === 'SafariPush' || s.type === 'HuaweiPush') && s.enabled === true && s.id)
+        .filter((s) => (s.type === 'iOSPush' || s.type === 'AndroidPush' || s.type === 'ChromePush' || s.type === 'FirefoxPush' || s.type === 'SafariPush' || s.type === 'HuaweiPush') && s.enabled === true && (s.notification_types ?? 1) > 0 && s.id)
         .map((s) => s.id as string);
     } catch (e) {
       console.warn('[OneSignal] user lookup error', e);
@@ -145,12 +148,10 @@ export default function DespiaPushDemo() {
   };
 
   const resolveLinkedPlayerId = async (targetExternalId: string, initialId = ''): Promise<string> => {
-    if (initialId) return initialId;
     for (let attempt = 0; attempt < 6; attempt += 1) {
-      const nativeId = await fetchDespiaOneSignalPlayerId(attempt === 0 ? 800 : 400);
-      if (nativeId) return nativeId;
       const lookedUpId = (await resolveSubscriptionIds(targetExternalId))[0] || '';
       if (lookedUpId) return lookedUpId;
+      await fetchDespiaOneSignalPlayerId(attempt === 0 && !initialId ? 800 : 400);
       await delay(650);
       void ensureDespiaOneSignalLinked(targetExternalId, { waitForPlayerIdMs: 0, persistToken: false });
     }
