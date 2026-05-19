@@ -188,8 +188,9 @@ export default function DespiaPushDemo() {
         body.include_subscription_ids = subscriptionIds;
       } else {
         // Despia links by external_id and may not expose a legacy player_id to JS.
-        // This is the documented native delivery path when subscription lookup is not instant yet.
-        body.include_external_user_ids = [externalId];
+        // Use OneSignal aliases so the linked native device can still receive immediately.
+        body.include_aliases = { external_id: [externalId] };
+        body.target_channel = 'push';
       }
 
       const res = await fetch('https://onesignal.com/api/v1/notifications', {
@@ -263,7 +264,7 @@ export default function DespiaPushDemo() {
             )}
           </div>
 
-          <label className="text-sm font-medium pt-2">OneSignal player_id (subscription)</label>
+          <label className="text-sm font-medium pt-2">OneSignal push target</label>
           <Textarea
             readOnly
             value={playerId || (linkedByDevice ? `Linked by device — using external_id ${externalId}` : (isDespia ? 'Not linked yet — tap Re-link device.' : '—'))}
@@ -273,7 +274,7 @@ export default function DespiaPushDemo() {
           />
           {playerId && (
             <Button variant="secondary" size="sm" onClick={copyPlayerId}>
-              Copy player_id
+              Copy push target
             </Button>
           )}
 
