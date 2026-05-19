@@ -29,14 +29,18 @@ async function requestNativePushRegistration(): Promise<boolean | null> {
   for (const url of PUSH_REGISTRATION_URLS) {
     await despiaCall(url, [], 1_500);
   }
+  permission = await checkDespiaPushPermission();
+  return permission;
+}
+
+export async function checkDespiaPushPermission(): Promise<boolean | null> {
   for (const checkUrl of PUSH_PERMISSION_CHECK_URLS) {
     const permissionResult = await despiaCall(checkUrl, ['nativePushEnabled'], 1_500);
     if (permissionResult && 'nativePushEnabled' in permissionResult) {
-      permission = Boolean(permissionResult.nativePushEnabled);
-      break;
+      return Boolean(permissionResult.nativePushEnabled);
     }
   }
-  return permission;
+  return null;
 }
 
 async function bindOneSignalExternalId(linkUrls: string[]): Promise<void> {
