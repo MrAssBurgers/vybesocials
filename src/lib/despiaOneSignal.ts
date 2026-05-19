@@ -102,15 +102,21 @@ export async function ensureDespiaOneSignalLinked(
   }
 
   const encoded = encodeURIComponent(externalId);
-  const linkUrl = `setonesignalplayerid://?user_id=${encoded}`;
+  const linkUrls = [
+    `setonesignalplayerid://?user_id=${encoded}`,
+    `setonesignalexternaluserid://?external_id=${encoded}`,
+    `setexternaluserid://?external_id=${encoded}`,
+  ];
   let permission: boolean | null = null;
 
-  // Bind immediately on every call. Despia's OneSignal command is queued and
-  // may not return a player id synchronously, so also repeat it below.
-  await despiaCall(linkUrl, [], 1_000);
-
+  // 1. Request push permission FIRST when asked — OneSignal can only create
+  //    a real subscription after the OS prompt is accepted. Aliasing the
+  //    external_id before a subscription exists creates an alias-only user
+  //    with zero subscriptions, which is the exact failure the demo hit.
   if (options.requestPermission) {
-    await despiaCall('registerpush://', [], 1_500);
+    for (const url of ['registerpush://', 'registerPush://', 'requestpushpermission://']) {
+      await despiaCall(url, [], 1_500);
+    }
     for (const checkUrl of ['checkNativePushPermissions://', 'checknativepushpermissions://']) {
       const permissionResult = await despiaCall(checkUrl, ['nativePushEnabled'], 1_500);
       if (permissionResult && 'nativePushEnabled' in permissionResult) {
@@ -120,11 +126,16 @@ export async function ensureDespiaOneSignalLinked(
     }
   }
 
-  await despiaCall(linkUrl, [], 1_200);
+  // 2. Bind external_id — try every known bridge variant; builds differ.
+  for (const url of linkUrls) await despiaCall(url, [], 1_000);
 
-  // Despia/OneSignal may create the subscription shortly after permission is granted.
-  // Retry in the background so manual linking never blocks the UI forever.
-  window.setTimeout(() => void despiaCall(linkUrl, [], 1_200), 2_500);
+  // 3. Background retry — Despia/OneSignal can take a beat to register the
+  //    push token after the prompt is accepted. Repeating link is harmless.
+  [1_500, 4_000, 9_000].forEach((delayMs) => {
+    window.setTimeout(() => {
+      for (const url of linkUrls) void despiaCall(url, [], 1_200);
+    }, delayMs);
+  });
 
   const playerId = await fetchDespiaOneSignalPlayerId(options.waitForPlayerIdMs ?? 1_500);
   if (options.persistToken !== false) {

@@ -17,7 +17,7 @@ const ONESIGNAL_APP_ID = '85bcf4b4-16fb-4101-90b3-59ca9574e57b';
 const isDespia = isDespiaRuntime();
 type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean };
 const PUSH_SUB_TYPES = new Set([
-  'iOSPush', 'AndroidPush', 'ChromePush', 'FirefoxPush', 'SafariPush', 'HuaweiPush',
+  'iOSPush', 'AndroidPush', 'ChromePush', 'FirefoxPush', 'SafariPush', 'HuaweiPush', 'FireOSPush',
 ]);
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -117,9 +117,11 @@ export default function DespiaPushDemo() {
       if (link.playerId) setPlayerId(link.playerId);
 
       // Poll OneSignal's user lookup for an enabled push subscription.
+      // OneSignal can take 5-15s on a fresh install to register the device
+      // and create the subscription record after the permission prompt.
       let subs: string[] = [];
-      for (let i = 0; i < 6 && subs.length === 0; i += 1) {
-        if (i > 0) await delay(700);
+      for (let i = 0; i < 12 && subs.length === 0; i += 1) {
+        if (i > 0) await delay(1_000);
         subs = await fetchEnabledPushSubscriptionIds(targetExternalId);
       }
       setHasEnabledSubscription(subs.length > 0);
@@ -129,7 +131,7 @@ export default function DespiaPushDemo() {
       } else if (link.permission === false) {
         toast.error('Push permission was not granted. Tap Enable in Settings.');
       } else {
-        toast.warning('Linked, but no active push subscription yet. Wait a few seconds and try again.');
+        toast.warning('Permission accepted but OneSignal has not registered this device yet. Force-close the app, reopen it, then tap Re-link.');
       }
     } catch (e: unknown) {
       toast.error(`Link failed: ${e instanceof Error ? e.message : String(e)}`);

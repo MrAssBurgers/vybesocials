@@ -1,20 +1,24 @@
-## Plan
+## Problem
+The current flow successfully writes the OneSignal external_id alias, but it does not guarantee the native device actually has an enabled push subscription. That is why the app can show “linked” while the target box still says “no active push subscription yet.”
 
-1. **Stop sending to stale/unverified player IDs in the demo**
-   - Update `DespiaPushDemo` so “Send” uses the existing backend push function instead of calling OneSignal directly from the browser.
-   - Remove the direct REST key usage from the page so the demo targets the same path real app notifications use.
-   - Treat the “player ID” box as diagnostic only; don’t use a native-returned ID as `include_subscription_ids` unless OneSignal lookup confirms it is an enabled push subscription.
+## Patch plan
+1. **Make native registration stronger**
+   - Update `src/lib/despiaOneSignal.ts` to run the native registration command first when permission is requested, then set the external_id alias after registration.
+   - Try the known Despia registration/link bridge variants with short bounded retries instead of relying on a single queued bridge call.
+   - Keep the UI responsive by doing follow-up re-link attempts in the background.
 
-2. **Make the backend OneSignal send result accurate**
-   - In `send-push-notification`, parse the OneSignal response JSON and mark delivery successful only when the HTTP response is OK, there are no `errors`, and recipients are not `0`.
-   - Keep logging the exact OneSignal response so errors like `All included players are not subscribed` are visible in audit logs.
-   - Prevent `push_tokens` Despia marker rows from making a failed OneSignal send look successful.
+2. **Verify subscriptions correctly**
+   - Update `supabase/functions/onesignal-user-lookup/index.ts` to return diagnostic fields from OneSignal: lookup HTTP status, `onesignal_id`, aliases, and sanitized subscription details (`id`, `type`, `enabled`, `token` presence only).
+   - Add `FireOSPush` to the accepted push subscription types in frontend/backend filtering so valid native push subscriptions are not accidentally ignored.
 
-3. **Harden Despia linking and target resolution**
-   - Keep linking by `profiles.id` as the OneSignal `external_id`.
-   - Re-run the Despia native link command after permission is requested, then poll OneSignal’s user lookup for an enabled push subscription.
-   - Show “linked” only when either an enabled subscription is found or the backend accepts the external_id send path; otherwise show a clear “permission/subscription not active yet” state instead of a false success.
+3. **Fix false “sent” success from marker rows**
+   - Update `supabase/functions/send-push-notification/index.ts` so `platform = despia` marker rows do not count as successful web-push deliveries.
+   - If OneSignal has no active recipient, return `success: false` even when a Despia marker row exists.
 
-4. **Validation**
+4. **Improve the demo page behavior**
+   - Update `src/pages/DespiaPushDemo.tsx` so manual re-link polls a little longer, shows the exact reason when OneSignal lookup finds zero subscriptions, and does not show misleading “linked” copy until an enabled subscription is confirmed.
+   - Keep send testing routed through the secure backend function.
+
+5. **Validate**
    - Run a targeted lint check on the edited files.
-   - Check recent `send-push-notification` logs after the patch path is in place to confirm OneSignal errors are reported correctly.
+   - Deploy/test the two backend functions and check their logs for OneSignal responses after the patch.
