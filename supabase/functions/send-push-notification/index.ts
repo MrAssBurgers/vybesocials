@@ -20,7 +20,7 @@ interface PushPayload {
   type?: string;
   data?: Record<string, unknown>;
 }
-type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean };
+type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean; notification_types?: number | null };
 type PushTokenRow = { id: string; token: string; platform: string };
 
 async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs = 3_000) {
@@ -44,7 +44,8 @@ async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, ex
   return subs
     .filter((sub) =>
       sub?.id &&
-      sub.enabled !== false &&
+      sub.enabled === true &&
+      (sub.notification_types ?? 1) > 0 &&
       typeof sub.type === "string" &&
       ["iOSPush", "AndroidPush", "ChromePush", "FirefoxPush", "SafariPush", "HuaweiPush"].includes(sub.type)
     )
@@ -183,11 +184,12 @@ Deno.serve(async (req) => {
     if (onesignalAppId && onesignalRestKey) {
       try {
         const subscriptionIds = await lookupOneSignalSubscriptionIds(onesignalAppId, onesignalRestKey, userId);
-        const target = subscriptionIds.length > 0
-          ? { include_subscription_ids: subscriptionIds }
-          : { include_aliases: { external_id: [userId] }, target_channel: "push" };
         const imageUrl = typeof data?.image_url === "string" ? data.image_url : undefined;
-        const res = await fetchJsonWithTimeout("https://api.onesignal.com/notifications", {
+        if (subscriptionIds.length === 0) {
+          console.warn("[push] No actively subscribed OneSignal subscriptions", userId);
+          onesignalResult = { status: 0, ok: false, subscriptionIds: 0, recipients: 0, errors: ["No actively subscribed OneSignal subscriptions"] };
+        } else {
+          const res = await fetchJsonWithTimeout("https://api.onesignal.com/notifications", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -195,7 +197,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             app_id: onesignalAppId,
-            ...target,
+            include_subscription_ids: subscriptionIds,
             target_channel: "push",
             headings: { en: title },
             contents: { en: body },
@@ -216,12 +218,13 @@ Deno.serve(async (req) => {
             ttl: type === "call" ? 30 : 86400,
             collapse_id: tag || undefined,
           }),
-        }, 4_000);
-        onesignalDelivered = res.ok;
-        onesignalResult = { status: res.status, ok: res.ok, subscriptionIds: subscriptionIds.length, aliasFallback: subscriptionIds.length === 0 };
-        if (!res.ok) {
-          const txt = await res.text().catch(() => "");
-          console.warn("[push] OneSignal non-OK", res.status, txt.slice(0, 200));
+          }, 4_000);
+          const json = await res.json().catch(() => null);
+          onesignalDelivered = res.ok && !json?.errors && (json?.recipients ?? 0) > 0;
+          onesignalResult = { status: res.status, ok: res.ok, subscriptionIds: subscriptionIds.length, recipients: json?.recipients ?? 0, errors: json?.errors };
+          if (!res.ok) {
+            console.warn("[push] OneSignal non-OK", res.status, JSON.stringify(json).slice(0, 200));
+          }
         }
       } catch (err) {
         console.warn("[push] OneSignal send failed:", err);
@@ -266,7 +269,7 @@ Deno.serve(async (req) => {
       (tokens as PushTokenRow[]).map(async ({ id, token, platform }) => {
         // Despia native rows are markers only — OneSignal handled delivery above.
         if (platform === "despia" || (typeof token === "string" && token.startsWith("despia:"))) {
-          return { success: true, native: true };
+          return { success: onesignalDelivered, native: true };
         }
         try {
           let subscription;

@@ -18,7 +18,7 @@ const ONESIGNAL_REST_KEY =
   'os_v2_app_qw6pjnaw7naqdeftlhfjk5hfpp7ffcc24keu5mvni4pb3ro253k6c6usokshxlvabzdbe3v63ntvr3szbivddsbfb3r36rftn3vwmvq';
 
 const isDespia = isDespiaRuntime();
-type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean };
+type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean; notification_types?: number | null };
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 export default function DespiaPushDemo() {
@@ -74,8 +74,11 @@ export default function DespiaPushDemo() {
       const link = await ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 1_500 });
       if (link.linked) setLinkedByDevice(true);
       setPushEnabled(link.permission);
-      let pid = link.playerId || await fetchDespiaOneSignalPlayerId(1_500);
-      if (!pid) pid = (await resolveSubscriptionIds(externalId))[0] || '';
+      let pid = (await resolveSubscriptionIds(externalId))[0] || '';
+      if (!pid) {
+        await fetchDespiaOneSignalPlayerId(1_500);
+        pid = (await resolveSubscriptionIds(externalId))[0] || '';
+      }
       if (pid) setPlayerId(pid);
     })();
   }, [externalId]);
@@ -100,7 +103,7 @@ export default function DespiaPushDemo() {
       if (link.permission !== null) setPushEnabled(link.permission);
       const pid = await resolveLinkedPlayerId(targetExternalId, link.playerId);
       if (pid) setPlayerId(pid);
-      toast.success(pid ? 'Device linked — push target found.' : 'Device linked by external_id — ready to receive pushes.');
+      toast.success(pid ? 'Device linked — subscribed push target found.' : 'Device linked — waiting for notification permission to finish.');
     } catch (e: unknown) {
       toast.error(`Link failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -117,7 +120,8 @@ export default function DespiaPushDemo() {
   };
 
   // Look up subscription IDs for an external_id via OneSignal's User Identity API.
-  // This is the reliable way to send when we don't have a player_id cached client-side.
+  // Only return subscriptions OneSignal says are actively subscribed; raw native
+  // player IDs can point at unsubscribed records and fail sends.
   const resolveSubscriptionIds = async (extId: string): Promise<string[]> => {
     try {
       const url = `https://api.onesignal.com/apps/${ONESIGNAL_APP_ID}/users/by/external_id/${encodeURIComponent(extId)}`;
@@ -133,9 +137,9 @@ export default function DespiaPushDemo() {
       }
       const data = await res.json();
       const subs: OneSignalSubscription[] = Array.isArray(data?.subscriptions) ? data.subscriptions : [];
-      // Only push subscriptions that are enabled.
+      // Only push subscriptions that are enabled and currently subscribed.
       return subs
-        .filter((s) => (s.type === 'iOSPush' || s.type === 'AndroidPush' || s.type === 'ChromePush' || s.type === 'FirefoxPush' || s.type === 'SafariPush' || s.type === 'HuaweiPush') && s.enabled !== false && s.id)
+        .filter((s) => (s.type === 'iOSPush' || s.type === 'AndroidPush' || s.type === 'ChromePush' || s.type === 'FirefoxPush' || s.type === 'SafariPush' || s.type === 'HuaweiPush') && s.enabled === true && (s.notification_types ?? 1) > 0 && s.id)
         .map((s) => s.id as string);
     } catch (e) {
       console.warn('[OneSignal] user lookup error', e);
@@ -144,12 +148,10 @@ export default function DespiaPushDemo() {
   };
 
   const resolveLinkedPlayerId = async (targetExternalId: string, initialId = ''): Promise<string> => {
-    if (initialId) return initialId;
     for (let attempt = 0; attempt < 6; attempt += 1) {
-      const nativeId = await fetchDespiaOneSignalPlayerId(attempt === 0 ? 800 : 400);
-      if (nativeId) return nativeId;
       const lookedUpId = (await resolveSubscriptionIds(targetExternalId))[0] || '';
       if (lookedUpId) return lookedUpId;
+      await fetchDespiaOneSignalPlayerId(attempt === 0 && !initialId ? 800 : 400);
       await delay(650);
       void ensureDespiaOneSignalLinked(targetExternalId, { waitForPlayerIdMs: 0, persistToken: false });
     }
@@ -170,29 +172,27 @@ export default function DespiaPushDemo() {
         contents: { en: message || ' ' },
       };
 
-      // Resolve a concrete subscription target. Order of preference:
-      //  1. Cached player_id from the Despia bridge.
-      //  2. Subscription IDs looked up from OneSignal via external_id.
-      // Prefer a concrete subscription when OneSignal exposes it; otherwise use
-      // the Despia-documented external_id alias path because native shells may
-      // not expose a legacy player_id to JavaScript.
-      let subscriptionIds: string[] = [];
-      if (playerId) {
-        subscriptionIds = [playerId];
-      } else if (externalId) {
-        subscriptionIds = await resolveSubscriptionIds(externalId);
-        // Cache the first one for next time.
-        if (subscriptionIds[0]) setPlayerId(subscriptionIds[0]);
+      // Always verify against OneSignal before sending. The Despia bridge can
+      // expose a player id before the device is actually subscribed, and sending
+      // that raw id is what caused "All included players are not subscribed".
+      let subscriptionIds = externalId ? await resolveSubscriptionIds(externalId) : [];
+      if (!subscriptionIds.length && playerId) {
+        const relinked = await ensureDespiaOneSignalLinked(externalId, {
+          requestPermission: true,
+          waitForPlayerIdMs: 2_000,
+          persistToken: false,
+        });
+        if (relinked.permission !== null) setPushEnabled(relinked.permission);
+        subscriptionIds = externalId ? await resolveSubscriptionIds(externalId) : [];
+      }
+      if (subscriptionIds[0]) setPlayerId(subscriptionIds[0]);
+
+      if (!subscriptionIds.length) {
+        toast.error('No subscribed push device found yet — allow notifications, reopen VYBE, then tap Re-link device.');
+        return;
       }
 
-      if (subscriptionIds.length > 0) {
-        body.include_subscription_ids = subscriptionIds;
-      } else {
-        // Despia links by external_id and may not expose a legacy player_id to JS.
-        // Use OneSignal aliases so the linked native device can still receive immediately.
-        body.include_aliases = { external_id: [externalId] };
-        body.target_channel = 'push';
-      }
+      body.include_subscription_ids = subscriptionIds;
 
       const res = await fetch('https://api.onesignal.com/notifications', {
         method: 'POST',
