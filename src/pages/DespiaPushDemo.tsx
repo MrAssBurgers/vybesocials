@@ -20,6 +20,7 @@ const PUSH_SUB_TYPES = new Set([
   'iOSPush', 'AndroidPush', 'ChromePush', 'FirefoxPush', 'SafariPush', 'HuaweiPush', 'FireOSPush',
 ]);
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+const RELINK_POLL_DELAYS = [0, 1_000, 1_500, 2_000, 2_500, 3_000, 4_000, 5_000, 6_000, 8_000, 10_000, 12_000];
 
 export default function DespiaPushDemo() {
   const [externalId, setExternalId] = useState('');
@@ -111,6 +112,7 @@ export default function DespiaPushDemo() {
     try {
       const link = await ensureDespiaOneSignalLinked(targetExternalId, {
         requestPermission: true,
+        refreshRegistration: true,
         waitForPlayerIdMs: 2_500,
       });
       if (link.permission !== null) setPushEnabled(link.permission);
@@ -120,8 +122,16 @@ export default function DespiaPushDemo() {
       // OneSignal can take 5-15s on a fresh install to register the device
       // and create the subscription record after the permission prompt.
       let subs: string[] = [];
-      for (let i = 0; i < 12 && subs.length === 0; i += 1) {
-        if (i > 0) await delay(1_000);
+      for (let i = 0; i < RELINK_POLL_DELAYS.length && subs.length === 0; i += 1) {
+        if (RELINK_POLL_DELAYS[i] > 0) await delay(RELINK_POLL_DELAYS[i]);
+        if (i === 3 || i === 7) {
+          const refreshed = await ensureDespiaOneSignalLinked(targetExternalId, {
+            refreshRegistration: true,
+            waitForPlayerIdMs: 1_500,
+          });
+          if (refreshed.permission !== null) setPushEnabled(refreshed.permission);
+          if (refreshed.playerId) setPlayerId(refreshed.playerId);
+        }
         subs = await fetchEnabledPushSubscriptionIds(targetExternalId);
       }
       setHasEnabledSubscription(subs.length > 0);
@@ -131,7 +141,7 @@ export default function DespiaPushDemo() {
       } else if (link.permission === false) {
         toast.error('Push permission was not granted. Tap Enable in Settings.');
       } else {
-        toast.warning('Permission accepted but OneSignal has not registered this device yet. Force-close the app, reopen it, then tap Re-link.');
+        toast.warning('Permission accepted — still waiting for OneSignal to create the device subscription. Leave this screen open or reopen the app if it stays pending.');
       }
     } catch (e: unknown) {
       toast.error(`Link failed: ${e instanceof Error ? e.message : String(e)}`);
