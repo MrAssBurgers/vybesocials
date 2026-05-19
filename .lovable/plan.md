@@ -1,24 +1,34 @@
-## Problem
-The current flow successfully writes the OneSignal external_id alias, but it does not guarantee the native device actually has an enabled push subscription. That is why the app can show “linked” while the target box still says “no active push subscription yet.”
+## Findings
 
-## Patch plan
-1. **Make native registration stronger**
-   - Update `src/lib/despiaOneSignal.ts` to run the native registration command first when permission is requested, then set the external_id alias after registration.
-   - Try the known Despia registration/link bridge variants with short bounded retries instead of relying on a single queued bridge call.
-   - Keep the UI responsive by doing follow-up re-link attempts in the background.
+- Lovable Cloud is currently healthy for both Test and Live.
+- The previous connection-slot failure is not present in the last few hours.
+- The audit/database logs now show a recurring error every 5 seconds:
+  - `relation "pgmq.q_auth_emails" does not exist`
+- The source is cron job `process-email-queue`, which runs every 5 seconds and checks `pgmq.q_auth_emails` / `pgmq.q_transactional_emails` before calling the email queue processor.
+- The `pgmq` extension exists, but only `pgmq.meta` exists; the actual queue tables are missing.
+- This creates constant database errors and connection churn, which can destabilize publishing even when the backend looks healthy.
 
-2. **Verify subscriptions correctly**
-   - Update `supabase/functions/onesignal-user-lookup/index.ts` to return diagnostic fields from OneSignal: lookup HTTP status, `onesignal_id`, aliases, and sanitized subscription details (`id`, `type`, `enabled`, `token` presence only).
-   - Add `FireOSPush` to the accepted push subscription types in frontend/backend filtering so valid native push subscriptions are not accidentally ignored.
+## Plan
 
-3. **Fix false “sent” success from marker rows**
-   - Update `supabase/functions/send-push-notification/index.ts` so `platform = despia` marker rows do not count as successful web-push deliveries.
-   - If OneSignal has no active recipient, return `success: false` even when a Despia marker row exists.
+1. Repair the email queue infrastructure with a database migration:
+   - Ensure `pgmq` exists.
+   - Recreate the missing queues:
+     - `auth_emails`
+     - `transactional_emails`
+     - `auth_emails_dlq`
+     - `transactional_emails_dlq`
+   - Make the migration idempotent so it is safe if queues already exist.
 
-4. **Improve the demo page behavior**
-   - Update `src/pages/DespiaPushDemo.tsx` so manual re-link polls a little longer, shows the exact reason when OneSignal lookup finds zero subscriptions, and does not show misleading “linked” copy until an enabled subscription is confirmed.
-   - Keep send testing routed through the secure backend function.
+2. Harden the cron job so it cannot spam errors again:
+   - Update `process-email-queue` cron to use safe helper functions instead of directly referencing `pgmq.q_*` tables.
+   - If a queue is missing in the future, the helper should recreate it or return safely.
+   - Keep the 5-second schedule only if the queue checks are safe.
 
-5. **Validate**
-   - Run a targeted lint check on the edited files.
-   - Deploy/test the two backend functions and check their logs for OneSignal responses after the patch.
+3. Verify after the migration:
+   - Confirm the queue tables exist.
+   - Confirm the cron job is active and no longer producing `pgmq.q_auth_emails` errors.
+   - Re-check recent auth/database logs for publishing-related failures.
+
+## Expected result
+
+Publishing should stop failing from backend audit-log noise or connection churn caused by the broken email queue cron job.

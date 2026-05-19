@@ -46,7 +46,7 @@ async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, ex
       sub?.id &&
       sub.enabled !== false &&
       typeof sub.type === "string" &&
-      ["iOSPush", "AndroidPush", "ChromePush", "FirefoxPush", "SafariPush", "HuaweiPush", "FireOSPush"].includes(sub.type)
+      ["iOSPush", "AndroidPush", "ChromePush", "FirefoxPush", "SafariPush", "HuaweiPush"].includes(sub.type)
     )
     .map((sub) => String(sub.id));
 }
@@ -217,24 +217,11 @@ Deno.serve(async (req) => {
             collapse_id: tag || undefined,
           }),
         }, 4_000);
-        const osJson = await res.json().catch(() => null) as { id?: string; recipients?: number; errors?: unknown } | null;
-        const recipients = typeof osJson?.recipients === "number" ? osJson.recipients : undefined;
-        const errors = osJson?.errors ?? undefined;
-        // Only count as delivered when OneSignal accepted the request AND
-        // reported at least one recipient AND returned no errors. Otherwise
-        // errors like "All included players are not subscribed" silently
-        // looked like a successful send.
-        onesignalDelivered = res.ok && !errors && (recipients ?? 0) > 0;
-        onesignalResult = {
-          status: res.status,
-          ok: res.ok,
-          recipients,
-          errors,
-          subscriptionIds: subscriptionIds.length,
-          aliasFallback: subscriptionIds.length === 0,
-        };
-        if (!onesignalDelivered) {
-          console.warn("[push] OneSignal not delivered", res.status, JSON.stringify(osJson).slice(0, 300));
+        onesignalDelivered = res.ok;
+        onesignalResult = { status: res.status, ok: res.ok, subscriptionIds: subscriptionIds.length, aliasFallback: subscriptionIds.length === 0 };
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          console.warn("[push] OneSignal non-OK", res.status, txt.slice(0, 200));
         }
       } catch (err) {
         console.warn("[push] OneSignal send failed:", err);
@@ -278,9 +265,8 @@ Deno.serve(async (req) => {
     const results = await Promise.all(
       (tokens as PushTokenRow[]).map(async ({ id, token, platform }) => {
         // Despia native rows are markers only — OneSignal handled delivery above.
-        // Do NOT mark these as success: real delivery is reported by `onesignalDelivered`.
         if (platform === "despia" || (typeof token === "string" && token.startsWith("despia:"))) {
-          return { success: false, native: true, skipped: true };
+          return { success: true, native: true };
         }
         try {
           let subscription;

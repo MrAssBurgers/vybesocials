@@ -21,32 +21,6 @@ const PLAYER_ID_KEYS = [
 
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
-const PUSH_REGISTRATION_URLS = ['registerpush://', 'registerPush://', 'requestpushpermission://'];
-const PUSH_PERMISSION_CHECK_URLS = ['checkNativePushPermissions://', 'checknativepushpermissions://'];
-
-async function requestNativePushRegistration(): Promise<boolean | null> {
-  let permission: boolean | null = null;
-  for (const url of PUSH_REGISTRATION_URLS) {
-    await despiaCall(url, [], 1_500);
-  }
-  permission = await checkDespiaPushPermission();
-  return permission;
-}
-
-export async function checkDespiaPushPermission(): Promise<boolean | null> {
-  for (const checkUrl of PUSH_PERMISSION_CHECK_URLS) {
-    const permissionResult = await despiaCall(checkUrl, ['nativePushEnabled'], 1_500);
-    if (permissionResult && 'nativePushEnabled' in permissionResult) {
-      return Boolean(permissionResult.nativePushEnabled);
-    }
-  }
-  return null;
-}
-
-async function bindOneSignalExternalId(linkUrls: string[]): Promise<void> {
-  for (const url of linkUrls) await despiaCall(url, [], 1_000);
-}
-
 function normalizeId(value: unknown): string {
   if (typeof value === 'string') return value.trim();
   if (!value || typeof value !== 'object') return '';
@@ -121,45 +95,36 @@ export async function fetchDespiaOneSignalPlayerId(waitMs = 0): Promise<string> 
 
 export async function ensureDespiaOneSignalLinked(
   externalId: string,
-  options: { requestPermission?: boolean; refreshRegistration?: boolean; waitForPlayerIdMs?: number; persistToken?: boolean } = {},
+  options: { requestPermission?: boolean; waitForPlayerIdMs?: number; persistToken?: boolean } = {},
 ): Promise<{ linked: boolean; playerId: string; permission: boolean | null }> {
   if (!externalId || !isDespiaRuntime()) {
     return { linked: false, playerId: '', permission: null };
   }
 
   const encoded = encodeURIComponent(externalId);
-  const linkUrls = [
-    `setonesignalplayerid://?user_id=${encoded}`,
-    `setonesignalexternaluserid://?external_id=${encoded}`,
-    `setexternaluserid://?external_id=${encoded}`,
-  ];
+  const linkUrl = `setonesignalplayerid://?user_id=${encoded}`;
   let permission: boolean | null = null;
 
-  // 1. Request push permission FIRST when asked — OneSignal can only create
-  //    a real subscription after the OS prompt is accepted. Aliasing the
-  //    external_id before a subscription exists creates an alias-only user
-  //    with zero subscriptions, which is the exact failure the demo hit.
-  if (options.requestPermission || options.refreshRegistration) {
-    permission = await requestNativePushRegistration();
+  // Bind immediately on every call. Despia's OneSignal command is queued and
+  // may not return a player id synchronously, so also repeat it below.
+  await despiaCall(linkUrl, [], 1_000);
+
+  if (options.requestPermission) {
+    await despiaCall('registerpush://', [], 1_500);
+    for (const checkUrl of ['checkNativePushPermissions://', 'checknativepushpermissions://']) {
+      const permissionResult = await despiaCall(checkUrl, ['nativePushEnabled'], 1_500);
+      if (permissionResult && 'nativePushEnabled' in permissionResult) {
+        permission = Boolean(permissionResult.nativePushEnabled);
+        break;
+      }
+    }
   }
 
-  // 2. Bind external_id — try every known bridge variant; builds differ.
-  await bindOneSignalExternalId(linkUrls);
+  await despiaCall(linkUrl, [], 1_200);
 
-  // 3. Background retry — Despia/OneSignal can take a beat to register the
-  //    push token after the prompt is accepted. Repeating registration + link
-  //    is harmless after permission is granted and avoids the stale
-  //    "permission accepted but no device registered" state.
-  [1_500, 4_000, 9_000, 15_000, 30_000].forEach((delayMs) => {
-    window.setTimeout(() => {
-      void (async () => {
-        if (options.requestPermission || options.refreshRegistration || permission === true) {
-          await requestNativePushRegistration();
-        }
-        await bindOneSignalExternalId(linkUrls);
-      })();
-    }, delayMs);
-  });
+  // Despia/OneSignal may create the subscription shortly after permission is granted.
+  // Retry in the background so manual linking never blocks the UI forever.
+  window.setTimeout(() => void despiaCall(linkUrl, [], 1_200), 2_500);
 
   const playerId = await fetchDespiaOneSignalPlayerId(options.waitForPlayerIdMs ?? 1_500);
   if (options.persistToken !== false) {
