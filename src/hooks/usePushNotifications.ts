@@ -284,6 +284,7 @@ export function usePushNotifications() {
         throw error;
       }
 
+      writeIntent(profile.id, true);
       setIsSubscribed(true);
       toast.success('Push notifications enabled!');
       return true;
