@@ -111,7 +111,7 @@ RULES:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         messages: finalMessages,
         stream: true,
       }),
@@ -167,7 +167,7 @@ async function extractAndFeedDNA(
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "gemini-2.5-flash-lite",
+      model: "gemini-2.5-flash",
       messages: [
         { role: "system", content: `Extract user interests from their messages. Return ONLY a JSON object with:
 - "interests": array of keywords (max 5)
