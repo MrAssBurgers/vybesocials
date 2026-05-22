@@ -73,18 +73,16 @@ export function useContactDiscovery() {
         .map(c => normalizePhoneNumber(c.phoneNumber))
         .filter(Boolean);
 
-      // Search for users with matching verified phone numbers
+      // Search for users with matching verified phone numbers (server-side RPC,
+      // never exposes raw phone_number to the client).
       const { data: users, error } = await (supabase
-        .from('profiles' as any)
-        .select('id, username, display_name, avatar_url, phone_number')
-        .eq('phone_verified', true)
-        .in('phone_number', phoneNumbers)
-        .neq('id', profile.id) as any);
+        .rpc('discover_users_by_phone', { _phones: phoneNumbers }) as any);
 
       if (error) throw error;
 
-      setDiscoveredUsers(users || []);
-      return users || [];
+      const filtered = (users || []).filter((u: any) => u.id !== profile.id);
+      setDiscoveredUsers(filtered);
+      return filtered;
     } catch (error: any) {
       console.error('Error discovering contacts:', error);
       toast.error('Failed to search contacts');

@@ -91,20 +91,17 @@ export function ContactDiscovery({ onComplete }: ContactDiscoveryProps) {
         .map(c => normalizePhoneNumber(c.phoneNumber))
         .filter(Boolean);
 
-      // Search for users with matching verified phone numbers
-      const { data: users, error } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, phone_number')
-        .eq('phone_verified', true)
-        .in('phone_number', phoneNumbers)
-        .neq('id', profile?.id || '');
+      // Server-side phone lookup; raw phone numbers never returned to client.
+      const { data: usersRaw, error } = await (supabase as any)
+        .rpc('discover_users_by_phone', { _phones: phoneNumbers });
 
       if (error) throw error;
 
-      setDiscoveredUsers(users || []);
-      
-      if ((users || []).length > 0) {
-        toast.success(`Found ${users?.length} friends on VYBE!`);
+      const users = (usersRaw || []).filter((u: any) => u.id !== (profile?.id || ''));
+      setDiscoveredUsers(users);
+
+      if (users.length > 0) {
+        toast.success(`Found ${users.length} friends on VYBE!`);
       } else {
         toast.info('No friends found. Invite them to join!');
       }
