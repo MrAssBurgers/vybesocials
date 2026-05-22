@@ -6,6 +6,7 @@ import {
   isStripeAccountAccessError,
   resetBusinessStripeConnection,
 } from "../_shared/stripe-connect.ts";
+import { safeOrigin } from "../_shared/allowed-origins.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -195,7 +196,7 @@ serve(async (req) => {
       accountId = createdAccount;
     }
 
-    const origin = req.headers.get("origin") || req.headers.get("referer")?.replace(/\/$/, "") || "https://vybeapp.lovable.app";
+    const origin = safeOrigin(req);
     logStep("Using origin for redirects", { origin, accountId });
 
     let accountLink;

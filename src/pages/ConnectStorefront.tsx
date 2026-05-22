@@ -69,10 +69,8 @@ export default function ConnectStorefront() {
       const { data, error } = await supabase.functions.invoke("connect-v2-checkout", {
         body: {
           account_id: accountId,
-          product_name: product.name,
-          price_cents: product.default_price.unit_amount,
+          price_id: product.default_price.id,
           quantity: 1,
-          currency: product.default_price.currency,
         },
       });
       if (error) throw error;

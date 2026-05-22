@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { resolveStripeKey, validateStripeKey } from "../_shared/stripe-key.ts";
+import { safeOrigin } from "../_shared/allowed-origins.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,13 +64,11 @@ serve(async (req) => {
       }
     }
 
-    // Warn if live domain is using test keys
-    const requestOrigin = req.headers.get("origin") || "";
-    if (!isLive && requestOrigin.includes("vybehub.app")) {
+    // Origin allowlist prevents open-redirect via crafted Origin/Referer headers.
+    const origin = safeOrigin(req);
+    if (!isLive && origin.includes("vybehub.app")) {
       console.warn("[create-premium-checkout] WARNING: Live domain using test-mode Stripe key!");
     }
-
-    const origin = requestOrigin || (isLive ? "https://vybehub.app" : "https://vybeapp.lovable.app");
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,

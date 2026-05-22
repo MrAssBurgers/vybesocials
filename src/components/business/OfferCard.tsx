@@ -46,14 +46,6 @@ export function OfferCard({ offer, currentProfileId, onStatusChange }: OfferCard
         body: {
           businessId: offer.business_id,
           offerId: offer.id,
-          items: [
-            {
-              title: offer.title,
-              description: offer.description,
-              price: offer.price,
-              quantity: 1,
-            }
-          ],
           ...getPaymentClientContext(),
         }
       });

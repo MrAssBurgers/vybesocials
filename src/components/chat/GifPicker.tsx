@@ -7,10 +7,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useGifFavorites, SavedGif } from '@/hooks/useGifFavorites';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
-// Tenor API v2
-const TENOR_API_KEY = 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ';
-const TENOR_BASE_URL = 'https://tenor.googleapis.com/v2';
+// Tenor calls go through the tenor-search edge function so the API key
+// stays server-side. No client-bundled credentials.
 
 interface TenorGif {
   id: string;
@@ -49,31 +49,19 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
   // Fetch trending or search results
   const fetchGifs = useCallback(async (query: string, pos?: string) => {
     try {
-      const endpoint = query.trim() 
-        ? `${TENOR_BASE_URL}/search` 
-        : `${TENOR_BASE_URL}/featured`;
-      
-      const params = new URLSearchParams({
-        key: TENOR_API_KEY,
-        client_key: 'vybe_chat',
-        limit: '30',
-        media_filter: 'tinygif,gif',
+      const trimmed = query.trim();
+      const { data, error } = await supabase.functions.invoke('tenor-search', {
+        body: {
+          endpoint: trimmed ? 'search' : 'featured',
+          query: trimmed || undefined,
+          pos: pos || undefined,
+          limit: 30,
+        },
       });
-      
-      if (query.trim()) {
-        params.set('q', query);
-      }
-      
-      if (pos) {
-        params.set('pos', pos);
-      }
-
-      const response = await fetch(`${endpoint}?${params.toString()}`);
-      const data: TenorResponse = await response.json();
-      
+      if (error) throw error;
       return {
-        gifs: data.results || [],
-        next: data.next || '',
+        gifs: (data?.results || []) as TenorGif[],
+        next: (data?.next || '') as string,
       };
     } catch (error) {
       console.error('Failed to fetch GIFs:', error);

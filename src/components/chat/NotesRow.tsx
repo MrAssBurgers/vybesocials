@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Search, X } from 'lucide-react';
-
-const TENOR_API_KEY = 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ'; // Free tier public key
+import { supabase } from '@/integrations/supabase/client';
+// Tenor calls go through the tenor-search edge function (key stays server-side).
 
 interface GifResult {
   id: string;
@@ -40,33 +40,18 @@ export const NotesRow = memo(function NotesRow() {
   };
 
   const searchGifs = async (query: string) => {
-    if (!query.trim()) {
-      // Load trending
-      setGifLoading(true);
-      try {
-        const res = await fetch(
-          `https://tenor.googleapis.com/v2/featured?key=${TENOR_API_KEY}&limit=20&media_filter=gif,tinygif`
-        );
-        const data = await res.json();
-        setGifResults(
-          (data.results || []).map((r: any) => ({
-            id: r.id,
-            url: r.media_formats?.gif?.url || r.media_formats?.mediumgif?.url || '',
-            preview: r.media_formats?.tinygif?.url || r.media_formats?.nanogif?.url || '',
-          }))
-        );
-      } catch { setGifResults([]); }
-      setGifLoading(false);
-      return;
-    }
+    const trimmed = query.trim();
     setGifLoading(true);
     try {
-      const res = await fetch(
-        `https://tenor.googleapis.com/v2/search?key=${TENOR_API_KEY}&q=${encodeURIComponent(query)}&limit=20&media_filter=gif,tinygif`
-      );
-      const data = await res.json();
+      const { data } = await supabase.functions.invoke('tenor-search', {
+        body: {
+          endpoint: trimmed ? 'search' : 'featured',
+          query: trimmed || undefined,
+          limit: 20,
+        },
+      });
       setGifResults(
-        (data.results || []).map((r: any) => ({
+        ((data?.results || []) as any[]).map((r: any) => ({
           id: r.id,
           url: r.media_formats?.gif?.url || r.media_formats?.mediumgif?.url || '',
           preview: r.media_formats?.tinygif?.url || r.media_formats?.nanogif?.url || '',
