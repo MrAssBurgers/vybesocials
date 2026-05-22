@@ -82,7 +82,8 @@ Deno.serve(async (req) => {
     const me = await meRes.json();
     if (!meRes.ok) throw new Error(me.error?.message || 'Profile fetch failed');
 
-    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    // admin client was created above for nonce verification — reuse it
+
     const { error: upErr } = await admin.from('spotify_connections').upsert({
       user_id: userId,
       spotify_user_id: me.id,
