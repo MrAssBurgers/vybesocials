@@ -42,9 +42,9 @@ serve(async (req) => {
 
     const { taskId } = await req.json();
 
-    if (!taskId) {
+    if (!taskId || typeof taskId !== "string" || !/^[a-zA-Z0-9_-]{8,64}$/.test(taskId)) {
       return new Response(
-        JSON.stringify({ error: "Task ID is required" }),
+        JSON.stringify({ error: "Invalid task ID" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
