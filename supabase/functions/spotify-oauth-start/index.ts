@@ -23,11 +23,23 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const returnTo: string = body.returnTo || 'https://vybehub.app/settings';
 
-    // State: base64(userId|nonce|returnTo|redirectUri) — decoded in callback.
-    // Keep Spotify redirect on the app domain so the user never lands on a raw
-    // function URL, and so the allowlisted URI is stable for production/mobile.
+    // Generate a single-use nonce and persist it server-side so the callback
+    // can verify that the auth user who initiated the flow matches the userId.
     const nonce = crypto.randomUUID();
-    const state = btoa(`${userId}|${nonce}|${returnTo}|${REDIRECT_URI}`);
+    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const { error: nonceErr } = await admin.from('oauth_nonces').insert({
+      nonce,
+      user_id: userId,
+      provider: 'spotify',
+      return_to: returnTo,
+      redirect_uri: REDIRECT_URI,
+    });
+    if (nonceErr) {
+      return new Response(JSON.stringify({ error: 'Failed to start OAuth flow' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    // State carries only the nonce; userId/returnTo are resolved server-side.
+    const state = btoa(`${nonce}|${returnTo}|${REDIRECT_URI}`);
+
 
     const url = new URL('https://accounts.spotify.com/authorize');
     url.searchParams.set('client_id', SPOTIFY_CLIENT_ID);

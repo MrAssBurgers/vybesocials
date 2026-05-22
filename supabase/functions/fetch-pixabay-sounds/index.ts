@@ -13,11 +13,45 @@ serve(async (req) => {
   }
 
   try {
+    // Require admin authentication — this function seeds publicly-visible
+    // sounds via the service role, so it must not be callable anonymously.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const authClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: userData, error: userErr } = await authClient.auth.getUser(
+      authHeader.replace("Bearer ", "")
+    );
+    if (userErr || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       { auth: { persistSession: false } }
     );
+    const { data: isAdmin } = await supabase.rpc("has_role", {
+      _user_id: userData.user.id,
+      _role: "admin",
+    });
+    if (!isAdmin) {
+      return new Response(JSON.stringify({ error: "Forbidden: admin only" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     // Get Pixabay API key from app_secrets
     const { data: secretData } = await supabase
