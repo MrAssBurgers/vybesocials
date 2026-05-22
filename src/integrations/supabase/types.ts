@@ -12947,6 +12947,15 @@ export type Database = {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
+      discover_users_by_phone: {
+        Args: { _phones: string[] }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          username: string
+        }[]
+      }
       earn_vybe_tokens: {
         Args: {
           p_amount: number
