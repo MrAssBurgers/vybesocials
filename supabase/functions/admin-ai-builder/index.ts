@@ -204,7 +204,7 @@ Be concise but thorough. Think step-by-step for complex requests.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           ...messages.slice(-20),

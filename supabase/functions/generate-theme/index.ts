@@ -435,7 +435,7 @@ Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Transform the ENTIRE app to match: "${prompt}". Change backgrounds, cards, sidebar, inputs, borders, pick appropriate animation speed+style AND a background effect that matches this vibe. EVERYTHING should match this mood.` },

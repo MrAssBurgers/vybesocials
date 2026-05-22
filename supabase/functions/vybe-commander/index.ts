@@ -62,7 +62,7 @@ If they just want to chat, return an empty actions array and reply warmly.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-pro",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: command },
