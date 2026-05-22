@@ -1,9 +1,28 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.90.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Strict allowlist of permitted music-provider hosts (prevents SSRF / open proxy)
+const ALLOWED_HOSTS = new Set<string>([
+  "pixabay.com",
+  "api.jamendo.com",
+  "freesound.org",
+  "api.freesound.org",
+]);
+
+function isAllowedUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:") return false;
+    return ALLOWED_HOSTS.has(u.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
 
 // Detect if this is a Pixabay provider
 function isPixabayProvider(apiBaseUrl: string): boolean {
@@ -16,6 +35,38 @@ serve(async (req) => {
   }
 
   try {
+    // Require admin authentication — this function performs server-side fetches
+    // using caller-supplied URLs, which would otherwise enable SSRF / open proxy.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const authClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: ud, error: ue } = await authClient.auth.getUser(authHeader.replace("Bearer ", ""));
+    if (ue || !ud?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+    const { data: isAdmin } = await admin.rpc("has_role", {
+      _user_id: ud.user.id, _role: "admin",
+    });
+    if (!isAdmin) {
+      return new Response(JSON.stringify({ error: "Forbidden: admin only" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { api_base_url, api_key } = await req.json();
 
     if (!api_base_url || !api_key) {
@@ -26,6 +77,17 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+
+    if (!isAllowedUrl(api_base_url)) {
+      return new Response(JSON.stringify({
+        error: 'api_base_url host is not in the allowlist',
+        allowed_hosts: Array.from(ALLOWED_HOSTS),
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
 
     console.log(`Testing connection to: ${api_base_url}`);
 
