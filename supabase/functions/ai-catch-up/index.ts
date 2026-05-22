@@ -397,18 +397,18 @@ serve(async (req) => {
       }),
     });
 
+    let summary = "";
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-      throw new Error(`AI gateway error: ${response.status}`);
+      const errText = await response.text().catch(() => 'unknown');
+      console.warn(`[Brief] AI Gateway error ${response.status} — falling back to deterministic summary:`, errText);
+      // Don't fail the request on 402/429/etc — fall through to the deterministic
+      // summary below so the Daily Brief still renders gracefully.
+      summary = "";
+    } else {
+      const data = await response.json();
+      summary = data.choices?.[0]?.message?.content?.trim() || "";
     }
 
-    const data = await response.json();
-    let summary = data.choices?.[0]?.message?.content?.trim() || "";
     
     if (!summary) {
       const parts: string[] = [];
