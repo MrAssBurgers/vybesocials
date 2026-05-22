@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { getStripeSecretKey, validateStripeKey } from "../_shared/stripe-key.ts";
+import { safeOrigin } from "../_shared/allowed-origins.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -141,8 +142,8 @@ serve(async (req) => {
         metadata: piParams.metadata,
         ...(piParams.transfer_data ? { transfer_data: piParams.transfer_data } : {}),
       },
-      success_url: `${req.headers.get("origin") || "https://vybeapp.lovable.app"}/tip-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.headers.get("origin") || "https://vybeapp.lovable.app"}/tip-cancelled`,
+      success_url: `${safeOrigin(req)}/tip-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${safeOrigin(req)}/tip-cancelled`,
     });
 
     // Record tip as pending
