@@ -30,8 +30,8 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -104,14 +104,14 @@ RULES:
       }
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${GEMINI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "gemini-3-flash-preview",
         messages: finalMessages,
         stream: true,
       }),
@@ -137,7 +137,7 @@ RULES:
     if (feedDNA && sanitizedMessages.length > 0) {
       const userMessages = sanitizedMessages.filter((m: any) => m.role === 'user');
       if (userMessages.length > 0) {
-        extractAndFeedDNA(supabase, auth.userId, userMessages, LOVABLE_API_KEY).catch(
+        extractAndFeedDNA(supabase, auth.userId, userMessages, GEMINI_API_KEY).catch(
           (e) => console.error("DNA feed error:", e)
         );
       }
@@ -163,11 +163,11 @@ async function extractAndFeedDNA(
   const combinedText = userMessages.map(m => m.content).join("\n");
   if (combinedText.length < 20) return;
 
-  const extractResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const extractResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
+      model: "gemini-2.5-flash-lite",
       messages: [
         { role: "system", content: `Extract user interests from their messages. Return ONLY a JSON object with:
 - "interests": array of keywords (max 5)

@@ -35,16 +35,16 @@ function inQuietHours(prefs: any): boolean {
   return minsNow >= s || minsNow < e;
 }
 
-async function generateCopy(title: string, hint: string, LOVABLE_API_KEY: string): Promise<string> {
+async function generateCopy(title: string, hint: string, GEMINI_API_KEY: string): Promise<string> {
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${GEMINI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "gemini-2.5-flash-lite",
         messages: [
           {
             role: "system",
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || "";
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 
     // Pull users with smart pings enabled + recent location
     const { data: candidates } = await supabase
@@ -189,7 +189,7 @@ Deno.serve(async (req) => {
           ? `${name} just posted ${distLabel}: ${captionSnippet}`
           : `${name} posted ${distLabel}: ${captionSnippet}`;
         const title = isFriend ? `👀 ${name} just posted` : `📍 Happening near you`;
-        const body = await generateCopy(title, hint, LOVABLE_API_KEY);
+        const body = await generateCopy(title, hint, GEMINI_API_KEY);
 
         const deepLink = `/p/${top.id}`;
         const image = top.thumbnail_url || top.media_url || null;
