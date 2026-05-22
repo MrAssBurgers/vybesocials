@@ -12,9 +12,13 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const primaryColor = url.searchParams.get('primary') || '271 91% 65%'; // Default purple
-    const accentColor = url.searchParams.get('accent') || '189 94% 43%'; // Default cyan
-    const size = parseInt(url.searchParams.get('size') || '512');
+    const HSL_RE = /^\d{1,3}\s+\d{1,3}%\s+\d{1,3}%$/;
+    const rawPrimary = url.searchParams.get('primary');
+    const rawAccent = url.searchParams.get('accent');
+    const primaryColor = rawPrimary && HSL_RE.test(rawPrimary) ? rawPrimary : '271 91% 65%';
+    const accentColor = rawAccent && HSL_RE.test(rawAccent) ? rawAccent : '189 94% 43%';
+    const sizeParam = parseInt(url.searchParams.get('size') || '512', 10);
+    const size = Number.isFinite(sizeParam) ? Math.min(Math.max(sizeParam, 16), 1024) : 512;
 
     // Same padding as favicon for consistent V shape
     const padding = size * 0.1;

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.90.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,10 +13,60 @@ serve(async (req) => {
   }
 
   try {
+    // Require authentication
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser(authHeader.replace("Bearer ", ""));
+    if (userErr || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const authUserId = userData.user.id;
+
     const { imageUrl, stickerId } = await req.json();
-    if (!imageUrl || !stickerId) {
-      return new Response(JSON.stringify({ error: "imageUrl and stickerId required" }), {
+    if (!imageUrl || !stickerId || typeof stickerId !== "string" || !/^[0-9a-f-]{36}$/i.test(stickerId)) {
+      return new Response(JSON.stringify({ error: "Valid imageUrl and stickerId required" }), {
         status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (typeof imageUrl !== "string" || !/^https:\/\//i.test(imageUrl)) {
+      return new Response(JSON.stringify({ error: "imageUrl must be https URL" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Verify ownership of sticker. user_stickers.user_id stores profile id; map via profiles.
+    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data: stickerRow, error: stickerErr } = await admin
+      .from("user_stickers")
+      .select("id, user_id, profiles:user_id(user_id)")
+      .eq("id", stickerId)
+      .maybeSingle();
+    if (stickerErr || !stickerRow) {
+      return new Response(JSON.stringify({ error: "Sticker not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const ownerAuthId = (stickerRow as any).profiles?.user_id;
+    if (ownerAuthId !== authUserId) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -87,7 +138,6 @@ A false positive is FAR better than letting explicit content through. Return ONL
     if (!response.ok) {
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
-      // Default to safe if AI fails
       return new Response(JSON.stringify({ rating: "safe", reason: "AI unavailable" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -105,32 +155,16 @@ A false positive is FAR better than letting explicit content through. Return ONL
         reason = args.reason || "";
       }
     } catch {
-      // If parsing fails, default to safe
+      // default safe
     }
 
-    // Validate rating
-    if (!["safe", "13+", "18+"].includes(rating)) {
-      rating = "safe";
-    }
+    if (!["safe", "13+", "18+"].includes(rating)) rating = "safe";
 
-    // Update the sticker's content_rating in the database
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const updateResp = await fetch(`${SUPABASE_URL}/rest/v1/user_stickers?id=eq.${stickerId}`, {
-      method: "PATCH",
-      headers: {
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify({ content_rating: rating }),
-    });
-
-    if (!updateResp.ok) {
-      console.error("Failed to update sticker rating:", await updateResp.text());
-    }
+    const { error: upErr } = await admin
+      .from("user_stickers")
+      .update({ content_rating: rating })
+      .eq("id", stickerId);
+    if (upErr) console.error("Failed to update sticker rating:", upErr);
 
     console.log(`[rate-sticker-content] Sticker ${stickerId} rated: ${rating} (${reason})`);
 

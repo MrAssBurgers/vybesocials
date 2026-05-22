@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.90.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,13 +12,58 @@ serve(async (req) => {
   }
 
   try {
+    // Require authentication
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser(authHeader.replace("Bearer ", ""));
+    if (userErr || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const authUserId = userData.user.id;
+
     const { image_base64, mime_type, caption, post_id, content_type } = await req.json();
 
-    if (!post_id) {
+    if (!post_id || typeof post_id !== "string" || !/^[0-9a-f-]{36}$/i.test(post_id)) {
       return new Response(
-        JSON.stringify({ error: "post_id is required" }),
+        JSON.stringify({ error: "Valid post_id is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Verify the authenticated user owns the post before allowing mutation
+    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data: postRow, error: postErr } = await admin
+      .from("posts")
+      .select("id, user_id, profiles:user_id(user_id)")
+      .eq("id", post_id)
+      .maybeSingle();
+    if (postErr || !postRow) {
+      return new Response(JSON.stringify({ error: "Post not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // posts.user_id references profiles.id (Profile ID). Map to auth.uid.
+    const ownerAuthId = (postRow as any).profiles?.user_id;
+    if (ownerAuthId !== authUserId) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
@@ -123,25 +169,12 @@ Respond ONLY with valid JSON:
       console.error("Failed to parse Gemini response:", text);
     }
 
-    // Update the post in background
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
     const isAi = result.is_ai && result.confidence >= 0.6;
 
-    fetch(`${SUPABASE_URL}/rest/v1/posts?id=eq.${post_id}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify({
-        is_ai_generated: isAi,
-        ai_confidence: result.confidence,
-      }),
-    }).catch((err) => console.error("Failed to update post AI status:", err));
+    await admin
+      .from("posts")
+      .update({ is_ai_generated: isAi, ai_confidence: result.confidence })
+      .eq("id", post_id);
 
     return new Response(
       JSON.stringify({ is_ai: isAi, confidence: result.confidence, reason: result.reason }),
