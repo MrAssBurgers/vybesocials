@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, memo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, Loader2, TrendingUp, Clock, Star, Heart } from 'lucide-react';
+import { Search, X, Loader2, TrendingUp, Clock, Star } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -9,22 +9,15 @@ import { useGifFavorites, SavedGif } from '@/hooks/useGifFavorites';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
-// Tenor calls go through the tenor-search edge function so the API key
+// GIPHY calls go through the giphy-search edge function so the API key
 // stays server-side. No client-bundled credentials.
 
-interface TenorGif {
+interface GiphyGif {
   id: string;
   title: string;
-  media_formats: {
-    tinygif?: { url: string };
-    gif?: { url: string };
-    mediumgif?: { url: string };
-  };
-}
-
-interface TenorResponse {
-  results: TenorGif[];
-  next: string;
+  url: string;        // original/full quality
+  previewUrl: string; // small preview
+  mediumUrl: string;  // fixed-height
 }
 
 interface GifPickerProps {
@@ -37,8 +30,8 @@ type TabType = 'trending' | 'recent' | 'favorites' | 'search';
 export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPickerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [gifs, setGifs] = useState<TenorGif[]>([]);
-  const [nextPos, setNextPos] = useState<string>('');
+  const [gifs, setGifs] = useState<GiphyGif[]>([]);
+  const [nextOffset, setNextOffset] = useState<number>(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('trending');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -47,25 +40,25 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
   const { favorites, recent, addRecent, toggleFavorite, isFavorite } = useGifFavorites();
 
   // Fetch trending or search results
-  const fetchGifs = useCallback(async (query: string, pos?: string) => {
+  const fetchGifs = useCallback(async (query: string, offset = 0) => {
     try {
       const trimmed = query.trim();
-      const { data, error } = await supabase.functions.invoke('tenor-search', {
+      const { data, error } = await supabase.functions.invoke('giphy-search', {
         body: {
-          endpoint: trimmed ? 'search' : 'featured',
+          endpoint: trimmed ? 'search' : 'trending',
           query: trimmed || undefined,
-          pos: pos || undefined,
+          offset,
           limit: 30,
         },
       });
       if (error) throw error;
       return {
-        gifs: (data?.results || []) as TenorGif[],
-        next: (data?.next || '') as string,
+        gifs: (data?.results || []) as GiphyGif[],
+        next: Number(data?.next || 0),
       };
     } catch (error) {
       console.error('Failed to fetch GIFs:', error);
-      return { gifs: [], next: '' };
+      return { gifs: [], next: 0 };
     }
   }, []);
 
@@ -83,9 +76,9 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
     const loadGifs = async () => {
       setIsLoading(true);
       const query = activeTab === 'search' ? debouncedQuery : '';
-      const { gifs: newGifs, next } = await fetchGifs(query);
+      const { gifs: newGifs, next } = await fetchGifs(query, 0);
       setGifs(newGifs);
-      setNextPos(next);
+      setNextOffset(next);
       setIsLoading(false);
     };
     
@@ -94,62 +87,58 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
 
   // Load more on scroll
   const handleLoadMore = useCallback(async () => {
-    if (!nextPos || isLoadingMore || activeTab === 'recent' || activeTab === 'favorites') return;
+    if (!nextOffset || isLoadingMore || activeTab === 'recent' || activeTab === 'favorites') return;
     
     setIsLoadingMore(true);
     const query = activeTab === 'search' ? debouncedQuery : '';
-    const { gifs: moreGifs, next } = await fetchGifs(query, nextPos);
+    const { gifs: moreGifs, next } = await fetchGifs(query, nextOffset);
     setGifs(prev => [...prev, ...moreGifs]);
-    setNextPos(next);
+    setNextOffset(next);
     setIsLoadingMore(false);
-  }, [nextPos, isLoadingMore, debouncedQuery, fetchGifs, activeTab]);
+  }, [nextOffset, isLoadingMore, debouncedQuery, fetchGifs, activeTab]);
 
   // Infinite scroll detection
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement;
     const nearBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 100;
     
-    if (nearBottom && !isLoadingMore && nextPos) {
+    if (nearBottom && !isLoadingMore && nextOffset) {
       handleLoadMore();
     }
-  }, [handleLoadMore, isLoadingMore, nextPos]);
+  }, [handleLoadMore, isLoadingMore, nextOffset]);
 
-  const handleSelect = useCallback((gif: TenorGif | SavedGif) => {
-    // Get URL based on gif type
+  const handleSelect = useCallback((gif: GiphyGif | SavedGif) => {
     let gifUrl: string;
     let previewUrl: string;
-    
-    if ('media_formats' in gif) {
-      // TenorGif
-      gifUrl = gif.media_formats.gif?.url || gif.media_formats.tinygif?.url || '';
-      previewUrl = gif.media_formats.tinygif?.url || gifUrl;
+
+    if ('mediumUrl' in gif) {
+      gifUrl = gif.url || gif.mediumUrl || gif.previewUrl;
+      previewUrl = gif.previewUrl || gifUrl;
     } else {
-      // SavedGif
       gifUrl = gif.url;
       previewUrl = gif.previewUrl;
     }
-    
+
     if (gifUrl) {
-      // Add to recent
       addRecent({
         id: gif.id,
         url: gifUrl,
-        previewUrl: previewUrl,
+        previewUrl,
         title: gif.title,
       });
       onSelect(gifUrl);
     }
   }, [onSelect, addRecent]);
 
-  const handleToggleFavorite = useCallback((gif: TenorGif, e: React.MouseEvent) => {
+  const handleToggleFavorite = useCallback((gif: GiphyGif, e: React.MouseEvent) => {
     e.stopPropagation();
-    const gifUrl = gif.media_formats.gif?.url || gif.media_formats.tinygif?.url || '';
-    const previewUrl = gif.media_formats.tinygif?.url || gifUrl;
-    
+    const gifUrl = gif.url || gif.mediumUrl || gif.previewUrl;
+    const previewUrl = gif.previewUrl || gifUrl;
+
     toggleFavorite({
       id: gif.id,
       url: gifUrl,
-      previewUrl: previewUrl,
+      previewUrl,
       title: gif.title,
     });
   }, [toggleFavorite]);
@@ -246,7 +235,7 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
             <GifGridItem
               key={gif.id}
               id={gif.id}
-              imageUrl={gif.media_formats.tinygif?.url || gif.media_formats.gif?.url || ''}
+              imageUrl={gif.previewUrl || gif.mediumUrl}
               title={gif.title}
               isFavorited={isFavorite(gif.id)}
               onSelect={() => handleSelect(gif)}
@@ -283,7 +272,7 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
         <span className="font-semibold text-sm flex items-center gap-2">
           <span className="text-lg">🎬</span>
           GIFs
-          <span className="text-xs text-muted-foreground font-normal">powered by Tenor</span>
+          <span className="text-xs text-muted-foreground font-normal">powered by GIPHY</span>
         </span>
         <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
           <X className="h-4 w-4" />

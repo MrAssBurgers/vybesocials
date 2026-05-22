@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 interface GiphySearchPickerProps {
   selectedGifUrl: string | null;
@@ -15,16 +16,13 @@ interface GiphySearchPickerProps {
 interface GiphyGif {
   id: string;
   title: string;
-  images: {
-    fixed_height: { url: string; width: string; height: string };
-    original: { url: string; width: string; height: string };
-    preview_gif: { url: string };
-  };
+  url: string;        // original
+  previewUrl: string; // small preview
+  mediumUrl: string;  // fixed-height
 }
 
-// GIPHY public beta key (free, rate-limited)
-const GIPHY_API_KEY = 'GlVGYHkr3WSBnllca54iNt0yFbjz7L65';
-const GIPHY_BASE = 'https://api.giphy.com/v1/gifs';
+// GIPHY calls go through the giphy-search edge function so the API key
+// stays server-side. No client-bundled credentials.
 
 export const GiphySearchPicker = ({ selectedGifUrl, onSelectGif }: GiphySearchPickerProps) => {
   const [query, setQuery] = useState('');
@@ -37,9 +35,10 @@ export const GiphySearchPicker = ({ selectedGifUrl, onSelectGif }: GiphySearchPi
   useEffect(() => {
     const loadTrending = async () => {
       try {
-        const res = await fetch(`${GIPHY_BASE}/trending?api_key=${GIPHY_API_KEY}&limit=20&rating=pg-13`);
-        const data = await res.json();
-        setTrending(data.data || []);
+        const { data } = await supabase.functions.invoke('giphy-search', {
+          body: { endpoint: 'trending', limit: 20, rating: 'pg-13' },
+        });
+        setTrending((data?.results || []) as GiphyGif[]);
       } catch (e) {
         console.warn('Failed to load trending GIFs', e);
       }
@@ -54,11 +53,10 @@ export const GiphySearchPicker = ({ selectedGifUrl, onSelectGif }: GiphySearchPi
     }
     setIsLoading(true);
     try {
-      const res = await fetch(
-        `${GIPHY_BASE}/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(searchQuery)}&limit=30&rating=pg-13`
-      );
-      const data = await res.json();
-      setResults(data.data || []);
+      const { data } = await supabase.functions.invoke('giphy-search', {
+        body: { endpoint: 'search', query: searchQuery, limit: 30, rating: 'pg-13' },
+      });
+      setResults((data?.results || []) as GiphyGif[]);
     } catch (e) {
       console.warn('GIPHY search failed', e);
     } finally {
@@ -137,7 +135,8 @@ export const GiphySearchPicker = ({ selectedGifUrl, onSelectGif }: GiphySearchPi
         <div className="grid grid-cols-3 gap-1.5">
           <AnimatePresence mode="popLayout">
             {gifs.map((gif) => {
-              const isSelected = selectedGifUrl === gif.images.original.url;
+              const fullUrl = gif.url || gif.mediumUrl || gif.previewUrl;
+              const isSelected = selectedGifUrl === fullUrl;
               return (
                 <motion.button
                   key={gif.id}
@@ -146,7 +145,7 @@ export const GiphySearchPicker = ({ selectedGifUrl, onSelectGif }: GiphySearchPi
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  onClick={() => onSelectGif(isSelected ? null : gif.images.original.url)}
+                  onClick={() => onSelectGif(isSelected ? null : fullUrl)}
                   className={cn(
                     "relative aspect-video rounded-lg overflow-hidden border-2 transition-all",
                     isSelected
@@ -155,7 +154,7 @@ export const GiphySearchPicker = ({ selectedGifUrl, onSelectGif }: GiphySearchPi
                   )}
                 >
                   <img
-                    src={gif.images.fixed_height.url}
+                    src={gif.mediumUrl || gif.previewUrl || fullUrl}
                     alt={gif.title}
                     className="w-full h-full object-cover"
                     loading="lazy"
