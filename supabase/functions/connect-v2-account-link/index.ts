@@ -18,6 +18,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@20.4.1";
 import { getStripeSecretKey, validateStripeKey } from "../_shared/stripe-key.ts";
+import { safeOrigin } from "../_shared/allowed-origins.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,7 +43,7 @@ serve(async (req) => {
     if (!account_id) throw new Error("account_id is required");
 
     // Determine the origin so we can build return / refresh URLs
-    const origin = req.headers.get("origin") || req.headers.get("referer")?.replace(/\/$/, "") || "https://vybeapp.lovable.app";
+    const origin = safeOrigin(req);
 
     const stripeClient = new Stripe(stripeKey);
 
