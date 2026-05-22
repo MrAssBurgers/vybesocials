@@ -19,21 +19,47 @@ Deno.serve(async (req) => {
   let returnTo = 'https://vybehub.app/settings';
   let userId: string | null = null;
   let redirectUri = FALLBACK_REDIRECT_URI;
+  let nonceValue: string | null = null;
   try {
     if (state) {
-      const [uid, , rt, ru] = atob(state).split('|');
-      userId = uid;
-      if (rt) returnTo = rt;
-      if (ru?.startsWith('https://')) redirectUri = ru;
+      const parts = atob(state).split('|');
+      // New format: nonce|returnTo|redirectUri
+      // Legacy format: userId|nonce|returnTo|redirectUri (no longer trusted)
+      if (parts.length === 3) {
+        nonceValue = parts[0];
+        if (parts[1]) returnTo = parts[1];
+        if (parts[2]?.startsWith('https://')) redirectUri = parts[2];
+      }
     }
   } catch { /* ignore */ }
+
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+  // Resolve & consume the nonce server-side. This binds the callback to the
+  // exact auth user who initiated the flow, preventing OAuth account-takeover.
+  if (nonceValue) {
+    const { data: nonceRow } = await admin
+      .from('oauth_nonces')
+      .select('user_id, return_to, redirect_uri, expires_at')
+      .eq('nonce', nonceValue)
+      .eq('provider', 'spotify')
+      .maybeSingle();
+    if (nonceRow && new Date(nonceRow.expires_at).getTime() > Date.now()) {
+      userId = nonceRow.user_id;
+      if (nonceRow.return_to) returnTo = nonceRow.return_to;
+      if (nonceRow.redirect_uri) redirectUri = nonceRow.redirect_uri;
+    }
+    // Single-use: delete regardless of validity to prevent replay
+    await admin.from('oauth_nonces').delete().eq('nonce', nonceValue);
+  }
 
   if (errorParam) {
     return redirect(returnTo, { spotify: 'error', reason: errorParam });
   }
   if (!code || !userId) {
-    return redirect(returnTo, { spotify: 'error', reason: 'missing_code' });
+    return redirect(returnTo, { spotify: 'error', reason: 'invalid_state' });
   }
+
 
   try {
     // Exchange code for tokens
