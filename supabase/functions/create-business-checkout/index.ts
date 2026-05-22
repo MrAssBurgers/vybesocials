@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { getStripeSecretKey, validateStripeKey } from "../_shared/stripe-key.ts";
+import { safeOrigin } from "../_shared/allowed-origins.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,20 +36,21 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    // Parse request body
+    // Parse request body — prices are NEVER trusted from the client.
+    // Either an offerId (we look up business_offers) OR product_ids (we look up business_products).
     const {
       businessId,
-      items,
       offerId,
+      productItems, // [{ product_id, quantity }]
       client_platform = 'web',
       wallet_preference = 'standard',
       native_shell = false,
     } = await req.json();
     if (!businessId) throw new Error("Business ID is required");
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      throw new Error("Items array is required");
+    if (!offerId && (!Array.isArray(productItems) || productItems.length === 0)) {
+      throw new Error("Either offerId or productItems is required");
     }
-    logStep("Request parsed", { businessId, itemCount: items.length, offerId });
+    logStep("Request parsed", { businessId, offerId, productCount: productItems?.length });
 
     // Get auth (optional for guest checkout)
     const authHeader = req.headers.get("Authorization");
@@ -89,28 +91,64 @@ serve(async (req) => {
       }
     }
 
-    // Build line items from request
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = items.map((item: any) => ({
-      price_data: {
-        currency: 'usd',
-        product_data: {
-          name: item.title,
-          description: item.description || undefined,
-        },
-        unit_amount: Math.round(item.price * 100), // Convert to cents
-      },
-      quantity: item.quantity || 1,
-    }));
-    logStep("Line items built", { count: lineItems.length });
+    // ── Resolve canonical line items from the database (NEVER from client) ──
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+    let totalAmount = 0;
 
-    // Calculate total for application fee
-    const totalAmount = items.reduce((sum: number, item: any) => {
-      return sum + (item.price * 100 * (item.quantity || 1));
-    }, 0);
+    if (offerId) {
+      const { data: offer, error: offerError } = await supabaseClient
+        .from('business_offers')
+        .select('id, business_id, title, description, price, status, recipient_id')
+        .eq('id', offerId)
+        .single();
+      if (offerError || !offer) throw new Error("Offer not found");
+      if (offer.business_id !== businessId) throw new Error("Offer does not belong to this business");
+      if (offer.status !== 'pending' && offer.status !== 'accepted') {
+        throw new Error("Offer is not available for checkout");
+      }
+      const cents = Math.round(Number(offer.price) * 100);
+      if (!Number.isFinite(cents) || cents < 1) throw new Error("Invalid offer price");
+      lineItems.push({
+        price_data: {
+          currency: 'usd',
+          product_data: { name: offer.title, description: offer.description || undefined },
+          unit_amount: cents,
+        },
+        quantity: 1,
+      });
+      totalAmount += cents;
+    } else {
+      // productItems path — look up each product server-side.
+      for (const pi of productItems as Array<{ product_id: string; quantity?: number }>) {
+        if (!pi?.product_id) throw new Error("product_id is required for each item");
+        const qty = Math.max(1, Math.min(99, Math.round(pi.quantity || 1)));
+        const { data: product, error: prodErr } = await supabaseClient
+          .from('business_products')
+          .select('id, business_id, title, description, price, is_active')
+          .eq('id', pi.product_id)
+          .single();
+        if (prodErr || !product) throw new Error("Product not found");
+        if (product.business_id !== businessId) throw new Error("Product does not belong to this business");
+        if (!product.is_active) throw new Error(`Product '${product.title}' is not available`);
+        const cents = Math.round(Number(product.price) * 100);
+        if (!Number.isFinite(cents) || cents < 1) throw new Error("Invalid product price");
+        lineItems.push({
+          price_data: {
+            currency: 'usd',
+            product_data: { name: product.title, description: product.description || undefined },
+            unit_amount: cents,
+          },
+          quantity: qty,
+        });
+        totalAmount += cents * qty;
+      }
+    }
+    logStep("Line items built from server-side data", { count: lineItems.length, totalAmount });
+
     const applicationFeeAmount = Math.round(totalAmount * (PLATFORM_FEE_PERCENT / 100));
     logStep("Fee calculated", { totalAmount, applicationFeeAmount, feePercent: PLATFORM_FEE_PERCENT });
 
-    const origin = req.headers.get("origin") || req.headers.get("referer")?.replace(/\/$/, '') || "https://vybeapp.lovable.app";
+    const origin = safeOrigin(req);
     logStep("Using origin for redirects", { origin });
 
     // Create checkout session with connected account and application fee

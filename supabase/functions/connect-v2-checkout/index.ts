@@ -22,6 +22,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@20.4.1";
 import { getStripeSecretKey, validateStripeKey } from "../_shared/stripe-key.ts";
+import { safeOrigin } from "../_shared/allowed-origins.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,20 +47,28 @@ serve(async (req) => {
     const keyCheck = validateStripeKey(stripeKey);
     if (!keyCheck.valid) throw new Error(keyCheck.error!);
 
-    const { account_id, product_name, price_cents, quantity, currency } = await req.json();
-    if (!account_id) throw new Error("account_id is required");
-    if (!product_name) throw new Error("product_name is required");
-    if (!price_cents || price_cents < 1) throw new Error("price_cents must be a positive integer");
+    // Accept a Stripe Price ID (set by the connected merchant) rather than a
+    // client-supplied amount. This prevents payment-amount tampering.
+    const { account_id, price_id, quantity } = await req.json();
+    if (!account_id || typeof account_id !== "string" || !/^acct_[a-zA-Z0-9]+$/.test(account_id)) {
+      throw new Error("Valid account_id is required");
+    }
+    if (!price_id || typeof price_id !== "string" || !/^price_[a-zA-Z0-9]+$/.test(price_id)) {
+      throw new Error("Valid price_id is required");
+    }
 
-    const origin =
-      req.headers.get("origin") ||
-      req.headers.get("referer")?.replace(/\/$/, "") ||
-      "https://vybeapp.lovable.app";
-
+    const origin = safeOrigin(req);
     const stripeClient = new Stripe(stripeKey);
 
-    const qty = quantity || 1;
-    const totalCents = Math.round(price_cents) * qty;
+    const qty = Math.max(1, Math.min(99, Math.round(Number(quantity) || 1)));
+
+    // Resolve the price from Stripe (on the connected account) so the actual
+    // unit_amount is whatever the merchant set — not the caller.
+    const price = await stripeClient.prices.retrieve(price_id, {}, { stripeAccount: account_id });
+    if (!price || price.active === false) throw new Error("Price is not active");
+    if (!price.unit_amount || price.unit_amount < 1) throw new Error("Invalid price amount");
+
+    const totalCents = price.unit_amount * qty;
     const applicationFee = Math.round(totalCents * (PLATFORM_FEE_PERCENT / 100));
 
     // ── Create a Checkout Session as a direct charge ───────────────────
@@ -67,16 +76,7 @@ serve(async (req) => {
     // `application_fee_amount` routes the platform's cut automatically.
     const session = await stripeClient.checkout.sessions.create(
       {
-        line_items: [
-          {
-            price_data: {
-              currency: currency || "usd",
-              product_data: { name: product_name },
-              unit_amount: Math.round(price_cents),
-            },
-            quantity: qty,
-          },
-        ],
+        line_items: [{ price: price_id, quantity: qty }],
         payment_intent_data: {
           application_fee_amount: applicationFee, // Platform revenue
         },
