@@ -7117,6 +7117,36 @@ export type Database = {
           },
         ]
       }
+      oauth_nonces: {
+        Row: {
+          created_at: string
+          expires_at: string
+          nonce: string
+          provider: string
+          redirect_uri: string | null
+          return_to: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          nonce: string
+          provider: string
+          redirect_uri?: string | null
+          return_to?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          nonce?: string
+          provider?: string
+          redirect_uri?: string | null
+          return_to?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       order_events: {
         Row: {
           actor_id: string | null
