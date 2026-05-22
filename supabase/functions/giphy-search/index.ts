@@ -1,16 +1,20 @@
 /**
- * tenor-search edge function
+ * giphy-search edge function
  *
- * Proxies Tenor (Google) GIF API calls so the API key never reaches the
- * client bundle. Requires a Supabase JWT to prevent anonymous quota abuse.
+ * Proxies GIPHY API calls so the API key never reaches the client bundle.
+ * Requires a Supabase JWT to prevent anonymous quota abuse.
  *
  * POST body:
  *   {
- *     endpoint: 'featured' | 'search',
+ *     endpoint: 'trending' | 'search',
  *     query?: string,    // required when endpoint='search'
- *     pos?: string,      // pagination cursor
+ *     offset?: number,   // pagination
  *     limit?: number,    // 1-50, default 30
+ *     rating?: 'g' | 'pg' | 'pg-13' | 'r',
  *   }
+ *
+ * Response (normalized):
+ *   { results: [{ id, title, url, previewUrl, mediumUrl }], next: number }
  */
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
@@ -22,13 +26,12 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const TENOR_BASE_URL = "https://tenor.googleapis.com/v2";
+const GIPHY_BASE_URL = "https://api.giphy.com/v1/gifs";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    // Require auth — prevents anonymous quota burn.
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -47,21 +50,26 @@ serve(async (req) => {
       });
     }
 
-    const TENOR_API_KEY = Deno.env.get("TENOR_API_KEY");
-    if (!TENOR_API_KEY) {
-      return new Response(JSON.stringify({ error: "Tenor not configured" }), {
+    const GIPHY_API_KEY = Deno.env.get("GIPHY_API_KEY");
+    if (!GIPHY_API_KEY) {
+      return new Response(JSON.stringify({ error: "GIPHY not configured" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const body = await req.json().catch(() => ({}));
-    const endpoint = body.endpoint === "search" ? "search" : "featured";
+    const endpoint = body.endpoint === "search" ? "search" : "trending";
     const limit = Math.max(1, Math.min(50, Number(body.limit) || 30));
+    const offset = Math.max(0, Math.min(5000, Number(body.offset) || 0));
+    const ratingRaw = typeof body.rating === "string" ? body.rating.toLowerCase() : "pg-13";
+    const rating = ["g", "pg", "pg-13", "r"].includes(ratingRaw) ? ratingRaw : "pg-13";
+
     const params = new URLSearchParams({
-      key: TENOR_API_KEY,
-      client_key: "vybe_chat",
+      api_key: GIPHY_API_KEY,
       limit: String(limit),
-      media_filter: "tinygif,gif,mediumgif",
+      offset: String(offset),
+      rating,
+      bundle: "messaging_non_clips",
     });
     if (endpoint === "search") {
       const q = typeof body.query === "string" ? body.query.trim() : "";
@@ -71,26 +79,41 @@ serve(async (req) => {
         });
       }
       params.set("q", q);
-    }
-    if (typeof body.pos === "string" && body.pos.length <= 256) {
-      params.set("pos", body.pos);
+      params.set("lang", "en");
     }
 
-    const upstream = await fetch(`${TENOR_BASE_URL}/${endpoint}?${params.toString()}`);
+    const upstream = await fetch(`${GIPHY_BASE_URL}/${endpoint}?${params.toString()}`);
     if (!upstream.ok) {
       const txt = await upstream.text();
-      console.error("Tenor API error", upstream.status, txt);
-      return new Response(JSON.stringify({ results: [], next: "" }), {
+      console.error("GIPHY API error", upstream.status, txt);
+      return new Response(JSON.stringify({ results: [], next: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const data = await upstream.json();
+    const items = Array.isArray(data?.data) ? data.data : [];
+    const results = items.map((g: any) => {
+      const imgs = g.images || {};
+      const original = imgs.original?.url || "";
+      const fixedHeight = imgs.fixed_height?.url || imgs.fixed_height_small?.url || original;
+      const preview = imgs.fixed_height_small?.url || imgs.preview_gif?.url || fixedHeight;
+      return {
+        id: String(g.id),
+        title: g.title || "",
+        url: original,
+        previewUrl: preview,
+        mediumUrl: fixedHeight,
+      };
+    });
+    const pagination = data?.pagination || {};
+    const next = Number(pagination.offset || 0) + Number(pagination.count || results.length);
+
     return new Response(
-      JSON.stringify({ results: data.results || [], next: data.next || "" }),
+      JSON.stringify({ results, next }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
-    console.error("tenor-search error", e);
+    console.error("giphy-search error", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

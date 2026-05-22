@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Search, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-// Tenor calls go through the tenor-search edge function (key stays server-side).
+// GIPHY calls go through the giphy-search edge function (key stays server-side).
 
 interface GifResult {
   id: string;
@@ -43,9 +43,9 @@ export const NotesRow = memo(function NotesRow() {
     const trimmed = query.trim();
     setGifLoading(true);
     try {
-      const { data } = await supabase.functions.invoke('tenor-search', {
+      const { data } = await supabase.functions.invoke('giphy-search', {
         body: {
-          endpoint: trimmed ? 'search' : 'featured',
+          endpoint: trimmed ? 'search' : 'trending',
           query: trimmed || undefined,
           limit: 20,
         },
@@ -53,8 +53,8 @@ export const NotesRow = memo(function NotesRow() {
       setGifResults(
         ((data?.results || []) as any[]).map((r: any) => ({
           id: r.id,
-          url: r.media_formats?.gif?.url || r.media_formats?.mediumgif?.url || '',
-          preview: r.media_formats?.tinygif?.url || r.media_formats?.nanogif?.url || '',
+          url: r.url || r.mediumUrl || r.previewUrl || '',
+          preview: r.previewUrl || r.mediumUrl || r.url || '',
         }))
       );
     } catch { setGifResults([]); }
