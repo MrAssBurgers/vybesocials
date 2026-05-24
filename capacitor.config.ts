@@ -54,16 +54,8 @@ const config: CapacitorConfig = {
       // Universal Link host — must match Associated Domains capability in Xcode:
       // applinks:vybehub.app, applinks:www.vybehub.app
     },
-    GoogleAuth: {
-      // Web OAuth client ID — used to mint the ID token that Supabase verifies.
-      // Get from Google Cloud Console → Credentials → "Web application" client.
-      // iOS additionally needs GIDClientID + REVERSED_CLIENT_ID in Info.plist.
-      // Android additionally needs an Android OAuth client with the package's SHA-1.
-      // See docs/NATIVE_AUTH_SETUP.md.
-      scopes: ['profile', 'email'],
-      serverClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
-      forceCodeForRefreshToken: true,
-    },
+
+
   },
   android: {
     allowMixedContent: false,
