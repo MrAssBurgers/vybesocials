@@ -1,6 +1,6 @@
 import { useState, useRef, memo, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play, Type } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play, Type, BadgeCheck } from 'lucide-react';
 import { ReactionPicker, ReactionSummary } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -308,6 +308,7 @@ interface PostCardProps {
       username: string;
       display_name?: string | null;
       avatar_url: string | null;
+      is_verified?: boolean | null;
     };
     like_count: number;
     comment_count: number;
@@ -560,6 +561,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                   username={post.author.username}
                   displayName={post.author.display_name}
                 />
+                {post.author.is_verified && (
+                  <BadgeCheck className="h-4 w-4 text-primary fill-primary/20 flex-shrink-0" aria-label="Verified" />
+                )}
                 {authorRole && <ModBadge role={authorRole} />}
                 {isOwner(post.author.username) && <OwnerBadge />}
                 {isOwnerWife(post.author.id) && <OwnerWifeRingBadge />}

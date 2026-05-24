@@ -35,6 +35,7 @@ interface Post {
     username: string;
     display_name?: string | null;
     avatar_url: string | null;
+    is_verified?: boolean | null;
   };
   like_count: number;
   comment_count: number;
@@ -72,7 +73,8 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
             id,
             username,
             display_name,
-            avatar_url
+            avatar_url,
+            is_verified
           )
         `);
 
@@ -137,7 +139,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
             supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
           ]);
 
-          const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null } | null;
+          const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null; is_verified?: boolean | null } | null;
           
           // Skip posts with no author
           if (!author) return null;
@@ -214,7 +216,8 @@ export function useFollowingPosts() {
             id,
             username,
             display_name,
-            avatar_url
+            avatar_url,
+            is_verified
           )
         `)
         .in('author_id', followingIds)
@@ -245,7 +248,7 @@ export function useFollowingPosts() {
             supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
           ]);
 
-          const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null } | null;
+          const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null; is_verified?: boolean | null } | null;
 
           // Skip posts with no author
           if (!author) return null;
