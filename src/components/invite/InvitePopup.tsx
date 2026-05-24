@@ -278,10 +278,11 @@ export function InvitePopup() {
 
       if (!result.success) {
         setStep('error');
-        const userMsg = result.error || "Couldn't confirm the invite.";
-        setErrorDetail(`[${result.errorCode || 'UNKNOWN'}] step=${result.stepFailed || '?'} — ${userMsg}`);
-        console.error('[InvitePopup] handleThankYou failed', { errorCode: result.errorCode, stepFailed: result.stepFailed, error: userMsg });
-        toast.error(userMsg);
+        // Show humans a friendly line; keep the diagnostic in console for support.
+        const friendly = "We couldn't connect you two right now. Try again in a moment.";
+        setErrorDetail(friendly);
+        console.error('[InvitePopup] handleThankYou failed', { errorCode: result.errorCode, stepFailed: result.stepFailed, error: result.error });
+        toast.error(friendly);
         return;
       }
 
