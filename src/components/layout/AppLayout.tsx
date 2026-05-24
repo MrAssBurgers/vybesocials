@@ -166,6 +166,9 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
       {/* One-time soft prompt to enable 2FA so users don't lose access */}
       <Enable2FANudge />
+
+      {/* Required phone verification — non-dismissible until verified */}
+      {requireAuth && <PhoneVerifyGate />}
     </div>
   );
 }));
