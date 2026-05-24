@@ -482,12 +482,21 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     if (!confirm('Are you sure you want to delete this post?')) return;
 
     try {
-      const { error } = await supabase
+      // Use .select() so we can verify a row was actually removed (RLS may
+      // silently filter out the delete if the user isn't the author/admin).
+      const { data: deletedRows, error } = await supabase
         .from('posts')
         .delete()
-        .eq('id', post.id);
+        .eq('id', post.id)
+        .select('id');
 
       if (error) throw error;
+
+      if (!deletedRows || deletedRows.length === 0) {
+        // RLS prevented the delete — post still exists in the database.
+        toast.error("You don't have permission to delete this post");
+        return;
+      }
 
       // Log deletion for admin audit (best effort)
       if (profile?.id) {
