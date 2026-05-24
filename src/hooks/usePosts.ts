@@ -73,7 +73,8 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
             id,
             username,
             display_name,
-            avatar_url
+            avatar_url,
+            is_verified
           )
         `);
 
