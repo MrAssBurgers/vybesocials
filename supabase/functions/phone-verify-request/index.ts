@@ -1,7 +1,7 @@
-// Sends a 6-digit SMS verification code via OneSignal SMS.
-// Stores SHA-256(code) in phone_verifications with a 10-min TTL.
-// Rate-limited per phone number to deter abuse.
-import { corsHeaders, jsonResponse, getServiceClient, sha256Hex, getClientIp } from '../_shared/security.ts';
+// Initiates phone verification using Twilio Verify.
+// Twilio generates, sends, and validates the OTP. We only track a
+// `phone_verifications` row for rate limiting and to link userId/purpose.
+import { corsHeaders, jsonResponse, getServiceClient, getClientIp } from '../_shared/security.ts';
 
 const TTL_MS = 10 * 60 * 1000;
 
@@ -17,56 +17,29 @@ function normalizeE164(raw: string): string | null {
   return s.length >= 8 && s.length <= 15 ? '+' + s : null;
 }
 
-async function sendOneSignalSms(phone: string, code: string): Promise<{ ok: boolean; error?: string }> {
-  const appId = Deno.env.get('ONESIGNAL_APP_ID');
-  const apiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
-  if (!appId || !apiKey) return { ok: false, error: 'sms_not_configured' };
+async function twilioVerifyStart(phone: string): Promise<{ ok: boolean; status?: string; error?: string }> {
+  const sid = Deno.env.get('TWILIO_ACCOUNT_SID');
+  const token = Deno.env.get('TWILIO_AUTH_TOKEN');
+  const service = Deno.env.get('TWILIO_VERIFY_SERVICE_SID');
+  if (!sid || !token || !service) return { ok: false, error: 'twilio_not_configured' };
 
   try {
-    const res = await fetch('https://api.onesignal.com/notifications', {
+    const res = await fetch(`https://verify.twilio.com/v2/Services/${service}/Verifications`, {
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${apiKey}`,
-        'Content-Type': 'application/json',
+        'Authorization': 'Basic ' + btoa(`${sid}:${token}`),
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
-        app_id: appId,
-        name: 'sms',
-        target_channel: 'sms',
-        include_phone_numbers: [phone],
-        sms_media_urls: [],
-        contents: { en: `Your VYBE verification code is ${code}. It expires in 10 minutes.` },
-      }),
+      body: new URLSearchParams({ To: phone, Channel: 'sms' }),
     });
-    const body = await res.json().catch(() => ({}));
+    const body = await res.json().catch(() => ({} as any));
     if (!res.ok) {
-      console.error('OneSignal SMS failed', res.status, body);
-      // Fallback: try Twilio if configured
-      const twAcct = Deno.env.get('TWILIO_ACCOUNT_SID');
-      const twTok = Deno.env.get('TWILIO_AUTH_TOKEN');
-      const twFrom = Deno.env.get('TWILIO_PHONE_NUMBER');
-      if (twAcct && twTok && twFrom) {
-        const tw = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twAcct}/Messages.json`, {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic ' + btoa(`${twAcct}:${twTok}`),
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
-            To: phone, From: twFrom,
-            Body: `Your VYBE verification code is ${code}. It expires in 10 minutes.`,
-          }),
-        });
-        if (tw.ok) return { ok: true };
-        const tb = await tw.text().catch(() => '');
-        console.error('Twilio fallback failed', tw.status, tb);
-        return { ok: false, error: 'sms_send_failed' };
-      }
-      return { ok: false, error: body?.errors?.[0] || 'sms_send_failed' };
+      console.error('Twilio Verify start failed', res.status, body);
+      return { ok: false, error: body?.message || 'sms_send_failed' };
     }
-    return { ok: true };
+    return { ok: true, status: body?.status };
   } catch (e) {
-    console.error('sendOneSignalSms exception', e);
+    console.error('twilioVerifyStart exception', e);
     return { ok: false, error: 'sms_send_exception' };
   }
 }
@@ -102,7 +75,7 @@ Deno.serve(async (req) => {
       .gte('created_at', sinceHour);
     if ((recent1h ?? 0) >= 5) return jsonResponse({ error: 'rate_limited', retryAfter: 1800 }, 429);
 
-    // For signup/add: ensure phone isn't already verified by someone else
+    // For signup/add/change: ensure phone isn't already verified by someone else
     if (p === 'signup' || p === 'add' || p === 'change') {
       const { data: taken } = await admin
         .from('profiles')
@@ -115,15 +88,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const code_hash = await sha256Hex(code);
-
+    // Create the tracking row first (Twilio holds the code itself).
     const { data: row, error: insErr } = await admin
       .from('phone_verifications')
       .insert({
         phone: e164,
-        code,            // legacy column still NOT NULL-safe; we now also store hash
-        code_hash,
+        code: 'twilio',          // legacy NOT NULL column; Twilio Verify owns the real code
+        code_hash: 'twilio',     // legacy column; unused with Twilio Verify
         purpose: p,
         user_id: userId ?? null,
         ip,
@@ -136,7 +107,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'create_failed' }, 500);
     }
 
-    const send = await sendOneSignalSms(e164, code);
+    const send = await twilioVerifyStart(e164);
     if (!send.ok) {
       return jsonResponse({ error: send.error || 'sms_send_failed' }, 502);
     }
