@@ -103,6 +103,13 @@ export function SecuritySection() {
 
   return (
     <div className="space-y-4">
+      {/* Phone number (verification + change) */}
+      <PhoneNumberCard />
+
+      {/* Contact discovery */}
+      <ContactSyncCard />
+
+
       {/* Email 2FA */}
       <Card className="p-4">
         <div className="flex items-start gap-3">
