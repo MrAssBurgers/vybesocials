@@ -111,4 +111,7 @@ project_id = "agtcyxjxgkdyoxwxkjth"
     verify_jwt = false
   [functions.share-preview]
     verify_jwt = false
+  [functions.sitemap-dynamic]
+    verify_jwt = false
+
 
