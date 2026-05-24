@@ -315,7 +315,8 @@ export function InvitePopup() {
       }, 1500);
     } catch (error) {
       setStep('error');
-      setErrorDetail('CATCH: ' + (error instanceof Error ? error.message : String(error)));
+      console.error('[InvitePopup] handleThankYou exception', error);
+      setErrorDetail("Something went wrong on our end. Please try again.");
       toast.error("Something went wrong. Please try again.");
     }
   };
