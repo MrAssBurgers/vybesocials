@@ -906,6 +906,7 @@ export default function PostDetailPage() {
           </div>
         )}
       </div>
+      <GuestJoinBanner context="post" username={post?.author?.username} />
     </AppLayout>
   );
 }
