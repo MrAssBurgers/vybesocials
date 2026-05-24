@@ -81,45 +81,35 @@ Deno.serve(async (req) => {
     let pushFailed = 0;
     let inAppInserted = 0;
 
-    for (const authUserId of userIds) {
-      const p = prefByUser.get(authUserId);
+    // push_tokens.user_id stores profile.id in this project (matches OneSignal
+    // external_id binding via DespiaOneSignalSync and notifications.user_id).
+    // Treat the iterated id as profile.id directly — no auth->profile mapping needed.
+    for (const profileId of userIds) {
+      const p = prefByUser.get(profileId);
       if (p?.system_enabled === false) continue;
       if (p?.dnd_enabled && p.dnd_until && new Date(p.dnd_until) > now) continue;
 
-      // Map auth user_id -> profiles.id (for notifications.user_id which uses profile id)
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("user_id", authUserId)
-        .maybeSingle();
-
-      // In-app notification row (bell) keyed by profile.id
-      if (profile?.id) {
-        const { error: notifErr } = await supabase.from("notifications").insert({
-          user_id: profile.id,
-          actor_id: profile.id,
-          type: "daily_brief",
-          subtype: timeOfDay,
-          title,
-          body,
-          deep_link: deepLink,
-          meta: { time_of_day: timeOfDay },
-        });
-        if (!notifErr) inAppInserted++;
-        else console.warn("[brief-push] notif insert failed", notifErr.message);
-      }
+      // In-app notification row (bell) — user_id IS profile.id
+      const { error: notifErr } = await supabase.from("notifications").insert({
+        user_id: profileId,
+        actor_id: profileId,
+        type: "daily_brief",
+        subtype: timeOfDay,
+        title,
+        body,
+        deep_link: deepLink,
+        meta: { time_of_day: timeOfDay },
+      });
+      if (!notifErr) inAppInserted++;
+      else console.warn("[brief-push] notif insert failed", notifErr.message);
 
       // Push fan-out via shared function (handles web + Despia native via OneSignal).
-      // IMPORTANT: send-push-notification targets profile.id (matches DespiaOneSignalSync
-      // external_id binding and all other push call sites). Fall back to auth uid only
-      // when no profile row exists.
-      const pushTarget = profile?.id ?? authUserId;
       try {
         const { error: pushErr } = await supabase.functions.invoke(
           "send-push-notification",
           {
             body: {
-              userId: pushTarget,
+              userId: profileId,
               title,
               body,
               url: deepLink,
@@ -131,15 +121,16 @@ Deno.serve(async (req) => {
         );
         if (pushErr) {
           pushFailed++;
-          console.warn(`[brief-push] push failed for ${pushTarget}`, pushErr.message);
+          console.warn(`[brief-push] push failed for ${profileId}`, pushErr.message);
         } else {
           pushSent++;
         }
       } catch (e) {
         pushFailed++;
-        console.error(`[brief-push] push error for ${pushTarget}`, e);
+        console.error(`[brief-push] push error for ${profileId}`, e);
       }
     }
+
 
     console.log(
       `[brief-push] done tod=${timeOfDay} push=${pushSent} push_fail=${pushFailed} inapp=${inAppInserted} users=${userIds.length}`,
