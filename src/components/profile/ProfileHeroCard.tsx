@@ -105,8 +105,9 @@ export function ProfileHeroCard({
     } catch { toast.error('Failed to start conversation'); }
   };
 
-  const handleShare = () => {
-    const url = `${window.location.origin}/u/${profile.username}`;
+  const handleShare = async () => {
+    const { buildProfileShareUrl } = await import('@/lib/shareLinks');
+    const url = buildProfileShareUrl(profile.username);
     if (navigator.share) {
       navigator.share({ title: `${profile.display_name || profile.username} on VYBE`, url });
     } else {
