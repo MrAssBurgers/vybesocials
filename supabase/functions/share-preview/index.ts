@@ -152,6 +152,7 @@ Deno.serve(async (req) => {
           title,
           description,
           canonical: `${APP_ORIGIN}/p/${post.id}`,
+          deepPath: `/p/${post.id}`,
           image,
           ogType: "article",
           jsonLd: {
