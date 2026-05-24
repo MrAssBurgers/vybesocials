@@ -697,17 +697,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               onClick={async () => {
                 setLoading(true);
                 try {
-                  // Native iOS/Android: use Google's system account picker sheet
-                  // (no in-app browser window). Falls back to web OAuth otherwise.
-                  const { isNativePlatform } = await import('@/lib/capacitor');
-                  if (isNativePlatform) {
-                    const { signInWithNativeGoogle } = await import('@/lib/nativeGoogleAuth');
-                    await signInWithNativeGoogle();
-                    return;
-                  }
                   sessionStorage.setItem('vybe-oauth-pending', 'true');
                   const { error } = await lovable.auth.signInWithOAuth("google", {
-                  redirect_uri: window.location.origin,
+                    redirect_uri: window.location.origin,
                     extraParams: {
                       prompt: "select_account",
                     },
@@ -725,6 +717,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   setLoading(false);
                 }
               }}
+
               disabled={loading}
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
