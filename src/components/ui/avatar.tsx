@@ -25,10 +25,11 @@ const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
 >(({ className, src, ...props }, ref) => {
-  // Auto-shrink avatar payloads. Most avatars render <=96px CSS px; ask for
-  // 192px so 2x DPR phones stay sharp without pulling multi-MB originals.
+  // Deliver the user's original avatar, just sized for retina. 256px covers
+  // 128px CSS @ 2x DPR (the largest avatar in the app). Quality 85 = visually
+  // lossless. GIFs/SVGs/blobs pass through untouched (see imageTransform).
   const optimized = React.useMemo(
-    () => transformedImage(typeof src === 'string' ? src : undefined, { width: 192, quality: 75, resize: 'cover' }) ?? src,
+    () => transformedImage(typeof src === 'string' ? src : undefined, { width: 256, quality: 85, resize: 'cover' }) ?? src,
     [src]
   );
   return (

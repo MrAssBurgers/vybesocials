@@ -272,8 +272,8 @@ function NaturalAspectImage({ src, caption }: { src: string; caption?: string })
       )}
       <img
         key={retryCount}
-        src={transformedImage(src, { width: 1080, quality: 78 }) ?? src}
-        srcSet={transformedSrcSet(src, 540, { quality: 78 })}
+        src={transformedImage(src, { width: 1440, quality: 88 }) ?? src}
+        srcSet={transformedSrcSet(src, 720, { quality: 88 })}
         sizes="(max-width: 640px) 100vw, 640px"
         alt={caption || ''}
         className={cn(
