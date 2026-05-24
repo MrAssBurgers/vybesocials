@@ -573,11 +573,6 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     backdrop-filter: blur(24px) saturate(140%) !important;
     -webkit-backdrop-filter: blur(24px) saturate(140%) !important;
   }
-  /* Desktop left/right sidebar root containers */
-  body.has-custom-bg aside,
-  body.has-custom-bg [data-sidebar="sidebar"] {
-    background-color: transparent !important;
-  }
   
   /* Bottom nav must always be on top */
   nav[aria-label="Bottom navigation"] {

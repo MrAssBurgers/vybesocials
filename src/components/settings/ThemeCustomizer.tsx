@@ -348,12 +348,15 @@ export function ThemeCustomizer() {
             <ChevronRight className="h-5 w-5 text-muted-foreground" />
           </button>
         </SheetTrigger>
-        <SheetContent side="bottom" className="h-[85vh] flex flex-col">
-          <SheetHeader className="pb-4 flex-shrink-0">
+        <SheetContent side="bottom" className="h-[85vh] flex flex-col p-0">
+          <SheetHeader className="pb-4 flex-shrink-0 px-6 pt-6">
             <SheetTitle>Background Image</SheetTitle>
             <SheetDescription>Upload your own image or generate one with AI</SheetDescription>
           </SheetHeader>
-          <div className="flex-1 overflow-y-auto overscroll-contain -webkit-overflow-scrolling-touch pb-safe pb-12">
+          <div
+            className="page-scroll-fix flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-6 pb-[calc(env(safe-area-inset-bottom)+5rem)]"
+            style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+          >
             <BackgroundCustomizer
               currentBackground={backgroundImage || undefined}
               backgroundOpacity={appBackground?.background.opacity ? Math.round(appBackground.background.opacity * 100) : 85}
