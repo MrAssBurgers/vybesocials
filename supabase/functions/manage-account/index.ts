@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.90.1";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type, x-service-role, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
@@ -14,7 +14,74 @@ Deno.serve(async (req) => {
   const correlationId = crypto.randomUUID().slice(0, 8);
 
   try {
-    // Authenticate the user
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    const body = await req.json().catch(() => ({}));
+    const action = (body as { action?: string }).action;
+
+    // ── SCHEDULED PURGE (cron-invoked, service-role auth) ────
+    if (action === "purge_scheduled") {
+      const provided = req.headers.get("x-service-role") || "";
+      if (provided !== supabaseServiceKey) {
+        return new Response(
+          JSON.stringify({ error: "Forbidden" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const { data: due, error: dueErr } = await adminClient
+        .from("profiles")
+        .select("user_id")
+        .not("scheduled_purge_at", "is", null)
+        .lte("scheduled_purge_at", new Date().toISOString())
+        .limit(50);
+      if (dueErr) {
+        return new Response(JSON.stringify({ error: dueErr.message }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const purged: string[] = [];
+      for (const row of due ?? []) {
+        const uid = (row as { user_id: string }).user_id;
+        try {
+          const tables = [
+            { table: "challenge_progress", column: "user_id" },
+            { table: "challenge_rewards", column: "user_id" },
+            { table: "bookmarks", column: "user_id" },
+            { table: "likes", column: "user_id" },
+            { table: "comments", column: "user_id" },
+            { table: "notifications", column: "user_id" },
+            { table: "followers", column: "follower_id" },
+            { table: "followers", column: "following_id" },
+            { table: "messages", column: "sender_id" },
+            { table: "posts", column: "user_id" },
+            { table: "user_badges", column: "user_id" },
+            { table: "analytics_events", column: "user_id" },
+            { table: "error_logs", column: "user_id" },
+          ];
+          for (const { table, column } of tables) {
+            try { await adminClient.from(table).delete().eq(column, uid); } catch (_) { /* ignore */ }
+          }
+          await adminClient.from("profiles").delete().eq("user_id", uid);
+          try {
+            const { data: files } = await adminClient.storage.from("media").list(uid);
+            if (files && files.length > 0) {
+              await adminClient.storage.from("media").remove(files.map((f) => `${uid}/${f.name}`));
+            }
+          } catch (_) { /* ignore */ }
+          await adminClient.auth.admin.deleteUser(uid);
+          purged.push(uid);
+        } catch (e) {
+          console.error(`[${correlationId}] Purge failed for ${uid}:`, e);
+        }
+      }
+      return new Response(JSON.stringify({ success: true, purged_count: purged.length }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Authenticate the user for all other actions
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -23,10 +90,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    // User client to verify identity
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") || supabaseServiceKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -38,8 +101,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { action } = await req.json();
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // ── DATA EXPORT ───────────────────────────────────────────
     if (action === "export") {
@@ -82,12 +143,62 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── ACCOUNT DELETION ──────────────────────────────────────
-    if (action === "delete") {
-      console.log(`[${correlationId}] Account deletion for user ${user.id}`);
+    // ── REQUEST DELETION (30-day grace period) ───────────────
+    if (action === "request_deletion") {
+      console.log(`[${correlationId}] Deletion requested for user ${user.id}`);
+      const now = new Date();
+      const purgeAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-      // Delete user data in order (respecting foreign keys)
-      // Most tables cascade from profile, but we clean up explicitly for safety
+      const { error: updErr } = await adminClient
+        .from("profiles")
+        .update({
+          deletion_requested_at: now.toISOString(),
+          scheduled_purge_at: purgeAt.toISOString(),
+        })
+        .eq("user_id", user.id);
+
+      if (updErr) {
+        console.error(`[${correlationId}] Mark-for-deletion failed:`, updErr);
+        return new Response(
+          JSON.stringify({ error: "Failed to schedule deletion. Please try again." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          scheduled_purge_at: purgeAt.toISOString(),
+          message: "Account scheduled for deletion. Sign in within 30 days to cancel.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── CANCEL DELETION ──────────────────────────────────────
+    if (action === "cancel_deletion") {
+      console.log(`[${correlationId}] Deletion cancelled for user ${user.id}`);
+      const { error: updErr } = await adminClient
+        .from("profiles")
+        .update({ deletion_requested_at: null, scheduled_purge_at: null })
+        .eq("user_id", user.id);
+
+      if (updErr) {
+        return new Response(
+          JSON.stringify({ error: "Failed to cancel deletion." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      return new Response(
+        JSON.stringify({ success: true, message: "Account deletion cancelled." }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── IMMEDIATE / LEGACY DELETE (kept for back-compat) ─────
+    if (action === "delete") {
+      console.log(`[${correlationId}] Immediate account deletion for user ${user.id}`);
+
       const tables = [
         { table: "challenge_progress", column: "user_id" },
         { table: "challenge_rewards", column: "user_id" },
@@ -112,10 +223,8 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Delete profile
       await adminClient.from("profiles").delete().eq("user_id", user.id);
 
-      // Delete storage files
       try {
         const { data: files } = await adminClient.storage.from("media").list(user.id);
         if (files && files.length > 0) {
@@ -126,7 +235,6 @@ Deno.serve(async (req) => {
         console.warn(`[${correlationId}] Storage cleanup skipped:`, e);
       }
 
-      // Delete the auth user last
       const { error: deleteError } = await adminClient.auth.admin.deleteUser(user.id);
       if (deleteError) {
         console.error(`[${correlationId}] Auth deletion failed:`, deleteError);
@@ -136,15 +244,15 @@ Deno.serve(async (req) => {
         );
       }
 
-      console.log(`[${correlationId}] Account deleted successfully`);
       return new Response(
         JSON.stringify({ success: true, message: "Account deleted successfully" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+
     return new Response(
-      JSON.stringify({ error: "Invalid action. Use 'export' or 'delete'." }),
+      JSON.stringify({ error: "Invalid action. Use 'export', 'request_deletion', 'cancel_deletion', or 'delete'." }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

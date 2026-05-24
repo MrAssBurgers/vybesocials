@@ -1,6 +1,7 @@
 import { useState, useRef, memo, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play, Type, BadgeCheck } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play, Type, BadgeCheck, Info } from 'lucide-react';
+import { WhyAmISeeingThisDialog } from './WhyAmISeeingThisDialog';
 import { ReactionPicker, ReactionSummary } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -352,6 +353,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const [authPromptAction, setAuthPromptAction] = useState('');
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
+  const [whyOpen, setWhyOpen] = useState(false);
 
   const signedMediaUrl = useFastSignedUrl(post.media_url);
   const signedAvatarUrl = useFastSignedUrl(post.author.avatar_url);
@@ -666,6 +668,10 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
               <DropdownMenuItem onClick={handleShare}>
                 <Share2 className="h-4 w-4 mr-2" />
                 Share
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setWhyOpen(true)}>
+                <Info className="h-4 w-4 mr-2" />
+                Why am I seeing this?
               </DropdownMenuItem>
               {!isOwnPost && (
                 <DropdownMenuItem onClick={handleReport} className="text-destructive">
@@ -988,6 +994,16 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         open={showAuthPrompt}
         onClose={() => setShowAuthPrompt(false)}
       />
+
+      {/* Why am I seeing this? */}
+      <WhyAmISeeingThisDialog
+        open={whyOpen}
+        onOpenChange={setWhyOpen}
+        authorUsername={post.author.username}
+        isFresh={(Date.now() - new Date(post.created_at).getTime()) < 1000 * 60 * 60 * 24}
+        isTrending={(post.like_count + post.comment_count) >= 25}
+      />
+
 
       {/* Comment Sheet */}
       <CommentSheet

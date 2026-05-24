@@ -7749,6 +7749,7 @@ export type Database = {
           crash_consent: boolean | null
           created_at: string
           date_of_birth: string | null
+          deletion_requested_at: string | null
           display_name: string | null
           email: string | null
           equipped_badge_id: string | null
@@ -7779,6 +7780,7 @@ export type Database = {
           phone_verified: boolean | null
           premium_expires_at: string | null
           referral_inviter_id: string | null
+          scheduled_purge_at: string | null
           sensitivity_preference: string | null
           stripe_customer_id: string | null
           timezone: string | null
@@ -7800,6 +7802,7 @@ export type Database = {
           crash_consent?: boolean | null
           created_at?: string
           date_of_birth?: string | null
+          deletion_requested_at?: string | null
           display_name?: string | null
           email?: string | null
           equipped_badge_id?: string | null
@@ -7830,6 +7833,7 @@ export type Database = {
           phone_verified?: boolean | null
           premium_expires_at?: string | null
           referral_inviter_id?: string | null
+          scheduled_purge_at?: string | null
           sensitivity_preference?: string | null
           stripe_customer_id?: string | null
           timezone?: string | null
@@ -7851,6 +7855,7 @@ export type Database = {
           crash_consent?: boolean | null
           created_at?: string
           date_of_birth?: string | null
+          deletion_requested_at?: string | null
           display_name?: string | null
           email?: string | null
           equipped_badge_id?: string | null
@@ -7881,6 +7886,7 @@ export type Database = {
           phone_verified?: boolean | null
           premium_expires_at?: string | null
           referral_inviter_id?: string | null
+          scheduled_purge_at?: string | null
           sensitivity_preference?: string | null
           stripe_customer_id?: string | null
           timezone?: string | null
