@@ -268,7 +268,7 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
                       className="flex items-center gap-2 text-sm text-muted-foreground mb-2"
                     >
                       <span>Replying to @{replyingTo.username}</span>
-                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={cancelReply}>
+                      <Button variant="ghost" size="icon" aria-label="Cancel reply" className="h-5 w-5" onClick={cancelReply}>
                         <X className="h-3 w-3" />
                       </Button>
                     </motion.div>
@@ -293,6 +293,7 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
                         <Button
                           variant="secondary"
                           size="icon"
+                          aria-label="Remove GIF"
                           onClick={clearGif}
                           className="absolute top-1 right-1 h-5 w-5 rounded-full bg-background/80"
                         >
@@ -334,6 +335,7 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
                         type="button"
                         variant="ghost"
                         size="icon"
+                        aria-label="Insert GIF"
                         onClick={() => setShowGifPicker(!showGifPicker)}
                         disabled={!!gifUrl}
                         className="h-7 w-7 flex-shrink-0"
@@ -358,6 +360,7 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
                     onClick={handleSubmit}
                     disabled={!canSubmit}
                     size="icon"
+                    aria-label="Post comment"
                     className={cn(
                       "h-9 w-9 rounded-full flex-shrink-0 transition-all",
                       canSubmit ? "bg-primary" : "bg-muted"

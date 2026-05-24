@@ -226,6 +226,7 @@ export const CommentThread = memo(function CommentThread({
                 <Button 
                   variant="ghost" 
                   size="icon"
+                  aria-label="Reply options"
                   className="h-6 w-6 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onPointerDown={(e) => {
                     (e.currentTarget as any)._pointerY = e.clientY;
