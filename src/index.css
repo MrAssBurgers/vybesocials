@@ -565,12 +565,18 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   body.has-custom-bg [data-app-scroll-container] {
     background-color: transparent !important;
   }
+  /* Sidebars become translucent glass so the wallpaper bleeds through */
   body.has-custom-bg .stable-sidebar-surface,
   html[data-has-bg-image="true"] .stable-sidebar-surface {
-    background-color: hsl(var(--card)) !important;
+    background-color: hsl(var(--card) / 0.55) !important;
     background-image: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
+    backdrop-filter: blur(24px) saturate(140%) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(140%) !important;
+  }
+  /* Desktop left/right sidebar root containers */
+  body.has-custom-bg aside,
+  body.has-custom-bg [data-sidebar="sidebar"] {
+    background-color: transparent !important;
   }
   
   /* Bottom nav must always be on top */
