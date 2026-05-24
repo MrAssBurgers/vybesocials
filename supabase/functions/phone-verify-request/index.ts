@@ -17,11 +17,22 @@ function normalizeE164(raw: string): string | null {
   return s.length >= 8 && s.length <= 15 ? '+' + s : null;
 }
 
-async function twilioVerifyStart(phone: string): Promise<{ ok: boolean; status?: string; error?: string }> {
+async function twilioVerifyStart(phone: string): Promise<{ ok: boolean; status?: string; error?: string; detail?: string }> {
   const sid = Deno.env.get('TWILIO_ACCOUNT_SID');
   const token = Deno.env.get('TWILIO_AUTH_TOKEN');
   const service = Deno.env.get('TWILIO_VERIFY_SERVICE_SID');
   if (!sid || !token || !service) return { ok: false, error: 'twilio_not_configured' };
+
+  // A Verify Service SID always starts with "VA". Catch a common misconfig
+  // (pasting the Account SID "AC..." or Messaging Service "MG..." here).
+  if (!service.startsWith('VA')) {
+    console.error('TWILIO_VERIFY_SERVICE_SID is not a Verify Service SID (must start with VA). Got prefix:', service.slice(0, 2));
+    return { ok: false, error: 'twilio_verify_service_sid_invalid' };
+  }
+  if (!sid.startsWith('AC')) {
+    console.error('TWILIO_ACCOUNT_SID is not an Account SID (must start with AC). Got prefix:', sid.slice(0, 2));
+    return { ok: false, error: 'twilio_account_sid_invalid' };
+  }
 
   try {
     const res = await fetch(`https://verify.twilio.com/v2/Services/${service}/Verifications`, {
@@ -34,7 +45,18 @@ async function twilioVerifyStart(phone: string): Promise<{ ok: boolean; status?:
     });
     const body = await res.json().catch(() => ({} as any));
     if (!res.ok) {
-      console.error('Twilio Verify start failed', res.status, body);
+      const masked = phone.length > 4 ? phone.slice(0, 3) + '***' + phone.slice(-2) : '***';
+      console.error('Twilio Verify start failed', res.status, 'phone=', masked, 'body=', body);
+      // Twilio 60200 = "Invalid parameter". Surface a useful hint.
+      if (body?.code === 60200) {
+        return { ok: false, error: 'invalid_phone_for_twilio', detail: body?.message };
+      }
+      if (body?.code === 60203) {
+        return { ok: false, error: 'rate_limited', detail: body?.message };
+      }
+      if (body?.code === 60410) {
+        return { ok: false, error: 'phone_blocked', detail: body?.message };
+      }
       return { ok: false, error: body?.message || 'sms_send_failed' };
     }
     return { ok: true, status: body?.status };
