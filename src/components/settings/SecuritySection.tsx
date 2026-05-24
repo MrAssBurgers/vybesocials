@@ -9,6 +9,8 @@ import { Shield, Smartphone, Mail, Trash2, LogOut, Loader2, QrCode } from 'lucid
 import { formatDistanceToNow } from 'date-fns';
 import { PasskeysCard } from './PasskeysCard';
 import { QrSignInScannerCard } from './QrSignInScannerCard';
+import { PhoneNumberCard } from './PhoneNumberCard';
+import { ContactSyncCard } from './ContactSyncCard';
 import { useIsOwner } from '@/hooks/useIsOwner';
 
 interface Session {
@@ -101,6 +103,13 @@ export function SecuritySection() {
 
   return (
     <div className="space-y-4">
+      {/* Phone number (verification + change) */}
+      <PhoneNumberCard />
+
+      {/* Contact discovery */}
+      <ContactSyncCard />
+
+
       {/* Email 2FA */}
       <Card className="p-4">
         <div className="flex items-start gap-3">

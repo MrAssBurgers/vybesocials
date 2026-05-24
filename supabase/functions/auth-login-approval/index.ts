@@ -50,6 +50,21 @@ Deno.serve(async (req) => {
       const device = parseUserAgent(ua);
       const geo = await geolocateIp(ip);
 
+      // Smart-gate: skip approval if the user has no other live device that
+      // could actually answer the prompt. First-time sign-ins or users whose
+      // sessions were all revoked just proceed — the email 2FA toggle still
+      // applies independently.
+      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
+      const { count: liveSessions } = await admin
+        .from('user_sessions')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .is('revoked_at', null)
+        .gte('last_seen_at', sixtyDaysAgo);
+      if ((liveSessions ?? 0) === 0) {
+        return jsonResponse({ ok: true, requiresApproval: false });
+      }
+
       const { data: chal, error } = await admin.from('auth_challenges').insert({
         user_id: user.id,
         email: normalized,
@@ -58,6 +73,7 @@ Deno.serve(async (req) => {
         metadata: { ip, ua, device, geo },
       }).select('id').single();
       if (error || !chal) return jsonResponse({ error: 'create_failed' }, 500);
+
 
       // Fire-and-forget push to wake any trusted device (web/Despia/native).
       try {

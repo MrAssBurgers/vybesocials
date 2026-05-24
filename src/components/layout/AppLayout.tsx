@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
 import { Enable2FANudge } from '@/components/auth/Enable2FANudge';
+import { PhoneVerifyGate } from '@/components/auth/PhoneVerifyGate';
 import { navVisibility } from '@/lib/navVisibility';
 import { SelfNowPlayingPill } from '@/components/music/SelfNowPlayingPill';
 
@@ -165,6 +166,9 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
       {/* One-time soft prompt to enable 2FA so users don't lose access */}
       <Enable2FANudge />
+
+      {/* Required phone verification — non-dismissible until verified */}
+      {requireAuth && <PhoneVerifyGate />}
     </div>
   );
 }));

@@ -1,0 +1,172 @@
+import { useEffect, useState } from 'react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { Phone, CheckCircle2, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
+import { normalizeE164, formatDisplayUS, maskPhone } from '@/lib/phone';
+
+interface Props {
+  /** When true, hides the card chrome — for use inside a forced verification modal. */
+  embedded?: boolean;
+  onVerified?: (phone: string) => void;
+}
+
+export function PhoneNumberCard({ embedded, onVerified }: Props) {
+  const { user } = useAuth();
+  const [phoneVerified, setPhoneVerified] = useState<boolean>(false);
+  const [storedPhone, setStoredPhone] = useState<string>('');
+  const [stage, setStage] = useState<'idle' | 'entering' | 'code'>('idle');
+  const [phone, setPhone] = useState('');
+  const [code, setCode] = useState('');
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('phone_number, phone_verified')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (cancelled || !data) return;
+      setPhoneVerified(!!data.phone_verified);
+      setStoredPhone(data.phone_number || '');
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  const sendCode = async () => {
+    const e164 = normalizeE164(phone);
+    if (!e164) { toast.error('Enter a valid phone number'); return; }
+    setSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('phone-verify-request', {
+        body: { phone: e164, purpose: phoneVerified ? 'change' : 'add', userId: user?.id },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setChallengeId((data as any).challengeId);
+      setStage('code');
+      setCooldown(60);
+      toast.success(`Code sent to ${formatDisplayUS(e164)}`);
+    } catch (e: any) {
+      const msg = e?.message || '';
+      if (msg.includes('rate_limited')) toast.error('Too many attempts. Try again later.');
+      else if (msg.includes('phone_in_use')) toast.error('That number is already on another VYBE account.');
+      else if (msg.includes('sms_not_configured')) toast.error('SMS isn\'t configured yet. Contact support.');
+      else if (msg.includes('invalid_phone')) toast.error('Enter a valid phone number');
+      else toast.error('Could not send code');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const confirmCode = async () => {
+    if (!challengeId || code.length !== 6) return;
+    setVerifying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('phone-verify-confirm', {
+        body: { challengeId, code },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast.success('Phone verified ✅');
+      setPhoneVerified(true);
+      setStoredPhone((data as any).phone || normalizeE164(phone) || '');
+      setStage('idle');
+      setPhone(''); setCode(''); setChallengeId(null);
+      onVerified?.((data as any).phone);
+    } catch (e: any) {
+      const msg = e?.message || '';
+      if (msg.includes('wrong_code')) toast.error('Incorrect code');
+      else if (msg.includes('expired')) toast.error('Code expired. Send a new one.');
+      else if (msg.includes('too_many_attempts')) toast.error('Too many tries. Send a new code.');
+      else toast.error('Could not verify');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const inner = (
+    <div className="space-y-3">
+      <div className="flex items-start gap-3">
+        <Phone className="w-5 h-5 mt-0.5 text-primary" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="font-semibold">Phone number</div>
+            {phoneVerified && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {phoneVerified
+              ? `Verified · ${maskPhone(storedPhone)}`
+              : 'Add a phone to secure your account and let friends find you.'}
+          </div>
+        </div>
+        {phoneVerified && stage === 'idle' && (
+          <Button size="sm" variant="ghost" onClick={() => setStage('entering')}>Change</Button>
+        )}
+      </div>
+
+      {!phoneVerified && stage === 'idle' && (
+        <Button onClick={() => setStage('entering')} className="w-full">Add phone number</Button>
+      )}
+
+      {stage === 'entering' && (
+        <div className="flex gap-2">
+          <Input
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="(555) 555-5555"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            disabled={sending}
+          />
+          <Button onClick={sendCode} disabled={sending || !phone.trim()}>
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send code'}
+          </Button>
+        </div>
+      )}
+
+      {stage === 'code' && (
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground">Enter the 6-digit code we texted you.</div>
+          <InputOTP maxLength={6} value={code} onChange={setCode}>
+            <InputOTPGroup>
+              {[0,1,2,3,4,5].map(i => <InputOTPSlot key={i} index={i} />)}
+            </InputOTPGroup>
+          </InputOTP>
+          <div className="flex gap-2">
+            <Button onClick={confirmCode} disabled={verifying || code.length !== 6} className="flex-1">
+              {verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify'}
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={cooldown > 0 || sending}
+              onClick={sendCode}
+            >
+              {cooldown > 0 ? `Resend (${cooldown})` : 'Resend'}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  if (embedded) return inner;
+  return <Card className="p-4">{inner}</Card>;
+}
