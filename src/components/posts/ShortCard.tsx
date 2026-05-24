@@ -331,12 +331,18 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     if (!confirm('Are you sure you want to delete this clip?')) return;
 
     try {
-      const { error } = await supabase
+      const { data: deletedRows, error } = await supabase
         .from('posts')
         .delete()
-        .eq('id', post.id);
+        .eq('id', post.id)
+        .select('id');
 
       if (error) throw error;
+
+      if (!deletedRows || deletedRows.length === 0) {
+        toast.error("You don't have permission to delete this clip");
+        return;
+      }
 
       if (profile?.id) {
         supabase.from('post_deletion_log').insert({
