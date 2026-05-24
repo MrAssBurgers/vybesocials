@@ -71,20 +71,21 @@ Deno.serve(async (req) => {
       `Then on a new line write exactly: SEVERITY=low | medium | high | critical`,
     ].join("\n");
 
-    const aiResp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gemini-2.5-flash",
+        model: "google/gemini-2.5-flash-lite",
         messages: [
           { role: "system", content: "You are a concise crash triage assistant. No fluff." },
           { role: "user", content: prompt },
         ],
       }),
     });
+
 
     if (!aiResp.ok) {
       const text = await aiResp.text();
