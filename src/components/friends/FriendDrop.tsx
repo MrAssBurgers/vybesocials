@@ -773,6 +773,14 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
           </AnimatePresence>
         </div>
       </LiquidBottomSheet>
+
+      {user?.id && (
+        <NFCWriteSheet
+          isOpen={showWriteSheet}
+          onClose={() => setShowWriteSheet(false)}
+          value={`https://vybehub.app/add-friend/${user.id}`}
+        />
+      )}
     </>
   );
 }
