@@ -216,7 +216,8 @@ export function useFollowingPosts() {
             id,
             username,
             display_name,
-            avatar_url
+            avatar_url,
+            is_verified
           )
         `)
         .in('author_id', followingIds)
