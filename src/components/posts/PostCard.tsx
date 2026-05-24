@@ -352,6 +352,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
   const [authPromptAction, setAuthPromptAction] = useState('');
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
+  const [whyOpen, setWhyOpen] = useState(false);
 
   const signedMediaUrl = useFastSignedUrl(post.media_url);
   const signedAvatarUrl = useFastSignedUrl(post.author.avatar_url);
