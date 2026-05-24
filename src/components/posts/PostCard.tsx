@@ -17,6 +17,7 @@ import {
 import { UserProfileHoverCard } from '@/components/ui/UserProfileHoverCard';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { cn } from '@/lib/utils';
+import { transformedImage, transformedSrcSet } from '@/lib/imageTransform';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
