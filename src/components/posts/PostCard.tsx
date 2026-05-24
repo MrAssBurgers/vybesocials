@@ -1,6 +1,7 @@
 import { useState, useRef, memo, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play, Type, BadgeCheck } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play, Type, BadgeCheck, Info } from 'lucide-react';
+import { WhyAmISeeingThisDialog } from './WhyAmISeeingThisDialog';
 import { ReactionPicker, ReactionSummary } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
 import { AnimatePresence, motion } from 'framer-motion';
