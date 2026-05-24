@@ -14,7 +14,74 @@ Deno.serve(async (req) => {
   const correlationId = crypto.randomUUID().slice(0, 8);
 
   try {
-    // Authenticate the user
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    const body = await req.json().catch(() => ({}));
+    const action = (body as { action?: string }).action;
+
+    // ── SCHEDULED PURGE (cron-invoked, service-role auth) ────
+    if (action === "purge_scheduled") {
+      const provided = req.headers.get("x-service-role") || "";
+      if (provided !== supabaseServiceKey) {
+        return new Response(
+          JSON.stringify({ error: "Forbidden" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const { data: due, error: dueErr } = await adminClient
+        .from("profiles")
+        .select("user_id")
+        .not("scheduled_purge_at", "is", null)
+        .lte("scheduled_purge_at", new Date().toISOString())
+        .limit(50);
+      if (dueErr) {
+        return new Response(JSON.stringify({ error: dueErr.message }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const purged: string[] = [];
+      for (const row of due ?? []) {
+        const uid = (row as { user_id: string }).user_id;
+        try {
+          const tables = [
+            { table: "challenge_progress", column: "user_id" },
+            { table: "challenge_rewards", column: "user_id" },
+            { table: "bookmarks", column: "user_id" },
+            { table: "likes", column: "user_id" },
+            { table: "comments", column: "user_id" },
+            { table: "notifications", column: "user_id" },
+            { table: "followers", column: "follower_id" },
+            { table: "followers", column: "following_id" },
+            { table: "messages", column: "sender_id" },
+            { table: "posts", column: "user_id" },
+            { table: "user_badges", column: "user_id" },
+            { table: "analytics_events", column: "user_id" },
+            { table: "error_logs", column: "user_id" },
+          ];
+          for (const { table, column } of tables) {
+            try { await adminClient.from(table).delete().eq(column, uid); } catch (_) { /* ignore */ }
+          }
+          await adminClient.from("profiles").delete().eq("user_id", uid);
+          try {
+            const { data: files } = await adminClient.storage.from("media").list(uid);
+            if (files && files.length > 0) {
+              await adminClient.storage.from("media").remove(files.map((f) => `${uid}/${f.name}`));
+            }
+          } catch (_) { /* ignore */ }
+          await adminClient.auth.admin.deleteUser(uid);
+          purged.push(uid);
+        } catch (e) {
+          console.error(`[${correlationId}] Purge failed for ${uid}:`, e);
+        }
+      }
+      return new Response(JSON.stringify({ success: true, purged_count: purged.length }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Authenticate the user for all other actions
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -23,10 +90,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    // User client to verify identity
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") || supabaseServiceKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -38,8 +101,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { action } = await req.json();
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // ── DATA EXPORT ───────────────────────────────────────────
     if (action === "export") {
