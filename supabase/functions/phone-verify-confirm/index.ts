@@ -1,7 +1,36 @@
-// Confirms a 6-digit SMS code against a stored challenge.
-// On success: marks consumed, and (for signup/add/change) stamps the user's
-// profile with the verified phone + SHA-256 hash so contact-matching works.
+// Confirms an SMS code via Twilio Verify's VerificationCheck endpoint.
+// On success: marks the local challenge consumed, and (for signup/add/change)
+// stamps the user's profile with the verified phone + SHA-256 hash so
+// contact-matching works.
 import { corsHeaders, jsonResponse, getServiceClient, sha256Hex, getUserFromAuthHeader } from '../_shared/security.ts';
+
+async function twilioVerifyCheck(phone: string, code: string): Promise<{ ok: boolean; status?: string; error?: string }> {
+  const sid = Deno.env.get('TWILIO_ACCOUNT_SID');
+  const token = Deno.env.get('TWILIO_AUTH_TOKEN');
+  const service = Deno.env.get('TWILIO_VERIFY_SERVICE_SID');
+  if (!sid || !token || !service) return { ok: false, error: 'twilio_not_configured' };
+
+  try {
+    const res = await fetch(`https://verify.twilio.com/v2/Services/${service}/VerificationCheck`, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + btoa(`${sid}:${token}`),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ To: phone, Code: code }),
+    });
+    const body = await res.json().catch(() => ({} as any));
+    if (!res.ok) {
+      // 404 = challenge not found / already approved / expired on Twilio side
+      console.error('Twilio VerificationCheck failed', res.status, body);
+      return { ok: false, status: body?.status, error: body?.message || 'check_failed' };
+    }
+    return { ok: body?.status === 'approved', status: body?.status };
+  } catch (e) {
+    console.error('twilioVerifyCheck exception', e);
+    return { ok: false, error: 'check_exception' };
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -13,12 +42,12 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'invalid_input' }, 400);
     }
     const cleaned = code.replace(/\s+/g, '');
-    if (!/^\d{6}$/.test(cleaned)) return jsonResponse({ error: 'invalid_code_format' }, 400);
+    if (!/^\d{4,10}$/.test(cleaned)) return jsonResponse({ error: 'invalid_code_format' }, 400);
 
     const admin = getServiceClient();
     const { data: chal } = await admin
       .from('phone_verifications')
-      .select('id, user_id, phone, code, code_hash, purpose, expires_at, consumed_at, attempts')
+      .select('id, user_id, phone, purpose, expires_at, consumed_at, attempts')
       .eq('id', challengeId)
       .maybeSingle();
     if (!chal) return jsonResponse({ error: 'challenge_not_found' }, 404);
@@ -30,11 +59,10 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'too_many_attempts' }, 429);
     }
 
-    const incomingHash = await sha256Hex(cleaned);
-    const matches = (chal.code_hash && incomingHash === chal.code_hash) || (chal.code && cleaned === chal.code);
-    if (!matches) {
+    const check = await twilioVerifyCheck(chal.phone, cleaned);
+    if (!check.ok) {
       await admin.from('phone_verifications').update({ attempts: (chal.attempts ?? 0) + 1 }).eq('id', chal.id);
-      return jsonResponse({ error: 'wrong_code' }, 400);
+      return jsonResponse({ error: 'wrong_code', status: check.status }, 400);
     }
 
     await admin.from('phone_verifications')
@@ -42,7 +70,6 @@ Deno.serve(async (req) => {
       .eq('id', chal.id);
 
     if (chal.purpose === 'signup' || chal.purpose === 'add' || chal.purpose === 'change') {
-      // Need the authed user to stamp profile.
       const authedUser = await getUserFromAuthHeader(req);
       const userId = authedUser?.id || chal.user_id;
       if (!userId) {
