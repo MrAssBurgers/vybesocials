@@ -62,6 +62,7 @@ function CommentDropdownMenu({ isOwn, onDelete, onEdit, onReport, isDeleting }: 
           <Button 
             variant="ghost" 
             size="icon"
+            aria-label="Comment options"
             className={cn(
               "h-7 w-7 flex-shrink-0 transition-opacity duration-150",
               open ? "opacity-100" : "opacity-0 group-hover:opacity-100"
@@ -255,6 +256,7 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Save changes"
                       className="h-6 w-6 text-primary"
                       onClick={handleEditSave}
                       disabled={editComment.isPending}
@@ -264,6 +266,7 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Cancel edit"
                       className="h-6 w-6 text-muted-foreground"
                       onClick={handleEditCancel}
                       disabled={editComment.isPending}

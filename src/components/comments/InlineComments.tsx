@@ -202,7 +202,7 @@ export const InlineComments = memo(function InlineComments({
                   className="flex items-center gap-2 text-sm text-muted-foreground"
                 >
                   <span>Replying to @{replyingTo.username}</span>
-                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={cancelReply}>
+                  <Button variant="ghost" size="icon" aria-label="Cancel reply" className="h-5 w-5" onClick={cancelReply}>
                     <X className="h-3 w-3" />
                   </Button>
                 </motion.div>
@@ -227,6 +227,7 @@ export const InlineComments = memo(function InlineComments({
                     <Button
                       variant="secondary"
                       size="icon"
+                      aria-label="Remove media"
                       onClick={clearMedia}
                       className="absolute top-1 right-1 h-5 w-5 rounded-full bg-background/80"
                     >
@@ -265,6 +266,7 @@ export const InlineComments = memo(function InlineComments({
                   type="button"
                   variant="ghost"
                   size="icon"
+                  aria-label="Attach image"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading || !!mediaUrl}
                   className="h-9 w-9"
@@ -305,6 +307,7 @@ export const InlineComments = memo(function InlineComments({
                   onClick={handleSubmit}
                   disabled={!canSubmit}
                   size="icon"
+                  aria-label="Post comment"
                   className="h-9 w-9"
                 >
                   {createComment.isPending ? (

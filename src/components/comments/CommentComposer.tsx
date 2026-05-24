@@ -143,6 +143,7 @@ export const CommentComposer = memo(function CommentComposer({
               <Button
                 variant="secondary"
                 size="icon"
+                aria-label="Remove media"
                 onClick={clearMedia}
                 className="absolute top-1 right-1 h-6 w-6 rounded-full bg-background/80 hover:bg-background"
               >
@@ -185,6 +186,7 @@ export const CommentComposer = memo(function CommentComposer({
           <Button
             variant="ghost"
             size="icon"
+            aria-label="Attach image"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading || !!mediaUrl}
             className="h-7 w-7 flex-shrink-0"
@@ -200,6 +202,7 @@ export const CommentComposer = memo(function CommentComposer({
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Insert GIF"
               onClick={() => setShowGifPicker(!showGifPicker)}
               disabled={!!mediaUrl}
               className="h-7 w-7 flex-shrink-0"
@@ -222,6 +225,7 @@ export const CommentComposer = memo(function CommentComposer({
 
         <Button
           size="icon"
+          aria-label="Post comment"
           onClick={handleSubmit}
           disabled={!canSubmit}
           className={cn(

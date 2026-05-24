@@ -95,6 +95,7 @@ export const FitImage = memo(function FitImage({
               <Button
                 variant="secondary"
                 size="icon"
+                aria-label="Toggle image fit"
                 className="h-7 w-7 bg-black/50 hover:bg-black/70 text-white border-0"
                 onClick={() => onModeChange(mode === 'fit' ? 'fill' : 'fit')}
               >
@@ -109,6 +110,7 @@ export const FitImage = memo(function FitImage({
               <Button
                 variant="secondary"
                 size="icon"
+                aria-label="Expand image"
                 className="h-7 w-7 bg-black/50 hover:bg-black/70 text-white border-0"
                 onClick={() => setIsLightboxOpen(true)}
               >
@@ -128,6 +130,7 @@ export const FitImage = memo(function FitImage({
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Close image"
               className="absolute top-4 right-4 z-10 text-white hover:bg-white/10"
               onClick={() => setIsLightboxOpen(false)}
             >

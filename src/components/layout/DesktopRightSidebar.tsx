@@ -469,7 +469,7 @@ export function DesktopRightSidebar() {
                   )}
                   {contextCard.link && (
                     <Link to={contextCard.link}>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                      <Button variant="ghost" size="icon" aria-label="See more" className="h-7 w-7">
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </Link>
