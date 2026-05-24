@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useMarkConversationReadByUser } from '@/hooks/useMessages';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
+import { GuestJoinBanner } from '@/components/growth/GuestJoinBanner';
 import { useIsModOrAdmin, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { useLiveFollowerCount } from '@/hooks/useLiveFollowerCount';
@@ -423,6 +424,7 @@ export default function ProfilePage() {
           />
         )}
       </div>
+      <GuestJoinBanner context="profile" username={profile?.username} />
     </AppLayout>
   );
 }
