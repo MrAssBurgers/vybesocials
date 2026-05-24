@@ -8,6 +8,11 @@ import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled } from "./
 import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
 import { installFlickerGuardCheck } from "./lib/flickerGuardCheck";
 import { installDespiaRealtimeTransport } from "./lib/installDespiaRealtimeTransport";
+import { initSentry } from "./lib/sentry";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+
+// Initialize Sentry as early as possible so we capture init-time errors.
+initSentry();
 
 // Inside Despia, route Supabase Realtime WebSockets through the native bridge
 // so connections survive WebView reloads and backgrounding.
@@ -101,6 +106,8 @@ if (isWeb && 'serviceWorker' in navigator) {
 const root = createRoot(document.getElementById("root")!);
 root.render(
   <StrictMode>
-    <App />
+    <ErrorBoundary scope="root">
+      <App />
+    </ErrorBoundary>
   </StrictMode>
 );

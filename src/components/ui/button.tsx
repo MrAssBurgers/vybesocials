@@ -24,7 +24,7 @@ const buttonVariants = cva(
         sm: "h-9 rounded-lg px-3",
         lg: "h-11 rounded-xl px-8",
         xl: "h-14 rounded-2xl px-10 text-base",
-        icon: "h-10 w-10 rounded-xl",
+        icon: "h-11 w-11 rounded-xl", // 44px — meets WCAG 2.5.5 tap target
         "icon-sm": "h-8 w-8 rounded-lg",
         "icon-lg": "h-12 w-12 rounded-xl",
         "icon-round": "h-11 w-11 rounded-full",

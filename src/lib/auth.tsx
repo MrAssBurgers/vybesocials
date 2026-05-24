@@ -380,6 +380,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
 
+        // Identify the user in Sentry so errors carry user context.
+        try {
+          const { setSentryUser } = await import('@/lib/sentry');
+          setSentryUser(session?.user ? { id: session.user.id, username: session.user.email ?? undefined } : null);
+        } catch { /* noop */ }
+
         // Keep the Realtime socket authenticated so RLS-filtered postgres_changes
         // events (e.g. DM INSERT on `messages`) actually reach the client.
         try {
