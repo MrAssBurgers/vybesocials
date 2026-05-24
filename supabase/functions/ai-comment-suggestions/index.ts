@@ -20,8 +20,8 @@ serve(async (req) => {
 
     const { postCaption, postTags, userPersonality } = await req.json();
 
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const systemPrompt = wrapWithSafetyContext(`You are a social media comment assistant for VYBE, a colorful Gen-Z social platform.
 Given a post's caption and tags, generate exactly 3 short, authentic comment suggestions the user could leave.
@@ -43,14 +43,14 @@ ${userPersonality ? `My personality: ${userPersonality}` : ''}
 
 Generate 3 comment suggestions:`;
 
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gemini-2.5-flash",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
