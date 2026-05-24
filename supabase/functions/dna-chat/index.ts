@@ -81,15 +81,15 @@ Do NOT lecture — just decline and move on naturally.
 
 IMPORTANT: When the user is NOT asking about feed preferences, just respond normally with text. Do NOT call update_preferences unless they explicitly want to change their feed.`;
 
-    // Single streaming call - the AI gateway handles tools in streaming mode
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+    // Single streaming call - route through Lovable AI Gateway
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gemini-2.5-pro",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           ...(messages || []),
