@@ -2950,6 +2950,24 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_hashes: {
+        Row: {
+          created_at: string
+          sha256: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          sha256: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          sha256?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       content_appeals: {
         Row: {
           admin_notes: string | null
@@ -7467,25 +7485,43 @@ export type Database = {
       }
       phone_verifications: {
         Row: {
-          code: string
+          attempts: number
+          code: string | null
+          code_hash: string | null
+          consumed_at: string | null
           created_at: string
           expires_at: string
           id: string
+          ip: string | null
           phone: string
+          purpose: string
+          user_id: string | null
         }
         Insert: {
-          code: string
+          attempts?: number
+          code?: string | null
+          code_hash?: string | null
+          consumed_at?: string | null
           created_at?: string
           expires_at: string
           id?: string
+          ip?: string | null
           phone: string
+          purpose?: string
+          user_id?: string | null
         }
         Update: {
-          code?: string
+          attempts?: number
+          code?: string | null
+          code_hash?: string | null
+          consumed_at?: string | null
           created_at?: string
           expires_at?: string
           id?: string
+          ip?: string | null
           phone?: string
+          purpose?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -7708,6 +7744,7 @@ export type Database = {
           badge_settings: Json | null
           bio: string | null
           coins_balance: number | null
+          contact_discoverable: boolean
           cookie_consent: string | null
           crash_consent: boolean | null
           created_at: string
@@ -7737,6 +7774,7 @@ export type Database = {
           login_streak: number | null
           music_personality: string | null
           onboarding_completed: boolean | null
+          phone_e164_sha256: string | null
           phone_number: string | null
           phone_verified: boolean | null
           premium_expires_at: string | null
@@ -7757,6 +7795,7 @@ export type Database = {
           badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
+          contact_discoverable?: boolean
           cookie_consent?: string | null
           crash_consent?: boolean | null
           created_at?: string
@@ -7786,6 +7825,7 @@ export type Database = {
           login_streak?: number | null
           music_personality?: string | null
           onboarding_completed?: boolean | null
+          phone_e164_sha256?: string | null
           phone_number?: string | null
           phone_verified?: boolean | null
           premium_expires_at?: string | null
@@ -7806,6 +7846,7 @@ export type Database = {
           badge_settings?: Json | null
           bio?: string | null
           coins_balance?: number | null
+          contact_discoverable?: boolean
           cookie_consent?: string | null
           crash_consent?: boolean | null
           created_at?: string
@@ -7835,6 +7876,7 @@ export type Database = {
           login_streak?: number | null
           music_personality?: string | null
           onboarding_completed?: boolean | null
+          phone_e164_sha256?: string | null
           phone_number?: string | null
           phone_verified?: boolean | null
           premium_expires_at?: string | null
@@ -13476,6 +13518,16 @@ export type Database = {
       is_server_member: { Args: { p_server_id: string }; Returns: boolean }
       is_stripe_enabled: { Args: never; Returns: boolean }
       is_username_available: { Args: { p_username: string }; Returns: boolean }
+      match_contacts: {
+        Args: { hashes: string[] }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          is_verified: boolean
+          username: string
+        }[]
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
