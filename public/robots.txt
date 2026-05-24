@@ -24,3 +24,4 @@ Disallow: /onboarding
 Disallow: /complete-profile
 
 Sitemap: https://vybehub.app/sitemap.xml
+Sitemap: https://agtcyxjxgkdyoxwxkjth.supabase.co/functions/v1/sitemap-dynamic
