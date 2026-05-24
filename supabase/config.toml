@@ -109,3 +109,6 @@ project_id = "agtcyxjxgkdyoxwxkjth"
     verify_jwt = false
   [functions.spotify-playlists]
     verify_jwt = false
+  [functions.share-preview]
+    verify_jwt = false
+
