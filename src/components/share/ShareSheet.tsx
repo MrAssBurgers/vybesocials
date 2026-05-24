@@ -19,6 +19,8 @@ import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { navVisibility } from '@/lib/navVisibility';
 import { useQueryClient } from '@tanstack/react-query';
 import { triggerHaptic } from '@/lib/haptics';
+import { buildPostShareUrl } from '@/lib/shareLinks';
+
 
 interface ShareSheetProps {
   isOpen: boolean;
@@ -99,7 +101,7 @@ export const ShareSheet = memo(function ShareSheet({
     }
   }, [isOpen]);
 
-  const shareUrl = `${window.location.origin}/p/${postId}`;
+  const shareUrl = buildPostShareUrl(postId);
 
   // Filter friends by search
   const filteredFriends = searchQuery 
