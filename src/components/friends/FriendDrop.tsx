@@ -18,6 +18,8 @@ import { useNFC } from '@/hooks/useNFC';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 import { getPreloadedStream, requestCameraStream } from '@/hooks/useCameraPreload';
 import { LiquidBottomSheet } from '@/components/ui/glass/LiquidBottomSheet';
+import { NFCWriteSheet } from '@/components/social/NFCWriteSheet';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { cn } from '@/lib/utils';
 
 interface FriendDropProps {
@@ -208,6 +210,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [nfcActive, setNfcActive] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('qr');
+  const [showWriteSheet, setShowWriteSheet] = useState(false);
   const [qrSvg, setQrSvg] = useState<string>('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -666,6 +669,17 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
           </div>
         ))}
       </div>
+
+      {/* Program a physical NFC tag with your friend-link URL (Despia only). */}
+      {isDespiaRuntime() && user?.id && (
+        <button
+          onClick={() => setShowWriteSheet(true)}
+          className="w-full mt-1 flex items-center justify-center gap-2 h-11 rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 to-accent/10 hover:from-primary/20 hover:to-accent/20 active:scale-[0.98] transition-all"
+        >
+          <Radio className="h-4 w-4 text-primary" />
+          <span className="text-sm font-semibold text-primary">Program a blank tag</span>
+        </button>
+      )}
     </motion.div>
   );
 
@@ -759,6 +773,14 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
           </AnimatePresence>
         </div>
       </LiquidBottomSheet>
+
+      {user?.id && (
+        <NFCWriteSheet
+          isOpen={showWriteSheet}
+          onClose={() => setShowWriteSheet(false)}
+          value={`https://vybehub.app/add-friend/${user.id}`}
+        />
+      )}
     </>
   );
 }

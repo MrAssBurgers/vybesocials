@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { isDespiaRuntime, despiaScanNFC, openAppSettings, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
+import { despiaReadNFC, despiaWriteNFC } from '@/lib/despiaNFCv2';
 
 interface NFCState {
   isSupported: boolean;
@@ -86,10 +87,22 @@ function isWebNFCSupported(): boolean {
   return isAndroidUA();
 }
 
-// Despia native NFC bridge — available in the wrapped Android app even when
+// Despia native NFC bridge — available in the wrapped app even when
 // Web NFC permission has been denied. Returns true if a payload was decoded.
+// Prefers the new `nfc://read` + `window.onNFCEvent` contract, falls back to
+// the legacy `nfcread://` polling path on older Despia builds.
 async function despiaNFCScan(onTagScanned: (userId: string) => void): Promise<boolean> {
-  const raw = await despiaScanNFC();
+  // New API (works on iOS too once NFC Tag Reading capability is enabled).
+  const v2 = await despiaReadNFC();
+  let raw: string | null = null;
+  if (v2.ok && v2.payload) {
+    raw = v2.payload;
+  } else if (!v2.dismissed && !v2.error) {
+    // Fall back to legacy polling bridge on Android builds without the new event API.
+    raw = await despiaScanNFC();
+  } else if (v2.error === 'timeout' || v2.error === 'nfc_error') {
+    raw = await despiaScanNFC();
+  }
   if (!raw) return false;
   const userId = parseFriendAddUrl(raw);
   if (userId) {
@@ -117,9 +130,9 @@ export function useNFC() {
   const pendingWriteRef = useRef<string | null>(null);
 
   const hasWebNFC = isWebNFCSupported();
-  // The Despia native shell on Android exposes its own NFC bridge even when
-  // Web NFC permission is denied. Treat that as supported too.
-  const hasDespiaNFC = isDespiaRuntime() && isAndroidUA();
+  // The Despia native shell exposes its own NFC bridge (now iOS-capable via the
+  // new nfc:// + onNFCEvent contract, plus the legacy Android polling bridge).
+  const hasDespiaNFC = isDespiaRuntime() && (isAndroidUA() || isIOSUA());
   const nfcSupported = hasWebNFC || hasDespiaNFC;
 
   useEffect(() => {
@@ -297,48 +310,67 @@ export function useNFC() {
     setState(prev => ({ ...prev, isScanning: false, isWriteReady: false }));
   }, []);
 
-  // Write to NFC tag
+  // Write to NFC tag — prefers Despia's `nfc://write` (works iOS + Android in
+  // the native shell), falls back to Web NFC on Android Chrome.
   const writeNFC = useCallback(async (userId: string): Promise<boolean> => {
+    const friendUrl = generateFriendAddUrl(userId);
+
+    if (hasDespiaNFC) {
+      setState(prev => ({ ...prev, isScanning: true, isWriteReady: true, error: null }));
+      haptics.tap();
+      toast.success('NFC ready! Tap a blank tag to program it.');
+      const result = await despiaWriteNFC(friendUrl);
+      setState(prev => ({ ...prev, isScanning: false, isWriteReady: false }));
+      if (result.ok) {
+        haptics.success();
+        toast.success('Profile written to NFC tag!');
+        return true;
+      }
+      if (result.dismissed) return false;
+      haptics.error();
+      toast.error('Failed to write tag — try again');
+      return false;
+    }
+
     if (!hasWebNFC || !window.NDEFReader) {
-      toast.error('NFC not supported on this device');
+      toast.error('NFC writing requires the VYBE app or Chrome on Android');
       return false;
     }
 
     try {
       console.log('[NFC] Preparing write for:', userId);
       const ndef = new window.NDEFReader();
-      
+
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
       abortControllerRef.current = new AbortController();
 
-      const friendUrl = generateFriendAddUrl(userId);
       console.log('[NFC] URL to write:', friendUrl);
-      
+
       await ndef.scan({ signal: abortControllerRef.current.signal });
-      
+
       setState(prev => ({ ...prev, isScanning: true, isWriteReady: true }));
       pendingWriteRef.current = userId;
-      
+
       haptics.tap();
       toast.success('NFC ready! Tap an NFC tag to write your profile.');
 
       ndef.addEventListener('reading', async () => {
         if (!pendingWriteRef.current) return;
-        
+
         console.log('[NFC] Tag detected, writing...');
         haptics.impact();
-        
+
         try {
           await ndef.write({
             records: [{ recordType: 'url', data: generateFriendAddUrl(pendingWriteRef.current) }],
           });
-          
+
           console.log('[NFC] Write success');
           haptics.success();
           toast.success('Profile written to NFC tag!');
-          
+
           pendingWriteRef.current = null;
           setState(prev => ({ ...prev, isWriteReady: false }));
         } catch (writeError) {
@@ -351,7 +383,7 @@ export function useNFC() {
       return true;
     } catch (error: any) {
       console.error('[NFC] Write setup failed:', error);
-      
+
       if (error.name === 'NotAllowedError') {
         toast.error('NFC permission denied');
       } else if (error.name !== 'AbortError') {
@@ -359,7 +391,7 @@ export function useNFC() {
       }
       return false;
     }
-  }, [hasWebNFC]);
+  }, [hasWebNFC, hasDespiaNFC]);
 
   // Bidirectional share - scan and prepare to exchange
   const shareProfile = useCallback(async (userId: string, onReceive: (theirUserId: string) => void): Promise<boolean> => {
