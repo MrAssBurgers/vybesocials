@@ -490,7 +490,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
       }
     };
 
-    document.addEventListener('touchstart', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick, { passive: true });
     document.addEventListener('mousedown', handleOutsideClick);
     
     return () => {
