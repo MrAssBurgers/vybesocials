@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GifPicker } from '@/components/chat/GifPicker';
+import { GuestJoinBanner } from '@/components/growth/GuestJoinBanner';
 import {
   DropdownMenu,
   DropdownMenuContent,
