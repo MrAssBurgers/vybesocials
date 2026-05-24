@@ -193,6 +193,7 @@ Deno.serve(async (req) => {
           title,
           description,
           canonical: `${APP_ORIGIN}/u/${profile.username}`,
+          deepPath: `/u/${profile.username}`,
           image: profile.avatar_url,
           ogType: "profile",
           jsonLd: {
