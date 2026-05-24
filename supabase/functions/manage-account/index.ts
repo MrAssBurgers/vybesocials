@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
 
 
     return new Response(
-      JSON.stringify({ error: "Invalid action. Use 'export' or 'delete'." }),
+      JSON.stringify({ error: "Invalid action. Use 'export', 'request_deletion', 'cancel_deletion', or 'delete'." }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
