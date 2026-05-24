@@ -423,6 +423,7 @@ export default function ProfilePage() {
           />
         )}
       </div>
+      <GuestJoinBanner context="profile" username={profile?.username} />
     </AppLayout>
   );
 }
