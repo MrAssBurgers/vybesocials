@@ -352,8 +352,16 @@ export default function PostDetailPage() {
     if (!confirm('Are you sure you want to delete this post?')) return;
 
     try {
-      const { error } = await supabase.from('posts').delete().eq('id', post.id);
+      const { data: deletedRows, error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', post.id)
+        .select('id');
       if (error) throw error;
+      if (!deletedRows || deletedRows.length === 0) {
+        toast.error("You don't have permission to delete this post");
+        return;
+      }
       toast.success('Post deleted');
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       navigate(-1);
