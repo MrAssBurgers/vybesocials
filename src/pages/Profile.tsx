@@ -66,12 +66,17 @@ export default function ProfilePage() {
   const { data: lockerData } = useLockerItems(profile?.id);
 
   const equippedTheme = lockerData?.equippedProfileTheme;
-  const { setBackgroundImage } = useAppBackground();
+  const { setBackgroundImage, refreshBackground } = useAppBackground();
 
   // Apply the VIEWED profile's custom background while on this page.
-  // Equipped theme image > viewed user's active user_background. Cleared on unmount.
+  // For the OWN profile, AppBackgroundProvider already applies it globally,
+  // so we skip here. When viewing another user, override and then restore the
+  // logged-in user's own background on unmount.
   useEffect(() => {
     if (!profile?.id) return;
+    const isOwn = !!currentProfile && currentProfile.id === profile.id;
+    if (isOwn) return; // provider handles it globally
+
     let cancelled = false;
     const apply = async () => {
       const themeImg = equippedTheme ? THEME_IMAGES[equippedTheme] : null;
@@ -81,7 +86,6 @@ export default function ProfilePage() {
         img.src = themeImg;
         return;
       }
-      // Fall back to the viewed profile's active uploaded background
       try {
         const { supabase } = await import('@/integrations/supabase/client');
         const { data } = await supabase
@@ -98,9 +102,10 @@ export default function ProfilePage() {
     apply();
     return () => {
       cancelled = true;
-      setBackgroundImage(null);
+      // Restore the logged-in user's own background
+      refreshBackground();
     };
-  }, [profile?.id, equippedTheme, setBackgroundImage]);
+  }, [profile?.id, currentProfile?.id, equippedTheme, setBackgroundImage, refreshBackground]);
 
   const isOwnProfile = !!currentProfile && !!profile && currentProfile.id === profile.id;
 
