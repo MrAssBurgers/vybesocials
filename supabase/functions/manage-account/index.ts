@@ -82,12 +82,62 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── ACCOUNT DELETION ──────────────────────────────────────
-    if (action === "delete") {
-      console.log(`[${correlationId}] Account deletion for user ${user.id}`);
+    // ── REQUEST DELETION (30-day grace period) ───────────────
+    if (action === "request_deletion") {
+      console.log(`[${correlationId}] Deletion requested for user ${user.id}`);
+      const now = new Date();
+      const purgeAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-      // Delete user data in order (respecting foreign keys)
-      // Most tables cascade from profile, but we clean up explicitly for safety
+      const { error: updErr } = await adminClient
+        .from("profiles")
+        .update({
+          deletion_requested_at: now.toISOString(),
+          scheduled_purge_at: purgeAt.toISOString(),
+        })
+        .eq("user_id", user.id);
+
+      if (updErr) {
+        console.error(`[${correlationId}] Mark-for-deletion failed:`, updErr);
+        return new Response(
+          JSON.stringify({ error: "Failed to schedule deletion. Please try again." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          scheduled_purge_at: purgeAt.toISOString(),
+          message: "Account scheduled for deletion. Sign in within 30 days to cancel.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── CANCEL DELETION ──────────────────────────────────────
+    if (action === "cancel_deletion") {
+      console.log(`[${correlationId}] Deletion cancelled for user ${user.id}`);
+      const { error: updErr } = await adminClient
+        .from("profiles")
+        .update({ deletion_requested_at: null, scheduled_purge_at: null })
+        .eq("user_id", user.id);
+
+      if (updErr) {
+        return new Response(
+          JSON.stringify({ error: "Failed to cancel deletion." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      return new Response(
+        JSON.stringify({ success: true, message: "Account deletion cancelled." }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── IMMEDIATE / LEGACY DELETE (kept for back-compat) ─────
+    if (action === "delete") {
+      console.log(`[${correlationId}] Immediate account deletion for user ${user.id}`);
+
       const tables = [
         { table: "challenge_progress", column: "user_id" },
         { table: "challenge_rewards", column: "user_id" },
@@ -112,10 +162,8 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Delete profile
       await adminClient.from("profiles").delete().eq("user_id", user.id);
 
-      // Delete storage files
       try {
         const { data: files } = await adminClient.storage.from("media").list(user.id);
         if (files && files.length > 0) {
@@ -126,7 +174,6 @@ Deno.serve(async (req) => {
         console.warn(`[${correlationId}] Storage cleanup skipped:`, e);
       }
 
-      // Delete the auth user last
       const { error: deleteError } = await adminClient.auth.admin.deleteUser(user.id);
       if (deleteError) {
         console.error(`[${correlationId}] Auth deletion failed:`, deleteError);
@@ -136,12 +183,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      console.log(`[${correlationId}] Account deleted successfully`);
       return new Response(
         JSON.stringify({ success: true, message: "Account deleted successfully" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
 
     return new Response(
       JSON.stringify({ error: "Invalid action. Use 'export' or 'delete'." }),
