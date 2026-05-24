@@ -561,6 +561,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                   username={post.author.username}
                   displayName={post.author.display_name}
                 />
+                {post.author.is_verified && (
+                  <BadgeCheck className="h-4 w-4 text-primary fill-primary/20 flex-shrink-0" aria-label="Verified" />
+                )}
                 {authorRole && <ModBadge role={authorRole} />}
                 {isOwner(post.author.username) && <OwnerBadge />}
                 {isOwnerWife(post.author.id) && <OwnerWifeRingBadge />}
