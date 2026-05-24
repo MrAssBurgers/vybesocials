@@ -9,6 +9,8 @@ import { Shield, Smartphone, Mail, Trash2, LogOut, Loader2, QrCode } from 'lucid
 import { formatDistanceToNow } from 'date-fns';
 import { PasskeysCard } from './PasskeysCard';
 import { QrSignInScannerCard } from './QrSignInScannerCard';
+import { PhoneNumberCard } from './PhoneNumberCard';
+import { ContactSyncCard } from './ContactSyncCard';
 import { useIsOwner } from '@/hooks/useIsOwner';
 
 interface Session {
