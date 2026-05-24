@@ -10,6 +10,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef, Re
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { getSignedUrl, needsSigning } from '@/lib/signedUrlCache';
+import { THEME_IMAGES } from '@/lib/cosmeticConstants';
 
 interface BackgroundState {
   imageUrl: string | null;
