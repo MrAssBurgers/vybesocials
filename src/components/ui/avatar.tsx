@@ -24,23 +24,13 @@ Avatar.displayName = AvatarPrimitive.Root.displayName;
 const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
->(({ className, src, ...props }, ref) => {
-  // Deliver the user's original avatar, just sized for retina. 256px covers
-  // 128px CSS @ 2x DPR (the largest avatar in the app). Quality 85 = visually
-  // lossless. GIFs/SVGs/blobs pass through untouched (see imageTransform).
-  const optimized = React.useMemo(
-    () => transformedImage(typeof src === 'string' ? src : undefined, { width: 256, quality: 85, resize: 'cover' }) ?? src,
-    [src]
-  );
-  return (
-    <AvatarPrimitive.Image
-      ref={ref}
-      src={optimized as string | undefined}
-      className={cn("aspect-square h-full w-full object-cover", className)}
-      {...props}
-    />
-  );
-});
+>(({ className, ...props }, ref) => (
+  <AvatarPrimitive.Image
+    ref={ref}
+    className={cn("aspect-square h-full w-full object-cover", className)}
+    {...props}
+  />
+));
 AvatarImage.displayName = AvatarPrimitive.Image.displayName;
 
 const AvatarFallback = React.forwardRef<
