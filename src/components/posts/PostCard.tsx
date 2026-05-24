@@ -995,6 +995,16 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         onClose={() => setShowAuthPrompt(false)}
       />
 
+      {/* Why am I seeing this? */}
+      <WhyAmISeeingThisDialog
+        open={whyOpen}
+        onOpenChange={setWhyOpen}
+        authorUsername={post.author.username}
+        isFresh={(Date.now() - new Date(post.created_at).getTime()) < 1000 * 60 * 60 * 24}
+        isTrending={(post.like_count + post.comment_count) >= 25}
+      />
+
+
       {/* Comment Sheet */}
       <CommentSheet
         postId={post.id}
