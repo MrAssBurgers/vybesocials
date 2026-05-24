@@ -7,6 +7,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 const APP_ORIGIN = "https://vybehub.app";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+// iOS App Store ID + Android package — when set, share previews surface
+// "Open in App" smart banner / intent on mobile (Universal/App Links).
+const IOS_APP_ID = Deno.env.get("IOS_APP_STORE_ID") || ""; // e.g. "6499999999"
+const ANDROID_PACKAGE = "com.despia.vybe";
 
 function esc(s: string | null | undefined): string {
   if (!s) return "";
