@@ -2,6 +2,7 @@ import * as React from "react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
 import { cn } from "@/lib/utils";
+import { transformedImage } from "@/lib/imageTransform";
 
 // Avatar with properly sized ring that matches the avatar container
 const Avatar = React.forwardRef<
@@ -23,13 +24,22 @@ Avatar.displayName = AvatarPrimitive.Root.displayName;
 const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
->(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Image 
-    ref={ref} 
-    className={cn("aspect-square h-full w-full object-cover", className)} 
-    {...props} 
-  />
-));
+>(({ className, src, ...props }, ref) => {
+  // Auto-shrink avatar payloads. Most avatars render <=96px CSS px; ask for
+  // 192px so 2x DPR phones stay sharp without pulling multi-MB originals.
+  const optimized = React.useMemo(
+    () => transformedImage(typeof src === 'string' ? src : undefined, { width: 192, quality: 75, resize: 'cover' }) ?? src,
+    [src]
+  );
+  return (
+    <AvatarPrimitive.Image
+      ref={ref}
+      src={optimized as string | undefined}
+      className={cn("aspect-square h-full w-full object-cover", className)}
+      {...props}
+    />
+  );
+});
 AvatarImage.displayName = AvatarPrimitive.Image.displayName;
 
 const AvatarFallback = React.forwardRef<

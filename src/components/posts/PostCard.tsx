@@ -17,6 +17,7 @@ import {
 import { UserProfileHoverCard } from '@/components/ui/UserProfileHoverCard';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { cn } from '@/lib/utils';
+import { transformedImage, transformedSrcSet } from '@/lib/imageTransform';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -271,7 +272,9 @@ function NaturalAspectImage({ src, caption }: { src: string; caption?: string })
       )}
       <img
         key={retryCount}
-        src={src}
+        src={transformedImage(src, { width: 1080, quality: 78 }) ?? src}
+        srcSet={transformedSrcSet(src, 540, { quality: 78 })}
+        sizes="(max-width: 640px) 100vw, 640px"
         alt={caption || ''}
         className={cn(
           "w-full h-auto transition-opacity duration-300 ease-out",
