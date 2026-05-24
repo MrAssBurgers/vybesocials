@@ -669,6 +669,10 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
                 <Share2 className="h-4 w-4 mr-2" />
                 Share
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setWhyOpen(true)}>
+                <Info className="h-4 w-4 mr-2" />
+                Why am I seeing this?
+              </DropdownMenuItem>
               {!isOwnPost && (
                 <DropdownMenuItem onClick={handleReport} className="text-destructive">
                   <Flag className="h-4 w-4 mr-2" />
