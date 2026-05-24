@@ -35,6 +35,7 @@ interface Post {
     username: string;
     display_name?: string | null;
     avatar_url: string | null;
+    is_verified?: boolean | null;
   };
   like_count: number;
   comment_count: number;
