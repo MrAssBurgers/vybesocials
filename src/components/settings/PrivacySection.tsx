@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { haptics } from '@/lib/haptics';
+import { BlockedUsersCard } from './BlockedUsersCard';
 
 export function PrivacySection() {
   const { t } = useTranslation();
@@ -268,6 +269,8 @@ export function PrivacySection() {
           </div>
         </div>
       </motion.div>
+
+      <BlockedUsersCard />
     </div>
   );
 }
