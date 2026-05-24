@@ -7,6 +7,11 @@ import { initializeAdMob } from "./lib/admob";
 import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled } from "./lib/serviceWorker";
 import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
 import { installFlickerGuardCheck } from "./lib/flickerGuardCheck";
+import { installDespiaRealtimeTransport } from "./lib/installDespiaRealtimeTransport";
+
+// Inside Despia, route Supabase Realtime WebSockets through the native bridge
+// so connections survive WebView reloads and backgrounding.
+installDespiaRealtimeTransport();
 
 // One-time cleanup: legacy biometric app-lock pref (card + gate were removed).
 try { localStorage.removeItem('vybe.bioauth.enabled'); } catch { /* ignore */ }
