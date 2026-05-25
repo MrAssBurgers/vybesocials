@@ -209,7 +209,93 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, status: newStatus });
     }
 
+    // Fallback: trusted device unreachable — email a 6-digit code instead.
+    // Transfers the pending session from the approval challenge into a fresh
+    // email_2fa challenge and expires the original approval.
+    if (action === 'switch_to_code') {
+      const { challengeId } = body;
+      if (!challengeId) return jsonResponse({ error: 'invalid_input' }, 400);
+      const { data: chal } = await admin
+        .from('auth_challenges')
+        .select('id, user_id, email, status, expires_at, metadata')
+        .eq('id', challengeId)
+        .eq('challenge_type', 'login_approval')
+        .maybeSingle();
+      if (!chal) return jsonResponse({ ok: false, error: 'not_found' }, 200);
+      if (chal.status !== 'pending') return jsonResponse({ ok: false, error: 'already_resolved' }, 200);
+      if (new Date(chal.expires_at).getTime() < Date.now()) {
+        return jsonResponse({ ok: false, error: 'expired' }, 200);
+      }
+      const meta = (chal.metadata as Record<string, any>) || {};
+      const session = meta.session;
+      if (!session?.access_token || !session?.refresh_token) {
+        return jsonResponse({ ok: false, error: 'no_session' }, 200);
+      }
+
+      const code = generate6DigitCode();
+      const codeHash = await sha256Hex(code);
+
+      // Expire any other pending email_2fa challenges for this user.
+      await admin
+        .from('auth_challenges')
+        .update({ status: 'expired' })
+        .eq('user_id', chal.user_id)
+        .eq('challenge_type', 'email_2fa')
+        .eq('status', 'pending');
+
+      const ip = meta.ip ?? getClientIp(req);
+      const device = meta.device ?? parseUserAgent(req.headers.get('user-agent'));
+      const geo = meta.geo ?? { city: null, country: null };
+
+      const { data: codeChal, error: insErr } = await admin
+        .from('auth_challenges')
+        .insert({
+          user_id: chal.user_id,
+          email: chal.email,
+          challenge_type: 'email_2fa',
+          code_hash: codeHash,
+          expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString(),
+          metadata: { ip, device, geo, session },
+        })
+        .select('id, expires_at')
+        .single();
+      if (insErr || !codeChal) {
+        console.error('switch_to_code create failed', insErr);
+        return jsonResponse({ ok: false, error: 'create_failed' }, 200);
+      }
+
+      const sendResult = await sendTransactional('login-verification', chal.email!, {
+        code,
+        ip,
+        city: geo?.city,
+        country: geo?.country,
+        device,
+      }, `2fa-${codeChal.id}`);
+
+      if (!sendResult.ok) {
+        await admin.from('auth_challenges').delete().eq('id', codeChal.id);
+        return jsonResponse({ ok: false, error: 'email_failed', detail: sendResult.error }, 200);
+      }
+
+      // Scrub session from the now-orphaned approval challenge so it can't be
+      // replayed, and mark it expired.
+      const scrubbed = { ...meta };
+      delete scrubbed.session;
+      await admin.from('auth_challenges').update({
+        status: 'expired',
+        metadata: scrubbed,
+      }).eq('id', chal.id);
+
+      return jsonResponse({
+        ok: true,
+        challengeId: codeChal.id,
+        expiresAt: codeChal.expires_at,
+        email: chal.email,
+      });
+    }
+
     return jsonResponse({ error: 'unknown_action' }, 400);
+
   } catch (e) {
     console.error('auth-login-approval error', e);
     return jsonResponse({ error: 'server_error' }, 500);
