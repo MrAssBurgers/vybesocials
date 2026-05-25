@@ -290,8 +290,8 @@ export function LoginGateModal({
 
   // Trusted device unreachable → email a 6-digit code instead.
   const switchToCode = async () => {
-    if (busy) return;
-    setBusy(true);
+    if (optionBusy) return;
+    setOptionBusy('email');
     try {
       const { data, error } = await supabase.functions.invoke('auth-login-approval', {
         body: { action: 'switch_to_code', challengeId: approvalChallengeId },
@@ -300,9 +300,9 @@ export function LoginGateModal({
       if (error || payload.ok === false || !payload.challengeId) {
         const reason = payload.error || error?.message || 'unknown';
         if (reason === 'expired') toast.error('This sign-in request has expired. Try again.');
-        else if (reason === 'email_failed') toast.error("Couldn't email a code right now. Try a different option.");
+        else if (reason === 'email_failed') toast.error("Couldn't send the email right now — try SMS instead.");
         else if (reason === 'no_session') toast.error('This request can no longer be switched. Try again.');
-        else toast.error("Couldn't email a code. Try a different option.");
+        else toast.error("Couldn't email a code — try SMS instead.");
         return;
       }
       cancelledRef.current = true;
@@ -317,14 +317,14 @@ export function LoginGateModal({
     } catch {
       toast.error("Couldn't switch to email code");
     } finally {
-      setBusy(false);
+      setOptionBusy(null);
     }
   };
 
   // Trusted device unreachable → text a 6-digit code to verified phone.
   const switchToSms = async () => {
-    if (busy) return;
-    setBusy(true);
+    if (optionBusy) return;
+    setOptionBusy('sms');
     try {
       const { data, error } = await supabase.functions.invoke('auth-login-approval', {
         body: { action: 'switch_to_sms', challengeId: approvalChallengeId },
@@ -333,10 +333,10 @@ export function LoginGateModal({
       if (error || payload.ok === false || !payload.challengeId) {
         const reason = payload.error || error?.message || 'unknown';
         if (reason === 'expired') toast.error('This sign-in request has expired. Try again.');
-        else if (reason === 'no_verified_phone') toast.error('No verified phone on this account.');
+        else if (reason === 'no_verified_phone') toast.error('No verified phone on this account. Try email instead.');
         else if (reason === 'no_session') toast.error('This request can no longer be switched. Try again.');
         else if (reason === 'rate_limited') toast.error('Too many SMS attempts. Try email instead.');
-        else toast.error("Couldn't send SMS. Try email instead.");
+        else toast.error("Couldn't send SMS — try email instead.");
         return;
       }
       cancelledRef.current = true;
@@ -351,7 +351,7 @@ export function LoginGateModal({
     } catch {
       toast.error("Couldn't send SMS code");
     } finally {
-      setBusy(false);
+      setOptionBusy(null);
     }
   };
 
