@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 
-type Mode = 'code' | 'approval';
+type Mode = 'code' | 'approval' | 'options' | 'sms';
 
 
 interface SessionTokens { access_token: string; refresh_token: string }
