@@ -20,6 +20,14 @@ interface State {
 }
 
 class SmartErrorBoundary extends Component<Props, State> {
+  // Loop guard: if the same subtree keeps throwing after auto-reset, stop
+  // resetting to break the catch → setState → re-render → throw cycle that
+  // triggers React's "Maximum update depth exceeded".
+  private resetCount = 0;
+  private resetWindowStart = 0;
+  private static readonly RESET_LIMIT = 3;
+  private static readonly RESET_WINDOW_MS = 2000;
+
   constructor(props: Props) {
     super(props);
     this.state = {
@@ -39,7 +47,6 @@ class SmartErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    this.setState({ errorInfo });
     const msg = error?.message || '';
     const isChunkError = msg.includes('Loading chunk') ||
       msg.includes('Failed to fetch dynamically imported module') ||
@@ -64,7 +71,6 @@ class SmartErrorBoundary extends Component<Props, State> {
 
     if (isNetworkError) {
       console.warn('[SmartErrorBoundary] Suppressed transient network error:', msg);
-      // Silently recover — keep the last good UI on screen.
       setTimeout(() => this.setState({ hasError: false, error: null, errorInfo: null }), 0);
       return;
     }
@@ -72,16 +78,26 @@ class SmartErrorBoundary extends Component<Props, State> {
     console.error('[SmartErrorBoundary] Caught error:', error?.message, error?.stack);
     console.error('[SmartErrorBoundary] Component stack:', errorInfo.componentStack);
 
-    // Still report the crash silently in the background so monitoring works.
+    // Fire-and-forget crash report.
     void this.reportCrash(error, errorInfo.componentStack, 'auto');
 
-    // IMPORTANT: Never flip hasError for runtime errors. Subtree errors are
-    // now caught by LocalErrorBoundary wrappers around DeferredAuthHooks and
-    // the deferred notification overlays, so the root boundary should NOT
-    // unmount the whole app (which would tear down AuthProvider and cause a
-    // cascade of "useAuth must be used within AuthProvider" + uuid:"undefined"
-    // 400s on every render cycle). Keep the tree mounted and let local
-    // boundaries handle their own subtree.
+    // Loop guard: track resets in a short window. If we exceed the limit,
+    // stop auto-resetting and keep `hasError` true (render returns null) so
+    // the throwing subtree stays unmounted.
+    const now = Date.now();
+    if (now - this.resetWindowStart > SmartErrorBoundary.RESET_WINDOW_MS) {
+      this.resetWindowStart = now;
+      this.resetCount = 0;
+    }
+    this.resetCount += 1;
+
+    if (this.resetCount > SmartErrorBoundary.RESET_LIMIT) {
+      console.warn('[SmartErrorBoundary] Reset loop detected — keeping subtree unmounted.');
+      this.setState({ errorInfo });
+      return;
+    }
+
+    // Single setState call (was two — second one caused the cascade).
     this.setState({ hasError: false, error: null, errorInfo: null });
   }
 
