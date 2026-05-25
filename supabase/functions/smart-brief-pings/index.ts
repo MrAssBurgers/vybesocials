@@ -10,10 +10,15 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+    if (token !== serviceKey) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 
     const { data: candidates } = await supabase

@@ -12898,6 +12898,7 @@ export type Database = {
         }
         Returns: string
       }
+      award_invite_badge: { Args: { p_milestone: number }; Returns: Json }
       award_vybe_points: {
         Args: {
           _action: string
@@ -13075,6 +13076,7 @@ export type Database = {
       }
       ensure_active_challenges: { Args: never; Returns: Json }
       ensure_profile: { Args: never; Returns: string }
+      ensure_user_level: { Args: never; Returns: undefined }
       execute_admin_sql: { Args: { sql_query: string }; Returns: Json }
       filter_profanity: { Args: { input_text: string }; Returns: string }
       find_roulette_match: {

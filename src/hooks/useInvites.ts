@@ -225,33 +225,21 @@ export function useInviteStats() {
   useEffect(() => {
     const awardBadgeForMilestone = async (milestone: number, badgeName: string) => {
       if (!user?.id || awardedMilestonesRef.current.has(milestone)) return;
-      
+
       try {
-        // Check if user already has this badge
-        const { data: existingBadge } = await supabase
-          .from('user_badges')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('badge_type', `invite_${milestone}`)
-          .maybeSingle();
-        
-        if (existingBadge) {
-          awardedMilestonesRef.current.add(milestone);
+        // Server-validated badge award (counts real redemptions; idempotent)
+        const { data, error } = await supabase.rpc('award_invite_badge', {
+          p_milestone: milestone,
+        });
+
+        if (error) {
+          console.error('Failed to award badge:', error);
           return;
         }
-        
-        // Award the badge
-        const { error } = await supabase
-          .from('user_badges')
-          .insert({
-            user_id: user.id,
-            badge_type: `invite_${milestone}`,
-            badge_name: badgeName,
-            metadata: { invites: milestone },
-          });
-        
-        if (!error) {
-          awardedMilestonesRef.current.add(milestone);
+
+        awardedMilestonesRef.current.add(milestone);
+        const result = data as { ok?: boolean; awarded?: string; already_awarded?: boolean } | null;
+        if (result?.awarded) {
           toast.success(`🎖️ Badge unlocked: ${badgeName}!`);
           queryClient.invalidateQueries({ queryKey: ['user-badges'] });
         }
