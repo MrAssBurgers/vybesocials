@@ -131,7 +131,13 @@ Deno.serve(async (req) => {
 
     const send = await twilioVerifyStart(e164);
     if (!send.ok) {
-      return jsonResponse({ error: send.error || 'sms_send_failed' }, 502);
+      // Return 200 with ok:false so supabase.functions.invoke surfaces the
+      // exact reason to the client (otherwise non-2xx hides the body).
+      return jsonResponse({
+        ok: false,
+        error: send.error || 'sms_send_failed',
+        detail: send.detail,
+      });
     }
 
     return jsonResponse({
@@ -140,6 +146,7 @@ Deno.serve(async (req) => {
       expiresAt: row.expires_at,
       phone: e164,
     });
+
   } catch (e) {
     console.error('phone-verify-request error', e);
     return jsonResponse({ error: 'server_error' }, 500);
