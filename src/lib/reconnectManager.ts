@@ -24,7 +24,7 @@ import type { QueryClient } from '@tanstack/react-query';
 // Relative path so it works under capacitor://localhost and PWA shells too.
 const HEALTH_URL = './favicon.ico';
 const PROBE_TIMEOUT_MS = 2500;
-const OFFLINE_MIN_MS = 3000;
+const OFFLINE_MIN_MS = 1500;
 const OFFLINE_MAX_MS = 15000;
 const ONLINE_HEARTBEAT_MS = 60000;
 
