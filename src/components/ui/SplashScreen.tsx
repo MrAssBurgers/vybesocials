@@ -166,9 +166,9 @@ export const SplashScreen = memo(function SplashScreen({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7, duration: 0.5, ease: 'easeOut' }}
-            className="w-[min(12rem,60vw)]"
+            className="w-[min(16rem,72vw)]"
           >
-            <div className="relative h-[3px] bg-foreground/[0.08] rounded-full overflow-hidden">
+            <div className="relative h-1.5 bg-foreground/[0.1] rounded-full overflow-hidden">
               <div
                 ref={barRef}
                 className="absolute inset-y-0 left-0 w-full rounded-full origin-left"
@@ -176,6 +176,7 @@ export const SplashScreen = memo(function SplashScreen({
                   transform: 'scaleX(0)',
                   background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))',
                   backgroundSize: '200% 100%',
+                  boxShadow: '0 0 12px hsl(var(--primary) / 0.45)',
                   transition: 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
                   willChange: 'transform',
                   animation: 'splash-bar-glow 2s ease-in-out infinite',
@@ -183,8 +184,8 @@ export const SplashScreen = memo(function SplashScreen({
               />
             </div>
             <div className="flex items-center justify-between mt-2.5 px-0.5">
-              <span ref={statusRef} className="text-[11px] text-muted-foreground/70 truncate max-w-[70%]">{status}</span>
-              <span ref={percentRef} className="text-[11px] tabular-nums text-muted-foreground/50 font-medium">{Math.round(progress)}%</span>
+              <span ref={statusRef} className="text-[12px] text-muted-foreground/80 truncate max-w-[70%]">{status}</span>
+              <span ref={percentRef} className="text-[12px] tabular-nums text-foreground/80 font-medium">{Math.round(progress)}%</span>
             </div>
           </motion.div>
 
