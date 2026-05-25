@@ -69,36 +69,24 @@ export function useUserLevel() {
       
       if (error) throw error;
       
-      // If no record exists, create one
+      // If no record exists, ask the server to provision one safely (RPC), then re-fetch.
       if (!data) {
         try {
-          const { data: newData, error: insertError } = await supabase
+          await supabase.rpc('ensure_user_level');
+          const { data: retryData } = await supabase
             .from('user_levels')
-            .insert({ user_id: profile.user_id })
-            .select()
-            .single();
-          
-          if (insertError) {
-            console.warn('[BattlePass] user_levels insert failed:', insertError.message);
-            const { data: retryData } = await supabase
-              .from('user_levels')
-              .select('*')
-              .eq('user_id', profile.user_id)
-              .maybeSingle();
-            if (retryData) {
-              return {
-                ...retryData,
-                unclaimed_rewards: (Array.isArray(retryData.unclaimed_rewards) ? retryData.unclaimed_rewards : []) as unknown as BattlePassReward[],
-              } as UserLevel;
-            }
-            return null;
+            .select('*')
+            .eq('user_id', profile.user_id)
+            .maybeSingle();
+          if (retryData) {
+            return {
+              ...retryData,
+              unclaimed_rewards: (Array.isArray(retryData.unclaimed_rewards) ? retryData.unclaimed_rewards : []) as unknown as BattlePassReward[],
+            } as UserLevel;
           }
-          return {
-            ...newData,
-            unclaimed_rewards: (Array.isArray(newData.unclaimed_rewards) ? newData.unclaimed_rewards : []) as unknown as BattlePassReward[],
-          } as UserLevel;
+          return null;
         } catch (e) {
-          console.warn('[BattlePass] user_levels creation failed:', e);
+          console.warn('[BattlePass] ensure_user_level failed:', e);
           return null;
         }
       }
