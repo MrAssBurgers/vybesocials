@@ -656,6 +656,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             >
               {loading ? (
                 <motion.div
+                  data-allow-animation="true"
                   animate={{ rotate: 360 }}
                   transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                   className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
