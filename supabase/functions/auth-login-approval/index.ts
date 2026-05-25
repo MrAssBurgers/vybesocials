@@ -294,6 +294,85 @@ Deno.serve(async (req) => {
       });
     }
 
+    // SMS fallback — text a code to the user's verified phone number via Twilio
+    // Verify. Transfers the pending session into a fresh phone_2fa challenge
+    // and expires the original approval.
+    if (action === 'switch_to_sms') {
+      const { challengeId } = body;
+      if (!challengeId) return jsonResponse({ error: 'invalid_input' }, 400);
+      const { data: chal } = await admin
+        .from('auth_challenges')
+        .select('id, user_id, email, status, expires_at, metadata')
+        .eq('id', challengeId)
+        .eq('challenge_type', 'login_approval')
+        .maybeSingle();
+      if (!chal) return jsonResponse({ ok: false, error: 'not_found' }, 200);
+      if (chal.status !== 'pending') return jsonResponse({ ok: false, error: 'already_resolved' }, 200);
+      if (new Date(chal.expires_at).getTime() < Date.now()) {
+        return jsonResponse({ ok: false, error: 'expired' }, 200);
+      }
+      const meta = (chal.metadata as Record<string, any>) || {};
+      const session = meta.session;
+      if (!session?.access_token || !session?.refresh_token) {
+        return jsonResponse({ ok: false, error: 'no_session' }, 200);
+      }
+
+      const { data: prof } = await admin
+        .from('profiles')
+        .select('phone_number, phone_verified')
+        .eq('user_id', chal.user_id)
+        .maybeSingle();
+      const phone = prof?.phone_number;
+      if (!phone || !prof?.phone_verified) {
+        return jsonResponse({ ok: false, error: 'no_verified_phone' }, 200);
+      }
+
+      const startRes = await admin.functions.invoke('phone-verify-request', {
+        body: { phone, purpose: 'login', userId: chal.user_id },
+      });
+      const startData = (startRes.data as any) || {};
+      if (startRes.error || startData.ok === false || !startData.challengeId) {
+        const reason = startData.error || (startRes.error as any)?.message || 'sms_send_failed';
+        return jsonResponse({ ok: false, error: reason }, 200);
+      }
+
+      const { data: phoneChal, error: insErr } = await admin
+        .from('auth_challenges')
+        .insert({
+          user_id: chal.user_id,
+          email: chal.email,
+          challenge_type: 'phone_2fa',
+          expires_at: startData.expiresAt ?? new Date(Date.now() + CODE_TTL_MS).toISOString(),
+          metadata: {
+            ip: meta.ip, device: meta.device, geo: meta.geo,
+            session,
+            phone_verification_id: startData.challengeId,
+            phone,
+          },
+        })
+        .select('id, expires_at')
+        .single();
+      if (insErr || !phoneChal) {
+        console.error('switch_to_sms create failed', insErr);
+        return jsonResponse({ ok: false, error: 'create_failed' }, 200);
+      }
+
+      const scrubbed = { ...meta };
+      delete scrubbed.session;
+      await admin.from('auth_challenges').update({
+        status: 'expired',
+        metadata: scrubbed,
+      }).eq('id', chal.id);
+
+      const masked = phone.length > 4 ? phone.slice(0, 3) + '••••' + phone.slice(-2) : '••••';
+      return jsonResponse({
+        ok: true,
+        challengeId: phoneChal.id,
+        expiresAt: phoneChal.expires_at,
+        phoneMasked: masked,
+      });
+    }
+
     return jsonResponse({ error: 'unknown_action' }, 400);
 
   } catch (e) {
