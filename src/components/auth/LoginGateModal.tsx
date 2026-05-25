@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 
-type Mode = 'code' | 'approval';
+type Mode = 'code' | 'approval' | 'options' | 'sms';
 
 
 interface SessionTokens { access_token: string; refresh_token: string }
@@ -49,6 +49,8 @@ export function LoginGateModal({
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [activeExpiresAt, setActiveExpiresAt] = useState(expiresAt);
   const [activeChallengeId, setActiveChallengeId] = useState(challengeId);
+  const [phoneMasked, setPhoneMasked] = useState<string | null>(null);
+  const [approvalChallengeId, setApprovalChallengeId] = useState(challengeId);
 
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const pollTimerRef = useRef<number | null>(null);
@@ -61,6 +63,7 @@ export function LoginGateModal({
   useEffect(() => {
     setActiveExpiresAt(expiresAt);
     setActiveChallengeId(challengeId);
+    setApprovalChallengeId(challengeId);
     setCurrentMode(mode);
     setCurrentEmail(email);
   }, [expiresAt, challengeId, mode, email]);
@@ -168,14 +171,15 @@ export function LoginGateModal({
     };
   }, [open, currentMode, challengeId, onSuccess, onCancel]);
 
-  // ── Verify code ──────────────────────────────────────────
+  // ── Verify code (email or sms) ───────────────────────────
   const verifyCode = useCallback(async (codeStr: string) => {
     if (busy || submittedRef.current) return;
     if (!/^\d{6}$/.test(codeStr)) return;
     submittedRef.current = true;
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke('auth-2fa-verify', {
+      const fn = currentMode === 'sms' ? 'auth-2fa-verify-phone' : 'auth-2fa-verify';
+      const { data, error } = await supabase.functions.invoke(fn, {
         body: { challengeId: activeChallengeId, code: codeStr },
       });
       if (error || (data as any)?.error) {
@@ -190,14 +194,14 @@ export function LoginGateModal({
     } finally {
       setBusy(false);
     }
-  }, [busy, activeChallengeId, onSuccess]);
+  }, [busy, activeChallengeId, onSuccess, currentMode]);
 
   // Auto-submit when all 6 digits are filled
   useEffect(() => {
-    if (currentMode === 'code' && code.length === 6 && /^\d{6}$/.test(code)) {
+    if ((currentMode === 'code' || currentMode === 'sms') && code.length === 6 && /^\d{6}$/.test(code)) {
       verifyCode(code);
     }
-  }, [code, mode, verifyCode]);
+  }, [code, currentMode, verifyCode]);
 
   const handleDigit = (i: number, raw: string) => {
     const v = raw.replace(/\D/g, '');
@@ -289,18 +293,17 @@ export function LoginGateModal({
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('auth-login-approval', {
-        body: { action: 'switch_to_code', challengeId },
+        body: { action: 'switch_to_code', challengeId: approvalChallengeId },
       });
       const payload = (data as any) || {};
       if (error || payload.ok === false || !payload.challengeId) {
         const reason = payload.error || error?.message || 'unknown';
         if (reason === 'expired') toast.error('This sign-in request has expired. Try again.');
-        else if (reason === 'email_failed') toast.error("Couldn't email a code. Try again in a moment.");
+        else if (reason === 'email_failed') toast.error("Couldn't email a code right now. Try a different option.");
         else if (reason === 'no_session') toast.error('This request can no longer be switched. Try again.');
-        else toast.error("Couldn't switch to email code");
+        else toast.error("Couldn't email a code. Try a different option.");
         return;
       }
-      // Stop the approval polling and remount in code mode.
       cancelledRef.current = true;
       if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
       setActiveChallengeId(payload.challengeId);
@@ -312,6 +315,40 @@ export function LoginGateModal({
       toast.success(`Code sent to ${payload.email || currentEmail}`);
     } catch {
       toast.error("Couldn't switch to email code");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Trusted device unreachable → text a 6-digit code to verified phone.
+  const switchToSms = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('auth-login-approval', {
+        body: { action: 'switch_to_sms', challengeId: approvalChallengeId },
+      });
+      const payload = (data as any) || {};
+      if (error || payload.ok === false || !payload.challengeId) {
+        const reason = payload.error || error?.message || 'unknown';
+        if (reason === 'expired') toast.error('This sign-in request has expired. Try again.');
+        else if (reason === 'no_verified_phone') toast.error('No verified phone on this account.');
+        else if (reason === 'no_session') toast.error('This request can no longer be switched. Try again.');
+        else if (reason === 'rate_limited') toast.error('Too many SMS attempts. Try email instead.');
+        else toast.error("Couldn't send SMS. Try email instead.");
+        return;
+      }
+      cancelledRef.current = true;
+      if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
+      setActiveChallengeId(payload.challengeId);
+      setActiveExpiresAt(payload.expiresAt);
+      setPhoneMasked(payload.phoneMasked ?? null);
+      setDigits(['', '', '', '', '', '']);
+      submittedRef.current = false;
+      setCurrentMode('sms');
+      toast.success(`Code texted to ${payload.phoneMasked || 'your phone'}`);
+    } catch {
+      toast.error("Couldn't send SMS code");
     } finally {
       setBusy(false);
     }
@@ -344,19 +381,32 @@ export function LoginGateModal({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {currentMode === 'code'
-              ? <Mail className="w-5 h-5 text-primary" />
-              : <Smartphone className="w-5 h-5 text-primary" />}
-            {currentMode === 'code' ? 'Enter your code' : 'Approve sign-in'}
+            {currentMode === 'code' && <Mail className="w-5 h-5 text-primary" />}
+            {currentMode === 'sms' && <Smartphone className="w-5 h-5 text-primary" />}
+            {currentMode === 'approval' && <Smartphone className="w-5 h-5 text-primary" />}
+            {currentMode === 'options' && <ShieldCheck className="w-5 h-5 text-primary" />}
+            {currentMode === 'code' && 'Enter your code'}
+            {currentMode === 'sms' && 'Enter the SMS code'}
+            {currentMode === 'approval' && 'Approve sign-in'}
+            {currentMode === 'options' && 'More sign-in options'}
           </DialogTitle>
           <DialogDescription>
-            {currentMode === 'code'
-              ? <>We sent a 6-digit code to <span className="font-medium text-foreground">{currentEmail}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
-              : <>Open VYBE on a trusted device and tap <span className="font-medium text-foreground">Approve</span>. We&apos;ll continue automatically.</>}
+            {currentMode === 'code' && (
+              <>We sent a 6-digit code to <span className="font-medium text-foreground">{currentEmail}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
+            )}
+            {currentMode === 'sms' && (
+              <>We texted a 6-digit code to <span className="font-medium text-foreground">{phoneMasked || 'your phone'}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
+            )}
+            {currentMode === 'approval' && (
+              <>Open VYBE on a trusted device and tap <span className="font-medium text-foreground">Approve</span>. We&apos;ll continue automatically.</>
+            )}
+            {currentMode === 'options' && (
+              <>Pick another way to finish signing in.</>
+            )}
           </DialogDescription>
         </DialogHeader>
 
-        {currentMode === 'code' ? (
+        {(currentMode === 'code' || currentMode === 'sms') ? (
           <div className="space-y-4">
             <div className="flex gap-2 justify-center pt-2" onPaste={handlePaste}>
               {digits.map((d, i) => (
@@ -385,14 +435,16 @@ export function LoginGateModal({
             )}
 
             <div className="flex items-center justify-between gap-2 pt-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={busy || resendCooldown > 0}
-                onClick={resendCode}
-              >
-                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
-              </Button>
+              {currentMode === 'code' ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy || resendCooldown > 0}
+                  onClick={resendCode}
+                >
+                  {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
+                </Button>
+              ) : <span />}
               <div className="flex gap-2">
                 <Button variant="ghost" disabled={busy} onClick={onCancel}>
                   Use a different account
@@ -407,6 +459,18 @@ export function LoginGateModal({
                 </Button>
               </div>
             </div>
+          </div>
+        ) : currentMode === 'options' ? (
+          <div className="space-y-3">
+            <Button variant="secondary" className="w-full" disabled={busy} onClick={switchToCode}>
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Mail className="w-4 h-4 mr-1.5" /> Email me a code</>}
+            </Button>
+            <Button variant="secondary" className="w-full" disabled={busy} onClick={switchToSms}>
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Smartphone className="w-4 h-4 mr-1.5" /> Text me a code (SMS)</>}
+            </Button>
+            <Button variant="ghost" className="w-full" disabled={busy} onClick={() => setCurrentMode('approval')}>
+              Back to device approval
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -438,11 +502,9 @@ export function LoginGateModal({
               variant="secondary"
               className="w-full"
               disabled={busy}
-              onClick={switchToCode}
+              onClick={() => setCurrentMode('options')}
             >
-              {busy
-                ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <><KeyRound className="w-4 h-4 mr-1.5" /> Email me a code instead</>}
+              <KeyRound className="w-4 h-4 mr-1.5" /> More sign-in options
             </Button>
             <Button
               variant="destructive"
