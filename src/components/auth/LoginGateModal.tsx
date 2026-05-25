@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Mail, ShieldCheck, Smartphone, ShieldAlert } from 'lucide-react';
+import { Loader2, Mail, ShieldCheck, Smartphone, ShieldAlert, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 
 type Mode = 'code' | 'approval';
+
 
 interface SessionTokens { access_token: string; refresh_token: string }
 
