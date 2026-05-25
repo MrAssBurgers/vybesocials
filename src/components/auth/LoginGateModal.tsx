@@ -86,7 +86,7 @@ export function LoginGateModal({
 
   // Auto-focus first cell when the modal opens
   useEffect(() => {
-    if (open && mode === 'code') {
+    if (open && currentMode === 'code') {
       const t = window.setTimeout(() => inputsRef.current[0]?.focus(), 80);
       return () => window.clearTimeout(t);
     }
@@ -94,7 +94,7 @@ export function LoginGateModal({
 
   // ── Approval realtime + polling fallback ─────────────────
   useEffect(() => {
-    if (!open || mode !== 'approval') return;
+    if (!open || currentMode !== 'approval') return;
     cancelledRef.current = false;
 
     const finalize = (status: string, session?: any) => {
@@ -194,7 +194,7 @@ export function LoginGateModal({
 
   // Auto-submit when all 6 digits are filled
   useEffect(() => {
-    if (mode === 'code' && code.length === 6 && /^\d{6}$/.test(code)) {
+    if (currentMode === 'code' && code.length === 6 && /^\d{6}$/.test(code)) {
       verifyCode(code);
     }
   }, [code, mode, verifyCode]);
@@ -308,19 +308,19 @@ export function LoginGateModal({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {mode === 'code'
+            {currentMode === 'code'
               ? <Mail className="w-5 h-5 text-primary" />
               : <Smartphone className="w-5 h-5 text-primary" />}
-            {mode === 'code' ? 'Enter your code' : 'Approve sign-in'}
+            {currentMode === 'code' ? 'Enter your code' : 'Approve sign-in'}
           </DialogTitle>
           <DialogDescription>
-            {mode === 'code'
+            {currentMode === 'code'
               ? <>We sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
               : <>Open VYBE on a trusted device and tap <span className="font-medium text-foreground">Approve</span>. We&apos;ll continue automatically.</>}
           </DialogDescription>
         </DialogHeader>
 
-        {mode === 'code' ? (
+        {currentMode === 'code' ? (
           <div className="space-y-4">
             <div className="flex gap-2 justify-center pt-2" onPaste={handlePaste}>
               {digits.map((d, i) => (
