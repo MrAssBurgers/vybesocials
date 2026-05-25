@@ -170,8 +170,17 @@ USER CONTEXT:
     });
 
     if (aiResp.status === 429 || aiResp.status === 402) {
-      return new Response(JSON.stringify({ error: aiResp.status === 429 ? "Rate limited" : "Credits exhausted" }), {
-        status: aiResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      // Return 200 with a soft-fail flag so the client never throws or
+      // surfaces a runtime error for routine throttling / credit issues.
+      return new Response(JSON.stringify({
+        actions: [],
+        rateLimited: aiResp.status === 429,
+        creditsExhausted: aiResp.status === 402,
+        message: aiResp.status === 429
+          ? "Auto-Pilot is busy right now — try again in a minute."
+          : "AI credits exhausted. Add credits to keep Auto-Pilot running.",
+      }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (!aiResp.ok) {
