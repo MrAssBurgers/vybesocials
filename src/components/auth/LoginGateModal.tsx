@@ -435,6 +435,16 @@ export function LoginGateModal({
             </div>
 
             <Button
+              variant="secondary"
+              className="w-full"
+              disabled={busy}
+              onClick={switchToCode}
+            >
+              {busy
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <><KeyRound className="w-4 h-4 mr-1.5" /> Email me a code instead</>}
+            </Button>
+            <Button
               variant="destructive"
               className="w-full"
               disabled={busy}
@@ -445,6 +455,7 @@ export function LoginGateModal({
             <Button variant="ghost" className="w-full" disabled={busy} onClick={onCancel}>
               Cancel
             </Button>
+
           </div>
         )}
       </DialogContent>
