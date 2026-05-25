@@ -251,7 +251,7 @@ export function LoginGateModal({
     try {
       setBusy(true);
       const { data, error } = await supabase.functions.invoke('auth-2fa-request', {
-        body: { email, challengeId: activeChallengeId },
+        body: { email: currentEmail, challengeId: activeChallengeId },
       });
       if (error || (data as any)?.ok === false || (data as any)?.error) {
         toast.error("Couldn't send a new code. Try again in a moment.");
