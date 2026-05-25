@@ -283,6 +283,42 @@ export function LoginGateModal({
     }
   };
 
+  // Trusted device unreachable → email a 6-digit code instead.
+  const switchToCode = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('auth-login-approval', {
+        body: { action: 'switch_to_code', challengeId },
+      });
+      const payload = (data as any) || {};
+      if (error || payload.ok === false || !payload.challengeId) {
+        const reason = payload.error || error?.message || 'unknown';
+        if (reason === 'expired') toast.error('This sign-in request has expired. Try again.');
+        else if (reason === 'email_failed') toast.error("Couldn't email a code. Try again in a moment.");
+        else if (reason === 'no_session') toast.error('This request can no longer be switched. Try again.');
+        else toast.error("Couldn't switch to email code");
+        return;
+      }
+      // Stop the approval polling and remount in code mode.
+      cancelledRef.current = true;
+      if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
+      setActiveChallengeId(payload.challengeId);
+      setActiveExpiresAt(payload.expiresAt);
+      if (payload.email) setCurrentEmail(payload.email);
+      setDigits(['', '', '', '', '', '']);
+      submittedRef.current = false;
+      setCurrentMode('code');
+      toast.success(`Code sent to ${payload.email || currentEmail}`);
+    } catch {
+      toast.error("Couldn't switch to email code");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+
+
   const expiryLabel = useMemo(() => {
     if (secondsLeft == null) return null;
     if (secondsLeft <= 0) return 'expired';
