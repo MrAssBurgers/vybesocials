@@ -168,14 +168,15 @@ export function LoginGateModal({
     };
   }, [open, currentMode, challengeId, onSuccess, onCancel]);
 
-  // ── Verify code ──────────────────────────────────────────
+  // ── Verify code (email or sms) ───────────────────────────
   const verifyCode = useCallback(async (codeStr: string) => {
     if (busy || submittedRef.current) return;
     if (!/^\d{6}$/.test(codeStr)) return;
     submittedRef.current = true;
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke('auth-2fa-verify', {
+      const fn = currentMode === 'sms' ? 'auth-2fa-verify-phone' : 'auth-2fa-verify';
+      const { data, error } = await supabase.functions.invoke(fn, {
         body: { challengeId: activeChallengeId, code: codeStr },
       });
       if (error || (data as any)?.error) {
@@ -190,14 +191,14 @@ export function LoginGateModal({
     } finally {
       setBusy(false);
     }
-  }, [busy, activeChallengeId, onSuccess]);
+  }, [busy, activeChallengeId, onSuccess, currentMode]);
 
   // Auto-submit when all 6 digits are filled
   useEffect(() => {
-    if (currentMode === 'code' && code.length === 6 && /^\d{6}$/.test(code)) {
+    if ((currentMode === 'code' || currentMode === 'sms') && code.length === 6 && /^\d{6}$/.test(code)) {
       verifyCode(code);
     }
-  }, [code, mode, verifyCode]);
+  }, [code, currentMode, verifyCode]);
 
   const handleDigit = (i: number, raw: string) => {
     const v = raw.replace(/\D/g, '');
