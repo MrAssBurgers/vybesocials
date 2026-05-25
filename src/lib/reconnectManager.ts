@@ -58,12 +58,13 @@ async function probeReachable(): Promise<boolean> {
 }
 
 function fireReconnect(queryClient: QueryClient) {
-  // Refetch only ACTIVE + STALE mounted queries. Hitting every active query
-  // (including presence/typing/etc.) caused cascading flicker on the DM page.
-  void queryClient.invalidateQueries({
-    refetchType: 'active',
-    predicate: (q) => q.isStale(),
-  });
+  // Refetch EVERY active query the moment we're back online so DMs, feeds,
+  // notifications and everything else repaint without waiting for staleTime.
+  void queryClient.invalidateQueries({ refetchType: 'active' });
+  // Belt-and-suspenders for queries that opted out of refetchOnReconnect.
+  void queryClient.refetchQueries({ type: 'active' });
+  // Flush any mutations (DM sends, reactions, etc.) queued while offline.
+  void queryClient.resumePausedMutations();
   reconnectListeners.forEach((cb) => {
     try {
       cb();
