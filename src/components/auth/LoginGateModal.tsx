@@ -166,7 +166,7 @@ export function LoginGateModal({
       document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(bc);
     };
-  }, [open, mode, challengeId, onSuccess, onCancel]);
+  }, [open, currentMode, challengeId, onSuccess, onCancel]);
 
   // ── Verify code ──────────────────────────────────────────
   const verifyCode = useCallback(async (codeStr: string) => {
