@@ -63,6 +63,7 @@ export function LoginGateModal({
   useEffect(() => {
     setActiveExpiresAt(expiresAt);
     setActiveChallengeId(challengeId);
+    setApprovalChallengeId(challengeId);
     setCurrentMode(mode);
     setCurrentEmail(email);
   }, [expiresAt, challengeId, mode, email]);
