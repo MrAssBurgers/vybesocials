@@ -58,18 +58,28 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
         body: { phone: e164, purpose: phoneVerified ? 'change' : 'add', userId: user?.id },
       });
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      setChallengeId((data as any).challengeId);
+      const payload = (data as any) || {};
+      if (payload.ok === false || payload.error) {
+        const code = payload.error || 'sms_send_failed';
+        const detail = payload.detail ? ` (${payload.detail})` : '';
+        if (code === 'rate_limited') toast.error('Too many attempts. Try again later.');
+        else if (code === 'phone_in_use') toast.error('That number is already on another VYBE account.');
+        else if (code === 'twilio_not_configured') toast.error('SMS service is not configured. Contact support.');
+        else if (code === 'twilio_verify_service_sid_invalid') toast.error('SMS misconfigured (invalid Verify SID). Contact support.');
+        else if (code === 'twilio_account_sid_invalid') toast.error('SMS misconfigured (invalid Account SID). Contact support.');
+        else if (code === 'invalid_phone' || code === 'invalid_phone_for_twilio') toast.error('Enter a valid phone number');
+        else if (code === 'phone_blocked') toast.error('This number cannot receive SMS from us.');
+        else toast.error(`Could not send code: ${code}${detail}`);
+        return;
+      }
+      setChallengeId(payload.challengeId);
       setStage('code');
       setCooldown(60);
       toast.success(`Code sent to ${formatDisplayUS(e164)}`);
     } catch (e: any) {
       const msg = e?.message || '';
-      if (msg.includes('rate_limited')) toast.error('Too many attempts. Try again later.');
-      else if (msg.includes('phone_in_use')) toast.error('That number is already on another VYBE account.');
-      else if (msg.includes('sms_not_configured')) toast.error('SMS isn\'t configured yet. Contact support.');
-      else if (msg.includes('invalid_phone')) toast.error('Enter a valid phone number');
-      else toast.error('Could not send code');
+      toast.error(msg ? `Could not send code: ${msg}` : 'Could not send code');
+
     } finally {
       setSending(false);
     }

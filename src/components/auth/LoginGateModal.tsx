@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Mail, ShieldCheck, Smartphone, ShieldAlert } from 'lucide-react';
+import { Loader2, Mail, ShieldCheck, Smartphone, ShieldAlert, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 
 type Mode = 'code' | 'approval';
+
 
 interface SessionTokens { access_token: string; refresh_token: string }
 
@@ -40,12 +41,15 @@ export function LoginGateModal({
   approvalDevice, approvalLocation,
   onSuccess, onCancel,
 }: Props) {
+  const [currentMode, setCurrentMode] = useState<Mode>(mode);
+  const [currentEmail, setCurrentEmail] = useState(email);
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [busy, setBusy] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [activeExpiresAt, setActiveExpiresAt] = useState(expiresAt);
   const [activeChallengeId, setActiveChallengeId] = useState(challengeId);
+
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const pollTimerRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
@@ -57,7 +61,10 @@ export function LoginGateModal({
   useEffect(() => {
     setActiveExpiresAt(expiresAt);
     setActiveChallengeId(challengeId);
-  }, [expiresAt, challengeId]);
+    setCurrentMode(mode);
+    setCurrentEmail(email);
+  }, [expiresAt, challengeId, mode, email]);
+
 
   useEffect(() => {
     if (!activeExpiresAt) { setSecondsLeft(null); return; }
@@ -79,7 +86,7 @@ export function LoginGateModal({
 
   // Auto-focus first cell when the modal opens
   useEffect(() => {
-    if (open && mode === 'code') {
+    if (open && currentMode === 'code') {
       const t = window.setTimeout(() => inputsRef.current[0]?.focus(), 80);
       return () => window.clearTimeout(t);
     }
@@ -87,7 +94,7 @@ export function LoginGateModal({
 
   // ── Approval realtime + polling fallback ─────────────────
   useEffect(() => {
-    if (!open || mode !== 'approval') return;
+    if (!open || currentMode !== 'approval') return;
     cancelledRef.current = false;
 
     const finalize = (status: string, session?: any) => {
@@ -159,7 +166,7 @@ export function LoginGateModal({
       document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(bc);
     };
-  }, [open, mode, challengeId, onSuccess, onCancel]);
+  }, [open, currentMode, challengeId, onSuccess, onCancel]);
 
   // ── Verify code ──────────────────────────────────────────
   const verifyCode = useCallback(async (codeStr: string) => {
@@ -187,7 +194,7 @@ export function LoginGateModal({
 
   // Auto-submit when all 6 digits are filled
   useEffect(() => {
-    if (mode === 'code' && code.length === 6 && /^\d{6}$/.test(code)) {
+    if (currentMode === 'code' && code.length === 6 && /^\d{6}$/.test(code)) {
       verifyCode(code);
     }
   }, [code, mode, verifyCode]);
@@ -244,7 +251,7 @@ export function LoginGateModal({
     try {
       setBusy(true);
       const { data, error } = await supabase.functions.invoke('auth-2fa-request', {
-        body: { email, challengeId: activeChallengeId },
+        body: { email: currentEmail, challengeId: activeChallengeId },
       });
       if (error || (data as any)?.ok === false || (data as any)?.error) {
         toast.error("Couldn't send a new code. Try again in a moment.");
@@ -276,6 +283,42 @@ export function LoginGateModal({
     }
   };
 
+  // Trusted device unreachable → email a 6-digit code instead.
+  const switchToCode = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('auth-login-approval', {
+        body: { action: 'switch_to_code', challengeId },
+      });
+      const payload = (data as any) || {};
+      if (error || payload.ok === false || !payload.challengeId) {
+        const reason = payload.error || error?.message || 'unknown';
+        if (reason === 'expired') toast.error('This sign-in request has expired. Try again.');
+        else if (reason === 'email_failed') toast.error("Couldn't email a code. Try again in a moment.");
+        else if (reason === 'no_session') toast.error('This request can no longer be switched. Try again.');
+        else toast.error("Couldn't switch to email code");
+        return;
+      }
+      // Stop the approval polling and remount in code mode.
+      cancelledRef.current = true;
+      if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
+      setActiveChallengeId(payload.challengeId);
+      setActiveExpiresAt(payload.expiresAt);
+      if (payload.email) setCurrentEmail(payload.email);
+      setDigits(['', '', '', '', '', '']);
+      submittedRef.current = false;
+      setCurrentMode('code');
+      toast.success(`Code sent to ${payload.email || currentEmail}`);
+    } catch {
+      toast.error("Couldn't switch to email code");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+
+
   const expiryLabel = useMemo(() => {
     if (secondsLeft == null) return null;
     if (secondsLeft <= 0) return 'expired';
@@ -301,19 +344,19 @@ export function LoginGateModal({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {mode === 'code'
+            {currentMode === 'code'
               ? <Mail className="w-5 h-5 text-primary" />
               : <Smartphone className="w-5 h-5 text-primary" />}
-            {mode === 'code' ? 'Enter your code' : 'Approve sign-in'}
+            {currentMode === 'code' ? 'Enter your code' : 'Approve sign-in'}
           </DialogTitle>
           <DialogDescription>
-            {mode === 'code'
-              ? <>We sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
+            {currentMode === 'code'
+              ? <>We sent a 6-digit code to <span className="font-medium text-foreground">{currentEmail}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
               : <>Open VYBE on a trusted device and tap <span className="font-medium text-foreground">Approve</span>. We&apos;ll continue automatically.</>}
           </DialogDescription>
         </DialogHeader>
 
-        {mode === 'code' ? (
+        {currentMode === 'code' ? (
           <div className="space-y-4">
             <div className="flex gap-2 justify-center pt-2" onPaste={handlePaste}>
               {digits.map((d, i) => (
@@ -392,6 +435,16 @@ export function LoginGateModal({
             </div>
 
             <Button
+              variant="secondary"
+              className="w-full"
+              disabled={busy}
+              onClick={switchToCode}
+            >
+              {busy
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <><KeyRound className="w-4 h-4 mr-1.5" /> Email me a code instead</>}
+            </Button>
+            <Button
               variant="destructive"
               className="w-full"
               disabled={busy}
@@ -402,6 +455,7 @@ export function LoginGateModal({
             <Button variant="ghost" className="w-full" disabled={busy} onClick={onCancel}>
               Cancel
             </Button>
+
           </div>
         )}
       </DialogContent>
