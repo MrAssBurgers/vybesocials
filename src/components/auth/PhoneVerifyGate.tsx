@@ -33,19 +33,15 @@ export function PhoneVerifyGate() {
   if (!checked || !needs) return null;
 
   return (
-    <Dialog open onOpenChange={() => { /* not dismissible */ }}>
-      <DialogContent
-        className="max-w-md"
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-      >
+    <Dialog open onOpenChange={(open) => { if (!open) setNeeds(false); }}>
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
             <ShieldCheck className="w-6 h-6 text-primary" />
           </div>
           <DialogTitle className="text-center">Verify your phone</DialogTitle>
           <DialogDescription className="text-center">
-            VYBE requires a verified phone number to keep your account secure and help your friends find you.
+            VYBE works best with a verified phone number — it secures your account and helps friends find you.
           </DialogDescription>
         </DialogHeader>
         <PhoneNumberCard embedded onVerified={() => setNeeds(false)} />
