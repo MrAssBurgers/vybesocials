@@ -5,9 +5,12 @@
 import {
   corsHeaders, jsonResponse, getServiceClient, getUserFromAuthHeader,
   getClientIp, parseUserAgent, geolocateIp,
+  sha256Hex, generate6DigitCode, sendTransactional,
 } from '../_shared/security.ts';
 
 const TTL_MS = 5 * 60 * 1000;
+const CODE_TTL_MS = 10 * 60 * 1000;
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
