@@ -13225,6 +13225,15 @@ export type Database = {
         }[]
       }
       get_my_highest_role: { Args: never; Returns: string }
+      get_my_private_profile: {
+        Args: never
+        Returns: {
+          email: string
+          phone_number: string
+          phone_verified: boolean
+          stripe_customer_id: string
+        }[]
+      }
       get_own_sensitive_profile: {
         Args: never
         Returns: {

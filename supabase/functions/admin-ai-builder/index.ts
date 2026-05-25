@@ -86,7 +86,16 @@ serve(async (req) => {
         [/\bDROP\s+VIEW\b/i, "DROP VIEW"],
         [/\bDROP\s+FUNCTION\b/i, "DROP FUNCTION"],
         [/\bDROP\s+TRIGGER\b/i, "DROP TRIGGER"],
+        // DELETE without a real WHERE, or DELETE with always-true WHERE
         [/\bDELETE\s+FROM\b(?![\s\S]*\bWHERE\b)/i, "DELETE without WHERE"],
+        [/\bDELETE\s+FROM\b[\s\S]*\bWHERE\b\s+(TRUE|1\s*=\s*1|'1'\s*=\s*'1')\b/i, "DELETE with always-true WHERE"],
+        // UPDATE without a real WHERE, or UPDATE with always-true WHERE
+        [/\bUPDATE\s+\S+\s+SET\b(?![\s\S]*\bWHERE\b)/i, "UPDATE without WHERE"],
+        [/\bUPDATE\b[\s\S]*\bWHERE\b\s+(TRUE|1\s*=\s*1|'1'\s*=\s*'1')\b/i, "UPDATE with always-true WHERE"],
+        // Privilege escalation via direct writes to role tables
+        [/\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(public\.)?user_roles(_auth)?\b/i, "Direct write to user_roles"],
+        // RETURNING clause on destructive DML (bypass for SELECT-only wrappers)
+        [/\b(DELETE|UPDATE|INSERT)\b[\s\S]*\bRETURNING\b/i, "RETURNING on DML"],
         [/\b(GRANT|REVOKE)\b/i, "GRANT/REVOKE (privilege escalation)"],
         [/\bCOPY\b/i, "COPY (file system access)"],
         [/\bPG_READ_FILE\b/i, "pg_read_file"],
