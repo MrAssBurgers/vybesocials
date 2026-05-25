@@ -17,6 +17,15 @@ serve(async (req) => {
   }
 
   try {
+    // Auth: require service role bearer token (cron-only)
+    const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (!token || !serviceKey || token !== serviceKey) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     logStep("Function started");
 
     const supabaseAdmin = createClient(
