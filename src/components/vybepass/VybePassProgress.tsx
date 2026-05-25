@@ -72,7 +72,7 @@ export function VybePassProgress({ compact = false, showTiers = false }: VybePas
             <span className="text-sm text-muted-foreground">{currentXP.toLocaleString()} XP</span>
           </div>
           <div className="space-y-1">
-            <Progress value={progressPercent} className="h-2" />
+            <Progress value={progressPercent} variant="reward" className="h-2.5" />
             <p className="text-xs text-muted-foreground">
               {xpToNextLevel.toLocaleString()} XP to Level {currentLevel + 1}
             </p>
