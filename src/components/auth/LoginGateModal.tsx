@@ -50,6 +50,7 @@ export function LoginGateModal({
   const [activeExpiresAt, setActiveExpiresAt] = useState(expiresAt);
   const [activeChallengeId, setActiveChallengeId] = useState(challengeId);
   const [phoneMasked, setPhoneMasked] = useState<string | null>(null);
+  const [optionBusy, setOptionBusy] = useState<null | 'email' | 'sms'>(null);
   const [approvalChallengeId, setApprovalChallengeId] = useState(challengeId);
 
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
