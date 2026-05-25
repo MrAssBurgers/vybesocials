@@ -650,20 +650,42 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
             <Button
               type="submit"
-              className="w-full gradient-animated text-white font-semibold"
+              className="w-full gradient-animated text-white font-semibold min-h-[44px]"
               size="lg"
               disabled={loading || (!isLogin && !agreedToTerms)}
             >
-              {loading ? (
-                <motion.div
-                  data-allow-animation="true"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
-                />
-              ) : (
-                isLogin ? t('auth.login') : t('auth.signup')
-              )}
+              <AnimatePresence mode="wait" initial={false}>
+                {loading ? (
+                  <motion.div
+                    key="loading"
+                    data-allow-animation="true"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center justify-center gap-1.5"
+                  >
+                    {[0, 0.15, 0.3].map((delay, i) => (
+                      <motion.span
+                        key={i}
+                        className="block h-2 w-2 rounded-full bg-white/90"
+                        animate={{ y: [0, -4, 0], opacity: [0.5, 1, 0.5] }}
+                        transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut', delay }}
+                      />
+                    ))}
+                  </motion.div>
+                ) : (
+                  <motion.span
+                    key="label"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {isLogin ? t('auth.login') : t('auth.signup')}
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </Button>
 
             {/* Passkey sign-in is currently owner-only and hidden from the public login UI. */}
