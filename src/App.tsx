@@ -63,6 +63,7 @@ import { LocationProvider } from "@/providers/LocationProvider";
 import { useBriefPreFetch } from "@/hooks/useBriefPreFetch";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { WelcomeBackSplash } from "@/components/ui/WelcomeBackSplash";
+import { ConnectionStatusBanner } from "@/components/system/ConnectionStatusBanner";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -346,6 +347,7 @@ function AppWithPreloader() {
                                         <FounderAppreciation />
                                         <CookieConsentBanner />
                                         <RatePromptSheet />
+                                        <ConnectionStatusBanner />
                                       </Suspense>
                                     </LocalErrorBoundary>
                                   </TutorialProvider>
