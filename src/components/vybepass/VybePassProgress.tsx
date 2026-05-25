@@ -35,7 +35,7 @@ export function VybePassProgress({ compact = false, showTiers = false }: VybePas
                 <span className="text-sm font-semibold">Level {currentLevel}</span>
                 <span className="text-xs text-muted-foreground">{xpToNextLevel} XP to next</span>
               </div>
-              <Progress value={progressPercent} className="h-1.5" />
+              <Progress value={progressPercent} variant="reward" className="h-2" />
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </div>
