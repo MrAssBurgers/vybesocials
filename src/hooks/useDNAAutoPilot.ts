@@ -81,7 +81,21 @@ export function useDNAAutoPilot() {
     setRunning(true);
     try {
       const { data, error } = await supabase.functions.invoke('dna-autopilot', { body: { trigger: 'manual' } });
-      if (error) throw error;
+      if (error) {
+        // Friendly handling for AI gateway rate limit / credit errors
+        const ctx: any = (error as any).context;
+        const status = ctx?.status ?? (error as any).status;
+        const msg = String((error as any).message || '');
+        if (status === 429 || /rate limit/i.test(msg)) {
+          toast('Auto-Pilot is busy right now — try again in a minute.');
+          return;
+        }
+        if (status === 402 || /credit/i.test(msg)) {
+          toast.error('AI credits exhausted. Add credits to keep Auto-Pilot running.');
+          return;
+        }
+        throw error;
+      }
       const acts = (data?.actions || []) as AutoPilotAction[];
       const mode = (data?.mode || settings?.mode || 'suggest') as AutoPilotMode;
       if (acts.length === 0) {
