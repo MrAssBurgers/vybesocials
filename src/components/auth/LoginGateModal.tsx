@@ -463,13 +463,17 @@ export function LoginGateModal({
           </div>
         ) : currentMode === 'options' ? (
           <div className="space-y-3">
-            <Button variant="secondary" className="w-full" disabled={busy} onClick={switchToCode}>
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Mail className="w-4 h-4 mr-1.5" /> Email me a code</>}
+            <Button variant="secondary" className="w-full" disabled={optionBusy !== null} onClick={switchToCode}>
+              {optionBusy === 'email'
+                ? <><Loader2 data-allow-animation="true" className="w-4 h-4 mr-1.5 animate-spin" /> Sending email…</>
+                : <><Mail className="w-4 h-4 mr-1.5" /> Email me a code</>}
             </Button>
-            <Button variant="secondary" className="w-full" disabled={busy} onClick={switchToSms}>
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Smartphone className="w-4 h-4 mr-1.5" /> Text me a code (SMS)</>}
+            <Button variant="secondary" className="w-full" disabled={optionBusy !== null} onClick={switchToSms}>
+              {optionBusy === 'sms'
+                ? <><Loader2 data-allow-animation="true" className="w-4 h-4 mr-1.5 animate-spin" /> Texting code…</>
+                : <><Smartphone className="w-4 h-4 mr-1.5" /> Text me a code (SMS)</>}
             </Button>
-            <Button variant="ghost" className="w-full" disabled={busy} onClick={() => setCurrentMode('approval')}>
+            <Button variant="ghost" className="w-full" disabled={optionBusy !== null} onClick={() => setCurrentMode('approval')}>
               Back to device approval
             </Button>
           </div>
