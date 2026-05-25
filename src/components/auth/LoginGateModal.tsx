@@ -41,12 +41,15 @@ export function LoginGateModal({
   approvalDevice, approvalLocation,
   onSuccess, onCancel,
 }: Props) {
+  const [currentMode, setCurrentMode] = useState<Mode>(mode);
+  const [currentEmail, setCurrentEmail] = useState(email);
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [busy, setBusy] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [activeExpiresAt, setActiveExpiresAt] = useState(expiresAt);
   const [activeChallengeId, setActiveChallengeId] = useState(challengeId);
+
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const pollTimerRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
