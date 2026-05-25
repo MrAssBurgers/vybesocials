@@ -293,18 +293,17 @@ export function LoginGateModal({
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('auth-login-approval', {
-        body: { action: 'switch_to_code', challengeId },
+        body: { action: 'switch_to_code', challengeId: approvalChallengeId },
       });
       const payload = (data as any) || {};
       if (error || payload.ok === false || !payload.challengeId) {
         const reason = payload.error || error?.message || 'unknown';
         if (reason === 'expired') toast.error('This sign-in request has expired. Try again.');
-        else if (reason === 'email_failed') toast.error("Couldn't email a code. Try again in a moment.");
+        else if (reason === 'email_failed') toast.error("Couldn't email a code right now. Try a different option.");
         else if (reason === 'no_session') toast.error('This request can no longer be switched. Try again.');
-        else toast.error("Couldn't switch to email code");
+        else toast.error("Couldn't email a code. Try a different option.");
         return;
       }
-      // Stop the approval polling and remount in code mode.
       cancelledRef.current = true;
       if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
       setActiveChallengeId(payload.challengeId);
@@ -316,6 +315,40 @@ export function LoginGateModal({
       toast.success(`Code sent to ${payload.email || currentEmail}`);
     } catch {
       toast.error("Couldn't switch to email code");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Trusted device unreachable → text a 6-digit code to verified phone.
+  const switchToSms = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('auth-login-approval', {
+        body: { action: 'switch_to_sms', challengeId: approvalChallengeId },
+      });
+      const payload = (data as any) || {};
+      if (error || payload.ok === false || !payload.challengeId) {
+        const reason = payload.error || error?.message || 'unknown';
+        if (reason === 'expired') toast.error('This sign-in request has expired. Try again.');
+        else if (reason === 'no_verified_phone') toast.error('No verified phone on this account.');
+        else if (reason === 'no_session') toast.error('This request can no longer be switched. Try again.');
+        else if (reason === 'rate_limited') toast.error('Too many SMS attempts. Try email instead.');
+        else toast.error("Couldn't send SMS. Try email instead.");
+        return;
+      }
+      cancelledRef.current = true;
+      if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
+      setActiveChallengeId(payload.challengeId);
+      setActiveExpiresAt(payload.expiresAt);
+      setPhoneMasked(payload.phoneMasked ?? null);
+      setDigits(['', '', '', '', '', '']);
+      submittedRef.current = false;
+      setCurrentMode('sms');
+      toast.success(`Code texted to ${payload.phoneMasked || 'your phone'}`);
+    } catch {
+      toast.error("Couldn't send SMS code");
     } finally {
       setBusy(false);
     }
