@@ -254,48 +254,27 @@ export function useUpdateChallengeProgress() {
       increment?: number;
     }) => {
       if (!profile) throw new Error('Not authenticated');
-      
-      // Get current progress
-      const { data: existing } = await supabase
-        .from('challenge_progress')
-        .select('*')
-        .eq('user_id', profile.id)
-        .eq('challenge_id', challengeId)
-        .maybeSingle();
-      
-      // If already completed, skip
-      if (existing?.is_completed) {
-        return { isCompleted: true, newCount: existing.current_count, wasAlreadyCompleted: true };
-      }
-      
-      const newCount = (existing?.current_count || 0) + increment;
-      
-      // Get challenge to check if completed
-      const { data: challenge } = await supabase
-        .from('challenges')
-        .select('*')
-        .eq('id', challengeId)
-        .single();
-      
-      const isCompleted = newCount >= (challenge?.requirement_count || 1);
-      
-      // Upsert progress - the trigger will create the reward if completed
-      const { error } = await supabase
-        .from('challenge_progress')
-        .upsert({
-          user_id: profile.id,
-          challenge_id: challengeId,
-          current_count: newCount,
-          is_completed: isCompleted,
-          completed_at: isCompleted ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'user_id,challenge_id',
-        });
-      
+
+      // Server-side RPC: enforces validation, prevents tampering with
+      // is_completed / current_count and protects reward triggers.
+      const { data, error } = await supabase.rpc('increment_challenge_progress', {
+        p_challenge_id: challengeId,
+        p_increment: increment,
+      });
+
       if (error) throw error;
-      
-      return { isCompleted, newCount, wasAlreadyCompleted: false };
+
+      const result = (data || {}) as {
+        is_completed?: boolean;
+        new_count?: number;
+        was_already_completed?: boolean;
+      };
+
+      return {
+        isCompleted: !!result.is_completed,
+        newCount: result.new_count ?? 0,
+        wasAlreadyCompleted: !!result.was_already_completed,
+      };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['challenge-progress', profile?.id] });
