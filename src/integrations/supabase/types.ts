@@ -13482,10 +13482,15 @@ export type Database = {
         }
         Returns: boolean
       }
-      increment_challenge_progress: {
-        Args: { p_requirement_type: string; p_user_id: string }
-        Returns: undefined
-      }
+      increment_challenge_progress:
+        | {
+            Args: { p_challenge_id: string; p_increment?: number }
+            Returns: Json
+          }
+        | {
+            Args: { p_requirement_type: string; p_user_id: string }
+            Returns: undefined
+          }
       increment_sound_usage: {
         Args: { p_sound_id: string }
         Returns: undefined
