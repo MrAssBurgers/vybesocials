@@ -381,19 +381,32 @@ export function LoginGateModal({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {currentMode === 'code'
-              ? <Mail className="w-5 h-5 text-primary" />
-              : <Smartphone className="w-5 h-5 text-primary" />}
-            {currentMode === 'code' ? 'Enter your code' : 'Approve sign-in'}
+            {currentMode === 'code' && <Mail className="w-5 h-5 text-primary" />}
+            {currentMode === 'sms' && <Smartphone className="w-5 h-5 text-primary" />}
+            {currentMode === 'approval' && <Smartphone className="w-5 h-5 text-primary" />}
+            {currentMode === 'options' && <ShieldCheck className="w-5 h-5 text-primary" />}
+            {currentMode === 'code' && 'Enter your code'}
+            {currentMode === 'sms' && 'Enter the SMS code'}
+            {currentMode === 'approval' && 'Approve sign-in'}
+            {currentMode === 'options' && 'More sign-in options'}
           </DialogTitle>
           <DialogDescription>
-            {currentMode === 'code'
-              ? <>We sent a 6-digit code to <span className="font-medium text-foreground">{currentEmail}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
-              : <>Open VYBE on a trusted device and tap <span className="font-medium text-foreground">Approve</span>. We&apos;ll continue automatically.</>}
+            {currentMode === 'code' && (
+              <>We sent a 6-digit code to <span className="font-medium text-foreground">{currentEmail}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
+            )}
+            {currentMode === 'sms' && (
+              <>We texted a 6-digit code to <span className="font-medium text-foreground">{phoneMasked || 'your phone'}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
+            )}
+            {currentMode === 'approval' && (
+              <>Open VYBE on a trusted device and tap <span className="font-medium text-foreground">Approve</span>. We&apos;ll continue automatically.</>
+            )}
+            {currentMode === 'options' && (
+              <>Pick another way to finish signing in.</>
+            )}
           </DialogDescription>
         </DialogHeader>
 
-        {currentMode === 'code' ? (
+        {(currentMode === 'code' || currentMode === 'sms') ? (
           <div className="space-y-4">
             <div className="flex gap-2 justify-center pt-2" onPaste={handlePaste}>
               {digits.map((d, i) => (
@@ -422,14 +435,16 @@ export function LoginGateModal({
             )}
 
             <div className="flex items-center justify-between gap-2 pt-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={busy || resendCooldown > 0}
-                onClick={resendCode}
-              >
-                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
-              </Button>
+              {currentMode === 'code' ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy || resendCooldown > 0}
+                  onClick={resendCode}
+                >
+                  {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
+                </Button>
+              ) : <span />}
               <div className="flex gap-2">
                 <Button variant="ghost" disabled={busy} onClick={onCancel}>
                   Use a different account
@@ -444,6 +459,18 @@ export function LoginGateModal({
                 </Button>
               </div>
             </div>
+          </div>
+        ) : currentMode === 'options' ? (
+          <div className="space-y-3">
+            <Button variant="secondary" className="w-full" disabled={busy} onClick={switchToCode}>
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Mail className="w-4 h-4 mr-1.5" /> Email me a code</>}
+            </Button>
+            <Button variant="secondary" className="w-full" disabled={busy} onClick={switchToSms}>
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Smartphone className="w-4 h-4 mr-1.5" /> Text me a code (SMS)</>}
+            </Button>
+            <Button variant="ghost" className="w-full" disabled={busy} onClick={() => setCurrentMode('approval')}>
+              Back to device approval
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -475,11 +502,9 @@ export function LoginGateModal({
               variant="secondary"
               className="w-full"
               disabled={busy}
-              onClick={switchToCode}
+              onClick={() => setCurrentMode('options')}
             >
-              {busy
-                ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <><KeyRound className="w-4 h-4 mr-1.5" /> Email me a code instead</>}
+              <KeyRound className="w-4 h-4 mr-1.5" /> More sign-in options
             </Button>
             <Button
               variant="destructive"
