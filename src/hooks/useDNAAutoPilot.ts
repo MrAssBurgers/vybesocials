@@ -96,6 +96,15 @@ export function useDNAAutoPilot() {
         }
         throw error;
       }
+      // Soft-fail signals from the edge function (200 OK + flag)
+      if (data?.rateLimited) {
+        toast(data.message || 'Auto-Pilot is busy right now — try again in a minute.');
+        return;
+      }
+      if (data?.creditsExhausted) {
+        toast.error(data.message || 'AI credits exhausted.');
+        return;
+      }
       const acts = (data?.actions || []) as AutoPilotAction[];
       const mode = (data?.mode || settings?.mode || 'suggest') as AutoPilotMode;
       if (acts.length === 0) {
