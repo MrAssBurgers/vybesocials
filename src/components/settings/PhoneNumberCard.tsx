@@ -31,14 +31,11 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
     if (!user) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('phone_number, phone_verified')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (cancelled || !data) return;
-      setPhoneVerified(!!data.phone_verified);
-      setStoredPhone(data.phone_number || '');
+      const { data } = await supabase.rpc('get_my_private_profile');
+      const row = Array.isArray(data) ? data[0] : data;
+      if (cancelled || !row) return;
+      setPhoneVerified(!!row.phone_verified);
+      setStoredPhone(row.phone_number || '');
     })();
     return () => { cancelled = true; };
   }, [user?.id]);
