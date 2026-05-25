@@ -63,14 +63,34 @@ serve(async (req) => {
       });
     }
 
-    // Upload to storage
-    const ext = audioFile.name.split(".").pop() || "mp3";
+    // Whitelist audio MIME types to prevent HTML/SVG upload via public bucket
+    const ALLOWED_AUDIO_TYPES = [
+      "audio/mpeg",
+      "audio/mp3",
+      "audio/mp4",
+      "audio/x-m4a",
+      "audio/ogg",
+      "audio/wav",
+      "audio/x-wav",
+      "audio/webm",
+      "audio/aac",
+    ];
+    const ALLOWED_EXT = ["mp3", "m4a", "mp4", "ogg", "wav", "webm", "aac"];
+    const ext = (audioFile.name.split(".").pop() || "mp3").toLowerCase();
+    if (!ALLOWED_AUDIO_TYPES.includes(audioFile.type) || !ALLOWED_EXT.includes(ext)) {
+      return new Response(
+        JSON.stringify({ error: "Unsupported file type. Audio uploads only." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Upload to storage with server-controlled content type
     const filePath = `${user.id}/${crypto.randomUUID()}.${ext}`;
 
     const { error: uploadError } = await supabase.storage
       .from("sounds")
       .upload(filePath, audioFile, {
-        contentType: audioFile.type || "audio/mpeg",
+        contentType: audioFile.type,
         upsert: false,
       });
 

@@ -30,22 +30,21 @@ export async function isCurrentUserOwner(): Promise<boolean> {
       return cachedOwnerStatus.isOwner;
     }
 
-    // Fetch profile to check username
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('user_id', user.id)
-      .single();
+    // Server-validated role via SECURITY DEFINER RPC (authoritative)
+    const { data, error } = await supabase.rpc('is_owner', { _user_id: user.id });
+    if (error) {
+      console.error('is_owner RPC failed:', error);
+      return false; // Fail closed
+    }
+    const isOwner = data === true;
 
-    const isOwner = profile?.username?.toLowerCase() === OWNER_USERNAME.toLowerCase();
-    
     // Cache result
     cachedOwnerStatus = { userId: user.id, isOwner };
-    
+
     return isOwner;
   } catch (err) {
     console.error('Error checking owner status:', err);
-    return false;
+    return false; // Fail closed
   }
 }
 
@@ -69,7 +68,7 @@ export async function isOwnerBypassEnabled(): Promise<boolean> {
     cachedBypassEnabled = { value: enabled, fetchedAt: Date.now() };
     return enabled;
   } catch {
-    return true; // Default to enabled if check fails
+    return false; // Fail closed: keep safety enforcement active on error
   }
 }
 
