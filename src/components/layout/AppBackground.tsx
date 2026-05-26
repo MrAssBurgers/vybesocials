@@ -140,17 +140,24 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
   const hasLoadedRef = useRef(false);
   const rawUrlRef = useRef<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Monotonic token: every apply/refresh increments. Stale async resolutions
+  // (e.g. slow signed-URL fetches that finish after the user has navigated
+  // away from a foreign profile) are dropped if the token has moved on.
+  const applyTokenRef = useRef(0);
 
   // Sign the raw URL and update state
-  const signAndApply = useCallback(async (rawUrl: string | null) => {
+  const signAndApply = useCallback(async (rawUrl: string | null, token: number) => {
     if (!rawUrl) {
+      if (token !== applyTokenRef.current) return;
       setBackground(prev => ({ ...prev, imageUrl: null }));
       return;
     }
     if (needsSigning(rawUrl)) {
       const signed = await getSignedUrl(rawUrl);
+      if (token !== applyTokenRef.current) return; // stale — drop
       setBackground(prev => ({ ...prev, imageUrl: signed }));
     } else {
+      if (token !== applyTokenRef.current) return;
       setBackground(prev => ({ ...prev, imageUrl: rawUrl }));
     }
   }, []);
