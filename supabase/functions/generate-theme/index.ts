@@ -428,89 +428,114 @@ Example: For "ocean theme" - use deep blues, teals, and aqua accents. ALL backgr
 
 Base theme: ${JSON.stringify(baseTheme, null, 2)}`;
 
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Transform the ENTIRE app to match: "${prompt}". Change backgrounds, cards, sidebar, inputs, borders, pick appropriate animation speed+style AND a background effect that matches this vibe. EVERYTHING should match this mood.` },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "generate_theme",
-              description: "Generate a complete immersive UI theme with animation settings and background effects",
-              parameters: {
-                type: "object",
-                properties: {
-                  colorPrimary: { type: "string", description: "Primary accent color (HSL)" },
-                  colorSecondary: { type: "string", description: "Secondary color (HSL)" },
-                  colorAccent: { type: "string", description: "Highlight/glow color (HSL)" },
-                  bgMain: { type: "string", description: "Main background - dominant color (HSL)" },
-                  bgCard: { type: "string", description: "Card/surface background (HSL)" },
-                  bgGradientFrom: { type: "string", description: "Gradient start color (HSL)" },
-                  bgGradientMid: { type: "string", description: "Gradient middle color (HSL)" },
-                  bgGradientTo: { type: "string", description: "Gradient end color (HSL)" },
-                  glassBg: { type: "string", description: "Glass effect background (HSL)" },
-                  glassBorder: { type: "string", description: "Glass border color (HSL)" },
-                  sidebarBg: { type: "string", description: "Sidebar background (HSL)" },
-                  navBg: { type: "string", description: "Navigation bar background (HSL)" },
-                  inputBg: { type: "string", description: "Input field background (HSL)" },
-                  textPrimary: { type: "string", description: "Primary text color (HSL)" },
-                  textSecondary: { type: "string", description: "Muted text color (HSL)" },
-                  borderColor: { type: "string", description: "Border color (HSL)" },
-                  neonPink: { type: "string", description: "Neon glow color 1 (HSL)" },
-                  neonPurple: { type: "string", description: "Neon glow color 2 (HSL)" },
-                  neonCyan: { type: "string", description: "Neon glow color 3 (HSL)" },
-                  borderRadius: { type: "string", enum: ["small", "medium", "large"] },
-                  mode: { type: "string", enum: ["light", "dark"] },
-                  themeName: { type: "string", description: "Creative 2-3 word theme name" },
-                  animationSpeed: { type: "string", enum: ["slow", "normal", "fast", "instant"], description: "Animation speed: slow for calm, normal for balanced, fast for energetic, instant for snappy" },
-                  animationStyle: { type: "string", enum: ["smooth", "bouncy", "snappy", "none"], description: "Animation style: smooth for elegant, bouncy for playful, snappy for modern, none for minimal" },
-                  backgroundEffect: { type: "string", enum: ["none", "particles", "stars", "bubbles", "aurora", "rain", "snow", "fireflies", "geometric"], description: "Background visual effect that matches the theme mood" },
-                  backgroundOverlay: { type: "string", description: "Overlay color for background image (HSL) - should match bgMain for cohesion" },
-                  backgroundOpacity: { type: "number", description: "Background image opacity 0-100 (30 = subtle, 50 = balanced, 70+ = prominent)" },
-                  backgroundBlur: { type: "number", description: "Background image blur 0-20 (0 = sharp, 10 = soft)" },
-                  inputText: { type: "string", description: "Text color inside input fields (HSL) - MUST contrast with inputBg" },
-                  buttonText: { type: "string", description: "Text color on primary buttons (HSL) - MUST contrast with colorPrimary" },
+    // Call Gemini with retry+backoff and model fallback. Google's free tier 503s
+    // are common on gemini-2.5-flash — fall back to flash-lite which is much
+    // more available so the theme generator doesn't die.
+    const callGemini = async (model: string) => {
+      return await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${GEMINI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Transform the ENTIRE app to match: "${prompt}". Change backgrounds, cards, sidebar, inputs, borders, pick appropriate animation speed+style AND a background effect that matches this vibe. EVERYTHING should match this mood.` },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "generate_theme",
+                description: "Generate a complete immersive UI theme with animation settings and background effects",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    colorPrimary: { type: "string", description: "Primary accent color (HSL)" },
+                    colorSecondary: { type: "string", description: "Secondary color (HSL)" },
+                    colorAccent: { type: "string", description: "Highlight/glow color (HSL)" },
+                    bgMain: { type: "string", description: "Main background - dominant color (HSL)" },
+                    bgCard: { type: "string", description: "Card/surface background (HSL)" },
+                    bgGradientFrom: { type: "string", description: "Gradient start color (HSL)" },
+                    bgGradientMid: { type: "string", description: "Gradient middle color (HSL)" },
+                    bgGradientTo: { type: "string", description: "Gradient end color (HSL)" },
+                    glassBg: { type: "string", description: "Glass effect background (HSL)" },
+                    glassBorder: { type: "string", description: "Glass border color (HSL)" },
+                    sidebarBg: { type: "string", description: "Sidebar background (HSL)" },
+                    navBg: { type: "string", description: "Navigation bar background (HSL)" },
+                    inputBg: { type: "string", description: "Input field background (HSL)" },
+                    textPrimary: { type: "string", description: "Primary text color (HSL)" },
+                    textSecondary: { type: "string", description: "Muted text color (HSL)" },
+                    borderColor: { type: "string", description: "Border color (HSL)" },
+                    neonPink: { type: "string", description: "Neon glow color 1 (HSL)" },
+                    neonPurple: { type: "string", description: "Neon glow color 2 (HSL)" },
+                    neonCyan: { type: "string", description: "Neon glow color 3 (HSL)" },
+                    borderRadius: { type: "string", enum: ["small", "medium", "large"] },
+                    mode: { type: "string", enum: ["light", "dark"] },
+                    themeName: { type: "string", description: "Creative 2-3 word theme name" },
+                    animationSpeed: { type: "string", enum: ["slow", "normal", "fast", "instant"] },
+                    animationStyle: { type: "string", enum: ["smooth", "bouncy", "snappy", "none"] },
+                    backgroundEffect: { type: "string", enum: ["none", "particles", "stars", "bubbles", "aurora", "rain", "snow", "fireflies", "geometric"] },
+                    backgroundOverlay: { type: "string" },
+                    backgroundOpacity: { type: "number" },
+                    backgroundBlur: { type: "number" },
+                    inputText: { type: "string" },
+                    buttonText: { type: "string" },
+                  },
+                  required: [
+                    "colorPrimary", "colorSecondary", "colorAccent",
+                    "bgMain", "bgCard", "bgGradientFrom", "bgGradientMid", "bgGradientTo",
+                    "glassBg", "glassBorder", "sidebarBg", "navBg", "inputBg",
+                    "textPrimary", "textSecondary", "borderColor",
+                    "neonPink", "neonPurple", "neonCyan",
+                    "borderRadius", "mode", "themeName",
+                    "animationSpeed", "animationStyle", "backgroundEffect"
+                  ],
                 },
-                required: [
-                  "colorPrimary", "colorSecondary", "colorAccent",
-                  "bgMain", "bgCard", "bgGradientFrom", "bgGradientMid", "bgGradientTo",
-                  "glassBg", "glassBorder", "sidebarBg", "navBg", "inputBg",
-                  "textPrimary", "textSecondary", "borderColor",
-                  "neonPink", "neonPurple", "neonCyan",
-                  "borderRadius", "mode", "themeName",
-                  "animationSpeed", "animationStyle", "backgroundEffect"
-                ],
               },
             },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "generate_theme" } },
-      }),
-    });
+          ],
+          tool_choice: { type: "function", function: { name: "generate_theme" } },
+        }),
+      });
+    };
 
-    if (!response.ok) {
-      if (response.status === 429) {
+    const attempts = [
+      { model: "gemini-2.5-flash", delay: 0 },
+      { model: "gemini-2.5-flash", delay: 1500 },
+      { model: "gemini-2.5-flash-lite", delay: 0 },
+      { model: "gemini-2.5-flash-lite", delay: 2500 },
+    ];
+
+    let response: Response | null = null;
+    for (const attempt of attempts) {
+      if (attempt.delay) await new Promise(r => setTimeout(r, attempt.delay));
+      response = await callGemini(attempt.model);
+      if (response.ok) break;
+      // Don't retry on auth/credit errors
+      if (response.status === 401 || response.status === 402) break;
+      console.warn(`[generate-theme] ${attempt.model} returned ${response.status} — retrying`);
+    }
+
+    if (!response || !response.ok) {
+      if (response?.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again." }),
+          JSON.stringify({ error: "AI is busy right now — try again in a few seconds." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
+      if (response?.status === 402) {
         return new Response(
           JSON.stringify({ error: "AI credits exhausted." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      throw new Error("Failed to generate theme");
+      return new Response(
+        JSON.stringify({ error: "AI is busy right now — try again in a few seconds." }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const data = await response.json();

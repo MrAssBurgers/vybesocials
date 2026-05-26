@@ -285,9 +285,9 @@ function NaturalAspectImage({ src, caption }: { src: string; caption?: string })
           isLoaded ? "opacity-100 blur-0 scale-100" : "opacity-0 blur-sm scale-[1.02]"
         )}
         style={!isLoaded ? { position: 'absolute', top: 0, left: 0 } : undefined}
-        loading="lazy"
+        loading="eager"
         decoding="async"
-        fetchPriority="low"
+        fetchPriority="high"
         onLoad={handleLoad}
         onError={() => setHasError(true)}
       />
