@@ -2,8 +2,13 @@ import { useState, memo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Search, Heart, Download, Star, TrendingUp, Clock, 
-  Palette, User, Code
+  Palette, User, Code, Trash2
 } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
