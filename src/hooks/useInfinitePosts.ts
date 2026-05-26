@@ -252,75 +252,80 @@ export function usePrefetchPosts() {
   }, [profile, queryClient]);
 }
 
-// Personalized "For You" feed - server-side ranked discovery algorithm
+// Personalized "For You" feed — uses the v2 ranking algorithm:
+//   ranking_score (content quality + engagement velocity + creator level +
+//   freshness, multiplied by a soft-log level cap, minus penalties)
+//   + per-viewer personal_match score
+//   + diversity-per-creator cap
+//
+// Higher creator levels give a real but capped reach boost (≤12% of score)
+// so leveling up genuinely helps distribution without auto-winning.
 export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
   const { profile } = useAuth();
   const blockedIds = useBlockedUserIds();
 
-  const query = useInfiniteQuery({
-    queryKey: ['personalized-feed', type, profile?.id, blockedIds.length],
+  return useInfiniteQuery({
+    queryKey: ['personalized-feed-v2', type, profile?.id, blockedIds.length],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
-      const isFirstPage = pageParam === 0;
-      const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
+      const limit = pageParam === 0 ? INITIAL_PAGE_SIZE : PAGE_SIZE;
+      const offset = pageParam === 0 ? 0 : INITIAL_PAGE_SIZE + (pageParam - 1) * PAGE_SIZE;
       const blocked = new Set(blockedIds);
-      const filterFeed = (posts: Post[]) =>
-        profile?.id
-          ? posts.filter((p) => p.author?.id !== profile.id && !blocked.has(p.author?.id))
-          : posts;
 
+      // Cold start (signed-out / no profile): fall back to trending
       if (!profile?.id) {
-        // Cold start: use trending feed RPC
         const { data, error } = await supabase.rpc('get_trending_feed', {
           p_content_type: type || 'post',
           p_page: pageParam,
           p_page_size: limit,
-        });
+        } as any);
         if (error) throw error;
-        const posts = filterFeed((data || []).map(transformRankedPost));
+        const posts = (data || []).map((r: any) => ({
+          id: r.post_id ?? r.id,
+          type: r.post_type ?? r.type,
+          media_url: r.media_url,
+          thumbnail_url: r.thumbnail_url,
+          caption: r.caption || '',
+          tags: r.tags || [],
+          created_at: r.created_at,
+          is_pinned: !!r.is_pinned,
+          view_count: r.view_count || 0,
+          author: {
+            id: r.author_id,
+            username: r.author_username,
+            avatar_url: r.author_avatar || r.author_avatar_url,
+          },
+          like_count: Number(r.like_count) || 0,
+          comment_count: Number(r.comment_count) || 0,
+          is_liked: !!r.is_liked,
+          is_bookmarked: !!r.is_bookmarked,
+          reaction_type: r.reaction_type || null,
+        } as Post));
         presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
         return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
       }
 
-      // Use advanced ranked feed RPC
-      const { data, error } = await supabase.rpc('get_ranked_feed', {
+      const { data, error } = await supabase.rpc('get_ranked_feed_v2', {
         p_user_id: profile.id,
-        p_content_type: type || 'post',
-        p_page: pageParam,
-        p_page_size: limit,
-      });
+        p_content_type: type ?? null,
+        p_category: null,
+        p_lat: null,
+        p_lng: null,
+        p_radius_miles: null,
+        p_offset: offset,
+        p_limit: limit,
+      } as any);
 
       if (error) throw error;
 
-      const posts = filterFeed((data || []).map(transformRankedPost));
-
-      // Hydrate per-post reaction_type from likes (RPC doesn't return it)
-      const postIds = posts.map((p) => p.id);
-      if (postIds.length > 0 && profile?.id) {
-        const { data: likeRows } = await supabase
-          .from('likes')
-          .select('post_id, reaction_type')
-          .eq('user_id', profile.id)
-          .in('post_id', postIds);
-        if (likeRows && likeRows.length > 0) {
-          const map = new Map(likeRows.map((r: any) => [r.post_id, r.reaction_type]));
-          posts.forEach((p) => {
-            const rt = map.get(p.id);
-            if (rt) {
-              (p as any).reaction_type = rt;
-              p.is_liked = true;
-            }
-          });
-        }
-      }
+      let posts = (data || []).map(transformPost);
+      // RPC already excludes own posts and not_interested, but keep blocked filter as a safety net.
+      posts = posts.filter((p) => !blocked.has(p.author?.id));
 
       presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
-      return {
-        posts,
-        nextPage: posts.length >= limit ? pageParam + 1 : null,
-      };
+      return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
     },
-    getNextPageParam: (lastPage) => lastPage.nextPage,
+    getNextPageParam: (last) => last.nextPage,
     initialPageParam: 0,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
@@ -332,31 +337,5 @@ export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
-
-  return query;
 }
 
-// Transform ranked feed RPC result (different column names from standard RPC)
-function transformRankedPost(row: any): Post & { view_count?: number } {
-  return {
-    id: row.post_id,
-    type: row.post_type,
-    media_url: row.media_url,
-    thumbnail_url: row.thumbnail_url,
-    caption: row.caption || '',
-    tags: row.tags || [],
-    created_at: row.created_at,
-    is_pinned: row.is_pinned,
-    view_count: row.view_count || 0,
-    author: {
-      id: row.author_id,
-      username: row.author_username,
-      avatar_url: row.author_avatar || row.author_avatar_url,
-    },
-    like_count: Number(row.like_count) || 0,
-    comment_count: Number(row.comment_count) || 0,
-    is_liked: row.is_liked || false,
-    is_bookmarked: row.is_bookmarked || false,
-    reaction_type: row.reaction_type || null,
-  };
-}
