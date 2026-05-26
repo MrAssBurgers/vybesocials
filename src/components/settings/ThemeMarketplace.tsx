@@ -144,6 +144,31 @@ const ThemeCard = memo(function ThemeCard({
             <Download className="h-4 w-4" />
             {theme.downloads_count}
           </span>
+          {isOwner && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button
+                  onClick={(e) => e.stopPropagation()}
+                  className="ml-auto flex items-center gap-1 hover:text-destructive transition-colors"
+                  aria-label="Delete theme"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this theme?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    "{theme.theme_name}" will be removed from the marketplace and anyone who saved it. This can't be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={onDelete}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       </div>
     </motion.div>
