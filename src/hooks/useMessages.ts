@@ -490,6 +490,30 @@ export function useMarkMessageViewed() {
 export function useToggleSavedMessage(conversationId?: string) {
   const queryClient = useQueryClient();
   return useMutation({
+    // Optimistic flip so the badge animates instantly — never wait on RPC.
+    onMutate: async (messageId: string) => {
+      if (!conversationId) return;
+      await queryClient.cancelQueries({ queryKey: ['messages', conversationId] });
+      const previous = queryClient.getQueryData<Message[]>(['messages', conversationId]);
+      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+        if (!old) return old;
+        return old.map((m) => {
+          if (m.id !== messageId) return m;
+          const wasSaved = !!(m.saved_by_sender || m.saved_by_recipient);
+          // Toggle whichever side was set; if neither, set sender side as a sensible default
+          // (server RPC will replace these values with the authoritative result).
+          const nextSender = wasSaved ? false : (m.saved_by_sender ? false : true);
+          const nextRecipient = wasSaved ? false : !!m.saved_by_recipient;
+          return {
+            ...m,
+            saved_by_sender: nextSender,
+            saved_by_recipient: nextRecipient,
+            saved_at: !wasSaved ? new Date().toISOString() : null,
+          };
+        });
+      });
+      return { previous };
+    },
     mutationFn: async (messageId: string) => {
       const { data, error } = await supabase.rpc('toggle_message_saved', { _message_id: messageId });
       if (error) throw error;
@@ -507,8 +531,23 @@ export function useToggleSavedMessage(conversationId?: string) {
         );
       });
     },
-    onError: () => {
-      toast.error('Could not update saved state');
+    onError: (err: any, _messageId, context: any) => {
+      // Roll back optimistic UI on real failure
+      if (conversationId && context?.previous) {
+        queryClient.setQueryData(['messages', conversationId], context.previous);
+      }
+      // Harmless RPC raises (race conditions, message not yet loaded, group quirks)
+      // stay silent — Snapchat behavior. Only show toast for actual network/server errors.
+      const msg = String(err?.message || '').toLowerCase();
+      const silent =
+        msg.includes('message not found') ||
+        msg.includes('not a participant') ||
+        msg.includes('no profile') ||
+        msg.includes('auth required');
+      if (silent) return;
+      if (err?.status >= 500 || msg.includes('network') || msg.includes('failed to fetch')) {
+        toast.error('Could not update saved state');
+      }
     },
   });
 }
