@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
       p_limit: Math.min(50, Math.max(1, Number(body.limit ?? 20))),
     };
 
-    const { data, error } = await admin.rpc("get_ranked_feed", params);
+    const { data, error } = await admin.rpc("get_ranked_feed_v2", params);
     if (error) throw error;
 
     return new Response(JSON.stringify({ posts: data ?? [] }), {
