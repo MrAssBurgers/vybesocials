@@ -2506,14 +2506,14 @@ const MessageBubble = memo(function MessageBubble({
           )}
           data-message-id={message.id}
           onClick={(e) => {
-            // Tap-to-save: only fires on text/emoji bubbles in 1:1 DMs.
-            // Media bubbles already handle taps to open the viewer.
+            // Snapchat-style tap-to-save on 1:1 DMs.
             if (!onToggleSaved) return;
-            if (isMediaMessage || isVideoMessage || isVybeMessage || isAudioMessage || isSharedPost || isSharedTheme) return;
+            if (isVybeMessage || isSharedPost || isSharedTheme) return;
             if (isContextMenuOpen) return;
-            // Ignore taps that originated from interactive children
             const target = e.target as HTMLElement;
-            if (target.closest('button, a, input, textarea')) return;
+            // Skip interactive children (play button, audio controls, viewer triggers)
+            if (target.closest('button, a, input, textarea, [data-no-tap-save]')) return;
+            try { (navigator as any)?.vibrate?.(8); } catch {}
             onToggleSaved();
           }}
           onContextMenu={handleContextMenu}
