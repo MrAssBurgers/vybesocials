@@ -2425,7 +2425,7 @@ const MessageBubble = memo(function MessageBubble({
         {!isOwn && !showAvatar && <div className="w-8 sm:w-9 flex-shrink-0" />}
 
         {/* Message content wrapper - auto width based on content */}
-        <div className={cn('flex flex-col min-w-0 max-w-full', isOwn ? 'items-end' : 'items-start')}>
+        <div ref={bubbleWrapperRef} className={cn('relative flex flex-col min-w-0 max-w-full', isOwn ? 'items-end' : 'items-start')}>
         {/* Reply preview - clickable to scroll to original message */}
         {repliedMessage && (
           <button
