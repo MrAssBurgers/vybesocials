@@ -79,21 +79,21 @@ const ThemeCard = memo(function ThemeCard({
 
   return (
     <div className="relative group">
-      <div 
+      <div
         onClick={onSelect}
         className={cn(
-          "p-3 rounded-xl border-2 transition-colors cursor-pointer",
+          "p-3.5 rounded-2xl border backdrop-blur-xl transition-all cursor-pointer active:scale-[0.98]",
           isActive
-            ? "border-primary bg-primary/10 ring-2 ring-primary/30"
-            : isPopular 
-              ? "border-primary/50 bg-primary/5 hover:border-primary" 
-              : "border-border hover:border-primary/50"
+            ? "border-primary bg-primary/10 ring-1 ring-primary/40 shadow-md shadow-primary/10"
+            : isPopular
+              ? "border-primary/40 bg-primary/5 hover:border-primary/60"
+              : "border-border/50 bg-card/40 hover:border-primary/40"
         )}
       >
         {/* Popular badge */}
         {isPopular && !isActive && (
           <div className="absolute -top-2 -right-2 z-10">
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-medium shadow-md">
               <TrendingUp className="h-3 w-3" />
               Popular
             </div>
@@ -103,30 +103,30 @@ const ThemeCard = memo(function ThemeCard({
         {/* Active badge */}
         {isActive && (
           <div className="absolute -top-2 -right-2 z-10">
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-medium shadow-md">
               ✓ Active
             </div>
           </div>
         )}
 
         {/* Theme Preview */}
-        <div 
-          className="h-20 rounded-lg mb-2 relative overflow-hidden"
-          style={{ 
-            background: `linear-gradient(135deg, hsl(${tokens.bgMain || '240 10% 4%'}), hsl(${tokens.bgCard || '240 10% 6%'}))` 
+        <div
+          className="h-24 rounded-xl mb-2.5 relative overflow-hidden shadow-inner"
+          style={{
+            background: `linear-gradient(135deg, hsl(${tokens.bgMain || '240 10% 4%'}), hsl(${tokens.bgCard || '240 10% 6%'}))`
           }}
         >
           {/* Accent colors */}
           <div className="absolute bottom-2 left-2 right-2 flex gap-1">
-            <div 
+            <div
               className="h-2.5 flex-1 rounded-full"
               style={{ background: `hsl(${tokens.colorPrimary || '330 100% 60%'})` }}
             />
-            <div 
+            <div
               className="h-2.5 flex-1 rounded-full"
               style={{ background: `hsl(${tokens.colorSecondary || '240 10% 12%'})` }}
             />
-            <div 
+            <div
               className="h-2.5 flex-1 rounded-full"
               style={{ background: `hsl(${tokens.colorAccent || '185 100% 50%'})` }}
             />
