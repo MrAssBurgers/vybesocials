@@ -223,17 +223,17 @@ export function ThemeCustomizer() {
   }, [selectedPreset, buildTheme]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header with Save Status */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold flex items-center gap-2 text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-            <Palette className="h-5 w-5 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-            <span>Theme</span>
+          <h3 className="text-base font-semibold flex items-center gap-2 text-foreground">
+            <Palette className="h-4 w-4 text-primary" />
+            <span>Customize</span>
           </h3>
-          <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Customize your VYBE</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Tune your VYBE</p>
         </div>
-        
+
         <AnimatePresence mode="wait">
           {hasChanges && (
             <motion.div
@@ -242,10 +242,10 @@ export function ThemeCustomizer() {
               exit={{ opacity: 0, scale: 0.9 }}
               className="flex gap-2"
             >
-              <Button size="sm" variant="outline" onClick={handleReset} disabled={resetTheme.isPending}>
+              <Button size="sm" variant="ghost" onClick={handleReset} disabled={resetTheme.isPending} className="h-9 w-9 p-0 rounded-xl bg-card/60 backdrop-blur-xl border border-border/50">
                 <RotateCcw className="h-4 w-4" />
               </Button>
-              <Button size="sm" onClick={handleSave} disabled={saveTheme.isPending}>
+              <Button size="sm" onClick={handleSave} disabled={saveTheme.isPending} className="h-9 rounded-xl">
                 {saveTheme.isPending ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />
                 ) : (
