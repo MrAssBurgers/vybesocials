@@ -9829,29 +9829,41 @@ export type Database = {
         Row: {
           created_at: string
           expires_at: string
+          expiring_notice_sent_at: string | null
           id: string
+          last_incremented_on: string | null
           last_message_at: string
           streak_count: number | null
           user1_id: string
+          user1_last_message_at: string | null
           user2_id: string
+          user2_last_message_at: string | null
         }
         Insert: {
           created_at?: string
           expires_at?: string
+          expiring_notice_sent_at?: string | null
           id?: string
+          last_incremented_on?: string | null
           last_message_at?: string
           streak_count?: number | null
           user1_id: string
+          user1_last_message_at?: string | null
           user2_id: string
+          user2_last_message_at?: string | null
         }
         Update: {
           created_at?: string
           expires_at?: string
+          expiring_notice_sent_at?: string | null
           id?: string
+          last_incremented_on?: string | null
           last_message_at?: string
           streak_count?: number | null
           user1_id?: string
+          user1_last_message_at?: string | null
           user2_id?: string
+          user2_last_message_at?: string | null
         }
         Relationships: [
           {
@@ -13141,6 +13153,16 @@ export type Database = {
       ensure_user_level: { Args: never; Returns: undefined }
       execute_admin_sql: { Args: { sql_query: string }; Returns: Json }
       filter_profanity: { Args: { input_text: string }; Returns: string }
+      find_expiring_streaks: {
+        Args: { _horizon_minutes?: number }
+        Returns: {
+          expires_at: string
+          other_profile_id: string
+          recipient_profile_id: string
+          streak_count: number
+          streak_id: string
+        }[]
+      }
       find_roulette_match: {
         Args: { p_interests?: string[]; p_mode?: string }
         Returns: Json
