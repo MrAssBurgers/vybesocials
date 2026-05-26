@@ -30,12 +30,29 @@ import { useQuery } from '@tanstack/react-query';
  */
 
 const SESSION_KEY = 'vybe_video_ads_session';
-const GLOBAL_COOLDOWN_MS = 90 * 1000;          // 90s between ANY two video ads
-const MID_FEED_EVERY_N_CLIPS = 6;              // ad every 6 clips watched
-const MAX_VIDEO_ADS_PER_SESSION = 8;           // hard cap per app open
-const PRE_VIDEO_COOLDOWN_MS = 5 * 60 * 1000;   // 5 min between pre-video ads
+const GLOBAL_COOLDOWN_MS = 30 * 1000;             // 30s between ANY two video ads
+const MID_FEED_RANGE: [number, number] = [4, 7];  // randomized mid-roll every 4–7 clips
+const MAX_VIDEO_ADS_PER_SESSION = 12;             // hard cap per app open
+const PRE_VIDEO_COOLDOWN_MS = 90 * 1000;          // 90s between pre-video ads
+const MID_VIDEO_INTERVAL_RANGE: [number, number] = [150, 300]; // 2.5–5 min random gap inside long videos
 
-type Surface = 'pre_roll' | 'mid_feed' | 'pre_video';
+type Surface = 'pre_roll' | 'mid_feed' | 'pre_video' | 'mid_video';
+
+// Module-scope randomized slot ladder so consecutive renders get the same answer.
+let MID_FEED_SLOT_LADDER: number[] | null = null;
+function randInt([min, max]: [number, number]) {
+  return Math.floor(min + Math.random() * (max - min + 1));
+}
+function getMidFeedSlots(maxIndex: number): number[] {
+  if (MID_FEED_SLOT_LADDER && MID_FEED_SLOT_LADDER[MID_FEED_SLOT_LADDER.length - 1] >= maxIndex) {
+    return MID_FEED_SLOT_LADDER;
+  }
+  const slots: number[] = [];
+  let cur = randInt(MID_FEED_RANGE);
+  while (cur <= maxIndex + 30) { slots.push(cur); cur += randInt(MID_FEED_RANGE); }
+  MID_FEED_SLOT_LADDER = slots;
+  return slots;
+}
 
 interface SessionState {
   startedAt: number;
