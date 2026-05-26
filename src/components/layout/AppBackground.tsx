@@ -214,7 +214,7 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshTimerRef.current = setInterval(() => {
       if (rawUrlRef.current && needsSigning(rawUrlRef.current)) {
-        signAndApply(rawUrlRef.current);
+        signAndApply(rawUrlRef.current, ++applyTokenRef.current);
       }
     }, 45 * 60 * 1000);
     return () => {
