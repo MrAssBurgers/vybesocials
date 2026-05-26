@@ -436,13 +436,33 @@ export function BackgroundCustomizer({
   }, [editName, renameBackground]);
 
   const removeBackground = useCallback(async () => {
-    await clearActiveBackground.mutateAsync();
+    // 1. Optimistic: clear body styles + context state instantly
     appBackground?.setBackgroundImage(null);
+    appBackground?.setBackgroundOpacity(1);
+    appBackground?.setBackgroundBlur(0);
+    onOpacityChange(100);
+    onBlurChange(0);
     onBackgroundChange(null);
     setExtractedColors(null);
     setPendingExtractedColors(null);
-    toast.success('Background removed');
-  }, [clearActiveBackground, onBackgroundChange, appBackground]);
+    setImageLoadError(false);
+
+    // 2. Persist
+    try {
+      await clearActiveBackground.mutateAsync();
+      toast.success('Default background restored');
+    } catch (e) {
+      toast.error('Could not save — applied locally');
+    }
+
+    // 3. If a cosmetic theme is still equipped, surface a note
+    const equippedTheme = (profile as any)?.equipped_profile_theme;
+    if (equippedTheme) {
+      toast.message('Cosmetic theme still equipped', {
+        description: 'Unequip it in your Locker to fully clear.',
+      });
+    }
+  }, [clearActiveBackground, onBackgroundChange, onOpacityChange, onBlurChange, appBackground, profile]);
 
   // Handle applying colors from prompt
   const handleApplyColorsFromPrompt = useCallback(() => {
