@@ -112,8 +112,8 @@ export const DMHoldMenu = memo(function DMHoldMenu({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="fixed z-[991] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(230px,calc(100vw-32px))] max-h-[80vh] rounded-2xl bg-white/[0.08] backdrop-blur-xl border border-white/[0.12] shadow-2xl overflow-y-auto"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+            className="fixed z-[991] top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-[min(260px,calc(100vw-32px))] max-h-[80vh] rounded-2xl bg-white/[0.08] backdrop-blur-xl border border-white/[0.12] shadow-2xl overflow-y-auto"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', marginLeft: 'env(safe-area-inset-left, 0px)', marginRight: 'env(safe-area-inset-right, 0px)' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/[0.08]">
