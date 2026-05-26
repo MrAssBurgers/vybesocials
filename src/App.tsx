@@ -347,7 +347,7 @@ function AppWithPreloader() {
                                         <FounderAppreciation />
                                         <CookieConsentBanner />
                                         <RatePromptSheet />
-                                        <ConnectionStatusBanner />
+                                        {/* ConnectionStatusBanner removed — silent background reconnect */}
                                       </Suspense>
                                     </LocalErrorBoundary>
                                   </TutorialProvider>
