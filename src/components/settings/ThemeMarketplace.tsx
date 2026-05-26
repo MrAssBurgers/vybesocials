@@ -20,6 +20,7 @@ import {
   useLikeTheme,
   useUnlikeTheme,
   useUserThemeLikes,
+  useDeleteSharedTheme,
   SharedTheme
 } from '@/hooks/useSharedThemes';
 import { useImportThemeCode } from '@/hooks/useUISettings';
