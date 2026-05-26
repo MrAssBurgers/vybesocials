@@ -2448,8 +2448,17 @@ const MessageBubble = memo(function MessageBubble({
           />
         )}
 
+        {/* Shared Theme - VYBE theme preview card */}
+        {isSharedTheme && (
+          <SharedThemeMessageBubble
+            sharedThemeId={message.content || ''}
+            isOwn={isOwn}
+            senderUsername={sender?.username}
+          />
+        )}
+
         {/* Message bubble - Instagram-quality padding and radius (not for shared posts) */}
-        {!isSharedPost && (
+        {!isSharedPost && !isSharedTheme && (
         <div className="relative group/bubble">
           {/* Desktop-only 3-dot quick action menu (hidden on touch/mobile) */}
           <div className="hidden sm:block absolute -top-1 z-10" style={{ [isOwn ? 'left' : 'right']: '-28px' }}>
