@@ -63,10 +63,13 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
   });
 
   const toggleFriend = (id: string) => {
+    setVisibility('friends');
+    setCreatedLink(null);
     setSelectedFriends((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
+
 
   const ctaLabel = (() => {
     if (share.isPending) return 'Sharing…';
