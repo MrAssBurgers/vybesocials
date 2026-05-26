@@ -1,77 +1,89 @@
-# Snapchat-style Save + Polish Pass
+## Plan: Stability & ownership pass
 
-All backend work is already in place (good news):
-- DM messages auto-expire 48h after being opened (`expires_at` trigger)
-- `toggle_saved_message` RPC flips save state and clears/resets `expires_at`
-- `cleanup_expired_messages()` cron job soft-deletes expired messages
+### 1. "Cannot update saved state" on DM tap
+The `toggle_message_saved` RPC exists but errors on group messages (sender/recipient columns are NULL for group chats). Fix:
+- In `ChatView.tsx` tap-to-save handler, short-circuit for group conversations and only allow saving in 1:1 DMs (Snapchat-style is a 1:1 concept anyway).
+- In `useToggleSavedMessage` (`src/hooks/useMessages.ts`), inspect the error code: if the RPC returns "no row updated", treat as silent no-op instead of a destructive toast. Show toast only for true network/auth failures.
+- Make the mutation optimistic: flip badge instantly, roll back on error.
 
-So this pass is **purely frontend**: wire up tap-to-save, polish UI, fix two bugs, and add the onboarding mention.
+### 2. "Failed to generate theme"
+Edge function `generate-theme` is hitting Gemini 503 rate limits (confirmed in logs from `ai-catch-up`). Fix:
+- Add retry-with-backoff (3 attempts, 1.5s/3s/6s) in `supabase/functions/generate-theme/index.ts`.
+- On final failure, fall back to `google/gemini-2.5-flash-lite` (cheap, almost always available).
+- Surface a clean toast: "AI is busy — try again in a few seconds" instead of a generic error.
 
-## 1. ReceivedThemeSheet — scroll fix
+### 3. Posts & profile images load slowly
+Today posts use plain `<img>` with lazy default. Fix:
+- In `PostCard` / `ProfilePostGrid` / `ClipCard`, mark above-the-fold images `loading="eager"` + `fetchpriority="high"` for the first 6 visible items, lazy for the rest.
+- Add `decoding="async"` everywhere and width/height attrs to lock layout (cuts CLS + decode time).
+- Warm signed URLs in batch on feed fetch (already have batch-sign in `src/lib/signedUrls.ts` — wire it into `usePosts` so URLs are pre-signed before render instead of on-mount).
+- Add `<link rel="preconnect">` for the Supabase storage origin in `index.html`.
 
-File: `src/components/themes/ReceivedThemeSheet.tsx`
+### 4. Auto-Pilot mode can't switch between off/suggest/autonomous
+RLS on `dna_agent_settings` is correct, but `setMode` in `useDNAAutoPilot.ts` is fire-and-forget — no error surfacing, no await on UI, and the optimistic state can revert if the upsert silently fails. Fix:
+- Make `updateSettings` properly await and check `error`; on error, roll back optimistic state and toast.
+- Pre-create the row on first load if missing (so the upsert key conflict path is guaranteed).
+- Add 3s timeout so a stuck network doesn't lock the toggle.
+Also speed it up: switch from `setState({...})` then `await upsert` to fire optimistic UI first and run the upsert in background with abort signal.
 
-- The portaled overlay sits inside `data-dm-active` chat which uses fixed positioning + locked body scroll, so the inner `overflow-y-auto` panel can't intercept touch.
-- Add `.page-scroll-fix` class to the outer fixed container (same class used elsewhere to bypass the DM scroll lock).
-- Ensure the scroll container has `-webkit-overflow-scrolling: touch`, `touch-action: pan-y`, and `overscroll-behavior: contain` (already present, verify).
-- Add `e.stopPropagation()` on `onTouchStart`/`onTouchMove` of the scroll region so the chat's swipe handlers don't steal the gesture.
+### 5. Daily Brief AI not pulling
+`ai-catch-up` logs show repeated 503 from `google/gemini-2.5-pro`. Fix:
+- Switch primary model to `google/gemini-3-flash-preview` (faster, less-throttled per memory).
+- Add backoff retry (same pattern as theme).
+- Cache last successful brief in the DB so when AI is down we still show *something*.
 
-## 2. DMHoldMenu — fit all contents
+### 6. @Bakrix (barron.bakic@gmail.com) permanent owner
+Confirmed: profile `e78010f2-d5f1-428b-b5df-8fc6b768772d` (username `mrassburgers`) currently has `admin` + `moderator` but no `owner` role. Plan:
+- Migration: insert `('e78010f2-…','owner')` into `user_roles` (idempotent via `ON CONFLICT DO NOTHING`).
+- Add a hard-coded auth-ID safety net in `useIsOwner.ts` / `isCurrentUserOwner`: if `auth.uid() === '703760a8-1245-4fc1-b242-32619ecc0ef3'`, return `isOwner: true` even if the DB lookup hasn't resolved yet. This guarantees Bakrix never loses access on Live, even if a role row is accidentally removed.
+- Note: migration applies to Test on save and Live on publish — covered.
 
-File: `src/components/chat/DMHoldMenu.tsx`
+### 7. Remove online/offline popup completely
+Per your choice — silent background reconnect.
+- Remove `ConnectionStatusBanner` from `AppLayout` (keep file in case we want it later, but unmount).
+- Remove the "Back online" sonner toast in `src/components/error/GlobalErrorHandler.tsx`.
+- Keep `reconnectManager` running (refetches queries, flushes outbox) — just no UI.
 
-Currently a 260px card centered vertically with `max-h-[80vh]`; when many rows are visible (Reply, Save, Copy, Save media, Save Sticker, Edit, Unsend, Delete-for-me + emoji row) some items get cut and the emoji bar overflows horizontally on narrow screens.
+### 8. OneSignal: "never get any push on my phone"
+This is a subscription-side issue, not send-side. Plan:
+- Add a diagnostic surface in Settings → Notifications showing: OneSignal subscription ID, permission state, last-error, and a "Send me a test push" button that calls a new edge function `onesignal-test-push` using your own player ID.
+- Audit `useOneSignal` init flow: ensure `OneSignal.User.PushSubscription.optIn()` is called after permission grant (a missed `optIn()` is the most common cause of "subscribed but no pushes").
+- Verify the OneSignal SDK is initialized on the live domain (`vybehub.app`) and not just preview — `safari_web_id` and `subdomain` need to match the live origin.
+- Check that `external_id` is set to your auth ID so server sends can target you.
+- For Despia wrapped app: confirm the iOS push capability and APNs cert are wired in OneSignal dashboard (I'll surface a clear checklist in the diagnostic panel; the cert itself you have to upload).
 
-- Widen to `min(300px, calc(100vw - 24px))`.
-- Make the emoji row `flex-wrap` with `gap-1.5` and `justify-around`, so 6 emojis always fit on 320px screens.
-- Shrink row vertical padding from `py-2.5` → `py-2`, font from `text-[13px]` → `text-[12.5px]`, icon `h-4 w-4` → `h-3.5 w-3.5`.
-- Anchor with `top-[10vh]` instead of `top-1/2 -translate-y-1/2`, and use `max-h-[80vh] overflow-y-auto` so even long menus stay scrollable inside the card.
-- Add `overscroll-contain` to the scroll body.
+### Technical execution order
+```text
+1. Migration: grant owner role to Bakrix profile
+2. Edge functions: generate-theme + ai-catch-up retry/backoff/fallback model
+3. New edge function: onesignal-test-push (diagnostic)
+4. Frontend:
+   - useMessages tap-to-save: group guard + optimistic + silent no-op
+   - useDNAAutoPilot: awaited upsert with rollback + row pre-create
+   - useIsOwner: hard-coded auth-ID safety net for Bakrix
+   - PostCard/ProfilePostGrid/ClipCard: eager loading + batch presigning
+   - index.html: preconnect to storage origin
+   - AppLayout: unmount ConnectionStatusBanner
+   - GlobalErrorHandler: remove back-online toast
+   - Settings → Notifications: OneSignal diagnostic panel
+   - useOneSignal: ensure optIn() + external_id
+```
 
-## 3. Tap-to-save (Snapchat parity)
+### Files touched (approx 12)
+- `supabase/migrations/<new>.sql`
+- `supabase/functions/generate-theme/index.ts`
+- `supabase/functions/ai-catch-up/index.ts`
+- `supabase/functions/onesignal-test-push/index.ts` (new)
+- `src/hooks/useMessages.ts`
+- `src/hooks/useDNAAutoPilot.ts`
+- `src/hooks/useIsOwner.ts`
+- `src/components/chat/ChatView.tsx`
+- `src/components/feed/PostCard.tsx` (+ ProfilePostGrid, ClipCard)
+- `src/hooks/usePosts.ts`
+- `index.html`
+- `src/components/layout/AppLayout.tsx`
+- `src/components/error/GlobalErrorHandler.tsx`
+- `src/components/settings/NotificationSettings.tsx` (diagnostic panel)
+- `src/hooks/useOneSignal.ts`
 
-File: `src/components/chat/ChatView.tsx` (the `MessageBubble` render block, around the bubble wrapper that already handles long-press for the hold menu).
-
-Goal: a **short tap** on any DM bubble (text, image, video, voice, note) toggles save; long-press still opens the DMHoldMenu; existing controls (play, reactions, reply swipe) keep working.
-
-Implementation:
-- Reuse the existing `onToggleSaved` callback already passed into `MessageBubble`.
-- Add `onPointerDown`/`onPointerUp` handlers on the bubble wrapper:
-  - On down: record timestamp + start position.
-  - On up: if `duration < 250ms` AND pointer moved `< 8px` AND no long-press fired → call `onToggleSaved()` and trigger a save animation.
-  - Ignore taps that originated on interactive children (buttons, audio controls, video play icon) via `e.target.closest('[data-no-tap-save]')`.
-- Disable tap-to-save for group chats (mirrors current `onToggleSaved` gating — already `!isGroupChat`).
-- Disable for the user's own ephemeral system bubbles (theme share bubble already calls `e.stopPropagation()` so it won't trigger).
-- Fire light haptic on toggle (`navigator.vibrate?.(8)`).
-
-## 4. Saved badge + animation
-
-File: `src/components/chat/ChatView.tsx` (bubble render).
-
-- Replace the current verbose "You saved" / "They saved" footer text with a **subtle bookmark badge**: small filled `Bookmark` icon (10px), inside a pill `bg-primary/15 text-primary border border-primary/30 rounded-full px-1.5 py-0.5`, anchored bottom-right of the bubble using `absolute -bottom-1 -right-1`.
-- Animation: wrap the badge in Framer Motion `<AnimatePresence>`; `initial={{ scale: 0, rotate: -30, opacity: 0 }}`, `animate={{ scale: 1, rotate: 0, opacity: 1 }}`, `exit={{ scale: 0, opacity: 0 }}`, spring `stiffness: 400, damping: 18`.
-- On save toggle, also briefly pulse the bubble itself (`animate={{ scale: [1, 1.04, 1] }}` `duration: 0.3`).
-- Keep current Snapchat-style border (`message.saved_by_sender || message.saved_by_recipient` → border treatment already exists on line 2503) but soften to `border-primary/40`.
-- Show "Saved" tooltip on long-press hover only — remove the inline text row.
-
-## 5. Onboarding mention of 48h auto-delete
-
-File: `src/components/onboarding/PrivacySettings.tsx` (already in flow).
-
-- Add a small info card near the existing privacy items:
-  > **Disappearing Messages** — DMs delete from the chat and our servers 48 hours after you open them. Tap any message to save it forever. Tap again to unsave.
-- Use icon `Clock` + `Bookmark`, glass card matching the existing privacy items.
-
-## Verification
-
-After implementation:
-- Open shared theme bubble in a DM → bottom-sheet scrolls smoothly on mobile.
-- Long-press DM bubble → menu shows all rows, nothing clipped at 384px viewport.
-- Single-tap a text bubble → bookmark badge animates in; tap again → it animates out. Long-press still opens menu; reply-swipe still works.
-- Walk through onboarding → new disappearing-messages card appears in PrivacySettings step.
-
-## Out of scope
-
-- No backend changes (trigger, RPC, cron all already exist).
-- No changes to group chat save semantics.
-- No changes to the existing VYBE (24h media) flow.
+Approve and I'll execute.
