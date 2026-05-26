@@ -261,23 +261,23 @@ export function ThemeCustomizer() {
       </div>
 
       {/* AI Theme Generator */}
-      <div className="liquid-glass-card p-4 space-y-3 bg-card/60 border border-border">
-        <div className="flex items-center gap-2 text-sm font-medium text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-          <Wand2 className="h-4 w-4 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+      <div className="liquid-glass-card p-4 space-y-3 rounded-2xl">
+        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <Wand2 className="h-4 w-4 text-primary" />
           <span>AI Theme Designer</span>
         </div>
-        
+
         <div className="relative">
           <Textarea
-            placeholder="Describe your vibe... e.g., 'Ocean sunset with warm oranges' or 'Cyberpunk neon city'"
+            placeholder="Describe your vibe… e.g. 'Ocean sunset with warm oranges'"
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
-            className="min-h-[80px] pr-20 resize-none"
+            className="min-h-[80px] pr-14 resize-none rounded-xl bg-background/40 border-border/50"
             disabled={isGenerating}
           />
           <Button
             size="sm"
-            className="absolute bottom-2 right-2"
+            className="absolute bottom-2 right-2 h-9 w-9 p-0 rounded-xl"
             onClick={handleGenerate}
             disabled={!aiPrompt.trim() || isGenerating}
           >
