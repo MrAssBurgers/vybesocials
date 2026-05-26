@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ShieldX, Edit3, MessageSquareWarning, Loader2 } from 'lucide-react';
+import { ShieldX, Edit3, MessageSquareWarning, Loader2, ThumbsDown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,6 +35,25 @@ export function VybeCheckFailed({
   const [appealReason, setAppealReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAppealForm, setShowAppealForm] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+
+  const handleQuickFeedback = async () => {
+    if (!profile?.id || feedbackSent) return;
+    setFeedbackSent(true);
+    try {
+      await supabase.from('moderation_feedback').insert({
+        user_id: profile.id,
+        content_type: contentType,
+        scan_reason: message || null,
+        categories: categories.length ? categories : null,
+        feedback_type: 'false_positive',
+      });
+      toast.success('Thanks — feedback helps us improve the AI');
+    } catch (err) {
+      console.error('Feedback error:', err);
+      setFeedbackSent(false);
+    }
+  };
 
   const handleAppeal = async () => {
     if (!profile?.id || !appealReason.trim()) {
@@ -110,6 +129,19 @@ export function VybeCheckFailed({
           )}
 
           <p className="text-sm text-muted-foreground leading-relaxed">{message}</p>
+
+          {/* Quick "this was wrong" feedback */}
+          <button
+            onClick={handleQuickFeedback}
+            disabled={feedbackSent}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-70"
+          >
+            {feedbackSent ? (
+              <><Check className="w-3.5 h-3.5 text-emerald-400" /> Feedback sent</>
+            ) : (
+              <><ThumbsDown className="w-3.5 h-3.5" /> This was wrong</>
+            )}
+          </button>
         </div>
 
         {/* Appeal form */}
