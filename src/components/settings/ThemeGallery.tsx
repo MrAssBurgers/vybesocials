@@ -257,14 +257,11 @@ export function ThemeGallery() {
   const { profile } = useAuth();
   const { triggerTransition } = useThemeTransition();
   const { setTheme: setGlobalTheme } = useTheme();
-  const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearch = useDebouncedValue(searchQuery, 300);
-  
-  const { data: publicThemes, isLoading: loadingPublic } = usePublicThemes(debouncedSearch);
+
   const { data: savedThemes, isLoading: loadingSaved } = useSavedThemes();
   const { data: myThemes, isLoading: loadingMy } = useMySharedThemes();
   const { data: likedIds } = useUserThemeLikes();
-  
+
   const saveTheme = useSaveSharedTheme();
   const unsaveTheme = useUnsaveTheme();
   const likeTheme = useLikeTheme();
@@ -275,12 +272,6 @@ export function ThemeGallery() {
   const [activeThemeId, setActiveThemeId] = useState<string | null>(() => {
     return localStorage.getItem('vybe-equipped-theme-id');
   });
-
-  // Get top 3 most liked themes as "popular"
-  const popularThemeIds = useMemo(() => {
-    if (!publicThemes?.length) return new Set<string>();
-    return new Set(publicThemes.slice(0, 3).map(t => t.id));
-  }, [publicThemes]);
 
   // Single action: clicking a theme applies and persists it
   const handleSelectTheme = useCallback((theme: SharedTheme) => {
