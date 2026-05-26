@@ -51,9 +51,11 @@ interface ThemeCardProps {
   theme: SharedTheme;
   isLiked: boolean;
   isActive: boolean;
+  isOwner: boolean;
   onLike: () => void;
   onUnlike: () => void;
   onSelect: () => void;
+  onDelete: () => void;
 }
 
 
@@ -61,9 +63,11 @@ const ThemeCard = memo(function ThemeCard({
   theme,
   isLiked,
   isActive,
+  isOwner,
   onLike,
   onUnlike,
   onSelect,
+  onDelete,
 }: ThemeCardProps) {
 
   const tokens = theme.theme_tokens;
