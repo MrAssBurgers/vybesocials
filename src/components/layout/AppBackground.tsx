@@ -234,7 +234,13 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
 
   const setBackgroundImage = useCallback((url: string | null) => {
     rawUrlRef.current = url;
-    signAndApply(url);
+    const token = ++applyTokenRef.current;
+    // Null clears body styles synchronously so the user sees the default
+    // gradient immediately (no waiting for React state → effect).
+    if (url === null) {
+      clearBodyBackground();
+    }
+    signAndApply(url, token);
   }, [signAndApply]);
 
   const setBackgroundOpacity = useCallback((opacity: number) => {
