@@ -135,8 +135,9 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
 
         {/* Preview strip — compact */}
         <div className="px-5 pb-3 shrink-0">
-          <ThemePreviewCanvas tokens={tokens} themeName={name} size="sm" />
+          <ThemePreviewCanvas tokens={tokens} themeName={name} size="md" />
         </div>
+
 
         {/* Tab bar */}
         <div className="px-3 shrink-0">
