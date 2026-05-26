@@ -1,6 +1,48 @@
 import { supabase } from '@/integrations/supabase/client';
 import { recordShareTo } from '@/lib/shareRecency';
 
+/**
+ * Send a shared theme to a friend as a DM. Mirrors sendShareToUser but uses
+ * message_type='shared_theme' and stores the shared_theme_id in content.
+ */
+export async function sendThemeToUser(params: {
+  recipientProfileId: string;
+  senderProfileId: string;
+  sharedThemeId: string;
+  themeName?: string;
+}): Promise<boolean> {
+  const { recipientProfileId, senderProfileId, sharedThemeId, themeName } = params;
+  try {
+    const { data: convId, error: convErr } = await supabase.rpc('create_dm_conversation', {
+      other_profile_id: recipientProfileId,
+    });
+    if (convErr || !convId) return false;
+
+    const { error: msgErr } = await supabase.from('messages').insert({
+      conversation_id: convId,
+      sender_id: senderProfileId,
+      content: sharedThemeId,
+      media_url: themeName || null,
+      media_type: 'theme',
+      message_type: 'shared_theme',
+    });
+    if (msgErr) return false;
+
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', convId);
+
+    recordShareTo(recipientProfileId);
+    return true;
+  } catch (err) {
+    console.error('[sendThemeToUser] failed:', err);
+    return false;
+  }
+}
+
+
+
 export type SharePostType = 'video' | 'short' | 'image' | 'post';
 
 interface SendShareToUserParams {
