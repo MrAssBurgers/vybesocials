@@ -50,7 +50,7 @@ export function ProfileSection() {
     setLoading(true);
     haptics.select();
     try {
-      const trimmedUsername = formData.username.trim();
+      const trimmedUsername = formData.username.trim().toLowerCase();
       const trimmedDisplay = formData.display_name.trim();
 
       if (!trimmedUsername) {
@@ -58,6 +58,20 @@ export function ProfileSection() {
       }
       if (!/^[a-zA-Z0-9_.]{3,30}$/.test(trimmedUsername)) {
         throw new Error('Username must be 3-30 chars (letters, numbers, _ or .)');
+      }
+
+      // If the @ changed, verify it's still available server-side before saving.
+      const usernameChanged = trimmedUsername !== (profile?.username || '').toLowerCase();
+      if (usernameChanged) {
+        const { data: existing, error: checkErr } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', trimmedUsername)
+          .maybeSingle();
+        if (checkErr) throw checkErr;
+        if (existing && existing.id !== profile?.id) {
+          throw new Error('That username is already taken');
+        }
       }
 
       const { error } = await updateProfile({
@@ -69,7 +83,7 @@ export function ProfileSection() {
 
       // Show success immediately — the rest is background work.
       haptics.success();
-      toast.success('Profile updated successfully!');
+      toast.success(usernameChanged ? `@${trimmedUsername} saved` : 'Profile updated successfully!');
 
       // Fire-and-forget: challenge sync + cache invalidation should never
       // block the user from seeing their save complete.

@@ -24,6 +24,37 @@ function getFaviconUrl(url: string): string {
   }
 }
 
+async function callGeminiWithRetry(
+  apiKey: string,
+  body: Record<string, unknown>,
+  label: string,
+): Promise<Response | null> {
+  // Try primary model with exponential backoff, then fall back to flash-lite on 503/429.
+  const models = [(body as any).model || 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+  const delays = [0, 1500, 3500];
+  for (const model of models) {
+    for (let i = 0; i < delays.length; i++) {
+      if (delays[i] > 0) await new Promise(r => setTimeout(r, delays[i]));
+      try {
+        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...body, model }),
+        });
+        if (res.ok) return res;
+        if (res.status !== 503 && res.status !== 429 && res.status !== 500 && res.status !== 502) {
+          console.warn(`[${label}] non-retryable ${res.status} on ${model}`);
+          return res;
+        }
+        console.warn(`[${label}] ${res.status} on ${model} attempt ${i + 1}, retrying...`);
+      } catch (e) {
+        console.warn(`[${label}] fetch error on ${model} attempt ${i + 1}:`, e);
+      }
+    }
+  }
+  return null;
+}
+
 async function fetchGeminiNews(
   interests: string[],
   latitude: number | null,
@@ -59,23 +90,16 @@ Rules:
 
   try {
     console.log("[Brief] Calling Lovable AI Gateway for news...");
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gemini-2.5-flash',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2,
-        max_tokens: 8192,
-      }),
-    });
+    const response = await callGeminiWithRetry(GEMINI_API_KEY, {
+      model: 'gemini-2.5-flash',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.2,
+      max_tokens: 8192,
+    }, 'Brief.news');
 
-    if (!response.ok) {
-      const errText = await response.text().catch(() => 'unknown');
-      console.error(`[Brief] AI Gateway error ${response.status}:`, errText);
+    if (!response || !response.ok) {
+      const errText = response ? await response.text().catch(() => 'unknown') : 'no response';
+      console.error(`[Brief] AI Gateway error ${response?.status}:`, errText);
       return [];
     }
 
@@ -380,29 +404,20 @@ serve(async (req) => {
     }
     userPrompt += `Give a quick, personalized summary highlighting what matters most.`;
 
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        max_tokens: 200,
-        temperature: 0.5,
-      }),
-    });
+    const response = await callGeminiWithRetry(GEMINI_API_KEY, {
+      model: "gemini-2.5-flash",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: 200,
+      temperature: 0.5,
+    }, 'Brief.summary');
 
     let summary = "";
-    if (!response.ok) {
-      const errText = await response.text().catch(() => 'unknown');
-      console.warn(`[Brief] AI Gateway error ${response.status} — falling back to deterministic summary:`, errText);
-      // Don't fail the request on 402/429/etc — fall through to the deterministic
-      // summary below so the Daily Brief still renders gracefully.
+    if (!response || !response.ok) {
+      const errText = response ? await response.text().catch(() => 'unknown') : 'no response';
+      console.warn(`[Brief] AI Gateway error ${response?.status} — falling back to deterministic summary:`, errText);
       summary = "";
     } else {
       const data = await response.json();
