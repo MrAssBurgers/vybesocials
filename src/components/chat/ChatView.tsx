@@ -2498,7 +2498,7 @@ const MessageBubble = memo(function MessageBubble({
             // Tap-to-save: only fires on text/emoji bubbles in 1:1 DMs.
             // Media bubbles already handle taps to open the viewer.
             if (!onToggleSaved) return;
-            if (isMediaMessage || isVideoMessage || isVybeMessage || isAudioMessage || isSharedPost) return;
+            if (isMediaMessage || isVideoMessage || isVybeMessage || isAudioMessage || isSharedPost || isSharedTheme) return;
             if (isContextMenuOpen) return;
             // Ignore taps that originated from interactive children
             const target = e.target as HTMLElement;
