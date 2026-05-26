@@ -1,89 +1,49 @@
-## Plan: Stability & ownership pass
+## Clips: scroll + video alignment
 
-### 1. "Cannot update saved state" on DM tap
-The `toggle_message_saved` RPC exists but errors on group messages (sender/recipient columns are NULL for group chats). Fix:
-- In `ChatView.tsx` tap-to-save handler, short-circuit for group conversations and only allow saving in 1:1 DMs (Snapchat-style is a 1:1 concept anyway).
-- In `useToggleSavedMessage` (`src/hooks/useMessages.ts`), inspect the error code: if the RPC returns "no row updated", treat as silent no-op instead of a destructive toast. Show toast only for true network/auth failures.
-- Make the mutation optimistic: flip badge instantly, roll back on error.
+`src/pages/ClipsViewer.tsx` and `src/components/posts/MobileShortCard.tsx`
+- Lock the scroll container to true viewport height and remove conflicting touch handlers that fight the snap scroller:
+  - Container: `h-[100svh]` (small-viewport unit) instead of `100dvh`, add `touch-action: pan-y`, keep `overscroll-contain` + `snap-mandatory`.
+  - Each snap item: `h-[100svh] w-full snap-start snap-always`, and drop the `max-w-[480px]` constraint on mobile — vertical clips should fill the viewport, only desktop gets the centered max-width column.
+- Make video placement consistent: switch the video/img from `object-contain` to `object-cover` for 9:16 clips so they fill the frame instead of letterboxing off-center.
+- Push UI inside iOS safe areas:
+  - Right action rail bottom offset becomes `calc(env(safe-area-inset-bottom) + 88px)`.
+  - Bottom caption block becomes `calc(env(safe-area-inset-bottom) + 16px)`.
+- Stop the media touch handlers from swallowing the snap scroll: change the inner media listener from `onTouchStart/End` to pointer events with `touch-action: pan-y` on the media wrapper so vertical drag still scrolls between clips.
+- The progress-dots strip on `ClipsViewer` stays desktop-only; mobile relies on snap-scroll.
 
-### 2. "Failed to generate theme"
-Edge function `generate-theme` is hitting Gemini 503 rate limits (confirmed in logs from `ai-catch-up`). Fix:
-- Add retry-with-backoff (3 attempts, 1.5s/3s/6s) in `supabase/functions/generate-theme/index.ts`.
-- On final failure, fall back to `google/gemini-2.5-flash-lite` (cheap, almost always available).
-- Surface a clean toast: "AI is busy — try again in a few seconds" instead of a generic error.
+## Hold-to-share drag UX
 
-### 3. Posts & profile images load slowly
-Today posts use plain `<img>` with lazy default. Fix:
-- In `PostCard` / `ProfilePostGrid` / `ClipCard`, mark above-the-fold images `loading="eager"` + `fetchpriority="high"` for the first 6 visible items, lazy for the rest.
-- Add `decoding="async"` everywhere and width/height attrs to lock layout (cuts CLS + decode time).
-- Warm signed URLs in batch on feed fetch (already have batch-sign in `src/lib/signedUrls.ts` — wire it into `usePosts` so URLs are pre-signed before render instead of on-mount).
-- Add `<link rel="preconnect">` for the Supabase storage origin in `index.html`.
+`src/components/share/HoldToShare.tsx` (refactor in place)
+- Increase visual quality so the menu reads as the primary surface:
+  - Larger floating card (`w-[320px]`, `py-3`), brighter `bg-background/95` + `border-primary/20`, soft glow ring.
+  - Avatars become 56px with username chip underneath; hovered avatar gets a glowing primary ring + scale 1.22 + lift -10px.
+- Drag-without-release flow (the part the user says is broken):
+  - `pointerdown` on the share button: start 280 ms hold timer, fire `triggerHaptic('medium')` and open the menu the instant it elapses; do NOT require finger lift.
+  - While the menu is open, finger keeps moving (`pointermove` on `window`): hit-test against `[data-quick-share-target]` and fire `triggerHaptic('light')` once on enter, `triggerHaptic('selection')` once when crossing onto a NEW target.
+  - On `pointerup` over a target: `triggerHaptic('success')`, play the existing shoot-off + paper-plane animation, send via `sendShareToUser`, then close. On `pointerup` off any target: close silently.
+- Use the existing `getQuickShareTargets(profile.id, 4)` so we keep the “top 4 most recently sent friends” behaviour. Add a small empty-state: if there are no recent friends, hold opens the full `ShareSheet` instead (fallback so hold is never a dead gesture).
+- Suppress the trailing synthetic `click` for 400 ms after a successful drag-send so the `ShareSheet` doesn’t pop on release.
 
-### 4. Auto-Pilot mode can't switch between off/suggest/autonomous
-RLS on `dna_agent_settings` is correct, but `setMode` in `useDNAAutoPilot.ts` is fire-and-forget — no error surfacing, no await on UI, and the optimistic state can revert if the upsert silently fails. Fix:
-- Make `updateSettings` properly await and check `error`; on error, roll back optimistic state and toast.
-- Pre-create the row on first load if missing (so the upsert key conflict path is guaranteed).
-- Add 3s timeout so a stuck network doesn't lock the toggle.
-Also speed it up: switch from `setState({...})` then `await upsert` to fire optimistic UI first and run the upsert in background with abort signal.
+## TikTok-style follow `+` button under avatar
 
-### 5. Daily Brief AI not pulling
-`ai-catch-up` logs show repeated 503 from `google/gemini-2.5-pro`. Fix:
-- Switch primary model to `google/gemini-3-flash-preview` (faster, less-throttled per memory).
-- Add backoff retry (same pattern as theme).
-- Cache last successful brief in the DB so when AI is down we still show *something*.
+`src/components/posts/MobileShortCard.tsx` (and mirror in `src/components/posts/ShortCard.tsx` for desktop)
+- Under the right-rail avatar add a new `FollowPlusButton` (new file `src/components/clips/FollowPlusButton.tsx`).
+  - Reads/writes `follows` table (`follower_id = profile.id`, `following_id = post.author.id`) — same pattern as `useProfile.ts`.
+  - Hides itself entirely when `post.author.id === profile.id` or when already following before mount (so we only show `+` for not-yet-followed authors, then morph + disappear).
+- Visual + animation states (Framer Motion):
+  1. **Idle**: pink/primary `+` badge (`h-6 w-6 rounded-full`) overlapping avatar bottom-center, white ring, drop-shadow.
+  2. **Tap**: scale 0.85 → 1.15 spring; swap icon to `Check` with `AnimatePresence mode="popLayout"`.
+  3. **Confetti burst**: render 14 colored particles (reuse the existing heart-burst math from `MobileShortCard`) emitting from the badge center over 600 ms.
+  4. **Follow-through**: badge animates 360 ms toward the avatar center, scales to 0, then unmounts — leaving the avatar with no badge (matches TikTok).
+- DB write is optimistic with rollback on error; toast only on failure (matches project preference for silent success).
+- Reuses existing `triggerHaptic('success')` on confirm.
 
-### 6. @Bakrix (barron.bakic@gmail.com) permanent owner
-Confirmed: profile `e78010f2-d5f1-428b-b5df-8fc6b768772d` (username `mrassburgers`) currently has `admin` + `moderator` but no `owner` role. Plan:
-- Migration: insert `('e78010f2-…','owner')` into `user_roles` (idempotent via `ON CONFLICT DO NOTHING`).
-- Add a hard-coded auth-ID safety net in `useIsOwner.ts` / `isCurrentUserOwner`: if `auth.uid() === '703760a8-1245-4fc1-b242-32619ecc0ef3'`, return `isOwner: true` even if the DB lookup hasn't resolved yet. This guarantees Bakrix never loses access on Live, even if a role row is accidentally removed.
-- Note: migration applies to Test on save and Live on publish — covered.
+## Files touched
 
-### 7. Remove online/offline popup completely
-Per your choice — silent background reconnect.
-- Remove `ConnectionStatusBanner` from `AppLayout` (keep file in case we want it later, but unmount).
-- Remove the "Back online" sonner toast in `src/components/error/GlobalErrorHandler.tsx`.
-- Keep `reconnectManager` running (refetches queries, flushes outbox) — just no UI.
+- edit `src/pages/ClipsViewer.tsx` — svh height, drop mobile max-width, safe-area aware bottom.
+- edit `src/components/posts/MobileShortCard.tsx` — object-cover, pointer-event touch handling, safe-area offsets, mount `FollowPlusButton`.
+- edit `src/components/posts/ShortCard.tsx` — mount `FollowPlusButton` for desktop.
+- rewrite `src/components/share/HoldToShare.tsx` — drag-without-release, polished menu, fallback to `ShareSheet`.
+- new `src/components/clips/FollowPlusButton.tsx` — `+` → check → confetti → fly-into-avatar.
 
-### 8. OneSignal: "never get any push on my phone"
-This is a subscription-side issue, not send-side. Plan:
-- Add a diagnostic surface in Settings → Notifications showing: OneSignal subscription ID, permission state, last-error, and a "Send me a test push" button that calls a new edge function `onesignal-test-push` using your own player ID.
-- Audit `useOneSignal` init flow: ensure `OneSignal.User.PushSubscription.optIn()` is called after permission grant (a missed `optIn()` is the most common cause of "subscribed but no pushes").
-- Verify the OneSignal SDK is initialized on the live domain (`vybehub.app`) and not just preview — `safari_web_id` and `subdomain` need to match the live origin.
-- Check that `external_id` is set to your auth ID so server sends can target you.
-- For Despia wrapped app: confirm the iOS push capability and APNs cert are wired in OneSignal dashboard (I'll surface a clear checklist in the diagnostic panel; the cert itself you have to upload).
-
-### Technical execution order
-```text
-1. Migration: grant owner role to Bakrix profile
-2. Edge functions: generate-theme + ai-catch-up retry/backoff/fallback model
-3. New edge function: onesignal-test-push (diagnostic)
-4. Frontend:
-   - useMessages tap-to-save: group guard + optimistic + silent no-op
-   - useDNAAutoPilot: awaited upsert with rollback + row pre-create
-   - useIsOwner: hard-coded auth-ID safety net for Bakrix
-   - PostCard/ProfilePostGrid/ClipCard: eager loading + batch presigning
-   - index.html: preconnect to storage origin
-   - AppLayout: unmount ConnectionStatusBanner
-   - GlobalErrorHandler: remove back-online toast
-   - Settings → Notifications: OneSignal diagnostic panel
-   - useOneSignal: ensure optIn() + external_id
-```
-
-### Files touched (approx 12)
-- `supabase/migrations/<new>.sql`
-- `supabase/functions/generate-theme/index.ts`
-- `supabase/functions/ai-catch-up/index.ts`
-- `supabase/functions/onesignal-test-push/index.ts` (new)
-- `src/hooks/useMessages.ts`
-- `src/hooks/useDNAAutoPilot.ts`
-- `src/hooks/useIsOwner.ts`
-- `src/components/chat/ChatView.tsx`
-- `src/components/feed/PostCard.tsx` (+ ProfilePostGrid, ClipCard)
-- `src/hooks/usePosts.ts`
-- `index.html`
-- `src/components/layout/AppLayout.tsx`
-- `src/components/error/GlobalErrorHandler.tsx`
-- `src/components/settings/NotificationSettings.tsx` (diagnostic panel)
-- `src/hooks/useOneSignal.ts`
-
-Approve and I'll execute.
+No DB migrations or backend changes — uses the existing `follows` table and existing `getQuickShareTargets` / `sendShareToUser` helpers.
