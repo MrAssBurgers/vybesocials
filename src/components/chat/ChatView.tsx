@@ -104,6 +104,7 @@ import { VideoSendPreview } from './VideoSendPreview';
 import { VideoBubble } from './VideoBubble';
 import { VideoMessageViewer } from './VideoMessageViewer';
 import { SharedPostBubble } from './SharedPostBubble';
+import { SharedThemeMessageBubble } from '@/components/messages/bubbles/SharedThemeMessageBubble';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { saveScrollPosition, restoreScrollPosition } from '@/lib/scrollMemory';
