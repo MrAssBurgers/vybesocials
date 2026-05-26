@@ -1,16 +1,13 @@
 import { useState, useMemo, memo, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, User, Search, TrendingUp, Pencil, Check, X } from 'lucide-react';
-import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, User, TrendingUp, Pencil, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 
 import {
-  usePublicThemes,
   useSavedThemes,
   useMySharedThemes,
   useSaveSharedTheme,
@@ -25,7 +22,6 @@ import {
 import { applyThemeTokens } from '@/hooks/useCustomTheme';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { useTheme } from '@/lib/theme';
 
