@@ -120,6 +120,14 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
     setHasError(true);
   };
 
+  // Re-arm a randomized mid-roll ad timer every time the video starts/resumes playing.
+  // YouTube-style: gap between ads is random (2.5–5 min), so users can't predict them.
+  useEffect(() => {
+    if (!isPlaying) return;
+    const cleanup = scheduleMidVideoAd(true);
+    return cleanup;
+  }, [isPlaying, scheduleMidVideoAd]);
+
   const handleClick = async () => {
     try {
       if (!videoRef.current || hasError) return;
