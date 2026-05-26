@@ -61,7 +61,7 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   const [retryCount, setRetryCount] = useState(0);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
   const adShownRef = useRef(false);
-  const { showVideoAd } = useVideoAds();
+  const { showVideoAd, scheduleMidVideoAd } = useVideoAds();
 
   // Retry loading up to 2 times
   useEffect(() => {
