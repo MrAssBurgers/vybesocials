@@ -17,6 +17,8 @@ export function ThemesSection() {
   return (
     <>
       <div className="space-y-6">
+        <MyCurrentVybeCard />
+
         <Button
           className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 text-base shadow-lg shadow-primary/20 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
           onClick={() => setShowVybeDesigner(true)}
