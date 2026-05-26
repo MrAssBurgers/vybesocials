@@ -1,67 +1,103 @@
-## Goal
+## My VYBE Theme — Showcase, Share & Send
 
-1. Make the splash "Waking up…" progress bar look clean (not squished).
-2. Polish the VybePass / BattlePass level progress card so the bar feels premium.
-3. Replace the plain spinner on the Landing login button with a polished, on-brand loading animation.
-4. When the device comes back online, repaint the **entire** app immediately — no stale data, no manual refresh — without a hard page reload.
+Add a polished "My Current VYBE" card at the top of Settings → Themes → Customize that previews the user's live theme and unlocks a unified Share flow (public, unlisted link, friends-only DM, or private snapshot). Received themes open in a fullscreen preview sheet with one-tap Equip that instantly applies + auto-saves.
 
----
+### 1. `MyCurrentVybeCard` (new) — top of Customize tab
 
-## 1. Splash progress bar — `src/components/ui/SplashScreen.tsx`
+Replaces empty space at top of `ThemesSection`'s Customize tab.
 
-Currently a 3px hairline that on a 384px viewport looks like a thin squashed line.
+- Live mini-preview: rounded card rendered with the user's actual `--primary / --secondary / --accent / --background` tokens, a fake mini chat bubble, a gradient button, a swatch row (4 dots), and a soft animated gradient halo behind it.
+- Title shows the theme's name (or "Untitled VYBE" with inline rename pencil).
+- Two CTAs:
+  - **Share** (primary, gradient) → opens `ShareMyThemeSheet`
+  - **Snapshot** (ghost) → silently saves current tokens to My Themes as a private entry
+- Footer micro-stats if already shared: likes • saves • "Shared 3d ago".
 
-- Widen the bar container from `w-[min(12rem,60vw)]` to `w-[min(16rem,72vw)]` so it has proper presence.
-- Increase track height from `3px` to `6px`, keep `rounded-full`, raise track contrast to `bg-foreground/[0.1]`.
-- Add a soft inner glow on the fill (drop shadow with `--primary` at 35% alpha) and a subtle moving sheen so empty/early-progress states still feel alive.
-- Add a tiny `‎%` label spacing fix (status + percent row): bump font-size from `[11px]` to `[12px]`, use `text-foreground/80` for the percent so it's readable.
-- Keep the existing `barRef` `scaleX` mechanic (no re-render churn).
+### 2. `ShareMyThemeSheet` (new) — bottom sheet
 
-## 2. VybePass / BattlePass level card — `src/components/ui/progress.tsx` + the two cards
+Three vertically stacked, tappable visibility cards (user picks one path, no commit until they confirm — matches "let the user decide"):
 
-Both `BattlePassProgress.tsx` and `VybePassProgress.tsx` use the shadcn `<Progress>`. The bar today is a flat solid primary fill that looks dated next to the rest of the card.
+```text
+┌─────────────────────────────────────┐
+│  ◉ Public                           │
+│    Listed in Browse, anyone can     │
+│    equip. Earns likes + saves.      │
+├─────────────────────────────────────┤
+│  ◉ Unlisted link                    │
+│    Only people with the link.       │
+│    [ Copy link ]                    │
+├─────────────────────────────────────┤
+│  ◉ Send to friends                  │
+│    Pick friends → sends as DM.      │
+│    [ avatar avatar avatar + ]       │
+├─────────────────────────────────────┤
+│  ◉ Private snapshot                 │
+│    Just save to My Themes.          │
+└─────────────────────────────────────┘
+        [   Share   ]
+```
 
-- In `src/components/ui/progress.tsx`, add an optional `variant?: 'default' | 'reward'` prop. The `reward` variant renders the indicator as a gradient (`from-primary via-accent to-primary`), adds `shadow-[0_0_12px_hsl(var(--primary)/0.45)]`, and uses a 600ms `cubic-bezier(0.22,1,0.36,1)` transition.
-- Tighten the bar height in both cards: the compact row uses `h-2` (up from `h-1.5`) and the expanded view uses `h-2.5` (up from `h-2`) with `rounded-full`.
-- Pass `variant="reward"` from `BattlePassProgress` and `VybePassProgress`.
-- Keep all colors as design tokens (no hardcoded hex).
+- Name + optional description fields above the cards (prefilled from current theme).
+- "Send to friends" expands an inline friend picker (reuse existing `ShareSheet` friend list source).
+- Share button text adapts: "Publish" / "Copy link" / "Send to N friends" / "Save".
+- Single mutation underneath: always creates a `shared_themes` row; `is_public` true only for Public path; for Unlisted & Friends, `is_public=false` and the row's `id` is the link slug; Friends path additionally sends a `shared_theme` DM per recipient.
 
-## 3. Login button animation — `src/pages/Landing.tsx`
+### 3. DM `shared_theme` message type
 
-The submit button currently swaps the label for a basic rotating ring.
+- New `message_type = 'shared_theme'`; payload uses existing columns: `content = shared_theme_id`, optional `media_url = preview snapshot url` (skip for v1, render live preview from tokens).
+- New `SharedThemeMessageBubble` renders a compact card in the thread:
+  - 64px square live theme preview (gradient + 3 swatches)
+  - Theme name + "from @sender"
+  - "Tap to preview" hint
+- Tap opens `ReceivedThemeSheet` (fullscreen).
 
-- Replace the loading state with a layered animation:
-  - Three pulsing dots (staggered `0`, `0.15s`, `0.3s` delay) using `bg-white` at 90% alpha, sized `h-2 w-2`, animated via Framer Motion `animate={{ y: [0, -4, 0], opacity: [0.5, 1, 0.5] }}` with `repeat: Infinity, duration: 0.9, ease: 'easeInOut'`.
-  - Keep button height stable (`min-h-[44px]`) so it doesn't jump on state change.
-  - Wrap the label/dots swap in `AnimatePresence mode="wait"` with `fade-in / fade-out` (`0.2s`) so the transition reads as intentional, not abrupt.
-- Apply the same swap to the signup branch (same button).
-- No business-logic changes — purely the visual loading state.
+### 4. `ReceivedThemeSheet` (new) — fullscreen preview
 
-## 4. Instant full refetch on reconnect — `src/lib/reconnectManager.ts`
+- Hero: large animated theme preview (gradient background using shared tokens, mock UI: header chip, message bubble, button, swatch row, sample text in heading font).
+- Below: creator avatar + name, theme name, description, likes/downloads.
+- Sticky bottom action bar:
+  - **Equip** (primary, gradient) — applies tokens instantly via existing `applyThemeToDocument` helper from `useCustomTheme`, calls `useSaveSharedTheme` to auto-save to My Themes, fires haptic + toast "Equipped ✨", closes sheet.
+  - **Just save** (ghost) — only saves, no equip.
+- "Already equipped" / "Saved" pill states replace buttons when applicable.
 
-The reconnect probe already exists, but `fireReconnect` only refetches **stale** active queries, so DMs/feed/notifications often wait until their own staleTime expires before repainting after a reconnect.
+### 5. Schema changes
 
-- In `fireReconnect`, change the invalidate call to:
-  - `queryClient.invalidateQueries({ refetchType: 'active' })` (drop the `isStale()` predicate) so every mounted query refetches the moment we confirm connectivity is back.
-  - Also call `queryClient.resumePausedMutations()` so any DM sends/reactions queued while offline flush right away.
-- Add a one-time `queryClient.refetchQueries({ type: 'active' })` fallback right after invalidate to cover queries that opted out of `refetchOnReconnect`.
-- Drop the offline-poll floor from `OFFLINE_MIN_MS = 3000` to `1500` so detection of "we're back" happens within ~1.5s instead of 3s.
-- Keep the user-listener (`onReconnect`) so feature hooks (chat presence, realtime channels) can also re-bind.
+Migration adds:
+- `shared_themes`: nothing structural needed; `is_public=false` rows already supported. Add index on `id` (PK already covers).
+- RLS update on `shared_themes` SELECT: allow `is_public = true OR creator_id = current_profile_id() OR EXISTS (saved_themes where shared_theme_id = id AND user_id = current_profile_id()) OR EXISTS (messages where message_type='shared_theme' AND content = shared_themes.id::text AND user is conversation member)`. Simplest: also allow SELECT when row id was sent in a DM to the requesting user.
+- Add `'shared_theme'` to any messages CHECK constraint on `message_type` if one exists (verify in migration).
 
-No page reload, no flicker — every component repaints with fresh data within ~1–2s of the network returning.
+### 6. Routing — unlisted link
 
----
+- New route `/theme/:id` → renders `ReceivedThemeSheet` standalone (works for logged-out users too, with Equip gated behind sign-in).
+- Share sheet's "Copy link" copies `https://vybehub.app/theme/{id}`.
 
-## Files touched
+### Technical notes
 
-- `src/components/ui/SplashScreen.tsx` — thicker, wider, glowing splash bar
-- `src/components/ui/progress.tsx` — add `reward` gradient variant
-- `src/components/battlepass/BattlePassProgress.tsx` — use new variant, bump heights
-- `src/components/vybepass/VybePassProgress.tsx` — use new variant, bump heights
-- `src/pages/Landing.tsx` — replace spinner with 3-dot bounce inside `AnimatePresence`
-- `src/lib/reconnectManager.ts` — refetch ALL active queries + faster offline poll
+- All previews use the existing `ThemeTokens` shape from `useCustomTheme`; no new format.
+- Equip reuses `useApplyUserTheme` mutation path (writes to `user_themes` active row) — same as Marketplace "Apply".
+- Auto-save uses existing `useSaveSharedTheme`; swallow `23505` duplicate as silent success.
+- Motion: 0.4s EASE_OUT_EXPO sheet entry; gradient halo on MyCurrentVybeCard uses 300% width looping background (matches Ambient Visual standard).
+- Cards use solid `bg-card` (per perf standard — no backdrop-blur in high-frequency surfaces).
+- DM bubble respects `data-dm-active` visual isolation.
+- All toasts gated by Premium Toast Standards (Equip toast OK — non-routine action).
 
-## Out of scope
+### Files
 
-- No changes to auth flow, RLS, edge functions, or data model.
-- No changes to colors outside the existing semantic tokens.
+**New**
+- `src/components/themes/MyCurrentVybeCard.tsx`
+- `src/components/themes/ThemePreviewCanvas.tsx` (reusable live token preview, used by card + DM bubble + ReceivedThemeSheet)
+- `src/components/themes/ShareMyThemeSheet.tsx`
+- `src/components/themes/ReceivedThemeSheet.tsx`
+- `src/components/messages/bubbles/SharedThemeMessageBubble.tsx`
+- `src/pages/SharedThemeLink.tsx` (route `/theme/:id`)
+
+**Edited**
+- `src/components/settings/ThemesSection.tsx` — mount `MyCurrentVybeCard` above Tabs
+- `src/hooks/useSharedThemes.ts` — extend `useShareTheme` to accept `visibility: 'public' | 'unlisted' | 'friends' | 'private'` and `recipientProfileIds?: string[]`; add `useEquipSharedTheme` that applies tokens + saves in one call
+- `src/lib/sendShareToUser.ts` — add `sendThemeToUser(recipientProfileId, sharedThemeId)` helper
+- Messages thread renderer — route `message_type === 'shared_theme'` to new bubble
+- `src/App.tsx` — register `/theme/:id` route
+
+**Migration**
+- One migration: RLS expansion on `shared_themes` SELECT for recipients; CHECK constraint update on `messages.message_type` if present.
