@@ -67,11 +67,40 @@ serve(async (req) => {
       });
     }
 
-    const { api_base_url, api_key } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { provider_id } = body as { provider_id?: string };
+
+    if (!provider_id || typeof provider_id !== "string") {
+      return new Response(JSON.stringify({
+        error: 'provider_id is required',
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Look up provider credentials server-side — never trust client-supplied keys.
+    const { data: providerRow, error: providerErr } = await admin
+      .from('music_providers')
+      .select('api_base_url, api_key')
+      .eq('provider_id', provider_id)
+      .maybeSingle();
+
+    if (providerErr || !providerRow) {
+      return new Response(JSON.stringify({
+        error: 'Music provider not found',
+      }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const api_base_url = providerRow.api_base_url as string;
+    const api_key = providerRow.api_key as string;
 
     if (!api_base_url || !api_key) {
-      return new Response(JSON.stringify({ 
-        error: 'api_base_url and api_key are required' 
+      return new Response(JSON.stringify({
+        error: 'Provider is missing api_base_url or api_key',
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -87,6 +116,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
 
 
     console.log(`Testing connection to: ${api_base_url}`);
