@@ -167,6 +167,7 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
   // when viewing other users; they should call refreshBackground() on unmount
   // to restore the owner's background.
   const refreshBackground = useCallback(async () => {
+    const token = ++applyTokenRef.current;
     const profileId = profile?.id;
     if (!profileId) {
       rawUrlRef.current = null;
@@ -180,7 +181,7 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
     const equippedTheme = (profile as unknown as { equipped_profile_theme?: string | null })?.equipped_profile_theme;
     if (equippedTheme && THEME_IMAGES[equippedTheme]) {
       rawUrlRef.current = THEME_IMAGES[equippedTheme];
-      await signAndApply(THEME_IMAGES[equippedTheme]);
+      await signAndApply(THEME_IMAGES[equippedTheme], token);
       hasLoadedRef.current = true;
       return;
     }
@@ -195,9 +196,10 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
       const url = data?.image_url ?? null;
       rawUrlRef.current = url;
-      await signAndApply(url);
+      await signAndApply(url, token);
       hasLoadedRef.current = true;
     } catch {
+      if (token !== applyTokenRef.current) return;
       rawUrlRef.current = null;
       setBackground(prev => ({ ...prev, imageUrl: null }));
     }
