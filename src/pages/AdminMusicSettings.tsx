@@ -113,8 +113,8 @@ export default function AdminMusicSettings() {
           method: 'POST',
           headers,
           body: JSON.stringify({
-            api_base_url: provider.api_base_url,
-            api_key: provider.api_key,
+            // Server looks up the api_key by provider_id — never sent from the client.
+            provider_id: provider.provider_id,
           }),
         }
       );
