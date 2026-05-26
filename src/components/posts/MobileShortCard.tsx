@@ -470,17 +470,23 @@ export const MobileShortCard = memo(function MobileShortCard({
       {/* Gradient overlays */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
 
-      {/* Right side actions - responsive sizing for mobile/tablet */}
-      <div className="absolute right-3 sm:right-4 bottom-20 sm:bottom-24 flex flex-col items-center gap-4 sm:gap-5 z-10">
-        {/* Author avatar */}
-        <Link to={`/u/${post.author.username}`} className="relative">
-          <Avatar className="h-11 w-11 sm:h-12 sm:w-12 border-2 border-white shadow-lg">
-            <AvatarImage src={signedAvatarUrl || undefined} />
-            <AvatarFallback className="bg-primary text-white font-bold text-sm sm:text-base">
-              {post.author.username[0].toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-        </Link>
+      {/* Right side actions - responsive sizing for mobile/tablet, safe-area aware */}
+      <div
+        className="absolute right-3 sm:right-4 flex flex-col items-center gap-4 sm:gap-5 z-10"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)' }}
+      >
+        {/* Author avatar with follow + badge */}
+        <div className="relative">
+          <Link to={`/u/${post.author.username}`}>
+            <Avatar className="h-11 w-11 sm:h-12 sm:w-12 border-2 border-white shadow-lg">
+              <AvatarImage src={signedAvatarUrl || undefined} />
+              <AvatarFallback className="bg-primary text-white font-bold text-sm sm:text-base">
+                {post.author.username[0].toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </Link>
+          <FollowPlusButton authorId={post.author.id} />
+        </div>
 
         {/* Like - Reaction Picker */}
         <div className="flex flex-col items-center gap-0.5 sm:gap-1">
@@ -517,7 +523,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         </button>
 
         {/* Share */}
-        <HoldToShare postId={post.id} postType="short" mediaUrl={post.media_url}>
+        <HoldToShare postId={post.id} postType="short" mediaUrl={post.media_url} onTapFallback={handleShare}>
           <button 
             onClick={handleShare} 
             className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
@@ -541,8 +547,11 @@ export const MobileShortCard = memo(function MobileShortCard({
         )}
       </div>
 
-      {/* Bottom info - responsive padding and sizing */}
-      <div className="absolute left-3 sm:left-4 right-16 sm:right-20 bottom-3 sm:bottom-4 z-10">
+      {/* Bottom info - responsive padding and sizing, safe-area aware */}
+      <div
+        className="absolute left-3 sm:left-4 right-16 sm:right-20 z-10"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
+      >
         <div className="flex items-center gap-2 mb-1.5 sm:mb-2 flex-wrap">
           <Link to={`/u/${post.author.username}`} className="flex items-center gap-1.5 sm:gap-2">
             <Avatar className="h-5 w-5 sm:h-6 sm:w-6 border border-white/50">
