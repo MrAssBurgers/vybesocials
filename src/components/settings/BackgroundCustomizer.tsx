@@ -25,6 +25,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -436,13 +439,33 @@ export function BackgroundCustomizer({
   }, [editName, renameBackground]);
 
   const removeBackground = useCallback(async () => {
-    await clearActiveBackground.mutateAsync();
+    // 1. Optimistic: clear body styles + context state instantly
     appBackground?.setBackgroundImage(null);
+    appBackground?.setBackgroundOpacity(1);
+    appBackground?.setBackgroundBlur(0);
+    onOpacityChange(100);
+    onBlurChange(0);
     onBackgroundChange(null);
     setExtractedColors(null);
     setPendingExtractedColors(null);
-    toast.success('Background removed');
-  }, [clearActiveBackground, onBackgroundChange, appBackground]);
+    setImageLoadError(false);
+
+    // 2. Persist
+    try {
+      await clearActiveBackground.mutateAsync();
+      toast.success('Default background restored');
+    } catch (e) {
+      toast.error('Could not save — applied locally');
+    }
+
+    // 3. If a cosmetic theme is still equipped, surface a note
+    const equippedTheme = (profile as any)?.equipped_profile_theme;
+    if (equippedTheme) {
+      toast.message('Cosmetic theme still equipped', {
+        description: 'Unequip it in your Locker to fully clear.',
+      });
+    }
+  }, [clearActiveBackground, onBackgroundChange, onOpacityChange, onBlurChange, appBackground, profile]);
 
   // Handle applying colors from prompt
   const handleApplyColorsFromPrompt = useCallback(() => {
@@ -473,24 +496,35 @@ export function BackgroundCustomizer({
   }, [onBackgroundChange]);
 
   return (
-    <div className="space-y-5 px-1">
-      {/* Error Message */}
+    <div className="space-y-6 px-1">
+      {/* Error banner */}
       {uploadError && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm">
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
           <span>{uploadError}</span>
         </div>
       )}
 
-      {/* Current Background Preview */}
-      <div className="relative">
-        <Label className="text-sm font-medium mb-3 block">Current Background</Label>
-        
-        <div 
+      {/* ────────── 1. Preview card ────────── */}
+      <section className="rounded-2xl border bg-card/60 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-semibold">Current Background</Label>
+          {currentBackground && (
+            <button
+              onClick={removeBackground}
+              className="text-xs text-muted-foreground hover:text-foreground active:scale-95 transition flex items-center gap-1"
+            >
+              <X className="h-3.5 w-3.5" />
+              Reset to default
+            </button>
+          )}
+        </div>
+
+        <div
           className={cn(
-            "relative rounded-xl overflow-hidden border bg-muted/30 transition-all duration-200",
-            "min-h-[120px] sm:min-h-[140px] aspect-[16/9]",
-            isDragging && "border-primary border-2 bg-primary/5"
+            'relative rounded-xl overflow-hidden border bg-muted/30 transition-all',
+            'aspect-[16/9] min-h-[140px]',
+            isDragging && 'border-primary border-2 bg-primary/5'
           )}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -501,220 +535,310 @@ export function BackgroundCustomizer({
               <img
                 src={currentBackground}
                 alt="Background preview"
-                className="absolute inset-0 w-full h-full object-cover object-center"
+                className="absolute inset-0 w-full h-full object-cover"
                 style={{
                   opacity: backgroundOpacity / 100,
                   filter: `blur(${backgroundBlur}px)`,
                 }}
                 onError={handleImageError}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-              
-              {/* Actions */}
-              <div className="absolute top-2 right-2 flex gap-2">
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  className="h-8 w-8 bg-background/80 backdrop-blur-sm"
-                  onClick={removeBackground}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              
+              <div className="absolute inset-0 bg-gradient-to-t from-background/70 to-transparent pointer-events-none" />
               {isExtracting && (
-                <div className="absolute bottom-2 left-2">
-                  <span className="flex items-center gap-1 text-[10px] text-foreground/70 bg-background/60 backdrop-blur-sm px-2 py-1 rounded-md">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Extracting colors...
-                  </span>
-                </div>
+                <span className="absolute bottom-2 left-2 flex items-center gap-1 text-[10px] text-foreground/80 bg-background/70 backdrop-blur-sm px-2 py-1 rounded-md">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Extracting colors…
+                </span>
               )}
             </>
           ) : (
-            <div 
-              className={cn(
-                "flex flex-col items-center justify-center h-full text-muted-foreground cursor-pointer",
-                "hover:bg-accent/5 transition-colors min-h-[120px]"
-              )}
+            <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
+              className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground hover:bg-accent/5 transition-colors"
             >
               {isDragging ? (
                 <>
                   <Upload className="h-8 w-8 text-primary animate-bounce" />
-                  <p className="text-xs mt-2 text-primary">Drop to upload</p>
+                  <p className="text-xs mt-2 text-primary">Drop image here</p>
                 </>
               ) : (
                 <>
-                  <ImageIcon className="h-8 w-8 opacity-50" />
-                  <p className="text-xs mt-2">Drag & drop or click to upload</p>
-                  <p className="text-[10px] opacity-60">JPG, PNG, GIF, WebP • Max 10MB</p>
+                  <ImageIcon className="h-9 w-9 opacity-40" />
+                  <p className="text-sm mt-2">Tap to choose an image</p>
+                  <p className="text-[10px] opacity-60 mt-0.5">or drag & drop • Max 10MB</p>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </section>
+
+      {/* ────────── 2. Source tabs ────────── */}
+      <Tabs defaultValue="library" className="w-full">
+        <TabsList className="grid grid-cols-3 w-full h-11 rounded-xl bg-muted/60 p-1">
+          <TabsTrigger value="library" className="rounded-lg text-xs gap-1.5">
+            <FolderOpen className="h-3.5 w-3.5" />
+            Library
+          </TabsTrigger>
+          <TabsTrigger value="upload" className="rounded-lg text-xs gap-1.5">
+            <Upload className="h-3.5 w-3.5" />
+            Upload
+          </TabsTrigger>
+          <TabsTrigger value="generate" className="rounded-lg text-xs gap-1.5">
+            <Wand2 className="h-3.5 w-3.5" />
+            Generate
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Library panel */}
+        <TabsContent value="library" className="mt-4">
+          <div className="rounded-2xl border bg-card/60 p-4">
+            {isLoadingBackgrounds ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : userBackgrounds.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {userBackgrounds.map((bg) => (
+                  <div
+                    key={bg.id}
+                    className={cn(
+                      'relative group rounded-lg overflow-hidden border cursor-pointer aspect-video',
+                      'transition-all hover:ring-2 hover:ring-primary/50',
+                      bg.is_active && 'ring-2 ring-primary'
+                    )}
+                    onClick={() => handleSelectBackground(bg)}
+                  >
+                    <img
+                      src={bg.image_url}
+                      alt={bg.name || 'Background'}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }}
+                    />
+                    {bg.is_active && (
+                      <div className="absolute top-1 left-1">
+                        <Check className="h-4 w-4 text-primary bg-background/80 rounded-full p-0.5" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-white hover:bg-white/20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingId(bg.id);
+                          setEditName(bg.name || '');
+                        }}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-white hover:bg-destructive/50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirmId(bg.id);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1">
+                      <p className="text-[10px] text-white truncate">{bg.name || 'Untitled'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>No saved backgrounds yet</p>
+                <p className="text-xs mt-1 opacity-70">Upload one or generate with AI</p>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Upload panel */}
+        <TabsContent value="upload" className="mt-4">
+          <div className="rounded-2xl border bg-card/60 p-6">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={cn(
+                'flex flex-col items-center justify-center gap-3 py-8 rounded-xl border-2 border-dashed cursor-pointer',
+                'transition-colors',
+                isDragging ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-accent/5'
+              )}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                  <p className="text-sm text-muted-foreground">Uploading…</p>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-8 w-8 text-primary" />
+                  <div className="text-center">
+                    <p className="text-sm font-medium">Drop an image here</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">or tap to browse</p>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">JPG · PNG · GIF · WebP · Max 10MB</p>
                 </>
               )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </TabsContent>
 
-      {/* Color Matching Section - Simplified */}
-      <AnimatePresence>
-        {currentBackground && extractedColors && onColorsExtracted && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="p-4 rounded-xl border bg-card/50 space-y-3">
-              <div className="flex items-center gap-2">
-                <Pipette className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">Extracted Colors</span>
+        {/* Generate panel */}
+        <TabsContent value="generate" className="mt-4">
+          <div className="rounded-2xl border bg-card/60 p-4 space-y-4">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-2 block">Pick a style</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {AI_BACKGROUND_STYLES.map((style) => {
+                  const Icon = style.icon;
+                  const isLoading = isGenerating && selectedStyle === style.id;
+                  return (
+                    <button
+                      key={style.id}
+                      onClick={() => handleGenerateBackground(style.prompt, style.id)}
+                      disabled={isGenerating}
+                      className={cn(
+                        'p-2.5 rounded-xl border text-center transition-all',
+                        'hover:border-primary/50 hover:bg-primary/5',
+                        'active:scale-95 disabled:opacity-50',
+                        isLoading && 'border-primary bg-primary/10'
+                      )}
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 mx-auto animate-spin text-primary" />
+                      ) : (
+                        <Icon className="h-4 w-4 mx-auto text-muted-foreground" />
+                      )}
+                      <p className="text-[10px] mt-1 truncate">{style.label}</p>
+                    </button>
+                  );
+                })}
               </div>
-              
-              <p className="text-xs text-muted-foreground">
-                Colors detected from your background image
-              </p>
-              
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Palette:</span>
-                <div className="flex gap-1">
-                  {[extractedColors.primary, extractedColors.secondary, extractedColors.accent, extractedColors.background].map((color, i) => (
-                    <div 
-                      key={i}
-                      className="w-6 h-6 rounded-full border border-border/50"
-                      style={{ backgroundColor: `hsl(${color})` }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <Button variant="outline" size="sm" className="w-full" onClick={handleApplyColors}>
-                <Palette className="h-4 w-4 mr-2" />
-                Match UI Colors to Background
-              </Button>
             </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Or describe your own</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="e.g. sunset over the ocean…"
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value)}
+                  className="flex-1"
+                  disabled={isGenerating}
+                />
+                <Button
+                  onClick={() => handleGenerateBackground(customPrompt)}
+                  disabled={!customPrompt.trim() || isGenerating}
+                  className="gap-1.5"
+                >
+                  {isGenerating && !selectedStyle ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  Generate
+                </Button>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* ────────── 3. Adjust (collapsible) ────────── */}
+      <AnimatePresence>
+        {currentBackground && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+          >
+            <Collapsible className="rounded-2xl border bg-card/60 overflow-hidden">
+              <CollapsibleTrigger asChild>
+                <button className="w-full flex items-center justify-between p-4 hover:bg-accent/5 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">Adjust</span>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform data-[state=open]:rotate-180" />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-4 pb-4 space-y-5">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Opacity</Label>
+                    <span className="text-xs font-mono text-muted-foreground">{backgroundOpacity}%</span>
+                  </div>
+                  <Slider
+                    value={[backgroundOpacity]}
+                    onValueChange={([val]) => {
+                      appBackground?.setBackgroundOpacity(val / 100);
+                      onOpacityChange(val);
+                    }}
+                    min={10}
+                    max={100}
+                    step={5}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Blur</Label>
+                    <span className="text-xs font-mono text-muted-foreground">{backgroundBlur}px</span>
+                  </div>
+                  <Slider
+                    value={[backgroundBlur]}
+                    onValueChange={([val]) => {
+                      appBackground?.setBackgroundBlur(val);
+                      onBlurChange(val);
+                    }}
+                    min={0}
+                    max={20}
+                    step={1}
+                  />
+                </div>
+
+                {extractedColors && onColorsExtracted && (
+                  <div className="pt-3 border-t border-border/60 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Pipette className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-xs font-medium">Match UI to image</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {[extractedColors.primary, extractedColors.secondary, extractedColors.accent, extractedColors.background].map((color, i) => (
+                        <div
+                          key={i}
+                          className="w-5 h-5 rounded-full border border-border/50"
+                          style={{ backgroundColor: `hsl(${color})` }}
+                        />
+                      ))}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-auto h-7 text-xs"
+                        onClick={handleApplyColors}
+                      >
+                        <Palette className="h-3 w-3 mr-1" />
+                        Apply
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Color Match Prompt Modal */}
-      <ColorMatchPrompt
-        isOpen={showColorMatchPrompt}
-        onClose={() => setShowColorMatchPrompt(false)}
-        onMatchColors={handleApplyColorsFromPrompt}
-        onKeepColors={handleKeepColors}
-        extractedColors={pendingExtractedColors}
-      />
-
-      {/* My Backgrounds Library */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <FolderOpen className="h-4 w-4 text-primary" />
-          <Label className="text-sm font-medium">My Backgrounds</Label>
-          {isLoadingBackgrounds && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-        </div>
-        
-        {userBackgrounds.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {userBackgrounds.map((bg) => (
-              <div
-                key={bg.id}
-                className={cn(
-                  "relative group rounded-lg overflow-hidden border cursor-pointer aspect-video",
-                  "transition-all duration-200 hover:ring-2 hover:ring-primary/50",
-                  bg.is_active && "ring-2 ring-primary"
-                )}
-                onClick={() => handleSelectBackground(bg)}
-              >
-                <img
-                  src={bg.image_url}
-                  alt={bg.name || 'Background'}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.src = '/placeholder.svg';
-                  }}
-                />
-                
-                {/* Active badge */}
-                {bg.is_active && (
-                  <div className="absolute top-1 left-1">
-                    <Check className="h-4 w-4 text-primary bg-background/80 rounded-full p-0.5" />
-                  </div>
-                )}
-                
-                {/* Hover actions */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 text-white hover:bg-white/20"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingId(bg.id);
-                      setEditName(bg.name || '');
-                    }}
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 text-white hover:bg-destructive/50"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteConfirmId(bg.id);
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-                
-                {/* Name overlay */}
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1">
-                  <p className="text-[10px] text-white truncate">{bg.name || 'Untitled'}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-6 text-muted-foreground text-sm">
-            <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p>No saved backgrounds yet</p>
-            <p className="text-xs">Upload or generate your first background</p>
-          </div>
-        )}
-      </div>
-
-      {/* Upload & Generate Options */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button
-          variant="outline"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading || !userId}
-          className="h-auto py-4 flex flex-col gap-2"
-        >
-          {isUploading ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <Upload className="h-5 w-5" />
-          )}
-          <span className="text-xs">{isUploading ? 'Uploading...' : 'Upload Image'}</span>
-        </Button>
-
-        <Button
-          variant="outline"
-          onClick={() => handleGenerateBackground(customPrompt || 'beautiful abstract gradient')}
-          disabled={isGenerating}
-          className="h-auto py-4 flex flex-col gap-2"
-        >
-          {isGenerating && !selectedStyle ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <Wand2 className="h-5 w-5" />
-          )}
-          <span className="text-xs">AI Generate</span>
-        </Button>
-      </div>
 
       <input
         ref={fileInputRef}
@@ -724,104 +848,14 @@ export function BackgroundCustomizer({
         className="hidden"
       />
 
-      {/* Custom AI Prompt */}
-      <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">Custom AI Prompt</Label>
-        <div className="flex gap-2">
-          <Input
-            placeholder="Describe your ideal background..."
-            value={customPrompt}
-            onChange={(e) => setCustomPrompt(e.target.value)}
-            className="flex-1"
-            disabled={isGenerating}
-          />
-          <Button
-            size="icon"
-            onClick={() => handleGenerateBackground(customPrompt)}
-            disabled={!customPrompt.trim() || isGenerating}
-          >
-            <Sparkles className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Quick Style Buttons */}
-      <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">Quick Styles</Label>
-        <div className="grid grid-cols-4 sm:grid-cols-4 gap-2.5">
-          {AI_BACKGROUND_STYLES.map((style) => {
-            const Icon = style.icon;
-            const isLoading = isGenerating && selectedStyle === style.id;
-            
-            return (
-              <button
-                key={style.id}
-                onClick={() => handleGenerateBackground(style.prompt, style.id)}
-                disabled={isGenerating}
-                className={cn(
-                  "p-3 rounded-xl border text-center transition-all duration-200",
-                  "hover:border-primary/50 hover:bg-primary/5",
-                  "active:scale-95 disabled:opacity-50",
-                  isLoading && "border-primary bg-primary/10"
-                )}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 mx-auto animate-spin" />
-                ) : (
-                  <Icon className="h-4 w-4 mx-auto text-muted-foreground" />
-                )}
-                <p className="text-[10px] mt-1 text-muted-foreground truncate">{style.label}</p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Opacity & Blur Controls */}
-      <AnimatePresence>
-        {currentBackground && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="space-y-4 overflow-hidden"
-          >
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">Opacity</Label>
-                <span className="text-xs font-mono text-muted-foreground">{backgroundOpacity}%</span>
-              </div>
-              <Slider
-                value={[backgroundOpacity]}
-                onValueChange={([val]) => {
-                  appBackground?.setBackgroundOpacity(val / 100);
-                  onOpacityChange(val);
-                }}
-                min={10}
-                max={100}
-                step={5}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">Blur</Label>
-                <span className="text-xs font-mono text-muted-foreground">{backgroundBlur}px</span>
-              </div>
-              <Slider
-                value={[backgroundBlur]}
-                onValueChange={([val]) => {
-                  appBackground?.setBackgroundBlur(val);
-                  onBlurChange(val);
-                }}
-                min={0}
-                max={20}
-                step={1}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Color Match Prompt Modal */}
+      <ColorMatchPrompt
+        isOpen={showColorMatchPrompt}
+        onClose={() => setShowColorMatchPrompt(false)}
+        onMatchColors={handleApplyColorsFromPrompt}
+        onKeepColors={handleKeepColors}
+        extractedColors={pendingExtractedColors}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
@@ -861,15 +895,6 @@ export function BackgroundCustomizer({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Color Match Prompt - shows after adding background */}
-      <ColorMatchPrompt
-        isOpen={showColorMatchPrompt}
-        onClose={() => setShowColorMatchPrompt(false)}
-        onMatchColors={handleApplyColorsFromPrompt}
-        onKeepColors={handleKeepColors}
-        extractedColors={pendingExtractedColors}
-      />
     </div>
   );
 }
