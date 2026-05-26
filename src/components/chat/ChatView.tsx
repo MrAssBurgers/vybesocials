@@ -2386,6 +2386,7 @@ const MessageBubble = memo(function MessageBubble({
   const isVideoMessage = message.media_url && message.media_type === 'video';
   const isVybeMessage = message.media_url && message.media_type === 'vybe';
   const isSharedPost = message.message_type === 'shared_post';
+  const isSharedTheme = message.message_type === 'shared_theme';
 
   return (
     <div 
