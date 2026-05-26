@@ -6,6 +6,7 @@ import { ThemeGallery } from './ThemeGallery';
 import { ThemeMarketplace } from './ThemeMarketplace';
 import { UIBuilder } from './UIBuilder';
 import { AIVybeDesigner } from '@/components/onboarding/AIVybeDesigner';
+import { MyCurrentVybeCard } from '@/components/themes/MyCurrentVybeCard';
 import { AnimatePresence } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
