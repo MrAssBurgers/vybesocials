@@ -179,6 +179,7 @@ const ThemeCard = memo(function ThemeCard({
 export const ThemeMarketplace = memo(function ThemeMarketplace() {
   const { triggerTransition } = useThemeTransition();
   const { setTheme: setGlobalTheme } = useTheme();
+  const { profile } = useAuth();
   
   // Data hooks
   const [searchQuery, setSearchQuery] = useState('');
@@ -191,6 +192,7 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
   // Mutations
   const likeTheme = useLikeTheme();
   const unlikeTheme = useUnlikeTheme();
+  const deleteTheme = useDeleteSharedTheme();
   const importCode = useImportThemeCode();
 
   
