@@ -2809,7 +2809,8 @@ const MessageBubble = memo(function MessageBubble({
               exit={{ opacity: 0, scale: 0.8, y: 10 }}
               transition={{ duration: 0.15 }}
               className={cn(
-                "absolute bottom-full mb-2 bg-background border border-border rounded-full px-2 py-1.5 shadow-xl flex gap-0.5 z-50",
+                "absolute bg-background border border-border rounded-full px-2 py-1.5 shadow-xl flex gap-0.5 z-50 max-w-[calc(100vw-16px)] overflow-x-auto no-scrollbar",
+                reactionsFlipBelow ? "top-full mt-2" : "bottom-full mb-2",
                 isOwn ? "right-0" : "left-0"
               )}
             >
