@@ -475,6 +475,45 @@ export type Database = {
           },
         ]
       }
+      algorithm_settings: {
+        Row: {
+          diversity_max_per_creator: number
+          freshness_half_life_hours: number
+          id: boolean
+          level_curve: Json
+          penalties: Json
+          rookie_pool_pct: number
+          test_pool: Json
+          updated_at: string
+          wave_thresholds: Json
+          weights: Json
+        }
+        Insert: {
+          diversity_max_per_creator?: number
+          freshness_half_life_hours?: number
+          id?: boolean
+          level_curve?: Json
+          penalties?: Json
+          rookie_pool_pct?: number
+          test_pool?: Json
+          updated_at?: string
+          wave_thresholds?: Json
+          weights?: Json
+        }
+        Update: {
+          diversity_max_per_creator?: number
+          freshness_half_life_hours?: number
+          id?: boolean
+          level_curve?: Json
+          penalties?: Json
+          rookie_pool_pct?: number
+          test_pool?: Json
+          updated_at?: string
+          wave_thresholds?: Json
+          weights?: Json
+        }
+        Relationships: []
+      }
       analytics_events: {
         Row: {
           created_at: string
@@ -7691,15 +7730,25 @@ export type Database = {
           ai_override: boolean | null
           author_id: string
           caption: string | null
+          completion_rate: number
           created_at: string
+          current_wave: number
           filter_id: string | null
           has_profanity: boolean | null
           id: string
+          impression_count: number
           is_ai_generated: boolean | null
           is_pinned: boolean | null
           is_sensitive: boolean | null
+          last_ranked_at: string | null
           media_url: string | null
           media_urls: string[] | null
+          not_interested_count: number
+          quality_score: number
+          ranking_score: number
+          report_count: number
+          rewatch_rate: number
+          skip_count: number
           sound_id: string | null
           sound_start_time: number | null
           tags: string[] | null
@@ -7714,15 +7763,25 @@ export type Database = {
           ai_override?: boolean | null
           author_id: string
           caption?: string | null
+          completion_rate?: number
           created_at?: string
+          current_wave?: number
           filter_id?: string | null
           has_profanity?: boolean | null
           id?: string
+          impression_count?: number
           is_ai_generated?: boolean | null
           is_pinned?: boolean | null
           is_sensitive?: boolean | null
+          last_ranked_at?: string | null
           media_url?: string | null
           media_urls?: string[] | null
+          not_interested_count?: number
+          quality_score?: number
+          ranking_score?: number
+          report_count?: number
+          rewatch_rate?: number
+          skip_count?: number
           sound_id?: string | null
           sound_start_time?: number | null
           tags?: string[] | null
@@ -7737,15 +7796,25 @@ export type Database = {
           ai_override?: boolean | null
           author_id?: string
           caption?: string | null
+          completion_rate?: number
           created_at?: string
+          current_wave?: number
           filter_id?: string | null
           has_profanity?: boolean | null
           id?: string
+          impression_count?: number
           is_ai_generated?: boolean | null
           is_pinned?: boolean | null
           is_sensitive?: boolean | null
+          last_ranked_at?: string | null
           media_url?: string | null
           media_urls?: string[] | null
+          not_interested_count?: number
+          quality_score?: number
+          ranking_score?: number
+          report_count?: number
+          rewatch_rate?: number
+          skip_count?: number
           sound_id?: string | null
           sound_start_time?: number | null
           tags?: string[] | null
@@ -12986,6 +13055,7 @@ export type Database = {
         Args: { _action: string; _target_id?: string }
         Returns: number
       }
+      bump_post_impression: { Args: { p_post_id: string }; Returns: undefined }
       bump_reaction_streak: { Args: { p_other_user: string }; Returns: Json }
       calculate_creator_earnings: { Args: never; Returns: Json }
       calculate_level_from_xp: { Args: { p_xp: number }; Returns: number }
@@ -13030,6 +13100,7 @@ export type Database = {
         Returns: Json
       }
       clear_dna_adaptation_data: { Args: never; Returns: undefined }
+      compute_post_ranking: { Args: { p_post_id: string }; Returns: number }
       compute_vybe_dna: { Args: never; Returns: Json }
       confirm_referral_atomic: {
         Args: {
@@ -13188,6 +13259,7 @@ export type Database = {
       }
       get_auth_users_count: { Args: never; Returns: number }
       get_comment_count: { Args: { p_post_id: string }; Returns: number }
+      get_creator_level: { Args: { p_profile_id: string }; Returns: number }
       get_creator_revenue_split: {
         Args: {
           p_source: string
@@ -13454,34 +13526,64 @@ export type Database = {
           username: string
         }[]
       }
-      get_ranked_feed: {
-        Args: {
-          p_content_type?: string
-          p_page?: number
-          p_page_size?: number
-          p_user_id: string
-        }
-        Returns: {
-          author_avatar: string
-          author_id: string
-          author_username: string
-          caption: string
-          comment_count: number
-          created_at: string
-          is_bookmarked: boolean
-          is_liked: boolean
-          is_pinned: boolean
-          like_count: number
-          media_url: string
-          media_urls: string[]
-          post_id: string
-          post_type: string
-          rank_score: number
-          tags: string[]
-          thumbnail_url: string
-          view_count: number
-        }[]
-      }
+      get_ranked_feed:
+        | {
+            Args: {
+              p_content_type?: string
+              p_page?: number
+              p_page_size?: number
+              p_user_id: string
+            }
+            Returns: {
+              author_avatar: string
+              author_id: string
+              author_username: string
+              caption: string
+              comment_count: number
+              created_at: string
+              is_bookmarked: boolean
+              is_liked: boolean
+              is_pinned: boolean
+              like_count: number
+              media_url: string
+              media_urls: string[]
+              post_id: string
+              post_type: string
+              rank_score: number
+              tags: string[]
+              thumbnail_url: string
+              view_count: number
+            }[]
+          }
+        | {
+            Args: {
+              p_category?: string
+              p_content_type?: string
+              p_lat?: number
+              p_limit?: number
+              p_lng?: number
+              p_offset?: number
+              p_radius_miles?: number
+              p_user_id: string
+            }
+            Returns: {
+              author_avatar_url: string
+              author_id: string
+              author_username: string
+              caption: string
+              created_at: string
+              current_wave: number
+              final_score: number
+              id: string
+              media_url: string
+              media_urls: string[]
+              personal_score: number
+              ranking_score: number
+              tags: string[]
+              thumbnail_url: string
+              type: string
+            }[]
+          }
       get_server_role: { Args: { p_server_id: string }; Returns: string }
       get_shared_theme_by_id: {
         Args: { p_theme_id: string }
@@ -13680,6 +13782,7 @@ export type Database = {
           read_ct: number
         }[]
       }
+      recompute_active_rankings: { Args: { p_hours?: number }; Returns: number }
       record_ad_impression: {
         Args: {
           p_campaign_id: string
