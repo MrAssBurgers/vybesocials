@@ -223,17 +223,17 @@ export function ThemeCustomizer() {
   }, [selectedPreset, buildTheme]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header with Save Status */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold flex items-center gap-2 text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-            <Palette className="h-5 w-5 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-            <span>Theme</span>
+          <h3 className="text-base font-semibold flex items-center gap-2 text-foreground">
+            <Palette className="h-4 w-4 text-primary" />
+            <span>Customize</span>
           </h3>
-          <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Customize your VYBE</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Tune your VYBE</p>
         </div>
-        
+
         <AnimatePresence mode="wait">
           {hasChanges && (
             <motion.div
@@ -242,10 +242,10 @@ export function ThemeCustomizer() {
               exit={{ opacity: 0, scale: 0.9 }}
               className="flex gap-2"
             >
-              <Button size="sm" variant="outline" onClick={handleReset} disabled={resetTheme.isPending}>
+              <Button size="sm" variant="ghost" onClick={handleReset} disabled={resetTheme.isPending} className="h-9 w-9 p-0 rounded-xl bg-card/60 backdrop-blur-xl border border-border/50">
                 <RotateCcw className="h-4 w-4" />
               </Button>
-              <Button size="sm" onClick={handleSave} disabled={saveTheme.isPending}>
+              <Button size="sm" onClick={handleSave} disabled={saveTheme.isPending} className="h-9 rounded-xl">
                 {saveTheme.isPending ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />
                 ) : (
@@ -261,23 +261,23 @@ export function ThemeCustomizer() {
       </div>
 
       {/* AI Theme Generator */}
-      <div className="liquid-glass-card p-4 space-y-3 bg-card/60 border border-border">
-        <div className="flex items-center gap-2 text-sm font-medium text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
-          <Wand2 className="h-4 w-4 text-primary drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
+      <div className="liquid-glass-card p-4 space-y-3 rounded-2xl">
+        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <Wand2 className="h-4 w-4 text-primary" />
           <span>AI Theme Designer</span>
         </div>
-        
+
         <div className="relative">
           <Textarea
-            placeholder="Describe your vibe... e.g., 'Ocean sunset with warm oranges' or 'Cyberpunk neon city'"
+            placeholder="Describe your vibe… e.g. 'Ocean sunset with warm oranges'"
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
-            className="min-h-[80px] pr-20 resize-none"
+            className="min-h-[80px] pr-14 resize-none rounded-xl bg-background/40 border-border/50"
             disabled={isGenerating}
           />
           <Button
             size="sm"
-            className="absolute bottom-2 right-2"
+            className="absolute bottom-2 right-2 h-9 w-9 p-0 rounded-xl"
             onClick={handleGenerate}
             disabled={!aiPrompt.trim() || isGenerating}
           >
@@ -292,37 +292,37 @@ export function ThemeCustomizer() {
 
       {/* Quick Presets */}
       <div className="space-y-3">
-        <Label className="text-sm font-medium text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Quick Presets</Label>
-        <div className="grid grid-cols-3 gap-2">
+        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Quick Presets</Label>
+        <div className="grid grid-cols-3 gap-2.5">
           {Object.entries(PRESET_INFO).map(([key, info]) => {
             const preset = THEME_PRESETS[key];
             const isSelected = selectedPreset === key;
-            
+
             return (
               <button
                 key={key}
                 onClick={() => handlePresetSelect(key)}
                 className={cn(
-                  "relative p-3 rounded-xl border transition-all duration-200",
+                  "relative p-3 rounded-2xl border transition-all duration-200 backdrop-blur-xl text-left",
                   "active:scale-[0.97]",
                   isSelected
-                    ? "border-primary bg-primary/10 ring-1 ring-primary/50"
-                    : "border-border hover:border-primary/40"
+                    ? "border-primary bg-primary/10 ring-1 ring-primary/40 shadow-md shadow-primary/10"
+                    : "border-border/50 bg-card/40 hover:border-primary/40"
                 )}
               >
-                <div 
-                  className="w-full h-8 rounded-lg mb-2"
-                  style={{ 
+                <div
+                  className="w-full h-10 rounded-xl mb-2 shadow-inner"
+                  style={{
                     background: `linear-gradient(135deg, hsl(${info.colors[0]}), hsl(${info.colors[1]}))`,
                   }}
                 />
-                <p className="text-xs font-medium truncate">{info.name}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{info.description}</p>
-                
+                <p className="text-xs font-semibold truncate">{info.name}</p>
+                <p className="text-[10px] text-muted-foreground truncate mt-0.5">{info.description}</p>
+
                 {preset.mode === 'dark' ? (
-                  <Moon className="absolute top-2 right-2 h-3 w-3 text-muted-foreground" />
+                  <Moon className="absolute top-2 right-2 h-3 w-3 text-muted-foreground/70" />
                 ) : (
-                  <Sun className="absolute top-2 right-2 h-3 w-3 text-muted-foreground" />
+                  <Sun className="absolute top-2 right-2 h-3 w-3 text-muted-foreground/70" />
                 )}
               </button>
             );
@@ -333,14 +333,14 @@ export function ThemeCustomizer() {
       {/* Background Customization */}
       <Sheet>
         <SheetTrigger asChild>
-          <button className="w-full liquid-glass-card p-4 flex items-center justify-between hover:bg-accent/5 transition-colors">
+          <button className="w-full liquid-glass-card p-4 rounded-2xl flex items-center justify-between hover:bg-accent/5 transition-colors">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/25 to-accent/25 flex items-center justify-center">
                 <Image className="h-5 w-5 text-primary" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-medium">Background Image</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm font-semibold">Background Image</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {backgroundImage ? 'Custom background set' : 'Upload or generate with AI'}
                 </p>
               </div>
@@ -392,14 +392,14 @@ export function ThemeCustomizer() {
       </Sheet>
 
       {/* Quick Settings */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         {/* Animation Speed */}
-        <div className="space-y-2">
-          <Label className="text-xs text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] flex items-center gap-1">
-            <Timer className="h-3 w-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-            <span>Animation</span>
+        <div className="liquid-glass-card p-3 rounded-2xl space-y-2.5">
+          <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+            <Timer className="h-3 w-3" />
+            Animation
           </Label>
-          <div className="grid grid-cols-2 gap-1">
+          <div className="grid grid-cols-2 gap-1.5">
             {ANIMATION_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -408,10 +408,10 @@ export function ThemeCustomizer() {
                   updateSetting('animationSpeed', opt.value);
                 }}
                 className={cn(
-                  "py-1.5 px-2 text-xs rounded-lg border transition-colors drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]",
+                  "py-1.5 px-2 text-xs rounded-lg border transition-colors",
                   animationSpeed === opt.value
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-card/60 hover:border-primary/40 text-foreground"
+                    : "border-border/50 bg-background/30 hover:border-primary/40 text-foreground"
                 )}
               >
                 {opt.label}
@@ -421,12 +421,12 @@ export function ThemeCustomizer() {
         </div>
 
         {/* Border Radius */}
-        <div className="space-y-2">
-          <Label className="text-xs text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] flex items-center gap-1">
-            <Layers className="h-3 w-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-            <span>Corners</span>
+        <div className="liquid-glass-card p-3 rounded-2xl space-y-2.5">
+          <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+            <Layers className="h-3 w-3" />
+            Corners
           </Label>
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-3 gap-1.5">
             {BORDER_RADIUS_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -435,13 +435,13 @@ export function ThemeCustomizer() {
                   updateSetting('borderRadius', opt.value);
                 }}
                 className={cn(
-                  "py-1.5 px-2 text-xs border transition-colors drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]",
+                  "py-1.5 px-2 text-xs border transition-colors",
                   opt.value === 'small' && 'rounded-sm',
                   opt.value === 'medium' && 'rounded-lg',
                   opt.value === 'large' && 'rounded-xl',
                   borderRadius === opt.value
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-card/60 hover:border-primary/40 text-foreground"
+                    : "border-border/50 bg-background/30 hover:border-primary/40 text-foreground"
                 )}
               >
                 {opt.label}
@@ -476,11 +476,11 @@ export function ThemeCustomizer() {
       {currentTheme && (
         <Button
           variant="ghost"
-          className="w-full bg-card/60 border border-border hover:bg-accent text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
+          className="w-full h-12 rounded-2xl bg-card/60 backdrop-blur-xl border border-border/50 hover:bg-accent/10 text-foreground"
           onClick={() => setShowShareDialog(true)}
         >
-          <Share2 className="h-4 w-4 mr-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-          <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Share with Community</span>
+          <Share2 className="h-4 w-4 mr-2" />
+          Share with Community
         </Button>
       )}
 
@@ -542,15 +542,15 @@ export function ThemeCustomizer() {
       </Dialog>
 
       {/* Reset Option */}
-      <div className="pt-4 border-t border-border">
+      <div className="pt-3 border-t border-border/40">
         <Button
           variant="ghost"
-          className="w-full bg-card/60 border border-border text-foreground hover:text-destructive hover:bg-destructive/10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
+          className="w-full h-11 rounded-2xl bg-card/40 backdrop-blur-xl border border-border/40 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
           onClick={handleReset}
           disabled={resetTheme.isPending}
         >
-          <RotateCcw className="h-4 w-4 mr-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-          <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Reset to Default</span>
+          <RotateCcw className="h-4 w-4 mr-2" />
+          Reset to Default
         </Button>
       </div>
     </div>
