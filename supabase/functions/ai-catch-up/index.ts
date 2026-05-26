@@ -24,6 +24,37 @@ function getFaviconUrl(url: string): string {
   }
 }
 
+async function callGeminiWithRetry(
+  apiKey: string,
+  body: Record<string, unknown>,
+  label: string,
+): Promise<Response | null> {
+  // Try primary model with exponential backoff, then fall back to flash-lite on 503/429.
+  const models = [(body as any).model || 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+  const delays = [0, 1500, 3500];
+  for (const model of models) {
+    for (let i = 0; i < delays.length; i++) {
+      if (delays[i] > 0) await new Promise(r => setTimeout(r, delays[i]));
+      try {
+        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...body, model }),
+        });
+        if (res.ok) return res;
+        if (res.status !== 503 && res.status !== 429 && res.status !== 500 && res.status !== 502) {
+          console.warn(`[${label}] non-retryable ${res.status} on ${model}`);
+          return res;
+        }
+        console.warn(`[${label}] ${res.status} on ${model} attempt ${i + 1}, retrying...`);
+      } catch (e) {
+        console.warn(`[${label}] fetch error on ${model} attempt ${i + 1}:`, e);
+      }
+    }
+  }
+  return null;
+}
+
 async function fetchGeminiNews(
   interests: string[],
   latitude: number | null,
