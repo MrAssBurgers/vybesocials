@@ -13399,6 +13399,26 @@ export type Database = {
         }[]
       }
       get_server_role: { Args: { p_server_id: string }; Returns: string }
+      get_shared_theme_by_id: {
+        Args: { p_theme_id: string }
+        Returns: {
+          category: string
+          created_at: string
+          creator_avatar_url: string
+          creator_display_name: string
+          creator_id: string
+          creator_username: string
+          description: string
+          downloads_count: number
+          id: string
+          is_public: boolean
+          layout_settings: Json
+          likes_count: number
+          tags: string[]
+          theme_name: string
+          theme_tokens: Json
+        }[]
+      }
       get_trending_feed: {
         Args: { p_content_type?: string; p_page?: number; p_page_size?: number }
         Returns: {
