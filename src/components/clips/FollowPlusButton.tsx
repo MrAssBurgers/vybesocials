@@ -108,7 +108,7 @@ export const FollowPlusButton = memo(function FollowPlusButton({
       style={{ zIndex: 5 }}
     >
       <AnimatePresence>
-        {phase !== 'gone' && (
+        {(phase as Phase) !== 'gone' && (
           <motion.button
             key="badge"
             type="button"
