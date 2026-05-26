@@ -109,6 +109,7 @@ const Filters = lazy(() => import("@/pages/Filters"));
 const LocalIndex = lazy(() => import("@/pages/LocalIndex"));
 const LocalCity = lazy(() => import("@/pages/LocalCity"));
 const BriefPage = lazy(() => import("@/pages/BriefPage"));
+const SharedThemeLink = lazy(() => import("@/pages/SharedThemeLink"));
 
 // Debug panels — lazy load both
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
