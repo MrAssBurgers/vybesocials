@@ -13526,64 +13526,70 @@ export type Database = {
           username: string
         }[]
       }
-      get_ranked_feed:
-        | {
-            Args: {
-              p_content_type?: string
-              p_page?: number
-              p_page_size?: number
-              p_user_id: string
-            }
-            Returns: {
-              author_avatar: string
-              author_id: string
-              author_username: string
-              caption: string
-              comment_count: number
-              created_at: string
-              is_bookmarked: boolean
-              is_liked: boolean
-              is_pinned: boolean
-              like_count: number
-              media_url: string
-              media_urls: string[]
-              post_id: string
-              post_type: string
-              rank_score: number
-              tags: string[]
-              thumbnail_url: string
-              view_count: number
-            }[]
-          }
-        | {
-            Args: {
-              p_category?: string
-              p_content_type?: string
-              p_lat?: number
-              p_limit?: number
-              p_lng?: number
-              p_offset?: number
-              p_radius_miles?: number
-              p_user_id: string
-            }
-            Returns: {
-              author_avatar_url: string
-              author_id: string
-              author_username: string
-              caption: string
-              created_at: string
-              current_wave: number
-              final_score: number
-              id: string
-              media_url: string
-              media_urls: string[]
-              personal_score: number
-              ranking_score: number
-              tags: string[]
-              thumbnail_url: string
-              type: string
-            }[]
-          }
+      get_ranked_feed: {
+        Args: {
+          p_content_type?: string
+          p_page?: number
+          p_page_size?: number
+          p_user_id: string
+        }
+        Returns: {
+          author_avatar: string
+          author_id: string
+          author_username: string
+          caption: string
+          comment_count: number
+          created_at: string
+          is_bookmarked: boolean
+          is_liked: boolean
+          is_pinned: boolean
+          like_count: number
+          media_url: string
+          media_urls: string[]
+          post_id: string
+          post_type: string
+          rank_score: number
+          tags: string[]
+          thumbnail_url: string
+          view_count: number
+        }[]
+      }
+      get_ranked_feed_v2: {
+        Args: {
+          p_category?: string
+          p_content_type?: string
+          p_lat?: number
+          p_limit?: number
+          p_lng?: number
+          p_offset?: number
+          p_radius_miles?: number
+          p_user_id: string
+        }
+        Returns: {
+          author_avatar_url: string
+          author_id: string
+          author_username: string
+          caption: string
+          comment_count: number
+          created_at: string
+          current_wave: number
+          final_score: number
+          id: string
+          is_bookmarked: boolean
+          is_liked: boolean
+          is_pinned: boolean
+          like_count: number
+          media_url: string
+          media_urls: string[]
+          personal_score: number
+          ranking_score: number
+          reaction_type: string
+          tags: string[]
+          thumbnail_url: string
+          type: string
+          view_count: number
+        }[]
+      }
       get_server_role: { Args: { p_server_id: string }; Returns: string }
       get_shared_theme_by_id: {
         Args: { p_theme_id: string }
