@@ -2506,14 +2506,14 @@ const MessageBubble = memo(function MessageBubble({
           )}
           data-message-id={message.id}
           onClick={(e) => {
-            // Tap-to-save: only fires on text/emoji bubbles in 1:1 DMs.
-            // Media bubbles already handle taps to open the viewer.
+            // Snapchat-style tap-to-save on 1:1 DMs.
             if (!onToggleSaved) return;
-            if (isMediaMessage || isVideoMessage || isVybeMessage || isAudioMessage || isSharedPost || isSharedTheme) return;
+            if (isVybeMessage || isSharedPost || isSharedTheme) return;
             if (isContextMenuOpen) return;
-            // Ignore taps that originated from interactive children
             const target = e.target as HTMLElement;
-            if (target.closest('button, a, input, textarea')) return;
+            // Skip interactive children (play button, audio controls, viewer triggers)
+            if (target.closest('button, a, input, textarea, [data-no-tap-save]')) return;
+            try { (navigator as any)?.vibrate?.(8); } catch {}
             onToggleSaved();
           }}
           onContextMenu={handleContextMenu}
@@ -2748,22 +2748,27 @@ const MessageBubble = memo(function MessageBubble({
           </div>
         )}
 
-        {/* Saved indicator — shows on both sides, Snapchat-style */}
-        {(message.saved_by_sender || message.saved_by_recipient) && (
-          <div className={cn(
-            "flex items-center gap-1 mt-1 text-[10px] font-medium",
-            isOwn ? "self-end text-primary/80" : "self-start text-cyan-400/90"
-          )}>
-            <Bookmark className="h-2.5 w-2.5 fill-current" />
-            <span>
-              {message.saved_by_sender && message.saved_by_recipient
-                ? 'Saved by both'
-                : (message.saved_by_sender === isOwn || message.saved_by_recipient === !isOwn)
-                  ? (isOwn ? (message.saved_by_sender ? 'You saved' : `${sender?.username || 'They'} saved`) : (message.saved_by_recipient ? 'You saved' : `${sender?.username || 'They'} saved`))
-                  : 'Saved'}
-            </span>
-          </div>
-        )}
+        {/* Saved badge — subtle, animated, Snapchat-style */}
+        <AnimatePresence>
+          {(message.saved_by_sender || message.saved_by_recipient) && (
+            <motion.div
+              initial={{ scale: 0, rotate: -30, opacity: 0 }}
+              animate={{ scale: 1, rotate: 0, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 18 }}
+              className={cn(
+                'flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold border',
+                isOwn
+                  ? 'self-end bg-primary/15 text-primary border-primary/30'
+                  : 'self-start bg-cyan-400/15 text-cyan-400 border-cyan-400/30'
+              )}
+              title="Saved — tap message to unsave"
+            >
+              <Bookmark className="h-2.5 w-2.5 fill-current" />
+              <span>Saved</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Timestamp and read receipts - 6-8px below bubble */}
         <div className={cn(

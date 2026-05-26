@@ -53,7 +53,12 @@ export function ReceivedThemeSheet({ open, theme, onClose, asPage = false }: Rec
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-32 overscroll-contain touch-pan-y">
+      <div
+        className="flex-1 overflow-y-auto pb-32 overscroll-contain touch-pan-y page-scroll-fix"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         {/* Hero preview */}
         <div className="px-5 pt-20 pb-6">
           <ThemePreviewCanvas

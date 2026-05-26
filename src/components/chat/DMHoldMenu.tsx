@@ -112,17 +112,17 @@ export const DMHoldMenu = memo(function DMHoldMenu({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="fixed z-[991] top-1/2 -translate-y-1/2 inset-x-0 mx-auto w-[min(260px,calc(100vw-32px))] max-h-[80vh] rounded-2xl bg-white/[0.08] backdrop-blur-xl border border-white/[0.12] shadow-2xl overflow-y-auto"
+            className="fixed z-[991] top-[10vh] inset-x-0 mx-auto w-[min(300px,calc(100vw-24px))] max-h-[80vh] rounded-2xl bg-white/[0.08] backdrop-blur-xl border border-white/[0.12] shadow-2xl overflow-y-auto overscroll-contain"
             style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/[0.08]">
+            <div className="flex flex-wrap items-center justify-around gap-1.5 px-2 py-2 border-b border-white/[0.08]">
               {smartEmojis.map((emoji) => (
                 <button
                   key={emoji}
                   onClick={(e) => { e.stopPropagation(); handleReaction(emoji); }}
                   className={cn(
-                    'text-xl p-0.5 hover:scale-125 active:scale-90 transition-transform rounded-full',
+                    'text-lg p-1 hover:scale-125 active:scale-90 transition-transform rounded-full',
                     userReaction === emoji && 'bg-white/10'
                   )}
                 >
@@ -194,11 +194,11 @@ function MenuRow({ icon: Icon, label, onClick, destructive, muted }: {
     <button
       onClick={onClick}
       className={cn(
-        'w-full px-3.5 py-2.5 text-left text-[13px] font-normal active:bg-white/10 flex items-center gap-2.5 transition-colors',
+        'w-full px-3.5 py-2 text-left text-[12.5px] font-normal active:bg-white/10 flex items-center gap-2.5 transition-colors',
         destructive ? 'text-red-400' : muted ? 'text-white/40' : 'text-white/90'
       )}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="h-3.5 w-3.5" />
       {label}
     </button>
   );
