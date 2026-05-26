@@ -21,15 +21,7 @@ export const SplashScreen = memo(function SplashScreen({
   const statusRef = useRef<HTMLSpanElement>(null);
   const percentRef = useRef<HTMLSpanElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
-  const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * VYBE_TIPS.length));
 
-  useEffect(() => {
-    if (!isVisible) return;
-    const id = setInterval(() => {
-      setTipIndex((i) => (i + 1) % VYBE_TIPS.length);
-    }, 3500);
-    return () => clearInterval(id);
-  }, [isVisible]);
 
   useEffect(() => {
     if (barRef.current) barRef.current.style.transform = `scaleX(${progress / 100})`;
