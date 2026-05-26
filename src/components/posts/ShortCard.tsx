@@ -31,6 +31,7 @@ import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { CommentSheet } from '@/components/comments/CommentSheet';
 import { ShareSheet } from '@/components/share/ShareSheet';
 import { HoldToShare } from '@/components/share/HoldToShare';
+import { FollowPlusButton } from '@/components/clips/FollowPlusButton';
 
 interface ShortCardProps {
   post: {
@@ -551,15 +552,18 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
 
       {/* Right side actions */}
       <div className="absolute right-3 bottom-24 flex flex-col items-center gap-5 z-10">
-        {/* Author avatar */}
-        <Link to={`/u/${post.author.username}`}>
-          <Avatar className="h-12 w-12 border-2 border-white shadow-lg">
-            <AvatarImage src={signedAvatarUrl || undefined} />
-            <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-              {post.author.username[0]?.toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-        </Link>
+        {/* Author avatar with follow + badge */}
+        <div className="relative">
+          <Link to={`/u/${post.author.username}`}>
+            <Avatar className="h-12 w-12 border-2 border-white shadow-lg">
+              <AvatarImage src={signedAvatarUrl || undefined} />
+              <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                {post.author.username[0]?.toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </Link>
+          {post.author?.id && <FollowPlusButton authorId={post.author.id} />}
+        </div>
 
         {/* Like - Reaction Picker */}
         <div className="flex flex-col items-center gap-1">

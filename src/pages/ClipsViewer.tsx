@@ -279,20 +279,21 @@ export default function ClipsViewer() {
     )}>
       <div
         ref={containerRef}
-        className="h-[100dvh] w-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide overscroll-contain"
+        className="h-[100svh] w-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide overscroll-contain"
         style={{
           WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-y',
         }}
       >
         {allClips.map((clip, index) => (
           <div
             key={clip.id}
             ref={(el) => { itemRefs.current[index] = el; }}
-            className="h-[100dvh] w-full snap-start snap-always flex-shrink-0 flex justify-center animate-in fade-in duration-300"
+            className="h-[100svh] w-full snap-start snap-always flex-shrink-0 flex justify-center animate-in fade-in duration-300"
           >
             <div className={cn(
               "relative h-full w-full",
-              "max-w-full sm:max-w-[480px] md:max-w-[420px] lg:max-w-[400px]"
+              "sm:max-w-[480px] md:max-w-[420px] lg:max-w-[400px]"
             )}>
               <CardComponent
                 post={clip}

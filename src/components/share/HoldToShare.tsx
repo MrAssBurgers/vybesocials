@@ -1,10 +1,13 @@
 /**
- * HoldToShare — wraps a share trigger and adds an Instagram/TikTok-style
- * long-press quick menu of the user's top-talked-to friends.
+ * HoldToShare — TikTok/Instagram-style long-press quick-share.
  *
- * Tap behavior is preserved (calls the wrapped child's onClick / opens
- * whatever the parent already does). Hold ~350ms to open the floating
- * avatar bar, drag onto a friend (haptic on hover), release to send.
+ * - Tap = wrapped child's onClick (e.g. open full ShareSheet).
+ * - Hold ~280ms WITHOUT releasing = floating bar of top 4 recent friends opens.
+ * - Drag finger across friends = haptic on hover-enter.
+ * - Release over a friend = send + airplane shoot-off animation.
+ * - Release off-target = silent close.
+ * - If user has zero recent friends, the hold falls back to the tap action
+ *   (so the gesture is never a dead end).
  */
 import {
   memo,
@@ -27,8 +30,8 @@ import { sendShareToUser, type SharePostType } from '@/lib/sendShareToUser';
 import { getQuickShareTargets, type QuickShareTarget } from '@/lib/quickShareTargets';
 import { useQueryClient } from '@tanstack/react-query';
 
-const HOLD_MS = 350;
-const MOVE_CANCEL_PX = 8; // before menu opens, this much movement = treat as scroll, cancel
+const HOLD_MS = 280;
+const MOVE_CANCEL_PX = 10;
 const TARGET_ATTR = 'data-quick-share-target';
 
 interface HoldToShareProps {
@@ -41,6 +44,8 @@ interface HoldToShareProps {
   className?: string;
   /** Disable hold behavior (still renders children & their onClick). */
   disabled?: boolean;
+  /** Fallback fired when hold cannot open the menu (e.g. no recent friends). */
+  onTapFallback?: () => void;
 }
 
 export const HoldToShare = memo(function HoldToShare({
@@ -50,6 +55,7 @@ export const HoldToShare = memo(function HoldToShare({
   children,
   className,
   disabled,
+  onTapFallback,
 }: HoldToShareProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -88,20 +94,23 @@ export const HoldToShare = memo(function HoldToShare({
     async (x: number, y: number) => {
       if (!profile?.id) return;
       const list = await getQuickShareTargets(profile.id, 4);
-      if (list.length === 0) return; // no targets — skip menu, tap handler still works
+      if (list.length === 0) {
+        // Fallback to full share sheet — never leave the gesture hanging.
+        onTapFallback?.();
+        return;
+      }
       triggerHaptic('medium');
       setTargets(list);
       setAnchor({ x, y });
       setOpen(true);
       openRef.current = true;
     },
-    [profile?.id],
+    [profile?.id, onTapFallback],
   );
 
   const handlePointerDown = useCallback(
     (e: ReactPointerEvent) => {
       if (disabled || !profile?.id) return;
-      // Only primary pointer
       if (e.button !== 0 && e.pointerType === 'mouse') return;
       startPointRef.current = { x: e.clientX, y: e.clientY };
       movedRef.current = false;
@@ -119,7 +128,6 @@ export const HoldToShare = memo(function HoldToShare({
   // Global pointer listeners while open OR while waiting for hold.
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      // Pre-open: cancel hold if user scrolls.
       if (!openRef.current) {
         const start = startPointRef.current;
         if (!start) return;
@@ -151,13 +159,10 @@ export const HoldToShare = memo(function HoldToShare({
         return;
       }
 
-      // Menu was open — suppress the synthetic click that follows pointerup.
+      // Suppress synthetic click that follows pointerup so we don't ALSO open ShareSheet.
       suppressClickRef.current = true;
-      window.setTimeout(() => {
-        suppressClickRef.current = false;
-      }, 350);
+      window.setTimeout(() => { suppressClickRef.current = false; }, 400);
 
-      // Released — check final target under pointer
       const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
       const targetEl = el?.closest(`[${TARGET_ATTR}]`) as HTMLElement | null;
       const id = targetEl?.getAttribute(TARGET_ATTR) ?? null;
@@ -166,7 +171,6 @@ export const HoldToShare = memo(function HoldToShare({
         const recipient = targets.find((t) => t.id === id);
         triggerHaptic('success');
         setSentId(id);
-        // Fire send (don't await — UI feedback first)
         sendShareToUser({
           recipientProfileId: id,
           senderProfileId: profile.id,
@@ -177,14 +181,12 @@ export const HoldToShare = memo(function HoldToShare({
           if (ok) {
             queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
             queryClient.invalidateQueries({ queryKey: ['conversations'] });
-            const name =
-              recipient?.display_name || recipient?.username || 'friend';
+            const name = recipient?.display_name || recipient?.username || 'friend';
             toast.success(`Sent to ${name}`);
           } else {
             toast.error('Could not send. Tap to try again.');
           }
         });
-        // Hold menu open briefly to show shoot-off, then close.
         window.setTimeout(() => {
           setSentId(null);
           closeMenu();
@@ -218,7 +220,6 @@ export const HoldToShare = memo(function HoldToShare({
     };
   }, [closeMenu, mediaUrl, postId, postType, profile?.id, queryClient, targets]);
 
-  // Suppress click that fires after a successful long-press release.
   const handleClickCapture = useCallback((e: React.MouseEvent) => {
     if (suppressClickRef.current) {
       e.preventDefault();
@@ -226,17 +227,17 @@ export const HoldToShare = memo(function HoldToShare({
     }
   }, []);
 
-  // Compute floating menu placement (above anchor, clamped to viewport).
+  // Floating menu placement (above anchor, clamped to viewport).
   const menuPos = (() => {
     if (!anchor) return null;
-    const W = 280;
-    const H = 110;
+    const W = 320;
+    const H = 130;
     const margin = 12;
     const vw = typeof window !== 'undefined' ? window.innerWidth : 360;
     const vh = typeof window !== 'undefined' ? window.innerHeight : 640;
     let x = anchor.x - W / 2;
-    let y = anchor.y - H - 24;
-    if (y < margin) y = Math.min(anchor.y + 24, vh - H - margin);
+    let y = anchor.y - H - 28;
+    if (y < margin) y = Math.min(anchor.y + 28, vh - H - margin);
     if (x < margin) x = margin;
     if (x + W > vw - margin) x = vw - margin - W;
     return { x, y, w: W };
@@ -262,16 +263,16 @@ export const HoldToShare = memo(function HoldToShare({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.12 }}
-                  className="fixed inset-0 z-[1100] bg-black/30"
+                  transition={{ duration: 0.14 }}
+                  className="fixed inset-0 z-[1100] bg-black/40"
                   style={{ pointerEvents: 'none' }}
                 />
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.85, y: 8 }}
+                  initial={{ opacity: 0, scale: 0.85, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: 6 }}
-                  transition={{ type: 'spring', stiffness: 320, damping: 24 }}
-                  className="fixed z-[1101] rounded-2xl bg-card/90 backdrop-blur-xl border border-border/60 shadow-2xl px-3 py-2.5"
+                  transition={{ type: 'spring', stiffness: 340, damping: 24 }}
+                  className="fixed z-[1101] rounded-2xl bg-background/95 backdrop-blur-xl border border-primary/20 shadow-2xl shadow-primary/20 px-3 py-3"
                   style={{
                     left: menuPos.x,
                     top: menuPos.y,
@@ -279,7 +280,7 @@ export const HoldToShare = memo(function HoldToShare({
                     pointerEvents: 'none',
                   }}
                 >
-                  <div className="flex items-center gap-1.5 px-1 pb-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  <div className="flex items-center gap-1.5 px-1 pb-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <Send className="h-3 w-3" />
                     Send to…
                   </div>
@@ -291,15 +292,15 @@ export const HoldToShare = memo(function HoldToShare({
                         <div
                           key={t.id}
                           {...{ [TARGET_ATTR]: t.id }}
-                          className="flex flex-col items-center gap-1 px-1 py-1 rounded-xl transition-colors"
+                          className="flex flex-col items-center gap-1.5 px-1 py-1 rounded-xl"
                           style={{ pointerEvents: 'auto' }}
                         >
                           <motion.div
                             animate={
                               isSent
-                                ? { y: -90, opacity: 0, scale: 0.6, rotate: -12 }
+                                ? { y: -120, opacity: 0, scale: 0.5, rotate: -18 }
                                 : isHover
-                                  ? { scale: 1.18, y: -4 }
+                                  ? { scale: 1.22, y: -10 }
                                   : { scale: 1, y: 0 }
                             }
                             transition={
@@ -308,11 +309,13 @@ export const HoldToShare = memo(function HoldToShare({
                                 : { type: 'spring', stiffness: 380, damping: 22 }
                             }
                             className={cn(
-                              'rounded-full ring-2 ring-transparent',
-                              isHover && 'ring-primary shadow-lg shadow-primary/30',
+                              'rounded-full ring-2 transition-shadow',
+                              isHover
+                                ? 'ring-primary shadow-lg shadow-primary/50'
+                                : 'ring-transparent',
                             )}
                           >
-                            <Avatar className="h-12 w-12">
+                            <Avatar className="h-14 w-14">
                               <AvatarImage src={t.avatar_url || undefined} alt={t.username} />
                               <AvatarFallback>
                                 {(t.display_name || t.username || '?').slice(0, 1).toUpperCase()}
@@ -321,7 +324,7 @@ export const HoldToShare = memo(function HoldToShare({
                           </motion.div>
                           <span
                             className={cn(
-                              'text-[10px] font-medium max-w-[60px] truncate transition-colors',
+                              'text-[11px] font-medium max-w-[64px] truncate transition-colors',
                               isHover ? 'text-primary' : 'text-foreground/80',
                             )}
                           >
