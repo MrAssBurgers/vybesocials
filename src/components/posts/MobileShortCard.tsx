@@ -21,6 +21,7 @@ import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { CommentSheet } from '@/components/comments/CommentSheet';
 import { ShareSheet } from '@/components/share/ShareSheet';
 import { HoldToShare } from '@/components/share/HoldToShare';
+import { FollowPlusButton } from '@/components/clips/FollowPlusButton';
 
 interface MobileShortCardProps {
   post: {
