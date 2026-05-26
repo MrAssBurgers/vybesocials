@@ -30,7 +30,7 @@ import { hapticNotification } from '@/lib/capacitor';
  */
 export const REWARD_PER_AD = 25;
 export const DAILY_AD_LIMIT = 10;
-export const COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
+export const COOLDOWN_MS = 15 * 1000; // 15 seconds — feels instant for back-to-back ads
 
 interface RewardState {
   date: string;       // UTC YYYY-MM-DD
