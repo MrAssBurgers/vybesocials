@@ -121,6 +121,15 @@ function clearBodyBackground() {
   applyBodyBackground({ imageUrl: null, opacity: 1, blur: 0 });
 }
 
+/**
+ * Hard reset of body background styles — used by the X button in Background
+ * settings so the user instantly sees the default platform gradient even
+ * before React state propagates.
+ */
+export function hardResetBodyBackground() {
+  clearBodyBackground();
+}
+
 export function AppBackgroundProvider({ children }: { children: ReactNode }) {
   const { user, profile } = useAuth();
   const [background, setBackground] = useState<BackgroundState>({
