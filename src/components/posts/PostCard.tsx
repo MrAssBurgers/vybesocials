@@ -61,7 +61,7 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   const [retryCount, setRetryCount] = useState(0);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
   const adShownRef = useRef(false);
-  const { showVideoAd } = useVideoAds();
+  const { showVideoAd, scheduleMidVideoAd } = useVideoAds();
 
   // Retry loading up to 2 times
   useEffect(() => {
@@ -119,6 +119,14 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
     setIsLoaded(true);
     setHasError(true);
   };
+
+  // Re-arm a randomized mid-roll ad timer every time the video starts/resumes playing.
+  // YouTube-style: gap between ads is random (2.5–5 min), so users can't predict them.
+  useEffect(() => {
+    if (!isPlaying) return;
+    const cleanup = scheduleMidVideoAd(true);
+    return cleanup;
+  }, [isPlaying, scheduleMidVideoAd]);
 
   const handleClick = async () => {
     try {

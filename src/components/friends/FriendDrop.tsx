@@ -479,42 +479,159 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     if (phase === 'exchanging') {
       return (
         <motion.div key="exchanging" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="flex flex-col items-center gap-4 py-10"
+          className="flex flex-col items-center gap-5 py-10"
         >
-          <div className="relative flex items-center">
-            <Avatar className="h-14 w-14 -mr-3 ring-2 ring-card z-10">
-              <AvatarImage src={profile?.avatar_url || ''} />
-              <AvatarFallback className="font-bold">{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <motion.div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center z-20"
-              animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.6, ease: 'linear' }}
+          {/* Two avatars magnetically collide in the middle */}
+          <div className="relative h-24 w-56 flex items-center justify-center">
+            {/* Backdrop glow */}
+            <motion.div
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-primary/40 via-fuchsia-500/30 to-accent/40 blur-2xl"
+              initial={{ width: 0, height: 0, opacity: 0 }}
+              animate={{ width: 160, height: 160, opacity: [0, 0.8, 0.4] }}
+              transition={{ duration: 0.9, ease: 'easeOut' }}
+            />
+            {/* Energy beam between */}
+            <motion.div
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[3px] rounded-full"
+              style={{ background: 'linear-gradient(90deg, transparent, hsl(var(--primary)), #fff, hsl(var(--accent)), transparent)' }}
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: [0, 140, 60], opacity: [0, 1, 0.6] }}
+              transition={{ duration: 0.9, ease: 'easeOut' }}
+            />
+            {/* Left avatar — slides in from the left */}
+            <motion.div
+              className="absolute top-1/2 -translate-y-1/2"
+              initial={{ left: '-10%', scale: 0.85, rotate: -10 }}
+              animate={{ left: ['-10%', '38%', '34%'], scale: [0.85, 1, 1], rotate: [-10, 0, 0] }}
+              transition={{ duration: 0.85, ease: [0.16, 0.9, 0.3, 1] }}
             >
-              <Loader2 className="h-4 w-4 text-primary" />
+              <Avatar className="h-14 w-14 ring-2 ring-primary shadow-[0_0_24px_hsl(var(--primary)/0.7)]">
+                <AvatarImage src={profile?.avatar_url || ''} />
+                <AvatarFallback className="font-bold bg-primary/15 text-primary">{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
             </motion.div>
-            <Avatar className="h-14 w-14 -ml-3 ring-2 ring-card">
-              <AvatarImage src={foundUser?.avatar_url || ''} />
-              <AvatarFallback className="font-bold">{foundUser?.username?.[0]?.toUpperCase()}</AvatarFallback>
-            </Avatar>
+            {/* Right avatar — slides in from the right */}
+            <motion.div
+              className="absolute top-1/2 -translate-y-1/2"
+              initial={{ right: '-10%', scale: 0.85, rotate: 10 }}
+              animate={{ right: ['-10%', '38%', '34%'], scale: [0.85, 1, 1], rotate: [10, 0, 0] }}
+              transition={{ duration: 0.85, ease: [0.16, 0.9, 0.3, 1] }}
+            >
+              <Avatar className="h-14 w-14 ring-2 ring-accent shadow-[0_0_24px_hsl(var(--accent)/0.7)]">
+                <AvatarImage src={foundUser?.avatar_url || ''} />
+                <AvatarFallback className="font-bold bg-accent/15 text-accent-foreground">{foundUser?.username?.[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
+            </motion.div>
+            {/* Spark burst at the collision point */}
+            {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <motion.span
+                key={i}
+                className="absolute top-1/2 left-1/2 w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]"
+                initial={{ x: -3, y: -3, opacity: 0 }}
+                animate={{
+                  x: Math.cos((i * Math.PI) / 4) * 48 - 3,
+                  y: Math.sin((i * Math.PI) / 4) * 48 - 3,
+                  opacity: [0, 1, 0],
+                  scale: [0.4, 1, 0.2],
+                }}
+                transition={{ duration: 0.7, delay: 0.55, ease: 'easeOut' }}
+              />
+            ))}
           </div>
-          <p className="text-sm font-medium text-primary animate-pulse">Connecting…</p>
+          <motion.p
+            initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15 }}
+            className="text-sm font-semibold bg-gradient-to-r from-primary via-fuchsia-400 to-accent bg-clip-text text-transparent"
+          >
+            Linking vybes…
+          </motion.p>
         </motion.div>
       );
     }
 
     if (phase === 'success') {
       return (
-        <motion.div key="success" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-          className="flex flex-col items-center gap-4 py-10"
+        <motion.div key="success" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="relative flex flex-col items-center gap-4 py-10 overflow-hidden"
         >
-          <motion.div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-[0_0_30px_hsl(var(--primary)/0.6)]"
-            initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ ...smoothSpring, bounce: 0.5 }}
+          {/* Shockwave rings */}
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={`wave-${i}`}
+              className="absolute top-[88px] left-1/2 -translate-x-1/2 rounded-full border-2 border-primary/50"
+              initial={{ width: 0, height: 0, opacity: 0.9 }}
+              animate={{ width: 280, height: 280, opacity: 0, x: '-50%', y: '-50%' }}
+              transition={{ duration: 1.4, delay: i * 0.18, ease: 'easeOut' }}
+            />
+          ))}
+          {/* Confetti shower */}
+          {Array.from({ length: 18 }).map((_, i) => {
+            const colors = ['#8b5cf6', '#06b6d4', '#ec4899', '#f59e0b', '#22c55e', '#ef4444'];
+            const x = (i - 9) * 14 + (Math.random() * 10 - 5);
+            const drift = Math.random() * 30 - 15;
+            return (
+              <motion.span
+                key={`c-${i}`}
+                className="absolute top-1/2 left-1/2 w-2 h-3 rounded-sm"
+                style={{ background: colors[i % colors.length] }}
+                initial={{ x: 0, y: 0, opacity: 1, rotate: 0 }}
+                animate={{
+                  x: x + drift,
+                  y: [-10, 120 + Math.random() * 40],
+                  rotate: Math.random() * 720 - 360,
+                  opacity: [1, 1, 0],
+                }}
+                transition={{ duration: 1.4, delay: 0.1 + Math.random() * 0.25, ease: [0.2, 0.7, 0.4, 1] }}
+              />
+            );
+          })}
+          {/* Big check medallion with halo */}
+          <motion.div
+            className="relative z-10 h-20 w-20 rounded-full bg-gradient-to-br from-primary via-fuchsia-500 to-accent flex items-center justify-center shadow-[0_0_40px_hsl(var(--primary)/0.7)]"
+            initial={{ scale: 0, rotate: -45 }}
+            animate={{ scale: [0, 1.25, 1], rotate: [-45, 8, 0] }}
+            transition={{ duration: 0.7, ease: [0.16, 1.2, 0.3, 1] }}
           >
-            <Check className="h-8 w-8 text-primary-foreground" strokeWidth={3} />
+            <motion.div
+              className="absolute -inset-2 rounded-full border-2 border-white/40"
+              initial={{ scale: 0.4, opacity: 0 }}
+              animate={{ scale: [0.4, 1.4], opacity: [0.7, 0] }}
+              transition={{ duration: 0.9, ease: 'easeOut' }}
+            />
+            <Check className="h-10 w-10 text-white drop-shadow" strokeWidth={3.5} />
           </motion.div>
-          <div className="text-center">
-            <h3 className="text-base font-bold">Friend added 🎉</h3>
-            {foundUser && <p className="text-xs text-muted-foreground mt-0.5">@{foundUser.username}</p>}
-          </div>
+          {/* Tiny avatar pair under the check */}
+          {foundUser && (
+            <motion.div
+              className="relative flex items-center -mt-1 z-10"
+              initial={{ y: 8, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.35, ...smoothSpring }}
+            >
+              <Avatar className="h-9 w-9 ring-2 ring-card -mr-2">
+                <AvatarImage src={profile?.avatar_url || ''} />
+                <AvatarFallback className="text-xs font-bold">{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <Avatar className="h-9 w-9 ring-2 ring-card">
+                <AvatarImage src={foundUser.avatar_url || ''} />
+                <AvatarFallback className="text-xs font-bold">{foundUser.username[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
+            </motion.div>
+          )}
+          <motion.div
+            className="text-center z-10"
+            initial={{ y: 10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.4 }}
+          >
+            <h3 className="text-xl font-extrabold bg-gradient-to-r from-primary via-fuchsia-400 to-accent bg-clip-text text-transparent">
+              You're connected!
+            </h3>
+            {foundUser && (
+              <p className="text-xs text-muted-foreground mt-1">
+                @{profile?.username} <span className="text-primary mx-1">×</span> @{foundUser.username}
+              </p>
+            )}
+          </motion.div>
         </motion.div>
       );
     }
