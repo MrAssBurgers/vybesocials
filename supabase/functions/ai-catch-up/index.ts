@@ -404,29 +404,20 @@ serve(async (req) => {
     }
     userPrompt += `Give a quick, personalized summary highlighting what matters most.`;
 
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        max_tokens: 200,
-        temperature: 0.5,
-      }),
-    });
+    const response = await callGeminiWithRetry(GEMINI_API_KEY, {
+      model: "gemini-2.5-flash",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: 200,
+      temperature: 0.5,
+    }, 'Brief.summary');
 
     let summary = "";
-    if (!response.ok) {
-      const errText = await response.text().catch(() => 'unknown');
-      console.warn(`[Brief] AI Gateway error ${response.status} — falling back to deterministic summary:`, errText);
-      // Don't fail the request on 402/429/etc — fall through to the deterministic
-      // summary below so the Daily Brief still renders gracefully.
+    if (!response || !response.ok) {
+      const errText = response ? await response.text().catch(() => 'unknown') : 'no response';
+      console.warn(`[Brief] AI Gateway error ${response?.status} — falling back to deterministic summary:`, errText);
       summary = "";
     } else {
       const data = await response.json();
