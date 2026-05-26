@@ -35,7 +35,6 @@ interface MusicProvider {
   provider_id: string;
   provider_name: string;
   api_base_url: string;
-  api_key: string;
   is_active: boolean;
   created_at: string;
 }
@@ -60,13 +59,14 @@ export default function AdminMusicSettings() {
 
   const loadProviders = async () => {
     try {
+      // Note: api_key is intentionally NOT selected — it is write-only from the client.
       const { data, error } = await supabase
         .from('music_providers')
-        .select('*')
+        .select('provider_id, provider_name, api_base_url, is_active, created_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setProviders(data || []);
+      setProviders((data as MusicProvider[]) || []);
     } catch (error) {
       console.error('Error loading providers:', error);
       toast.error('Failed to load music providers');
@@ -87,12 +87,12 @@ export default function AdminMusicSettings() {
           api_key: newProvider.api_key,
           is_active: false
         }])
-        .select()
+        .select('provider_id, provider_name, api_base_url, is_active, created_at')
         .single();
 
       if (error) throw error;
 
-      setProviders(prev => [data, ...prev]);
+      setProviders(prev => [data as MusicProvider, ...prev]);
       setNewProvider({ provider_name: '', api_base_url: '', api_key: '' });
       setAddDialogOpen(false);
       toast.success('Provider added successfully');
@@ -113,8 +113,8 @@ export default function AdminMusicSettings() {
           method: 'POST',
           headers,
           body: JSON.stringify({
-            api_base_url: provider.api_base_url,
-            api_key: provider.api_key,
+            // Server looks up the api_key by provider_id — never sent from the client.
+            provider_id: provider.provider_id,
           }),
         }
       );
