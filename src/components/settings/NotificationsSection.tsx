@@ -97,6 +97,39 @@ export function NotificationsSection() {
                   className="mt-1"
                 />
               </div>
+              {pushSubscribed && profile?.id && (
+                <div className="mt-3 pt-3 border-t border-border/40">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={async () => {
+                      haptics.tap();
+                      try {
+                        const { error } = await supabase.functions.invoke('send-push-notification', {
+                          body: {
+                            userId: profile.id,
+                            title: 'VYBE test push 🚀',
+                            body: 'If you see this, push is working on this device.',
+                            tag: 'test-push',
+                          },
+                        });
+                        if (error) throw error;
+                        toast.success('Test push sent — check your lock screen!');
+                      } catch (e: any) {
+                        toast.error(e?.message || 'Could not send test push');
+                      }
+                    }}
+                  >
+                    Send me a test push
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground/80 mt-2">
+                    If you don't get one within ~10 seconds, push isn't wired to this device yet —
+                    turn the toggle off and back on, or reinstall the app.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* What you'll receive */}

@@ -58,11 +58,19 @@ export function useDNAAutoPilot() {
 
   const updateSettings = useCallback(async (patch: Partial<AutoPilotSettings>) => {
     if (!user?.id) return;
-    setSettings(prev => prev ? { ...prev, ...patch } : prev);
+    const prev = settings;
+    // Optimistic update for instant UI feedback
+    setSettings(p => p ? { ...p, ...patch } : { ...(patch as any), user_id: user.id });
     const merged = { ...(settings || {} as any), ...patch, user_id: user.id };
-    // strip read-only fields
     const { last_run_at, created_at, updated_at, ...payload } = merged as any;
-    await supabase.from('dna_agent_settings').upsert(payload, { onConflict: 'user_id' });
+    const { error } = await supabase
+      .from('dna_agent_settings')
+      .upsert(payload, { onConflict: 'user_id' });
+    if (error) {
+      console.error('[AutoPilot] setting save failed', error);
+      setSettings(prev); // rollback
+      toast.error('Could not save Auto-Pilot setting. Try again.');
+    }
   }, [user?.id, settings]);
 
   const setMode = useCallback(async (mode: AutoPilotMode) => {

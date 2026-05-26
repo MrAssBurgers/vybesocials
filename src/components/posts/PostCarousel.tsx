@@ -31,7 +31,9 @@ function CarouselImage({ url }: { url: string }) {
         )}
         onLoad={() => setLoaded(true)}
         onError={() => setHasError(true)}
-        loading="lazy"
+        loading="eager"
+        decoding="async"
+        fetchPriority="high"
       />
     </div>
   );
