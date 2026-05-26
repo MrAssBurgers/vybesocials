@@ -10,6 +10,13 @@ import { supabase } from '@/integrations/supabase/client';
 // Owner username - must match OwnerBadge.tsx
 const OWNER_USERNAME = 'mrassburgers';
 
+// Permanent owner auth ID — @Bakrix (barron.bakic@gmail.com). This account
+// ALWAYS has owner privileges regardless of role-table state to guarantee
+// the founder never loses access on Live.
+const OWNER_AUTH_ID_ALLOWLIST = new Set<string>([
+  '703760a8-1245-4fc1-b242-32619ecc0ef3',
+]);
+
 // Cache the owner status to avoid repeated checks
 let cachedOwnerStatus: { userId: string; isOwner: boolean } | null = null;
 
@@ -24,6 +31,12 @@ export async function isCurrentUserOwner(): Promise<boolean> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
+
+    // Hard-coded safety net: founder is ALWAYS owner.
+    if (OWNER_AUTH_ID_ALLOWLIST.has(user.id)) {
+      cachedOwnerStatus = { userId: user.id, isOwner: true };
+      return true;
+    }
 
     // Check cache
     if (cachedOwnerStatus?.userId === user.id) {
