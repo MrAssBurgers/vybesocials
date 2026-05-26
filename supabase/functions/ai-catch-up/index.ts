@@ -90,23 +90,16 @@ Rules:
 
   try {
     console.log("[Brief] Calling Lovable AI Gateway for news...");
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gemini-2.5-flash',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2,
-        max_tokens: 8192,
-      }),
-    });
+    const response = await callGeminiWithRetry(GEMINI_API_KEY, {
+      model: 'gemini-2.5-flash',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.2,
+      max_tokens: 8192,
+    }, 'Brief.news');
 
-    if (!response.ok) {
-      const errText = await response.text().catch(() => 'unknown');
-      console.error(`[Brief] AI Gateway error ${response.status}:`, errText);
+    if (!response || !response.ok) {
+      const errText = response ? await response.text().catch(() => 'unknown') : 'no response';
+      console.error(`[Brief] AI Gateway error ${response?.status}:`, errText);
       return [];
     }
 
