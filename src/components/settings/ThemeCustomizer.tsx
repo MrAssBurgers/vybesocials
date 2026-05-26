@@ -333,14 +333,14 @@ export function ThemeCustomizer() {
       {/* Background Customization */}
       <Sheet>
         <SheetTrigger asChild>
-          <button className="w-full liquid-glass-card p-4 flex items-center justify-between hover:bg-accent/5 transition-colors">
+          <button className="w-full liquid-glass-card p-4 rounded-2xl flex items-center justify-between hover:bg-accent/5 transition-colors">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/25 to-accent/25 flex items-center justify-center">
                 <Image className="h-5 w-5 text-primary" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-medium">Background Image</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm font-semibold">Background Image</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {backgroundImage ? 'Custom background set' : 'Upload or generate with AI'}
                 </p>
               </div>
