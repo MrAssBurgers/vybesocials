@@ -35,7 +35,7 @@ const OPTIONS: Array<{
 export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareMyThemeSheetProps) {
   const [name, setName] = useState(initialName || tokens.themeName || 'My VYBE');
   const [description, setDescription] = useState('');
-  const [visibility, setVisibility] = useState<ThemeShareVisibility>('public');
+  const [visibility, setVisibility] = useState<ThemeShareVisibility>('friends');
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
   const [friendQuery, setFriendQuery] = useState('');
   const [createdLink, setCreatedLink] = useState<string | null>(null);
@@ -47,11 +47,12 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
     if (open) {
       setName(initialName || tokens.themeName || 'My VYBE');
       setDescription('');
-      setVisibility('public');
+      setVisibility('friends');
       setSelectedFriends([]);
       setCreatedLink(null);
     }
   }, [open, initialName, tokens.themeName]);
+
 
   const filteredFriends = (friends as any[]).filter((f) => {
     if (!friendQuery.trim()) return true;
