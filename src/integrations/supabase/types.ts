@@ -6733,6 +6733,68 @@ export type Database = {
           },
         ]
       }
+      moderation_feedback: {
+        Row: {
+          categories: string[] | null
+          content_type: string
+          created_at: string
+          feedback_type: string
+          id: string
+          notes: string | null
+          scan_reason: string | null
+          user_id: string
+        }
+        Insert: {
+          categories?: string[] | null
+          content_type: string
+          created_at?: string
+          feedback_type: string
+          id?: string
+          notes?: string | null
+          scan_reason?: string | null
+          user_id: string
+        }
+        Update: {
+          categories?: string[] | null
+          content_type?: string
+          created_at?: string
+          feedback_type?: string
+          id?: string
+          notes?: string | null
+          scan_reason?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderation_feedback_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "invite_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "moderation_feedback_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "moderation_feedback_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "moderation_feedback_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "xp_leaderboard"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
       moderator_applications: {
         Row: {
           admin_notes: string | null
