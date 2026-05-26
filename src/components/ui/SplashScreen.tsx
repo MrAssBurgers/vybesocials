@@ -180,29 +180,6 @@ export const SplashScreen = memo(function SplashScreen({
             </div>
           </motion.div>
 
-          {/* Rotating tip */}
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.9, duration: 0.5, ease: 'easeOut' }}
-            className="mt-8 w-[min(22rem,82vw)] min-h-[3.5rem] text-center flex flex-col items-center gap-1.5"
-          >
-            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60 font-semibold">
-              Tip
-            </span>
-            <AnimatePresence mode="wait">
-              <motion.p
-                key={tipIndex}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                className="text-sm text-muted-foreground/85 leading-snug"
-              >
-                {VYBE_TIPS[tipIndex]}
-              </motion.p>
-            </AnimatePresence>
-          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
