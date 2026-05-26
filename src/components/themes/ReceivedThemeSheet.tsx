@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { X, Sparkles, Bookmark, Heart, Download, ArrowLeft } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -148,10 +149,12 @@ export function ReceivedThemeSheet({ open, theme, onClose, asPage = false }: Rec
   );
 
   if (asPage) {
-    return <div className="fixed inset-0 z-50">{content}</div>;
+    return <div className="fixed inset-0 z-[9999]">{content}</div>;
   }
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && theme && (
         <motion.div
@@ -159,7 +162,9 @@ export function ReceivedThemeSheet({ open, theme, onClose, asPage = false }: Rec
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[100]"
+          className="fixed inset-0 z-[9999]"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           <motion.div
             initial={{ y: '100%' }}
@@ -172,6 +177,7 @@ export function ReceivedThemeSheet({ open, theme, onClose, asPage = false }: Rec
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

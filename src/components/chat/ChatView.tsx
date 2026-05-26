@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, memo, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -2302,6 +2302,17 @@ const MessageBubble = memo(function MessageBubble({
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'gif' | 'video'; senderName?: string; timestamp?: string } | null>(null);
   const isContextMenuOpen = showContextMenu || forceShowContextMenu;
+  const bubbleWrapperRef = useRef<HTMLDivElement>(null);
+  const [reactionsFlipBelow, setReactionsFlipBelow] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!showReactions) { setReactionsFlipBelow(false); return; }
+    const el = bubbleWrapperRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    // Pill is ~44px tall + 8px gap. Flip if not enough headroom.
+    setReactionsFlipBelow(r.top < 64);
+  }, [showReactions]);
 
   useEffect(() => {
     if (hasAnyViews && !showVybeViewer) {
@@ -2414,7 +2425,7 @@ const MessageBubble = memo(function MessageBubble({
         {!isOwn && !showAvatar && <div className="w-8 sm:w-9 flex-shrink-0" />}
 
         {/* Message content wrapper - auto width based on content */}
-        <div className={cn('flex flex-col min-w-0 max-w-full', isOwn ? 'items-end' : 'items-start')}>
+        <div ref={bubbleWrapperRef} className={cn('relative flex flex-col min-w-0 max-w-full', isOwn ? 'items-end' : 'items-start')}>
         {/* Reply preview - clickable to scroll to original message */}
         {repliedMessage && (
           <button
@@ -2798,7 +2809,8 @@ const MessageBubble = memo(function MessageBubble({
               exit={{ opacity: 0, scale: 0.8, y: 10 }}
               transition={{ duration: 0.15 }}
               className={cn(
-                "absolute bottom-full mb-2 bg-background border border-border rounded-full px-2 py-1.5 shadow-xl flex gap-0.5 z-50",
+                "absolute bg-background border border-border rounded-full px-2 py-1.5 shadow-xl flex gap-0.5 z-50 max-w-[calc(100vw-16px)] overflow-x-auto no-scrollbar",
+                reactionsFlipBelow ? "top-full mt-2" : "bottom-full mb-2",
                 isOwn ? "right-0" : "left-0"
               )}
             >

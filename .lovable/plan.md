@@ -1,103 +1,43 @@
-## My VYBE Theme — Showcase, Share & Send
+## What's broken
 
-Add a polished "My Current VYBE" card at the top of Settings → Themes → Customize that previews the user's live theme and unlocks a unified Share flow (public, unlisted link, friends-only DM, or private snapshot). Received themes open in a fullscreen preview sheet with one-tap Equip that instantly applies + auto-saves.
+**1. Tapping a shared theme in a DM is glitchy / doesn't open cleanly**
 
-### 1. `MyCurrentVybeCard` (new) — top of Customize tab
+`SharedThemeMessageBubble` renders a `<button>` that opens `ReceivedThemeSheet`. The sheet is rendered as a sibling of the bubble (inside the message row in `ChatView`), with:
 
-Replaces empty space at top of `ThemesSection`'s Customize tab.
+- `z-[100]` — too low. Chat overlay (`data-dm-active`), top bar, and several chat sheets sit above this, so the sheet can appear behind the chat header / nav.
+- It is **not portaled** to `document.body`, so it inherits transforms, `overflow-hidden`, and pointer handlers from the message row → click sometimes opens then immediately dismisses, animation jumps.
+- Tap on the bubble bubbles up to the row's `onClick` / long-press handlers in some cases.
 
-- Live mini-preview: rounded card rendered with the user's actual `--primary / --secondary / --accent / --background` tokens, a fake mini chat bubble, a gradient button, a swatch row (4 dots), and a soft animated gradient halo behind it.
-- Title shows the theme's name (or "Untitled VYBE" with inline rename pencil).
-- Two CTAs:
-  - **Share** (primary, gradient) → opens `ShareMyThemeSheet`
-  - **Snapshot** (ghost) → silently saves current tokens to My Themes as a private entry
-- Footer micro-stats if already shared: likes • saves • "Shared 3d ago".
+**2. Long-press menu on a DM message falls off the screen**
 
-### 2. `ShareMyThemeSheet` (new) — bottom sheet
+The `DMHoldMenu` itself is centered and fine. The bug is the **separate "Quick reactions popup"** in `ChatView.tsx` (lines ~2792–2820), positioned `absolute bottom-full mb-2` relative to the bubble. When the held message sits near the top of the viewport, the popup renders above the screen edge and is partially/fully clipped.
 
-Three vertically stacked, tappable visibility cards (user picks one path, no commit until they confirm — matches "let the user decide"):
+## Fix
+
+### A. Shared theme tap — make it solid
+
+- `src/components/themes/ReceivedThemeSheet.tsx`
+  - Wrap the overlay in `createPortal(..., document.body)` so it escapes the chat row's stacking/transform context.
+  - Raise z-index from `z-[100]` → `z-[9999]` (matches `VybeViewer`, the standard fullscreen-over-DM layer).
+  - Add `onClick={(e) => e.stopPropagation()}` on the inner content so taps inside the sheet don't bubble.
+- `src/components/messages/bubbles/SharedThemeMessageBubble.tsx`
+  - Add `onClick={(e) => { e.stopPropagation(); setOpen(true); }}` and `onPointerDown={(e) => e.stopPropagation()}` so the message row's tap / long-press handlers don't fight the button.
+  - Disable the open transition flicker by guarding `setOpen(true)` only when `theme` is resolved (currently still fires while `disabled`).
+
+### B. Long-press quick-reactions popup — keep it on screen
+
+- `src/components/chat/ChatView.tsx` (the inline reactions popup ~line 2792)
+  - Measure the bubble position on open with `getBoundingClientRect()` (via a ref + `useLayoutEffect` when `showReactions` flips true).
+  - If `rect.top < 80` (not enough room above for the ~48px pill + safe area), render the popup **below** the bubble: swap `bottom-full mb-2` → `top-full mt-2`.
+  - Clamp horizontal alignment so it never overflows: if `isOwn` and `rect.right > viewportWidth - 8`, shift with `right: 8px` inline; mirror for received side.
+  - Wrap the pill in `max-w-[calc(100vw-16px)] overflow-x-auto no-scrollbar` as a safety net so the 6 emojis always fit on a 360-wide viewport.
+
+No backend / business-logic changes — purely presentation and event-handling fixes.
+
+## Files touched
 
 ```text
-┌─────────────────────────────────────┐
-│  ◉ Public                           │
-│    Listed in Browse, anyone can     │
-│    equip. Earns likes + saves.      │
-├─────────────────────────────────────┤
-│  ◉ Unlisted link                    │
-│    Only people with the link.       │
-│    [ Copy link ]                    │
-├─────────────────────────────────────┤
-│  ◉ Send to friends                  │
-│    Pick friends → sends as DM.      │
-│    [ avatar avatar avatar + ]       │
-├─────────────────────────────────────┤
-│  ◉ Private snapshot                 │
-│    Just save to My Themes.          │
-└─────────────────────────────────────┘
-        [   Share   ]
+src/components/themes/ReceivedThemeSheet.tsx
+src/components/messages/bubbles/SharedThemeMessageBubble.tsx
+src/components/chat/ChatView.tsx
 ```
-
-- Name + optional description fields above the cards (prefilled from current theme).
-- "Send to friends" expands an inline friend picker (reuse existing `ShareSheet` friend list source).
-- Share button text adapts: "Publish" / "Copy link" / "Send to N friends" / "Save".
-- Single mutation underneath: always creates a `shared_themes` row; `is_public` true only for Public path; for Unlisted & Friends, `is_public=false` and the row's `id` is the link slug; Friends path additionally sends a `shared_theme` DM per recipient.
-
-### 3. DM `shared_theme` message type
-
-- New `message_type = 'shared_theme'`; payload uses existing columns: `content = shared_theme_id`, optional `media_url = preview snapshot url` (skip for v1, render live preview from tokens).
-- New `SharedThemeMessageBubble` renders a compact card in the thread:
-  - 64px square live theme preview (gradient + 3 swatches)
-  - Theme name + "from @sender"
-  - "Tap to preview" hint
-- Tap opens `ReceivedThemeSheet` (fullscreen).
-
-### 4. `ReceivedThemeSheet` (new) — fullscreen preview
-
-- Hero: large animated theme preview (gradient background using shared tokens, mock UI: header chip, message bubble, button, swatch row, sample text in heading font).
-- Below: creator avatar + name, theme name, description, likes/downloads.
-- Sticky bottom action bar:
-  - **Equip** (primary, gradient) — applies tokens instantly via existing `applyThemeToDocument` helper from `useCustomTheme`, calls `useSaveSharedTheme` to auto-save to My Themes, fires haptic + toast "Equipped ✨", closes sheet.
-  - **Just save** (ghost) — only saves, no equip.
-- "Already equipped" / "Saved" pill states replace buttons when applicable.
-
-### 5. Schema changes
-
-Migration adds:
-- `shared_themes`: nothing structural needed; `is_public=false` rows already supported. Add index on `id` (PK already covers).
-- RLS update on `shared_themes` SELECT: allow `is_public = true OR creator_id = current_profile_id() OR EXISTS (saved_themes where shared_theme_id = id AND user_id = current_profile_id()) OR EXISTS (messages where message_type='shared_theme' AND content = shared_themes.id::text AND user is conversation member)`. Simplest: also allow SELECT when row id was sent in a DM to the requesting user.
-- Add `'shared_theme'` to any messages CHECK constraint on `message_type` if one exists (verify in migration).
-
-### 6. Routing — unlisted link
-
-- New route `/theme/:id` → renders `ReceivedThemeSheet` standalone (works for logged-out users too, with Equip gated behind sign-in).
-- Share sheet's "Copy link" copies `https://vybehub.app/theme/{id}`.
-
-### Technical notes
-
-- All previews use the existing `ThemeTokens` shape from `useCustomTheme`; no new format.
-- Equip reuses `useApplyUserTheme` mutation path (writes to `user_themes` active row) — same as Marketplace "Apply".
-- Auto-save uses existing `useSaveSharedTheme`; swallow `23505` duplicate as silent success.
-- Motion: 0.4s EASE_OUT_EXPO sheet entry; gradient halo on MyCurrentVybeCard uses 300% width looping background (matches Ambient Visual standard).
-- Cards use solid `bg-card` (per perf standard — no backdrop-blur in high-frequency surfaces).
-- DM bubble respects `data-dm-active` visual isolation.
-- All toasts gated by Premium Toast Standards (Equip toast OK — non-routine action).
-
-### Files
-
-**New**
-- `src/components/themes/MyCurrentVybeCard.tsx`
-- `src/components/themes/ThemePreviewCanvas.tsx` (reusable live token preview, used by card + DM bubble + ReceivedThemeSheet)
-- `src/components/themes/ShareMyThemeSheet.tsx`
-- `src/components/themes/ReceivedThemeSheet.tsx`
-- `src/components/messages/bubbles/SharedThemeMessageBubble.tsx`
-- `src/pages/SharedThemeLink.tsx` (route `/theme/:id`)
-
-**Edited**
-- `src/components/settings/ThemesSection.tsx` — mount `MyCurrentVybeCard` above Tabs
-- `src/hooks/useSharedThemes.ts` — extend `useShareTheme` to accept `visibility: 'public' | 'unlisted' | 'friends' | 'private'` and `recipientProfileIds?: string[]`; add `useEquipSharedTheme` that applies tokens + saves in one call
-- `src/lib/sendShareToUser.ts` — add `sendThemeToUser(recipientProfileId, sharedThemeId)` helper
-- Messages thread renderer — route `message_type === 'shared_theme'` to new bubble
-- `src/App.tsx` — register `/theme/:id` route
-
-**Migration**
-- One migration: RLS expansion on `shared_themes` SELECT for recipients; CHECK constraint update on `messages.message_type` if present.
