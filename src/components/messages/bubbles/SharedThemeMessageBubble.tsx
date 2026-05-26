@@ -23,7 +23,11 @@ export function SharedThemeMessageBubble({
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (theme) setOpen(true);
+        }}
         disabled={!theme}
         className={cn(
           'group flex items-center gap-3 p-2.5 pr-4 rounded-2xl max-w-[260px] active:scale-[0.98] transition-transform',
