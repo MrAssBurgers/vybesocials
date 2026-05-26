@@ -129,6 +129,19 @@ export function VybeCheckFailed({
           )}
 
           <p className="text-sm text-muted-foreground leading-relaxed">{message}</p>
+
+          {/* Quick "this was wrong" feedback */}
+          <button
+            onClick={handleQuickFeedback}
+            disabled={feedbackSent}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-70"
+          >
+            {feedbackSent ? (
+              <><Check className="w-3.5 h-3.5 text-emerald-400" /> Feedback sent</>
+            ) : (
+              <><ThumbsDown className="w-3.5 h-3.5" /> This was wrong</>
+            )}
+          </button>
         </div>
 
         {/* Appeal form */}

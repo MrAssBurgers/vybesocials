@@ -453,6 +453,10 @@ export function useCreatePost() {
         moderateContent(filteredCaption, 'post', post.id).then(result => {
           if (result.requires_review) {
             console.log('Post flagged for review:', post.id);
+            toast.message('Heads up', {
+              description: 'Your post is live but under a quick review. We\'ll let you know if anything changes.',
+              duration: 5000,
+            });
           }
         }).catch(console.error);
       }
