@@ -476,11 +476,11 @@ export function ThemeCustomizer() {
       {currentTheme && (
         <Button
           variant="ghost"
-          className="w-full bg-card/60 border border-border hover:bg-accent text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
+          className="w-full h-12 rounded-2xl bg-card/60 backdrop-blur-xl border border-border/50 hover:bg-accent/10 text-foreground"
           onClick={() => setShowShareDialog(true)}
         >
-          <Share2 className="h-4 w-4 mr-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-          <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Share with Community</span>
+          <Share2 className="h-4 w-4 mr-2" />
+          Share with Community
         </Button>
       )}
 
