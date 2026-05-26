@@ -31,6 +31,7 @@ import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { CommentSheet } from '@/components/comments/CommentSheet';
 import { ShareSheet } from '@/components/share/ShareSheet';
 import { HoldToShare } from '@/components/share/HoldToShare';
+import { FollowPlusButton } from '@/components/clips/FollowPlusButton';
 
 interface ShortCardProps {
   post: {
