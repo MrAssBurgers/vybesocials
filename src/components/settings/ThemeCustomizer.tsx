@@ -392,14 +392,14 @@ export function ThemeCustomizer() {
       </Sheet>
 
       {/* Quick Settings */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         {/* Animation Speed */}
-        <div className="space-y-2">
-          <Label className="text-xs text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] flex items-center gap-1">
-            <Timer className="h-3 w-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-            <span>Animation</span>
+        <div className="liquid-glass-card p-3 rounded-2xl space-y-2.5">
+          <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+            <Timer className="h-3 w-3" />
+            Animation
           </Label>
-          <div className="grid grid-cols-2 gap-1">
+          <div className="grid grid-cols-2 gap-1.5">
             {ANIMATION_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -408,10 +408,10 @@ export function ThemeCustomizer() {
                   updateSetting('animationSpeed', opt.value);
                 }}
                 className={cn(
-                  "py-1.5 px-2 text-xs rounded-lg border transition-colors drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]",
+                  "py-1.5 px-2 text-xs rounded-lg border transition-colors",
                   animationSpeed === opt.value
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-card/60 hover:border-primary/40 text-foreground"
+                    : "border-border/50 bg-background/30 hover:border-primary/40 text-foreground"
                 )}
               >
                 {opt.label}
@@ -421,12 +421,12 @@ export function ThemeCustomizer() {
         </div>
 
         {/* Border Radius */}
-        <div className="space-y-2">
-          <Label className="text-xs text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] flex items-center gap-1">
-            <Layers className="h-3 w-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-            <span>Corners</span>
+        <div className="liquid-glass-card p-3 rounded-2xl space-y-2.5">
+          <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+            <Layers className="h-3 w-3" />
+            Corners
           </Label>
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-3 gap-1.5">
             {BORDER_RADIUS_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -435,13 +435,13 @@ export function ThemeCustomizer() {
                   updateSetting('borderRadius', opt.value);
                 }}
                 className={cn(
-                  "py-1.5 px-2 text-xs border transition-colors drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]",
+                  "py-1.5 px-2 text-xs border transition-colors",
                   opt.value === 'small' && 'rounded-sm',
                   opt.value === 'medium' && 'rounded-lg',
                   opt.value === 'large' && 'rounded-xl',
                   borderRadius === opt.value
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-card/60 hover:border-primary/40 text-foreground"
+                    : "border-border/50 bg-background/30 hover:border-primary/40 text-foreground"
                 )}
               >
                 {opt.label}
