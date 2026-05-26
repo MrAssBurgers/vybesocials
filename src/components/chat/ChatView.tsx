@@ -2302,6 +2302,17 @@ const MessageBubble = memo(function MessageBubble({
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'gif' | 'video'; senderName?: string; timestamp?: string } | null>(null);
   const isContextMenuOpen = showContextMenu || forceShowContextMenu;
+  const bubbleWrapperRef = useRef<HTMLDivElement>(null);
+  const [reactionsFlipBelow, setReactionsFlipBelow] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!showReactions) { setReactionsFlipBelow(false); return; }
+    const el = bubbleWrapperRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    // Pill is ~44px tall + 8px gap. Flip if not enough headroom.
+    setReactionsFlipBelow(r.top < 64);
+  }, [showReactions]);
 
   useEffect(() => {
     if (hasAnyViews && !showVybeViewer) {
