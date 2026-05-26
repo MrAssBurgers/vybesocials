@@ -135,13 +135,13 @@ const ThemeCard = memo(function ThemeCard({
 
         {/* Theme Info */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center justify-between gap-1.5">
             {isEditing && isOwn ? (
               <div className="flex items-center gap-1 flex-1">
                 <Input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="h-6 text-xs px-2"
+                  className="h-7 text-sm px-2 rounded-lg"
                   autoFocus
                   onClick={(e) => e.stopPropagation()}
                   onKeyDown={(e) => {
@@ -151,32 +151,32 @@ const ThemeCard = memo(function ThemeCard({
                 />
                 <button
                   onClick={(e) => { e.stopPropagation(); handleSaveRename(); }}
-                  className="p-1 rounded hover:bg-primary/20 text-primary"
+                  className="p-1.5 rounded-lg hover:bg-primary/20 text-primary"
                 >
-                  <Check className="h-3 w-3" />
+                  <Check className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleCancelRename(); }}
-                  className="p-1 rounded hover:bg-destructive/20 text-destructive"
+                  className="p-1.5 rounded-lg hover:bg-destructive/20 text-destructive"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </div>
             ) : (
               <>
-                <h3 className="font-semibold text-xs truncate flex-1">{theme.theme_name}</h3>
+                <h3 className="font-semibold text-sm truncate flex-1">{theme.theme_name}</h3>
                 {isOwn && onRename && (
                   <button
                     onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
-                    className="p-1 rounded hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="p-1 rounded-md hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
                     title="Edit name"
                   >
                     <Pencil className="h-3 w-3 text-muted-foreground" />
                   </button>
                 )}
                 <span className={cn(
-                  "text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0",
-                  tokens.mode === 'dark' ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
+                  "text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium",
+                  tokens.mode === 'dark' ? "bg-muted/60 text-muted-foreground" : "bg-primary/10 text-primary"
                 )}>
                   {tokens.mode}
                 </span>
@@ -190,35 +190,35 @@ const ThemeCard = memo(function ThemeCard({
                 <AvatarImage src={theme.creator.avatar_url || undefined} />
                 <AvatarFallback className="text-[8px]"><User className="h-2.5 w-2.5" /></AvatarFallback>
               </Avatar>
-              <span className="text-[10px] text-muted-foreground truncate">
+              <span className="text-[11px] text-muted-foreground truncate">
                 {theme.creator.display_name || theme.creator.username || 'Anonymous'}
               </span>
             </div>
           )}
 
           {/* Stats and actions row */}
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1.5 border-t border-border/30">
+            <div className="flex items-center gap-2.5">
               <button
                 onClick={(e) => { e.stopPropagation(); onLike(); }}
-                className="flex items-center gap-0.5 hover:text-primary transition-colors"
+                className="flex items-center gap-1 hover:text-primary transition-colors"
               >
-                <Heart className={cn("h-3 w-3", isLiked && "fill-primary text-primary")} />
+                <Heart className={cn("h-3.5 w-3.5", isLiked && "fill-primary text-primary")} />
                 {theme.likes_count}
               </button>
-              <span className="flex items-center gap-0.5">
-                <Download className="h-3 w-3" />
+              <span className="flex items-center gap-1">
+                <Download className="h-3.5 w-3.5" />
                 {theme.downloads_count}
               </span>
             </div>
-            
-            <div className="flex items-center gap-1">
+
+            <div className="flex items-center gap-0.5">
               <button
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  isSaved ? onUnsave() : onSave(); 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  isSaved ? onUnsave() : onSave();
                 }}
-                className="p-1 rounded hover:bg-muted transition-colors"
+                className="p-1.5 rounded-lg hover:bg-muted transition-colors"
               >
                 {isSaved ? (
                   <BookmarkCheck className="h-3.5 w-3.5 text-primary" />
@@ -229,7 +229,7 @@ const ThemeCard = memo(function ThemeCard({
               {isOwn && onDelete && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                  className="p-1 rounded hover:bg-destructive/10 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors"
                 >
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 </button>
