@@ -44,6 +44,12 @@ export function useMarketplacePurchase() {
       toast.success(`Purchased ${variables.name}!`);
       qc.invalidateQueries({ queryKey: ['vybe-tokens', user?.id] });
       qc.invalidateQueries({ queryKey: ['token-transactions', user?.id] });
+      // Critical: refresh the "Owned" badge + auto-equip flow on the marketplace card
+      qc.invalidateQueries({ queryKey: ['marketplace-purchases', user?.id] });
+      qc.invalidateQueries({ queryKey: ['locker-items'] });
+      qc.invalidateQueries({ queryKey: ['profile'] });
+      qc.invalidateQueries({ queryKey: ['profile-by-id'] });
+      qc.invalidateQueries({ queryKey: ['display-style'] });
     },
     onError: (error: Error) => {
       triggerHaptic('error');
