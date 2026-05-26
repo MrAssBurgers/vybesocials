@@ -161,14 +161,27 @@ export function useVideoAds() {
   }, [adsAllowed, inDespia]);
 
   /**
-   * Check whether a given clip index in the Shorts/Clips reel should trigger
-   * a mid-feed ad. Pure helper — caller invokes showVideoAd('mid_feed') if true.
+   * YouTube-style randomized mid-feed slot. The slot ladder is randomized once
+   * per session in MID_FEED_RANGE, so the user can't predict the next ad and
+   * gaps feel organic instead of mechanical "every 6 clips".
    */
   const isMidFeedAdSlot = useCallback((clipIndex: number) => {
     if (!adsAllowed) return false;
     if (clipIndex <= 0) return false;
-    return clipIndex % MID_FEED_EVERY_N_CLIPS === 0;
+    return getMidFeedSlots(clipIndex).includes(clipIndex);
   }, [adsAllowed]);
 
-  return { showVideoAd, isMidFeedAdSlot, adsAllowed };
+  /**
+   * Schedule a randomized in-video mid-roll while a long video is playing.
+   * Returns a cleanup function; call inside an effect with the video element.
+   * Fires every 2.5–5 min of continuous playback (YouTube-like).
+   */
+  const scheduleMidVideoAd = useCallback((isPlaying: boolean) => {
+    if (!adsAllowed || !isPlaying) return () => {};
+    const delayMs = randInt(MID_VIDEO_INTERVAL_RANGE) * 1000;
+    const t = setTimeout(() => { showVideoAd('mid_video'); }, delayMs);
+    return () => clearTimeout(t);
+  }, [adsAllowed, showVideoAd]);
+
+  return { showVideoAd, isMidFeedAdSlot, scheduleMidVideoAd, adsAllowed };
 }
