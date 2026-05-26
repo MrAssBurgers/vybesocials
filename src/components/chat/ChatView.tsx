@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, memo, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
