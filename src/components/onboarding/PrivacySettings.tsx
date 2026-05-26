@@ -80,6 +80,30 @@ export function PrivacySettings({ isPrivate, onChange }: PrivacySettingsProps) {
         })}
       </div>
 
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+        className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card/80 to-accent/10 p-4 backdrop-blur-xl"
+      >
+        <div className="flex items-start gap-3">
+          <div className="relative shrink-0">
+            <div className="p-2 rounded-xl bg-primary/15 border border-primary/25">
+              <Clock className="w-4 h-4 text-primary" />
+            </div>
+            <div className="absolute -bottom-1 -right-1 p-1 rounded-full bg-accent/90 border border-background">
+              <Bookmark className="w-2.5 h-2.5 text-accent-foreground fill-current" />
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm">Disappearing Messages</p>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              DMs delete from the chat and our servers <span className="font-semibold text-foreground">48 hours after you open them</span>. Tap any message to save it forever — tap again to unsave.
+            </p>
+          </div>
+        </div>
+      </motion.div>
+
       <p className="text-center text-sm text-muted-foreground">
         {t('onboarding.privacy.canChange')}
       </p>
