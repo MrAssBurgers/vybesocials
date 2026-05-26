@@ -22,12 +22,50 @@ export function MyCurrentVybeCard() {
   const [localTokens, setLocalTokens] = useState<ThemeTokens | null>(null);
   const snapshot = useShareTheme();
 
-  // Read live equipped theme from localStorage (kept in sync by applyThemeTokens)
+  // Read live equipped theme directly from CSS variables (always in sync with what's applied)
   useEffect(() => {
     const read = () => {
       try {
+        const root = document.documentElement;
+        const cs = getComputedStyle(root);
+        const get = (name: string, fallback = '') =>
+          (cs.getPropertyValue(name).trim() || fallback);
+
+        const isDark = root.classList.contains('dark') || !root.classList.contains('light');
+
+        // Try localStorage first (richest data: animation, fonts, etc.)
         const raw = localStorage.getItem('vybe-custom-theme');
-        if (raw) setLocalTokens(JSON.parse(raw) as ThemeTokens);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as ThemeTokens;
+            // Override with live CSS values so it always reflects what the user sees
+            setLocalTokens({
+              ...parsed,
+              colorPrimary: get('--primary', parsed.colorPrimary),
+              colorAccent: get('--accent', parsed.colorAccent),
+              colorSecondary: get('--secondary', parsed.colorSecondary),
+              bgMain: get('--background', parsed.bgMain),
+              bgCard: get('--card', parsed.bgCard),
+              textPrimary: get('--foreground', parsed.textPrimary),
+              textSecondary: get('--muted-foreground', parsed.textSecondary),
+              mode: isDark ? 'dark' : 'light',
+            });
+            return;
+          } catch {}
+        }
+
+        // Build entirely from CSS vars
+        setLocalTokens({
+          colorPrimary: get('--primary', '330 100% 60%'),
+          colorAccent: get('--accent', '185 100% 50%'),
+          colorSecondary: get('--secondary', '240 10% 12%'),
+          bgMain: get('--background', '240 10% 4%'),
+          bgCard: get('--card', '240 10% 6%'),
+          textPrimary: get('--foreground', '0 0% 98%'),
+          textSecondary: get('--muted-foreground', '240 5% 55%'),
+          borderRadius: 'medium',
+          mode: isDark ? 'dark' : 'light',
+        } as ThemeTokens);
       } catch {}
     };
     read();
@@ -49,6 +87,7 @@ export function MyCurrentVybeCard() {
 
   const themeName =
     tokens.themeName || userTheme?.theme_name || 'My Current VYBE';
+
 
 
   const handleSnapshot = () => {
