@@ -542,15 +542,15 @@ export function ThemeCustomizer() {
       </Dialog>
 
       {/* Reset Option */}
-      <div className="pt-4 border-t border-border">
+      <div className="pt-3 border-t border-border/40">
         <Button
           variant="ghost"
-          className="w-full bg-card/60 border border-border text-foreground hover:text-destructive hover:bg-destructive/10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
+          className="w-full h-11 rounded-2xl bg-card/40 backdrop-blur-xl border border-border/40 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
           onClick={handleReset}
           disabled={resetTheme.isPending}
         >
-          <RotateCcw className="h-4 w-4 mr-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" />
-          <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Reset to Default</span>
+          <RotateCcw className="h-4 w-4 mr-2" />
+          Reset to Default
         </Button>
       </div>
     </div>
