@@ -109,6 +109,7 @@ const Filters = lazy(() => import("@/pages/Filters"));
 const LocalIndex = lazy(() => import("@/pages/LocalIndex"));
 const LocalCity = lazy(() => import("@/pages/LocalCity"));
 const BriefPage = lazy(() => import("@/pages/BriefPage"));
+const SharedThemeLink = lazy(() => import("@/pages/SharedThemeLink"));
 
 // Debug panels — lazy load both
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
@@ -179,6 +180,7 @@ export function AnimatedRoutes() {
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/spotify/callback" element={<SpotifyCallback />} />
             <Route path="/despia-push-demo" element={<DespiaPushDemo />} />
+            <Route path="/theme/:id" element={<SharedThemeLink />} />
             <Route path="/invite/:identifier" element={<InviteRedeem />} />
             
             {/* CRITICAL ROUTES - Eagerly loaded, instant navigation */}

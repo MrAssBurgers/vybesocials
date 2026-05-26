@@ -125,7 +125,9 @@ export function useMySharedThemes() {
   });
 }
 
-// Share a theme
+// Share a theme - supports public / unlisted / friends-DM / private snapshot
+export type ThemeShareVisibility = 'public' | 'unlisted' | 'friends' | 'private';
+
 export function useShareTheme() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -138,6 +140,8 @@ export function useShareTheme() {
       layoutSettings,
       tags,
       category,
+      visibility = 'public',
+      recipientProfileIds = [],
     }: {
       themeName: string;
       themeTokens: ThemeTokens;
@@ -145,8 +149,9 @@ export function useShareTheme() {
       layoutSettings?: LayoutSettings;
       tags?: string[];
       category?: string;
+      visibility?: ThemeShareVisibility;
+      recipientProfileIds?: string[];
     }) => {
-      // Use profile.id for creator_id since FK references profiles.id
       if (!profile?.id) throw new Error('Not authenticated');
 
       const { data, error } = await supabase
@@ -159,23 +164,131 @@ export function useShareTheme() {
           layout_settings: layoutSettings ? (layoutSettings as any) : null,
           tags: tags || null,
           category: category || null,
-          is_public: true,
+          is_public: visibility === 'public',
         })
         .select()
         .single();
 
       if (error) throw error;
-      return data;
+
+      if (visibility === 'private') {
+        await supabase
+          .from('saved_themes')
+          .insert({ user_id: profile.id, shared_theme_id: data.id })
+          .then(() => {}, () => {});
+      }
+
+      if (visibility === 'friends' && recipientProfileIds.length > 0) {
+        const { sendThemeToUser } = await import('@/lib/sendShareToUser');
+        await Promise.all(
+          recipientProfileIds.map((rid) =>
+            sendThemeToUser({
+              recipientProfileId: rid,
+              senderProfileId: profile.id,
+              sharedThemeId: data.id,
+              themeName,
+            })
+          )
+        );
+      }
+
+      return { row: data, visibility };
     },
-    onSuccess: () => {
+    onSuccess: ({ visibility }) => {
       queryClient.invalidateQueries({ queryKey: ['public-themes'] });
       queryClient.invalidateQueries({ queryKey: ['my-shared-themes'] });
-      toast.success('Theme shared with the community!');
+      queryClient.invalidateQueries({ queryKey: ['saved-themes'] });
+      const messages: Record<ThemeShareVisibility, string> = {
+        public: 'Theme shared with the community ✨',
+        unlisted: 'Unlisted link ready to copy 🔗',
+        friends: 'Sent to your friends 💌',
+        private: 'Snapshot saved to your gallery',
+      };
+      toast.success(messages[visibility]);
     },
     onError: (error: any) => {
       console.error('Failed to share theme:', error);
       toast.error('Failed to share theme');
     },
+  });
+}
+
+// Equip a shared theme: apply tokens live + persist active + auto-save to gallery
+export function useEquipSharedTheme() {
+  const { profile, user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (theme: { id: string; theme_tokens: ThemeTokens; theme_name: string }) => {
+      if (!user?.id) throw new Error('Not authenticated');
+
+      const { applyThemeTokens } = await import('@/hooks/useCustomTheme');
+      applyThemeTokens(theme.theme_tokens);
+
+      await supabase.from('user_themes').upsert(
+        {
+          user_id: user.id,
+          theme_name: theme.theme_name,
+          theme_tokens: theme.theme_tokens as any,
+          base_preset: 'shared',
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
+
+      if (profile?.id) {
+        await supabase
+          .from('saved_themes')
+          .insert({ user_id: profile.id, shared_theme_id: theme.id })
+          .then(() => {}, () => {});
+        await supabase.rpc('increment_theme_downloads', { theme_id: theme.id }).then(() => {}, () => {});
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-theme'] });
+      queryClient.invalidateQueries({ queryKey: ['saved-themes'] });
+      toast.success('Equipped ✨');
+    },
+    onError: (e: any) => {
+      console.error('Equip failed', e);
+      toast.error('Could not equip theme');
+    },
+  });
+}
+
+// Lookup any shared theme by id (handles unlisted via SECURITY DEFINER RPC)
+export function useSharedThemeById(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ['shared-theme', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data, error } = await supabase.rpc('get_shared_theme_by_id', { p_theme_id: id });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : (data as any);
+      if (!row) return null;
+      return {
+        id: row.id,
+        creator_id: row.creator_id,
+        theme_name: row.theme_name,
+        theme_tokens: row.theme_tokens,
+        layout_settings: row.layout_settings,
+        description: row.description,
+        likes_count: row.likes_count,
+        downloads_count: row.downloads_count,
+        is_public: row.is_public,
+        created_at: row.created_at,
+        tags: row.tags,
+        category: row.category,
+        creator: {
+          display_name: row.creator_display_name,
+          avatar_url: row.creator_avatar_url,
+          username: row.creator_username,
+        },
+      } as SharedTheme;
+    },
+    enabled: !!id,
+    staleTime: 60_000,
   });
 }
 

@@ -104,6 +104,7 @@ import { VideoSendPreview } from './VideoSendPreview';
 import { VideoBubble } from './VideoBubble';
 import { VideoMessageViewer } from './VideoMessageViewer';
 import { SharedPostBubble } from './SharedPostBubble';
+import { SharedThemeMessageBubble } from '@/components/messages/bubbles/SharedThemeMessageBubble';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { saveScrollPosition, restoreScrollPosition } from '@/lib/scrollMemory';
@@ -2385,6 +2386,7 @@ const MessageBubble = memo(function MessageBubble({
   const isVideoMessage = message.media_url && message.media_type === 'video';
   const isVybeMessage = message.media_url && message.media_type === 'vybe';
   const isSharedPost = message.message_type === 'shared_post';
+  const isSharedTheme = message.message_type === 'shared_theme';
 
   return (
     <div 
@@ -2446,8 +2448,17 @@ const MessageBubble = memo(function MessageBubble({
           />
         )}
 
+        {/* Shared Theme - VYBE theme preview card */}
+        {isSharedTheme && (
+          <SharedThemeMessageBubble
+            sharedThemeId={message.content || ''}
+            isOwn={isOwn}
+            senderUsername={sender?.username}
+          />
+        )}
+
         {/* Message bubble - Instagram-quality padding and radius (not for shared posts) */}
-        {!isSharedPost && (
+        {!isSharedPost && !isSharedTheme && (
         <div className="relative group/bubble">
           {/* Desktop-only 3-dot quick action menu (hidden on touch/mobile) */}
           <div className="hidden sm:block absolute -top-1 z-10" style={{ [isOwn ? 'left' : 'right']: '-28px' }}>
@@ -2487,7 +2498,7 @@ const MessageBubble = memo(function MessageBubble({
             // Tap-to-save: only fires on text/emoji bubbles in 1:1 DMs.
             // Media bubbles already handle taps to open the viewer.
             if (!onToggleSaved) return;
-            if (isMediaMessage || isVideoMessage || isVybeMessage || isAudioMessage || isSharedPost) return;
+            if (isMediaMessage || isVideoMessage || isVybeMessage || isAudioMessage || isSharedPost || isSharedTheme) return;
             if (isContextMenuOpen) return;
             // Ignore taps that originated from interactive children
             const target = e.target as HTMLElement;
