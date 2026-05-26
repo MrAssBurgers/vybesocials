@@ -83,6 +83,30 @@ export function InterestPicker({ selected, onChange }: InterestPickerProps) {
       <p className="text-center text-sm text-muted-foreground">
         {selected.length} selected (pick at least 3)
       </p>
+
+      {/* Level-up tip: explain that creator level boosts reach */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="mt-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-4"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/20 text-lg">
+            🚀
+          </div>
+          <div className="flex-1 space-y-1">
+            <h3 className="text-sm font-semibold">Level up = more reach</h3>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Every post you make, comment you leave, and streak you build levels up
+              your account. Higher levels boost how far your posts travel — your
+              content gets shown to more people from the start. Quality still wins,
+              but leveling gives you a head start.
+            </p>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 }
+
