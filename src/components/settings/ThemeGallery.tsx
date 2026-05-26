@@ -1,7 +1,7 @@
 import { useState, useMemo, memo, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Heart, Download, Bookmark, BookmarkCheck, Trash2, Share2, User, TrendingUp, Pencil, Check, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
