@@ -383,9 +383,11 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
               theme={theme}
               isLiked={likedThemeIds.includes(theme.id)}
               isActive={activeThemeId === theme.id}
+              isOwner={!!profile?.id && theme.creator_id === profile.id}
               onLike={() => likeTheme.mutate(theme.id)}
               onUnlike={() => unlikeTheme.mutate(theme.id)}
               onSelect={() => handleSelectTheme(theme)}
+              onDelete={() => deleteTheme.mutate(theme.id)}
             />
           ))
         )}
