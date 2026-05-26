@@ -370,7 +370,7 @@ export const MobileShortCard = memo(function MobileShortCard({
           <video
             ref={videoRef}
             src={signedMediaUrl || undefined}
-            className={cn("h-full w-full object-contain", isLoading && "opacity-0")}
+            className={cn("h-full w-full object-cover", isLoading && "opacity-0")}
             loop
             playsInline
             webkit-playsinline="true"
@@ -387,7 +387,7 @@ export const MobileShortCard = memo(function MobileShortCard({
           <img
             src={signedMediaUrl}
             alt={post.caption}
-            className={cn("h-full w-full object-contain", isLoading && "opacity-0")}
+            className={cn("h-full w-full object-cover", isLoading && "opacity-0")}
             loading="eager"
             onLoad={() => setIsLoading(false)}
             onError={() => {
