@@ -325,148 +325,84 @@ export function ThemeGallery() {
   const savedThemeIds = useMemo(() => savedThemes?.map(t => t.id) || [], [savedThemes]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Share2 className="h-5 w-5 text-primary" />
-          Theme Gallery
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="discover" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-4">
-            <TabsTrigger value="discover">Discover</TabsTrigger>
-            <TabsTrigger value="saved">Saved</TabsTrigger>
-            <TabsTrigger value="mine">My Themes</TabsTrigger>
-          </TabsList>
+    <div className="space-y-4">
+      <Tabs defaultValue="mine" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 h-11 p-1 rounded-2xl bg-card/60 backdrop-blur-xl border border-border/50">
+          <TabsTrigger
+            value="mine"
+            className="rounded-xl text-xs data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm"
+          >
+            My Themes
+          </TabsTrigger>
+          <TabsTrigger
+            value="saved"
+            className="rounded-xl text-xs data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm"
+          >
+            Saved
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="discover" className="mt-0 space-y-4">
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search themes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 bg-secondary border-border"
-              />
+        <TabsContent value="mine" className="mt-4">
+          {loadingMy ? (
+            <ThemeGridSkeleton />
+          ) : myThemes?.length ? (
+            <div className="grid grid-cols-2 gap-3">
+              {myThemes.map((theme) => (
+                <ThemeCard
+                  key={theme.id}
+                  theme={theme}
+                  isLiked={likedIds?.includes(theme.id) || false}
+                  isSaved={savedThemeIds.includes(theme.id)}
+                  isOwn={true}
+                  isActive={activeThemeId === theme.id}
+                  onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
+                  onSave={() => saveTheme.mutate(theme.id)}
+                  onUnsave={() => unsaveTheme.mutate(theme.id)}
+                  onDelete={() => deleteTheme.mutate(theme.id)}
+                  onSelect={() => handleSelectTheme(theme)}
+                  onRename={(name) => handleRename(theme.id, name)}
+                />
+              ))}
             </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <Share2 className="h-12 w-12 mx-auto mb-3 opacity-40" />
+              <p className="text-sm font-medium">You haven't shared any themes yet</p>
+              <p className="text-xs mt-1">Create one in the Customize tab</p>
+            </div>
+          )}
+        </TabsContent>
 
-            {/* Popular Section Header (only when not searching) */}
-            {!searchQuery && publicThemes && publicThemes.length > 0 && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <VybeMiniIcon size={16} showSparkles />
-                <span>Sorted by popularity</span>
-              </div>
-            )}
-
-            {loadingPublic ? (
-              <ThemeGridSkeleton />
-            ) : publicThemes?.length ? (
-              <div className="grid grid-cols-2 gap-3">
-                {publicThemes.map((theme) => (
-                  <ThemeCard
-                    key={theme.id}
-                    theme={theme}
-                    isLiked={likedIds?.includes(theme.id) || false}
-                    isSaved={savedThemeIds.includes(theme.id)}
-                    isOwn={theme.creator_id === profile?.id}
-                    isPopular={popularThemeIds.has(theme.id) && !searchQuery}
-                    isActive={activeThemeId === theme.id}
-                    onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
-                    onSave={() => saveTheme.mutate(theme.id)}
-                    onUnsave={() => unsaveTheme.mutate(theme.id)}
-                    onDelete={theme.creator_id === profile?.id ? () => deleteTheme.mutate(theme.id) : undefined}
-                    onSelect={() => handleSelectTheme(theme)}
-                    onRename={theme.creator_id === profile?.id ? (name) => handleRename(theme.id, name) : undefined}
-                  />
-
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                {searchQuery ? (
-                  <>
-                    <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>No themes found for "{searchQuery}"</p>
-                    <p className="text-sm">Try a different search term</p>
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>No shared themes yet</p>
-                    <p className="text-sm">Be the first to share your VYBE!</p>
-                  </>
-                )}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="saved" className="mt-0">
-            {loadingSaved ? (
-              <ThemeGridSkeleton />
-            ) : savedThemes?.length ? (
-              <div className="grid grid-cols-2 gap-3">
-                {savedThemes.map((theme) => (
-                  <ThemeCard
-                    key={theme.id}
-                    theme={theme}
-                    isLiked={likedIds?.includes(theme.id) || false}
-                    isSaved={true}
-                    isOwn={theme.creator_id === profile?.id}
-                    isActive={activeThemeId === theme.id}
-                    onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
-                    onSave={() => {}}
-                    onUnsave={() => unsaveTheme.mutate(theme.id)}
-                    onSelect={() => handleSelectTheme(theme)}
-                    onRename={theme.creator_id === profile?.id ? (name) => handleRename(theme.id, name) : undefined}
-                  />
-
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Bookmark className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No saved themes</p>
-                <p className="text-sm">Save themes you like to use later</p>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="mine" className="mt-0">
-            {loadingMy ? (
-              <ThemeGridSkeleton />
-            ) : myThemes?.length ? (
-              <div className="grid grid-cols-2 gap-3">
-                {myThemes.map((theme) => (
-                  <ThemeCard
-                    key={theme.id}
-                    theme={theme}
-                    isLiked={likedIds?.includes(theme.id) || false}
-                    isSaved={savedThemeIds.includes(theme.id)}
-                    isOwn={true}
-                    isActive={activeThemeId === theme.id}
-                    onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
-                    onSave={() => saveTheme.mutate(theme.id)}
-                    onUnsave={() => unsaveTheme.mutate(theme.id)}
-                    onDelete={() => deleteTheme.mutate(theme.id)}
-                    onSelect={() => handleSelectTheme(theme)}
-                    onRename={(name) => handleRename(theme.id, name)}
-                  />
-
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Share2 className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>You haven't shared any themes</p>
-                <p className="text-sm">Share your custom themes with the community!</p>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-
-      </CardContent>
-    </Card>
+        <TabsContent value="saved" className="mt-4">
+          {loadingSaved ? (
+            <ThemeGridSkeleton />
+          ) : savedThemes?.length ? (
+            <div className="grid grid-cols-2 gap-3">
+              {savedThemes.map((theme) => (
+                <ThemeCard
+                  key={theme.id}
+                  theme={theme}
+                  isLiked={likedIds?.includes(theme.id) || false}
+                  isSaved={true}
+                  isOwn={theme.creator_id === profile?.id}
+                  isActive={activeThemeId === theme.id}
+                  onLike={() => handleLike(theme.id, likedIds?.includes(theme.id) || false)}
+                  onSave={() => {}}
+                  onUnsave={() => unsaveTheme.mutate(theme.id)}
+                  onSelect={() => handleSelectTheme(theme)}
+                  onRename={theme.creator_id === profile?.id ? (name) => handleRename(theme.id, name) : undefined}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <Bookmark className="h-12 w-12 mx-auto mb-3 opacity-40" />
+              <p className="text-sm font-medium">No saved themes</p>
+              <p className="text-xs mt-1">Save themes you like to use later</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
