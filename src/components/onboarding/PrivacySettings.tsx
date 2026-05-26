@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { Globe, Lock } from 'lucide-react';
+import { Globe, Lock, Clock, Bookmark } from 'lucide-react';
 
 interface PrivacySettingsProps {
   isPrivate: boolean;
