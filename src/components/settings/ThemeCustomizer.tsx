@@ -292,37 +292,37 @@ export function ThemeCustomizer() {
 
       {/* Quick Presets */}
       <div className="space-y-3">
-        <Label className="text-sm font-medium text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">Quick Presets</Label>
-        <div className="grid grid-cols-3 gap-2">
+        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Quick Presets</Label>
+        <div className="grid grid-cols-3 gap-2.5">
           {Object.entries(PRESET_INFO).map(([key, info]) => {
             const preset = THEME_PRESETS[key];
             const isSelected = selectedPreset === key;
-            
+
             return (
               <button
                 key={key}
                 onClick={() => handlePresetSelect(key)}
                 className={cn(
-                  "relative p-3 rounded-xl border transition-all duration-200",
+                  "relative p-3 rounded-2xl border transition-all duration-200 backdrop-blur-xl text-left",
                   "active:scale-[0.97]",
                   isSelected
-                    ? "border-primary bg-primary/10 ring-1 ring-primary/50"
-                    : "border-border hover:border-primary/40"
+                    ? "border-primary bg-primary/10 ring-1 ring-primary/40 shadow-md shadow-primary/10"
+                    : "border-border/50 bg-card/40 hover:border-primary/40"
                 )}
               >
-                <div 
-                  className="w-full h-8 rounded-lg mb-2"
-                  style={{ 
+                <div
+                  className="w-full h-10 rounded-xl mb-2 shadow-inner"
+                  style={{
                     background: `linear-gradient(135deg, hsl(${info.colors[0]}), hsl(${info.colors[1]}))`,
                   }}
                 />
-                <p className="text-xs font-medium truncate">{info.name}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{info.description}</p>
-                
+                <p className="text-xs font-semibold truncate">{info.name}</p>
+                <p className="text-[10px] text-muted-foreground truncate mt-0.5">{info.description}</p>
+
                 {preset.mode === 'dark' ? (
-                  <Moon className="absolute top-2 right-2 h-3 w-3 text-muted-foreground" />
+                  <Moon className="absolute top-2 right-2 h-3 w-3 text-muted-foreground/70" />
                 ) : (
-                  <Sun className="absolute top-2 right-2 h-3 w-3 text-muted-foreground" />
+                  <Sun className="absolute top-2 right-2 h-3 w-3 text-muted-foreground/70" />
                 )}
               </button>
             );
