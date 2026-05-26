@@ -35,7 +35,7 @@ const OPTIONS: Array<{
 export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareMyThemeSheetProps) {
   const [name, setName] = useState(initialName || tokens.themeName || 'My VYBE');
   const [description, setDescription] = useState('');
-  const [visibility, setVisibility] = useState<ThemeShareVisibility>('public');
+  const [visibility, setVisibility] = useState<ThemeShareVisibility>('friends');
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
   const [friendQuery, setFriendQuery] = useState('');
   const [createdLink, setCreatedLink] = useState<string | null>(null);
@@ -47,11 +47,12 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
     if (open) {
       setName(initialName || tokens.themeName || 'My VYBE');
       setDescription('');
-      setVisibility('public');
+      setVisibility('friends');
       setSelectedFriends([]);
       setCreatedLink(null);
     }
   }, [open, initialName, tokens.themeName]);
+
 
   const filteredFriends = (friends as any[]).filter((f) => {
     if (!friendQuery.trim()) return true;
@@ -63,10 +64,13 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
   });
 
   const toggleFriend = (id: string) => {
+    setVisibility('friends');
+    setCreatedLink(null);
     setSelectedFriends((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
+
 
   const ctaLabel = (() => {
     if (share.isPending) return 'Sharing…';
@@ -149,17 +153,88 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
             />
           </div>
 
+          {/* Quick send to friends — always visible */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Send to friends
+              </p>
+              {selectedFriends.length > 0 && (
+                <button
+                  onClick={() => setSelectedFriends([])}
+                  className="text-[11px] font-semibold text-muted-foreground active:scale-95"
+                >
+                  Clear ({selectedFriends.length})
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={friendQuery}
+                onChange={(e) => setFriendQuery(e.target.value)}
+                placeholder="Search friends"
+                className="pl-9 bg-muted/30 border-border/40 rounded-xl"
+              />
+            </div>
+            <div className="max-h-72 overflow-y-auto space-y-1 overscroll-contain rounded-2xl bg-muted/10 p-1.5 border border-border/30">
+              {(friends as any[]).length === 0 ? (
+                <p className="text-center text-xs text-muted-foreground py-6">
+                  No friends yet — add some to send themes directly.
+                </p>
+              ) : filteredFriends.length === 0 ? (
+                <p className="text-center text-xs text-muted-foreground py-6">
+                  No matches for "{friendQuery}"
+                </p>
+              ) : (
+                filteredFriends.map((f: any) => {
+                  const selected = selectedFriends.includes(f.id);
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => toggleFriend(f.id)}
+                      className={cn(
+                        'w-full flex items-center gap-3 p-2 rounded-xl transition-all active:scale-[0.98]',
+                        selected ? 'bg-primary/15' : 'hover:bg-muted/30'
+                      )}
+                    >
+                      <div className="relative">
+                        <Avatar className={cn('h-10 w-10 ring-2 transition-all', selected ? 'ring-primary' : 'ring-transparent')}>
+                          <AvatarImage src={f.avatar_url || undefined} />
+                          <AvatarFallback>{(f.username || '?').charAt(0).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        {selected && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary border-2 border-card flex items-center justify-center"
+                          >
+                            <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                          </motion.div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-sm font-semibold truncate">{f.display_name || f.username}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">@{f.username}</p>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
           {/* Visibility cards */}
           <div className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">
-              Visibility
+              Or share another way
             </p>
-            {OPTIONS.map(({ key, title, blurb, Icon }) => {
+            {OPTIONS.filter(o => o.key !== 'friends').map(({ key, title, blurb, Icon }) => {
               const active = visibility === key;
               return (
                 <button
                   key={key}
-                  onClick={() => { setVisibility(key); setCreatedLink(null); }}
+                  onClick={() => { setVisibility(key); setCreatedLink(null); setSelectedFriends([]); }}
                   className={cn(
                     'w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-all active:scale-[0.99]',
                     'border',
@@ -191,63 +266,6 @@ export function ShareMyThemeSheet({ open, onClose, tokens, initialName }: ShareM
             })}
           </div>
 
-          {/* Friends picker */}
-          <AnimatePresence>
-            {visibility === 'friends' && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="space-y-2 overflow-hidden"
-              >
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    value={friendQuery}
-                    onChange={(e) => setFriendQuery(e.target.value)}
-                    placeholder="Search friends"
-                    className="pl-9 bg-muted/30 border-border/40 rounded-xl"
-                  />
-                </div>
-                <div className="max-h-56 overflow-y-auto space-y-1 overscroll-contain">
-                  {filteredFriends.length === 0 && (
-                    <p className="text-center text-xs text-muted-foreground py-6">
-                      No friends found
-                    </p>
-                  )}
-                  {filteredFriends.map((f: any) => {
-                    const selected = selectedFriends.includes(f.id);
-                    return (
-                      <button
-                        key={f.id}
-                        onClick={() => toggleFriend(f.id)}
-                        className={cn(
-                          'w-full flex items-center gap-3 p-2 rounded-xl transition-all active:scale-[0.98]',
-                          selected ? 'bg-primary/15' : 'hover:bg-muted/30'
-                        )}
-                      >
-                        <div className="relative">
-                          <Avatar className={cn('h-9 w-9 ring-2', selected ? 'ring-primary' : 'ring-transparent')}>
-                            <AvatarImage src={f.avatar_url || undefined} />
-                            <AvatarFallback>{(f.username || '?').charAt(0).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          {selected && (
-                            <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary border-2 border-card flex items-center justify-center">
-                              <Check className="h-2.5 w-2.5 text-primary-foreground" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0 text-left">
-                          <p className="text-sm font-semibold truncate">{f.display_name || f.username}</p>
-                          <p className="text-[11px] text-muted-foreground truncate">@{f.username}</p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* Unlisted link result */}
           {visibility === 'unlisted' && createdLink && (

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Share2, Bookmark, Sparkles, Pencil, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 
 /**
  * "My Current VYBE" — sits at the top of Settings → Themes → Customize.
- * Shows a live preview of the user's active theme tokens with Share + Snapshot CTAs.
+ * Reads the currently equipped tokens from localStorage (live source of truth),
+ * falling back to the DB row and finally the classic preset.
  */
 export function MyCurrentVybeCard() {
   const { profile } = useAuth();
@@ -18,14 +19,37 @@ export function MyCurrentVybeCard() {
   const [showShare, setShowShare] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+  const [localTokens, setLocalTokens] = useState<ThemeTokens | null>(null);
   const snapshot = useShareTheme();
+
+  // Read live equipped theme from localStorage (kept in sync by applyThemeTokens)
+  useEffect(() => {
+    const read = () => {
+      try {
+        const raw = localStorage.getItem('vybe-custom-theme');
+        if (raw) setLocalTokens(JSON.parse(raw) as ThemeTokens);
+      } catch {}
+    };
+    read();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'vybe-custom-theme') read();
+    };
+    window.addEventListener('storage', onStorage);
+    const id = window.setInterval(read, 2000);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.clearInterval(id);
+    };
+  }, []);
 
   const tokens: ThemeTokens = useMemo(() => {
     const fromDb = (userTheme?.theme_tokens as unknown as ThemeTokens) || null;
-    return fromDb || THEME_PRESETS.classic;
-  }, [userTheme]);
+    return localTokens || fromDb || THEME_PRESETS.classic;
+  }, [localTokens, userTheme]);
 
-  const themeName = userTheme?.theme_name || tokens.themeName || 'Untitled VYBE';
+  const themeName =
+    tokens.themeName || userTheme?.theme_name || 'My Current VYBE';
+
 
   const handleSnapshot = () => {
     snapshot.mutate({
