@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useSharedThemeById } from '@/hooks/useSharedThemes';
 import { ReceivedThemeSheet } from '@/components/themes/ReceivedThemeSheet';
 import { Sparkles } from 'lucide-react';
-import { Helmet } from 'react-helmet-async';
+import { useEffect } from 'react';
 
 /**
  * Public landing for unlisted theme links: /theme/:id
