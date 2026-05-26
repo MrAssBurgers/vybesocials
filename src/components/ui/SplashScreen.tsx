@@ -1,6 +1,5 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { VYBE_TIPS } from './vybeTips';
 
 interface SplashScreenProps {
   isVisible: boolean;
