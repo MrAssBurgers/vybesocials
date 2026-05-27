@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useErrorReporter } from '@/hooks/useErrorReporter';
 import { useAutoBugReporter } from '@/hooks/useAutoBugReporter';
 import { toast } from 'sonner';
@@ -7,6 +8,7 @@ import { trackError, clearAppCache } from '@/lib/selfHealingMonitor';
 export function GlobalErrorHandler() {
   useErrorReporter();
   useAutoBugReporter();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     // No online/offline toasts — silent background reconnect.
