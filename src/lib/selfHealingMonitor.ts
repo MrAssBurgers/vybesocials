@@ -66,42 +66,114 @@ export function trackError(message: string): void {
 }
 
 function notifyPatternDetected(record: ErrorRecord) {
-  toast.info("We noticed something isn't working right", {
-    description: 'Our system detected a repeated issue and is attempting to fix it automatically.',
-    duration: 6000,
-    action: {
-      label: 'Refresh',
-      onClick: () => {
-        clearAppCache();
-        window.location.reload();
-      },
-    },
+  const toastId = toast.loading("VYBE AI is fixing this…", {
+    description: 'Analyzing a repeated issue and applying the safest patch.',
+    duration: 8000,
   });
 
-  // Attempt auto-recovery
-  attemptAutoRecovery(record);
+  // Try built-in heuristic first (instant). Anything else → ask the AI agent.
+  const heuristic = pickHeuristic(record.key);
+  if (heuristic) {
+    executeFix(heuristic, record, toastId);
+    return;
+  }
+  void requestAiFix(record, toastId);
 }
 
-/** Auto-recovery strategies based on error type */
-function attemptAutoRecovery(record: ErrorRecord) {
-  const key = record.key.toLowerCase();
+type FixAction = 'clear_cache' | 'refresh_auth' | 'refetch_queries' | 'prune_storage' | 'reload' | 'none';
 
-  // Network / fetch errors → clear stale queries
-  if (key.includes('fetch') || key.includes('network') || key.includes('failed to fetch')) {
-    clearAppCache();
-    return;
+function pickHeuristic(rawKey: string): FixAction | null {
+  const key = rawKey.toLowerCase();
+  if (key.includes('fetch') || key.includes('network') || key.includes('failed to fetch') || key.includes('loading chunk')) return 'clear_cache';
+  if (key.includes('jwt') || key.includes('token') || (key.includes('auth') && !key.includes('author'))) return 'refresh_auth';
+  if (key.includes('quota') || key.includes('localstorage') || key.includes('quotaexceeded')) return 'prune_storage';
+  return null;
+}
+
+async function requestAiFix(record: ErrorRecord, toastId: string | number) {
+  try {
+    const { supabase } = await import('@/integrations/supabase/client');
+    const { data, error } = await supabase.functions.invoke('ai-auto-fix', {
+      body: {
+        message: record.key,
+        route: typeof window !== 'undefined' ? window.location.pathname : '',
+        occurrences: record.count,
+      },
+    });
+    if (error || !data?.fix) {
+      toast.dismiss(toastId);
+      toast.message("Couldn't auto-fix this", { description: 'Try refreshing if it keeps happening.', duration: 4000 });
+      return;
+    }
+    const fix = data.fix as { action: FixAction; user_message: string; rationale: string; confidence: number };
+    executeFix(fix.action, record, toastId, fix);
+  } catch {
+    toast.dismiss(toastId);
+  }
+}
+
+function executeFix(
+  action: FixAction,
+  _record: ErrorRecord,
+  toastId: string | number,
+  fix?: { user_message: string; rationale: string; confidence: number },
+) {
+  const label = fix?.user_message || defaultLabelFor(action);
+  const desc = fix?.rationale || defaultDescFor(action);
+
+  switch (action) {
+    case 'clear_cache':
+      clearAppCache();
+      break;
+    case 'refresh_auth':
+      void refreshAuth();
+      break;
+    case 'refetch_queries':
+      try { window.dispatchEvent(new CustomEvent('vybe:self-heal:refetch')); } catch { /* ignore */ }
+      break;
+    case 'prune_storage':
+      pruneLocalStorage();
+      break;
+    case 'reload':
+      clearAppCache();
+      setTimeout(() => window.location.reload(), 1200);
+      break;
+    case 'none':
+    default:
+      toast.dismiss(toastId);
+      toast.message('We noticed something off', { description: desc, duration: 5000 });
+      return;
   }
 
-  // Auth errors → force session refresh
-  if (key.includes('auth') || key.includes('jwt') || key.includes('token')) {
-    refreshAuth();
-    return;
-  }
+  toast.dismiss(toastId);
+  toast.success(label, {
+    description: desc,
+    duration: 5000,
+    action: action !== 'reload' ? {
+      label: 'Refresh',
+      onClick: () => { clearAppCache(); window.location.reload(); },
+    } : undefined,
+  });
+}
 
-  // Storage / quota errors → clear caches
-  if (key.includes('quota') || key.includes('storage') || key.includes('localstorage')) {
-    pruneLocalStorage();
-    return;
+function defaultLabelFor(action: FixAction): string {
+  switch (action) {
+    case 'clear_cache': return 'Cleared stale data';
+    case 'refresh_auth': return 'Refreshed your session';
+    case 'refetch_queries': return 'Reloaded the latest data';
+    case 'prune_storage': return 'Freed up storage';
+    case 'reload': return 'Reloading to recover…';
+    default: return 'No fix needed';
+  }
+}
+function defaultDescFor(action: FixAction): string {
+  switch (action) {
+    case 'clear_cache': return 'Network or cache hiccup — flushed it.';
+    case 'refresh_auth': return 'Token looked expired — refreshed.';
+    case 'refetch_queries': return 'Pulled the latest server data.';
+    case 'prune_storage': return 'Removed non-essential cached items.';
+    case 'reload': return 'Doing a quick reload to recover.';
+    default: return 'Nothing safe to auto-fix here.';
   }
 }
 
