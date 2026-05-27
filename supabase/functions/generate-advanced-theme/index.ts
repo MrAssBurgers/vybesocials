@@ -388,13 +388,24 @@ Be creative with the theme name - make it memorable and evocative.`
     if (!response.ok) {
       const errorText = await response.text();
       console.error("AI API error:", response.status, errorText);
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: "AI is busy — try again in a moment." }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "AI credits exhausted. Add credits in workspace usage." }), {
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       throw new Error(`AI API error: ${response.status}`);
     }
 
     const data = await response.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    
+
     if (!toolCall?.function?.arguments) {
+      console.error("No tool_call in AI response:", JSON.stringify(data).slice(0, 1000));
       throw new Error("No theme generated");
     }
 
