@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useErrorReporter } from '@/hooks/useErrorReporter';
 import { useAutoBugReporter } from '@/hooks/useAutoBugReporter';
 import { toast } from 'sonner';
@@ -7,6 +8,7 @@ import { trackError, clearAppCache } from '@/lib/selfHealingMonitor';
 export function GlobalErrorHandler() {
   useErrorReporter();
   useAutoBugReporter();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     // No online/offline toasts — silent background reconnect.
@@ -39,16 +41,23 @@ export function GlobalErrorHandler() {
       if (msg) trackError(msg);
     };
 
+    // AI self-heal asked us to refetch all live queries
+    const handleSelfHealRefetch = () => {
+      try { queryClient.invalidateQueries(); } catch { /* ignore */ }
+    };
+
     window.addEventListener('error', handleChunkError);
     window.addEventListener('error', handleAllErrors);
     window.addEventListener('unhandledrejection', handleRejection);
+    window.addEventListener('vybe:self-heal:refetch', handleSelfHealRefetch);
 
     return () => {
       window.removeEventListener('error', handleChunkError);
       window.removeEventListener('error', handleAllErrors);
       window.removeEventListener('unhandledrejection', handleRejection);
+      window.removeEventListener('vybe:self-heal:refetch', handleSelfHealRefetch);
     };
-  }, []);
+  }, [queryClient]);
 
   return null;
 }
