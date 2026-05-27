@@ -274,14 +274,21 @@ BACKGROUND EFFECTS:
 
 CREATE SOMETHING EXTRAORDINARY. Push creative boundaries while ALWAYS maintaining excellent readability.`;
 
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+    const useGateway = !!LOVABLE_API_KEY;
+    const endpoint = useGateway
+      ? "https://ai.gateway.lovable.dev/v1/chat/completions"
+      : "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+    const model = useGateway ? "google/gemini-2.5-flash" : "gemini-2.5-pro";
+    const apiKey = useGateway ? LOVABLE_API_KEY : GEMINI_API_KEY;
+
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gemini-2.5-pro",
+        model,
         messages: [
           { role: "system", content: systemPrompt },
           { 
