@@ -5,8 +5,22 @@ import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 
 const PUSH_PERM_KEY = 'vybe_push_permission_asked_v1';
-type OneSignalApi = { login?: (id: string) => Promise<void>; logout?: () => Promise<void> };
+type OneSignalApi = {
+  login?: (id: string) => Promise<void>;
+  logout?: () => Promise<void>;
+  User?: { addTags?: (tags: Record<string, string>) => Promise<void> };
+};
 type OneSignalDeferredWindow = Window & { OneSignalDeferred?: Array<(api: OneSignalApi) => Promise<void>> };
+
+// Reject obvious placeholder/invalid external IDs to avoid corrupting the
+// OneSignal user graph (per OneSignal docs: external_id must be a stable
+// authenticated identifier — never null/0/guest/empty).
+function isValidExternalId(id: unknown): id is string {
+  if (typeof id !== 'string') return false;
+  const trimmed = id.trim().toLowerCase();
+  if (!trimmed) return false;
+  return !['null', 'undefined', '0', 'guest', 'anonymous', 'false'].includes(trimmed);
+}
 
 /**
  * Syncs the authenticated Supabase user ID with OneSignal's external user ID
@@ -20,8 +34,14 @@ export function DespiaOneSignalSync() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const setPlayerIdForAuthUser = async (authUserId: string | undefined | null) => {
-      if (!authUserId) return;
+    const setPlayerIdForAuthUser = async (
+      authUserId: string | undefined | null,
+      email: string | undefined | null,
+    ) => {
+      if (!isValidExternalId(authUserId)) {
+        console.warn('[OneSignal] Skipping login — invalid auth user id:', authUserId);
+        return;
+      }
       try {
         // OneSignal external_id must match the id used by app push call sites,
         // which is profiles.id (NOT auth.users.id). Resolve and bind.
@@ -32,8 +52,13 @@ export function DespiaOneSignalSync() {
           .maybeSingle();
         const externalId = profile?.id ?? authUserId;
 
-        // Despia native shell bridge (no-op on web). Keep this bounded so
-        // startup/auth never hangs while OneSignal creates the subscription.
+        if (!isValidExternalId(externalId)) {
+          console.warn('[OneSignal] Skipping login — resolved external id invalid:', externalId);
+          return;
+        }
+
+        // Despia native shell bridge (no-op on web). This is what actually
+        // links the Android push subscription to the user's external_id.
         void ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 0 });
 
         // Web OneSignal SDK bridge — required so web/PWA users receive
@@ -41,27 +66,54 @@ export function DespiaOneSignalSync() {
         // where the SDK didn't load (preview/native/disabled-host).
         try {
           const w = window as OneSignalDeferredWindow;
-          if (Array.isArray(w.OneSignalDeferred)) {
-            w.OneSignalDeferred.push(async (OneSignal) => {
-              try { await OneSignal?.login?.(externalId); } catch { /* ignore */ }
-            });
+          if (!Array.isArray(w.OneSignalDeferred)) {
+            w.OneSignalDeferred = [];
           }
-        } catch { /* ignore */ }
+          w.OneSignalDeferred.push(async (OneSignal) => {
+            try {
+              await OneSignal?.login?.(externalId);
+              console.info('[OneSignal] login() succeeded for external_id:', externalId);
+              // Tag the subscription so admin segments + targeted sends work.
+              const tags: Record<string, string> = {
+                user_id: externalId,
+                auth_id: authUserId,
+              };
+              if (email) tags.email = email;
+              try {
+                await OneSignal?.User?.addTags?.(tags);
+                console.info('[OneSignal] addTags() succeeded:', Object.keys(tags));
+              } catch (tagErr) {
+                console.warn('[OneSignal] addTags() failed:', tagErr);
+              }
+            } catch (loginErr) {
+              console.error('[OneSignal] login() failed:', loginErr);
+            }
+          });
+        } catch (err) {
+          console.warn('[OneSignal] deferred queue setup failed:', err);
+        }
       } catch (err) {
-        console.warn('[Despia] Failed to set OneSignal player id:', err);
+        console.warn('[OneSignal] Failed to set player id:', err);
       }
     };
 
     const clearPlayerId = () => {
       try {
         const w = window as OneSignalDeferredWindow;
-        if (Array.isArray(w.OneSignalDeferred)) {
-          w.OneSignalDeferred.push(async (OneSignal) => {
-            try { await OneSignal?.logout?.(); } catch { /* ignore */ }
-          });
+        if (!Array.isArray(w.OneSignalDeferred)) {
+          w.OneSignalDeferred = [];
         }
+        w.OneSignalDeferred.push(async (OneSignal) => {
+          try {
+            await OneSignal?.logout?.();
+            console.info('[OneSignal] logout() succeeded');
+          } catch (err) {
+            console.warn('[OneSignal] logout() failed:', err);
+          }
+        });
       } catch { /* ignore */ }
     };
+
 
     const requestPushPermissionOnce = () => {
       if (!isDespiaRuntime()) return;
@@ -88,7 +140,7 @@ export function DespiaOneSignalSync() {
     };
 
     supabase.auth.getUser().then(({ data }) => {
-      void setPlayerIdForAuthUser(data.user?.id);
+      void setPlayerIdForAuthUser(data.user?.id, data.user?.email);
     }).catch(() => {});
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -96,7 +148,7 @@ export function DespiaOneSignalSync() {
         clearPlayerId();
         return;
       }
-      void setPlayerIdForAuthUser(session.user.id);
+      void setPlayerIdForAuthUser(session.user.id, session.user.email);
     });
 
     // Request push permission on the FIRST authenticated user gesture

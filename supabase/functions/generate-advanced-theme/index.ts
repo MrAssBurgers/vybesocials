@@ -190,10 +190,13 @@ serve(async (req) => {
     if (limited) return limited;
 
     const { prompt, interests = [], includeFont = true, includeEffects = true, selectedFont, selectedAnimation } = await req.json();
+    // Prefer Lovable AI Gateway (more reliable, no per-key quota issues).
+    // Fall back to direct Gemini key if the gateway key isn't present.
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    
-    if (!GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY is not configured");
+
+    if (!LOVABLE_API_KEY && !GEMINI_API_KEY) {
+      throw new Error("No AI key configured (LOVABLE_API_KEY or GEMINI_API_KEY)");
     }
 
     // Get mood from prompt first
@@ -271,14 +274,21 @@ BACKGROUND EFFECTS:
 
 CREATE SOMETHING EXTRAORDINARY. Push creative boundaries while ALWAYS maintaining excellent readability.`;
 
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+    const useGateway = !!LOVABLE_API_KEY;
+    const endpoint = useGateway
+      ? "https://ai.gateway.lovable.dev/v1/chat/completions"
+      : "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+    const model = useGateway ? "google/gemini-2.5-flash" : "gemini-2.5-pro";
+    const apiKey = useGateway ? LOVABLE_API_KEY : GEMINI_API_KEY;
+
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gemini-2.5-pro",
+        model,
         messages: [
           { role: "system", content: systemPrompt },
           { 
@@ -378,13 +388,24 @@ Be creative with the theme name - make it memorable and evocative.`
     if (!response.ok) {
       const errorText = await response.text();
       console.error("AI API error:", response.status, errorText);
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: "AI is busy — try again in a moment." }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "AI credits exhausted. Add credits in workspace usage." }), {
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       throw new Error(`AI API error: ${response.status}`);
     }
 
     const data = await response.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    
+
     if (!toolCall?.function?.arguments) {
+      console.error("No tool_call in AI response:", JSON.stringify(data).slice(0, 1000));
       throw new Error("No theme generated");
     }
 
