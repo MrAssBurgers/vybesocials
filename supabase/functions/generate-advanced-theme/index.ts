@@ -190,10 +190,13 @@ serve(async (req) => {
     if (limited) return limited;
 
     const { prompt, interests = [], includeFont = true, includeEffects = true, selectedFont, selectedAnimation } = await req.json();
+    // Prefer Lovable AI Gateway (more reliable, no per-key quota issues).
+    // Fall back to direct Gemini key if the gateway key isn't present.
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    
-    if (!GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY is not configured");
+
+    if (!LOVABLE_API_KEY && !GEMINI_API_KEY) {
+      throw new Error("No AI key configured (LOVABLE_API_KEY or GEMINI_API_KEY)");
     }
 
     // Get mood from prompt first
