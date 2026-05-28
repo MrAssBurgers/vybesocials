@@ -227,8 +227,5 @@ export function DespiaOneSignalSync() {
     };
   }, [queryClient]);
 
-    };
-  }, [queryClient]);
-
   return null;
 }
