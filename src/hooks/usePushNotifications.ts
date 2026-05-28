@@ -264,19 +264,12 @@ export function usePushNotifications() {
 
       // Delete existing token if any
       await supabase
-        .from('push_tokens')
-        .delete()
-        .eq('user_id', profile.id)
-        .eq('platform', 'web');
-
-      // Save subscription to database
-      const { error } = await supabase.from('push_tokens').insert({
+      // Upsert subscription to database (avoids 409 on re-subscribe)
+      const { error } = await supabase.from('push_tokens').upsert({
         user_id: profile.id,
         token: JSON.stringify(subscription.toJSON()),
         platform: 'web',
-      });
-
-      if (error) {
+      }, { onConflict: 'user_id,token' });
         console.error('[Push] Error saving subscription:', error);
         throw error;
       }
