@@ -74,12 +74,11 @@ export async function resolveCurrentOneSignalExternalId(): Promise<string | null
 export async function persistDespiaPushToken(profileId: string, playerId = ''): Promise<void> {
   if (!/^[0-9a-f-]{36}$/i.test(profileId)) return;
   const token = playerId || `despia:${profileId}`;
-  await supabase.from('push_tokens').delete().eq('user_id', profileId).eq('platform', 'despia');
-  const { error } = await supabase.from('push_tokens').insert({
+  const { error } = await supabase.from('push_tokens').upsert({
     user_id: profileId,
     platform: 'despia',
     token,
-  });
+  }, { onConflict: 'user_id,token' });
   if (error) throw error;
 }
 

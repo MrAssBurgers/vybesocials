@@ -188,13 +188,11 @@ export function usePushNotifications() {
     setPermission('granted');
 
     try {
-      await supabase.from('push_tokens').delete()
-        .eq('user_id', profile.id).eq('platform', 'despia');
-      await supabase.from('push_tokens').insert({
+      await supabase.from('push_tokens').upsert({
         user_id: profile.id,
         token: `despia:${profile.id}`,
         platform: 'despia',
-      });
+      }, { onConflict: 'user_id,token' });
     } catch (err) {
       console.warn('[Push] placeholder token insert failed', err);
     }
@@ -264,19 +262,12 @@ export function usePushNotifications() {
 
       console.log('[Push] Push subscription created:', subscription.endpoint);
 
-      // Delete existing token if any
-      await supabase
-        .from('push_tokens')
-        .delete()
-        .eq('user_id', profile.id)
-        .eq('platform', 'web');
-
-      // Save subscription to database
-      const { error } = await supabase.from('push_tokens').insert({
+      // Upsert subscription to database (avoids 409 on re-subscribe)
+      const { error } = await supabase.from('push_tokens').upsert({
         user_id: profile.id,
         token: JSON.stringify(subscription.toJSON()),
         platform: 'web',
-      });
+      }, { onConflict: 'user_id,token' });
 
       if (error) {
         console.error('[Push] Error saving subscription:', error);
