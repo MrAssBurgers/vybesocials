@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { navigationRef } from '@/lib/navigationRef';
+
 
 const PUSH_PERM_KEY = 'vybe_push_permission_asked_v1';
 type OneSignalApi = {
@@ -171,11 +173,48 @@ export function DespiaOneSignalSync() {
       queryClient.invalidateQueries({ queryKey: ['unread-notifications-count'] });
     };
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') refresh();
-    };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('despia:push', refresh as EventListener);
+
+    // Despia notification tap handler — routes via React Router using
+    // data.path (preferred) or data.url, and re-emits metadata for listeners.
+    // See: https://setup.despia.com (OneSignal reference, onNotificationEvent).
+    type DespiaNotificationPayload = {
+      type?: string;
+      path?: string;
+      url?: string;
+      metadata?: unknown;
+    };
+    const w = window as Window & {
+      onNotificationEvent?: (p: DespiaNotificationPayload) => void;
+    };
+    const previousHandler = w.onNotificationEvent;
+    w.onNotificationEvent = (payload: DespiaNotificationPayload) => {
+      try {
+        const target = payload?.path || payload?.url;
+        if (target && navigationRef.current) {
+          // Strip origin if a full URL was sent so React Router stays in-app.
+          let route = target;
+          try {
+            if (/^https?:\/\//i.test(target)) {
+              const u = new URL(target);
+              route = `${u.pathname}${u.search}${u.hash}`;
+            }
+          } catch { /* ignore */ }
+          navigationRef.current(route);
+        }
+        if (payload?.metadata !== undefined) {
+          const meta = typeof payload.metadata === 'string'
+            ? (() => { try { return JSON.parse(payload.metadata as string); } catch { return payload.metadata; } })()
+            : payload.metadata;
+          window.dispatchEvent(new CustomEvent('despia:notification:metadata', { detail: meta }));
+        }
+        refresh();
+      } catch (err) {
+        console.warn('[Despia] onNotificationEvent handler failed:', err);
+      }
+    };
 
     return () => {
       subscription.unsubscribe();
@@ -184,6 +223,7 @@ export function DespiaOneSignalSync() {
       window.removeEventListener('despia:push', refresh as EventListener);
       window.removeEventListener('pointerdown', onFirstGesture);
       window.removeEventListener('touchstart', onFirstGesture);
+      w.onNotificationEvent = previousHandler;
     };
   }, [queryClient]);
 
