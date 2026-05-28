@@ -102,8 +102,9 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
   const lastTapTime = useRef(0);
   const debugPanel = useDebugPanel();
 
-  // Check if user is admin or moderator
-  const showAdminLink = userRole === 'admin' || userRole === 'moderator';
+  // Check if user is owner, admin, or moderator
+  const showAdminLink = userRole === 'owner' || userRole === 'admin' || userRole === 'moderator';
+
   const { data: pendingModCount = 0 } = usePendingModerationCount();
 
   const { isPremium } = usePremiumStatus();
