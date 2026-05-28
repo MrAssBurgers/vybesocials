@@ -8,7 +8,8 @@
       "namespace": "android_app",
       "package_name": "com.despia.vybe",
       "sha256_cert_fingerprints": [
-        "DE:E3:B6:4D:4D:93:39:A1:74:E2:34:6C:A6:38:61:42:AC:DA:E4:07:24:0F:5A:97:AC:E2:26:07:B9:DE:59:E5"
+        "DE:E3:B6:4D:4D:93:39:A1:74:E2:34:6C:A6:38:61:42:AC:DA:E4:07:24:0F:5A:97:AC:E2:26:07:B9:DE:59:E5",
+        "C8:5E:E3:86:03:13:5C:65:7C:C4:01:B0:DE:B8:02:D1:7E:CD:BB:9F:D6:FC:34:95:AA:4B:08:9E:5D:3B:F6:2E"
       ]
     }
   },
