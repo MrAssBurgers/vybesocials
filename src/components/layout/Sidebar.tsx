@@ -29,8 +29,9 @@ export function Sidebar() {
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   const { isPremium } = usePremiumStatus();
 
-  // Check if user is admin or moderator
-  const showAdminLink = userRole === 'admin' || userRole === 'moderator';
+  // Check if user is owner, admin, or moderator
+  const showAdminLink = userRole === 'owner' || userRole === 'admin' || userRole === 'moderator';
+
 
   const mainNavItems = [
     { icon: Home, labelKey: 'nav.home', path: '/home', badge: 0 },
