@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { navigationRef } from '@/lib/navigationRef';
+
 
 const PUSH_PERM_KEY = 'vybe_push_permission_asked_v1';
 type OneSignalApi = {
