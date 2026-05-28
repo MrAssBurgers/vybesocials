@@ -173,9 +173,12 @@ export function DespiaOneSignalSync() {
       queryClient.invalidateQueries({ queryKey: ['unread-notifications-count'] });
     };
     const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('despia:push', refresh as EventListener);
+
 
     // Despia notification tap handler — routes via React Router using
     // data.path (preferred) or data.url, and re-emits metadata for listeners.
