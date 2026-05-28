@@ -262,14 +262,14 @@ export function usePushNotifications() {
 
       console.log('[Push] Push subscription created:', subscription.endpoint);
 
-      // Delete existing token if any
-      await supabase
       // Upsert subscription to database (avoids 409 on re-subscribe)
       const { error } = await supabase.from('push_tokens').upsert({
         user_id: profile.id,
         token: JSON.stringify(subscription.toJSON()),
         platform: 'web',
       }, { onConflict: 'user_id,token' });
+
+      if (error) {
         console.error('[Push] Error saving subscription:', error);
         throw error;
       }
