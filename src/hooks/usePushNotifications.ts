@@ -188,13 +188,11 @@ export function usePushNotifications() {
     setPermission('granted');
 
     try {
-      await supabase.from('push_tokens').delete()
-        .eq('user_id', profile.id).eq('platform', 'despia');
-      await supabase.from('push_tokens').insert({
+      await supabase.from('push_tokens').upsert({
         user_id: profile.id,
         token: `despia:${profile.id}`,
         platform: 'despia',
-      });
+      }, { onConflict: 'user_id,token' });
     } catch (err) {
       console.warn('[Push] placeholder token insert failed', err);
     }
