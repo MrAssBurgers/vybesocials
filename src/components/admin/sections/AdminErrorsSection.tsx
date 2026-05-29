@@ -152,13 +152,27 @@ export function AdminErrorsSection() {
             Copy All
           </Button>
           <Button
+            variant={verifiedOnly ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setVerifiedOnly((v) => !v)}
+            title="Show only bugs the AI has verified as real and attention-worthy"
+          >
+            {verifiedOnly ? '✓ AI-verified only' : 'Show all'}
+          </Button>
+          <Button
             variant="outline"
             size="sm"
-            disabled={recheckAllAI.isPending}
-            onClick={() => recheckAllAI.mutate()}
+            disabled={recheck.running}
+            onClick={() => recheck.start()}
           >
-            <Sparkles className="w-3.5 h-3.5 mr-1" /> AI Re-check All
+            <Sparkles className="w-3.5 h-3.5 mr-1" />
+            {recheck.running ? `Re-checking ${recheck.done}/${recheck.total}` : 'AI Re-check All'}
           </Button>
+          {recheck.running && (
+            <Button variant="ghost" size="sm" onClick={() => recheck.abort()}>
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={async () => {
             const { count: unfixedCount } = await supabase
               .from('bug_reports')
