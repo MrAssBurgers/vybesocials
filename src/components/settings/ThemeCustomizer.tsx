@@ -354,7 +354,7 @@ export function ThemeCustomizer() {
             <SheetDescription>Upload your own image or generate one with AI</SheetDescription>
           </SheetHeader>
           <div
-            className="page-scroll-fix flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-6 pb-[calc(env(safe-area-inset-bottom)+5rem)]"
+            className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-6 pb-[calc(env(safe-area-inset-bottom)+5rem)]"
             style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
           >
             <BackgroundCustomizer
