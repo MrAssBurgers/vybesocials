@@ -80,6 +80,7 @@ export function AdminErrorsSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-moderation-count'] });
       toast.success('Bug status updated');
     },
   });
@@ -91,9 +92,27 @@ export function AdminErrorsSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-moderation-count'] });
       toast.success('Bug report deleted');
     },
   });
+
+  const recheckAI = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase.functions.invoke('analyze-bug-report', {
+        body: { bugId: id, force: true },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onMutate: () => toast.loading('AI re-checking bug...', { id: 'ai-recheck' }),
+    onSuccess: () => {
+      toast.success('AI re-check complete', { id: 'ai-recheck' });
+      queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
+    },
+    onError: (e: any) => toast.error(e?.message || 'AI re-check failed', { id: 'ai-recheck' }),
+  });
+
 
   const pendingCount = bugs.filter((b: any) => b.status === 'pending').length;
 
