@@ -174,8 +174,9 @@ export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated
         </SheetHeader>
 
         <div 
-          className="flex-1 overflow-y-auto overscroll-contain py-3 space-y-5"
-          style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain py-3 space-y-5 px-1 pb-[calc(env(safe-area-inset-bottom)+5rem)]"
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+          onTouchMove={(e) => e.stopPropagation()}
         >
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
