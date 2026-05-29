@@ -24,13 +24,14 @@ export default function AdminMetrics() {
   const { data: userRole, isLoading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState<'7d' | '30d' | 'all'>('7d');
+  const isAdmin = userRole === 'admin' || userRole === 'owner';
   
   // Redirect if not admin
   useEffect(() => {
-    if (!roleLoading && userRole !== 'admin') {
+    if (!roleLoading && !isAdmin) {
       navigate('/home');
     }
-  }, [userRole, roleLoading, navigate]);
+  }, [isAdmin, roleLoading, navigate]);
   
   const getDateFilter = () => {
     if (dateRange === 'all') return null;
@@ -102,7 +103,7 @@ export default function AdminMetrics() {
         totalEvents: events?.length || 0,
       };
     },
-    enabled: userRole === 'admin',
+    enabled: isAdmin,
     refetchInterval: 30000, // Refresh every 30 seconds
   });
   
@@ -118,7 +119,7 @@ export default function AdminMetrics() {
       
       return data || [];
     },
-    enabled: userRole === 'admin',
+    enabled: isAdmin,
   });
   
   if (roleLoading) {
@@ -131,7 +132,7 @@ export default function AdminMetrics() {
     );
   }
   
-  if (userRole !== 'admin') {
+  if (!isAdmin) {
     return null;
   }
   

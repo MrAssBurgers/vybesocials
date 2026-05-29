@@ -47,7 +47,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const recoverAttemptsRef = useRef(0);
   const { data: userRole } = useUserRole();
-  const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
+  const isModOrAdmin = userRole === 'owner' || userRole === 'admin' || userRole === 'moderator';
 
   const close = useCallback(() => {
     onOpenChange(false);
