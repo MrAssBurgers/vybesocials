@@ -267,7 +267,7 @@ export function usePushNotifications() {
         user_id: profile.id,
         token: JSON.stringify(subscription.toJSON()),
         platform: 'web',
-      }, { onConflict: 'user_id,token' });
+      }, { onConflict: 'user_id,platform' });
 
       if (error) {
         console.error('[Push] Error saving subscription:', error);
