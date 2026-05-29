@@ -123,6 +123,24 @@ export function AdminErrorsSection() {
   // AI Re-check All now runs in the BugRecheckProvider so it survives
   // navigation away from /admin. Progress is rendered from `recheck` below.
 
+  // Self-healing: on mount, automatically run an AI re-check if it hasn't been
+  // run in the last 30 minutes. The app finds problems on its own, AI verifies
+  // them, and resolved/false-positive bugs are auto-marked fixed by the edge
+  // function — no clicks required.
+  const autoTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (autoTriggeredRef.current) return;
+    if (recheck.running) return;
+    const last = parseInt(localStorage.getItem('vybe-self-heal-last') || '0', 10);
+    const COOLDOWN_MS = 30 * 60 * 1000;
+    if (Date.now() - last < COOLDOWN_MS) return;
+    autoTriggeredRef.current = true;
+    localStorage.setItem('vybe-self-heal-last', String(Date.now()));
+    // Defer so the UI paints first
+    const t = setTimeout(() => { void recheck.start(); }, 800);
+    return () => clearTimeout(t);
+  }, [recheck]);
+
 
   const pendingCount = bugs.filter((b: any) => b.status === 'pending').length;
 
