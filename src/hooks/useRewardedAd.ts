@@ -226,7 +226,7 @@ export function useRewardedAd() {
     dailyLimit: DAILY_AD_LIMIT,
     rewardPerAd: REWARD_PER_AD,
     watchedToday: state.count,
-    // True if either delivery path can serve a real ad on this device.
-    isNative: isNativePlatform || isDespiaRuntime(),
+    // True if Despia native runtime can serve a real ad on this device.
+    isNative: isDespiaRuntime(),
   };
 }
