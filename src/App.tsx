@@ -325,6 +325,7 @@ function AppWithPreloader() {
                           <Suspense fallback={null}>
                             <RewardNotificationProvider>
                               <DebugPanelProvider>
+                                <BugRecheckProvider>
                                 <Suspense fallback={null}>
                                   <TutorialProvider>
                                     <NavigationRefSetter />
