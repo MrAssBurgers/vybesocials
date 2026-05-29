@@ -227,7 +227,15 @@ export function useAppPreloader() {
 
         console.log(`[Preloader] Splash ready (non-blocking) - ${(performance.now() - startTime).toFixed(0)}ms`);
 
-        // DEFERRED: Load social data in background (non-blocking)
+        // DEFERRED: Load social data in background (non-blocking).
+        // CRITICAL: gate on profileId — if the profile race timed out above,
+        // profileId is undefined and firing these queries with `undefined`
+        // would produce a flood of `invalid input syntax for type uuid`
+        // 400s on follows / friend_requests / notifications / conversation_members.
+        if (!profileId) {
+          console.warn('[Preloader] Skipping background social fetch — profile not resolved yet');
+          return;
+        }
         requestAnimationFrame(() => {
           preloadCriticalRoutes();
           

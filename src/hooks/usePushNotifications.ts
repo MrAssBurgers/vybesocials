@@ -192,7 +192,7 @@ export function usePushNotifications() {
         user_id: profile.id,
         token: `despia:${profile.id}`,
         platform: 'despia',
-      }, { onConflict: 'user_id,token' });
+      }, { onConflict: 'user_id,platform' });
     } catch (err) {
       console.warn('[Push] placeholder token insert failed', err);
     }
@@ -267,7 +267,7 @@ export function usePushNotifications() {
         user_id: profile.id,
         token: JSON.stringify(subscription.toJSON()),
         platform: 'web',
-      }, { onConflict: 'user_id,token' });
+      }, { onConflict: 'user_id,platform' });
 
       if (error) {
         console.error('[Push] Error saving subscription:', error);
