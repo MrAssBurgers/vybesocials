@@ -14,7 +14,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { bugId } = await req.json();
+    const body = await req.json();
+    const { bugId } = body || {};
     if (!bugId || typeof bugId !== "string") {
       return new Response(JSON.stringify({ error: "bugId required" }), {
         status: 400,
