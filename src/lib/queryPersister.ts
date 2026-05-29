@@ -52,20 +52,29 @@ const EPHEMERAL_KEY_FRAGMENTS = [
   'call',
   'spotify-now-playing',
   'audio-features',
-  // DM / chat data must NOT be persisted to IndexedDB — replaying stale
-  // offline snapshots on app boot was causing the DM list to flash empty
-  // / out-of-date conversations before the live refetch landed.
-  'dm-conversations',
-  'conversations',
+  // Per-thread message history & unread counters stay ephemeral — replaying
+  // stale snapshots caused wrong message ordering / wrong unread badges.
+  // NOTE: the DM conversation LIST ('dm-conversations') is intentionally
+  // allowed through so /messages hydrates instantly on cold start. We gate
+  // it on non-empty data below to avoid the empty-flash regression.
   'messages',
   'unread-messages',
   'unread-messages-count',
 ];
 
-export function shouldPersistQueryKey(queryKey: readonly unknown[]): boolean {
+// Keys whose persisted snapshot must be non-empty to be worth replaying.
+const NON_EMPTY_ONLY_FRAGMENTS = ['dm-conversations', 'conversations'];
+
+export function shouldPersistQueryKey(queryKey: readonly unknown[], data?: unknown): boolean {
   try {
     const flat = JSON.stringify(queryKey).toLowerCase();
-    return !EPHEMERAL_KEY_FRAGMENTS.some((f) => flat.includes(f));
+    if (EPHEMERAL_KEY_FRAGMENTS.some((f) => flat.includes(f))) return false;
+    if (NON_EMPTY_ONLY_FRAGMENTS.some((f) => flat.includes(f))) {
+      if (Array.isArray(data)) return data.length > 0;
+      if (data && typeof data === 'object') return Object.keys(data as object).length > 0;
+      return data != null;
+    }
+    return true;
   } catch {
     return false;
   }
