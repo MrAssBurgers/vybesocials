@@ -113,6 +113,42 @@ export function AdminErrorsSection() {
     onError: (e: any) => toast.error(e?.message || 'AI re-check failed', { id: 'ai-recheck' }),
   });
 
+  const recheckAllAI = useMutation({
+    mutationFn: async () => {
+      const { data: rows, error } = await supabase
+        .from('bug_reports')
+        .select('id')
+        .neq('status', 'fixed')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      const ids = (rows || []).map((r: any) => r.id);
+      if (ids.length === 0) return { checked: 0 };
+
+      let done = 0;
+      const concurrency = 4;
+      let cursor = 0;
+      const worker = async () => {
+        while (cursor < ids.length) {
+          const id = ids[cursor++];
+          try {
+            await supabase.functions.invoke('analyze-bug-report', { body: { bugId: id, force: true } });
+          } catch {}
+          done++;
+          toast.loading(`AI re-checking ${done}/${ids.length}...`, { id: 'ai-recheck-all' });
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, worker));
+      return { checked: ids.length };
+    },
+    onMutate: () => toast.loading('Starting AI re-check on all bugs...', { id: 'ai-recheck-all' }),
+    onSuccess: (res) => {
+      toast.success(`AI re-checked ${res.checked} bug${res.checked === 1 ? '' : 's'}`, { id: 'ai-recheck-all' });
+      queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
+    },
+    onError: (e: any) => toast.error(e?.message || 'AI re-check failed', { id: 'ai-recheck-all' }),
+  });
+
 
   const pendingCount = bugs.filter((b: any) => b.status === 'pending').length;
 
@@ -142,8 +178,15 @@ export function AdminErrorsSection() {
           }}>
             Copy All
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={recheckAllAI.isPending}
+            onClick={() => recheckAllAI.mutate()}
+          >
+            <Sparkles className="w-3.5 h-3.5 mr-1" /> AI Re-check All
+          </Button>
           <Button variant="outline" size="sm" onClick={async () => {
-            // Get true total of UNFIXED bugs across the whole table, not just visible ones
             const { count: unfixedCount } = await supabase
               .from('bug_reports')
               .select('id', { count: 'exact', head: true })
@@ -157,14 +200,20 @@ export function AdminErrorsSection() {
               const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
               resolvedBy = profile?.id || null;
             }
-            const { error } = await supabase
+            const { data: updated, error } = await supabase
               .from('bug_reports')
               .update({ status: 'fixed', resolved_at: new Date().toISOString(), resolved_by: resolvedBy })
-              .neq('status', 'fixed');
+              .neq('status', 'fixed')
+              .select('id');
             if (error) { toast.error('Failed to update: ' + error.message); return; }
-            queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
-            queryClient.invalidateQueries({ queryKey: ['pending-moderation-count'] });
-            toast.success(`Marked ${total} bugs as fixed`);
+            const updatedCount = updated?.length || 0;
+            if (updatedCount === 0) {
+              toast.error('Update affected 0 rows — you may not have admin permission to update bug reports.');
+              return;
+            }
+            await queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
+            await queryClient.refetchQueries({ queryKey: ['pending-moderation-count'] });
+            toast.success(`Marked ${updatedCount} bugs as fixed`);
           }}>
             <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Fix All
           </Button>
