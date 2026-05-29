@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
-import { AlertTriangle, Bug, RefreshCw, Trash2, CheckCircle2, Clock, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { AlertTriangle, Bug, RefreshCw, Trash2, CheckCircle2, Clock, ChevronDown, ChevronUp, MessageSquare, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+
 
 type BugStatus = 'pending' | 'reviewing' | 'fixed' | 'wont_fix' | 'duplicate';
 
@@ -79,6 +80,7 @@ export function AdminErrorsSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-moderation-count'] });
       toast.success('Bug status updated');
     },
   });
@@ -90,9 +92,27 @@ export function AdminErrorsSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-moderation-count'] });
       toast.success('Bug report deleted');
     },
   });
+
+  const recheckAI = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase.functions.invoke('analyze-bug-report', {
+        body: { bugId: id, force: true },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onMutate: () => toast.loading('AI re-checking bug...', { id: 'ai-recheck' }),
+    onSuccess: () => {
+      toast.success('AI re-check complete', { id: 'ai-recheck' });
+      queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
+    },
+    onError: (e: any) => toast.error(e?.message || 'AI re-check failed', { id: 'ai-recheck' }),
+  });
+
 
   const pendingCount = bugs.filter((b: any) => b.status === 'pending').length;
 
@@ -123,23 +143,32 @@ export function AdminErrorsSection() {
             Copy All
           </Button>
           <Button variant="outline" size="sm" onClick={async () => {
-            if (!confirm(`Mark all ${bugs.length} visible bugs as fixed?`)) return;
-            const ids = bugs.filter((b: any) => b.status !== 'fixed').map((b: any) => b.id);
-            if (ids.length === 0) { toast.info('All already fixed'); return; }
+            // Get true total of UNFIXED bugs across the whole table, not just visible ones
+            const { count: unfixedCount } = await supabase
+              .from('bug_reports')
+              .select('id', { count: 'exact', head: true })
+              .neq('status', 'fixed');
+            const total = unfixedCount || 0;
+            if (total === 0) { toast.info('All bugs already fixed'); return; }
+            if (!confirm(`Mark ALL ${total} unfixed bugs as fixed across the entire database?`)) return;
             const { data: { user } } = await supabase.auth.getUser();
-            // Use profile id lookup to avoid FK constraint violation
             let resolvedBy: string | null = null;
             if (user?.id) {
               const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
               resolvedBy = profile?.id || null;
             }
-            const { error } = await supabase.from('bug_reports').update({ status: 'fixed', resolved_at: new Date().toISOString(), resolved_by: resolvedBy }).in('id', ids);
+            const { error } = await supabase
+              .from('bug_reports')
+              .update({ status: 'fixed', resolved_at: new Date().toISOString(), resolved_by: resolvedBy })
+              .neq('status', 'fixed');
             if (error) { toast.error('Failed to update: ' + error.message); return; }
             queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
-            toast.success(`Marked ${ids.length} bugs as fixed`);
+            queryClient.invalidateQueries({ queryKey: ['pending-moderation-count'] });
+            toast.success(`Marked ${total} bugs as fixed`);
           }}>
             <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Fix All
           </Button>
+
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh
           </Button>
@@ -239,6 +268,14 @@ export function AdminErrorsSection() {
                     )}
 
                     <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        disabled={recheckAI.isPending}
+                        onClick={() => recheckAI.mutate(bug.id)}
+                        className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" /> AI Re-check
+                      </button>
+
                       {bug.status !== 'reviewing' && (
                         <button onClick={() => updateStatus.mutate({ id: bug.id, status: 'reviewing' })} className="px-3 py-1.5 bg-blue-500/10 text-blue-500 rounded-lg text-xs font-medium hover:bg-blue-500/20 transition-colors">
                           Mark Reviewing
