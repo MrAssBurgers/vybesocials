@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
-import { AlertTriangle, Bug, RefreshCw, Trash2, CheckCircle2, Clock, ChevronDown, ChevronUp, MessageSquare, Sparkles } from 'lucide-react';
+import { AlertTriangle, Bug, RefreshCw, Trash2, CheckCircle2, Clock, ChevronDown, ChevronUp, MessageSquare, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { useBugRecheck } from '@/contexts/BugRecheckContext';
 
 
 type BugStatus = 'pending' | 'reviewing' | 'fixed' | 'wont_fix' | 'duplicate';
