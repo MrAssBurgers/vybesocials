@@ -211,6 +211,34 @@ export function AdminErrorsSection() {
         </div>
       </div>
 
+      {/* Real-time AI re-check progress bar — visible while the background re-check runs */}
+      {(recheck.running || (recheck.finishedAt && recheck.total > 0)) && (
+        <div className="rounded-2xl bg-card border border-border p-3 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-foreground flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              {recheck.running ? 'AI re-checking bugs…' : 'AI re-check finished'}
+            </span>
+            <span className="text-muted-foreground tabular-nums">
+              {recheck.done}/{recheck.total}
+            </span>
+          </div>
+          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-200"
+              style={{ width: `${recheck.total ? (recheck.done / recheck.total) * 100 : 0}%` }}
+            />
+          </div>
+          <div className="flex gap-3 text-[11px] text-muted-foreground">
+            <span>✓ Real bugs: <span className="text-foreground font-medium">{recheck.verified}</span></span>
+            <span>↻ Auto-resolved: <span className="text-foreground font-medium">{recheck.resolved}</span></span>
+            {recheck.failed > 0 && <span>⚠ Failed: <span className="text-foreground font-medium">{recheck.failed}</span></span>}
+            <span className="ml-auto opacity-70">Runs in background — safe to navigate away</span>
+          </div>
+        </div>
+      )}
+
+
       {/* Filters */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
         {(['all', 'pending', 'reviewing', 'fixed', 'wont_fix', 'duplicate'] as const).map((s) => (
