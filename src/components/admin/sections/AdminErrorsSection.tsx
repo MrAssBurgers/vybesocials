@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -22,7 +22,8 @@ export function AdminErrorsSection() {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BugStatus | 'all'>('all');
-  const [verifiedOnly, setVerifiedOnly] = useState(true);
+  // Error monitor ONLY shows AI-verified bugs — no toggle, no noise.
+  const verifiedOnly = true;
   const recheck = useBugRecheck();
 
   const { data: bugs = [], isLoading, refetch } = useQuery({
@@ -122,6 +123,24 @@ export function AdminErrorsSection() {
   // AI Re-check All now runs in the BugRecheckProvider so it survives
   // navigation away from /admin. Progress is rendered from `recheck` below.
 
+  // Self-healing: on mount, automatically run an AI re-check if it hasn't been
+  // run in the last 30 minutes. The app finds problems on its own, AI verifies
+  // them, and resolved/false-positive bugs are auto-marked fixed by the edge
+  // function — no clicks required.
+  const autoTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (autoTriggeredRef.current) return;
+    if (recheck.running) return;
+    const last = parseInt(localStorage.getItem('vybe-self-heal-last') || '0', 10);
+    const COOLDOWN_MS = 30 * 60 * 1000;
+    if (Date.now() - last < COOLDOWN_MS) return;
+    autoTriggeredRef.current = true;
+    localStorage.setItem('vybe-self-heal-last', String(Date.now()));
+    // Defer so the UI paints first
+    const t = setTimeout(() => { void recheck.start(); }, 800);
+    return () => clearTimeout(t);
+  }, [recheck]);
+
 
   const pendingCount = bugs.filter((b: any) => b.status === 'pending').length;
 
@@ -151,14 +170,12 @@ export function AdminErrorsSection() {
           }}>
             Copy All
           </Button>
-          <Button
-            variant={verifiedOnly ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setVerifiedOnly((v) => !v)}
-            title="Show only bugs the AI has verified as real and attention-worthy"
+          <span
+            className="px-2 py-1 rounded-md text-[10px] font-medium uppercase tracking-wide bg-primary/10 text-primary"
+            title="The Error Monitor only displays bugs that the AI has analyzed and confirmed as real, attention-worthy defects."
           >
-            {verifiedOnly ? '✓ AI-verified only' : 'Show all'}
-          </Button>
+            ✓ AI-verified only
+          </span>
           <Button
             variant="outline"
             size="sm"
@@ -259,7 +276,15 @@ export function AdminErrorsSection() {
           No bug reports yet. 🎉
         </div>
       ) : (
-        <div className="space-y-2 max-h-[500px] overflow-y-auto">
+        <div
+          className="space-y-2 max-h-[500px] overflow-y-auto scrollbar-hide"
+          style={{
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehaviorY: 'contain',
+            touchAction: 'pan-y',
+          }}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
           {bugs.map((bug: any) => {
             const expanded = expandedId === bug.id;
             const status = STATUS_CONFIG[bug.status as BugStatus] || STATUS_CONFIG.pending;
