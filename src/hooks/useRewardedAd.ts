@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import despia from 'despia-native';
-import { showRewarded } from '@/lib/admob';
-import { isNativePlatform } from '@/lib/capacitor';
+import { isDespiaRuntime as inDespiaShell } from '@/lib/despiaBridge';
 import { useEarnTokens } from '@/hooks/useVybeTokens';
 import { useHasBoost } from '@/hooks/useActiveBoosts';
 import { useAuth } from '@/lib/auth';
