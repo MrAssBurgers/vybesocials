@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import despia from 'despia-native';
-import { showRewarded } from '@/lib/admob';
-import { isNativePlatform } from '@/lib/capacitor';
+import { isDespiaRuntime as inDespiaShell } from '@/lib/despiaBridge';
 import { useEarnTokens } from '@/hooks/useVybeTokens';
 import { useHasBoost } from '@/hooks/useActiveBoosts';
 import { useAuth } from '@/lib/auth';
@@ -175,14 +174,10 @@ export function useRewardedAd() {
       let granted = false;
 
       if (isDespiaRuntime()) {
-        // Path 1 — Despia Native Runtime
+        // Despia Native Runtime — only supported delivery path (no Capacitor).
         granted = await runDespiaRewarded();
-      } else if (isNativePlatform) {
-        // Path 2 — Capacitor + AdMob
-        const reward = await showRewarded();
-        granted = !!reward;
       } else {
-        // Web preview — no real ad available
+        // Web preview / non-Despia shell — no real ad available.
         toast.info('Rewarded ads are only available in the mobile app');
         return;
       }
@@ -231,7 +226,7 @@ export function useRewardedAd() {
     dailyLimit: DAILY_AD_LIMIT,
     rewardPerAd: REWARD_PER_AD,
     watchedToday: state.count,
-    // True if either delivery path can serve a real ad on this device.
-    isNative: isNativePlatform || isDespiaRuntime(),
+    // True if Despia native runtime can serve a real ad on this device.
+    isNative: isDespiaRuntime(),
   };
 }

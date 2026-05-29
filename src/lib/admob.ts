@@ -1,113 +1,76 @@
-import {
-  AdMob,
-  BannerAdOptions,
-  BannerAdSize,
-  BannerAdPosition,
-  AdOptions,
-  RewardAdOptions,
-  AdmobConsentStatus,
-} from '@capacitor-community/admob';
-import { isNativePlatform, isIOS } from './capacitor';
-import { requestTrackingAuthorization } from './att';
-
 /**
- * AdMob integration for Vybe Studios.
+ * AdMob integration for VYBE — Despia-only.
  *
- * Replace the TEST IDs below with your real AdMob unit IDs from the AdMob console
- * once your account is approved. App ID goes in AndroidManifest.xml (see PLAY_STORE_GUIDE.md).
+ * IMPORTANT: This module used to depend on `@capacitor-community/admob`. That
+ * plugin requires a native Xcode/Android Studio build via `npx cap sync`, which
+ * is explicitly forbidden by project policy — we ship through Despia only.
+ * Inside the Despia shell that plugin is never compiled in, so every call
+ * silently failed and the wallet's "Watch & Earn" never delivered an ad.
  *
- * Test IDs (safe to ship while developing — Google's official test units):
- *   App ID:        ca-app-pub-3940256099942544~3347511713
- *   Banner:        ca-app-pub-3940256099942544/6300978111
- *   Interstitial:  ca-app-pub-3940256099942544/1033173712
- *   Rewarded:      ca-app-pub-3940256099942544/5224354917
+ * Despia bridge schemes used here:
+ *   - displayrewardedad://     → fires rewarded video; result returned via the
+ *                                global `window.updateRewardedStatus(status)`
+ *                                callback (see useRewardedAd.ts).
+ *   - displayinterstitialad:// → fires an interstitial (fire-and-forget).
+ *   - displaybannerad://       → shows the bottom banner.
+ *   - hidebannerad://          → hides the banner.
+ *
+ * The AdMob App ID + unit IDs are configured in the Despia dashboard, not in
+ * client code. AdMob's test/production behavior is chosen there as well.
  */
 
-const USE_TEST_ADS = true; // Flip to false when you have real unit IDs
-
-export const AD_UNIT_IDS = {
-  banner: USE_TEST_ADS
-    ? 'ca-app-pub-3940256099942544/6300978111'
-    : 'REPLACE_WITH_REAL_BANNER_ID',
-  interstitial: USE_TEST_ADS
-    ? 'ca-app-pub-3940256099942544/1033173712'
-    : 'REPLACE_WITH_REAL_INTERSTITIAL_ID',
-  rewarded: USE_TEST_ADS
-    ? 'ca-app-pub-3940256099942544/5224354917'
-    : 'REPLACE_WITH_REAL_REWARDED_ID',
-};
+import despia from 'despia-native';
+import { isDespiaRuntime } from './despiaBridge';
 
 let initialized = false;
 
-export async function initializeAdMob() {
-  if (!isNativePlatform || initialized) return;
+function safeDespia(url: string): boolean {
+  if (!isDespiaRuntime()) return false;
   try {
-    // iOS: must request App Tracking Transparency BEFORE AdMob.initialize
-    // or Apple review rejects the build and AdMob serves only non-personalized ads.
-    if (isIOS) {
-      await requestTrackingAuthorization();
-    }
-
-    await AdMob.initialize({
-      testingDevices: [],
-      initializeForTesting: USE_TEST_ADS,
-    });
-
-    // Request consent (required for EEA users / GDPR)
-    const consentInfo = await AdMob.requestConsentInfo();
-    if (
-      consentInfo.isConsentFormAvailable &&
-      consentInfo.status === AdmobConsentStatus.REQUIRED
-    ) {
-      await AdMob.showConsentForm();
-    }
-
-    initialized = true;
-    console.log('[AdMob] Initialized');
-  } catch (e) {
-    console.error('[AdMob] Init failed:', e);
+    despia(url);
+    return true;
+  } catch (err) {
+    console.warn('[AdMob:Despia] bridge call failed', url, err);
+    return false;
   }
 }
 
-export async function showBanner() {
-  if (!isNativePlatform) return;
-  const options: BannerAdOptions = {
-    adId: AD_UNIT_IDS.banner,
-    adSize: BannerAdSize.ADAPTIVE_BANNER,
-    position: BannerAdPosition.BOTTOM_CENTER,
-    margin: 0,
-    isTesting: USE_TEST_ADS,
-  };
-  await AdMob.showBanner(options);
+export async function initializeAdMob(): Promise<void> {
+  if (initialized) return;
+  if (!isDespiaRuntime()) {
+    // No-op on web preview — Despia owns the AdMob lifecycle in native.
+    return;
+  }
+  initialized = true;
+  console.log('[AdMob] Initialized (Despia bridge mode)');
 }
 
-export async function hideBanner() {
-  if (!isNativePlatform) return;
-  await AdMob.hideBanner();
+export async function showBanner(): Promise<void> {
+  safeDespia('displaybannerad://');
 }
 
-export async function removeBanner() {
-  if (!isNativePlatform) return;
-  await AdMob.removeBanner();
+export async function hideBanner(): Promise<void> {
+  safeDespia('hidebannerad://');
 }
 
-export async function showInterstitial() {
-  if (!isNativePlatform) return;
-  const options: AdOptions = {
-    adId: AD_UNIT_IDS.interstitial,
-    isTesting: USE_TEST_ADS,
-  };
-  await AdMob.prepareInterstitial(options);
-  await AdMob.showInterstitial();
+export async function removeBanner(): Promise<void> {
+  // Despia treats hide as remove for banner cleanup.
+  safeDespia('hidebannerad://');
 }
 
+export async function showInterstitial(): Promise<void> {
+  safeDespia('displayinterstitialad://');
+}
+
+/**
+ * Fire a rewarded ad via Despia. The actual reward outcome is delivered
+ * asynchronously through `window.updateRewardedStatus(status)` — see
+ * `src/hooks/useRewardedAd.ts`, which owns the Promise wiring and the
+ * tokens grant. This helper exists so legacy callers that only need to
+ * trigger an ad (without awaiting the reward) keep working; it resolves
+ * to `null` because the reward shape can only be known via the callback.
+ */
 export async function showRewarded(): Promise<{ amount: number; type: string } | null> {
-  if (!isNativePlatform) return null;
-  const options: RewardAdOptions = {
-    adId: AD_UNIT_IDS.rewarded,
-    isTesting: USE_TEST_ADS,
-  };
-  await AdMob.prepareRewardVideoAd(options);
-  const reward = await AdMob.showRewardVideoAd();
-  return reward ?? null;
+  safeDespia('displayrewardedad://');
+  return null;
 }
