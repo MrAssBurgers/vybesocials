@@ -178,8 +178,15 @@ export function AdminErrorsSection() {
           }}>
             Copy All
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={recheckAllAI.isPending}
+            onClick={() => recheckAllAI.mutate()}
+          >
+            <Sparkles className="w-3.5 h-3.5 mr-1" /> AI Re-check All
+          </Button>
           <Button variant="outline" size="sm" onClick={async () => {
-            // Get true total of UNFIXED bugs across the whole table, not just visible ones
             const { count: unfixedCount } = await supabase
               .from('bug_reports')
               .select('id', { count: 'exact', head: true })
@@ -193,14 +200,20 @@ export function AdminErrorsSection() {
               const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
               resolvedBy = profile?.id || null;
             }
-            const { error } = await supabase
+            const { data: updated, error } = await supabase
               .from('bug_reports')
               .update({ status: 'fixed', resolved_at: new Date().toISOString(), resolved_by: resolvedBy })
-              .neq('status', 'fixed');
+              .neq('status', 'fixed')
+              .select('id');
             if (error) { toast.error('Failed to update: ' + error.message); return; }
-            queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
-            queryClient.invalidateQueries({ queryKey: ['pending-moderation-count'] });
-            toast.success(`Marked ${total} bugs as fixed`);
+            const updatedCount = updated?.length || 0;
+            if (updatedCount === 0) {
+              toast.error('Update affected 0 rows — you may not have admin permission to update bug reports.');
+              return;
+            }
+            await queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
+            await queryClient.refetchQueries({ queryKey: ['pending-moderation-count'] });
+            toast.success(`Marked ${updatedCount} bugs as fixed`);
           }}>
             <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Fix All
           </Button>
