@@ -258,7 +258,15 @@ export function AdminErrorsSection() {
           No bug reports yet. 🎉
         </div>
       ) : (
-        <div className="space-y-2 max-h-[500px] overflow-y-auto">
+        <div
+          className="space-y-2 max-h-[500px] overflow-y-auto scrollbar-hide"
+          style={{
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehaviorY: 'contain',
+            touchAction: 'pan-y',
+          }}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
           {bugs.map((bug: any) => {
             const expanded = expandedId === bug.id;
             const status = STATUS_CONFIG[bug.status as BugStatus] || STATUS_CONFIG.pending;
