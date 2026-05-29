@@ -198,16 +198,18 @@ export function useDMConversations(searchQuery: string = '') {
       return result;
     },
     enabled: !!profile?.id,
+    // Treat persisted data as instantly displayable, then always revalidate
+    // in the background on mount so the list is fresh without blocking paint.
     staleTime: 30_000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: true,
-    refetchOnMount: true, // only refetch when stale (avoids flicker on remount)
+    refetchOnMount: 'always',
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
-    // 'online' (not offlineFirst): never trust a stale offline snapshot
-    // when the network is actually reachable. Combined with placeholderData,
-    // the cached list still renders instantly while the live fetch resolves.
-    networkMode: 'online',
+    // 'offlineFirst' so the hydrated cache shows even when the network is
+    // momentarily unreachable on cold start (e.g. flaky mobile data). The
+    // background refetch still runs the moment connectivity is available.
+    networkMode: 'offlineFirst',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
