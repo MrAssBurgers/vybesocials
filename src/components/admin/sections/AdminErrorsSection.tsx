@@ -22,7 +22,8 @@ export function AdminErrorsSection() {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BugStatus | 'all'>('all');
-  const [verifiedOnly, setVerifiedOnly] = useState(true);
+  // Error monitor ONLY shows AI-verified bugs — no toggle, no noise.
+  const verifiedOnly = true;
   const recheck = useBugRecheck();
 
   const { data: bugs = [], isLoading, refetch } = useQuery({
