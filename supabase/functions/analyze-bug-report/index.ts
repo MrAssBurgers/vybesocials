@@ -57,18 +57,31 @@ Deno.serve(async (req) => {
       });
     }
 
+    // For force re-check: count recent occurrences of similar errors (last 24h)
+    let recurrenceNote = "";
+    if (force && bug.error_message) {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { count } = await admin
+        .from("bug_reports")
+        .select("id", { count: "exact", head: true })
+        .eq("error_message", bug.error_message)
+        .gte("created_at", since);
+      recurrenceNote = `RECENT OCCURRENCES (last 24h): ${count ?? 0}\n`;
+    }
+
     const prompt = [
       `You are a senior React/TypeScript engineer triaging a frontend crash report from a social media app called Vybe (React + Vite + Supabase, runs on web, iOS PWA, and an Android Despia WebView APK).`,
       ``,
       `ERROR: ${bug.error_message ?? "(none)"}`,
       `PAGE: ${bug.page_url ?? "(unknown)"}`,
       `USER AGENT: ${bug.user_agent ?? "(unknown)"}`,
+      recurrenceNote,
       `STACK:\n${(bug.error_stack ?? "(none)").slice(0, 1500)}`,
       `COMPONENT STACK:\n${(bug.component_stack ?? "(none)").slice(0, 800)}`,
       ``,
-      `Reply in <= 90 words, plain text, two short sections:`,
-      `Cause: <single sentence root cause hypothesis>`,
-      `Fix: <one or two concrete code-level actions, mention specific files/APIs if obvious from the stack>`,
+      force
+        ? `This is a RE-CHECK. Tell me if the bug appears still active based on recurrence count. Reply in <= 110 words, plain text, three short sections:\nStatus: <ACTIVE if recurrences > 0 in last 24h, else LIKELY RESOLVED>\nCause: <single sentence root cause>\nFix: <one or two concrete code-level actions, mention specific files/APIs if obvious>`
+        : `Reply in <= 90 words, plain text, two short sections:\nCause: <single sentence root cause hypothesis>\nFix: <one or two concrete code-level actions, mention specific files/APIs if obvious from the stack>`,
       ``,
       `Then on a new line write exactly: SEVERITY=low | medium | high | critical`,
     ].join("\n");
