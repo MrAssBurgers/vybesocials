@@ -152,14 +152,12 @@ export function AdminErrorsSection() {
           }}>
             Copy All
           </Button>
-          <Button
-            variant={verifiedOnly ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setVerifiedOnly((v) => !v)}
-            title="Show only bugs the AI has verified as real and attention-worthy"
+          <span
+            className="px-2 py-1 rounded-md text-[10px] font-medium uppercase tracking-wide bg-primary/10 text-primary"
+            title="The Error Monitor only displays bugs that the AI has analyzed and confirmed as real, attention-worthy defects."
           >
-            {verifiedOnly ? '✓ AI-verified only' : 'Show all'}
-          </Button>
+            ✓ AI-verified only
+          </span>
           <Button
             variant="outline"
             size="sm"
