@@ -174,14 +174,10 @@ export function useRewardedAd() {
       let granted = false;
 
       if (isDespiaRuntime()) {
-        // Path 1 — Despia Native Runtime
+        // Despia Native Runtime — only supported delivery path (no Capacitor).
         granted = await runDespiaRewarded();
-      } else if (isNativePlatform) {
-        // Path 2 — Capacitor + AdMob
-        const reward = await showRewarded();
-        granted = !!reward;
       } else {
-        // Web preview — no real ad available
+        // Web preview / non-Despia shell — no real ad available.
         toast.info('Rewarded ads are only available in the mobile app');
         return;
       }
