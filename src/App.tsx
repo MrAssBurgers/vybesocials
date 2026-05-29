@@ -17,6 +17,7 @@ import { ThemeProvider } from "@/lib/theme";
 import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
 import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
+import { BugRecheckProvider } from "@/contexts/BugRecheckContext";
 import { CallStoreProvider } from "@/lib/callStore";
 
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
@@ -324,6 +325,7 @@ function AppWithPreloader() {
                           <Suspense fallback={null}>
                             <RewardNotificationProvider>
                               <DebugPanelProvider>
+                                <BugRecheckProvider>
                                 <Suspense fallback={null}>
                                   <TutorialProvider>
                                     <NavigationRefSetter />
@@ -352,6 +354,7 @@ function AppWithPreloader() {
                                     </LocalErrorBoundary>
                                   </TutorialProvider>
                                 </Suspense>
+                                </BugRecheckProvider>
                               </DebugPanelProvider>
                             </RewardNotificationProvider>
                           </Suspense>

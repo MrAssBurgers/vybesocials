@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
-import { AlertTriangle, Bug, RefreshCw, Trash2, CheckCircle2, Clock, ChevronDown, ChevronUp, MessageSquare, Sparkles } from 'lucide-react';
+import { AlertTriangle, Bug, RefreshCw, Trash2, CheckCircle2, Clock, ChevronDown, ChevronUp, MessageSquare, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { useBugRecheck } from '@/contexts/BugRecheckContext';
 
 
 type BugStatus = 'pending' | 'reviewing' | 'fixed' | 'wont_fix' | 'duplicate';
@@ -21,12 +22,12 @@ export function AdminErrorsSection() {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BugStatus | 'all'>('all');
+  const [verifiedOnly, setVerifiedOnly] = useState(true);
+  const recheck = useBugRecheck();
 
   const { data: bugs = [], isLoading, refetch } = useQuery({
-    queryKey: ['admin-bug-reports-inline', filter],
+    queryKey: ['admin-bug-reports-inline', filter, verifiedOnly],
     queryFn: async () => {
-      // Slim list query — skip heavy fields (error_stack, browser_info, user_agent)
-      // to keep payload tiny. Full record is fetched lazily on row expand.
       let query = supabase
         .from('bug_reports')
         .select('id, error_message, page_url, status, created_at, ai_analysis, ai_severity, reporter_id, reporter:profiles!bug_reports_reporter_id_fkey(username, display_name, avatar_url)')
@@ -35,6 +36,11 @@ export function AdminErrorsSection() {
 
       if (filter !== 'all') {
         query = query.eq('status', filter);
+      }
+      if (verifiedOnly) {
+        // Only bugs the AI has analyzed AND rated as a real, attention-worthy defect
+        query = query.not('ai_analysis', 'is', null).in('ai_severity', ['medium', 'high', 'critical']);
+        if (filter === 'all') query = query.neq('status', 'fixed');
       }
 
       const { data, error } = await query;
@@ -113,41 +119,8 @@ export function AdminErrorsSection() {
     onError: (e: any) => toast.error(e?.message || 'AI re-check failed', { id: 'ai-recheck' }),
   });
 
-  const recheckAllAI = useMutation({
-    mutationFn: async () => {
-      const { data: rows, error } = await supabase
-        .from('bug_reports')
-        .select('id')
-        .neq('status', 'fixed')
-        .order('created_at', { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      const ids = (rows || []).map((r: any) => r.id);
-      if (ids.length === 0) return { checked: 0 };
-
-      let done = 0;
-      const concurrency = 4;
-      let cursor = 0;
-      const worker = async () => {
-        while (cursor < ids.length) {
-          const id = ids[cursor++];
-          try {
-            await supabase.functions.invoke('analyze-bug-report', { body: { bugId: id, force: true } });
-          } catch {}
-          done++;
-          toast.loading(`AI re-checking ${done}/${ids.length}...`, { id: 'ai-recheck-all' });
-        }
-      };
-      await Promise.all(Array.from({ length: concurrency }, worker));
-      return { checked: ids.length };
-    },
-    onMutate: () => toast.loading('Starting AI re-check on all bugs...', { id: 'ai-recheck-all' }),
-    onSuccess: (res) => {
-      toast.success(`AI re-checked ${res.checked} bug${res.checked === 1 ? '' : 's'}`, { id: 'ai-recheck-all' });
-      queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
-    },
-    onError: (e: any) => toast.error(e?.message || 'AI re-check failed', { id: 'ai-recheck-all' }),
-  });
+  // AI Re-check All now runs in the BugRecheckProvider so it survives
+  // navigation away from /admin. Progress is rendered from `recheck` below.
 
 
   const pendingCount = bugs.filter((b: any) => b.status === 'pending').length;
@@ -179,13 +152,27 @@ export function AdminErrorsSection() {
             Copy All
           </Button>
           <Button
+            variant={verifiedOnly ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setVerifiedOnly((v) => !v)}
+            title="Show only bugs the AI has verified as real and attention-worthy"
+          >
+            {verifiedOnly ? '✓ AI-verified only' : 'Show all'}
+          </Button>
+          <Button
             variant="outline"
             size="sm"
-            disabled={recheckAllAI.isPending}
-            onClick={() => recheckAllAI.mutate()}
+            disabled={recheck.running}
+            onClick={() => recheck.start()}
           >
-            <Sparkles className="w-3.5 h-3.5 mr-1" /> AI Re-check All
+            <Sparkles className="w-3.5 h-3.5 mr-1" />
+            {recheck.running ? `Re-checking ${recheck.done}/${recheck.total}` : 'AI Re-check All'}
           </Button>
+          {recheck.running && (
+            <Button variant="ghost" size="sm" onClick={() => recheck.abort()}>
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={async () => {
             const { count: unfixedCount } = await supabase
               .from('bug_reports')
@@ -223,6 +210,34 @@ export function AdminErrorsSection() {
           </Button>
         </div>
       </div>
+
+      {/* Real-time AI re-check progress bar — visible while the background re-check runs */}
+      {(recheck.running || (recheck.finishedAt && recheck.total > 0)) && (
+        <div className="rounded-2xl bg-card border border-border p-3 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-foreground flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              {recheck.running ? 'AI re-checking bugs…' : 'AI re-check finished'}
+            </span>
+            <span className="text-muted-foreground tabular-nums">
+              {recheck.done}/{recheck.total}
+            </span>
+          </div>
+          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-200"
+              style={{ width: `${recheck.total ? (recheck.done / recheck.total) * 100 : 0}%` }}
+            />
+          </div>
+          <div className="flex gap-3 text-[11px] text-muted-foreground">
+            <span>✓ Real bugs: <span className="text-foreground font-medium">{recheck.verified}</span></span>
+            <span>↻ Auto-resolved: <span className="text-foreground font-medium">{recheck.resolved}</span></span>
+            {recheck.failed > 0 && <span>⚠ Failed: <span className="text-foreground font-medium">{recheck.failed}</span></span>}
+            <span className="ml-auto opacity-70">Runs in background — safe to navigate away</span>
+          </div>
+        </div>
+      )}
+
 
       {/* Filters */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
