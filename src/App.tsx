@@ -389,7 +389,7 @@ const App = memo(() => {
             // failed (e.g. offline).
             shouldDehydrateQuery: (q) =>
               (q.state.status === 'success' || (q.state.status === 'error' && q.state.data !== undefined)) &&
-              shouldPersistQueryKey(q.queryKey),
+              shouldPersistQueryKey(q.queryKey, q.state.data),
             shouldDehydrateMutation: () => false,
           },
         }}
