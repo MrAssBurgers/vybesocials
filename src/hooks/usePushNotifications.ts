@@ -192,7 +192,7 @@ export function usePushNotifications() {
         user_id: profile.id,
         token: `despia:${profile.id}`,
         platform: 'despia',
-      }, { onConflict: 'user_id,token' });
+      }, { onConflict: 'user_id,platform' });
     } catch (err) {
       console.warn('[Push] placeholder token insert failed', err);
     }
