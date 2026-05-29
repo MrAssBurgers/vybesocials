@@ -508,10 +508,14 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
     -webkit-overflow-scrolling: touch;
+    /* Stop rubber-band / swipe cutoffs that make content look like it's pulled off the screen */
+    overscroll-behavior: none;
+    overscroll-behavior-x: none;
     /* Prevent forced-colors / contrast overrides from altering brand palette */
     forced-color-adjust: none;
     -ms-high-contrast-adjust: none;
   }
+
 
   body {
     @apply text-foreground antialiased;
