@@ -191,33 +191,50 @@ export function AdminErrorsSection() {
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={async () => {
+            // Fix All = delete every unfixed bug in batches so the list
+            // actually empties out instead of just changing status.
             const { count: unfixedCount } = await supabase
               .from('bug_reports')
               .select('id', { count: 'exact', head: true })
               .neq('status', 'fixed');
             const total = unfixedCount || 0;
-            if (total === 0) { toast.info('All bugs already fixed'); return; }
-            if (!confirm(`Mark ALL ${total} unfixed bugs as fixed across the entire database?`)) return;
-            const { data: { user } } = await supabase.auth.getUser();
-            let resolvedBy: string | null = null;
-            if (user?.id) {
-              const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
-              resolvedBy = profile?.id || null;
+            if (total === 0) { toast.info('All bugs already cleared'); return; }
+            if (!confirm(`Clear ALL ${total} unfixed bugs from the database? This deletes them permanently.`)) return;
+
+            const toastId = 'fix-all-progress';
+            toast.loading(`Clearing 0/${total}…`, { id: toastId });
+
+            let cleared = 0;
+            const BATCH = 200;
+            // Loop deleting batches until none remain (or RLS blocks)
+            for (let i = 0; i < 50; i++) {
+              const { data: batchIds, error: selErr } = await supabase
+                .from('bug_reports')
+                .select('id')
+                .neq('status', 'fixed')
+                .limit(BATCH);
+              if (selErr) { toast.error('Failed to read bugs: ' + selErr.message, { id: toastId }); return; }
+              if (!batchIds || batchIds.length === 0) break;
+              const ids = batchIds.map((r: any) => r.id);
+              const { error: delErr, data: deleted } = await supabase
+                .from('bug_reports')
+                .delete()
+                .in('id', ids)
+                .select('id');
+              if (delErr) { toast.error('Failed to delete: ' + delErr.message, { id: toastId }); return; }
+              const n = deleted?.length || 0;
+              if (n === 0) {
+                toast.error('Delete affected 0 rows — admin permission may be missing.', { id: toastId });
+                return;
+              }
+              cleared += n;
+              toast.loading(`Clearing ${cleared}/${total}…`, { id: toastId });
+              if (n < BATCH) break;
             }
-            const { data: updated, error } = await supabase
-              .from('bug_reports')
-              .update({ status: 'fixed', resolved_at: new Date().toISOString(), resolved_by: resolvedBy })
-              .neq('status', 'fixed')
-              .select('id');
-            if (error) { toast.error('Failed to update: ' + error.message); return; }
-            const updatedCount = updated?.length || 0;
-            if (updatedCount === 0) {
-              toast.error('Update affected 0 rows — you may not have admin permission to update bug reports.');
-              return;
-            }
+
             await queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
             await queryClient.refetchQueries({ queryKey: ['pending-moderation-count'] });
-            toast.success(`Marked ${updatedCount} bugs as fixed`);
+            toast.success(`Cleared ${cleared} bugs`, { id: toastId });
           }}>
             <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Fix All
           </Button>
