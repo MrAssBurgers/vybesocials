@@ -168,7 +168,7 @@ export function useUserRole() {
         ...((profileRoles.data || []).map((r: any) => r.role)),
         ...((authRoles.data || []).map((r: any) => r.role)),
       ];
-      if (roles.includes('owner')) return 'owner';
+      if (roles.includes('owner') || roles.includes('owner_wife')) return 'owner';
       if (roles.includes('admin')) return 'admin';
       if (roles.includes('moderator')) return 'moderator';
       return null;

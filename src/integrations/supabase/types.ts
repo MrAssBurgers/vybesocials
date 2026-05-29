@@ -13611,6 +13611,7 @@ export type Database = {
           theme_tokens: Json
         }[]
       }
+      get_staff_role_for_user: { Args: { _user_id: string }; Returns: string }
       get_trending_feed: {
         Args: { p_content_type?: string; p_page?: number; p_page_size?: number }
         Returns: {
