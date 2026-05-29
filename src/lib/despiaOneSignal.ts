@@ -104,9 +104,28 @@ export async function fetchDespiaOneSignalPlayerId(waitMs = 0): Promise<string> 
 
 export async function ensureDespiaOneSignalLinked(
   externalId: string,
-  options: { requestPermission?: boolean; waitForPlayerIdMs?: number; persistToken?: boolean } = {},
+  options: {
+    requestPermission?: boolean;
+    waitForPlayerIdMs?: number;
+    persistToken?: boolean;
+    /** Optional Supabase auth.uid — logged + stored as backup alias only. profile.id remains the primary external_id. */
+    authUserId?: string;
+    /** Label for logs: 'cold-start' | 'login' | 'token-refresh' | 'permission-grant' | etc. */
+    trigger?: string;
+  } = {},
 ): Promise<{ linked: boolean; playerId: string; permission: boolean | null }> {
-  if (!externalId || !isDespiaRuntime()) {
+  const isNative = isDespiaRuntime();
+  const tag = `[OneSignal:${options.trigger ?? 'manual'}]`;
+
+  console.log(`${tag} link request`, {
+    primaryExternalId: externalId,
+    backupAuthUid: options.authUserId ?? null,
+    despiaNative: isNative,
+  });
+
+  if (!externalId || !isNative) {
+    if (!externalId) console.warn(`${tag} skipped — no external id`);
+    if (!isNative) console.log(`${tag} skipped — not Despia native runtime (web/PWA path handled separately)`);
     return { linked: false, playerId: '', permission: null };
   }
 
@@ -114,29 +133,57 @@ export async function ensureDespiaOneSignalLinked(
   const linkUrl = `setonesignalplayerid://?user_id=${encoded}`;
   let permission: boolean | null = null;
 
-  // Bind immediately on every call. Despia's OneSignal command is queued and
-  // may not return a player id synchronously, so also repeat it below.
+  // Bind immediately. Despia's OneSignal command is queued and may not return
+  // a player id synchronously, so we also retry below.
+  console.log(`${tag} initial bind → ${linkUrl}`);
   await despiaCall(linkUrl, [], 1_000);
 
   permission = await checkNativePushPermission();
+  console.log(`${tag} push permission =`, permission);
 
-  if (options.requestPermission) {
-    if (permission !== true) {
-      await despiaCall('registerpush://', [], 1_500);
-      permission = await checkNativePushPermission();
-    }
+  if (options.requestPermission && permission !== true) {
+    console.log(`${tag} requesting push permission via registerpush://`);
+    await despiaCall('registerpush://', [], 1_500);
+    permission = await checkNativePushPermission();
+    console.log(`${tag} permission after prompt =`, permission);
   }
 
+  // Second immediate bind (covers race where permission just flipped).
   await despiaCall(linkUrl, [], 1_200);
 
-  // Despia/OneSignal may create the subscription shortly after permission is granted.
-  // Retry in the background so manual linking never blocks the UI forever.
-  window.setTimeout(() => void despiaCall(linkUrl, [], 1_200), 2_500);
+  // Aggressive background retry loop: 5 attempts, 2s apart. Despia's OneSignal
+  // bridge can take many seconds after permission grant to create the
+  // subscription record; without retries the external_id never lands and
+  // targeted pushes silently fail.
+  const MAX_RETRIES = 5;
+  const RETRY_DELAY_MS = 2_000;
+  void (async () => {
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      await delay(RETRY_DELAY_MS);
+      try {
+        await despiaCall(linkUrl, [], 1_200);
+        const currentPlayerId = await fetchDespiaOneSignalPlayerId(0);
+        console.log(`${tag} retry ${attempt}/${MAX_RETRIES}`, {
+          playerIdResolved: !!currentPlayerId,
+          playerId: currentPlayerId || null,
+        });
+        if (currentPlayerId && options.persistToken !== false) {
+          // Persist updated marker token so backend knows the device is bound.
+          persistDespiaPushToken(externalId, currentPlayerId).catch(() => {});
+          break; // success — stop retrying
+        }
+      } catch (err) {
+        console.warn(`${tag} retry ${attempt} error`, err);
+      }
+    }
+  })();
 
   const playerId = await fetchDespiaOneSignalPlayerId(options.waitForPlayerIdMs ?? 1_500);
+  console.log(`${tag} immediate fetch playerId =`, playerId || '(empty — retry loop will keep trying)');
+
   if (options.persistToken !== false) {
     persistDespiaPushToken(externalId, playerId).catch((err) => {
-      console.warn('[despiaOneSignal] push token marker save failed', err);
+      console.warn(`${tag} push token marker save failed`, err);
     });
   }
   return { linked: true, playerId, permission };

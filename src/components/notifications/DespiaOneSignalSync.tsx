@@ -10,7 +10,10 @@ const PUSH_PERM_KEY = 'vybe_push_permission_asked_v1';
 type OneSignalApi = {
   login?: (id: string) => Promise<void>;
   logout?: () => Promise<void>;
-  User?: { addTags?: (tags: Record<string, string>) => Promise<void> };
+  User?: {
+    addTags?: (tags: Record<string, string>) => Promise<void>;
+    addAlias?: (label: string, id: string) => Promise<void>;
+  };
 };
 type OneSignalDeferredWindow = Window & { OneSignalDeferred?: Array<(api: OneSignalApi) => Promise<void>> };
 
@@ -39,14 +42,16 @@ export function DespiaOneSignalSync() {
     const setPlayerIdForAuthUser = async (
       authUserId: string | undefined | null,
       email: string | undefined | null,
+      trigger: string,
     ) => {
       if (!isValidExternalId(authUserId)) {
-        console.warn('[OneSignal] Skipping login — invalid auth user id:', authUserId);
+        console.warn(`[OneSignal:${trigger}] Skipping — invalid auth user id:`, authUserId);
         return;
       }
       try {
-        // OneSignal external_id must match the id used by app push call sites,
-        // which is profiles.id (NOT auth.users.id). Resolve and bind.
+        // OneSignal external_id MUST match the id used by app push call sites,
+        // which is profiles.id (NOT auth.users.id). auth.uid is kept as a
+        // backup alias/tag for debugging + fallback lookup only.
         const { data: profile } = await supabase
           .from('profiles')
           .select('id')
@@ -55,13 +60,23 @@ export function DespiaOneSignalSync() {
         const externalId = profile?.id ?? authUserId;
 
         if (!isValidExternalId(externalId)) {
-          console.warn('[OneSignal] Skipping login — resolved external id invalid:', externalId);
+          console.warn(`[OneSignal:${trigger}] Skipping — resolved external id invalid:`, externalId);
           return;
         }
 
-        // Despia native shell bridge (no-op on web). This is what actually
-        // links the Android push subscription to the user's external_id.
-        void ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 0 });
+        console.log(`[OneSignal:${trigger}] linking`, {
+          primaryExternalId_profileId: externalId,
+          backupAlias_authUid: authUserId,
+          despiaNative: isDespiaRuntime(),
+        });
+
+        // Despia native shell bridge (no-op on web). Includes the 5×2s retry
+        // loop inside ensureDespiaOneSignalLinked.
+        void ensureDespiaOneSignalLinked(externalId, {
+          waitForPlayerIdMs: 0,
+          authUserId,
+          trigger,
+        });
 
         // Web OneSignal SDK bridge — required so web/PWA users receive
         // pushes targeted via include_aliases.external_id. Safe on hosts
@@ -74,28 +89,40 @@ export function DespiaOneSignalSync() {
           w.OneSignalDeferred.push(async (OneSignal) => {
             try {
               await OneSignal?.login?.(externalId);
-              console.info('[OneSignal] login() succeeded for external_id:', externalId);
-              // Tag the subscription so admin segments + targeted sends work.
+              console.info(`[OneSignal:${trigger}] web login() OK external_id=${externalId}`);
+
+              // Backup alias: auth.uid → never used by backend push sends, but
+              // lets us look users up in OneSignal dashboard by either ID and
+              // recover bindings if profile.id ever rotates.
+              try {
+                await OneSignal?.User?.addAlias?.('supabase_auth_uid', authUserId);
+                console.info(`[OneSignal:${trigger}] backup alias supabase_auth_uid=${authUserId} added`);
+              } catch (aliasErr) {
+                console.warn(`[OneSignal:${trigger}] addAlias() failed:`, aliasErr);
+              }
+
+              // Tags for segments + admin search.
               const tags: Record<string, string> = {
-                user_id: externalId,
-                auth_id: authUserId,
+                user_id: externalId,           // profile.id (primary)
+                auth_id: authUserId,           // backup
+                profile_id: externalId,        // explicit duplicate for clarity
               };
               if (email) tags.email = email;
               try {
                 await OneSignal?.User?.addTags?.(tags);
-                console.info('[OneSignal] addTags() succeeded:', Object.keys(tags));
+                console.info(`[OneSignal:${trigger}] addTags() OK`, Object.keys(tags));
               } catch (tagErr) {
-                console.warn('[OneSignal] addTags() failed:', tagErr);
+                console.warn(`[OneSignal:${trigger}] addTags() failed:`, tagErr);
               }
             } catch (loginErr) {
-              console.error('[OneSignal] login() failed:', loginErr);
+              console.error(`[OneSignal:${trigger}] web login() failed:`, loginErr);
             }
           });
         } catch (err) {
-          console.warn('[OneSignal] deferred queue setup failed:', err);
+          console.warn(`[OneSignal:${trigger}] deferred queue setup failed:`, err);
         }
       } catch (err) {
-        console.warn('[OneSignal] Failed to set player id:', err);
+        console.warn(`[OneSignal:${trigger}] Failed to set player id:`, err);
       }
     };
 
@@ -108,9 +135,9 @@ export function DespiaOneSignalSync() {
         w.OneSignalDeferred.push(async (OneSignal) => {
           try {
             await OneSignal?.logout?.();
-            console.info('[OneSignal] logout() succeeded');
+            console.info('[OneSignal:signout] logout() OK');
           } catch (err) {
-            console.warn('[OneSignal] logout() failed:', err);
+            console.warn('[OneSignal:signout] logout() failed:', err);
           }
         });
       } catch { /* ignore */ }
@@ -118,7 +145,10 @@ export function DespiaOneSignalSync() {
 
 
     const requestPushPermissionOnce = () => {
-      if (!isDespiaRuntime()) return;
+      if (!isDespiaRuntime()) {
+        console.log('[OneSignal:permission-grant] skipped — not Despia native');
+        return;
+      }
       try {
         localStorage.setItem(PUSH_PERM_KEY, String(Date.now()));
         void supabase.auth.getUser().then(({ data }) => {
@@ -130,27 +160,43 @@ export function DespiaOneSignalSync() {
             .maybeSingle()
             .then(({ data: profile }) => {
               const externalId = profile?.id ?? data.user!.id;
+              console.log('[OneSignal:permission-grant] prompting + linking', {
+                primaryExternalId_profileId: externalId,
+                backupAlias_authUid: data.user!.id,
+              });
               void ensureDespiaOneSignalLinked(externalId, {
                 requestPermission: true,
                 waitForPlayerIdMs: 0,
+                authUserId: data.user!.id,
+                trigger: 'permission-grant',
               });
             });
         });
       } catch (err) {
-        console.warn('[Despia] checknativepushpermissions failed:', err);
+        console.warn('[OneSignal:permission-grant] failed:', err);
       }
     };
 
+    // Cold start
     supabase.auth.getUser().then(({ data }) => {
-      void setPlayerIdForAuthUser(data.user?.id, data.user?.email);
+      void setPlayerIdForAuthUser(data.user?.id, data.user?.email, 'cold-start');
     }).catch(() => {});
 
+    // Login / signup / token refresh / user updates — all re-link.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session?.user?.id) {
+        console.log('[OneSignal:signout] clearing player id');
         clearPlayerId();
         return;
       }
-      void setPlayerIdForAuthUser(session.user.id, session.user.email);
+      const triggerMap: Record<string, string> = {
+        SIGNED_IN: 'login',
+        TOKEN_REFRESHED: 'token-refresh',
+        USER_UPDATED: 'user-updated',
+        INITIAL_SESSION: 'initial-session',
+      };
+      const trigger = triggerMap[event] ?? event.toLowerCase();
+      void setPlayerIdForAuthUser(session.user.id, session.user.email, trigger);
     });
 
     // Request push permission on the FIRST authenticated user gesture
