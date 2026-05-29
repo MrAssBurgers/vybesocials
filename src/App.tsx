@@ -354,6 +354,7 @@ function AppWithPreloader() {
                                     </LocalErrorBoundary>
                                   </TutorialProvider>
                                 </Suspense>
+                                </BugRecheckProvider>
                               </DebugPanelProvider>
                             </RewardNotificationProvider>
                           </Suspense>
