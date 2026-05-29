@@ -124,23 +124,32 @@ export function AdminErrorsSection() {
             Copy All
           </Button>
           <Button variant="outline" size="sm" onClick={async () => {
-            if (!confirm(`Mark all ${bugs.length} visible bugs as fixed?`)) return;
-            const ids = bugs.filter((b: any) => b.status !== 'fixed').map((b: any) => b.id);
-            if (ids.length === 0) { toast.info('All already fixed'); return; }
+            // Get true total of UNFIXED bugs across the whole table, not just visible ones
+            const { count: unfixedCount } = await supabase
+              .from('bug_reports')
+              .select('id', { count: 'exact', head: true })
+              .neq('status', 'fixed');
+            const total = unfixedCount || 0;
+            if (total === 0) { toast.info('All bugs already fixed'); return; }
+            if (!confirm(`Mark ALL ${total} unfixed bugs as fixed across the entire database?`)) return;
             const { data: { user } } = await supabase.auth.getUser();
-            // Use profile id lookup to avoid FK constraint violation
             let resolvedBy: string | null = null;
             if (user?.id) {
               const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
               resolvedBy = profile?.id || null;
             }
-            const { error } = await supabase.from('bug_reports').update({ status: 'fixed', resolved_at: new Date().toISOString(), resolved_by: resolvedBy }).in('id', ids);
+            const { error } = await supabase
+              .from('bug_reports')
+              .update({ status: 'fixed', resolved_at: new Date().toISOString(), resolved_by: resolvedBy })
+              .neq('status', 'fixed');
             if (error) { toast.error('Failed to update: ' + error.message); return; }
             queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
-            toast.success(`Marked ${ids.length} bugs as fixed`);
+            queryClient.invalidateQueries({ queryKey: ['pending-moderation-count'] });
+            toast.success(`Marked ${total} bugs as fixed`);
           }}>
             <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Fix All
           </Button>
+
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh
           </Button>
