@@ -534,8 +534,12 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     /* CRITICAL: Allow all touch actions for proper scrolling */
     touch-action: pan-x pan-y;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
+    /* Hard-stop rubber-band/swipe cutoffs — content should never feel like it's peeling off the phone */
+    overscroll-behavior: none;
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: none;
   }
+
   
   /* =============================================
      BACKGROUND IMAGE SYSTEM
