@@ -22,12 +22,12 @@ export function AdminErrorsSection() {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BugStatus | 'all'>('all');
+  const [verifiedOnly, setVerifiedOnly] = useState(true);
+  const recheck = useBugRecheck();
 
   const { data: bugs = [], isLoading, refetch } = useQuery({
-    queryKey: ['admin-bug-reports-inline', filter],
+    queryKey: ['admin-bug-reports-inline', filter, verifiedOnly],
     queryFn: async () => {
-      // Slim list query — skip heavy fields (error_stack, browser_info, user_agent)
-      // to keep payload tiny. Full record is fetched lazily on row expand.
       let query = supabase
         .from('bug_reports')
         .select('id, error_message, page_url, status, created_at, ai_analysis, ai_severity, reporter_id, reporter:profiles!bug_reports_reporter_id_fkey(username, display_name, avatar_url)')
@@ -36,6 +36,11 @@ export function AdminErrorsSection() {
 
       if (filter !== 'all') {
         query = query.eq('status', filter);
+      }
+      if (verifiedOnly) {
+        // Only bugs the AI has analyzed AND rated as a real, attention-worthy defect
+        query = query.not('ai_analysis', 'is', null).in('ai_severity', ['medium', 'high', 'critical']);
+        if (filter === 'all') query = query.neq('status', 'fixed');
       }
 
       const { data, error } = await query;
