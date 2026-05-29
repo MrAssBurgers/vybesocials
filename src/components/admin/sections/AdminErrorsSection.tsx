@@ -268,6 +268,14 @@ export function AdminErrorsSection() {
                     )}
 
                     <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        disabled={recheckAI.isPending}
+                        onClick={() => recheckAI.mutate(bug.id)}
+                        className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" /> AI Re-check
+                      </button>
+
                       {bug.status !== 'reviewing' && (
                         <button onClick={() => updateStatus.mutate({ id: bug.id, status: 'reviewing' })} className="px-3 py-1.5 bg-blue-500/10 text-blue-500 rounded-lg text-xs font-medium hover:bg-blue-500/20 transition-colors">
                           Mark Reviewing
