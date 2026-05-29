@@ -122,8 +122,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const handler = () => {
       const resolved = getSystemTheme();
       setResolvedTheme(resolved);
-      document.documentElement.classList.remove('light', 'dark');
-      document.documentElement.classList.add(resolved);
+      const root = document.documentElement;
+      const currentMode = root.classList.contains('light') ? 'light' : 'dark';
+      if (currentMode !== resolved) {
+        root.classList.remove('light', 'dark');
+        root.classList.add(resolved);
+      }
     };
 
     mediaQuery.addEventListener('change', handler);
