@@ -78,7 +78,7 @@ export async function persistDespiaPushToken(profileId: string, playerId = ''): 
     user_id: profileId,
     platform: 'despia',
     token,
-  }, { onConflict: 'user_id,token' });
+  }, { onConflict: 'user_id,platform' });
   if (error) throw error;
 }
 
