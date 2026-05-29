@@ -1,6 +1,37 @@
 <!doctype html>
 <html lang="en" class="dark">
   <head>
+    <!-- VYBE pre-boot theme application — runs BEFORE anything paints so the
+         splash screen never flashes default/preset colors before the user's
+         saved theme is loaded by React. We mirror every applyThemeTokens()
+         call to localStorage('vybe-boot-theme') and replay it here. -->
+    <script>
+      (function () {
+        try {
+          var root = document.documentElement;
+          // 1) Mode (dark / light) — set the class before any CSS evaluates
+          var mode = localStorage.getItem('xd-theme') || 'dark';
+          if (mode === 'system') {
+            mode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          root.classList.remove('light', 'dark');
+          root.classList.add(mode === 'light' ? 'light' : 'dark');
+
+          // 2) Cached token snapshot from last session
+          var raw = localStorage.getItem('vybe-boot-theme');
+          if (!raw) return;
+          var vars = JSON.parse(raw);
+          if (!vars || typeof vars !== 'object') return;
+          for (var k in vars) {
+            if (Object.prototype.hasOwnProperty.call(vars, k) && typeof vars[k] === 'string') {
+              root.style.setProperty(k, vars[k]);
+            }
+          }
+        } catch (e) { /* fail open — React will paint defaults */ }
+      })();
+    </script>
+
+  <head>
     <meta charset="UTF-8" />
     <meta name="google-site-verification" content="b3Q9zX83fSqJHGmuLFY17oIIoTvFnoDN6Ba6isHL_B0" />
 
