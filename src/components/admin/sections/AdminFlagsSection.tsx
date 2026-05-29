@@ -30,25 +30,38 @@ export function AdminFlagsSection() {
     const type = String(flag.content_type || '').toLowerCase();
     const id = flag.content_id;
     if (!id) {
-      toast.error('No content reference on this flag');
+      toast.error('No content reference on this flag', {
+        description: flag.flagged_text || 'No flagged text stored either.',
+      });
       return;
     }
     try {
       if (type.includes('comment')) {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('comments')
           .select('post_id')
           .eq('id', id)
           .maybeSingle();
-        if (error || !data?.post_id) {
-          toast.error('Could not locate parent post');
+        if (data?.post_id) {
+          navigate(`/p/${data.post_id}#comment-${id}`);
           return;
         }
-        navigate(`/p/${data.post_id}#comment-${id}`);
-      } else {
-        // post / clip / default → open post detail
-        navigate(`/p/${id}`);
+        // Comment was deleted — surface the flagged text instead of failing silently.
+        toast.message('Original comment no longer exists', {
+          description: flag.flagged_text || '(no stored text)',
+          duration: 10000,
+        });
+        return;
       }
+      if (type.includes('message')) {
+        toast.message('Flagged message', {
+          description: flag.flagged_text || '(no stored text)',
+          duration: 10000,
+        });
+        return;
+      }
+      // post / clip / default → open post detail
+      navigate(`/p/${id}`);
     } catch (e: any) {
       toast.error(e?.message || 'Failed to open context');
     }
