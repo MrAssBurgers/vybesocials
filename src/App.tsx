@@ -17,6 +17,7 @@ import { ThemeProvider } from "@/lib/theme";
 import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
 import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
+import { BugRecheckProvider } from "@/contexts/BugRecheckContext";
 import { CallStoreProvider } from "@/lib/callStore";
 
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
