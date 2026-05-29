@@ -48,8 +48,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Skip if already analyzed
-    if (bug.ai_analysis && bug.ai_analysis.length > 10) {
+    // Skip if already analyzed (unless force re-check requested)
+    const force = !!body?.force;
+    if (!force && bug.ai_analysis && bug.ai_analysis.length > 10) {
       return new Response(JSON.stringify({ ok: true, skipped: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
