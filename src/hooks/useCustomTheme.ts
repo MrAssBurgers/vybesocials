@@ -658,6 +658,33 @@ export function applyThemeTokens(tokens: ThemeTokens, options?: { preserveBackgr
       root.classList.add(targetMode);
     }
     
+    // Snapshot all the CSS variables we just set so the next page boot can
+    // replay them BEFORE React mounts — eliminates the splash-screen flash
+    // where the app shows preset/default colors before the user's saved
+    // theme is fetched. Read by the inline script in index.html.
+    try {
+      const snapshotKeys = [
+        '--primary','--secondary','--accent','--ring','--background','--card','--popover',
+        '--gradient-start','--gradient-mid','--gradient-end','--glass','--glass-border',
+        '--muted','--sidebar-background','--sidebar-foreground','--sidebar-primary',
+        '--sidebar-primary-foreground','--sidebar-accent','--sidebar-accent-foreground',
+        '--sidebar-border','--sidebar-ring','--foreground','--muted-foreground',
+        '--card-foreground','--popover-foreground','--primary-foreground',
+        '--secondary-foreground','--accent-foreground','--border','--input',
+        '--input-foreground','--neon-pink','--neon-purple','--neon-cyan',
+        '--chart-1','--chart-2','--chart-3','--chart-4','--chart-5','--radius',
+        '--light-bg-start','--light-bg-mid',
+      ];
+      const snap: Record<string, string> = {};
+      for (const k of snapshotKeys) {
+        const v = root.style.getPropertyValue(k);
+        if (v) snap[k] = v.trim();
+      }
+      localStorage.setItem('vybe-boot-theme', JSON.stringify(snap));
+    } catch {
+      // best-effort only
+    }
+
     // Dispatch custom event for dynamic favicon and other theme-dependent features
     window.dispatchEvent(new CustomEvent('vybeThemeChange', { detail: tokens }));
   } catch (error) {
