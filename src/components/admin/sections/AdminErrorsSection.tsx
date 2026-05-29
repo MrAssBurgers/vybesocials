@@ -113,6 +113,42 @@ export function AdminErrorsSection() {
     onError: (e: any) => toast.error(e?.message || 'AI re-check failed', { id: 'ai-recheck' }),
   });
 
+  const recheckAllAI = useMutation({
+    mutationFn: async () => {
+      const { data: rows, error } = await supabase
+        .from('bug_reports')
+        .select('id')
+        .neq('status', 'fixed')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      const ids = (rows || []).map((r: any) => r.id);
+      if (ids.length === 0) return { checked: 0 };
+
+      let done = 0;
+      const concurrency = 4;
+      let cursor = 0;
+      const worker = async () => {
+        while (cursor < ids.length) {
+          const id = ids[cursor++];
+          try {
+            await supabase.functions.invoke('analyze-bug-report', { body: { bugId: id, force: true } });
+          } catch {}
+          done++;
+          toast.loading(`AI re-checking ${done}/${ids.length}...`, { id: 'ai-recheck-all' });
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, worker));
+      return { checked: ids.length };
+    },
+    onMutate: () => toast.loading('Starting AI re-check on all bugs...', { id: 'ai-recheck-all' }),
+    onSuccess: (res) => {
+      toast.success(`AI re-checked ${res.checked} bug${res.checked === 1 ? '' : 's'}`, { id: 'ai-recheck-all' });
+      queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
+    },
+    onError: (e: any) => toast.error(e?.message || 'AI re-check failed', { id: 'ai-recheck-all' }),
+  });
+
 
   const pendingCount = bugs.filter((b: any) => b.status === 'pending').length;
 
