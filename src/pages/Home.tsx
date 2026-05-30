@@ -67,6 +67,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const {
     data: forYouData,
     isLoading: forYouLoading,
+    isError: forYouError,
     isFetching: forYouFetching,
     fetchNextPage: fetchNextForYou,
     hasNextPage: hasNextForYou,
@@ -97,6 +98,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const {
     data: globalData,
     isLoading: globalLoading,
+    isError: globalError,
     isFetching: globalFetching,
     fetchNextPage: fetchNextGlobal,
     hasNextPage: hasNextGlobal,
@@ -108,6 +110,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const {
     data: localData,
     isLoading: localLoading,
+    isError: localError,
     isFetching: localFetching,
     fetchNextPage: fetchNextLocal,
     hasNextPage: hasNextLocal,
@@ -359,14 +362,20 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             handleRefresh={handleRefresh}
             forYouPosts={forYouPosts}
             forYouLoading={forYouLoading && followingLoading}
+            forYouError={forYouError}
+            onRetryForYou={() => { refetchForYou(); refetchFollowing(); }}
             forYouFetching={forYouFetching || followingFetching}
             isFetchingNextForYou={isFetchingNextForYou || isFetchingNextFollowing}
             globalPosts={globalPosts}
             globalLoading={globalLoading}
+            globalError={globalError}
+            onRetryGlobal={() => refetchGlobal()}
             globalFetching={globalFetching}
             isFetchingNextGlobal={isFetchingNextGlobal}
             localPosts={localPosts}
             localLoading={localLoading}
+            localError={localError}
+            onRetryLocal={() => refetchLocal()}
             localFetching={localFetching}
             isFetchingNextLocal={isFetchingNextLocal}
             loadMoreRef={loadMoreRef}

@@ -235,6 +235,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
 
     setLoading(true);
     haptics.tap();
+    toast.info('You can finish your profile anytime in Settings.');
     try {
       const finalUsername = normalizeUsername(signupUsername || profile?.username || username);
 

@@ -1639,6 +1639,11 @@ export function ChatView() {
                     forceShowContextMenu={showContextMenuMessageId === message.id}
                     onCloseContextMenu={() => setShowContextMenuMessageId(null)}
                     onToggleSaved={!isGroupChat ? () => toggleSaved.mutate(message.id) : undefined}
+                    onRetry={
+                      isOwn && (message as { _failed?: boolean })._failed
+                        ? () => retryMessage(message.id)
+                        : undefined
+                    }
                   />
                 </SwipeToReply>
               </div>
@@ -2270,6 +2275,7 @@ const MessageBubble = memo(function MessageBubble({
   forceShowContextMenu = false,
   onCloseContextMenu,
   onToggleSaved,
+  onRetry,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -2294,8 +2300,10 @@ const MessageBubble = memo(function MessageBubble({
   forceShowContextMenu?: boolean;
   onCloseContextMenu?: () => void;
   onToggleSaved?: () => void;
+  onRetry?: () => void;
 }) {
   const [isViewed, setIsViewed] = useState(false);
+  const failed = Boolean((message as { _failed?: boolean })._failed);
   const hasAnyViews = message.views && message.views.length > 0;
   const [vybeViewed, setVybeViewed] = useState(hasAnyViews);
   const [showVybeViewer, setShowVybeViewer] = useState(false);
@@ -2733,6 +2741,17 @@ const MessageBubble = memo(function MessageBubble({
         </div>
         )}
 
+        {isOwn && failed && onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="text-[11px] text-destructive mt-1.5 hover:underline"
+            aria-live="polite"
+          >
+            Not sent · Tap to retry
+          </button>
+        )}
+
         {/* Reactions bar - floats below message */}
         {uniqueReactions.length > 0 && (
           <div className="flex items-center gap-0.5 mt-1 bg-background/95 border border-border/40 rounded-full px-1.5 py-0.5 shadow-sm self-start">
@@ -2908,6 +2927,7 @@ const MessageBubble = memo(function MessageBubble({
   return (
     prevProps.message.id === nextProps.message.id &&
     prevProps.message.content === nextProps.message.content &&
+    (prevProps.message as { _failed?: boolean })._failed === (nextProps.message as { _failed?: boolean })._failed &&
     prevProps.message.is_deleted === nextProps.message.is_deleted &&
     prevProps.message.is_edited === nextProps.message.is_edited &&
     prevProps.isOwn === nextProps.isOwn &&

@@ -33,6 +33,7 @@ const AutoPilotSettings = lazy(() => import("@/pages/AutoPilotSettings"));
 const Explore = lazy(() => import("@/pages/Explore"));
 const Market = lazy(() => import("@/pages/Market"));
 const Messages = lazy(() => import("@/pages/Messages"));
+const MessageRequestsPage = lazy(() => import("@/pages/MessageRequestsPage"));
 const Notifications = lazy(() => import("@/pages/Notifications"));
 const SearchPage = lazy(() => import("@/pages/Search"));
 const Settings = lazy(() => import("@/pages/Settings"));
@@ -194,6 +195,7 @@ export function AnimatedRoutes() {
             <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
             <Route path="/market" element={<ProtectedRoute><Market /></ProtectedRoute>} />
             <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+            <Route path="/messages/requests" element={<ProtectedRoute><MessageRequestsPage /></ProtectedRoute>} />
             <Route path="/messages/:conversationId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
             <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />

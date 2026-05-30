@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { Message, ViewMode } from './useMessages';
 import { registerOptimisticMessage } from './useGlobalRealtimeMessages';
+import { toast } from 'sonner';
 
 export interface PendingMessage {
   tempId: string;
@@ -275,6 +276,7 @@ export function useInstantSend(conversationId: string | undefined) {
     } catch (error: any) {
       console.error('Failed to send message:', error);
       markFailed(tempId, error.message || 'Failed to send');
+      toast.error('Message failed to send');
       throw error;
     }
   }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel]);

@@ -42,6 +42,8 @@ export default function SoundsPage() {
   const { data: newSounds, isLoading: loadingNew } = useNewSounds();
   const { data: savedSounds, isLoading: loadingSaved } = useSavedSounds();
 
+  const recommendedSounds = (trendingSounds || []).slice(4, 16);
+
   const goBack = () => navigate(-1);
   const handleSoundSelect = (soundId: string) => setSelectedSound(soundId);
   const handleUseSound = (soundId: string) => navigate('/upload', { state: { selectedSoundId: soundId } });
@@ -209,18 +211,7 @@ export default function SoundsPage() {
                   Recommended for You
                 </h2>
               </div>
-              <div className="text-center py-16">
-                <div className="relative inline-block mb-4">
-                  <div className="absolute -inset-4 rounded-2xl bg-gradient-to-br from-purple-500/5 to-primary/5" />
-                  <div className="relative w-16 h-16 rounded-2xl bg-card/80 backdrop-blur-sm border border-border/30 flex items-center justify-center">
-                    <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 3 }}>
-                      <Star className="h-7 w-7 text-purple-400/50" />
-                    </motion.div>
-                  </div>
-                </div>
-                <p className="text-sm font-medium mb-1">AI recommendations coming soon!</p>
-                <p className="text-xs text-muted-foreground">We're training our AI to learn your music taste</p>
-              </div>
+              {renderSoundGrid(recommendedSounds, loadingTrending)}
             </TabsContent>
           </Tabs>
         </div>

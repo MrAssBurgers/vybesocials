@@ -414,13 +414,16 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
 
     const wasLiked = currentReaction !== null;
     const newIsLiked = reactionType !== null;
+    const prevReaction = currentReaction;
+    const prevIsLiked = isLiked;
+    const prevLikeCount = likeCount;
     
     setCurrentReaction(reactionType);
     setIsLiked(newIsLiked);
     setLikeCount(prev => {
       if (wasLiked && !newIsLiked) return prev - 1;
       if (!wasLiked && newIsLiked) return prev + 1;
-      return prev; // Changed reaction type, count stays same
+      return prev;
     });
 
     if (newIsLiked && !wasLiked) {
@@ -429,24 +432,34 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
       setTimeout(() => setShowLikeParticles(false), 700);
     }
 
-    if (newIsLiked) {
-      await supabase.from('likes').upsert(
-        { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
-        { onConflict: 'user_id,post_id', ignoreDuplicates: false }
-      );
-      if (!wasLiked && post.author.id !== profile.id) {
-        await supabase.from('notifications').insert({
-          user_id: post.author.id,
-          type: 'like',
-          actor_id: profile.id,
-          post_id: post.id,
-        });
-        bumpStreak(post.author.id);
+    try {
+      if (newIsLiked) {
+        const { error } = await supabase.from('likes').upsert(
+          { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
+          { onConflict: 'user_id,post_id', ignoreDuplicates: false }
+        );
+        if (error) throw error;
+        if (!wasLiked && post.author.id !== profile.id) {
+          await supabase.from('notifications').insert({
+            user_id: post.author.id,
+            type: 'like',
+            actor_id: profile.id,
+            post_id: post.id,
+          });
+          bumpStreak(post.author.id);
+        }
+      } else {
+        const { error } = await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
+        if (error) throw error;
       }
-    } else {
-      await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
+    } catch (error) {
+      console.error('[PostCard] reaction failed:', error);
+      setCurrentReaction(prevReaction);
+      setIsLiked(prevIsLiked);
+      setLikeCount(prevLikeCount);
+      toast.error("Couldn't save reaction — try again");
     }
-  }, [profile, currentReaction, post.id, post.author.id, isGuest]);
+  }, [profile, currentReaction, isLiked, likeCount, post.id, post.author.id, isGuest]);
 
   const handleBookmark = useCallback(async () => {
     if (isGuest) {
@@ -456,16 +469,25 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     }
     if (!profile) return;
 
+    const prevIsBookmarked = isBookmarked;
     const newIsBookmarked = !isBookmarked;
     setIsBookmarked(newIsBookmarked);
     if (newIsBookmarked) feedback.onBookmark();
 
-    if (newIsBookmarked) {
-      await supabase.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });
-    } else {
-      await supabase.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
+    try {
+      if (newIsBookmarked) {
+        const { error } = await supabase.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error('[PostCard] bookmark failed:', error);
+      setIsBookmarked(prevIsBookmarked);
+      toast.error("Couldn't save post — try again");
     }
-  }, [profile, isBookmarked, post.id, isGuest]);
+  }, [profile, isBookmarked, post.id, isGuest, feedback]);
 
   const handleDoubleTap = useCallback(() => {
     if (!currentReaction) {
