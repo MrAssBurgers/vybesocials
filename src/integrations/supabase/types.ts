@@ -13331,6 +13331,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: number
       }
+      sync_signup_username: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_landing_top_creators: {
         Args: { _limit?: number }
         Returns: {

@@ -17,6 +17,12 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
+import {
+  clearSignupUsername,
+  isGeneratedUsername,
+  normalizeUsername,
+  resolveSignupUsername,
+} from '@/lib/username';
 
 const EASE_OUT_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
@@ -43,7 +49,8 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const navigate = useNavigate();
   const { profile, user } = useAuth();
   
-  const needsUsername = !profile?.username;
+  const signupUsername = resolveSignupUsername(user?.user_metadata);
+  const needsUsername = isGeneratedUsername(profile?.username);
   // 4 core steps (or 5 if username needed): Username? → Birthday → Interests → Profile → Terms
   const TOTAL_STEPS = needsUsername ? 5 : 4;
   
@@ -70,11 +77,18 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const [userAge, setUserAge] = useState<number | undefined>(undefined);
   const [legalAccepted, setLegalAccepted] = useState(false);
 
+  // Pre-fill username from signup metadata when profile got a generated placeholder.
+  useEffect(() => {
+    if (!signupUsername || username) return;
+    setUsername(signupUsername);
+    setUsernameValid(true);
+  }, [signupUsername, username]);
+
   // Seed displayName once on mount only — never overwrite user edits (including clearing).
   const seededDisplayNameRef = useRef(false);
   useEffect(() => {
     if (seededDisplayNameRef.current) return;
-    const name = needsUsername ? username : profile?.username;
+    const name = needsUsername ? username : (profile?.username || signupUsername);
     if (name) {
       seededDisplayNameRef.current = true;
       setProfileData(prev => (prev.displayName ? prev : { ...prev, displayName: name }));
@@ -133,7 +147,17 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         }
       }
 
-      const finalUsername = needsUsername ? username : profile?.username;
+      const chosenUsername = needsUsername
+        ? normalizeUsername(username)
+        : normalizeUsername(profile?.username || signupUsername);
+
+      if (!chosenUsername || isGeneratedUsername(chosenUsername)) {
+        toast.error('Please choose a username before continuing.');
+        setLoading(false);
+        return;
+      }
+
+      const finalUsername = chosenUsername;
       const finalDisplayName = profileData.displayName && profileData.displayName !== '' 
         ? profileData.displayName 
         : finalUsername || '';
@@ -171,6 +195,8 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           { user_id: user.id, document_type: 'privacy', document_version: '2.0' },
         ], { onConflict: 'user_id,document_type,document_version' });
       }
+
+      clearSignupUsername();
 
       setLoading(false);
       haptics.success();
@@ -210,10 +236,12 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     setLoading(true);
     haptics.tap();
     try {
-      const randomSuffix = Math.random().toString(36).substring(2, 7);
-      const finalUsername = needsUsername && username 
-        ? username.toLowerCase() 
-        : profile?.username || `user_${user.id.substring(0, 6)}_${randomSuffix}`;
+      const finalUsername = normalizeUsername(signupUsername || profile?.username || username);
+
+      if (!finalUsername || isGeneratedUsername(finalUsername)) {
+        toast.error('Please choose a username before skipping onboarding.');
+        return;
+      }
 
       const { error } = await supabase
         .from('profiles')
@@ -234,6 +262,8 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         }
         return;
       }
+
+      clearSignupUsername();
 
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate('home');
@@ -312,7 +342,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           <ProfileSetup
             data={profileData}
             onChange={setProfileData}
-            username={needsUsername ? username : (profile?.username || '')}
+            username={needsUsername ? username : (profile?.username || signupUsername || '')}
           />
         );
       case 5:

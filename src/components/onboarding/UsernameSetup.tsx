@@ -35,13 +35,18 @@ export function UsernameSetup({ username, onChange, onValidChange }: UsernameSet
 
     setChecking(true);
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('username', value.toLowerCase())
-        .maybeSingle();
+      const normalized = value.toLowerCase().replace(/\s+/g, '');
+      const { data: available, error } = await supabase.rpc('is_username_available', {
+        p_username: normalized,
+      });
 
-      if (data) {
+      if (error) {
+        setError('Error checking username');
+        onValidChange(false);
+        return;
+      }
+
+      if (!available) {
         setError('Username is already taken');
         setIsAvailable(false);
         onValidChange(false);
