@@ -1,9 +1,8 @@
 import { Capacitor } from '@capacitor/core';
+import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 
 export type DevicePlatform = 'ios' | 'android' | 'web';
 export type WalletPreference = 'apple_pay' | 'google_pay' | 'standard';
-
-const DESPIA_APP_HINT = /despia|vybeapp|app\.lovable\.416714c8d0134aff984d522418a9bbc7|app\.lovable\.762a689eac3b48a59a179f1c2b5b3a2b|com\.despia\.vybe/i;
 
 export function getDevicePlatform(): DevicePlatform {
   try {
@@ -22,15 +21,11 @@ export function getDevicePlatform(): DevicePlatform {
 }
 
 export function isDespiaAppShell(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return DESPIA_APP_HINT.test(navigator.userAgent || '');
+  return isDespiaRuntime();
 }
 
 export function isNativePurchaseShell(): boolean {
-  try {
-    if (Capacitor.isNativePlatform()) return true;
-  } catch {}
-  return isDespiaAppShell();
+  return isNativeAppShell();
 }
 
 export function getWalletPreference(): WalletPreference {

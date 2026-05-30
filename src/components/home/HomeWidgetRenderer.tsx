@@ -94,14 +94,20 @@ interface Props {
   handleRefresh: () => Promise<void>;
   forYouPosts: Post[];
   forYouLoading: boolean;
+  forYouError?: boolean;
+  onRetryForYou?: () => void;
   forYouFetching: boolean;
   isFetchingNextForYou: boolean;
   globalPosts: Post[];
   globalLoading: boolean;
+  globalError?: boolean;
+  onRetryGlobal?: () => void;
   globalFetching: boolean;
   isFetchingNextGlobal: boolean;
   localPosts: Post[];
   localLoading: boolean;
+  localError?: boolean;
+  onRetryLocal?: () => void;
   localFetching: boolean;
   isFetchingNextLocal: boolean;
   loadMoreRef: (node: HTMLDivElement | null) => void;
@@ -223,9 +229,9 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
 /* ── Feed section as its own widget ── */
 function FeedSection({
   activeTab, setActiveTab, showAds, navigate, hasNewPosts, clearNewPosts, handleRefresh,
-  forYouPosts, forYouLoading, forYouFetching, isFetchingNextForYou,
-  globalPosts, globalLoading, globalFetching, isFetchingNextGlobal,
-  localPosts, localLoading, localFetching, isFetchingNextLocal,
+  forYouPosts, forYouLoading, forYouError, onRetryForYou, forYouFetching, isFetchingNextForYou,
+  globalPosts, globalLoading, globalError, onRetryGlobal, globalFetching, isFetchingNextGlobal,
+  localPosts, localLoading, localError, onRetryLocal, localFetching, isFetchingNextLocal,
   loadMoreRef,
 }: Props) {
   return (
@@ -283,6 +289,8 @@ function FeedSection({
           <InlinePostList
             posts={forYouPosts}
             isLoading={forYouLoading}
+            isError={forYouError}
+            onRetry={onRetryForYou}
             isFetchingNext={isFetchingNextForYou}
             loadMoreRef={activeTab === 'foryou' ? loadMoreRef : () => {}}
             emptyIcon="✨"
@@ -296,6 +304,8 @@ function FeedSection({
           <InlinePostList
             posts={localPosts}
             isLoading={localLoading}
+            isError={localError}
+            onRetry={onRetryLocal}
             isFetchingNext={isFetchingNextLocal}
             loadMoreRef={activeTab === 'local' ? loadMoreRef : () => {}}
             emptyIcon="📍"
@@ -309,6 +319,8 @@ function FeedSection({
           <InlinePostList
             posts={globalPosts}
             isLoading={globalLoading}
+            isError={globalError}
+            onRetry={onRetryGlobal}
             isFetchingNext={isFetchingNextGlobal}
             loadMoreRef={activeTab === 'global' ? loadMoreRef : () => {}}
             emptyIcon="🌍"
@@ -323,10 +335,12 @@ function FeedSection({
 }
 
 function InlinePostList({
-  posts, isLoading, isFetchingNext, loadMoreRef, emptyIcon, emptyText, onExplore, showAds,
+  posts, isLoading, isError, onRetry, isFetchingNext, loadMoreRef, emptyIcon, emptyText, onExplore, showAds,
 }: {
   posts: Post[];
   isLoading: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
   isFetchingNext: boolean;
   loadMoreRef: (node: HTMLDivElement | null) => void;
   emptyIcon: string;
@@ -406,6 +420,18 @@ function InlinePostList({
   useAheadMediaPreload(posts as any, visibleIndex, FEED_PRELOAD_AHEAD);
 
   if (isLoading && posts.length === 0) return <PostSkeletonList count={2} />;
+  if (isError && posts.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border/40 bg-card/40 p-6 text-center space-y-3">
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load your feed.</p>
+        {onRetry && (
+          <Button size="sm" variant="secondary" onClick={onRetry}>
+            Retry
+          </Button>
+        )}
+      </div>
+    );
+  }
   if (!isLoading && posts.length === 0) {
     const iconMap: Record<string, { icon: typeof Sparkles; gradient: string }> = {
       '✨': { icon: Sparkles, gradient: 'from-violet-500/20 to-fuchsia-500/20' },

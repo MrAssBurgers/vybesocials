@@ -155,11 +155,12 @@ export function useSoundStats(soundId: string) {
 
 // Get posts using a specific sound
 export function usePostsWithSound(soundId: string) {
+  const { profile } = useAuth();
+
   return useQuery({
-    queryKey: ['posts', 'sound', soundId],
+    queryKey: ['posts', 'sound', soundId, profile?.id],
     queryFn: async () => {
-      // TODO: This needs to be updated once we add sound_id to posts table
-      const { data, error } = await supabase
+      const { data: posts, error } = await supabase
         .from('posts')
         .select(`
           id,
@@ -170,35 +171,87 @@ export function usePostsWithSound(soundId: string) {
           tags,
           created_at,
           author_id,
+          is_pinned,
           profiles!author_id(id, username, display_name, avatar_url)
         `)
+        .eq('sound_id', soundId)
+        .order('created_at', { ascending: false })
         .limit(12);
-      
+
       if (error) throw error;
-      
-      // Transform data to match PostCard interface
-      return data?.map((post: any) => ({
-        id: post.id,
-        type: post.type,
-        media_url: post.media_url,
-        media_urls: post.media_urls,
-        caption: post.caption || '',
-        tags: post.tags || [],
-        created_at: post.created_at,
-        author: {
-          id: post.profiles?.id || post.author_id,
-          username: post.profiles?.username || 'unknown',
-          display_name: post.profiles?.display_name,
-          avatar_url: post.profiles?.avatar_url
-        },
-        like_count: 0, // TODO: Calculate from likes table
-        comment_count: 0, // TODO: Calculate from comments table
-        is_liked: false, // TODO: Check if user liked
-        is_bookmarked: false, // TODO: Check if user bookmarked
-        is_pinned: post.is_pinned || false
-      })) || [];
+      if (!posts?.length) return [];
+
+      let userLikes: string[] = [];
+      let userBookmarks: string[] = [];
+
+      if (profile) {
+        const postIds = posts.map((p) => p.id);
+        const [likesResult, bookmarksResult] = await Promise.all([
+          supabase.from('likes').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
+          supabase.from('bookmarks').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
+        ]);
+        userLikes = likesResult.data?.map((l) => l.post_id) || [];
+        userBookmarks = bookmarksResult.data?.map((b) => b.post_id) || [];
+      }
+
+      const postsWithCounts = await Promise.all(
+        posts.map(async (post) => {
+          const [likesCount, commentsCount] = await Promise.all([
+            supabase.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+            supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+          ]);
+
+          const authorRow = post.profiles as { id: string; username: string; display_name?: string | null; avatar_url: string | null } | null;
+
+          return {
+            id: post.id,
+            type: post.type,
+            media_url: post.media_url,
+            media_urls: post.media_urls,
+            caption: post.caption || '',
+            tags: post.tags || [],
+            created_at: post.created_at,
+            author: {
+              id: authorRow?.id || post.author_id,
+              username: authorRow?.username || 'unknown',
+              display_name: authorRow?.display_name,
+              avatar_url: authorRow?.avatar_url,
+            },
+            like_count: likesCount.count || 0,
+            comment_count: commentsCount.count || 0,
+            is_liked: userLikes.includes(post.id),
+            is_bookmarked: userBookmarks.includes(post.id),
+            is_pinned: post.is_pinned || false,
+          };
+        }),
+      );
+
+      return postsWithCounts;
     },
     enabled: !!soundId,
+  });
+}
+
+// Whether the current user has saved a sound
+export function useIsSoundSaved(soundId: string | undefined) {
+  const { profile } = useAuth();
+
+  return useQuery({
+    queryKey: ['sound-saved', profile?.user_id, soundId],
+    queryFn: async () => {
+      if (!profile?.user_id || !soundId) return false;
+
+      const { data, error } = await supabase
+        .from('user_saved_sounds')
+        .select('id')
+        .eq('user_id', profile.user_id)
+        .eq('sound_id', soundId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return !!data;
+    },
+    enabled: !!profile?.user_id && !!soundId,
   });
 }
 

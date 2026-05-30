@@ -21,6 +21,10 @@ const PLAYER_ID_KEYS = [
 
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
+export async function checkDespiaPushPermission(): Promise<boolean | null> {
+  return checkNativePushPermission();
+}
+
 async function checkNativePushPermission(): Promise<boolean | null> {
   for (const checkUrl of ['checkNativePushPermissions://', 'checknativepushpermissions://']) {
     const permissionResult = await despiaCall(checkUrl, ['nativePushEnabled'], 1_500);
@@ -90,7 +94,12 @@ export async function fetchDespiaOneSignalPlayerId(waitMs = 0): Promise<string> 
     const cached = readWindowPlayerId();
     if (cached) return cached;
 
-    for (const scheme of ['getonesignalplayerid://', 'onesignalplayerid://']) {
+    for (const scheme of [
+      'getonesignalplayerid://',
+      'onesignalplayerid://',
+      'getOneSignalPlayerId://',
+      'oneSignalPlayerId://',
+    ]) {
       const result = await despiaCall(scheme, PLAYER_ID_KEYS, 1_200);
       const id = normalizeId(result);
       if (id) return id;
@@ -100,6 +109,25 @@ export async function fetchDespiaOneSignalPlayerId(waitMs = 0): Promise<string> 
   } while (Date.now() < deadline);
 
   return readWindowPlayerId();
+}
+
+const LINK_SCHEMES = (externalId: string) => [
+  `setonesignalplayerid://?user_id=${encodeURIComponent(externalId)}`,
+  `setOneSignalPlayerId://?user_id=${encodeURIComponent(externalId)}`,
+  `onesignallogin://?external_id=${encodeURIComponent(externalId)}`,
+];
+
+async function bindDespiaOneSignalUser(externalId: string): Promise<void> {
+  for (const url of LINK_SCHEMES(externalId)) {
+    await despiaCall(url, [], 900);
+  }
+}
+
+async function requestDespiaPushPermission(): Promise<boolean | null> {
+  for (const url of ['registerpush://', 'registerPush://', 'requestpushpermission://']) {
+    await despiaCall(url, [], 1_500);
+  }
+  return checkNativePushPermission();
 }
 
 export async function ensureDespiaOneSignalLinked(
@@ -129,48 +157,35 @@ export async function ensureDespiaOneSignalLinked(
     return { linked: false, playerId: '', permission: null };
   }
 
-  const encoded = encodeURIComponent(externalId);
-  const linkUrl = `setonesignalplayerid://?user_id=${encoded}`;
-  let permission: boolean | null = null;
+  let permission: boolean | null = await checkNativePushPermission();
 
-  // Bind immediately. Despia's OneSignal command is queued and may not return
-  // a player id synchronously, so we also retry below.
-  console.log(`${tag} initial bind → ${linkUrl}`);
-  await despiaCall(linkUrl, [], 1_000);
-
+  await bindDespiaOneSignalUser(externalId);
   permission = await checkNativePushPermission();
   console.log(`${tag} push permission =`, permission);
 
   if (options.requestPermission && permission !== true) {
-    console.log(`${tag} requesting push permission via registerpush://`);
-    await despiaCall('registerpush://', [], 1_500);
-    permission = await checkNativePushPermission();
+    console.log(`${tag} requesting push permission`);
+    permission = await requestDespiaPushPermission();
     console.log(`${tag} permission after prompt =`, permission);
   }
 
-  // Second immediate bind (covers race where permission just flipped).
-  await despiaCall(linkUrl, [], 1_200);
+  await bindDespiaOneSignalUser(externalId);
 
-  // Aggressive background retry loop: 5 attempts, 2s apart. Despia's OneSignal
-  // bridge can take many seconds after permission grant to create the
-  // subscription record; without retries the external_id never lands and
-  // targeted pushes silently fail.
   const MAX_RETRIES = 5;
   const RETRY_DELAY_MS = 2_000;
   void (async () => {
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       await delay(RETRY_DELAY_MS);
       try {
-        await despiaCall(linkUrl, [], 1_200);
+        await bindDespiaOneSignalUser(externalId);
         const currentPlayerId = await fetchDespiaOneSignalPlayerId(0);
         console.log(`${tag} retry ${attempt}/${MAX_RETRIES}`, {
           playerIdResolved: !!currentPlayerId,
           playerId: currentPlayerId || null,
         });
         if (currentPlayerId && options.persistToken !== false) {
-          // Persist updated marker token so backend knows the device is bound.
           persistDespiaPushToken(externalId, currentPlayerId).catch(() => {});
-          break; // success — stop retrying
+          break;
         }
       } catch (err) {
         console.warn(`${tag} retry ${attempt} error`, err);
@@ -178,7 +193,10 @@ export async function ensureDespiaOneSignalLinked(
     }
   })();
 
-  const playerId = await fetchDespiaOneSignalPlayerId(options.waitForPlayerIdMs ?? 1_500);
+  window.setTimeout(() => void bindDespiaOneSignalUser(externalId), 2_500);
+  window.setTimeout(() => void bindDespiaOneSignalUser(externalId), 6_000);
+
+  const playerId = await fetchDespiaOneSignalPlayerId(options.waitForPlayerIdMs ?? 2_500);
   console.log(`${tag} immediate fetch playerId =`, playerId || '(empty — retry loop will keep trying)');
 
   if (options.persistToken !== false) {
@@ -186,5 +204,16 @@ export async function ensureDespiaOneSignalLinked(
       console.warn(`${tag} push token marker save failed`, err);
     });
   }
+
+  if (!playerId) {
+    window.setTimeout(() => {
+      void fetchDespiaOneSignalPlayerId(4_000).then((lateId) => {
+        if (lateId) {
+          persistDespiaPushToken(externalId, lateId).catch(() => {});
+        }
+      });
+    }, 3_000);
+  }
+
   return { linked: true, playerId, permission };
 }

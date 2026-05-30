@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { Eye, EyeOff, Fingerprint, Sparkles, MessageCircle, Users, MapPin, Camera } from 'lucide-react';
-import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { isNativeAppShell } from '@/lib/despiaBridge';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable/index';
 import { VYBELogo } from '@/components/ui/VYBELogo';
@@ -434,7 +434,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   return (
     <div className="page-scroll-fix bg-background relative flex flex-col items-center justify-start sm:justify-center px-4 py-8">
       {/* Back to home (web marketing page) — hidden on native APK */}
-      {!user && typeof window !== 'undefined' && !(window as any).Capacitor?.isNativePlatform?.() && (
+      {!user && typeof window !== 'undefined' && !isNativeAppShell() && (
         <button
           type="button"
           onClick={() => navigate('/vybe-home')}

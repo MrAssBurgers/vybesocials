@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { isNativePlatform } from '@/lib/capacitor';
+import { isNativeAppShell } from '@/lib/despiaBridge';
 import { VybePageLoader } from '@/components/ui/VybeLoader';
 
 const VybeHome = lazy(() => import('@/pages/VybeHome'));
@@ -17,7 +17,7 @@ function isMobileViewport() {
  * Root `/` gate:
  *  - Signed-in users → /home
  *  - First-time mobile/native logged-out users → MobileIntro (then /auth)
- *  - Native (Capacitor) builds → Landing (auth) directly
+ *  - Native (Despia / Capacitor) builds → Landing (auth) directly
  *  - Everyone else (web desktop, logged out) → VybeHome marketing page
  */
 export default function RootGate() {
@@ -32,7 +32,7 @@ export default function RootGate() {
   if (loading) return <div className="min-h-screen" />;
   if (user) return <Navigate to="/home" replace />;
 
-  const showIntro = !introDone && (isNativePlatform || isMobile);
+  const showIntro = !introDone && (isNativeAppShell() || isMobile);
   if (showIntro) {
     return (
       <Suspense fallback={<VybePageLoader />}>
@@ -41,7 +41,7 @@ export default function RootGate() {
     );
   }
 
-  if (isNativePlatform || isMobile) {
+  if (isNativeAppShell() || isMobile) {
     return (
       <Suspense fallback={<VybePageLoader />}>
         <Landing />

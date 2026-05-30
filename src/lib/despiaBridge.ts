@@ -9,6 +9,8 @@
  * code can use them unconditionally.
  */
 
+import { isNativePlatform } from '@/lib/capacitor';
+
 const DESPIA_UA_HINT = /despia|vybeapp|app\.lovable\.416714c8d0134aff984d522418a9bbc7|com\.despia\.vybe/i;
 const DESPIA_CALLBACK_KEYS = ['nfcResult', 'payload', 'data', 'url', 'readNFCData'];
 
@@ -28,6 +30,11 @@ export function isDespiaRuntime(): boolean {
     w.nativePushEnabled !== undefined ||
     /app\.lovable\.416714c8-d013-4aff-984d-522418a9bbc7/i.test(ua)
   );
+}
+
+/** Store app shell: Despia Play/App Store builds or Capacitor native. */
+export function isNativeAppShell(): boolean {
+  return isDespiaRuntime() || isNativePlatform;
 }
 
 export function isAndroidUA(): boolean {

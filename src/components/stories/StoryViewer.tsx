@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { X, Pause, Play, Eye, Send, Heart, ChevronUp, Users, Megaphone } from 'lucide-react';
+import { X, Pause, Play, Eye, Send, Heart, ChevronUp, Users, Megaphone, Loader2 } from 'lucide-react';
 import { StoryPollViewer } from './StoryPollViewer';
 import { StoryGroup, useViewStory } from '@/hooks/useStories';
 import { useStoryLikes, useLikeStory } from '@/hooks/useStoryLikes';
+import { useCreateConversation } from '@/hooks/useMessages';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +32,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
   const { profile } = useAuth();
   const viewStory = useViewStory();
   const likeStory = useLikeStory();
+  const createConversation = useCreateConversation();
   const { showAds } = useShowAds();
   
   const [groupIndex, setGroupIndex] = useState(initialGroupIndex);
@@ -37,6 +41,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
   const [isPaused, setIsPaused] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [showReplyInput, setShowReplyInput] = useState(false);
+  const [isSendingReply, setIsSendingReply] = useState(false);
   const [direction, setDirection] = useState(0);
   const [showLikesPanel, setShowLikesPanel] = useState(false);
   const [likeAnimating, setLikeAnimating] = useState(false);
@@ -238,13 +243,41 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
     }
   }, [goToNextGroup, goToPrevGroup, onClose]);
 
-  const handleReply = useCallback(() => {
-    if (!replyText.trim()) return;
-    // TODO: Implement story reply via DM
-    console.log('Reply to story:', replyText);
-    setReplyText('');
-    setShowReplyInput(false);
-  }, [replyText]);
+  const handleReply = useCallback(async () => {
+    const text = replyText.trim();
+    if (!text || !profile?.id || !currentGroup?.user?.id) return;
+    if (currentGroup.user.id === profile.id) return;
+
+    setIsSendingReply(true);
+    const content = currentStory?.caption
+      ? `Re: your story (“${currentStory.caption.slice(0, 80)}”) — ${text}`
+      : `Re: your story — ${text}`;
+
+    try {
+      const conversation = await createConversation.mutateAsync({
+        memberIds: [currentGroup.user.id],
+      });
+
+      const { error } = await supabase.from('messages').insert({
+        conversation_id: conversation.id,
+        sender_id: profile.id,
+        content,
+        message_type: 'text',
+      });
+
+      if (error) throw error;
+
+      toast.success('Reply sent!');
+      setReplyText('');
+      setShowReplyInput(false);
+      setIsPaused(false);
+    } catch (error) {
+      console.error('[StoryViewer] reply failed:', error);
+      toast.error('Could not send reply. Try again.');
+    } finally {
+      setIsSendingReply(false);
+    }
+  }, [replyText, profile?.id, currentGroup?.user?.id, currentStory?.caption, createConversation]);
 
   const handleLike = useCallback(() => {
     if (!currentStory || likeStory.isPending) return;
@@ -451,6 +484,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
                   onChange={(e) => setReplyText(e.target.value)}
                   placeholder={`Reply to ${currentGroup.user.username}...`}
                   className="bg-white/10 border-white/20 text-white placeholder:text-white/50 rounded-full h-10 pr-10 backdrop-blur-sm"
+                  disabled={isSendingReply}
                   onFocus={() => {
                     setIsPaused(true);
                     setShowReplyInput(true);
@@ -462,23 +496,28 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
                     }
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === 'Enter' && !isSendingReply) {
                       handleReply();
                     }
                   }}
                   onClick={(e) => e.stopPropagation()}
                 />
-                {replyText && (
+                {(replyText || isSendingReply) && (
                   <Button
                     size="icon"
                     variant="ghost"
                     className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-white hover:bg-white/20"
+                    disabled={isSendingReply || !replyText.trim()}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleReply();
                     }}
                   >
-                    <Send className="h-4 w-4" />
+                    {isSendingReply ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
                   </Button>
                 )}
               </div>

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
-import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
+import { ensureDespiaOneSignalLinked, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { navigationRef } from '@/lib/navigationRef';
 
@@ -70,10 +70,11 @@ export function DespiaOneSignalSync() {
           despiaNative: isDespiaRuntime(),
         });
 
-        // Despia native shell bridge (no-op on web). Includes the 5×2s retry
-        // loop inside ensureDespiaOneSignalLinked.
+        const permission = await checkDespiaPushPermission();
+        const shouldAskPermission = permission !== true;
         void ensureDespiaOneSignalLinked(externalId, {
-          waitForPlayerIdMs: 0,
+          requestPermission: shouldAskPermission,
+          waitForPlayerIdMs: 3_000,
           authUserId,
           trigger,
         });
@@ -150,6 +151,8 @@ export function DespiaOneSignalSync() {
         return;
       }
       try {
+        const alreadyAsked = localStorage.getItem(PUSH_PERM_KEY);
+        if (alreadyAsked) return;
         localStorage.setItem(PUSH_PERM_KEY, String(Date.now()));
         void supabase.auth.getUser().then(({ data }) => {
           if (!data.user?.id) return;
@@ -166,7 +169,7 @@ export function DespiaOneSignalSync() {
               });
               void ensureDespiaOneSignalLinked(externalId, {
                 requestPermission: true,
-                waitForPlayerIdMs: 0,
+                waitForPlayerIdMs: 4_000,
                 authUserId: data.user!.id,
                 trigger: 'permission-grant',
               });
@@ -177,7 +180,27 @@ export function DespiaOneSignalSync() {
       }
     };
 
-    // Cold start
+    const relinkDespiaPush = () => {
+      if (!isDespiaRuntime()) return;
+      void supabase.auth.getUser().then(({ data }) => {
+        if (!data.user?.id) return;
+        void supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', data.user.id)
+          .maybeSingle()
+          .then(({ data: profile }) => {
+            const externalId = profile?.id ?? data.user!.id;
+            void ensureDespiaOneSignalLinked(externalId, {
+              requestPermission: false,
+              waitForPlayerIdMs: 2_000,
+              authUserId: data.user!.id,
+              trigger: 'foreground-relink',
+            });
+          });
+      });
+    };
+
     supabase.auth.getUser().then(({ data }) => {
       void setPlayerIdForAuthUser(data.user?.id, data.user?.email, 'cold-start');
     }).catch(() => {});
@@ -219,7 +242,10 @@ export function DespiaOneSignalSync() {
       queryClient.invalidateQueries({ queryKey: ['unread-notifications-count'] });
     };
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') refresh();
+      if (document.visibilityState === 'visible') {
+        refresh();
+        relinkDespiaPush();
+      }
     };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', onVisibility);

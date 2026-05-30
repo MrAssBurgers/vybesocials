@@ -49,6 +49,8 @@ import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
 import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 import { NowPlayingInline } from '@/components/music/NowPlayingInline';
+import { MessageRequestsBadge } from './MessageRequestsList';
+import { usePendingRequestCount } from '@/hooks/useMessageRequests';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
@@ -134,6 +136,7 @@ export function ConversationList() {
   const { data: trashedIds } = useTrashedConversationIds();
   const trashConversation = useTrashConversation();
   const { data: storyGroups } = useStories();
+  const { data: pendingRequestCount = 0 } = usePendingRequestCount();
   const { data: acceptedRequests } = useAcceptedFriendRequests();
   const dismissAccepted = useDismissAcceptedRequest();
   const streakMap = useStreakMap();
@@ -384,6 +387,12 @@ export function ConversationList() {
         <div className="px-3 pt-1 pb-1">
           <AutisyAIChatRow />
         </div>
+
+        {pendingRequestCount > 0 && (
+          <div className="px-3 pb-2">
+            <MessageRequestsBadge count={pendingRequestCount} />
+          </div>
+        )}
 
         {/* Accepted Friend Requests */}
         {acceptedRequests && acceptedRequests.length > 0 && (

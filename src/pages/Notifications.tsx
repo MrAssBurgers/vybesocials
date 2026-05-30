@@ -204,8 +204,8 @@ function RecentAnnouncementsSection() {
 
 export default function NotificationsPage() {
   const queryClient = useQueryClient();
-  const { data: notifications, isLoading, refetch } = useNotifications();
-  const { data: friendRequests, refetch: refetchRequests } = useFriendRequests();
+  const { data: notifications, isLoading, isError: notificationsError, refetch } = useNotifications();
+  const { data: friendRequests, isError: requestsError, refetch: refetchRequests } = useFriendRequests();
   const markRead = useMarkNotificationsRead();
   const respondToRequest = useRespondToFriendRequest();
   const createConversation = useCreateConversation();
@@ -349,6 +349,15 @@ export default function NotificationsPage() {
               </AnimatePresence>
             </TabsTrigger>
           </TabsList>
+
+          {(notificationsError || requestsError) && (
+            <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 p-3 flex items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">Couldn&apos;t load notifications.</p>
+              <Button size="sm" variant="secondary" onClick={handleRefresh}>
+                Retry
+              </Button>
+            </div>
+          )}
 
           {/* ─── ALL TAB ─── */}
           <TabsContent value="all" className="mt-0">

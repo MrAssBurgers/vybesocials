@@ -12,25 +12,25 @@
   "categories": ["social", "entertainment", "lifestyle"],
   "icons": [
     {
-      "src": "https://agtcyxjxgkdyoxwxkjth.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25&v=2",
+      "src": "https://hprmicwhlaaqfgshucec.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25&v=2",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "https://agtcyxjxgkdyoxwxkjth.supabase.co/functions/v1/generate-pwa-icon?size=512&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25&v=2",
+      "src": "https://hprmicwhlaaqfgshucec.supabase.co/functions/v1/generate-pwa-icon?size=512&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25&v=2",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "https://agtcyxjxgkdyoxwxkjth.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25&v=2",
+      "src": "https://hprmicwhlaaqfgshucec.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25&v=2",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "maskable"
     },
     {
-      "src": "https://agtcyxjxgkdyoxwxkjth.supabase.co/functions/v1/generate-pwa-icon?size=512&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25&v=2",
+      "src": "https://hprmicwhlaaqfgshucec.supabase.co/functions/v1/generate-pwa-icon?size=512&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25&v=2",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "maskable"
@@ -42,35 +42,35 @@
       "short_name": "Chat",
       "description": "Open your messages",
       "url": "/messages",
-      "icons": [{ "src": "https://agtcyxjxgkdyoxwxkjth.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
+      "icons": [{ "src": "https://hprmicwhlaaqfgshucec.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
     },
     {
       "name": "Create Post",
       "short_name": "Post",
       "description": "Create a new post",
       "url": "/upload",
-      "icons": [{ "src": "https://agtcyxjxgkdyoxwxkjth.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
+      "icons": [{ "src": "https://hprmicwhlaaqfgshucec.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
     },
     {
       "name": "Explore",
       "short_name": "Explore",
       "description": "Discover new content",
       "url": "/explore",
-      "icons": [{ "src": "https://agtcyxjxgkdyoxwxkjth.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
+      "icons": [{ "src": "https://hprmicwhlaaqfgshucec.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
     },
     {
       "name": "Notifications",
       "short_name": "Alerts",
       "description": "Check your notifications",
       "url": "/notifications",
-      "icons": [{ "src": "https://agtcyxjxgkdyoxwxkjth.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
+      "icons": [{ "src": "https://hprmicwhlaaqfgshucec.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
     },
     {
       "name": "Profile",
       "short_name": "Me",
       "description": "View your profile",
       "url": "/profile",
-      "icons": [{ "src": "https://agtcyxjxgkdyoxwxkjth.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
+      "icons": [{ "src": "https://hprmicwhlaaqfgshucec.supabase.co/functions/v1/generate-pwa-icon?size=192&primary=271%2091%25%2065%25&accent=189%2094%25%2043%25", "sizes": "192x192" }]
     }
   ],
   "protocol_handlers": [

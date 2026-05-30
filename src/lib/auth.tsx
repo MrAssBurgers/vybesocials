@@ -5,7 +5,14 @@ import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache } from '@/lib/profileCache';
 import { resetThemeToDefault } from '@/lib/themeReset';
+import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
 import { logEvent } from '@/lib/debugLogger';
+import {
+  clearSignupUsername,
+  isGeneratedUsername,
+  normalizeUsername,
+  stashSignupUsername,
+} from '@/lib/username';
 import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 
 // Token refresh interval - refresh 5 minutes before expiry
@@ -190,6 +197,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!error && data?.[0]) {
         const profileData = data[0] as unknown as Profile;
+
+        if (isGeneratedUsername(profileData.username)) {
+          const { data: syncedUsername } = await supabase.rpc('sync_signup_username');
+          if (typeof syncedUsername === 'string' && syncedUsername && !isGeneratedUsername(syncedUsername)) {
+            profileData.username = syncedUsername;
+            clearSignupUsername();
+          }
+        } else {
+          clearSignupUsername();
+        }
+
         setProfile(profileData);
         // Cache profile for instant lookups elsewhere
         setCachedProfile({
@@ -212,7 +230,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return profileData;
       }
 
-      // If profile is missing, try to claim an unclaimed profile or create new one
+      // Profile may still be creating via DB trigger — wait before fallback RPC.
+      if (retryCount < maxRetries) {
+        console.log(`[Auth] Profile not found, waiting for trigger (${retryCount + 1}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, 400 * (retryCount + 1)));
+        return fetchProfile(userId, retryCount + 1);
+      }
+
       console.log('[Auth] Profile not found, calling claim_profile_by_email...');
       const { data: profileId, error: ensureError } = await supabase.rpc('claim_profile_by_email');
       
@@ -251,6 +275,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!afterEnsureError && afterEnsure?.[0]) {
         const profileData = afterEnsure[0] as unknown as Profile;
+
+        if (isGeneratedUsername(profileData.username)) {
+          const { data: syncedUsername } = await supabase.rpc('sync_signup_username');
+          if (typeof syncedUsername === 'string' && syncedUsername && !isGeneratedUsername(syncedUsername)) {
+            profileData.username = syncedUsername;
+            clearSignupUsername();
+          }
+        } else {
+          clearSignupUsername();
+        }
+
         setProfile(profileData);
         // Cache profile for instant lookups elsewhere
         setCachedProfile({
@@ -337,12 +372,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     // Helper: check if there's a stored auth token (session might be refreshing)
-    const hasStoredToken = () => {
-      try {
-        const stored = localStorage.getItem('sb-agtcyxjxgkdyoxwxkjth-auth-token');
-        return !!stored;
-      } catch { return false; }
-    };
+    const hasStoredToken = () => hasStoredSupabaseSession();
 
     const hydrateCachedProfile = () => {
       const cachedProfile = getCachedCurrentProfile();
@@ -541,7 +571,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, username: string) => {
     try {
-      const cleanUsername = username.toLowerCase().replace(/\s+/g, '');
+      const cleanUsername = normalizeUsername(username);
+      if (!cleanUsername || cleanUsername.length < 3) {
+        throw new Error('Username must be at least 3 characters.');
+      }
 
       // 1. Validate username availability BEFORE creating auth user
       const { data: isAvailable, error: checkError } = await supabase
@@ -550,11 +583,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (checkError) throw new Error('Unable to verify username. Please try again.');
       if (!isAvailable) throw new Error('This username is already taken. Please choose another.');
 
-      // 2. Now safe to create auth user — username is passed via metadata so the
-      // `handle_new_user` DB trigger creates the profile atomically. This avoids
-      // the orphaned-auth-user bug ("email already registered" on retry) that
-      // happened when a client-side profile insert failed after auth succeeded.
-      const { error } = await supabase.auth.signUp({
+      stashSignupUsername(cleanUsername);
+
+      // 2. Create auth user — username in metadata triggers handle_new_user.
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -564,6 +596,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) throw error;
+
+      if (data.session?.user) {
+        await supabase.rpc('sync_signup_username');
+      }
 
       return { error: null };
     } catch (error) {
