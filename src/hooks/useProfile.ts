@@ -1,5 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { setCachedProfile } from '@/lib/profileCache';
 
@@ -97,14 +97,10 @@ export function useProfileByUsername(username: string) {
 
       let profile = profiles?.[0];
       
-      // If not found and looks like a UUID, try ID lookup
+      // If not found and looks like a UUID, try ID lookup via RPC (works for guests)
       if (!profile && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedUsername)) {
-        const { data: idProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', trimmedUsername)
-          .maybeSingle();
-        if (idProfile) profile = idProfile;
+        const { data: idProfiles } = await supabase.rpc('get_profile_by_id', { target_id: trimmedUsername });
+        if (idProfiles?.[0]) profile = idProfiles[0];
       }
       
       if (error && !profile) {
@@ -114,13 +110,16 @@ export function useProfileByUsername(username: string) {
       
       if (!profile) return null;
 
-      const { data: fullProfile } = await supabase
-        .from('profiles')
-        .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth, feature_on_landing')
-        .eq('id', profile.id)
-        .maybeSingle();
+      // Direct table read only works for authenticated users (RLS revokes anon SELECT).
+      if (currentProfile) {
+        const { data: fullProfile } = await supabase
+          .from('profiles')
+          .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth, feature_on_landing')
+          .eq('id', profile.id)
+          .maybeSingle();
 
-      if (fullProfile) profile = { ...profile, ...fullProfile } as any;
+        if (fullProfile) profile = { ...profile, ...fullProfile } as typeof profile;
+      }
 
       // Get counts in parallel
       const [followerCount, followingCount, postCount, isFollowing] = await Promise.all([

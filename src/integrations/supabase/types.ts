@@ -13327,6 +13327,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_public_user_count: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       get_landing_top_creators: {
         Args: { _limit?: number }
         Returns: {

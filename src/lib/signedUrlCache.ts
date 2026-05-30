@@ -5,6 +5,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { getSupabaseProjectRef } from '@/lib/supabaseStorageKey';
 
 interface CacheEntry {
   signedUrl: string;
@@ -22,7 +23,7 @@ const CACHE_DURATION = 50 * 60 * 1000;
 const FAILED_CACHE_DURATION = 30 * 1000;
 
 // Project IDs for URL validation (current + legacy)
-const CURRENT_SUPABASE_PROJECT = 'agtcyxjxgkdyoxwxkjth';
+const CURRENT_SUPABASE_PROJECT = getSupabaseProjectRef();
 const LEGACY_SUPABASE_PROJECT = 'eabvbtkxdbttjpdpbmuw';
 
 /**

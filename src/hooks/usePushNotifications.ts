@@ -4,12 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled } from '@/lib/serviceWorker';
 import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
-
-function isDespiaWebView(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent.toLowerCase();
-  return ua.includes('despia') || ua.includes('vybeapp');
-}
+import { isDespiaRuntime } from '@/lib/despiaBridge';
 
 // VAPID public key — fetched from the server (`get-vapid-key` edge function)
 // so the browser subscribes with the SAME key the server signs pushes with.
@@ -76,7 +71,7 @@ export function usePushNotifications() {
 
   // Check if push notifications are supported
   useEffect(() => {
-    const onDespia = isDespiaWebView();
+    const onDespia = isDespiaRuntime();
     const supported = onDespia || (
       'serviceWorker' in navigator &&
       'PushManager' in window &&
@@ -127,7 +122,7 @@ export function usePushNotifications() {
         return;
       }
 
-      const platform = isDespiaWebView() ? 'despia' : 'web';
+      const platform = isDespiaRuntime() ? 'despia' : 'web';
       const intent = readIntent(profile.id);
 
       const { data, error } = await supabase
@@ -148,7 +143,7 @@ export function usePushNotifications() {
       // If intent is on but the token row is missing, silently re-link in background.
       if (intent) {
         setIsSubscribed(true);
-        if (!data && isDespiaWebView()) {
+        if (!data && isDespiaRuntime()) {
           ensureDespiaOneSignalLinked(profile.id, {
             requestPermission: false,
             waitForPlayerIdMs: 2_000,
@@ -160,7 +155,7 @@ export function usePushNotifications() {
       }
 
       // Web-only: reconcile with browser subscription (only if user hasn't opted in)
-      if (!isDespiaWebView() && registrationRef.current && !intent) {
+      if (!isDespiaRuntime() && registrationRef.current && !intent) {
         const subscription = await registrationRef.current.pushManager.getSubscription();
         if (!subscription && data) {
           await supabase
@@ -221,7 +216,7 @@ export function usePushNotifications() {
 
     setIsLoading(true);
     try {
-      if (isDespiaWebView()) {
+      if (isDespiaRuntime()) {
         const ok = await subscribeDespia();
         return ok;
       }
@@ -300,7 +295,7 @@ export function usePushNotifications() {
 
     setIsLoading(true);
     try {
-      const onDespia = isDespiaWebView();
+      const onDespia = isDespiaRuntime();
 
       if (!onDespia && registrationRef.current) {
         const subscription = await registrationRef.current.pushManager.getSubscription();

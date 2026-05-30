@@ -48,12 +48,12 @@
         const hostname = window.location.hostname;
         const params = new URLSearchParams(window.location.search);
         const ua = (navigator.userAgent || '').toLowerCase();
-        // Detect native wrappers (Despia APK, Capacitor, Cordova, generic Android WebView, iOS WKWebView shells)
+        // Detect Despia native wrapper (Play/App Store builds) — NOT Capacitor.
+        // Web OneSignal SDK is disabled in native shells; Despia uses its own bridge.
         const isNativeWrapper =
-          /despia|capacitor|cordova|median|gonative|wv\)|; wv\b/.test(ua) ||
-          !!(window).Capacitor ||
-          !!(window).cordova ||
-          !!(window).Despia;
+          /despia|vybeapp|median|gonative|wv\)|; wv\b/.test(ua) ||
+          !!(window).Despia ||
+          !!(window).__DESPIA__;
         const isPreviewHost =
           hostname.includes('preview') ||
           hostname.endsWith('.lovableproject.com') ||

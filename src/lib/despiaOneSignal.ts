@@ -21,6 +21,10 @@ const PLAYER_ID_KEYS = [
 
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
+export async function checkDespiaPushPermission(): Promise<boolean | null> {
+  return checkNativePushPermission();
+}
+
 async function checkNativePushPermission(): Promise<boolean | null> {
   for (const checkUrl of ['checkNativePushPermissions://', 'checknativepushpermissions://']) {
     const permissionResult = await despiaCall(checkUrl, ['nativePushEnabled'], 1_500);
@@ -90,7 +94,12 @@ export async function fetchDespiaOneSignalPlayerId(waitMs = 0): Promise<string> 
     const cached = readWindowPlayerId();
     if (cached) return cached;
 
-    for (const scheme of ['getonesignalplayerid://', 'onesignalplayerid://']) {
+    for (const scheme of [
+      'getonesignalplayerid://',
+      'onesignalplayerid://',
+      'getOneSignalPlayerId://',
+      'oneSignalPlayerId://',
+    ]) {
       const result = await despiaCall(scheme, PLAYER_ID_KEYS, 1_200);
       const id = normalizeId(result);
       if (id) return id;
@@ -102,6 +111,25 @@ export async function fetchDespiaOneSignalPlayerId(waitMs = 0): Promise<string> 
   return readWindowPlayerId();
 }
 
+const LINK_SCHEMES = (externalId: string) => [
+  `setonesignalplayerid://?user_id=${encodeURIComponent(externalId)}`,
+  `setOneSignalPlayerId://?user_id=${encodeURIComponent(externalId)}`,
+  `onesignallogin://?external_id=${encodeURIComponent(externalId)}`,
+];
+
+async function bindDespiaOneSignalUser(externalId: string): Promise<void> {
+  for (const url of LINK_SCHEMES(externalId)) {
+    await despiaCall(url, [], 900);
+  }
+}
+
+async function requestDespiaPushPermission(): Promise<boolean | null> {
+  for (const url of ['registerpush://', 'registerPush://', 'requestpushpermission://']) {
+    await despiaCall(url, [], 1_500);
+  }
+  return checkNativePushPermission();
+}
+
 export async function ensureDespiaOneSignalLinked(
   externalId: string,
   options: { requestPermission?: boolean; waitForPlayerIdMs?: number; persistToken?: boolean } = {},
@@ -110,34 +138,38 @@ export async function ensureDespiaOneSignalLinked(
     return { linked: false, playerId: '', permission: null };
   }
 
-  const encoded = encodeURIComponent(externalId);
-  const linkUrl = `setonesignalplayerid://?user_id=${encoded}`;
-  let permission: boolean | null = null;
+  let permission: boolean | null = await checkNativePushPermission();
 
-  // Bind immediately on every call. Despia's OneSignal command is queued and
-  // may not return a player id synchronously, so also repeat it below.
-  await despiaCall(linkUrl, [], 1_000);
+  // Bind external_id before and after permission so Despia/OneSignal always
+  // associates this device with the VYBE profile id (profiles.id).
+  await bindDespiaOneSignalUser(externalId);
 
-  permission = await checkNativePushPermission();
-
-  if (options.requestPermission) {
-    if (permission !== true) {
-      await despiaCall('registerpush://', [], 1_500);
-      permission = await checkNativePushPermission();
-    }
+  if (options.requestPermission && permission !== true) {
+    permission = await requestDespiaPushPermission();
   }
 
-  await despiaCall(linkUrl, [], 1_200);
+  await bindDespiaOneSignalUser(externalId);
 
   // Despia/OneSignal may create the subscription shortly after permission is granted.
-  // Retry in the background so manual linking never blocks the UI forever.
-  window.setTimeout(() => void despiaCall(linkUrl, [], 1_200), 2_500);
+  window.setTimeout(() => void bindDespiaOneSignalUser(externalId), 2_500);
+  window.setTimeout(() => void bindDespiaOneSignalUser(externalId), 6_000);
 
-  const playerId = await fetchDespiaOneSignalPlayerId(options.waitForPlayerIdMs ?? 1_500);
+  const playerId = await fetchDespiaOneSignalPlayerId(options.waitForPlayerIdMs ?? 2_500);
   if (options.persistToken !== false) {
     persistDespiaPushToken(externalId, playerId).catch((err) => {
       console.warn('[despiaOneSignal] push token marker save failed', err);
     });
   }
+
+  if (!playerId) {
+    window.setTimeout(() => {
+      void fetchDespiaOneSignalPlayerId(4_000).then((lateId) => {
+        if (lateId) {
+          persistDespiaPushToken(externalId, lateId).catch(() => {});
+        }
+      });
+    }, 3_000);
+  }
+
   return { linked: true, playerId, permission };
 }

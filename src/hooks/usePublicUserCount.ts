@@ -9,11 +9,9 @@ export function usePublicUserCount() {
   return useQuery({
     queryKey: ['public-user-count'],
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from('profiles')
-        .select('id', { count: 'exact', head: true });
+      const { data, error } = await supabase.rpc('get_public_user_count');
       if (error) throw error;
-      return count ?? 0;
+      return Number(data ?? 0);
     },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,

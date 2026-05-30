@@ -5,6 +5,7 @@ import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache } from '@/lib/profileCache';
 import { resetThemeToDefault } from '@/lib/themeReset';
+import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
 import { logEvent } from '@/lib/debugLogger';
 import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 
@@ -337,12 +338,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     // Helper: check if there's a stored auth token (session might be refreshing)
-    const hasStoredToken = () => {
-      try {
-        const stored = localStorage.getItem('sb-agtcyxjxgkdyoxwxkjth-auth-token');
-        return !!stored;
-      } catch { return false; }
-    };
+    const hasStoredToken = () => hasStoredSupabaseSession();
 
     const hydrateCachedProfile = () => {
       const cachedProfile = getCachedCurrentProfile();

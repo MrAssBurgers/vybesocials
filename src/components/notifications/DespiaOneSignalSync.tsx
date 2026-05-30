@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
-import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
+import { ensureDespiaOneSignalLinked, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { navigationRef } from '@/lib/navigationRef';
 
@@ -59,9 +59,14 @@ export function DespiaOneSignalSync() {
           return;
         }
 
-        // Despia native shell bridge (no-op on web). This is what actually
-        // links the Android push subscription to the user's external_id.
-        void ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 0 });
+        // Despia native shell (Play Store / App Store builds — not Capacitor).
+        // Re-link on every auth session and request OS permission when missing.
+        const permission = await checkDespiaPushPermission();
+        const shouldAskPermission = permission !== true;
+        void ensureDespiaOneSignalLinked(externalId, {
+          requestPermission: shouldAskPermission,
+          waitForPlayerIdMs: 3_000,
+        });
 
         // Web OneSignal SDK bridge — required so web/PWA users receive
         // pushes targeted via include_aliases.external_id. Safe on hosts
@@ -120,6 +125,8 @@ export function DespiaOneSignalSync() {
     const requestPushPermissionOnce = () => {
       if (!isDespiaRuntime()) return;
       try {
+        const alreadyAsked = localStorage.getItem(PUSH_PERM_KEY);
+        if (alreadyAsked) return;
         localStorage.setItem(PUSH_PERM_KEY, String(Date.now()));
         void supabase.auth.getUser().then(({ data }) => {
           if (!data.user?.id) return;
@@ -132,13 +139,32 @@ export function DespiaOneSignalSync() {
               const externalId = profile?.id ?? data.user!.id;
               void ensureDespiaOneSignalLinked(externalId, {
                 requestPermission: true,
-                waitForPlayerIdMs: 0,
+                waitForPlayerIdMs: 4_000,
               });
             });
         });
       } catch (err) {
-        console.warn('[Despia] checknativepushpermissions failed:', err);
+        console.warn('[Despia] push permission request failed:', err);
       }
+    };
+
+    const relinkDespiaPush = () => {
+      if (!isDespiaRuntime()) return;
+      void supabase.auth.getUser().then(({ data }) => {
+        if (!data.user?.id) return;
+        void supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', data.user.id)
+          .maybeSingle()
+          .then(({ data: profile }) => {
+            const externalId = profile?.id ?? data.user!.id;
+            void ensureDespiaOneSignalLinked(externalId, {
+              requestPermission: false,
+              waitForPlayerIdMs: 2_000,
+            });
+          });
+      });
     };
 
     supabase.auth.getUser().then(({ data }) => {
@@ -173,7 +199,10 @@ export function DespiaOneSignalSync() {
       queryClient.invalidateQueries({ queryKey: ['unread-notifications-count'] });
     };
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') refresh();
+      if (document.visibilityState === 'visible') {
+        refresh();
+        relinkDespiaPush();
+      }
     };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', onVisibility);

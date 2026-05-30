@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -28,26 +28,34 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { useSound, useSoundStats, usePostsWithSound } from '@/hooks/useSounds';
+import { useSound, useSoundStats, usePostsWithSound, useAudioPlayer, useTrackSoundPlay, useSaveSound, useIsSoundSaved } from '@/hooks/useSounds';
 import { WaveformVisualizer } from '@/components/sounds/WaveformVisualizer';
 import { PostCard } from '@/components/posts/PostCard';
 
 export default function SoundDetailPage() {
   const { soundId } = useParams<{ soundId: string }>();
   const navigate = useNavigate();
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Query hooks
   const { data: sound, isLoading } = useSound(soundId!);
   const { data: stats } = useSoundStats(soundId!);
   const { data: posts } = usePostsWithSound(soundId!);
+  const { data: isSaved = false, refetch: refetchSaved } = useIsSoundSaved(soundId);
+  const { saveSound, unsaveSound } = useSaveSound();
+  const trackPlay = useTrackSoundPlay();
+  const audioUrl = sound?.preview_url || sound?.audio_url || '';
+  const audioPlayer = useAudioPlayer(audioUrl);
+
+  useEffect(() => {
+    if (audioPlayer.isPlaying && sound) {
+      trackPlay(sound.sound_id, 'detail');
+    }
+  }, [audioPlayer.isPlaying, sound, trackPlay]);
 
   const goBack = () => navigate(-1);
 
   const handlePlay = () => {
-    setIsPlaying(!isPlaying);
-    // TODO: Implement audio playback
+    audioPlayer.toggle();
   };
 
   const handleUseSound = () => {
@@ -58,10 +66,23 @@ export default function SoundDetailPage() {
     navigate('/upload', { state: { selectedSoundId: soundId, mode: 'remix' } });
   };
 
-  const handleSaveSound = () => {
-    setIsSaved(!isSaved);
-    toast.success(isSaved ? 'Sound removed from saved' : 'Sound saved!');
-    // TODO: Implement save/unsave functionality
+  const handleSaveSound = async () => {
+    if (!soundId) return;
+    setIsSaving(true);
+    try {
+      if (isSaved) {
+        await unsaveSound(soundId);
+        toast.success('Sound removed from saved');
+      } else {
+        await saveSound(soundId);
+        toast.success('Sound saved!');
+      }
+      await refetchSaved();
+    } catch {
+      toast.error('Could not update saved sound');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleShare = () => {
@@ -180,7 +201,7 @@ export default function SoundDetailPage() {
                   onClick={handlePlay}
                   className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-primary/90 hover:bg-primary shadow-2xl"
                 >
-                  {isPlaying ? (
+                  {audioPlayer.isPlaying ? (
                     <Pause className="h-8 w-8" />
                   ) : (
                     <Play className="h-8 w-8 ml-1" />
@@ -227,7 +248,7 @@ export default function SoundDetailPage() {
                   <div className="w-full max-w-md mx-auto lg:mx-0">
                     <WaveformVisualizer 
                       waveformData={sound.waveform_data} 
-                      isPlaying={isPlaying}
+                      isPlaying={audioPlayer.isPlaying}
                       duration={sound.duration}
                     />
                   </div>
@@ -250,6 +271,7 @@ export default function SoundDetailPage() {
                 onClick={handleSaveSound} 
                 variant={isSaved ? "default" : "outline"}
                 size="icon"
+                disabled={isSaving}
               >
                 <Heart className={cn("h-4 w-4", isSaved && "fill-current")} />
               </Button>
