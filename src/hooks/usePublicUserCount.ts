@@ -9,7 +9,7 @@ export function usePublicUserCount() {
   return useQuery({
     queryKey: ['public-user-count'],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_public_user_count');
+      const { data, error } = await (supabase as any).rpc('get_public_user_count');
       if (error) {
         // RPC missing until migration is applied — don't treat as zero members.
         if (/could not find the function/i.test(error.message)) {

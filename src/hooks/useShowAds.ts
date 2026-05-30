@@ -5,6 +5,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { isNativeAppShell } from '@/lib/despiaBridge';
 
+// AdSense killswitch — flip to true once approved.
+const ADS_ENABLED = false;
+
 function calculateAge(dob: string): number {
   const birth = new Date(dob);
   const today = new Date();

@@ -44,7 +44,7 @@ export function useProfileById(profileId: string | undefined) {
           console.warn('[useProfileById] Profile not found:', profileId, error?.message);
           return null;
         }
-        profile = data as Profile;
+        profile = data as unknown as Profile;
       } else {
         const { data: rows, error } = await supabase.rpc('get_profile_by_id', { target_id: profileId });
         if (error || !rows?.[0]) {

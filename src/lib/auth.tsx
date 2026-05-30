@@ -199,7 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const profileData = data[0] as unknown as Profile;
 
         if (isGeneratedUsername(profileData.username)) {
-          const { data: syncedUsername } = await supabase.rpc('sync_signup_username');
+          const { data: syncedUsername } = await (supabase as any).rpc('sync_signup_username');
           if (typeof syncedUsername === 'string' && syncedUsername && !isGeneratedUsername(syncedUsername)) {
             profileData.username = syncedUsername;
             clearSignupUsername();
@@ -277,7 +277,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const profileData = afterEnsure[0] as unknown as Profile;
 
         if (isGeneratedUsername(profileData.username)) {
-          const { data: syncedUsername } = await supabase.rpc('sync_signup_username');
+          const { data: syncedUsername } = await (supabase as any).rpc('sync_signup_username');
           if (typeof syncedUsername === 'string' && syncedUsername && !isGeneratedUsername(syncedUsername)) {
             profileData.username = syncedUsername;
             clearSignupUsername();
@@ -598,7 +598,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
 
       if (data.session?.user) {
-        await supabase.rpc('sync_signup_username');
+        await (supabase as any).rpc('sync_signup_username');
       }
 
       return { error: null };
