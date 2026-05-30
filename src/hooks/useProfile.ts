@@ -31,17 +31,36 @@ export function useProfileById(profileId: string | undefined) {
     queryKey: ['profile-by-id', profileId, currentProfile?.id],
     queryFn: async (): Promise<Profile | null> => {
       if (!profileId) return null;
-      
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth')
-        .eq('id', profileId)
-        .maybeSingle();
 
-      if (error || !profile) {
-        console.warn('[useProfileById] Profile not found:', profileId, error?.message);
-        return null;
+      let profile: Profile | null = null;
+
+      if (currentProfile) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth')
+          .eq('id', profileId)
+          .maybeSingle();
+        if (error || !data) {
+          console.warn('[useProfileById] Profile not found:', profileId, error?.message);
+          return null;
+        }
+        profile = data as Profile;
+      } else {
+        const { data: rows, error } = await supabase.rpc('get_profile_by_id', { target_id: profileId });
+        if (error || !rows?.[0]) {
+          console.warn('[useProfileById] Profile not found:', profileId, error?.message);
+          return null;
+        }
+        profile = {
+          ...rows[0],
+          follower_count: 0,
+          following_count: 0,
+          post_count: 0,
+          is_following: false,
+        } as Profile;
       }
+
+      if (!profile) return null;
 
       // Get counts in parallel
       const [followerCount, followingCount, postCount, isFollowing] = await Promise.all([
