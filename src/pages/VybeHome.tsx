@@ -735,7 +735,7 @@ const features = [
 ];
 
 const VybeHome = memo(function VybeHome() {
-  const { data: liveUserCount, isLoading: countLoading } = usePublicUserCount();
+  const { data: liveUserCount, isLoading: countLoading, isError: countError } = usePublicUserCount();
   const { data: topCreators } = useLandingTopCreators(4);
   // Fallback demo faces fill any empty slots so the row never looks empty.
   const demoFallback = [PEOPLE.maya, PEOPLE.jordan, PEOPLE.leo, PEOPLE.sky];
@@ -798,7 +798,7 @@ const VybeHome = memo(function VybeHome() {
               </div>
               <span className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                {countLoading
+                {countLoading || countError
                   ? 'Joining a small, growing crew'
                   : `${(liveUserCount ?? 0).toLocaleString()} ${liveUserCount === 1 ? 'early member' : 'early members'}`}
               </span>
@@ -857,7 +857,7 @@ const VybeHome = memo(function VybeHome() {
       <section className="py-10 px-6 border-y border-white/5 bg-white/[0.02]">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
           {[
-            {n: countLoading ? '—' : (liveUserCount ?? 0).toLocaleString(), l: liveUserCount === 1 ? 'Early member' : 'Early members'},
+            {n: countLoading || countError ? '—' : (liveUserCount ?? 0).toLocaleString(), l: liveUserCount === 1 ? 'Early member' : 'Early members'},
             {n:'24/7', l:'AI safety scanning'},
             {n:'E2E', l:'Encrypted messages'},
           ].map(s => (
