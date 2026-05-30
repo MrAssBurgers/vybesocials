@@ -16,7 +16,7 @@ export function getSupabaseProjectRef(): string {
   const projectId = parseEnv(import.meta.env.VITE_SUPABASE_PROJECT_ID as string | undefined);
   if (projectId) return projectId;
 
-  return 'agtcyxjxgkdyoxwxkjth';
+  return 'hprmicwhlaaqfgshucec';
 }
 
 export function getSupabaseAuthStorageKey(): string {

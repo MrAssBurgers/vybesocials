@@ -39,7 +39,7 @@ function previewSupabaseClientShimPlugin() {
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const projectId = env.VITE_SUPABASE_PROJECT_ID || "agtcyxjxgkdyoxwxkjth";
+  const projectId = env.VITE_SUPABASE_PROJECT_ID || "hprmicwhlaaqfgshucec";
   const supabaseUrl = env.VITE_SUPABASE_URL || `https://${projectId}.supabase.co`;
   const publishableKey =
     env.VITE_SUPABASE_PUBLISHABLE_KEY ||
