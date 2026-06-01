@@ -147,6 +147,17 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       // denied when switching to Video mode, device busy, etc.) never crashes
       // the React tree. The UI stays on the camera phase and the user can retry.
       console.warn('[MobileCreateStudio] Camera error (suppressed):', err?.name || err);
+      try {
+        // Fire-and-forget detailed report so admins can see WHY camera failed on real devices.
+        const { reportAppCrash } = await import('@/lib/bugReportClient');
+        reportAppCrash({
+          error: err instanceof Error ? err : new Error(err?.message || err?.name || 'Camera failed'),
+          source: 'camera:mobile-create-studio',
+          reason: `getUserMedia failed (${err?.name || 'unknown'}): ${err?.message || ''}`.slice(0, 240),
+          mode: 'auto',
+          context: { facingMode, mode, name: err?.name, message: err?.message },
+        }).catch(() => {});
+      } catch {}
     }
   }, [facingMode, mode, startTracking]);
 
