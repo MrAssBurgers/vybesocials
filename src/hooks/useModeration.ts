@@ -171,6 +171,21 @@ export function useUserRole() {
       if (roles.includes('owner') || roles.includes('owner_wife')) return 'owner';
       if (roles.includes('admin')) return 'admin';
       if (roles.includes('moderator')) return 'moderator';
+
+      // 3) Badge-based fallback: anyone who has been awarded an Owner / Admin /
+      //    Moderator badge gets the matching effective role so they immediately
+      //    see the admin panel (covers users granted via badges only).
+      if (profile?.id) {
+        const { data: badgeRows } = await supabase
+          .from('user_badges')
+          .select('badge_name, badge_type')
+          .eq('user_id', profile.id);
+        const names = (badgeRows || []).map((b: any) => String(b.badge_name || '').toLowerCase());
+        if (names.includes('owner') || names.includes("owner's wife")) return 'owner';
+        if (names.includes('admin')) return 'admin';
+        if (names.includes('moderator')) return 'moderator';
+      }
+
       return null;
     },
     enabled: authReady && (!!profile?.id || !!user?.id),
