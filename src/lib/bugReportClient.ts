@@ -144,15 +144,21 @@ export async function reportAppCrash({
   try {
     const reporterId = await resolveReporterProfileId(userId);
     if (reporterId) {
-      const bugComponentStack = [source ? `Source: ${source}` : null, componentStack]
+      const bugComponentStack = [
+        reason ? `Reason: ${reason}` : null,
+        source ? `Source: ${source}` : null,
+        deviceInfo,
+        contextText,
+        componentStack,
+      ]
         .filter(Boolean)
         .join('\n\n');
 
       await supabase.from('bug_reports').insert({
         reporter_id: reporterId,
-        error_message: resolvedError.message.slice(0, 500),
+        error_message: (reason ? `[${reason}] ` : '') + resolvedError.message.slice(0, 480),
         error_stack: resolvedError.stack?.slice(0, 2000) || null,
-        component_stack: bugComponentStack.slice(0, 1000) || null,
+        component_stack: bugComponentStack.slice(0, 4000) || null,
         page_url: pageUrl,
         user_agent: userAgent.slice(0, 300),
         ai_analysis: null,
