@@ -22,6 +22,8 @@ import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 import { LoginGateModal } from '@/components/auth/LoginGateModal';
 import { FounderCounter } from '@/components/growth/FounderCounter';
 import { consumeAuthReturnPath, getPostLoginPath, stashAuthReturnPath } from '@/lib/authReturnPath';
+import { VybeLiquidBackground } from '@/components/effects/VybeLiquidBackground';
+import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
 
 
 // Hide bottom nav on landing page + lock document scroll (auth is one-screen)
@@ -528,7 +530,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   ] as const;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden overscroll-none bg-background flex items-center justify-center px-3 sm:px-4">
+    <div className="fixed inset-0 z-50 overflow-hidden overscroll-none flex items-center justify-center px-3 sm:px-4">
       {!user && typeof window !== 'undefined' && !isNativeAppShell() && (
         <button
           type="button"
@@ -541,13 +543,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         </button>
       )}
 
-      <div
-        className="fixed inset-0 pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(ellipse at 30% 15%, hsl(var(--primary) / 0.16), transparent 55%), radial-gradient(ellipse at 70% 95%, hsl(var(--accent) / 0.12), transparent 55%)',
-        }}
-      />
+      <VybeLiquidBackground interactive />
 
       <div
         ref={contentRef}
@@ -581,9 +577,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   <VYBELogo size="sm" showText={false} className="relative z-10" />
                 </div>
                 <div className="min-w-0 text-left">
-                  <h1 className="text-base sm:text-lg font-display font-bold gradient-text leading-tight">
+                  <VybeLiquidText
+                    as="h1"
+                    className="text-base sm:text-lg font-display font-bold leading-tight"
+                  >
                     {authPageTitle}
-                  </h1>
+                  </VybeLiquidText>
                   <p className="text-[11px] sm:text-xs text-muted-foreground leading-snug mt-0.5">
                     {authSubtitle}
                   </p>
@@ -746,7 +745,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
                 <Button
                   type="submit"
-                  variant="gradient"
+                  variant="vybeLiquid"
                   className="w-full h-9 text-sm"
                   disabled={loading || (!isLogin && !agreedToTerms)}
                 >

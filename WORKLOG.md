@@ -5,38 +5,33 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- Public readiness pass: friend-drop route, auth return paths, Friend Drop add fix
-- Publish via Lovable; Despia NFC rebuild; smoke test per `PUBLIC_READINESS.md`
+- Auth landing liquid UI (background, Log In button, Welcome heading)
+- Publish to `vybehub.app` via Lovable
 
-## What I Changed In Lovable
-- Branch: `main` (pushed to `origin`)
-- Commit: `3a6ca980` — camera crash fixes, auth reset fallback, upload timeouts, gradient/auth polish, `DEPLOY.md` / `AGENTS.md`
-- Migrations/SQL touched: none
-- Edge functions touched: none (password reset still uses `send-reset-email` with Supabase Auth fallback)
+## What Changed (this session)
+- `VybeLiquidBackground` — aurora + touch reactions on auth
+- `vybeLiquid` button variant + `VybeLiquidText` (brand stream + shimmer on glyphs)
+- `--vybe-brand-*` theme tokens in `applyThemeTokens`
+- CSS validation hook + `npm run validate:css`
+- `Landing.tsx` wired to new components
 
 ## Current Status
-- Done: `npm run lint`, `npm run build`, `npx tsc --noEmit` — all pass (zero lint errors/warnings)
-- Done: React hooks ordering fixes, ESLint config + targeted legacy fixes
-- In progress: **Lovable → Share → Publish** (user action)
-- Blocked on: Supabase CLI deploy (`supabase login` not run on this machine)
+- Done: `npm run build`, `npm run lint`, `npm run validate:css`
+- Done: pushed to `origin/main` (see Publish log)
+- **Your turn:** Lovable → Share → Publish → hard-refresh https://vybehub.app
 
-## Errors / Repro
-- Push initially rejected (remote ahead); resolved via rebase + 3-file conflict merge
+## Publish log
+- **2026-06-01** — commit `e3ab283b` pushed; awaiting Lovable Publish
+- **2026-06-01** — auth liquid UI commit pushed; awaiting Lovable Publish (see latest SHA after push)
 
 ## Next 3 Tasks
-1. Lovable Publish → two Despia phones Friend Link tap → friending animation
-2. Play Store: Create → Post camera smoke test
-3. Review `CRASH_AUDIT.md` medium-risk items (AR filters, global camera stream)
-
-## Notes For Cursor Agent
-- Constraints:
-- Do not change:
-- Preferred approach:
+1. Lovable Publish → smoke auth landing (liquid bg, Welcome text, Log In)
+2. Friend Link NFC tap test on two Despia phones
+3. Create → Post camera smoke on Play Store build
 
 ## Verification Checklist
 - [x] `npm run build` passes
-- [x] `npm run lint` passes (zero errors/warnings)
-- [x] `npx tsc --noEmit` passes
-- [ ] Friend Link NFC: two phones tap → `NFCSwapAnimation` → both added
-- [ ] Create → Post → camera opens on Play Store app (no instant crash)
-- [ ] no new console/runtime errors
+- [x] `npm run lint` passes
+- [x] `npm run validate:css` passes
+- [ ] Lovable Publish completed
+- [ ] `vybehub.app` auth landing verified (hard refresh)

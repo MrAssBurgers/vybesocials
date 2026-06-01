@@ -587,6 +587,17 @@ export function applyThemeTokens(tokens: ThemeTokens, options?: { preserveBackgr
     root.style.setProperty('--neon-pink', safeHSL(tokens.neonPink, safeHSL(tokens.colorPrimary, defaultPrimary)));
     root.style.setProperty('--neon-purple', safeHSL(tokens.neonPurple, safeHSL(tokens.colorSecondary, '280 100% 60%')));
     root.style.setProperty('--neon-cyan', safeHSL(tokens.neonCyan, safeHSL(tokens.colorAccent, '185 100% 50%')));
+
+    // Brand stream stops for liquid text / CTA (never bg gradient vars)
+    const brandPrimary = safeHSL(tokens.colorPrimary, defaultPrimary);
+    const brandSecondary = safeHSL(tokens.colorSecondary, '280 100% 60%');
+    const brandAccent = safeHSL(tokens.colorAccent, '185 100% 50%');
+    root.style.setProperty('--vybe-brand-primary', brandPrimary);
+    root.style.setProperty('--vybe-brand-secondary', brandSecondary);
+    root.style.setProperty('--vybe-brand-accent', brandAccent);
+    root.style.setProperty('--vybe-brand-pink', safeHSL(tokens.neonPink, brandPrimary));
+    root.style.setProperty('--vybe-brand-purple', safeHSL(tokens.neonPurple, brandSecondary));
+    root.style.setProperty('--vybe-brand-cyan', safeHSL(tokens.neonCyan, brandAccent));
     
     // === CHART COLORS ===
     root.style.setProperty('--chart-1', safeHSL(tokens.colorPrimary, defaultPrimary));
@@ -673,6 +684,8 @@ export function applyThemeTokens(tokens: ThemeTokens, options?: { preserveBackgr
         '--card-foreground','--popover-foreground','--primary-foreground',
         '--secondary-foreground','--accent-foreground','--border','--input',
         '--input-foreground','--neon-pink','--neon-purple','--neon-cyan',
+        '--vybe-brand-primary','--vybe-brand-secondary','--vybe-brand-accent',
+        '--vybe-brand-pink','--vybe-brand-purple','--vybe-brand-cyan',
         '--chart-1','--chart-2','--chart-3','--chart-4','--chart-5','--radius',
         '--light-bg-start','--light-bg-mid',
       ];

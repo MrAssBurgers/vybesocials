@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "command": "node .cursor/hooks/validate-css-hook.mjs",
+        "matcher": "Write|StrReplace",
+        "timeout": 30
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "node .cursor/hooks/validate-css-hook.mjs",
+        "timeout": 30
+      }
+    ],
+    "stop": [
+      {
+        "command": "node .cursor/hooks/validate-css-hook.mjs stop",
+        "timeout": 45,
+        "loop_limit": 2
+      }
+    ]
+  }
+}

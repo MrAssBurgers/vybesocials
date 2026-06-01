@@ -16,6 +16,8 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent/50 hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
         gradient: "gradient-animated text-primary-foreground font-semibold transition-[transform,box-shadow,opacity] duration-200",
+        vybeLiquid:
+          "vybe-liquid-button text-primary-foreground font-semibold active:!scale-[0.985]",
         glass: "liquid-glass text-foreground hover:bg-muted/50",
         neon: "bg-primary text-primary-foreground glow-pink hover:glow-purple transition-shadow liquid-glass-button",
       },
@@ -48,11 +50,19 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, children, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
+    const isVybeLiquid = variant === "vybeLiquid";
     const isGradient =
       variant === "gradient" ||
       (typeof className === "string" && className.includes("gradient-animated"));
     const content =
-      isGradient && !asChild ? (
+      isVybeLiquid && !asChild ? (
+        <>
+          <span className="vybe-liquid-button__flow" aria-hidden />
+          <span className="relative z-[2] inline-flex w-full items-center justify-center gap-2">
+            {children}
+          </span>
+        </>
+      ) : isGradient && !asChild ? (
         <span className="relative z-[2] inline-flex items-center justify-center gap-2">
           {children}
         </span>
