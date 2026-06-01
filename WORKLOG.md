@@ -21,8 +21,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Your turn:** Lovable → Share → Publish → hard-refresh https://vybehub.app
 
 ## Publish log
-- **2026-06-01** — commit `e3ab283b` pushed; awaiting Lovable Publish
-- **2026-06-01** — auth liquid UI commit pushed; awaiting Lovable Publish (see latest SHA after push)
+- **2026-06-01** — commit `6f265956` pushed (auth liquid UI); **Publish in Lovable now**
+- **2026-06-01** — commit `e3ab283b` — Friend Link NFC, public readiness
 
 ## Next 3 Tasks
 1. Lovable Publish → smoke auth landing (liquid bg, Welcome text, Log In)

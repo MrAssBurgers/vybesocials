@@ -4801,6 +4801,20 @@ html[data-theme-loading="true"] [style*="-webkit-background-clip: text"]:not(.vy
   animation-play-state: paused;
 }
 
+/* Bottom nav + FAB — same liquid stack, tighter glow for icon tile */
+.vybe-liquid-button--fab {
+  border-radius: 1rem;
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 100% / 0.24),
+    inset 0 -1px 0 hsl(0 0% 0% / 0.08),
+    0 4px 16px hsl(var(--primary) / 0.42),
+    0 0 22px hsl(var(--accent) / 0.28);
+}
+
+.vybe-liquid-button--fab:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
 html[data-anim-style='bouncy'] .vybe-liquid-button::before,
 html[data-anim-style='bouncy'] .vybe-liquid-button__flow {
   animation-timing-function: linear;

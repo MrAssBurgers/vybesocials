@@ -686,23 +686,19 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                         }}
                         transition={{ type: 'spring', damping: 12, stiffness: 200 }}
                         className={cn(
-                          "rounded-2xl p-2.5 relative overflow-hidden",
-                          isEditMode ? "bg-primary" : "create-button-gradient"
+                          'rounded-2xl p-2.5 relative overflow-hidden',
+                          isEditMode
+                            ? 'bg-primary'
+                            : 'vybe-liquid-button vybe-liquid-button--fab text-primary-foreground'
                         )}
                       >
-                        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
-                          <div
-                            className="absolute inset-0"
-                            style={{
-                              background: 'linear-gradient(90deg, transparent 0%, transparent 30%, rgba(255,255,255,0.06) 45%, rgba(255,255,255,0.06) 55%, transparent 70%, transparent 100%)',
-                              animation: 'shimmer-sweep 4s linear infinite',
-                            }}
-                          />
-                        </div>
+                        {!isEditMode && (
+                          <span className="vybe-liquid-button__flow" aria-hidden />
+                        )}
                         {isEditMode ? (
-                          <Check className="h-6 w-6 text-white relative z-10" strokeWidth={2.5} />
+                          <Check className="h-6 w-6 text-white relative z-[2]" strokeWidth={2.5} />
                         ) : (
-                          <Plus className="h-6 w-6 text-white relative z-10" strokeWidth={2.5} />
+                          <Plus className="h-6 w-6 text-white relative z-[2]" strokeWidth={2.5} />
                         )}
                       </motion.div>
                     </motion.button>
