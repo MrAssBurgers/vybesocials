@@ -297,13 +297,13 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
           </div>
           <motion.button
             onClick={handleSubmit}
-            disabled={!canSubmit || isUploading}
-            whileTap={canSubmit ? { scale: 0.92 } : {}}
+            disabled={isUploading}
+            whileTap={!isUploading ? { scale: 0.92 } : {}}
             className={cn(
               "h-9 px-5 rounded-full text-sm font-bold transition-all duration-300",
               canSubmit && !isUploading
                 ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30"
-                : "bg-muted text-muted-foreground cursor-not-allowed"
+                : "bg-muted text-muted-foreground"
             )}
           >
             {isUploading ? (
