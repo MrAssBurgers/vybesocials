@@ -134,7 +134,11 @@ const ThemeCard = memo(function ThemeCard({
         {/* Stats */}
         <div className="flex items-center gap-3 text-xs text-muted-foreground pt-2 border-t border-border">
           <button 
-            onClick={(e) => { e.stopPropagation(); isLiked ? onUnlike() : onLike(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isLiked) onUnlike();
+              else onLike();
+            }}
             className="flex items-center gap-1 hover:text-primary transition-colors"
           >
             <Heart className={cn("h-4 w-4", isLiked && "fill-primary text-primary")} />
@@ -221,11 +225,12 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
         case 'top':
           return b.likes_count - a.likes_count;
         case 'trending':
-        default:
+        default: {
           // Weighted score: likes + downloads, with recency bonus
           const aScore = a.likes_count + a.downloads_count * 0.5;
           const bScore = b.likes_count + b.downloads_count * 0.5;
           return bScore - aScore;
+        }
       }
     });
 

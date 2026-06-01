@@ -181,7 +181,7 @@ export default function AIChat() {
         { enableHighAccuracy: true }
       );
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const requestGPSPermission = useCallback(() => {
     setShowGPSDialog(true);

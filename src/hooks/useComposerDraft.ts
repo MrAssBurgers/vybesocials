@@ -65,7 +65,7 @@ export function useComposerDraft(kind: ComposerKind) {
     } catch {
       setExistingDraft(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [key]);
 
   /** Update what *would* be saved if the user navigates away. Cheap; no I/O. */

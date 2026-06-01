@@ -73,6 +73,7 @@ const Contact = lazy(() => import("@/pages/Contact"));
 const InviteFriends = lazy(() => import("@/pages/InviteFriends"));
 const InviteRedeem = lazy(() => import("@/pages/InviteRedeem"));
 const AddFriend = lazy(() => import("@/pages/AddFriend"));
+const FriendDropLink = lazy(() => import("@/pages/FriendDropLink"));
 const CommunityGuidelines = lazy(() => import("@/pages/CommunityGuidelines"));
 const AdminMetrics = lazy(() => import("@/pages/AdminMetrics"));
 const AdminSettings = lazy(() => import("@/pages/AdminSettings"));
@@ -226,6 +227,7 @@ export function AnimatedRoutes() {
             <Route path="/clips/:postId" element={<ProtectedRoute><ClipsViewer /></ProtectedRoute>} />
             <Route path="/invite-friends" element={<ProtectedRoute><InviteFriends /></ProtectedRoute>} />
             <Route path="/add-friend/:userId" element={<ProtectedRoute><AddFriend /></ProtectedRoute>} />
+            <Route path="/friend-drop/:dropId" element={<ProtectedRoute><FriendDropLink /></ProtectedRoute>} />
             <Route path="/admin/metrics" element={<ProtectedRoute><AdminMetrics /></ProtectedRoute>} />
             <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
             <Route path="/admin/music-settings" element={<ProtectedRoute><AdminMusicSettings /></ProtectedRoute>} />

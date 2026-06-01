@@ -129,7 +129,7 @@ export function preloadSecondaryRoutes(): void {
 
 // Polyfill requestIdleCallback for Safari
 if (typeof window !== 'undefined' && !('requestIdleCallback' in window)) {
-  (window as any).requestIdleCallback = (cb: Function, options?: { timeout: number }) => {
+  (window as Window & { requestIdleCallback?: (cb: IdleRequestCallback, options?: IdleRequestOptions) => number }).requestIdleCallback = (cb, options) => {
     const start = Date.now();
     return setTimeout(() => {
       cb({

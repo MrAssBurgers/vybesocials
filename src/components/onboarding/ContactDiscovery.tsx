@@ -47,7 +47,7 @@ export function ContactDiscovery({ onComplete }: ContactDiscoveryProps) {
       const props = ['name', 'tel'];
       const opts = { multiple: true };
       
-      // @ts-ignore - Contact Picker API types
+      // @ts-expect-error Contact Picker API types
       const contacts = await navigator.contacts.select(props, opts);
       
       return contacts.map((contact: any) => ({

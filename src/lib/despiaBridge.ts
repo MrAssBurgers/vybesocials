@@ -108,19 +108,30 @@ function normalizeNfcPayload(raw: unknown): string | null {
  * Callers are responsible for parsing the payload (e.g. friend URL).
  */
 export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> {
-  if (!isDespiaRuntime() || !isAndroidUA()) return null;
+  if (!isDespiaRuntime()) return null;
   if (typeof window === 'undefined') return null;
+
+  if (isIOSUA()) {
+    const { despiaReadNFC } = await import('@/lib/despiaNFCv2');
+    const v2 = await despiaReadNFC(timeoutMs);
+    if (v2.ok && v2.payload) return v2.payload;
+    return null;
+  }
+
+  if (!isAndroidUA()) return null;
   const w = window as any;
 
   return await new Promise<string | null>((resolve) => {
     let settled = false;
     const previousCallback = w.readNFCResult;
     const initialValues = new Map(DESPIA_CALLBACK_KEYS.map((key) => [key, normalizeNfcPayload(w[key])]));
-    let timer: number | undefined;
-    let poll: number | undefined;
+    const timers = {
+      poll: 0 as ReturnType<typeof setInterval>,
+      timer: 0 as ReturnType<typeof setTimeout>,
+    };
     const cleanup = () => {
-      if (timer) clearTimeout(timer);
-      if (poll) clearInterval(poll);
+      if (timers.timer) clearTimeout(timers.timer);
+      if (timers.poll) clearInterval(timers.poll);
       w.readNFCResult = previousCallback;
     };
     const finish = (payload: unknown, source: string) => {
@@ -132,7 +143,7 @@ export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> 
       cleanup();
       resolve(normalized);
     };
-    poll = window.setInterval(() => {
+    timers.poll = window.setInterval(() => {
       for (const key of DESPIA_CALLBACK_KEYS) {
         const current = normalizeNfcPayload(w[key]);
         if (current && current !== initialValues.get(key)) {
@@ -141,7 +152,7 @@ export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> 
         }
       }
     }, 100);
-    timer = window.setTimeout(() => {
+    timers.timer = window.setTimeout(() => {
       if (settled) return;
       settled = true;
       cleanup();

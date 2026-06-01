@@ -64,7 +64,7 @@ async function getFaceLandmarker() {
 
   initPromise = (async () => {
     try {
-      // @ts-ignore - dynamic import for WASM module
+      // @ts-expect-error dynamic import for WASM module
       const vision = await import('@mediapipe/tasks-vision');
       const { FaceLandmarker, FilesetResolver } = vision;
 

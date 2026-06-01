@@ -187,7 +187,10 @@ export function transcribeVideoAudio(file: File): Promise<string> {
       recognition.maxAlternatives = 1;
       
       let transcript = '';
-      let timeoutId: ReturnType<typeof setTimeout>;
+
+      const timeoutId = setTimeout(() => {
+        recognition.stop();
+      }, 15000);
 
       recognition.onresult = (event: any) => {
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -212,11 +215,6 @@ export function transcribeVideoAudio(file: File): Promise<string> {
         audio.remove();
         resolve(transcript.trim());
       };
-
-      // Timeout after 15 seconds max
-      timeoutId = setTimeout(() => {
-        recognition.stop();
-      }, 15000);
 
       audio.play().then(() => {
         recognition.start();

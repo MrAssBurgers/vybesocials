@@ -42,7 +42,7 @@ import { Loader2 } from 'lucide-react';
 // Lazy load developer section (only used in dev)
 const DeveloperSection = lazy(() => import('@/components/settings/DeveloperSection').then(m => ({ default: m.DeveloperSection })));
 
-const SettingsPage = forwardRef<HTMLDivElement, {}>(function SettingsPage(_, ref) {
+const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>(function SettingsPage(_, ref) {
   const { t } = useTranslation();
   const { signOut } = useAuth();
   const navigate = useNavigate();

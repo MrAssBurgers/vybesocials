@@ -12,7 +12,7 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 import { navVisibility } from '@/lib/navVisibility';
 
-export const MobileHeader = React.forwardRef<HTMLElement, {}>(function MobileHeader(_props, ref) {
+export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWithoutRef<'header'>>(function MobileHeader(_props, ref) {
   const { profile } = useAuth();
   const { data: unreadCount = 0 } = useUnreadCount();
   const streakCount = useStreakCount();

@@ -121,7 +121,7 @@ export function YouTubePlayer({
       } catch {}
       playerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [videoId]);
 
   function report(isPlaying: boolean, p: any) {

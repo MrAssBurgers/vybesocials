@@ -177,7 +177,7 @@ export async function generateVideoThumbnail(
 
       video.onseeked = () => {
         const canvas = document.createElement('canvas');
-        let { videoWidth: w, videoHeight: h } = video;
+        const { videoWidth: w, videoHeight: h } = video;
         const ratio = Math.min(640 / w, 640 / h, 1);
         canvas.width = Math.round(w * ratio);
         canvas.height = Math.round(h * ratio);

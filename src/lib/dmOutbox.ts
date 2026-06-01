@@ -117,7 +117,7 @@ export async function flush(): Promise<void> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
   flushing = true;
   try {
-    let items = await readAll();
+    const items = await readAll();
     if (!items.length) return;
 
     for (const item of items) {

@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
+import { stashAuthReturnPath } from '@/lib/authReturnPath';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -50,9 +51,13 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
     return <>{children}</>;
   }
 
-  // Genuinely signed out — no token, no user. Redirect to landing.
+  // Genuinely signed out — stash intended destination, then send to auth.
   if (!user) {
-    return <Navigate to="/" state={{ from: location }} replace />;
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
+    if (returnTo.length > 1 && !returnTo.startsWith('/auth') && returnTo !== '/') {
+      stashAuthReturnPath(returnTo);
+    }
+    return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
   return <>{children}</>;

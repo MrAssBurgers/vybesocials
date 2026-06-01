@@ -53,7 +53,7 @@ export function scanForFlickerOffenders() {
         if (!hasFallbackColor(el)) offenders.push(el);
       });
       if (offenders.length > 0) {
-        // eslint-disable-next-line no-console
+         
         console.warn(
           `[flickerGuardCheck] ${offenders.length} gradient-text element(s) lack a fallback color. They may flash during font load.`,
           offenders.slice(0, 5),

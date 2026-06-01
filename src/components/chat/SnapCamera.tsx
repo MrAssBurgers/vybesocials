@@ -502,7 +502,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 ctx.fillText(overlay.text, 0, 0);
                 break;
                 
-              case 'background':
+              case 'background': {
                 const metrics = ctx.measureText(overlay.text);
                 const padding = scaledFontSize * 0.4;
                 const bgWidth = metrics.width + padding * 2;
@@ -514,7 +514,8 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 ctx.fillStyle = overlay.color === '#ffffff' || overlay.color === '#FACC15' ? '#000000' : '#ffffff';
                 ctx.fillText(overlay.text, 0, 0);
                 break;
-                
+              }
+
               case 'neon':
                 ctx.shadowColor = overlay.color;
                 ctx.shadowBlur = 15;

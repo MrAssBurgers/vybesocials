@@ -54,8 +54,8 @@ export function useComments(postId: string) {
 
       // Fetch like counts and user's likes in parallel
       const commentIds = (data || []).map(c => c.id);
-      let likeCounts: Record<string, number> = {};
-      let userLikes: Set<string> = new Set();
+      const likeCounts: Record<string, number> = {};
+      const userLikes: Set<string> = new Set();
 
       if (commentIds.length > 0) {
         const [countsRes, userLikesRes] = await Promise.all([

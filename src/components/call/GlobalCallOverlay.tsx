@@ -1428,7 +1428,11 @@ export function GlobalCallOverlay() {
                 {/* End Call — Wide red pill (2x width) */}
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => { triggerHaptic('heavy'); currentMode === 'persistent' ? handleLeaveCall() : handleHangup(); }}
+                  onClick={() => {
+                    triggerHaptic('heavy');
+                    if (currentMode === 'persistent') handleLeaveCall();
+                    else handleHangup();
+                  }}
                   disabled={isHangingUp}
                   className={cn(
                     "relative h-11 sm:h-14 px-6 sm:px-8 rounded-full flex-shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 transition-all duration-300",

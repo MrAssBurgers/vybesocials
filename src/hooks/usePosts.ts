@@ -119,7 +119,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
       // Get likes and bookmarks for current user
       let userLikes: string[] = [];
       let userBookmarks: string[] = [];
-      let userReactionMap: Record<string, string> = {};
+      const userReactionMap: Record<string, string> = {};
 
       if (profile) {
         const [likesResult, bookmarksResult] = await Promise.all([

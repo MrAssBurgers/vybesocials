@@ -110,7 +110,7 @@ function shouldIgnoreUrl(url: string): boolean {
 }
 
 // Queue for batching reports
-let reportQueue: DetectedBug[] = [];
+const reportQueue: DetectedBug[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function flushReports() {
@@ -296,24 +296,20 @@ export function useAutoBugReporter() {
 
     const originalFetch = window.fetch;
     window.fetch = async function (...args: Parameters<typeof fetch>) {
-      try {
-        const response = await originalFetch.apply(this, args);
-        if (BUG_STATUS_CODES.includes(response.status)) {
-          const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
-          const cloned = response.clone();
-          try {
-            const body = await cloned.text();
-            const bug = classifyHttpError(response.status, url, body);
-            if (bug) enqueueReport(bug);
-          } catch {
-            const bug = classifyHttpError(response.status, url);
-            if (bug) enqueueReport(bug);
-          }
+      const response = await originalFetch.apply(this, args);
+      if (BUG_STATUS_CODES.includes(response.status)) {
+        const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
+        const cloned = response.clone();
+        try {
+          const body = await cloned.text();
+          const bug = classifyHttpError(response.status, url, body);
+          if (bug) enqueueReport(bug);
+        } catch {
+          const bug = classifyHttpError(response.status, url);
+          if (bug) enqueueReport(bug);
         }
-        return response;
-      } catch (err) {
-        throw err;
       }
+      return response;
     };
 
     window.addEventListener('error', onError);

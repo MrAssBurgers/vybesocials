@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { isDespiaRuntime, despiaScanNFC, openAppSettings, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
 import { despiaReadNFC, despiaWriteNFC } from '@/lib/despiaNFCv2';
+import { extractFriendTarget, buildFriendDropUrl } from '@/lib/friendLinkNfc';
 
 interface NFCState {
   isSupported: boolean;
@@ -91,29 +92,39 @@ function isWebNFCSupported(): boolean {
 // Web NFC permission has been denied. Returns true if a payload was decoded.
 // Prefers the new `nfc://read` + `window.onNFCEvent` contract, falls back to
 // the legacy `nfcread://` polling path on older Despia builds.
-async function despiaNFCScan(onTagScanned: (userId: string) => void): Promise<boolean> {
-  // New API (works on iOS too once NFC Tag Reading capability is enabled).
-  const v2 = await despiaReadNFC();
-  let raw: string | null = null;
-  if (v2.ok && v2.payload) {
-    raw = v2.payload;
-  } else if (!v2.dismissed && !v2.error) {
-    // Fall back to legacy polling bridge on Android builds without the new event API.
-    raw = await despiaScanNFC();
-  } else if (v2.error === 'timeout' || v2.error === 'nfc_error') {
-    raw = await despiaScanNFC();
+function emitFriendLinkTarget(
+  raw: string,
+  onTagScanned: (userId: string) => void,
+  onDropScanned?: (dropId: string) => void,
+): boolean {
+  const target = extractFriendTarget(raw);
+  if (!target) {
+    const userId = parseFriendAddUrl(raw);
+    if (userId) {
+      onTagScanned(userId);
+      return true;
+    }
+    if (raw.startsWith('vybe:friend:')) {
+      onTagScanned(raw.replace('vybe:friend:', ''));
+      return true;
+    }
+    return false;
   }
-  if (!raw) return false;
-  const userId = parseFriendAddUrl(raw);
-  if (userId) {
-    onTagScanned(userId);
+  if (target.type === 'drop') {
+    onDropScanned?.(target.id);
     return true;
   }
-  if (raw.startsWith('vybe:friend:')) {
-    onTagScanned(raw.replace('vybe:friend:', ''));
-    return true;
-  }
-  return false;
+  onTagScanned(target.id);
+  return true;
+}
+
+async function despiaNFCScan(
+  onTagScanned: (userId: string) => void,
+  onDropScanned?: (dropId: string) => void,
+): Promise<boolean> {
+  const v2 = await despiaReadNFC(60_000);
+  if (!v2.ok || !v2.payload) return false;
+  return emitFriendLinkTarget(v2.payload, onTagScanned, onDropScanned);
 }
 
 export function useNFC() {
@@ -394,15 +405,25 @@ export function useNFC() {
   }, [hasWebNFC, hasDespiaNFC]);
 
   // Bidirectional share - scan and prepare to exchange
-  const shareProfile = useCallback(async (userId: string, onReceive: (theirUserId: string) => void): Promise<boolean> => {
-    // Despia native NFC bridge fallback (Android shell only).
+  const shareProfile = useCallback(async (
+    userId: string,
+    onReceive: (theirUserId: string) => void,
+    options?: { dropId?: string; onDropReceive?: (dropId: string) => void },
+  ): Promise<boolean> => {
+    const shareUrl = options?.dropId ? buildFriendDropUrl(options.dropId) : generateFriendAddUrl(userId);
+
     if (hasDespiaNFC && (!hasWebNFC || !window.NDEFReader)) {
       setState(prev => ({ ...prev, isScanning: true, isWriteReady: true, error: null }));
       haptics.impact();
       toast.success('NFC Ready! Hold phones together back-to-back.', { duration: 5000 });
-      const ok = await despiaNFCScan((theirId) => {
-        if (theirId !== userId) onReceive(theirId);
-      });
+      const ok = await despiaNFCScan(
+        (theirId) => {
+          if (theirId !== userId) onReceive(theirId);
+        },
+        (dropId) => {
+          if (dropId !== options?.dropId) options?.onDropReceive?.(dropId);
+        },
+      );
       setState(prev => ({ ...prev, isScanning: false, isWriteReady: false }));
       return ok;
     }
@@ -447,21 +468,27 @@ export function useNFC() {
           if (record.recordType === 'url' || record.recordType === 'text') {
             const decoder = new TextDecoder(record.encoding || 'utf-8');
             const data = decoder.decode(record.data);
-            const theirUserId = parseFriendAddUrl(data);
-            
+            const linkTarget = extractFriendTarget(data);
+            const theirUserId = linkTarget?.type === 'user' ? linkTarget.id : parseFriendAddUrl(data);
+
             if (theirUserId && theirUserId !== userId) {
               console.log('[NFC] Found their profile:', theirUserId);
               foundTheirProfile = true;
               onReceive(theirUserId);
               break;
             }
+            if (linkTarget?.type === 'drop' && linkTarget.id !== options?.dropId) {
+              options?.onDropReceive?.(linkTarget.id);
+              foundTheirProfile = true;
+              break;
+            }
           }
         }
-        
+
         if (pendingWriteRef.current) {
           try {
             await ndef.write({
-              records: [{ recordType: 'url', data: generateFriendAddUrl(userId) }],
+              records: [{ recordType: 'url', data: shareUrl }],
             });
             console.log('[NFC] Wrote our profile');
             if (!foundTheirProfile) {
@@ -479,10 +506,11 @@ export function useNFC() {
       
       if (error.name === 'NotAllowedError') {
         // Try Despia native bridge as fallback when permission denied.
-        if (isDespiaRuntime() && isAndroidUA()) {
-          const ok = await despiaNFCScan((theirId) => {
-            if (theirId !== userId) onReceive(theirId);
-          });
+        if (isDespiaRuntime()) {
+          const ok = await despiaNFCScan(
+            (theirId) => { if (theirId !== userId) onReceive(theirId); },
+            (dropId) => { if (dropId !== options?.dropId) options?.onDropReceive?.(dropId); },
+          );
           if (ok) return true;
         }
         toast.error('NFC permission denied. Tap the gear icon to open app settings.');

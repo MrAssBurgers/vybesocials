@@ -28,7 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
     // Forward to Sentry and console for local debugging.
-    // eslint-disable-next-line no-console
+     
     console.error('[ErrorBoundary]', this.props.scope || 'unknown', error, info);
     captureException(error, {
       scope: this.props.scope || 'unknown',

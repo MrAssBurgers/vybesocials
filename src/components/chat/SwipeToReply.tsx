@@ -49,9 +49,8 @@ export function SwipeToReply({
   const scaleVal = useMotionValue(1);
 
   // Reply bubble indicator transforms
-  const absX = isOwn
-    ? useTransform(x, v => Math.abs(v))
-    : x;
+  const absXOwn = useTransform(x, (v) => Math.abs(v));
+  const absX = isOwn ? absXOwn : x;
   const replyOpacity = useTransform(absX, [0, 15, 30, SWIPE_THRESHOLD], [0, 0, 0.4, 1]);
   const replyScale = useTransform(absX, [0, 15, SWIPE_THRESHOLD], [0, 0.5, 1]);
   const replyXPos = useTransform(absX, [0, SWIPE_THRESHOLD], isOwn ? [20, -8] : [-20, 8]);

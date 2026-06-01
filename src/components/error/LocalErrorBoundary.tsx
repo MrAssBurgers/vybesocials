@@ -28,7 +28,7 @@ class LocalErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     try {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         `[LocalErrorBoundary${this.props.label ? `:${this.props.label}` : ''}] caught:`,
         error?.message,

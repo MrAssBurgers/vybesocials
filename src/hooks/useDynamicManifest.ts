@@ -57,7 +57,7 @@ export function useDynamicManifest() {
       const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
       const manifestUrl = URL.createObjectURL(manifestBlob);
       
-      let link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+      const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
       if (link) {
         if (link.href.startsWith('blob:')) {
           URL.revokeObjectURL(link.href);

@@ -328,14 +328,16 @@ export function generatePaymentLink(type: PaymentMethodType, handle: string, amo
     case 'paypal':
       // PayPal.me link
       return `https://paypal.me/${handle}/${amount}`;
-    case 'venmo':
+    case 'venmo': {
       // Venmo deep link (handle should not include @)
       const venmoHandle = handle.replace('@', '');
       return `https://venmo.com/${venmoHandle}?txn=pay&amount=${amount}`;
-    case 'cashapp':
+    }
+    case 'cashapp': {
       // Cash App link (handle should include $)
       const cashTag = handle.startsWith('$') ? handle : `$${handle}`;
       return `https://cash.app/${cashTag}/${amount}`;
+    }
     default:
       return '';
   }

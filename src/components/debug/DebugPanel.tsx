@@ -30,14 +30,12 @@ export const DebugPanel = memo(forwardRef<HTMLDivElement, object>(function Debug
 
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-
-  // Only show in dev mode with flag enabled
-  if (!import.meta.env.DEV || !isFeatureEnabled('debug_panel_enabled')) {
-    return null;
-  }
+  const enabled = import.meta.env.DEV && isFeatureEnabled('debug_panel_enabled');
 
   // Update stats periodically
   useEffect(() => {
+    if (!enabled) return;
+
     const updateStats = () => {
       const cache = queryClient.getQueryCache();
       const queries = cache.getAll();
@@ -78,7 +76,9 @@ export const DebugPanel = memo(forwardRef<HTMLDivElement, object>(function Debug
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [queryClient]);
+  }, [queryClient, enabled]);
+
+  if (!enabled) return null;
 
   return (
     <div ref={ref}>

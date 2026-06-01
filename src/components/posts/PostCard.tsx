@@ -74,6 +74,13 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
     }
   }, [hasError, retryCount]);
 
+  // Re-arm a randomized mid-roll ad timer every time the video starts/resumes playing.
+  useEffect(() => {
+    if (!isPlaying) return;
+    const cleanup = scheduleMidVideoAd(true);
+    return cleanup;
+  }, [isPlaying, scheduleMidVideoAd]);
+
   // Invalid URL - show subtle gradient (never broken icon)
   if (!isValidMediaUrl(src)) {
     return (
@@ -119,14 +126,6 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
     setIsLoaded(true);
     setHasError(true);
   };
-
-  // Re-arm a randomized mid-roll ad timer every time the video starts/resumes playing.
-  // YouTube-style: gap between ads is random (2.5–5 min), so users can't predict them.
-  useEffect(() => {
-    if (!isPlaying) return;
-    const cleanup = scheduleMidVideoAd(true);
-    return cleanup;
-  }, [isPlaying, scheduleMidVideoAd]);
 
   const handleClick = async () => {
     try {

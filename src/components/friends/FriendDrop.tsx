@@ -20,6 +20,11 @@ import { getPreloadedStream, requestCameraStream } from '@/hooks/useCameraPreloa
 import { LiquidBottomSheet } from '@/components/ui/glass/LiquidBottomSheet';
 import { NFCWriteSheet } from '@/components/social/NFCWriteSheet';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { buildFriendDropUrl } from '@/lib/friendLinkNfc';
+import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
+import { NFCSwapAnimation } from '@/components/friends/NFCSwapAnimation';
+import { acquirePostCameraStream, stopStream } from '@/lib/postCameraStream';
+import { isCameraSafeMode } from '@/lib/cameraSafeMode';
 import { cn } from '@/lib/utils';
 
 interface FriendDropProps {
@@ -211,13 +216,15 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const [nfcActive, setNfcActive] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('qr');
   const [showWriteSheet, setShowWriteSheet] = useState(false);
+  const [showSwapAnimation, setShowSwapAnimation] = useState(false);
+  const exchangeLockRef = useRef(false);
   const [qrSvg, setQrSvg] = useState<string>('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  const { hasWebNFC, isSupported: nfcSupported, shareProfile: nfcShareProfile, stopScan: nfcStopScan } = useNFC();
+  const { hasWebNFC, isSupported: nfcSupported, stopScan: nfcStopScan } = useNFC();
   const nativeFriendDrop = useNativeFriendDrop();
 
   const fetchUser = async (userId: string): Promise<FoundUser | null> => {
@@ -239,7 +246,11 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       haptics.success();
       if (drop.to_user_id) {
         fetchUser(drop.to_user_id).then((scannedUser) => {
-          if (scannedUser) { setFoundUser(scannedUser); setPhase('found'); }
+          if (scannedUser) {
+            setFoundUser(scannedUser);
+            setShowSwapAnimation(true);
+            setPhase('exchanging');
+          }
         });
       }
     }, []),
@@ -249,8 +260,10 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
   const myProfileUrl = useMemo(() => (
     activeDropId
-      ? `https://vybehub.app/friend-drop/${activeDropId}`
-      : profile?.username ? `https://vybehub.app/add-friend/${user?.id}` : ''
+      ? buildFriendDropUrl(activeDropId)
+      : profile?.username && user?.id
+        ? `https://vybehub.app/add-friend/${user.id}`
+        : ''
   ), [activeDropId, profile?.username, user?.id]);
 
   // Generate QR locally (instant, no network)
@@ -266,30 +279,54 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
   const stopScanning = useCallback(() => {
     if (animationFrameRef.current) { cancelAnimationFrame(animationFrameRef.current); animationFrameRef.current = null; }
-    if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; }
+    if (streamRef.current) {
+      stopStream(streamRef.current);
+      streamRef.current = null;
+    }
     setIsScanning(false);
   }, []);
 
   const handleDropScan = useCallback(async (dropId: string) => {
+    if (exchangeLockRef.current) return;
+    exchangeLockRef.current = true;
     stopScanning();
     haptics.success();
     setPhase('detected');
     const scannedDrop = await friendDropSync.scanDrop(dropId);
-    if (!scannedDrop) { toast.error('This code has expired'); setPhase('idle'); return; }
+    if (!scannedDrop) {
+      toast.error('This code has expired');
+      setPhase('idle');
+      exchangeLockRef.current = false;
+      return;
+    }
     setActiveDropId(dropId);
     if (scannedDrop.from_user_id) {
       const ownerProfile = await fetchUser(scannedDrop.from_user_id);
-      if (ownerProfile) { setFoundUser(ownerProfile); setPhase('found'); }
+      if (ownerProfile) {
+        setFoundUser(ownerProfile);
+        setShowSwapAnimation(true);
+        setPhase('exchanging');
+      }
     }
   }, [friendDropSync, stopScanning]);
 
   const handleFoundUser = useCallback(async (userId: string) => {
+    if (exchangeLockRef.current) return;
+    exchangeLockRef.current = true;
     stopScanning();
     haptics.success();
     setPhase('detected');
     const userData = await fetchUser(userId);
-    if (userData) { setFoundUser(userData); setPhase('found'); haptics.impact(); }
-    else { toast.error('Could not find user'); setPhase('idle'); }
+    if (userData) {
+      setFoundUser(userData);
+      setShowSwapAnimation(true);
+      setPhase('exchanging');
+      haptics.impact();
+    } else {
+      toast.error('Could not find user');
+      setPhase('idle');
+      exchangeLockRef.current = false;
+    }
   }, [stopScanning]);
 
   const handleOpen = useCallback(async () => {
@@ -312,7 +349,9 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     try {
       let stream = getPreloadedStream();
       if (!stream) {
-        stream = await requestCameraStream({ facingMode: 'environment', width: 640, height: 480 });
+        stream = isCameraSafeMode()
+          ? await acquirePostCameraStream('environment')
+          : await requestCameraStream({ facingMode: 'environment', width: 640, height: 480 });
       }
       if (!stream) { toast.error('Could not access camera'); setIsScanning(false); return; }
       streamRef.current = stream;
@@ -350,47 +389,27 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     }
   }, [user?.id, handleDropScan, handleFoundUser]);
 
-  // Auto-start NFC when Phone Tap tab is active
-  useEffect(() => {
-    if (!isOpen || !user?.id || activeTab !== 'tap') return;
-    let cancelled = false;
-    (async () => {
-      try {
-        if (hasWebNFC) {
-          const started = await nfcShareProfile(user.id, async (theirUserId) => {
-            if (theirUserId !== user.id) handleFoundUser(theirUserId);
-          });
-          if (started && !cancelled) setNfcActive(true);
-        }
-        if (nativeFriendDrop.isAvailable) {
-          await nativeFriendDrop.startSession();
-          if (!cancelled) setNfcActive(true);
-        }
-      } catch (e) { console.log('[FriendDrop] NFC auto-start failed:', e); }
-    })();
-    return () => { cancelled = true; };
-  }, [isOpen, user?.id, activeTab, hasWebNFC, nfcShareProfile, nativeFriendDrop, handleFoundUser]);
+  useFriendLinkNfcSession({
+    enabled: isOpen && activeTab === 'tap' && !!myProfileUrl && !nativeFriendDrop.isAvailable,
+    broadcastUrl: myProfileUrl,
+    onTarget: useCallback(
+      (target) => {
+        if (target.type === 'drop') void handleDropScan(target.id);
+        else if (target.id !== user?.id) void handleFoundUser(target.id);
+      },
+      [handleDropScan, handleFoundUser, user?.id],
+    ),
+  });
 
-  const handleAddFriend = useCallback(async () => {
-    if (!foundUser) return;
-    setPhase('exchanging');
-    haptics.impact();
-    if (activeDropId) await friendDropSync.confirmDrop(activeDropId);
-    try {
-      await sendRequest.mutateAsync(foundUser.id);
-      if (activeDropId) await friendDropSync.completeDrop(activeDropId);
-      setPhase('success');
-      haptics.success();
-      setTimeout(() => handleClose(), 2200);
-    } catch (error: any) {
-      if (error?.message?.includes('already')) {
-        toast.info('Already friends or request pending!');
-        setPhase('success');
-        setTimeout(handleClose, 1500);
-      } else { toast.error('Failed to send request'); setPhase('found'); }
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'tap') return;
+    if (nativeFriendDrop.isAvailable) {
+      void nativeFriendDrop.startSession().then(() => setNfcActive(true));
+    } else {
+      setNfcActive(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [foundUser, sendRequest, activeDropId, friendDropSync]);
+    return () => { setNfcActive(false); };
+  }, [isOpen, activeTab, nativeFriendDrop]);
 
   const handleClose = useCallback(async () => {
     stopScanning();
@@ -404,7 +423,42 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setWasScanned(false);
     setActiveDropId(null);
     setIsScanning(false);
+    setShowSwapAnimation(false);
+    exchangeLockRef.current = false;
   }, [stopScanning, activeDropId, friendDropSync, nfcStopScan, nativeFriendDrop]);
+
+  const completeFriendAdd = useCallback(async () => {
+    if (!foundUser || exchangeLockRef.current) return;
+    exchangeLockRef.current = true;
+    try {
+      if (activeDropId) await friendDropSync.confirmDrop(activeDropId);
+      await sendRequest.mutateAsync(foundUser.id);
+      if (activeDropId) await friendDropSync.completeDrop(activeDropId);
+      setPhase('success');
+      haptics.success();
+      setTimeout(() => handleClose(), 2200);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : '';
+      if (msg.includes('already')) {
+        toast.info('Already friends or request pending!');
+        setPhase('success');
+        setTimeout(() => handleClose(), 1500);
+      } else {
+        toast.error('Failed to send request');
+        setPhase('found');
+        setShowSwapAnimation(false);
+        exchangeLockRef.current = false;
+      }
+    }
+  }, [foundUser, sendRequest, activeDropId, friendDropSync, handleClose]);
+
+  const handleAddFriend = useCallback(async () => {
+    if (!foundUser || exchangeLockRef.current) return;
+    setShowSwapAnimation(true);
+    setPhase('exchanging');
+    haptics.impact();
+    await completeFriendAdd();
+  }, [foundUser, completeFriendAdd]);
 
   useEffect(() => () => { stopScanning(); }, [stopScanning]);
 
@@ -838,6 +892,24 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
   return (
     <>
+      <NFCSwapAnimation
+        isActive={showSwapAnimation}
+        myProfile={
+          profile?.username
+            ? { username: profile.username, avatar_url: profile.avatar_url }
+            : null
+        }
+        theirProfile={
+          foundUser
+            ? { username: foundUser.username, avatar_url: foundUser.avatar_url }
+            : null
+        }
+        onAutoAdd={() => { void completeFriendAdd(); }}
+        onComplete={() => {
+          setShowSwapAnimation(false);
+        }}
+      />
+
       {renderTrigger()}
 
       <LiquidBottomSheet

@@ -157,7 +157,7 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
       start();
     }
     return () => stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [autoStart, isAvailable]);
 
   return { isAvailable, isScanning, error, start, stop };

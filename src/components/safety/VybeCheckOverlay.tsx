@@ -92,7 +92,7 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel, preco
 
     runScan();
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
 
   const handleRatingSelect = useCallback((rating: AgeRating) => {

@@ -212,7 +212,8 @@ const ThemeCard = memo(function ThemeCard({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  isSaved ? onUnsave() : onSave();
+                  if (isSaved) onUnsave();
+                  else onSave();
                 }}
                 className="p-1.5 rounded-lg hover:bg-muted transition-colors"
               >

@@ -1,21 +1,18 @@
 /**
- * Despia NFC v2 — new `nfc://read` / `nfc://write` contract with `window.onNFCEvent`.
+ * Despia NFC — official `nfc://read` / `nfc://write` + `window.onNFCEvent`.
+ * @see https://setup.despia.com (NFC page)
  *
- * Multiplexes a single shared `window.onNFCEvent` dispatcher across concurrent
- * callers. Each call installs a one-shot listener that resolves on the first
- * matching event for that session and then unsubscribes.
+ * Each scheme call is one-shot: one tag per `nfc://read` or `nfc://write`.
+ * Never fire read and write in the same user gesture.
  *
- * Requirements (one-time setup per Despia docs):
- *   1. Enable "NFC Tag Reading" capability on the Apple App ID.
- *   2. Toggle "NFC" addon ON in the Despia Editor.
- *   3. Rebuild the native binary — without rebuild calls resolve silently.
+ * Setup: Apple App ID → NFC Tag Reading, Despia Editor → NFC addon ON, rebuild.
  */
 
 import { despiaCall, isDespiaRuntime } from './despiaBridge';
 
-type NFCEventType = 'read' | 'write' | 'dismissed' | 'error';
+export type NFCEventType = 'read' | 'write' | 'dismissed' | 'error';
 
-interface NFCEvent {
+export interface NFCEvent {
   type: NFCEventType;
   id?: string;
   data?: string;
@@ -27,10 +24,11 @@ type Listener = (evt: NFCEvent) => boolean; // return true if consumed
 const listeners = new Set<Listener>();
 let installed = false;
 
-function installDispatcher() {
+/** Call once at app startup (see Despia docs). Safe to call multiple times. */
+export function installDespiaNfcDispatcher(): void {
   if (installed || typeof window === 'undefined') return;
   installed = true;
-  const w = window as any;
+  const w = window as Window & { onNFCEvent?: (evt: NFCEvent) => void };
   const prev = w.onNFCEvent;
   w.onNFCEvent = (evt: NFCEvent) => {
     try {
@@ -46,10 +44,18 @@ function installDispatcher() {
       }
     } finally {
       if (typeof prev === 'function') {
-        try { prev(evt); } catch {}
+        try {
+          prev(evt);
+        } catch {
+          /* ignore */
+        }
       }
     }
   };
+}
+
+function installDispatcher(): void {
+  installDespiaNfcDispatcher();
 }
 
 function once(matcher: (evt: NFCEvent) => boolean, timeoutMs: number): Promise<NFCEvent | null> {
@@ -82,6 +88,21 @@ export interface DespiaNFCReadResult {
   error?: string;
 }
 
+/** Persistent listener for Despia `window.onNFCEvent` (does not auto-remove on first event). */
+export function subscribeDespiaNfcEvents(handler: (evt: NFCEvent) => void): () => void {
+  installDispatcher();
+  const listener: Listener = (evt) => {
+    try {
+      handler(evt);
+    } catch (err) {
+      console.warn('[despiaNFCv2] subscriber threw', err);
+    }
+    return false;
+  };
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 export async function despiaReadNFC(timeoutMs = 60_000): Promise<DespiaNFCReadResult> {
   if (!isDespiaRuntime()) return { ok: false, error: 'not_despia' };
   const pending = once(
@@ -100,6 +121,78 @@ export interface DespiaNFCWriteResult {
   ok: boolean;
   dismissed?: boolean;
   error?: string;
+}
+
+export interface DespiaNfcReadLoopOptions {
+  onPayload: (data: string, tagId?: string) => void;
+  onDismissed?: () => void;
+  onError?: (message: string) => void;
+  signal?: AbortSignal;
+  /** Ms before re-arming `nfc://read` after dismiss/error (not after success). */
+  rearmDelayMs?: number;
+}
+
+/**
+ * Friend Link / passive scan: arms one-shot `nfc://read`, re-arms after each
+ * terminal event. Does NOT call `nfc://write` (per Despia: never both in one flow).
+ */
+export function startDespiaNfcReadLoop(options: DespiaNfcReadLoopOptions): () => void {
+  if (!isDespiaRuntime()) return () => {};
+
+  installDispatcher();
+  let disposed = false;
+  let readInFlight = false;
+
+  const armRead = () => {
+    if (disposed || readInFlight || options.signal?.aborted) return;
+    readInFlight = true;
+    void despiaCall('nfc://read').finally(() => {
+      readInFlight = false;
+    });
+  };
+
+  const scheduleRearm = (delayMs: number) => {
+    window.setTimeout(() => {
+      if (!disposed && !options.signal?.aborted) armRead();
+    }, delayMs);
+  };
+
+  const unsub = subscribeDespiaNfcEvents((evt) => {
+    if (disposed || options.signal?.aborted) return;
+
+    if (evt.type === 'read' && evt.data) {
+      options.onPayload(evt.data, evt.id);
+      scheduleRearm(400);
+      return;
+    }
+    if (evt.type === 'dismissed') {
+      options.onDismissed?.();
+      scheduleRearm(options.rearmDelayMs ?? 900);
+      return;
+    }
+    if (evt.type === 'error') {
+      options.onError?.(evt.error || 'nfc_error');
+      scheduleRearm(options.rearmDelayMs ?? 1200);
+    }
+  });
+
+  const onAbort = () => {
+    disposed = true;
+    unsub();
+  };
+  options.signal?.addEventListener('abort', onAbort, { once: true });
+  if (options.signal?.aborted) {
+    onAbort();
+    return () => {};
+  }
+
+  armRead();
+
+  return () => {
+    disposed = true;
+    options.signal?.removeEventListener('abort', onAbort);
+    unsub();
+  };
 }
 
 export async function despiaWriteNFC(value: string, timeoutMs = 60_000): Promise<DespiaNFCWriteResult> {

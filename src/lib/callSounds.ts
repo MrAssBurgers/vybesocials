@@ -8,7 +8,7 @@ type CallSoundType = 'ringing' | 'connect' | 'end' | 'ringback' | 'message';
 let audioContext: AudioContext | null = null;
 let ringingInterval: number | null = null;
 let ringbackInterval: number | null = null;
-let lastMessageSoundTime = 0;
+const lastMessageSoundTime = 0;
 
 // Active oscillators for clean cleanup
 const activeNodes: Set<AudioScheduledSourceNode> = new Set();

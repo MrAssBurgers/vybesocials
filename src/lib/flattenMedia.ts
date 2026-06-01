@@ -224,7 +224,7 @@ export async function flattenVideo(
 
   // Try to grab the original audio track via captureStream on the <video>.
   let audioTrack: MediaStreamTrack | null = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const anyVideo = video as any;
   try {
     const vStream: MediaStream | undefined =
@@ -254,14 +254,14 @@ export async function flattenVideo(
   };
 
   // Use rVFC if available for accurate sync; otherwise rAF.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const hasRvfc = typeof (video as any).requestVideoFrameCallback === 'function';
   let cancelled = false;
 
   const rvfcLoop = () => {
     if (cancelled) return;
     drawFrame();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (video as any).requestVideoFrameCallback(rvfcLoop);
   };
   const rafLoop = () => {
@@ -277,7 +277,9 @@ export async function flattenVideo(
 
   stop = () => {
     cancelled = true;
-    try { recorder.state !== 'inactive' && recorder.stop(); } catch {}
+    try {
+      if (recorder.state !== 'inactive') recorder.stop();
+    } catch {}
     try { video.pause(); } catch {}
   };
 

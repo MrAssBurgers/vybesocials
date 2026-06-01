@@ -13,6 +13,7 @@ import { haptics } from '@/lib/haptics';
 import { SuggestedFriends } from '@/components/friends/SuggestedFriends';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { Link } from 'react-router-dom';
+import { stashAuthReturnPath } from '@/lib/authReturnPath';
 
 /**
  * Deep link handler for NFC friend adds
@@ -50,8 +51,8 @@ export default function AddFriend() {
   useEffect(() => {
     if (!authLoading && !user) {
       // Store the return URL for after login
-      sessionStorage.setItem('addFriendReturnUrl', `/add-friend/${userId}`);
-      navigate('/landing', { replace: true });
+      stashAuthReturnPath(`/add-friend/${userId}`);
+      navigate('/auth', { replace: true });
     }
   }, [authLoading, user, userId, navigate]);
 

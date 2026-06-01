@@ -63,7 +63,7 @@ export function useViewTracking(postId: string) {
       }
       if (dwellTimer.current) clearTimeout(dwellTimer.current);
     };
-  }, [postId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [postId]);  
 
   return ref;
 }

@@ -17,7 +17,7 @@ type PremiumSoundType =
 
 // Audio context singleton with lazy initialization
 let audioContext: AudioContext | null = null;
-let lastSoundTime: Record<string, number> = {};
+const lastSoundTime: Record<string, number> = {};
 
 // Track active oscillators for clean stop
 const activeOscillators: Set<OscillatorNode> = new Set();

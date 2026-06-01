@@ -173,7 +173,7 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
 
       // Check motion sensors - DeviceMotionEvent requires permission on iOS 13+
       if (typeof DeviceMotionEvent !== 'undefined') {
-        // @ts-ignore - requestPermission is iOS-specific
+        // @ts-expect-error requestPermission is iOS-specific
         if (typeof DeviceMotionEvent.requestPermission === 'function') {
           // iOS 13+ - requires explicit permission
           states.motion = 'pending';
@@ -300,9 +300,9 @@ export function PermissionsSetup({ onAllRequiredGranted }: PermissionsSetupProps
 
         case 'motion':
           try {
-            // @ts-ignore - requestPermission is iOS-specific
+            // @ts-expect-error requestPermission is iOS-specific
             if (typeof DeviceMotionEvent.requestPermission === 'function') {
-              // @ts-ignore
+              // @ts-expect-error requestPermission is iOS-specific
               const result = await DeviceMotionEvent.requestPermission();
               setPermissionStates(prev => ({
                 ...prev,

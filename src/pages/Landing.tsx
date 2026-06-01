@@ -21,6 +21,7 @@ import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 import { LoginGateModal } from '@/components/auth/LoginGateModal';
 import { FounderCounter } from '@/components/growth/FounderCounter';
+import { consumeAuthReturnPath, getPostLoginPath, stashAuthReturnPath } from '@/lib/authReturnPath';
 
 
 // Hide bottom nav on landing page + lock document scroll (auth is one-screen)
@@ -258,7 +259,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     // (otherwise on mobile the SIGNED_IN listener races the gate and bypasses it).
     if (gatePending || loginGate) return;
     if (authProfile?.username && authProfile?.onboarding_completed !== false) {
-      navigate('/home', { replace: true });
+      const returnPath = getPostLoginPath('/home');
+      navigate(returnPath, { replace: true });
     }
   }, [user, authProfile, navigate, isInviteRoute, isInviteMode, authReady, gatePending, loginGate]);
 
@@ -286,7 +288,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate(stage);
       } else {
-        navigate(fallbackPath);
+        navigate(stage === 'home' ? getPostLoginPath(fallbackPath) : fallbackPath);
       }
     };
 
@@ -967,7 +969,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             setGatePending(false);
             toast.success('Welcome back! ✨');
             if (isInviteMode && onInviteNavigate) onInviteNavigate('home');
-            else navigate('/home');
+            else navigate(getPostLoginPath('/home'));
           }}
           onCancel={() => {
             // No session was ever created on this device — nothing to sign out.

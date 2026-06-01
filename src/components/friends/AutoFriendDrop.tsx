@@ -21,23 +21,13 @@ import { getPrimaryHex } from '@/lib/themeColor';
 import { navVisibility } from '@/lib/navVisibility';
 import { cn } from '@/lib/utils';
 import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
-import { despiaScanNFC, isDespiaRuntime, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
-
-function decodeNfcText(text: string): string {
-  const trimmed = text.trim();
-  try { return decodeURIComponent(trimmed); } catch { return trimmed; }
-}
-
-function extractFriendTarget(text: string): { type: 'drop' | 'user'; id: string } | null {
-  const decoded = decodeNfcText(text);
-  const dropMatch = decoded.match(/(?:https?:\/\/[^\s]+)?\/friend-drop\/([a-zA-Z0-9-]+)/);
-  if (dropMatch) return { type: 'drop', id: dropMatch[1] };
-  const userMatch = decoded.match(/(?:https?:\/\/[^\s]+)?\/add-friend\/([a-zA-Z0-9-]+)/);
-  if (userMatch) return { type: 'user', id: userMatch[1] };
-  const schemeMatch = decoded.match(/^vybe:friend:([a-zA-Z0-9-]+)$/);
-  if (schemeMatch) return { type: 'user', id: schemeMatch[1] };
-  return null;
-}
+import { isDespiaRuntime, isIOSUA } from '@/lib/despiaBridge';
+import { buildFriendDropUrl, type FriendLinkTarget } from '@/lib/friendLinkNfc';
+import { scanFriendLinkOnce } from '@/lib/friendLinkNfc';
+import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
+import { NFCSwapAnimation } from '@/components/friends/NFCSwapAnimation';
+import { acquirePostCameraStream, stopStream } from '@/lib/postCameraStream';
+import { isCameraSafeMode } from '@/lib/cameraSafeMode';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 type ActiveTab = 'tap' | 'qr';
@@ -66,6 +56,9 @@ export function AutoFriendDrop() {
   const [cameraStarting, setCameraStarting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const webNfcRef = useRef<AbortController | null>(null);
+  const exchangeLockRef = useRef(false);
+  const completingRef = useRef(false);
+  const [showSwapAnimation, setShowSwapAnimation] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -104,21 +97,18 @@ export function AutoFriendDrop() {
     }, 3000);
   }, [foundUser?.id, createConversation, navigate]);
 
-  const handleOnScanned = useCallback((drop: any) => {
+  const handleOnScanned = useCallback((drop: { to_user_id: string | null }) => {
     haptics.success();
     if (drop.to_user_id) {
       fetchUser(drop.to_user_id).then((scannedUser) => {
         if (scannedUser) {
           setFoundUser(scannedUser);
+          setShowSwapAnimation(true);
           setPhase('exchanging');
-          setTimeout(async () => {
-            try { await sendRequest.mutateAsync(scannedUser.id); } catch {}
-            if (activeDropId) await friendDropSync.completeDrop(activeDropId);
-          }, 1500);
         }
       });
     }
-  }, [activeDropId, sendRequest]);
+  }, []);
 
   const handleOnConfirmed = useCallback(() => {
     if (phase !== 'exchanging') { setPhase('exchanging'); haptics.impact(); }
@@ -137,20 +127,14 @@ export function AutoFriendDrop() {
     onCompleted: handleOnCompleted,
   });
 
-  const nativeFriendDrop = useNativeFriendDrop({
-    enabled: isActive && activeTab === 'tap',
-    onPeerFound: (peer) => {
-      setFoundUser({ id: peer.userId, username: peer.username, display_name: peer.displayName, avatar_url: peer.avatarUrl });
-      setPhase('found');
-      stopScanning();
-    },
-    onPeerConnected: (peer) => handleAutoAdd(peer.userId),
-  });
-
   const primaryHex = getPrimaryHex();
   const myProfileUrl = activeDropId
-    ? `https://vybehub.app/friend-drop/${activeDropId}`
-    : profile?.username ? `https://vybehub.app/add-friend/${user?.id}` : '';
+    ? buildFriendDropUrl(activeDropId)
+    : profile?.username && user?.id
+      ? `https://vybehub.app/add-friend/${user.id}`
+      : '';
+
+  const nfcBroadcastUrl = myProfileUrl;
 
   useEffect(() => {
     if (!myProfileUrl) { setQrSvg(''); return; }
@@ -165,43 +149,126 @@ export function AutoFriendDrop() {
     return () => { cancelled = true; };
   }, [myProfileUrl, primaryHex]);
 
-  const handleAutoAdd = useCallback(async (userId: string) => {
-    if (phase === 'exchanging' || phase === 'success') return;
-    setPhase('exchanging');
-    haptics.impact();
-    try {
-      await sendRequest.mutateAsync(userId);
-      setPhase('success');
-      haptics.success();
-      autoCloseAfterSuccess(userId);
-    } catch (error: any) {
-      if (error?.message?.includes('already')) {
-        setPhase('success');
-        autoCloseAfterSuccess(userId);
-      }
-    }
-  }, [phase, sendRequest, autoCloseAfterSuccess]);
-
   const stopScanning = useCallback(() => {
     if (animationFrameRef.current) { cancelAnimationFrame(animationFrameRef.current); animationFrameRef.current = null; }
-    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (streamRef.current) {
+      stopStream(streamRef.current);
+      streamRef.current = null;
+    }
     try { stopCameraStream(); } catch {}
     if (videoRef.current) videoRef.current.srcObject = null;
     setCameraStarting(false);
     setCameraActive(false);
   }, []);
 
+  const runAutoFriendAdd = useCallback(async (peerId: string) => {
+    if (completingRef.current) return;
+    completingRef.current = true;
+    exchangeLockRef.current = true;
+    try {
+      await sendRequest.mutateAsync(peerId);
+      if (activeDropId) {
+        try { await friendDropSync.confirmDrop(activeDropId); } catch {}
+        try { await friendDropSync.completeDrop(activeDropId); } catch {}
+      }
+      setPhase('success');
+      haptics.success();
+      autoCloseAfterSuccess(peerId);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : '';
+      if (msg.includes('already')) {
+        setPhase('success');
+        autoCloseAfterSuccess(peerId);
+      } else {
+        toast.error('Failed to add friend');
+        setPhase('found');
+        setShowSwapAnimation(false);
+        exchangeLockRef.current = false;
+        completingRef.current = false;
+      }
+    }
+  }, [activeDropId, sendRequest, friendDropSync, autoCloseAfterSuccess]);
+
   const handleDropScan = useCallback(async (dropId: string) => {
     stopScanning();
     haptics.success();
     const scannedDrop = await friendDropSync.scanDrop(dropId);
-    if (!scannedDrop) { toast.error('This code has expired'); return; }
+    if (!scannedDrop) {
+      toast.error('This code has expired');
+      exchangeLockRef.current = false;
+      return;
+    }
     setActiveDropId(dropId);
     if (scannedDrop.from_user_id) {
       const ownerProfile = await fetchUser(scannedDrop.from_user_id);
-      if (ownerProfile) { setFoundUser(ownerProfile); setPhase('exchanging'); }
+      if (ownerProfile) {
+        setFoundUser(ownerProfile);
+        setShowSwapAnimation(true);
+        setPhase('exchanging');
+      }
     }
   }, [friendDropSync, stopScanning]);
+
+  const handleAutoAdd = useCallback((userId: string) => {
+    if (phase === 'success' || completingRef.current) return;
+    setPhase('exchanging');
+    setShowSwapAnimation(true);
+    haptics.impact();
+    void userId;
+  }, [phase]);
+
+  const handleNfcTarget = useCallback(async (target: FriendLinkTarget) => {
+    if (exchangeLockRef.current || completingRef.current || phase === 'success' || phase === 'exchanging') return;
+    exchangeLockRef.current = true;
+    haptics.success();
+    if (target.type === 'drop') {
+      await handleDropScan(target.id);
+      return;
+    }
+    if (target.id === user?.id) {
+      exchangeLockRef.current = false;
+      return;
+    }
+    stopScanning();
+    const peer = await fetchUser(target.id);
+    if (!peer) {
+      toast.error('Could not find user');
+      exchangeLockRef.current = false;
+      setPhase('activated');
+      return;
+    }
+    setFoundUser(peer);
+    await handleAutoAdd(target.id);
+  }, [phase, user?.id, handleDropScan, handleAutoAdd, stopScanning]);
+
+  const nativeFriendDrop = useNativeFriendDrop({
+    enabled: isActive && activeTab === 'tap',
+    onPeerFound: (peer) => {
+      setFoundUser({ id: peer.userId, username: peer.username, display_name: peer.displayName, avatar_url: peer.avatarUrl });
+      setPhase('found');
+      stopScanning();
+    },
+    onPeerConnected: (peer) => { void handleAutoAdd(peer.userId); },
+  });
+
+  useFriendLinkNfcSession({
+    enabled: isActive && activeTab === 'tap' && phase === 'activated' && !nativeFriendDrop.isAvailable,
+    broadcastUrl: nfcBroadcastUrl,
+    onTarget: handleNfcTarget,
+  });
+
+  const handleClose = useCallback(async () => {
+    stopScanning();
+    if (activeDropId && phase !== 'success') await friendDropSync.cancelDrop(activeDropId);
+    if (nativeFriendDrop.isActive) await nativeFriendDrop.stopSession();
+    setIsActive(false);
+    setPhase('idle');
+    setFoundUser(null);
+    setActiveDropId(null);
+    setShowSwapAnimation(false);
+    exchangeLockRef.current = false;
+    completingRef.current = false;
+  }, [stopScanning, nativeFriendDrop, activeDropId, friendDropSync, phase]);
 
   const handleFoundUser = useCallback(async (userId: string) => {
     stopScanning();
@@ -212,7 +279,7 @@ export function AutoFriendDrop() {
       if (error) throw error;
       setFoundUser(data);
     } catch { toast.error('Could not find user'); handleClose(); }
-  }, [stopScanning]);
+  }, [stopScanning, handleClose]);
 
   const startScanLoop = useCallback(() => {
     const canvas = canvasRef.current;
@@ -242,25 +309,30 @@ export function AutoFriendDrop() {
   startScanLoopRef.current = startScanLoop;
 
   const startCamera = useCallback(async () => {
-    if (streamRef.current) return; // already running
+    if (streamRef.current) return;
     setCameraStarting(true);
     setCameraError(null);
     try {
       let stream = getPreloadedStream();
       if (!stream) {
-        stream = await requestCameraStream({ facingMode: 'environment', width: 640, height: 480 });
+        if (isCameraSafeMode()) {
+          stream = await acquirePostCameraStream('environment');
+        } else {
+          stream = await requestCameraStream({ facingMode: 'environment', width: 640, height: 480 });
+        }
       }
       if (!stream) throw new Error('Camera stream unavailable');
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        await videoRef.current.play().catch(() => {});
         setCameraActive(true);
         startScanLoopRef.current();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const e = err as { name?: string };
       console.warn('[FriendLink] Camera access failed:', err);
-      const denied = err?.name === 'NotAllowedError' || err?.name === 'SecurityError';
+      const denied = e?.name === 'NotAllowedError' || e?.name === 'SecurityError';
       const msg = denied
         ? 'Camera blocked — enable camera access in settings'
         : 'Camera unavailable — try again or use Phone Tap';
@@ -271,92 +343,19 @@ export function AutoFriendDrop() {
     }
   }, []);
 
-  // Route an NFC payload string into either /friend-drop/:id or /add-friend/:id
-  const dispatchNfcPayload = useCallback((text: string): boolean => {
-    const target = extractFriendTarget(text);
-    console.log('[FriendLink] NFC payload parsed', { hasTarget: Boolean(target), targetType: target?.type });
-    if (!target) return false;
-    if (target.type === 'drop') { handleDropScan(target.id); return true; }
-    if (target.id !== user?.id) { handleFoundUser(target.id); return true; }
-    return false;
-  }, [handleDropScan, handleFoundUser, user?.id]);
-
-  // NFC scan — prefers Despia's native bridge in the wrapped Android app,
-  // falls back to Web NFC for Chrome on Android. iOS shows a "use QR" toast.
-  const startWebNfcScan = useCallback(async () => {
-    const inDespiaAndroid = isDespiaRuntime() && isAndroidUA();
-    console.log('[FriendLink] NFC start', {
-      inDespia: isDespiaRuntime(),
-      isAndroid: isAndroidUA(),
-      hasWebNfc: typeof window !== 'undefined' && 'NDEFReader' in window,
-    });
-    // 1) Despia Android shell → native bridge first.
-    if (inDespiaAndroid) {
-      toast.success('NFC scanning — hold phones together back-to-back', { duration: 4000 });
-      const payload = await despiaScanNFC();
-      console.log('[FriendLink] Despia NFC completed', { hasPayload: Boolean(payload) });
-      if (payload) {
-        if (!dispatchNfcPayload(payload)) {
-          toast.error("That tag isn't a VYBE link");
-        }
-        return;
-      }
-      // Despia's native bridge is the source of truth inside the app. If it
-      // timed out, don't fall through to Web NFC and show the wrong error.
-      toast.info('No NFC tag detected — try again or use QR');
+  const retryNfcScan = useCallback(async () => {
+    if (!isDespiaRuntime() && isIOSUA()) {
+      toast.error('NFC needs the VYBE app on iPhone — or use QR', { duration: 5000 });
       return;
     }
-
-    // 2) iOS (Despia or browser) — Web NFC isn't supported.
-    if (isIOSUA()) {
-      toast.error("NFC isn't supported on iPhone — use the QR tab", { duration: 5000 });
-      return;
+    toast.success('Hold phones together back-to-back', { duration: 4000 });
+    const target = await scanFriendLinkOnce();
+    if (target) {
+      await handleNfcTarget(target);
+    } else {
+      toast.info('No NFC detected — keep phones touching or try QR');
     }
-
-    // 3) Web NFC (Chrome on Android).
-    const NDEFReader = (window as any).NDEFReader;
-    if (!NDEFReader) {
-      // Last-ditch: Despia Android with no Web NFC and no payload received — be clear.
-      if (isDespiaRuntime() && isAndroidUA()) {
-        toast.error('No NFC tag detected — try again or use QR');
-      } else {
-        toast.error("This device can't scan NFC — switch to QR");
-      }
-      return;
-    }
-    try {
-      if (webNfcRef.current) webNfcRef.current.abort();
-      const ctrl = new AbortController();
-      webNfcRef.current = ctrl;
-      const reader = new NDEFReader();
-      await reader.scan({ signal: ctrl.signal });
-      reader.onreading = (event: any) => {
-        for (const record of event.message.records) {
-          try {
-            const decoder = new TextDecoder(record.encoding || 'utf-8');
-            const text = decoder.decode(record.data);
-            if (dispatchNfcPayload(text)) return;
-          } catch {}
-        }
-      };
-      toast.success("Hold your phone near a friend's phone");
-    } catch (err: any) {
-      console.warn('[FriendLink] Web NFC failed:', err);
-      // Despia Android: WebView rejected — retry via native bridge once.
-      if (inDespiaAndroid) {
-        const payload = await despiaScanNFC();
-        if (payload) {
-          if (!dispatchNfcPayload(payload)) toast.error("That tag isn't a VYBE link");
-          return;
-        }
-      }
-      toast.error(
-        err?.name === 'NotAllowedError'
-          ? 'NFC permission denied — enable it in app settings'
-          : "This device can't scan NFC — switch to QR"
-      );
-    }
-  }, [dispatchNfcPayload]);
+  }, [handleNfcTarget]);
 
   const handleBump = useCallback(async () => {
     if (!profile?.username || !user) return;
@@ -378,29 +377,11 @@ export function AutoFriendDrop() {
 
   const handleAddFriend = useCallback(async () => {
     if (!foundUser) return;
+    setShowSwapAnimation(true);
     setPhase('exchanging');
     haptics.impact();
-    try { if (activeDropId) await friendDropSync.confirmDrop(activeDropId); } catch {}
-    try {
-      await sendRequest.mutateAsync(foundUser.id);
-      try { if (activeDropId) await friendDropSync.completeDrop(activeDropId); } catch {}
-      if (!activeDropId) { setPhase('success'); haptics.success(); autoCloseAfterSuccess(); }
-    } catch (error: any) {
-      if (error?.message?.includes('already')) {
-        try { if (activeDropId) await friendDropSync.completeDrop(activeDropId); } catch { setPhase('success'); autoCloseAfterSuccess(); }
-      } else { toast.error('Failed to send request'); setPhase('found'); }
-    }
-  }, [foundUser, sendRequest, activeDropId, friendDropSync, autoCloseAfterSuccess]);
-
-  const handleClose = useCallback(async () => {
-    stopScanning();
-    if (activeDropId && phase !== 'success') await friendDropSync.cancelDrop(activeDropId);
-    if (nativeFriendDrop.isActive) await nativeFriendDrop.stopSession();
-    setIsActive(false);
-    setPhase('idle');
-    setFoundUser(null);
-    setActiveDropId(null);
-  }, [stopScanning, nativeFriendDrop, activeDropId, friendDropSync, phase]);
+    await runAutoFriendAdd(foundUser.id);
+  }, [foundUser, runAutoFriendAdd]);
 
   useEffect(() => { return () => { stopScanning(); }; }, [stopScanning]);
 
@@ -438,33 +419,46 @@ export function AutoFriendDrop() {
     return () => { if (activeTab !== 'qr') stopScanning(); };
   }, [isActive, phase, activeTab, stopScanning]);
 
-  // Start NFC/native tap when switching to Phone Tap. Falls back to Web NFC.
-  const despiaNfcAutoStartedRef = useRef(false);
   useEffect(() => {
-    if (isActive && activeTab === 'tap') {
-      if (nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
-        nativeFriendDrop.startSession();
-      } else if (!nativeFriendDrop.isAvailable && isDespiaRuntime() && isAndroidUA() && !despiaNfcAutoStartedRef.current) {
-        // Inside Despia Android: auto-fire the native NFC bridge so the user
-        // doesn't need an extra tap. Guard ref prevents re-firing on rerenders.
-        despiaNfcAutoStartedRef.current = true;
-        startWebNfcScan();
-      }
-    }
-    if (!isActive || activeTab !== 'tap') {
-      despiaNfcAutoStartedRef.current = false;
+    if (isActive && activeTab === 'tap' && nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
+      void nativeFriendDrop.startSession();
     }
     return () => {
-      if (webNfcRef.current) { webNfcRef.current.abort(); webNfcRef.current = null; }
+      if (webNfcRef.current) {
+        webNfcRef.current.abort();
+        webNfcRef.current = null;
+      }
     };
-  }, [isActive, activeTab, nativeFriendDrop, startWebNfcScan]);
+  }, [isActive, activeTab, nativeFriendDrop]);
 
-  const tapLive = activeTab === 'tap' && (nativeFriendDrop.isActive || !nativeFriendDrop.isAvailable);
+  const tapLive =
+    activeTab === 'tap' &&
+    (nativeFriendDrop.isActive || isActive);
 
   if (!profile?.username) return null;
 
   return (
     <>
+      <NFCSwapAnimation
+        isActive={showSwapAnimation}
+        myProfile={
+          profile?.username
+            ? { username: profile.username, avatar_url: profile.avatar_url }
+            : null
+        }
+        theirProfile={
+          foundUser
+            ? { username: foundUser.username, avatar_url: foundUser.avatar_url }
+            : null
+        }
+        onAutoAdd={() => {
+          if (foundUser) void runAutoFriendAdd(foundUser.id);
+        }}
+        onComplete={() => {
+          setShowSwapAnimation(false);
+        }}
+      />
+
       {/* Floating pill — tap to open */}
       {!isActive && isMobile && (
         <div
@@ -606,7 +600,7 @@ export function AutoFriendDrop() {
                         if (tab === 'qr') {
                           startCamera();
                         } else if (tab === 'tap' && !nativeFriendDrop.isAvailable) {
-                          startWebNfcScan();
+                          void retryNfcScan();
                         }
                       }}
                       className={cn(

@@ -64,6 +64,6 @@ export function usePageMeta({ title, description, canonicalPath, ogType = 'websi
       restorers.forEach((r) => r());
       if (ldScript && ldScript.parentNode) ldScript.parentNode.removeChild(ldScript);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [title, description, canonicalPath, ogType, JSON.stringify(jsonLd)]);
 }

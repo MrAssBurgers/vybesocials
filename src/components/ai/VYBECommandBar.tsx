@@ -173,7 +173,7 @@ export function VYBECommandBar() {
   };
 
   const handleExampleClick = (example: string) => {
-    setCommand(example.replace(/[🌙⚡🔥✨]/g, '').trim());
+    setCommand(example.replace(/🌙|⚡|🔥|✨/g, '').trim());
     inputRef.current?.focus();
   };
 
