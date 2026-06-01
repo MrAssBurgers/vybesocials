@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { getConsentState } from '@/lib/crashReportConsent';
+import { getDeviceInfoText } from '@/lib/deviceInfo';
 
 type ReportMode = 'auto' | 'manual';
 
@@ -9,6 +10,10 @@ interface ReportAppCrashInput {
   mode?: ReportMode;
   source?: string;
   url?: string;
+  /** Human-readable reason describing what the user was doing when it crashed */
+  reason?: string;
+  /** Extra debugging context (object will be JSON-stringified) */
+  context?: Record<string, unknown>;
 }
 
 interface ReportAppCrashResult {
@@ -78,6 +83,8 @@ export async function reportAppCrash({
   mode = 'auto',
   source = 'app_crash',
   url,
+  reason,
+  context,
 }: ReportAppCrashInput): Promise<ReportAppCrashResult> {
   const resolvedError = toError(error);
   const pageUrl = getPageUrl(url);
@@ -96,8 +103,15 @@ export async function reportAppCrash({
   }
 
   const userAgent = getUserAgent();
+  const deviceInfo = getDeviceInfoText();
+  const contextText = context && Object.keys(context).length
+    ? `--- CONTEXT ---\n${(() => { try { return JSON.stringify(context, null, 2); } catch { return String(context); } })()}\n--- /CONTEXT ---`
+    : null;
   const combinedStack = [
+    reason ? `Reason: ${reason}` : null,
     source ? `Source: ${source}` : null,
+    deviceInfo,
+    contextText,
     resolvedError.stack,
     componentStack ? `Component stack:\n${componentStack}` : null,
   ]
@@ -130,15 +144,21 @@ export async function reportAppCrash({
   try {
     const reporterId = await resolveReporterProfileId(userId);
     if (reporterId) {
-      const bugComponentStack = [source ? `Source: ${source}` : null, componentStack]
+      const bugComponentStack = [
+        reason ? `Reason: ${reason}` : null,
+        source ? `Source: ${source}` : null,
+        deviceInfo,
+        contextText,
+        componentStack,
+      ]
         .filter(Boolean)
         .join('\n\n');
 
       await supabase.from('bug_reports').insert({
         reporter_id: reporterId,
-        error_message: resolvedError.message.slice(0, 500),
+        error_message: (reason ? `[${reason}] ` : '') + resolvedError.message.slice(0, 480),
         error_stack: resolvedError.stack?.slice(0, 2000) || null,
-        component_stack: bugComponentStack.slice(0, 1000) || null,
+        component_stack: bugComponentStack.slice(0, 4000) || null,
         page_url: pageUrl,
         user_agent: userAgent.slice(0, 300),
         ai_analysis: null,

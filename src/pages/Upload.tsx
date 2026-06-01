@@ -4,6 +4,7 @@ import { useBreakpoint } from '@/hooks/usePlatform';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { MobileCreateStudio } from '@/components/create/MobileCreateStudio';
 import { DesktopCreateStudio } from '@/components/create/DesktopCreateStudio';
+import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
 
 export default function UploadPage() {
   const { isDesktop } = useBreakpoint();
@@ -22,13 +23,20 @@ export default function UploadPage() {
 
   // Mobile/Tablet: Full-screen camera-first experience
   if (!isDesktop) {
-    return <MobileCreateStudio onClose={handleClose} />;
+    return (
+      <CameraMountBoundary surface="upload-mobile" onError={handleClose}>
+        <MobileCreateStudio onClose={handleClose} />
+      </CameraMountBoundary>
+    );
   }
 
   // Desktop: Studio layout with sidebars
   return (
     <AppLayout hideNav noPadding hideRightSidebar fullWidth>
-      <DesktopCreateStudio onClose={handleClose} />
+      <CameraMountBoundary surface="upload-desktop" onError={handleClose}>
+        <DesktopCreateStudio onClose={handleClose} />
+      </CameraMountBoundary>
     </AppLayout>
   );
 }
+
