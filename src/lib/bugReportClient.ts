@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { getConsentState } from '@/lib/crashReportConsent';
+import { getDeviceInfoText } from '@/lib/deviceInfo';
 
 type ReportMode = 'auto' | 'manual';
 
@@ -9,6 +10,10 @@ interface ReportAppCrashInput {
   mode?: ReportMode;
   source?: string;
   url?: string;
+  /** Human-readable reason describing what the user was doing when it crashed */
+  reason?: string;
+  /** Extra debugging context (object will be JSON-stringified) */
+  context?: Record<string, unknown>;
 }
 
 interface ReportAppCrashResult {
