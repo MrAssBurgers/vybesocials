@@ -83,6 +83,8 @@ export async function reportAppCrash({
   mode = 'auto',
   source = 'app_crash',
   url,
+  reason,
+  context,
 }: ReportAppCrashInput): Promise<ReportAppCrashResult> {
   const resolvedError = toError(error);
   const pageUrl = getPageUrl(url);
@@ -101,8 +103,15 @@ export async function reportAppCrash({
   }
 
   const userAgent = getUserAgent();
+  const deviceInfo = getDeviceInfoText();
+  const contextText = context && Object.keys(context).length
+    ? `--- CONTEXT ---\n${(() => { try { return JSON.stringify(context, null, 2); } catch { return String(context); } })()}\n--- /CONTEXT ---`
+    : null;
   const combinedStack = [
+    reason ? `Reason: ${reason}` : null,
     source ? `Source: ${source}` : null,
+    deviceInfo,
+    contextText,
     resolvedError.stack,
     componentStack ? `Component stack:\n${componentStack}` : null,
   ]
