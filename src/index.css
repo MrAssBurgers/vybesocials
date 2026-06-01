@@ -29,6 +29,10 @@ label {
   inherits: false;
 }
 
+:root {
+  --vybe-aura-grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.78' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%28%23n%29'/%3E%3C/svg%3E");
+}
+
 /* Hide bottom nav on splash, landing, and intro pages */
 body.splash-visible nav[aria-label="Bottom navigation"],
 body.splash-visible [data-tutorial-bottomnav],
@@ -682,9 +686,15 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     transition-timing-function: cubic-bezier(0.4, 0, 0.6, 1) !important;
   }
   
-  .calm-motion *:not([class*="animate-spin"]):not([class*="animate-pulse"]) {
+  .calm-motion *:not([class*="animate-spin"]):not([class*="animate-pulse"]):not(.gradient-animated):not(.create-button-gradient) {
     animation-duration: 1.2s !important;
     transition-duration: 0.4s !important;
+  }
+
+  .calm-motion .gradient-animated::before,
+  .calm-motion .create-button-gradient::before {
+    animation-duration: 16s !important;
+    animation-timing-function: linear !important;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -974,8 +984,13 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     perspective-origin: center center;
   }
 
-  /* Pause ALL non-essential animations during scroll for performance */
+  /* Pause aurora layers during scroll — include pseudo-elements */
   .is-scrolling .gradient-animated,
+  .is-scrolling .gradient-animated::before,
+  .is-scrolling .gradient-animated::after,
+  .is-scrolling .create-button-gradient,
+  .is-scrolling .create-button-gradient::before,
+  .is-scrolling .create-button-gradient::after,
   .is-scrolling .animate-liquid-wobble,
   .is-scrolling .animate-glass-breathe,
   .is-scrolling .animate-color-shift,
@@ -1387,55 +1402,136 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       0 4px 12px hsl(var(--neon-purple) / 0.15);
   }
 
-  /* Animated gradient background - VYBE aurora, driven by the active user's theme tokens. */
-  .gradient-animated {
+  /* ── VYBE aura button — GPU sweep layer + grain (see unlayered overrides at file end) ── */
+  .gradient-animated,
+  .create-button-gradient {
     position: relative;
     overflow: hidden;
     border-radius: inherit;
-    background-color: hsl(var(--background));
-    --aurora-angle: 0deg;
-    background-image:
-      conic-gradient(from var(--aurora-angle) at 50% 50%, hsl(var(--gradient-start) / 0.22), hsl(var(--gradient-mid) / 0.18), hsl(var(--gradient-end) / 0.22), hsl(var(--gradient-start) / 0.22)),
-      radial-gradient(circle at 18% 28%, hsl(var(--gradient-start) / 0.95), transparent 60%),
-      radial-gradient(circle at 82% 72%, hsl(var(--gradient-mid) / 0.90), transparent 60%),
-      radial-gradient(circle at 58% 18%, hsl(var(--gradient-end) / 0.95), transparent 60%),
-      radial-gradient(circle at 30% 80%, hsl(var(--primary) / 0.85), transparent 60%),
-      radial-gradient(circle at 75% 35%, hsl(var(--accent) / 0.85), transparent 60%),
-      radial-gradient(circle at 50% 60%, hsl(var(--secondary) / 0.80), transparent 65%),
-      radial-gradient(circle at 10% 60%, hsl(var(--gradient-end) / 0.72), transparent 55%),
-      radial-gradient(circle at 90% 15%, hsl(var(--gradient-start) / 0.85), transparent 60%),
-      radial-gradient(circle at 40% 40%, hsl(var(--gradient-mid) / 0.75), transparent 60%);
-    background-size:
-      180% 180%, 260% 260%, 285% 285%, 255% 255%,
-      300% 300%, 275% 275%, 315% 315%,
-      280% 280%, 295% 295%, 265% 265%;
-    background-repeat: no-repeat;
-    animation: aurora-drift-multi 16s linear infinite, aurora-angle-spin 18s linear infinite;
-    filter: saturate(1.75) brightness(1.18);
+    color: hsl(var(--primary-foreground));
+    border: 1px solid hsl(0 0% 100% / 0.14);
+    background-color: hsl(var(--primary));
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--gradient-start)),
+      hsl(var(--gradient-mid)),
+      hsl(var(--primary)),
+      hsl(var(--accent))
+    );
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.18),
+      inset 0 -0.5px 0 hsl(0 0% 0% / 0.06),
+      0 3px 14px hsl(var(--primary) / 0.18);
+    transition-property: transform, box-shadow, opacity;
+    transition-duration: 0.2s, 0.25s, 0.2s;
+    transition-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1), ease, ease;
+  }
+
+  .gradient-animated::before,
+  .create-button-gradient::before {
+    content: '';
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 200%;
+    height: 100%;
+    border-radius: inherit;
+    /* Tile ends on gradient-start so adjacent repeats never clash (no end→start seam) */
+    background-image: repeating-linear-gradient(
+      90deg,
+      hsl(var(--gradient-start)) 0%,
+      hsl(var(--gradient-mid)) 12.5%,
+      hsl(var(--primary)) 25%,
+      hsl(var(--accent)) 37.5%,
+      hsl(var(--neon-purple)) 43.75%,
+      hsl(var(--gradient-start)) 50%
+    );
+    animation: vybe-aura-sweep 16s linear infinite;
+    will-change: transform;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .gradient-animated::after,
+  .create-button-gradient::after {
+    content: '';
+    display: block;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    /* Top highlight only — grain overlay was painting above bare button text */
+    background-image: linear-gradient(180deg, hsl(0 0% 100% / 0.1) 0%, transparent 42%);
+    background-size: 100% 100%;
+    mix-blend-mode: normal;
+    opacity: 1;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .gradient-animated > *,
+  .create-button-gradient > * {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Bare text nodes (no wrapper) still need contrast over the sweep layer */
+  .gradient-animated,
+  .create-button-gradient {
+    text-shadow: 0 1px 2px hsl(0 0% 0% / 0.35);
+  }
+
+  .gradient-animated.liquid-glass-button,
+  .create-button-gradient.liquid-glass-button {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    contain: none;
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.14),
+      0 4px 16px hsl(var(--primary) / 0.22);
+  }
+
+  .gradient-animated.liquid-glass-button::before,
+  .create-button-gradient.liquid-glass-button::before {
+    display: block;
+  }
+
+  .gradient-animated.liquid-glass-button:hover,
+  .create-button-gradient.liquid-glass-button:hover {
+    transform: none;
+  }
+
+  .gradient-animated:hover,
+  .create-button-gradient:hover {
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.22),
+      0 5px 20px hsl(var(--accent) / 0.22);
+  }
+
+  .gradient-animated:active,
+  .create-button-gradient:active {
+    transform: scale(0.98);
   }
 
   .seamless-gradient-strip {
     position: relative;
     overflow: hidden;
     border-radius: inherit;
-    background-color: hsl(var(--background));
-    background-image:
-      radial-gradient(ellipse at 10% 50%, hsl(var(--neon-pink) / 1), transparent 65%),
-      radial-gradient(ellipse at 30% 50%, hsl(var(--neon-purple) / 0.95), transparent 65%),
-      radial-gradient(ellipse at 50% 50%, hsl(var(--neon-cyan) / 1), transparent 65%),
-      radial-gradient(ellipse at 70% 50%, hsl(var(--primary) / 0.90), transparent 65%),
-      radial-gradient(ellipse at 85% 50%, hsl(var(--accent) / 0.90), transparent 65%),
-      radial-gradient(ellipse at 95% 50%, hsl(var(--gradient-end) / 0.85), transparent 65%),
-      radial-gradient(ellipse at 20% 50%, hsl(var(--neon-yellow) / 0.80), transparent 60%),
-      radial-gradient(ellipse at 60% 50%, hsl(var(--gradient-start) / 0.85), transparent 65%),
-      radial-gradient(ellipse at 40% 50%, hsl(310 100% 60% / 0.75), transparent 65%);
-    background-size:
-      300% 300%, 280% 280%, 300% 300%,
-      320% 320%, 290% 290%, 310% 310%,
-      295% 295%, 305% 305%, 285% 285%;
-    background-repeat: no-repeat;
-    animation: aurora-drift-multi 12s linear infinite;
-    filter: saturate(1.8) brightness(1.2);
+    background-color: hsl(var(--primary));
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--gradient-start)) 0%,
+      hsl(var(--gradient-mid)) 16.666%,
+      hsl(var(--primary)) 33.333%,
+      hsl(var(--accent)) 50%,
+      hsl(var(--gradient-end)) 66.666%,
+      hsl(var(--accent)) 83.333%,
+      hsl(var(--gradient-start)) 100%
+    );
+    background-size: 200% 100%;
+    background-position: 0% 50%;
+    animation: vybe-aura-strip 32s linear infinite;
+    box-shadow: 0 0 14px hsl(var(--primary) / 0.24);
   }
 
   .stable-sidebar-surface {
@@ -1459,23 +1555,36 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   .story-ring-gradient {
     background: linear-gradient(
       to top right,
-      hsl(var(--neon-pink)),
-      hsl(var(--neon-purple)),
-      hsl(var(--neon-cyan))
+      hsl(var(--gradient-start)),
+      hsl(var(--gradient-mid)),
+      hsl(var(--gradient-end))
     );
   }
 
-  /* Gradient text - desktop uses gradient, mobile falls back to solid + shadow */
+  /* Gradient text — soft VYBE palette cycle */
   .gradient-text {
-    background: linear-gradient(
-      135deg,
-      hsl(var(--neon-pink)),
-      hsl(var(--neon-purple)),
-      hsl(var(--neon-cyan))
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--gradient-start)) 0%,
+      hsl(var(--gradient-mid)) 16.666%,
+      hsl(var(--accent)) 33.333%,
+      hsl(var(--gradient-end)) 50%,
+      hsl(var(--accent)) 66.666%,
+      hsl(var(--gradient-mid)) 83.333%,
+      hsl(var(--gradient-start)) 100%
     );
+    background-size: 200% 100%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    animation: vybe-aura-text 32s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gradient-text {
+      animation: none;
+      background-size: auto;
+    }
   }
 
   /* Gradient text works on all devices - no mobile fallback needed */
@@ -1723,6 +1832,22 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
   
   .perf-low .gradient-animated,
+  .perf-low .seamless-gradient-strip,
+  .perf-low .create-button-gradient {
+    filter: none !important;
+    background-blend-mode: normal !important;
+  }
+
+  .perf-low .gradient-animated::before,
+  .perf-low .create-button-gradient::before {
+    animation: vybe-aura-sweep 24s linear infinite !important;
+  }
+
+  .perf-low .gradient-animated::after,
+  .perf-low .create-button-gradient::after {
+    opacity: 0.06 !important;
+  }
+
   .perf-low .animate-liquid-wobble,
   .perf-low .animate-glass-breathe {
     animation: none !important;
@@ -1734,8 +1859,13 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     -webkit-backdrop-filter: blur(8px) !important;
   }
   
-  .perf-medium .gradient-animated {
-    animation-duration: 12s !important;
+  .perf-medium .gradient-animated::before,
+  .perf-medium .create-button-gradient::before {
+    animation-duration: 20s !important;
+  }
+
+  .perf-medium .seamless-gradient-strip {
+    animation-duration: 36s !important;
   }
 
   /* Glass intensity levels */
@@ -1861,6 +1991,33 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 @keyframes aurora-angle-spin {
   from { --aurora-angle: 0deg; }
   to { --aurora-angle: 360deg; }
+}
+
+/* VYBE gradient button — seamless loop: duplicated 0–50% / 50–100% tile, pan one viewport */
+@keyframes vybe-btn-aura {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+
+/* GPU-composited sweep — legacy alias */
+@keyframes vybe-aura-sweep {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes vybe-aura-sweep-bg {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+
+@keyframes vybe-aura-strip {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+
+@keyframes vybe-aura-text {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
 }
 
 /* VYBE aurora drift — each of the 9 radial blobs traces its own circular
@@ -3081,35 +3238,8 @@ img, video {
   to { transform: translateX(150%); }
 }
 
-/* Create button — VYBE aurora: same drifting multi-color radial blobs as
-   .gradient-animated, tuned for a small round button. Mixes brand neon
-   (pink/purple/cyan/yellow) with the user's own theme (--primary/--accent). */
+/* Round create button inherits .gradient-animated flux styles above */
 .create-button-gradient {
-  background-color: hsl(var(--primary));
-  background-image:
-    radial-gradient(circle at 18% 28%, hsl(var(--neon-pink) / 1), transparent 60%),
-    radial-gradient(circle at 82% 72%, hsl(var(--neon-purple) / 0.95), transparent 60%),
-    radial-gradient(circle at 58% 18%, hsl(var(--neon-cyan) / 1), transparent 60%),
-    radial-gradient(circle at 30% 80%, hsl(var(--primary) / 0.95), transparent 60%),
-    radial-gradient(circle at 75% 35%, hsl(var(--accent) / 0.95), transparent 60%),
-    radial-gradient(circle at 50% 60%, hsl(var(--gradient-mid) / 0.90), transparent 65%),
-    radial-gradient(circle at 10% 60%, hsl(var(--neon-yellow) / 0.85), transparent 55%),
-    radial-gradient(circle at 90% 15%, hsl(var(--gradient-start) / 0.95), transparent 60%),
-    radial-gradient(circle at 40% 40%, hsl(310 100% 60% / 0.85), transparent 60%);
-  background-size:
-    200% 200%, 220% 220%, 200% 200%,
-    230% 230%, 210% 210%, 240% 240%,
-    215% 215%, 225% 225%, 205% 205%;
-  background-repeat: no-repeat;
-  animation: aurora-drift-multi 14s linear infinite;
-  filter: saturate(1.55) brightness(1.15);
-  box-shadow:
-    0 4px 24px hsl(var(--primary) / 0.55),
-    0 0 40px hsl(var(--accent) / 0.30),
-    0 0 28px hsl(var(--neon-pink) / 0.25),
-    inset 0 1px 0 hsl(0 0% 100% / 0.18);
-  transform: translateZ(0);
-  will-change: background-position;
   border: none;
 }
 
@@ -3266,8 +3396,21 @@ img, video {
     animation: none !important;
   }
   .gradient-animated,
-  .seamless-gradient-strip {
+  .seamless-gradient-strip,
+  .create-button-gradient,
+  .gradient-text {
     animation: none !important;
+  }
+
+  .gradient-animated::before,
+  .create-button-gradient::before {
+    animation: none !important;
+  }
+
+  .gradient-animated::after,
+  .create-button-gradient::after {
+    animation: none !important;
+    opacity: 0.06 !important;
   }
 }
 
@@ -3973,4 +4116,28 @@ html[data-theme-loading="true"] [style*="-webkit-background-clip: text"] {
   -webkit-text-fill-color: currentColor !important;
   color: inherit !important;
   background: none !important;
+}
+
+/* VYBE gradient button aura — unlayered; beats .reduce-motion * / @layer kill rules */
+@media (prefers-reduced-motion: no-preference) {
+  .gradient-animated::before,
+  .create-button-gradient::before,
+  .reduce-motion .gradient-animated::before,
+  .reduce-motion .create-button-gradient::before {
+    animation: vybe-aura-sweep 16s linear infinite !important;
+    animation-play-state: running !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  .gradient-animated,
+  .create-button-gradient,
+  .reduce-motion .gradient-animated,
+  .reduce-motion .create-button-gradient {
+    transition-property: transform, box-shadow, opacity !important;
+  }
+
+  .perf-low .gradient-animated::before,
+  .perf-low .create-button-gradient::before {
+    animation-duration: 24s !important;
+  }
 }

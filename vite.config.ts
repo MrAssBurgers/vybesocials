@@ -47,8 +47,10 @@ export default defineConfig(({ mode }) => {
 
   return {
     server: {
-      host: "::",
+      host: "127.0.0.1",
       port: 8080,
+      strictPort: false,
+      open: false,
     },
     define: {
       'import.meta.env.VITE_SUPABASE_PROJECT_ID': JSON.stringify(projectId),

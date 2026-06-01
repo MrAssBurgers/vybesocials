@@ -20,15 +20,21 @@ export function isDespiaRuntime(): boolean {
   if (DESPIA_UA_HINT.test(ua)) return true;
   const w = window as any;
   const isAndroidWebView = /Android/i.test(ua) && (/; wv\)/i.test(ua) || /Version\/4\.0.*Chrome/i.test(ua));
+  const isIOSWebView =
+    /iPhone|iPad|iPod/i.test(ua) &&
+    /AppleWebKit/i.test(ua) &&
+    !/Safari/i.test(ua.split('AppleWebKit')[1] || '');
   return Boolean(
     isAndroidWebView ||
+    isIOSWebView ||
     w.ReactNativeWebView ||
     w.webkit?.messageHandlers?.despia ||
     w.despiaVersion ||
     w.Despia ||
     w.__DESPIA__ ||
     w.nativePushEnabled !== undefined ||
-    /app\.lovable\.416714c8-d013-4aff-984d-522418a9bbc7/i.test(ua)
+    /app\.lovable\.416714c8-d013-4aff-984d-522418a9bbc7/i.test(ua) ||
+    /app\.lovable\.762a689eac3b48a59a179f1c2b5b3a2b/i.test(ua)
   );
 }
 

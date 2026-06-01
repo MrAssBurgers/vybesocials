@@ -10,6 +10,7 @@ import { playSound } from "@/lib/sounds";
 import { useIsMobileOrTablet } from "@/hooks/use-mobile";
 import { useUserRole } from "@/hooks/useModeration";
 import { Camera as CameraComponent } from "@/components/camera";
+import { CameraMountBoundary } from "@/components/camera/CameraMountBoundary";
 
 interface CreateMenuLayerProps {
   open: boolean;
@@ -138,7 +139,11 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
 
   return createPortal(
     <>
-      {showCamera && <CameraComponent onClose={() => setShowCamera(false)} />}
+      {showCamera && (
+        <CameraMountBoundary onError={() => setShowCamera(false)}>
+          <CameraComponent onClose={() => setShowCamera(false)} />
+        </CameraMountBoundary>
+      )}
 
       <AnimatePresence>
         {open && (

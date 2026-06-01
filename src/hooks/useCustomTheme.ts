@@ -540,9 +540,10 @@ export function applyThemeTokens(tokens: ThemeTokens, options?: { preserveBackgr
     const gradientFrom = safeHSL(tokens.bgGradientFrom, bgMain);
     const gradientMid = safeHSL(tokens.bgGradientMid, bgCard);
     const gradientTo = safeHSL(tokens.bgGradientTo, bgMain);
-    root.style.setProperty('--gradient-start', safeHSL(tokens.colorPrimary, defaultPrimary));
-    root.style.setProperty('--gradient-mid', safeHSL(tokens.colorSecondary, '240 10% 12%'));
-    root.style.setProperty('--gradient-end', safeHSL(tokens.colorAccent, '185 100% 50%'));
+    // Match AI-generated UI gradients (ThemePreviewCanvas) — not just primary/secondary/accent
+    root.style.setProperty('--gradient-start', gradientFrom);
+    root.style.setProperty('--gradient-mid', gradientMid);
+    root.style.setProperty('--gradient-end', gradientTo);
     
     // Glass effects
     const glassBg = safeHSL(tokens.glassBg, bgCard);

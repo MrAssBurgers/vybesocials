@@ -12,6 +12,9 @@ import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
 import { toast } from 'sonner';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
+import { captureVideoFrame } from '@/lib/cameraCapture';
+import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
+import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 
 interface CameraProps {
   onClose: () => void;
@@ -67,13 +70,18 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
 
   const startCamera = useCallback(async () => {
     try {
-      if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: true,
-      });
+      stopStream(streamRef.current);
+      streamRef.current = null;
+      const stream = await acquirePostCameraStream(facingMode);
+      if (!stream) {
+        toast.error('Could not open camera');
+        return;
+      }
       streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
 
       // Apply torch for rear camera
       if (flash && facingMode === 'environment') {
@@ -87,6 +95,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
       }
     } catch (err) {
       console.error('Failed to start camera:', err);
+      toast.error('Could not open camera');
     }
   }, [facingMode, flash]);
 
@@ -133,54 +142,62 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
     if (!videoRef.current) return;
     triggerHaptic('medium');
     const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      const filterCSS = getFilterCSS(currentFilter) || 'none';
-      const brightnessStr = brightness !== 100 ? ` brightness(${brightness / 100})` : '';
-      ctx.filter = filterCSS + brightnessStr;
-      ctx.drawImage(videoRef.current, 0, 0);
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const dataUrl = URL.createObjectURL(blob);
-          const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
-          setCapturedMedia({ url: dataUrl, type: 'photo', file });
-          setState('edit');
-        }
-      }, 'image/jpeg', 0.9);
+    const filterCSS = getFilterCSS(currentFilter) || undefined;
+    const brightnessStr = brightness !== 100 ? ` brightness(${brightness / 100})` : '';
+    const ok = captureVideoFrame({
+      video: videoRef.current,
+      canvas,
+      facingMode,
+      filterCSS: filterCSS ? filterCSS + brightnessStr : brightnessStr.trim() || undefined,
+    });
+    if (!ok) {
+      toast.error('Camera not ready — wait a moment and try again');
+      return;
     }
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const dataUrl = URL.createObjectURL(blob);
+        const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
+        setCapturedMedia({ url: dataUrl, type: 'photo', file });
+        setState('edit');
+      }
+    }, 'image/jpeg', 0.9);
   };
 
-  const startRecording = () => {
+  const startRecording = async () => {
     if (!streamRef.current) return;
-    triggerHaptic('heavy');
-    recordedChunksRef.current = [];
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
-    const mediaRecorder = new MediaRecorder(streamRef.current, { mimeType });
-    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunksRef.current, { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const file = new File([blob], 'camera-video.webm', { type: mimeType });
-      setCapturedMedia({ url, type: 'video', file });
-      setState('edit');
-    };
-    mediaRecorder.start(100);
-    mediaRecorderRef.current = mediaRecorder;
-    setIsRecording(true);
-    setRecordingDuration(0);
-    const recordingStartTime = Date.now();
-    const updateDuration = () => {
-      const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
-      progressRef.current = elapsed;
-      if (elapsed >= 60) stopRecording();
-      else progressFrameRef.current = requestAnimationFrame(updateDuration);
-    };
-    progressFrameRef.current = requestAnimationFrame(updateDuration);
-    recordingIntervalRef.current = setInterval(() => { setRecordingDuration(progressRef.current); }, 1000);
+    try {
+      await attachAudioToStream(streamRef.current);
+      triggerHaptic('heavy');
+      recordedChunksRef.current = [];
+      const recorder = createCameraMediaRecorder(streamRef.current);
+      const mimeType = recorder.mimeType || recordingBlobType();
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+        const file = new File([blob], `camera-video.${ext}`, { type: mimeType });
+        setCapturedMedia({ url, type: 'video', file });
+        setState('edit');
+      };
+      recorder.start(100);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingDuration(0);
+      const recordingStartTime = Date.now();
+      const updateDuration = () => {
+        const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+        progressRef.current = elapsed;
+        if (elapsed >= 60) stopRecording();
+        else progressFrameRef.current = requestAnimationFrame(updateDuration);
+      };
+      progressFrameRef.current = requestAnimationFrame(updateDuration);
+      recordingIntervalRef.current = setInterval(() => { setRecordingDuration(progressRef.current); }, 1000);
+    } catch (err) {
+      console.warn('[Camera] Recording failed:', err);
+      toast.error('Video recording is not supported on this device');
+    }
   };
 
   const stopRecording = () => {
@@ -212,7 +229,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
 
   const handleCaptureImmediate = () => {
     if (captureMode === 'video' || captureMode === 'story') {
-      startRecording();
+      void startRecording();
     } else {
       takePhoto();
     }
@@ -224,9 +241,9 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
       return;
     }
     if (captureMode === 'video' || captureMode === 'story') {
-      startRecording();
+      void startRecording();
     } else {
-      holdTimerRef.current = setTimeout(() => startRecording(), 300);
+      holdTimerRef.current = setTimeout(() => void startRecording(), 300);
     }
   };
 

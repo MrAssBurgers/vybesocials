@@ -7,6 +7,7 @@ import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { VYBEHub } from './VYBEHub';
 import { Camera as CameraComponent } from '@/components/camera';
+import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
 
 interface CreateMenuProps {
   isOpen: boolean;
@@ -73,7 +74,9 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
 
       {/* Camera Fullscreen */}
       {showCamera && (
-        <CameraComponent onClose={() => setShowCamera(false)} />
+        <CameraMountBoundary onError={() => setShowCamera(false)}>
+          <CameraComponent onClose={() => setShowCamera(false)} />
+        </CameraMountBoundary>
       )}
 
       <AnimatePresence>

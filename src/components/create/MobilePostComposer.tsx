@@ -193,6 +193,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
     const progressStep = isLargeFile ? 1 : 5;
     const progressInterval = isLargeFile ? 500 : 300;
     let pi: ReturnType<typeof setInterval> | null = null;
+    let succeeded = false;
 
     try {
       pi = setInterval(() => setUploadProgress(prev => Math.min(prev + progressStep, 85)), progressInterval);
@@ -205,6 +206,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
       if (pi) clearInterval(pi);
       setUploadProgress(100);
       setPublishSuccess(true);
+      succeeded = true;
       draft.clear();
       setTimeout(() => { navigate('/home'); }, 2000);
     } catch (err: any) {
@@ -213,11 +215,15 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
         err?.message ||
         err?.error_description ||
         (typeof err === 'string' ? err : 'Failed to upload — please try again');
-      toast.error(msg);
+      toast.error(msg.includes('timed out') ? msg : msg || 'Failed to upload. Please try again.');
       setShowCelebration(false);
+      setIsUploading(false);
+      setUploadProgress(0);
     } finally {
       if (pi) clearInterval(pi);
-      setTimeout(() => { setIsUploading(false); setUploadProgress(0); }, 1000);
+      if (!succeeded) {
+        setTimeout(() => { setIsUploading(false); setUploadProgress(0); }, 500);
+      }
     }
   };
 

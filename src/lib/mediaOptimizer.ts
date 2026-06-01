@@ -6,6 +6,8 @@
  * - Adaptive quality based on file size
  */
 
+import { withTimeout } from '@/lib/withTimeout';
+
 export interface CompressionOptions {
   maxWidth?: number;
   maxHeight?: number;
@@ -155,50 +157,55 @@ export async function generateVideoThumbnail(
   file: File,
   timeSeconds: number = 1
 ): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    const url = URL.createObjectURL(file);
-    video.preload = 'metadata';
-    video.muted = true;
-    video.playsInline = true;
+  return withTimeout(
+    new Promise<Blob>((resolve, reject) => {
+      const video = document.createElement('video');
+      const url = URL.createObjectURL(file);
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
 
-    video.onloadedmetadata = () => {
-      // Seek to the specified time (or 10% of duration if too short)
-      video.currentTime = Math.min(timeSeconds, video.duration * 0.1);
-    };
+      const fail = (message: string) => {
+        URL.revokeObjectURL(url);
+        video.remove();
+        reject(new Error(message));
+      };
 
-    video.onseeked = () => {
-      const canvas = document.createElement('canvas');
-      // Thumbnail at 640px max
-      let { videoWidth: w, videoHeight: h } = video;
-      const ratio = Math.min(640 / w, 640 / h, 1);
-      canvas.width = Math.round(w * ratio);
-      canvas.height = Math.round(h * ratio);
+      video.onloadedmetadata = () => {
+        video.currentTime = Math.min(timeSeconds, video.duration * 0.1);
+      };
 
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      video.onseeked = () => {
+        const canvas = document.createElement('canvas');
+        let { videoWidth: w, videoHeight: h } = video;
+        const ratio = Math.min(640 / w, 640 / h, 1);
+        canvas.width = Math.round(w * ratio);
+        canvas.height = Math.round(h * ratio);
 
-      URL.revokeObjectURL(url);
-      video.remove();
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const format = supportsWebP() ? 'image/webp' : 'image/jpeg';
-      canvas.toBlob(
-        (blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error('Thumbnail generation failed'));
-        },
-        format,
-        0.7
-      );
-    };
+        URL.revokeObjectURL(url);
+        video.remove();
 
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Failed to load video'));
-    };
+        const format = supportsWebP() ? 'image/webp' : 'image/jpeg';
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('Thumbnail generation failed'));
+          },
+          format,
+          0.7
+        );
+      };
 
-    video.src = url;
-  });
+      video.onerror = () => fail('Failed to load video');
+
+      video.src = url;
+    }),
+    12000,
+    'Video thumbnail generation timed out'
+  );
 }
 
 /**

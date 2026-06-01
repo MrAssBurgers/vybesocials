@@ -4,8 +4,8 @@ import { X, Mail, CheckCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { requestPasswordReset } from '@/lib/authReset';
 
 interface ForgotPasswordDialogProps {
   open: boolean;
@@ -28,17 +28,14 @@ export function ForgotPasswordDialog({ open, onClose }: ForgotPasswordDialogProp
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('send-reset-email', {
-        body: { email: email.trim() },
-      });
-
-      if (error) throw error;
-      if (data?.success === false && data?.error) throw new Error(data.error);
+      await requestPasswordReset(email.trim());
 
       setSent(true);
       toast.success('If that email exists, we sent a reset link.');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to send reset email. Please try again.');
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to send reset email. Please try again.';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -124,7 +121,8 @@ export function ForgotPasswordDialog({ open, onClose }: ForgotPasswordDialogProp
 
                   <Button
                     type="submit"
-                    className="w-full gradient-animated text-white"
+                    variant="gradient"
+                    className="w-full"
                     disabled={loading}
                   >
                     {loading ? 'Sending...' : 'Send Reset Link'}

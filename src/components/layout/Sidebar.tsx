@@ -134,7 +134,7 @@ export function Sidebar() {
 
         {/* Create Button */}
         <Link to="/upload" className="block mt-4" onClick={triggerNavFeedback}>
-          <Button className="w-full gradient-animated text-primary-foreground font-semibold h-12 rounded-xl liquid-glass-button hover:scale-[1.02] transition-transform">
+          <Button variant="gradient" className="w-full h-12 rounded-xl hover:scale-[1.02] transition-transform">
             <PlusCircle className="h-5 w-5 mr-2" />
             {t('nav.upload')}
           </Button>

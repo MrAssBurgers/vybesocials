@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
+import { isCameraSafeMode } from '@/lib/cameraSafeMode';
 
 // MediaPipe Face Landmark indices for key facial features
 export const FACE_LANDMARKS = {
@@ -118,9 +119,12 @@ export function useFaceTracking({ enabled = true, maxFaces = 1 }: UseFaceTrackin
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
 
-  // Initialize MediaPipe
+  // Initialize MediaPipe — skip on native app shells (WASM/GPU often OOM-crashes WebView)
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || isCameraSafeMode()) {
+      setIsLoading(false);
+      return;
+    }
 
     let cancelled = false;
     setIsLoading(true);

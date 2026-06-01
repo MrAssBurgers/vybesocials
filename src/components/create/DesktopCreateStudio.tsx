@@ -182,7 +182,8 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
       setUploadProgress(100); setPublishSuccess(true);
       setTimeout(() => { toast.success('Posted!'); navigate('/home'); }, 800);
     } catch (err) {
-      toast.error('Failed to upload');
+      const message = err instanceof Error ? err.message : 'Failed to upload';
+      toast.error(message.includes('timed out') ? message : 'Failed to upload. Please try again.');
     } finally {
       if (pi) clearInterval(pi);
       setTimeout(() => { setIsUploading(false); setUploadProgress(0); }, 1000);

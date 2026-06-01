@@ -15,7 +15,7 @@ const buttonVariants = cva(
         secondary: "liquid-glass-button text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent/50 hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        gradient: "gradient-animated text-primary-foreground font-semibold liquid-glass-button",
+        gradient: "gradient-animated text-primary-foreground font-semibold transition-[transform,box-shadow,opacity] duration-200",
         glass: "liquid-glass text-foreground hover:bg-muted/50",
         neon: "bg-primary text-primary-foreground glow-pink hover:glow-purple transition-shadow liquid-glass-button",
       },
@@ -46,14 +46,27 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, children, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
+    const isGradient =
+      variant === "gradient" ||
+      (typeof className === "string" && className.includes("gradient-animated"));
+    const content =
+      isGradient && !asChild ? (
+        <span className="relative z-[2] inline-flex items-center justify-center gap-2">
+          {children}
+        </span>
+      ) : (
+        children
+      );
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(buttonVariants({ variant, size }), className)}
         ref={ref}
         {...props}
-      />
+      >
+        {content}
+      </Comp>
     );
   }
 );

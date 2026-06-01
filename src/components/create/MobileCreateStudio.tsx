@@ -1,13 +1,11 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, lazy, Suspense, Component, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Image as ImageIcon, Music2, X } from 'lucide-react';
+import { Image as ImageIcon, Music2, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VybeRecordButton } from '@/components/camera/VybeRecordButton';
 import { CreateModeSelector, type CreateMode } from './CreateModeSelector';
 import { MobilePostComposer } from './MobilePostComposer';
-import { SoundPicker } from '@/components/sounds/SoundPicker';
 import { SoundControls } from '@/components/sounds/SoundControls';
-import { MusicGallery } from '@/components/music/MusicGallery';
 import { CameraFilterCarousel, getFilterCSS } from '@/components/camera/CameraFilterCarousel';
 import { CameraTopControls } from '@/components/camera/CameraTopControls';
 import { CameraZoomIndicator } from '@/components/camera/CameraZoom';
@@ -20,6 +18,45 @@ import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
 import { Sound } from '@/hooks/useSounds';
+import { isCameraSafeMode } from '@/lib/cameraSafeMode';
+import { captureVideoFrame } from '@/lib/cameraCapture';
+import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
+import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
+import { toast } from 'sonner';
+
+const SoundPicker = lazy(() =>
+  import('@/components/sounds/SoundPicker').then((m) => ({ default: m.SoundPicker }))
+);
+const MusicGallery = lazy(() =>
+  import('@/components/music/MusicGallery').then((m) => ({ default: m.MusicGallery }))
+);
+
+class CreateStudioErrorBoundary extends Component<
+  { onClose: () => void; children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(err: unknown) {
+    console.warn('[MobileCreateStudio] render crash:', err);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center px-8 text-center">
+          <p className="text-white font-semibold text-lg mb-2">Camera unavailable</p>
+          <p className="text-white/60 text-sm mb-6">Something went wrong opening the camera.</p>
+          <Button variant="outline" className="rounded-xl" onClick={this.props.onClose}>
+            Close
+          </Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface MobileCreateStudioProps {
   onClose: () => void;
@@ -53,10 +90,14 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [videoDimensions, setVideoDimensions] = useState({ width: 1920, height: 1080 });
   const [showGalleryDrawer, setShowGalleryDrawer] = useState(false);
   const [shutterFlash, setShutterFlash] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraBlocked, setCameraBlocked] = useState(false);
 
-  // Face tracking for AR filters
+  // Face tracking / AR — off on mobile & native WebViews (MediaPipe WASM OOM-crashes)
+  const arSupported = !isCameraSafeMode();
+  const safeCamera = isCameraSafeMode();
   const { faces, isReady: arReady, isLoading: arLoading, startTracking, stopTracking } = useFaceTracking({
-    enabled: filterMode === 'ar',
+    enabled: arSupported && filterMode === 'ar',
   });
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -76,6 +117,14 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const lastPinchDistRef = useRef<number | null>(null);
   const zoomRef = useRef(1);
   const zoomIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     navVisibility.setInCommunityChat(true);
@@ -89,47 +138,31 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   arReadyRef.current = arReady;
 
   const startCamera = useCallback(async () => {
-    const tryGetStream = async (constraints: MediaStreamConstraints) =>
-      navigator.mediaDevices.getUserMedia(constraints);
-
     try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
+      stopStream(streamRef.current);
+      streamRef.current = null;
+      setCameraReady(false);
+
+      const stream = await acquirePostCameraStream(facingMode);
+      if (!mountedRef.current) {
+        stopStream(stream);
+        return;
       }
 
-      let stream: MediaStream | null = null;
-      const idealConstraints: MediaStreamConstraints = {
-        video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: mode === 'video',
-      };
-      try {
-        stream = await tryGetStream(idealConstraints);
-      } catch (firstErr: any) {
-        // Common transient cases: NotReadableError ("Could not start video source")
-        // happen when the device is briefly busy (preview iframe re-mount, another tab).
-        // Wait a tick and retry with looser constraints before surfacing.
-        await new Promise(r => setTimeout(r, 350));
-        try {
-          stream = await tryGetStream({ video: { facingMode }, audio: mode === 'video' });
-        } catch (secondErr: any) {
-          const name = secondErr?.name || firstErr?.name;
-          if (name === 'NotReadableError' || name === 'AbortError') {
-            // Silent — camera is in use elsewhere; user can retry.
-            console.warn('[MobileCreateStudio] Camera busy, will retry on next mount');
-            return;
-          }
-          throw secondErr;
-        }
+      if (!stream) {
+        setCameraBlocked(true);
+        return;
       }
 
-      if (!stream) return;
+      setCameraBlocked(false);
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
-        videoRef.current.onloadedmetadata = () => {
-          if (videoRef.current) {
+
+      requestAnimationFrame(() => {
+        if (!videoRef.current || !streamRef.current) return;
+        try {
+          videoRef.current.srcObject = streamRef.current;
+          videoRef.current.onloadedmetadata = () => {
+            if (!videoRef.current) return;
             setVideoDimensions({
               width: videoRef.current.videoWidth,
               height: videoRef.current.videoHeight,
@@ -137,35 +170,40 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
             if (filterModeRef.current === 'ar' && arReadyRef.current) {
               startTracking(videoRef.current);
             }
-          }
-        };
-      }
+          };
+          videoRef.current.play().catch(() => {});
+          setCameraReady(true);
+        } catch (err) {
+          console.warn('[MobileCreateStudio] video attach failed:', err);
+          setCameraBlocked(true);
+        }
+      });
+
       zoomRef.current = 1;
       setZoomLevel(1);
-    } catch (err: any) {
-      // Swallow ALL camera errors so a failed getUserMedia (audio permission
-      // denied when switching to Video mode, device busy, etc.) never crashes
-      // the React tree. The UI stays on the camera phase and the user can retry.
-      console.warn('[MobileCreateStudio] Camera error (suppressed):', err?.name || err);
+    } catch (err: unknown) {
+      const e = err as { name?: string; message?: string };
+      console.warn('[MobileCreateStudio] Camera error (suppressed):', e?.name || err);
+      setCameraBlocked(true);
+      setCameraReady(false);
       try {
-        // Fire-and-forget detailed report so admins can see WHY camera failed on real devices.
         const { reportAppCrash } = await import('@/lib/bugReportClient');
         reportAppCrash({
-          error: err instanceof Error ? err : new Error(err?.message || err?.name || 'Camera failed'),
+          error: err instanceof Error ? err : new Error(e?.message || e?.name || 'Camera failed'),
           source: 'camera:mobile-create-studio',
-          reason: `getUserMedia failed (${err?.name || 'unknown'}): ${err?.message || ''}`.slice(0, 240),
+          reason: `getUserMedia failed (${e?.name || 'unknown'}): ${e?.message || ''}`.slice(0, 240),
           mode: 'auto',
-          context: { facingMode, mode, name: err?.name, message: err?.message },
+          context: { facingMode, mode, name: e?.name, message: e?.message },
         }).catch(() => {});
       } catch {}
     }
-  }, [facingMode, mode, startTracking]);
-
+  }, [facingMode, startTracking]);
 
   const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
+    stopStream(streamRef.current);
     streamRef.current = null;
     stopTracking();
+    setCameraReady(false);
   }, [stopTracking]);
 
   useEffect(() => {
@@ -178,16 +216,17 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
 
   useEffect(() => {
     if (phase === 'camera' && mode !== 'text') {
-      // Always tear the current stream down first so switching modes
-      // (e.g. photo → video which adds an audio track) can't collide with
-      // an in-flight getUserMedia call and crash the device.
-      streamRef.current?.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-      const t = setTimeout(() => { startCamera(); }, 120);
-      return () => { clearTimeout(t); stopCamera(); };
+      const delay = safeCamera ? 280 : 120;
+      const t = setTimeout(() => {
+        if (mountedRef.current) startCamera();
+      }, delay);
+      return () => {
+        clearTimeout(t);
+        stopCamera();
+      };
     }
     return () => stopCamera();
-  }, [phase, startCamera, stopCamera, mode]);
+  }, [phase, startCamera, stopCamera, mode, safeCamera, facingMode]);
 
   // Pinch-to-zoom handler
   const handlePinchMove = useCallback((e: React.TouchEvent) => {
@@ -230,7 +269,6 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       if (!videoRef.current || !canvasRef.current) return;
       triggerHaptic('medium');
 
-      // Shutter flash animation
       setShutterFlash(true);
       setTimeout(() => setShutterFlash(false), 200);
 
@@ -239,18 +277,18 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         setTimeout(() => setShowFlash(false), 150);
       }
 
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      if (facingMode === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
-      ctx.filter = getFilterCSS(currentFilter) || 'none';
-      ctx.drawImage(video, 0, 0);
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const ok = captureVideoFrame({
+        video: videoRef.current,
+        canvas: canvasRef.current,
+        facingMode,
+        filterCSS: getFilterCSS(currentFilter) || undefined,
+      });
+      if (!ok) {
+        toast.error('Camera not ready — wait a moment and try again');
+        return;
+      }
 
-      canvas.toBlob((blob) => {
+      canvasRef.current.toBlob((blob) => {
         if (!blob) return;
         const file = new File([blob], `vybe-photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
         const url = URL.createObjectURL(blob);
@@ -280,37 +318,48 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   }, [flash, facingMode, mode, capturedFiles.length, timer, currentFilter]);
 
   // Recording
-  const startRecording = useCallback(() => {
+  const startRecording = useCallback(async () => {
     if (!streamRef.current) return;
-    triggerHaptic('heavy');
-    isRecordingRef.current = true;
-    setIsRecording(true);
-    recordedChunksRef.current = [];
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
-    const recorder = new MediaRecorder(streamRef.current, { mimeType });
-    recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
-    recorder.onstop = () => {
-      const blob = new Blob(recordedChunksRef.current, { type: mimeType });
-      if (blob.size > 0) {
-        const file = new File([blob], `vybe-video-${Date.now()}.webm`, { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        setCapturedFiles([file]);
-        setCapturedPreviews([url]);
-        setPhase('compose');
+    try {
+      if (mode === 'video' || mode === 'photo') {
+        await attachAudioToStream(streamRef.current);
       }
-    };
-    recorder.start(100);
-    mediaRecorderRef.current = recorder;
-    const startTime = Date.now();
-    const updateProgress = () => {
-      const elapsed = (Date.now() - startTime) / 1000;
-      progressRef.current = Math.min((elapsed / MAX_RECORDING_DURATION) * 100, 100);
-      if (progressRef.current >= 100) stopRecording();
-      else if (isRecordingRef.current) progressFrameRef.current = requestAnimationFrame(updateProgress);
-    };
-    progressFrameRef.current = requestAnimationFrame(updateProgress);
-    uiUpdateRef.current = setInterval(() => setRecordingProgress(progressRef.current), 100);
-  }, []);
+      triggerHaptic('heavy');
+      isRecordingRef.current = true;
+      setIsRecording(true);
+      recordedChunksRef.current = [];
+      const recorder = createCameraMediaRecorder(streamRef.current);
+      const mimeType = recorder.mimeType || recordingBlobType();
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        if (blob.size > 0) {
+          const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+          const file = new File([blob], `vybe-video-${Date.now()}.${ext}`, { type: mimeType });
+          const url = URL.createObjectURL(blob);
+          setCapturedFiles([file]);
+          setCapturedPreviews([url]);
+          setPhase('compose');
+        }
+      };
+      recorder.start(100);
+      mediaRecorderRef.current = recorder;
+      const startTime = Date.now();
+      const updateProgress = () => {
+        const elapsed = (Date.now() - startTime) / 1000;
+        progressRef.current = Math.min((elapsed / MAX_RECORDING_DURATION) * 100, 100);
+        if (progressRef.current >= 100) stopRecording();
+        else if (isRecordingRef.current) progressFrameRef.current = requestAnimationFrame(updateProgress);
+      };
+      progressFrameRef.current = requestAnimationFrame(updateProgress);
+      uiUpdateRef.current = setInterval(() => setRecordingProgress(progressRef.current), 100);
+    } catch (err) {
+      console.warn('[MobileCreateStudio] Recording failed:', err);
+      isRecordingRef.current = false;
+      setIsRecording(false);
+      toast.error('Video recording is not supported on this device');
+    }
+  }, [mode]);
 
   const stopRecording = useCallback(() => {
     isRecordingRef.current = false;
@@ -325,7 +374,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const handleCaptureStart = useCallback(() => {
     isHoldingRef.current = true;
     holdTimerRef.current = setTimeout(() => {
-      if (isHoldingRef.current && (mode === 'video' || mode === 'photo')) startRecording();
+      if (isHoldingRef.current && (mode === 'video' || mode === 'photo')) void startRecording();
     }, 300);
   }, [mode, startRecording]);
 
@@ -414,6 +463,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   }
 
   return (
+    <CreateStudioErrorBoundary onClose={onClose}>
     <div className="fixed inset-0 z-[200] bg-black flex flex-col">
       <canvas ref={canvasRef} className="hidden" />
       <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={handleGalleryPick} className="hidden" />
@@ -437,9 +487,27 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           )}
           style={{
             backgroundColor: '#000',
-            filter: [getFilterCSS(currentFilter) || '', arFilter?.cssFilter || ''].filter(Boolean).join(' ') || undefined,
+            filter: safeCamera
+              ? undefined
+              : [getFilterCSS(currentFilter) || '', arFilter?.cssFilter || ''].filter(Boolean).join(' ') || undefined,
           }}
         />
+
+        {!cameraReady && !cameraBlocked && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+            <Loader2 className="w-10 h-10 text-white/70 animate-spin" />
+          </div>
+        )}
+
+        {cameraBlocked && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/80 px-8 text-center">
+            <p className="text-white font-medium mb-2">Camera couldn&apos;t start</p>
+            <p className="text-white/60 text-sm mb-4">Tap below to try again. Close other apps using the camera.</p>
+            <Button className="rounded-xl" onClick={() => { setCameraBlocked(false); startCamera(); }}>
+              Enable camera
+            </Button>
+          </div>
+        )}
 
         {/* AR Overlay */}
         {arFilter && faces.length > 0 && (
@@ -554,16 +622,18 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           <CreateModeSelector currentMode={mode} onModeChange={handleModeChange} />
         </div>
 
-        {/* Filter/AR row — collapsed into one row */}
+        {/* Filter/AR row — AR disabled on native (MediaPipe crashes WebView) */}
         <div className="mb-3">
-          <div className="flex items-center justify-center gap-1 mb-2">
-            <button onClick={() => setFilterMode('color')} className={cn("text-[10px] px-3 py-1 rounded-full font-medium transition-all", filterMode === 'color' ? "bg-white/20 text-white" : "text-white/40")}>🎨 Filters</button>
-            <button onClick={() => setFilterMode('ar')} className={cn("text-[10px] px-3 py-1 rounded-full font-medium transition-all", filterMode === 'ar' ? "bg-white/20 text-white" : "text-white/40")}>🎭 AR</button>
-          </div>
-          {filterMode === 'color' ? (
-            <CameraFilterCarousel currentFilter={currentFilter} onFilterChange={setCurrentFilter} />
-          ) : (
+          {arSupported && (
+            <div className="flex items-center justify-center gap-1 mb-2">
+              <button onClick={() => setFilterMode('color')} className={cn("text-[10px] px-3 py-1 rounded-full font-medium transition-all", filterMode === 'color' ? "bg-white/20 text-white" : "text-white/40")}>🎨 Filters</button>
+              <button onClick={() => setFilterMode('ar')} className={cn("text-[10px] px-3 py-1 rounded-full font-medium transition-all", filterMode === 'ar' ? "bg-white/20 text-white" : "text-white/40")}>🎭 AR</button>
+            </div>
+          )}
+          {filterMode === 'ar' && arSupported ? (
             <ARFilterPicker currentFilter={arFilter?.id || null} onFilterChange={setArFilter} isTracking={faces.length > 0} isLoading={arLoading} />
+          ) : (
+            <CameraFilterCarousel currentFilter={currentFilter} onFilterChange={setCurrentFilter} />
           )}
         </div>
 
@@ -639,18 +709,23 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       {/* Music Gallery */}
       <AnimatePresence>
         {showMusicGallery && (
-          <MusicGallery
-            onSelectTrack={(track) => { setSelectedTrack(track); setSelectedSound(null); setShowMusicGallery(false); }}
-            onClose={() => setShowMusicGallery(false)}
-          />
+          <Suspense fallback={null}>
+            <MusicGallery
+              onSelectTrack={(track) => { setSelectedTrack(track); setSelectedSound(null); setShowMusicGallery(false); }}
+              onClose={() => setShowMusicGallery(false)}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
-      <SoundPicker
-        open={showSoundPicker}
-        onClose={() => setShowSoundPicker(false)}
-        onSelectSound={(sound) => { setSelectedSound(sound); setSelectedTrack(null); }}
-        selectedSoundId={selectedSound?.sound_id}
-      />
+      <Suspense fallback={null}>
+        <SoundPicker
+          open={showSoundPicker}
+          onClose={() => setShowSoundPicker(false)}
+          onSelectSound={(sound) => { setSelectedSound(sound); setSelectedTrack(null); }}
+          selectedSoundId={selectedSound?.sound_id}
+        />
+      </Suspense>
     </div>
+    </CreateStudioErrorBoundary>
   );
 }

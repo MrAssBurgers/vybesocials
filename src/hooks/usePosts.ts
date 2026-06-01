@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { containsBlockedContent, filterBlockedContent } from '@/lib/contentModeration';
 import { optimizeForUpload, isVideoFile, generateVideoThumbnail, getCompressedExtension } from '@/lib/mediaOptimizer';
+import { withTimeout } from '@/lib/withTimeout';
 import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
 import { setCachedProfiles } from '@/lib/profileCache';
@@ -354,7 +355,11 @@ export function useCreatePost() {
           }
 
           const fileName = `${profile.user_id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage.from('media').upload(fileName, uploadBlob);
+          const { error: uploadError } = await withTimeout(
+            supabase.storage.from('media').upload(fileName, uploadBlob),
+            120000,
+            'Upload timed out. Check your connection and try again.'
+          );
           if (uploadError) throw uploadError;
           const { data: { publicUrl: url } } = supabase.storage.from('media').getPublicUrl(fileName);
           uploadedUrls.push(url);
@@ -380,7 +385,11 @@ export function useCreatePost() {
         }
 
         const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from('media').upload(fileName, uploadBlob);
+        const { error: uploadError } = await withTimeout(
+          supabase.storage.from('media').upload(fileName, uploadBlob),
+          120000,
+          'Upload timed out. Check your connection and try again.'
+        );
         if (uploadError) throw uploadError;
         const { data: { publicUrl: url } } = supabase.storage.from('media').getPublicUrl(fileName);
         publicUrl = url;
@@ -388,7 +397,11 @@ export function useCreatePost() {
         // Auto-generate video thumbnail if none provided
         if (isVideoFile(data.mediaFile) && !data.thumbnailFile && !data.thumbnailDataUrl) {
           try {
-            const thumbBlob = await generateVideoThumbnail(data.mediaFile);
+            const thumbBlob = await withTimeout(
+              generateVideoThumbnail(data.mediaFile),
+              12000,
+              'Video thumbnail timed out'
+            );
             const thumbExt = getCompressedExtension();
             const thumbFileName = `${profile.user_id}/thumb_${Date.now()}.${thumbExt}`;
             const { error: thumbErr } = await supabase.storage.from('media').upload(thumbFileName, thumbBlob, { contentType: `image/${thumbExt}` });

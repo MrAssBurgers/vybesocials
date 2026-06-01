@@ -207,7 +207,7 @@ export default function ResetPassword() {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <Button type="submit" className="w-full gradient-animated text-white" size="lg" disabled={loading}>
+          <Button type="submit" variant="gradient" className="w-full" size="lg" disabled={loading}>
             {loading ? 'Updating...' : 'Update Password'}
           </Button>
         </form>

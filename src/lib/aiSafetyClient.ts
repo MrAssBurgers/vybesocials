@@ -6,6 +6,7 @@
  */
 
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { fetchWithTimeout, withTimeout } from '@/lib/withTimeout';
 
 const FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-safety-scan`;
 
@@ -28,7 +29,7 @@ export async function aiScanImage(file: File): Promise<AISafetyResult> {
   const base64 = await fileToBase64(file);
   const headers = await getFunctionAuthHeaders();
 
-  const response = await fetch(FUNCTION_URL, {
+  const response = await fetchWithTimeout(FUNCTION_URL, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -36,7 +37,7 @@ export async function aiScanImage(file: File): Promise<AISafetyResult> {
       mime_type: file.type || 'image/jpeg',
       scan_type: 'image',
     }),
-  });
+  }, 15000);
 
   if (!response.ok) {
     const body = await response.text().catch(() => '');
@@ -63,7 +64,7 @@ export async function aiScanVideoFrame(
   const base64 = await blobToBase64(frameBlob);
   const headers = await getFunctionAuthHeaders();
 
-  const response = await fetch(FUNCTION_URL, {
+  const response = await fetchWithTimeout(FUNCTION_URL, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -72,7 +73,7 @@ export async function aiScanVideoFrame(
       audio_transcript: audioTranscript,
       scan_type: audioTranscript ? 'both' : 'image',
     }),
-  });
+  }, 15000);
 
   if (!response.ok) {
     const body = await response.text().catch(() => '');
@@ -95,14 +96,14 @@ export async function aiScanVideoFrame(
 export async function aiScanAudioTranscript(transcript: string): Promise<AISafetyResult> {
   const headers = await getFunctionAuthHeaders();
 
-  const response = await fetch(FUNCTION_URL, {
+  const response = await fetchWithTimeout(FUNCTION_URL, {
     method: 'POST',
     headers,
     body: JSON.stringify({
       audio_transcript: transcript,
       scan_type: 'audio',
     }),
-  });
+  }, 15000);
 
   if (!response.ok) {
     console.error('AI audio scan failed:', response.status);
@@ -116,45 +117,49 @@ export async function aiScanAudioTranscript(transcript: string): Promise<AISafet
  * Extract a single frame from a video file as a JPEG blob
  */
 export async function extractVideoFrame(file: File, timeSeconds: number = 1): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    video.muted = true;
-    video.playsInline = true;
-    const url = URL.createObjectURL(file);
-    video.src = url;
+  return withTimeout(
+    new Promise<Blob>((resolve, reject) => {
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      const url = URL.createObjectURL(file);
+      video.src = url;
 
-    video.onloadedmetadata = () => {
-      const seekTime = Math.min(timeSeconds, (video.duration || 2) * 0.3);
-      video.currentTime = isFinite(seekTime) ? seekTime : 0;
-    };
+      video.onloadedmetadata = () => {
+        const seekTime = Math.min(timeSeconds, (video.duration || 2) * 0.3);
+        video.currentTime = isFinite(seekTime) ? seekTime : 0;
+      };
 
-    video.onseeked = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.min(video.videoWidth, 512);
-      canvas.height = Math.min(video.videoHeight, 512);
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(
-        (blob) => {
-          URL.revokeObjectURL(url);
-          video.remove();
-          canvas.remove();
-          if (blob) resolve(blob);
-          else reject(new Error('Failed to extract frame'));
-        },
-        'image/jpeg',
-        0.7
-      );
-    };
+      video.onseeked = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.min(video.videoWidth, 512);
+        canvas.height = Math.min(video.videoHeight, 512);
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => {
+            URL.revokeObjectURL(url);
+            video.remove();
+            canvas.remove();
+            if (blob) resolve(blob);
+            else reject(new Error('Failed to extract frame'));
+          },
+          'image/jpeg',
+          0.7
+        );
+      };
 
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      video.remove();
-      reject(new Error('Failed to load video'));
-    };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        video.remove();
+        reject(new Error('Failed to load video'));
+      };
 
-    video.load();
-  });
+      video.load();
+    }),
+    12000,
+    'Video frame extraction timed out'
+  );
 }
 
 /**
