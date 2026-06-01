@@ -153,12 +153,19 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
 
   const filteredSuggestions = useMemo(() => smartSuggestions.filter(s => !tags.includes(s.tag)), [smartSuggestions, tags]);
 
-  const canSubmit = (contentType === 'text' ? caption.trim().length > 0 : localFiles.length > 0) && tags.length > 0;
+  // Tags are optional — only media or caption is required.
+  const canSubmit = contentType === 'text' ? caption.trim().length > 0 : localFiles.length > 0;
   const currentVisibility = visibilityOptions.find(v => v.id === visibility)!;
 
   const handleSubmit = async () => {
-    if (!canSubmit || !user) return;
-    if (tags.length === 0) { toast.error('Add at least one tag'); return; }
+    if (!user) {
+      toast.error('Please sign in to post');
+      return;
+    }
+    if (!canSubmit) {
+      toast.error(contentType === 'text' ? 'Write something first' : 'Add a photo or video first');
+      return;
+    }
     if (localFiles.length > 0 && localFiles[0]) {
       setShowVybeCheck(true);
       return;
@@ -200,9 +207,13 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
       setPublishSuccess(true);
       draft.clear();
       setTimeout(() => { navigate('/home'); }, 2000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[Composer] Failed:', err);
-      toast.error('Failed to upload');
+      const msg =
+        err?.message ||
+        err?.error_description ||
+        (typeof err === 'string' ? err : 'Failed to upload — please try again');
+      toast.error(msg);
       setShowCelebration(false);
     } finally {
       if (pi) clearInterval(pi);
@@ -286,13 +297,13 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
           </div>
           <motion.button
             onClick={handleSubmit}
-            disabled={!canSubmit || isUploading}
-            whileTap={canSubmit ? { scale: 0.92 } : {}}
+            disabled={isUploading}
+            whileTap={!isUploading ? { scale: 0.92 } : {}}
             className={cn(
               "h-9 px-5 rounded-full text-sm font-bold transition-all duration-300",
               canSubmit && !isUploading
                 ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30"
-                : "bg-muted text-muted-foreground cursor-not-allowed"
+                : "bg-muted text-muted-foreground"
             )}
           >
             {isUploading ? (
