@@ -25,6 +25,7 @@ import { isDespiaRuntime, isIOSUA } from '@/lib/despiaBridge';
 import { buildFriendDropUrl, type FriendLinkTarget } from '@/lib/friendLinkNfc';
 import { scanFriendLinkOnce } from '@/lib/friendLinkNfc';
 import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
+import { FRIEND_LINK_OPEN_EVENT } from '@/lib/friendLinkUi';
 import { NFCSwapAnimation } from '@/components/friends/NFCSwapAnimation';
 import { acquirePostCameraStream, stopStream } from '@/lib/postCameraStream';
 import { isCameraSafeMode } from '@/lib/cameraSafeMode';
@@ -374,6 +375,22 @@ export function AutoFriendDrop() {
     cooldown: 3000,
     onSwing: handleBump,
   });
+
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: ActiveTab }>).detail?.tab;
+      setIsActive(true);
+      if (tab === 'qr' || tab === 'tap') setActiveTab(tab);
+      else setActiveTab('tap');
+      setPhase('activated');
+      haptics.impact();
+      if (profile?.username && user) {
+        friendDropSync.createDrop().then((drop) => { if (drop) setActiveDropId(drop.id); });
+      }
+    };
+    window.addEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
+  }, [profile?.username, user, friendDropSync]);
 
   const handleAddFriend = useCallback(async () => {
     if (!foundUser) return;

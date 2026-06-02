@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Globe, Check, Search, X } from 'lucide-react';
-import { languages } from '@/lib/i18n';
+import { languages, ensureLanguageLoaded } from '@/lib/i18n';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
@@ -23,9 +23,10 @@ export function LanguageSection() {
     );
   }, [search]);
 
-  const changeLanguage = (code: string) => {
+  const changeLanguage = async (code: string) => {
     haptics.tap();
-    i18n.changeLanguage(code);
+    await ensureLanguageLoaded(code);
+    await i18n.changeLanguage(code);
     toast.success(t('settings.languageChanged'));
   };
 

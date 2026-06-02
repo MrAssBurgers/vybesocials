@@ -29,6 +29,15 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { useAheadMediaPreload } from '@/hooks/useAheadMediaPreload';
 import { FEED_PRELOAD_AHEAD } from '@/lib/performanceConfig';
+import { useFeedOfflineState } from '@/hooks/useFeedOfflineState';
+import {
+  FeedOfflineNoCache,
+  FeedOfflineCachedBanner,
+  FriendLinkSpotlight,
+  getFriendLinkSpotlightDismissed,
+  dismissFriendLinkSpotlight,
+} from '@/components/feed/FeedOfflineStates';
+import { openFriendLink } from '@/lib/friendLinkUi';
 
 const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
 const MemoizedPostCard = memo(PostCard);
@@ -234,8 +243,22 @@ function FeedSection({
   localPosts, localLoading, localError, onRetryLocal, localFetching, isFetchingNextLocal,
   loadMoreRef,
 }: Props) {
+  const { user } = useAuth();
+  const [showFriendLinkSpotlight, setShowFriendLinkSpotlight] = useState(
+    () => !getFriendLinkSpotlightDismissed(),
+  );
+
   return (
     <div className="pb-6" data-tutorial="feed-area">
+      {user && showFriendLinkSpotlight && activeTab === 'foryou' && (
+        <FriendLinkSpotlight
+          onOpen={() => openFriendLink('tap')}
+          onDismiss={() => {
+            dismissFriendLinkSpotlight();
+            setShowFriendLinkSpotlight(false);
+          }}
+        />
+      )}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex items-center gap-2 mb-5">
           <TabsList data-no-auto-contrast className="relative flex-1 h-12 p-1 bg-card rounded-2xl border border-border/40 shadow-lg shadow-background/20">
@@ -419,6 +442,11 @@ function InlinePostList({
   // Aggressively warm next N posts (images decoded, video first-frame ready)
   useAheadMediaPreload(posts as any, visibleIndex, FEED_PRELOAD_AHEAD);
 
+  const { isOfflineNoCache, showCachedBanner } = useFeedOfflineState(posts.length);
+
+  if (!isLoading && isOfflineNoCache) {
+    return <FeedOfflineNoCache onRetry={onRetry} />;
+  }
   if (isLoading && posts.length === 0) return <PostSkeletonList count={2} />;
   if (isError && posts.length === 0) {
     return (
@@ -470,6 +498,7 @@ function InlinePostList({
 
   return (
     <>
+      {showCachedBanner && <FeedOfflineCachedBanner />}
       {/* Post Nudge — re-engagement */}
       <PostNudgeWidget />
 

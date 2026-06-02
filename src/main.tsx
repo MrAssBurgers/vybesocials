@@ -25,9 +25,24 @@ installDespiaRealtimeTransport();
 // One-time cleanup: legacy biometric app-lock pref (card + gate were removed).
 try { localStorage.removeItem('vybe.bioauth.enabled'); } catch { /* ignore */ }
 
-// Warm up keyframes and preload Framer Motion at idle so first animations are jank-free
-warmupAnimations();
-preloadFramerMotion();
+// Warm up keyframes and preload Framer Motion when idle — keeps first paint fast
+const scheduleAnimationWarmup = () => {
+  const idle = (window as any).requestIdleCallback as
+    | ((cb: () => void, opts?: { timeout: number }) => number)
+    | undefined;
+  if (idle) {
+    idle(() => {
+      warmupAnimations();
+      preloadFramerMotion();
+    }, { timeout: 3000 });
+    return;
+  }
+  setTimeout(() => {
+    warmupAnimations();
+    preloadFramerMotion();
+  }, 400);
+};
+scheduleAnimationWarmup();
 
 // Dev-only regression check: warns if any gradient-text element lacks a fallback color
 installFlickerGuardCheck();

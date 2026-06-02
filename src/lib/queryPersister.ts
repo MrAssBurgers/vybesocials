@@ -33,7 +33,7 @@ const idbStorage = {
 export const queryPersister = createAsyncStoragePersister({
   storage: idbStorage,
   key: 'vybe-react-query-cache',
-  throttleTime: 1500,
+  throttleTime: 800,
 });
 
 /**

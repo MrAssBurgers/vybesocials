@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { batchSignUrls } from '@/lib/signedUrlCache';
+import { hasWarmOfflineCache } from '@/lib/offlineCacheProbe';
+import { isPersistRestored, onPersistRestored } from '@/lib/persistRestoreGate';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 
 interface PreloadStatus {
@@ -34,6 +36,9 @@ export function useAppPreloader() {
   const hasStarted = useRef(false);
   const currentProgress = useRef(0);
   const animFrameRef = useRef<number>(0);
+  const [restoreReady, setRestoreReady] = useState(isPersistRestored);
+
+  useEffect(() => onPersistRestored(() => setRestoreReady(true)), []);
 
   // Smoothly animate progress to a target value
   const animateTo = useCallback((target: number, label: string, done = false) => {
@@ -78,22 +83,22 @@ export function useAppPreloader() {
   }, [animateTo]);
 
   useEffect(() => {
+    if (!restoreReady) return;
     if (hasStarted.current) return;
     hasStarted.current = true;
 
-    // Check for cached data - if we have feed data, skip preloading entirely
-    const existingFeedData = queryClient.getQueryData(['infinite-posts']);
-    if (existingFeedData) {
-      console.log('[Preloader] Cached data found, skipping splash');
+    // Warm cache (memory or IndexedDB hydrate) — skip splash work entirely.
+    if (hasWarmOfflineCache(queryClient)) {
+      console.log('[Preloader] Warm offline cache — instant ready');
       setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+      requestAnimationFrame(() => preloadCriticalRoutes());
       return;
     }
 
-    // Safety timeout - 600ms max so the splash never blocks the user.
-    // Page-level queries will hydrate behind the scenes via React Query.
+    // Safety timeout — never block the UI on network.
     const safetyTimeout = setTimeout(() => {
       animateTo(100, 'Ready!', true);
-    }, 600);
+    }, 350);
 
     const preload = async () => {
       const startTime = performance.now();
@@ -109,7 +114,7 @@ export function useAppPreloader() {
         try {
           const authResult = await Promise.race([
             supabase.auth.getSession(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 400))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 250))
           ]) as { data: { session: any } };
           session = authResult.data.session;
         } catch {
@@ -173,7 +178,7 @@ export function useAppPreloader() {
         try {
           const result = await Promise.race([
             profilePromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Profile timeout')), 400)),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Profile timeout')), 250)),
           ]) as any;
           profileData = result?.data || null;
         } catch {
@@ -396,7 +401,7 @@ export function useAppPreloader() {
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [queryClient, updateStatus, animateTo]);
+  }, [restoreReady, queryClient, updateStatus, animateTo]);
 
   return status;
 }

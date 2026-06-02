@@ -92,9 +92,10 @@ export function useUserLocation() {
  * Local feed - shows posts from users within 25 miles
  * Falls back to trending if no location available
  */
-export function useLocalFeed() {
+export function useLocalFeed(options?: { enabled?: boolean }) {
   const { profile } = useAuth();
   const { location } = useUserLocation();
+  const enabled = options?.enabled !== false;
 
   return useInfiniteQuery({
     queryKey: ['local-feed', profile?.id, location?.lat, location?.lng],
@@ -130,6 +131,7 @@ export function useLocalFeed() {
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
+    enabled,
     staleTime: STALE_TIME,
     gcTime: 1000 * 60 * 60 * 24 * 14, // 14 days — keep local feed cached for offline
     refetchOnMount: false,

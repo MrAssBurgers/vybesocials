@@ -1,11 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, Sparkles, Camera, MessageCircle, Users, Palette, Shield, Trophy } from 'lucide-react';
+import { ArrowRight, Sparkles, Camera, MessageCircle, Users, Palette, Shield, Trophy, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // Bump this when slides change to re-trigger the intro for existing users.
-export const VYBE_INTRO_VERSION = '2';
+export const VYBE_INTRO_VERSION = '3';
 
 const SLIDES = [
   {
@@ -28,6 +28,13 @@ const SLIDES = [
     title: 'Chat, Call, Vybe',
     body: 'DMs, group chats, voice and video calls — all encrypted, all in one place.',
     accent: 'from-accent to-cyan-400',
+  },
+  {
+    icon: Smartphone,
+    eyebrow: 'Meet in person',
+    title: 'Friend Link',
+    body: 'Tap phones together or scan QR — you\'re friends in seconds. No usernames, no awkward "what\'s your handle?"',
+    accent: 'from-emerald-400 to-cyan-400',
   },
   {
     icon: Users,

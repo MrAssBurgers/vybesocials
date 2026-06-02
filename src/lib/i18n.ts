@@ -3,25 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
 import en from '@/locales/en.json';
-import ko from '@/locales/ko.json';
-import es from '@/locales/es.json';
-import ja from '@/locales/ja.json';
-import fr from '@/locales/fr.json';
-import de from '@/locales/de.json';
-import pt from '@/locales/pt.json';
-import zh from '@/locales/zh.json';
-import ar from '@/locales/ar.json';
-import hi from '@/locales/hi.json';
-import ru from '@/locales/ru.json';
-import it from '@/locales/it.json';
-import nl from '@/locales/nl.json';
-import tr from '@/locales/tr.json';
-import pl from '@/locales/pl.json';
-import sv from '@/locales/sv.json';
-import th from '@/locales/th.json';
-import vi from '@/locales/vi.json';
-import id from '@/locales/id.json';
-import ms from '@/locales/ms.json';
+import { ensureLanguageLoaded, preloadDetectedLanguage } from '@/lib/i18nLoadLocale';
 
 export const languages = [
   { code: 'en', name: 'English', nativeName: 'English', flag: '🇺🇸' },
@@ -48,31 +30,12 @@ export const languages = [
 
 export type LanguageCode = typeof languages[number]['code'];
 
-i18n
+void i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources: {
       en: { translation: en },
-      ko: { translation: ko },
-      es: { translation: es },
-      ja: { translation: ja },
-      fr: { translation: fr },
-      de: { translation: de },
-      pt: { translation: pt },
-      zh: { translation: zh },
-      ar: { translation: ar },
-      hi: { translation: hi },
-      ru: { translation: ru },
-      it: { translation: it },
-      nl: { translation: nl },
-      tr: { translation: tr },
-      pl: { translation: pl },
-      sv: { translation: sv },
-      th: { translation: th },
-      vi: { translation: vi },
-      id: { translation: id },
-      ms: { translation: ms },
     },
     fallbackLng: 'en',
     interpolation: {
@@ -82,6 +45,10 @@ i18n
       order: ['localStorage', 'navigator', 'htmlTag'],
       caches: ['localStorage'],
     },
+  })
+  .then(() => {
+    preloadDetectedLanguage();
   });
 
+export { ensureLanguageLoaded };
 export default i18n;

@@ -19,9 +19,8 @@ import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
 import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
 import { BugRecheckProvider } from "@/contexts/BugRecheckContext";
 import { CallStoreProvider } from "@/lib/callStore";
-
+import { ConnectionStatusBanner } from "@/components/system/ConnectionStatusBanner";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
-
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
 import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
@@ -37,6 +36,7 @@ import { usePostsRealtime } from "@/hooks/usePostsRealtime";
 import { useSpotifyPresence } from "@/hooks/useSpotifyPresence";
 import { useExternalPresence } from "@/hooks/useExternalPresence";
 const SpotifyPresenceInner = () => { useSpotifyPresence(); useExternalPresence(); return null; };
+const RealtimeSyncInner = () => { useRealtimeProfiles(); usePostsRealtime(); return null; };
 // Mount presence loops AFTER first paint so they don't compete with the
 // critical render path. Saves ~200-400ms on cold load.
 const SpotifyPresenceMount = () => {
@@ -54,6 +54,21 @@ const SpotifyPresenceMount = () => {
   }, []);
   return ready ? <SpotifyPresenceInner /> : null;
 };
+const RealtimeSyncMount = () => {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const idle = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+    if (idle) {
+      const id = idle(() => setReady(true), { timeout: 1800 });
+      return () => (window as any).cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(() => setReady(true), 800);
+    return () => clearTimeout(t);
+  }, []);
+  return ready ? <RealtimeSyncInner /> : null;
+};
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { SkipToMain, LiveRegion } from "@/components/a11y/Accessibility";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
@@ -66,7 +81,7 @@ import { LocationProvider } from "@/providers/LocationProvider";
 import { useBriefPreFetch } from "@/hooks/useBriefPreFetch";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { WelcomeBackSplash } from "@/components/ui/WelcomeBackSplash";
-import { ConnectionStatusBanner } from "@/components/system/ConnectionStatusBanner";
+import { markPersistRestored } from "@/lib/persistRestoreGate";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -205,6 +220,10 @@ function useAuthResolved() {
   const [hasSession, setHasSession] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    const forceDone = setTimeout(() => {
+      if (!cancelled) setResolved(true);
+    }, 900);
+
     supabase.auth.getSession().then(({ data }) => {
       if (cancelled) return;
       setHasSession(!!data.session);
@@ -218,7 +237,11 @@ function useAuthResolved() {
       if (event === 'SIGNED_OUT') setWasLoggedIn(false);
       setResolved(true);
     });
-    return () => { cancelled = true; subscription.unsubscribe(); };
+    return () => {
+      cancelled = true;
+      clearTimeout(forceDone);
+      subscription.unsubscribe();
+    };
   }, []);
   return { authResolved: resolved, hasSession };
 }
@@ -237,10 +260,6 @@ function AppWithPreloader() {
   // Auto-detect low-contrast text and fix it on the fly
   useContrastAutoGuard();
 
-  // Real-time profile sync - updates propagate instantly to all users
-  useRealtimeProfiles();
-  usePostsRealtime();
-
   // Track on-screen keyboard height as --kb-h CSS variable (Android polish)
   useKeyboardHeight();
 
@@ -250,7 +269,7 @@ function AppWithPreloader() {
     // If we knew the user was logged in last time, also wait until session restored
     // (or auth definitively says there is none) to avoid the login flash.
     const preloaderDone = preloadStatus.isComplete;
-    const authDone = authResolved && (wasLoggedInRef.current ? (hasSession || authResolved) : true);
+    const authDone = authResolved;
     if (preloaderDone && authDone) {
       setShowSplash(false);
       hasInitialLoadCompleted = true;
@@ -261,11 +280,7 @@ function AppWithPreloader() {
   const signInHandledRef = useRef(false);
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        queryClient.invalidateQueries();
-      }
-
-      // Show welcome splash only on explicit sign-in, not token refresh or initial load
+      // Do not invalidate the full cache — wipes offline feed/DM snapshots.
       if (event === 'SIGNED_IN' && !signInHandledRef.current && hasInitialLoadCompleted) {
         signInHandledRef.current = true;
         // Fetch minimal profile info for the splash
@@ -304,6 +319,7 @@ function AppWithPreloader() {
       <GlobalErrorHandler />
       <AuthProvider>
         <SpotifyPresenceMount />
+        <RealtimeSyncMount />
         <LocalErrorBoundary label="DeferredAuthHooks">
           <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
         </LocalErrorBoundary>
@@ -357,7 +373,7 @@ function AppWithPreloader() {
                                         <FounderAppreciation />
                                         <CookieConsentBanner />
                                         <RatePromptSheet />
-                                        {/* ConnectionStatusBanner removed — silent background reconnect */}
+                                        <ConnectionStatusBanner />
                                       </Suspense>
                                     </LocalErrorBoundary>
                                   </TutorialProvider>
@@ -390,6 +406,12 @@ const App = memo(() => {
       <LiveRegion />
       <PersistQueryClientProvider
         client={queryClient}
+        onSuccess={() => {
+          markPersistRestored();
+        }}
+        onError={() => {
+          markPersistRestored();
+        }}
         persistOptions={{
           persister: queryPersister,
           // 14 days — keep everything (feed, DMs, profiles) usable offline

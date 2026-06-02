@@ -98,10 +98,15 @@ function preloadSignedMedia(posts: Post[]) {
   }
 }
 
-export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
+export function useInfinitePosts(
+  type?: 'short' | 'post' | 'video',
+  authorId?: string,
+  options?: { enabled?: boolean },
+) {
   const { profile } = useAuth();
   const blockedIds = useBlockedUserIds();
   const isProfileView = !!authorId;
+  const enabled = options?.enabled !== false;
 
   const query = useInfiniteQuery({
     queryKey: ['infinite-posts', type, authorId, profile?.id, blockedIds.length],
@@ -142,6 +147,7 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
+    enabled,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
     refetchOnMount: false, // Use cached data instantly, no re-fetch on mount
@@ -156,9 +162,13 @@ export function useInfinitePosts(type?: 'short' | 'post' | 'video', authorId?: s
   return query;
 }
 
-export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
+export function useInfiniteFollowingPosts(
+  type?: 'short' | 'post' | 'video',
+  options?: { enabled?: boolean },
+) {
   const { profile } = useAuth();
   const blockedIds = useBlockedUserIds();
+  const tabEnabled = options?.enabled !== false;
 
   const query = useInfiniteQuery({
     queryKey: ['infinite-following-posts', type, profile?.id, blockedIds.length],
@@ -197,7 +207,7 @@ export function useInfiniteFollowingPosts(type?: 'short' | 'post' | 'video') {
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
-    enabled: !!profile,
+    enabled: tabEnabled && !!profile,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
     refetchOnMount: false, // Use cached data instantly
@@ -219,6 +229,16 @@ export function usePrefetchPosts() {
 
   useEffect(() => {
     if (!profile || hasPrefetched.current) return;
+    const hasFeed = queryClient.getQueriesData({
+      predicate: (q) => {
+        const k = JSON.stringify(q.queryKey).toLowerCase();
+        return k.includes('infinite-posts') || k.includes('personalized-feed');
+      },
+    }).some(([, data]) => data != null);
+    if (hasFeed) {
+      hasPrefetched.current = true;
+      return;
+    }
     hasPrefetched.current = true;
 
     const prefetch = async () => {
@@ -260,9 +280,13 @@ export function usePrefetchPosts() {
 //
 // Higher creator levels give a real but capped reach boost (≤12% of score)
 // so leveling up genuinely helps distribution without auto-winning.
-export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
+export function usePersonalizedFeed(
+  type?: 'short' | 'post' | 'video',
+  options?: { enabled?: boolean },
+) {
   const { profile } = useAuth();
   const blockedIds = useBlockedUserIds();
+  const enabled = options?.enabled !== false;
 
   return useInfiniteQuery({
     queryKey: ['personalized-feed-v2', type, profile?.id, blockedIds.length],
@@ -327,6 +351,7 @@ export function usePersonalizedFeed(type?: 'short' | 'post' | 'video') {
     },
     getNextPageParam: (last) => last.nextPage,
     initialPageParam: 0,
+    enabled,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
     refetchOnMount: false,

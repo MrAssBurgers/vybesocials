@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Globe, Sparkles, LayoutGrid, Eye, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
-import { useInfinitePosts, useInfiniteFollowingPosts, usePrefetchPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
+import { useInfinitePosts, useInfiniteFollowingPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import { useLocalFeed } from '@/hooks/useLocalFeed';
 import type { Post } from '@/hooks/useInfinitePosts';
 import { useDNAPreferences } from '@/hooks/useDNAPreferences';
@@ -63,7 +63,18 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const isGlobalTab = activeTab === 'global';
   const isLocalTab = activeTab === 'local';
 
-  // Personalized feed (interest-matched posts) - active on "foryou" tab
+  const [globalVisited, setGlobalVisited] = useState(false);
+  const [localVisited, setLocalVisited] = useState(false);
+
+  useEffect(() => {
+    if (isGlobalTab) setGlobalVisited(true);
+    if (isLocalTab) setLocalVisited(true);
+  }, [isGlobalTab, isLocalTab]);
+
+  const loadGlobalFeed = globalVisited || isGlobalTab;
+  const loadLocalFeed = localVisited || isLocalTab;
+
+  // Personalized feed — only while For You tab is active
   const {
     data: forYouData,
     isLoading: forYouLoading,
@@ -73,9 +84,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextForYou,
     isFetchingNextPage: isFetchingNextForYou,
     refetch: refetchForYou,
-  } = usePersonalizedFeed();
+  } = usePersonalizedFeed(undefined, { enabled: isForYouTab });
 
-  // Following feed - always loaded (merged into forYou)
+  // Following feed — merged into For You only when that tab is active
   const {
     data: followingData,
     isLoading: followingLoading,
@@ -84,16 +95,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextFollowing,
     isFetchingNextPage: isFetchingNextFollowing,
     refetch: refetchFollowing,
-  } = useInfiniteFollowingPosts();
-
-  // Global feed - only fetch when tab is active or was previously visited
-  const [globalVisited, setGlobalVisited] = useState(false);
-  const [localVisited, setLocalVisited] = useState(false);
-
-  useEffect(() => {
-    if (isGlobalTab) setGlobalVisited(true);
-    if (isLocalTab) setLocalVisited(true);
-  }, [isGlobalTab, isLocalTab]);
+  } = useInfiniteFollowingPosts(undefined, { enabled: isForYouTab });
 
   const {
     data: globalData,
@@ -104,9 +106,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextGlobal,
     isFetchingNextPage: isFetchingNextGlobal,
     refetch: refetchGlobal,
-  } = useInfinitePosts('post');
+  } = useInfinitePosts('post', undefined, { enabled: loadGlobalFeed });
 
-  // Local feed - only fetch when tab is active
   const {
     data: localData,
     isLoading: localLoading,
@@ -116,12 +117,9 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextLocal,
     isFetchingNextPage: isFetchingNextLocal,
     refetch: refetchLocal,
-  } = useLocalFeed();
+  } = useLocalFeed({ enabled: loadLocalFeed });
 
-  // Prefetch posts for faster navigation
-  usePrefetchPosts();
-
-  // "For You" = personalized + following merged, deduped, sorted by date
+  const queryClient = useQueryClient();
   const forYouPosts = useMemo(() => {
     const personalized = (forYouData?.pages.flatMap(page => page.posts) || [])
       .filter(post => post.type === 'post' || post.type === 'video');
@@ -168,8 +166,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     [globalData]
   );
 
-  const queryClient = useQueryClient();
-
   // Pull to refresh
   const handleRefresh = useCallback(async () => {
     clearNewPosts();
@@ -180,7 +176,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       queryClient.invalidateQueries({ queryKey: ['local-feed'] });
       await refetchLocal();
     } else {
-      queryClient.invalidateQueries({ queryKey: ['personalized-feed'] });
+      queryClient.invalidateQueries({ queryKey: ['personalized-feed-v2'] });
       queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
       await Promise.all([refetchForYou(), refetchFollowing()]);
     }
