@@ -16,7 +16,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## Current Status
 - Done: `npm run build`
-- Done: pushed to `origin/main` (awaiting SHA below after push)
+- Done: pushed to `origin/main` — commit `11611129`
 - **Your turn:** Lovable → Share → Publish → hard-refresh https://vybehub.app
 
 ## Publish log
