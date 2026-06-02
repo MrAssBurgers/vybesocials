@@ -28,10 +28,11 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## Current Status
 - Done: `npm run build` (platform polish + perf)
-- **Your turn:** commit/push + Lovable Publish
+- Done: pushed to `origin/main` — commit `601ebb39`
+- **Your turn:** Lovable → Share → Publish → hard-refresh https://vybehub.app
 
 ## Publish log
-- **2026-06-01** — commit `11611129` — liquid aurora + tap FX, wallpaper isolation — **Publish in Lovable now**
+- **2026-06-01** — commit `601ebb39` — perf, offline UX, lazy i18n, Friend Link spotlight — **Publish in Lovable now**
 - **2026-06-01** — commit `821c373d` — liquid FAB + auth liquid UI
 - **2026-06-01** — commit `6f265956` — auth liquid UI, Welcome heading
 
