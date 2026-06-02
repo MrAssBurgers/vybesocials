@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { X, Check, Smartphone, QrCode, MessageCircle, Radio, Wifi, Loader2, ScanLine } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ import { scanFriendLinkOnce } from '@/lib/friendLinkNfc';
 import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
 import { FRIEND_LINK_OPEN_EVENT } from '@/lib/friendLinkUi';
 import { NFCSwapAnimation } from '@/components/friends/NFCSwapAnimation';
+import { FriendLinkActivateHint, FriendLinkSheetTips } from '@/components/friends/FriendLinkActivateHint';
 import { acquirePostCameraStream, stopStream } from '@/lib/postCameraStream';
 import { isCameraSafeMode } from '@/lib/cameraSafeMode';
 
@@ -43,7 +44,11 @@ interface FoundUser {
 export function AutoFriendDrop() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobile();
+  const showHomePill =
+    isMobile &&
+    (location.pathname === '/home' || location.pathname === '/');
   const sendRequest = useSendFriendRequest();
   const createConversation = useCreateConversation();
   const controlVisible = useFloatingControlVisibility();
@@ -215,8 +220,8 @@ export function AutoFriendDrop() {
     setPhase('exchanging');
     setShowSwapAnimation(true);
     haptics.impact();
-    void userId;
-  }, [phase]);
+    void runAutoFriendAdd(userId);
+  }, [phase, runAutoFriendAdd]);
 
   const handleNfcTarget = useCallback(async (target: FriendLinkTarget) => {
     if (exchangeLockRef.current || completingRef.current || phase === 'success' || phase === 'exchanging') return;
@@ -258,10 +263,19 @@ export function AutoFriendDrop() {
     onTarget: handleNfcTarget,
   });
 
-  const handleClose = useCallback(async () => {
+  const handleClose = useCallback(() => {
+    haptics.tap();
     stopScanning();
-    if (activeDropId && phase !== 'success') await friendDropSync.cancelDrop(activeDropId);
-    if (nativeFriendDrop.isActive) await nativeFriendDrop.stopSession();
+    if (webNfcRef.current) {
+      webNfcRef.current.abort();
+      webNfcRef.current = null;
+    }
+
+    const dropId = activeDropId;
+    const phaseSnap = phase;
+    const nativeActive = nativeFriendDrop.isActive;
+
+    // Dismiss UI immediately — never block on network/NFC teardown.
     setIsActive(false);
     setPhase('idle');
     setFoundUser(null);
@@ -269,6 +283,19 @@ export function AutoFriendDrop() {
     setShowSwapAnimation(false);
     exchangeLockRef.current = false;
     completingRef.current = false;
+
+    void (async () => {
+      if (dropId && phaseSnap !== 'success') {
+        try {
+          await friendDropSync.cancelDrop(dropId);
+        } catch { /* ignore */ }
+      }
+      if (nativeActive) {
+        try {
+          await nativeFriendDrop.stopSession();
+        } catch { /* ignore */ }
+      }
+    })();
   }, [stopScanning, nativeFriendDrop, activeDropId, friendDropSync, phase]);
 
   const handleFoundUser = useCallback(async (userId: string) => {
@@ -358,39 +385,54 @@ export function AutoFriendDrop() {
     }
   }, [handleNfcTarget]);
 
+  const handleBumpRef = useRef<() => void>(() => {});
+
+  const { requestPermission: requestMotionPermission } = useSwingDetection({
+    enabled: !isActive && !!profile?.username,
+    threshold: 6,
+    swingWindow: 500,
+    cooldown: 3000,
+    onSwing: () => handleBumpRef.current(),
+  });
+
   const handleBump = useCallback(async () => {
-    if (!profile?.username || !user) return;
+    if (!profile?.username || !user || isActive) return;
+    await requestMotionPermission();
     setIsActive(true);
     setActiveTab('tap');
     haptics.impact();
     setPhase('activated');
     setTimeout(() => haptics.success(), 300);
     friendDropSync.createDrop().then((drop) => { if (drop) setActiveDropId(drop.id); });
-  }, [profile?.username, user, friendDropSync]);
+  }, [profile?.username, user, friendDropSync, requestMotionPermission, isActive]);
 
-  useSwingDetection({
-    enabled: !isActive && !!profile?.username,
-    threshold: 6,
-    swingWindow: 500,
-    cooldown: 3000,
-    onSwing: handleBump,
-  });
+  useEffect(() => {
+    handleBumpRef.current = () => {
+      void handleBump();
+    };
+  }, [handleBump]);
 
   useEffect(() => {
     const onOpen = (e: Event) => {
-      const tab = (e as CustomEvent<{ tab?: ActiveTab }>).detail?.tab;
-      setIsActive(true);
-      if (tab === 'qr' || tab === 'tap') setActiveTab(tab);
-      else setActiveTab('tap');
-      setPhase('activated');
-      haptics.impact();
-      if (profile?.username && user) {
-        friendDropSync.createDrop().then((drop) => { if (drop) setActiveDropId(drop.id); });
-      }
+      void (async () => {
+        await requestMotionPermission();
+        const tab = (e as CustomEvent<{ tab?: ActiveTab }>).detail?.tab;
+        const nextTab = tab === 'qr' || tab === 'tap' ? tab : 'tap';
+        setIsActive(true);
+        setActiveTab(nextTab);
+        setPhase('activated');
+        haptics.impact();
+        if (profile?.username && user) {
+          friendDropSync.createDrop().then((drop) => { if (drop) setActiveDropId(drop.id); });
+        }
+        if (nextTab === 'qr') {
+          void startCamera();
+        }
+      })();
     };
     window.addEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
-  }, [profile?.username, user, friendDropSync]);
+  }, [profile?.username, user, friendDropSync, requestMotionPermission, startCamera]);
 
   const handleAddFriend = useCallback(async () => {
     if (!foundUser) return;
@@ -403,6 +445,15 @@ export function AutoFriendDrop() {
   useEffect(() => { return () => { stopScanning(); }; }, [stopScanning]);
 
   // While Friend Link is open: hide bottom nav + lock body scroll (iOS-safe)
+  useEffect(() => {
+    if (!isActive) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isActive, handleClose]);
+
   useEffect(() => {
     if (!isActive) return;
     navVisibility.setInDesigner(true);
@@ -477,19 +528,22 @@ export function AutoFriendDrop() {
       />
 
       {/* Floating pill — tap to open */}
-      {!isActive && isMobile && (
+      {!isActive && showHomePill && (
         <div
           className={cn(
-            'fixed bottom-24 left-1/2 z-40 animate-fade-in -translate-x-1/2 duration-[280ms]',
+            'fixed bottom-20 left-1/2 z-40 flex flex-col items-center -translate-x-1/2 duration-[280ms]',
             controlVisible
               ? 'translate-y-0 pointer-events-auto transition-transform ease-out'
               : 'translate-y-[200%] pointer-events-none transition-transform ease-in'
           )}
         >
-          <button
-            onClick={handleBump}
-            className="group relative flex items-center gap-2.5 px-5 py-3 rounded-full active:scale-[0.95] transition-all duration-200"
-          >
+          <div className="relative flex flex-col items-center">
+            <FriendLinkActivateHint onEnableShake={requestMotionPermission} />
+            <button
+              type="button"
+              onClick={handleBump}
+              className="group relative flex items-center gap-2.5 px-5 py-3 rounded-full active:scale-[0.95] transition-all duration-200 touch-manipulation"
+            >
             {/* Animated gradient border */}
             <span className="absolute inset-0 rounded-full seamless-gradient-strip opacity-80" />
             {/* Inner fill */}
@@ -503,7 +557,11 @@ export function AutoFriendDrop() {
             </span>
             {/* Pulse ring */}
             <span className="absolute inset-0 rounded-full border border-primary/30 animate-ping opacity-20" />
-          </button>
+            </button>
+            <p className="mt-1.5 text-[10px] font-semibold text-foreground/80 drop-shadow-sm pointer-events-none">
+              Tap or shake to open
+            </p>
+          </div>
         </div>
       )}
 
@@ -511,31 +569,53 @@ export function AutoFriendDrop() {
       {isActive && (
         <>
           <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-            style={{ zIndex: 9998, touchAction: 'none', overscrollBehavior: 'contain' }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            style={{ zIndex: 10080, touchAction: 'none', overscrollBehavior: 'contain' }}
             onClick={handleClose}
-            onTouchMove={(e) => e.preventDefault()}
-            onWheel={(e) => e.preventDefault()}
+            onPointerDown={(e) => {
+              if (e.target === e.currentTarget) handleClose();
+            }}
+            aria-hidden
           />
           <div
-            className="fixed inset-x-0 mx-auto w-full max-w-sm bg-card rounded-t-2xl sm:rounded-2xl border border-border/40 shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Friend Link"
+            className="fixed inset-x-0 mx-auto w-full max-w-sm bg-card rounded-t-3xl sm:rounded-2xl border border-border/40 shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300 pointer-events-auto"
             style={{
-              zIndex: 9999,
+              zIndex: 10081,
               bottom: 'env(safe-area-inset-bottom, 0px)',
               maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 24px)',
             }}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
+            <button
+              type="button"
+              onClick={handleClose}
+              className="mx-auto mt-2 mb-1 h-1 w-10 rounded-full bg-muted-foreground/30 shrink-0"
+              aria-label="Close Friend Link"
+            />
             {/* Header */}
-            <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+            <div className="flex items-center justify-between px-4 pt-1 pb-2 shrink-0 relative z-10">
               <h2 className="text-base font-semibold text-foreground">Friend Link</h2>
-              <button onClick={handleClose} className="p-1.5 rounded-full hover:bg-muted/60 transition-colors">
-                <X className="h-4 w-4 text-muted-foreground" />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleClose();
+                }}
+                className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center rounded-full hover:bg-muted/60 active:bg-muted transition-colors touch-manipulation"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5 text-foreground" />
               </button>
             </div>
 
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
 
+            {phase === 'activated' && <FriendLinkSheetTips />}
 
             {/* Phases: found / exchanging / success override tabs */}
             {phase === 'found' && foundUser && (

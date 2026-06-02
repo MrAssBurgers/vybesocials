@@ -4,6 +4,8 @@ import { Image as ImageIcon, Music2, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VybeRecordButton } from '@/components/camera/VybeRecordButton';
 import { CreateModeSelector, type CreateMode } from './CreateModeSelector';
+import { CreateFilterModeToggle } from './CreateFilterModeToggle';
+import { CreateCameraCoach } from './CreateCameraCoach';
 import { MobilePostComposer } from './MobilePostComposer';
 import { SoundControls } from '@/components/sounds/SoundControls';
 import { CameraFilterCarousel, getFilterCSS } from '@/components/camera/CameraFilterCarousel';
@@ -531,6 +533,21 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           />
         )}
 
+        {/* Viewfinder guides */}
+        <div className="pointer-events-none absolute inset-0 z-[12]">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(0,0,0,0.45)_100%)]" />
+          <div
+            className="absolute inset-0 opacity-[0.12]"
+            style={{
+              backgroundImage:
+                'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
+              backgroundSize: '33.33% 33.33%',
+            }}
+          />
+        </div>
+
+        <CreateCameraCoach />
+
         <CameraZoomIndicator zoom={zoomLevel} visible={showZoomIndicator} />
 
         {/* Shutter flash — white flash + scale bounce */}
@@ -632,100 +649,104 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         onTimerChange={setTimer}
       />
 
-      {/* Bottom Controls — Redesigned */}
-      <div className="absolute bottom-0 left-0 right-0 pb-safe bg-gradient-to-t from-black/80 via-black/40 to-transparent z-30">
-        {/* Mode selector at top of bottom area */}
-        <div className="mb-2">
-          <CreateModeSelector currentMode={mode} onModeChange={handleModeChange} />
-        </div>
-
-        {/* Filter/AR row */}
-        <div className="mb-3">
-          {arSupported && (
-            <div className="flex items-center justify-center gap-1 mb-2">
-              <button onClick={() => setFilterMode('color')} className={cn("text-[10px] px-3 py-1 rounded-full font-medium transition-all", filterMode === 'color' ? "bg-white/20 text-white" : "text-white/40")}>🎨 Filters</button>
-              <button
-                onClick={() => {
-                  setFilterMode('ar');
-                  if (!arFilter) {
-                    import('@/lib/arFilters').then(({ AR_FILTERS }) => {
-                      const first = AR_FILTERS.find((f) => f.category === 'face') || AR_FILTERS[0];
-                      if (first) setArFilter(first);
-                    });
-                  }
-                }}
-                className={cn("text-[10px] px-3 py-1 rounded-full font-medium transition-all", filterMode === 'ar' ? "bg-white/20 text-white" : "text-white/40")}
-              >
-                🎭 AR
-              </button>
-            </div>
-          )}
-          {filterMode === 'ar' && arSupported ? (
-            <ARFilterPicker currentFilter={arFilter?.id || null} onFilterChange={setArFilter} isTracking={faces.length > 0} isLoading={arLoading} />
-          ) : (
-            <CameraFilterCarousel currentFilter={currentFilter} onFilterChange={setCurrentFilter} />
-          )}
-        </div>
-
-        {/* Capture area — Clean layout */}
-        <div className="flex items-center justify-center gap-6 pb-4">
-          {/* Music */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowMusicGallery(true)}
-            className={cn(
-              "text-white w-12 h-12 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-xl",
-              (selectedSound || selectedTrack) && "text-primary border-2 border-primary/50"
-            )}
-          >
-            <Music2 className="h-5 w-5" />
-          </Button>
-
-          {/* Gallery — swipe-up drawer trigger */}
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setShowGalleryDrawer(true)}
-            className="w-12 h-12 rounded-xl overflow-hidden border-2 border-white/40"
-          >
-            {capturedPreviews.length > 0 ? (
-              <img src={capturedPreviews[capturedPreviews.length - 1]} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-white/10">
-                <ImageIcon className="w-5 h-5 text-white/70" />
-              </div>
-            )}
-          </motion.button>
-
-          {/* Capture Button */}
-          <VybeRecordButton
-            isRecording={isRecording}
-            progress={recordingProgress}
-            maxDuration={MAX_RECORDING_DURATION}
-            onCaptureStart={handleCaptureStart}
-            onCaptureEnd={handleCaptureEnd}
+      {/* Bottom chrome — Snapchat-style stack */}
+      <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none">
+        <div className="pointer-events-auto bg-gradient-to-t from-black via-black/85 to-transparent pt-16 pb-safe">
+          <CreateFilterModeToggle
+            mode={filterMode}
+            arSupported={arSupported}
+            onChange={(next) => {
+              setFilterMode(next);
+              if (next === 'ar' && !arFilter) {
+                import('@/lib/arFilters').then(({ AR_FILTERS }) => {
+                  const first = AR_FILTERS.find((f) => f.category === 'face') || AR_FILTERS[0];
+                  if (first) setArFilter(first);
+                });
+              }
+            }}
           />
 
-          {/* Multi done */}
-          {mode === 'multi' && capturedFiles.length > 0 ? (
-            <motion.button whileTap={{ scale: 0.9 }} onClick={handleMultiDone}
-              className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm shadow-lg shadow-primary/30">
-              Done
-            </motion.button>
-          ) : (
-            <div className="w-12 h-12" />
-          )}
-        </div>
+          <div className="mb-1">
+            {filterMode === 'ar' && arSupported ? (
+              <ARFilterPicker
+                currentFilter={arFilter?.id || null}
+                onFilterChange={setArFilter}
+                isTracking={faces.length > 0}
+                isLoading={arLoading}
+              />
+            ) : (
+              <CameraFilterCarousel currentFilter={currentFilter} onFilterChange={setCurrentFilter} />
+            )}
+          </div>
 
-        {/* Hint */}
-        <AnimatePresence>
-          {!isRecording && timerCountdown === null && (
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center text-white/50 text-xs pb-4">
-              {mode === 'multi' ? 'Tap to capture · Add up to 10' : 'Tap for photo · Hold for video · Pinch to zoom'}
-              {selectedSound && ' · Sound syncs with video'}
-            </motion.p>
-          )}
-        </AnimatePresence>
+          <div className="flex items-center justify-center gap-5 px-6 pb-3 pt-1">
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setShowMusicGallery(true)}
+              className={cn(
+                'w-[52px] h-[52px] rounded-2xl flex items-center justify-center',
+                'bg-white/10 backdrop-blur-xl border border-white/15 touch-manipulation',
+                (selectedSound || selectedTrack) && 'border-primary/60 bg-primary/15',
+              )}
+              aria-label="Add sound"
+            >
+              <Music2 className="h-6 w-6 text-white" />
+            </motion.button>
+
+            <VybeRecordButton
+              isRecording={isRecording}
+              progress={recordingProgress}
+              maxDuration={MAX_RECORDING_DURATION}
+              onCaptureStart={handleCaptureStart}
+              onCaptureEnd={handleCaptureEnd}
+            />
+
+            {mode === 'multi' && capturedFiles.length > 0 ? (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.9 }}
+                onClick={handleMultiDone}
+                className="w-[52px] h-[52px] rounded-2xl bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm shadow-lg shadow-primary/40 touch-manipulation"
+              >
+                Done
+              </motion.button>
+            ) : (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowGalleryDrawer(true)}
+                className="w-[52px] h-[52px] rounded-2xl overflow-hidden border-2 border-white/50 touch-manipulation shadow-lg"
+                aria-label="Open gallery"
+              >
+                {capturedPreviews.length > 0 ? (
+                  <img src={capturedPreviews[capturedPreviews.length - 1]} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-white/10 backdrop-blur-md">
+                    <ImageIcon className="w-6 h-6 text-white/80" />
+                  </div>
+                )}
+              </motion.button>
+            )}
+          </div>
+
+          <CreateModeSelector currentMode={mode} onModeChange={handleModeChange} />
+
+          <AnimatePresence>
+            {!isRecording && timerCountdown === null && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-center text-white/40 text-[10px] tracking-wide pb-2 px-4"
+              >
+                {mode === 'multi'
+                  ? 'Tap shutter · Up to 10 shots'
+                  : 'Tap photo · Hold video · Pinch to zoom'}
+              </motion.p>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Gallery Drawer */}

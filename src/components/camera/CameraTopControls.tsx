@@ -1,7 +1,6 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Zap, ZapOff, SwitchCamera, Timer, Settings2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import type { ReactNode } from 'react';
+import { motion } from 'framer-motion';
+import { X, Zap, ZapOff, SwitchCamera, Timer } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 
@@ -10,11 +9,39 @@ interface CameraTopControlsProps {
   flash: boolean;
   onFlashToggle: () => void;
   onFlipCamera: () => void;
-  timer: number; // 0, 3, 10
+  timer: number;
   onTimerChange: (seconds: number) => void;
 }
 
 const TIMER_OPTIONS = [0, 3, 10];
+
+function ControlChip({
+  children,
+  onClick,
+  active,
+  label,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  active?: boolean;
+  label?: string;
+}) {
+  return (
+    <motion.button
+      type="button"
+      whileTap={{ scale: 0.92 }}
+      onClick={onClick}
+      aria-label={label}
+      className={cn(
+        'relative min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full',
+        'bg-black/35 backdrop-blur-xl border border-white/10 text-white touch-manipulation',
+        active && 'border-primary/50 bg-primary/20',
+      )}
+    >
+      {children}
+    </motion.button>
+  );
+}
 
 export function CameraTopControls({
   onClose,
@@ -24,64 +51,50 @@ export function CameraTopControls({
   timer,
   onTimerChange,
 }: CameraTopControlsProps) {
-  const [showTimerPicker, setShowTimerPicker] = useState(false);
-
   const cycleTimer = () => {
     triggerHaptic('light');
     const idx = TIMER_OPTIONS.indexOf(timer);
-    const next = TIMER_OPTIONS[(idx + 1) % TIMER_OPTIONS.length];
-    onTimerChange(next);
+    onTimerChange(TIMER_OPTIONS[(idx + 1) % TIMER_OPTIONS.length]);
   };
 
   return (
-    <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent z-30">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onClose}
-        className="text-white bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full"
-      >
-        <X className="h-6 w-6" strokeWidth={2.5} />
-      </Button>
+    <div className="absolute top-0 left-0 right-0 z-30 pt-safe px-3 pb-6 bg-gradient-to-b from-black/70 via-black/30 to-transparent pointer-events-none">
+      <div className="flex items-start justify-between pointer-events-auto">
+        <ControlChip onClick={onClose} label="Close camera">
+          <X className="h-6 w-6" strokeWidth={2.5} />
+        </ControlChip>
 
-      <div className="flex gap-1.5">
-        {/* Flash */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => { triggerHaptic('light'); onFlashToggle(); }}
-          className="text-white bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full w-9 h-9"
-        >
-          {flash ? <Zap className="h-4 w-4 text-yellow-400" /> : <ZapOff className="h-4 w-4" />}
-        </Button>
+        <div className="flex items-center gap-2">
+          <ControlChip
+            onClick={() => {
+              triggerHaptic('light');
+              onFlashToggle();
+            }}
+            active={flash}
+            label="Flash"
+          >
+            {flash ? <Zap className="h-5 w-5 text-amber-300" /> : <ZapOff className="h-5 w-5" />}
+          </ControlChip>
 
-        {/* Timer */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={cycleTimer}
-          className={cn(
-            "text-white bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full w-9 h-9 relative",
-            timer > 0 && "text-primary"
-          )}
-        >
-          <Timer className="h-4 w-4" />
-          {timer > 0 && (
-            <span className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[8px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center">
-              {timer}
-            </span>
-          )}
-        </Button>
+          <ControlChip onClick={cycleTimer} active={timer > 0} label="Timer">
+            <Timer className="h-5 w-5" />
+            {timer > 0 && (
+              <span className="absolute -bottom-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-primary text-[9px] font-bold flex items-center justify-center">
+                {timer}
+              </span>
+            )}
+          </ControlChip>
 
-        {/* Flip Camera */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => { triggerHaptic('light'); onFlipCamera(); }}
-          className="text-white bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full w-9 h-9"
-        >
-          <SwitchCamera className="h-4 w-4" />
-        </Button>
+          <ControlChip
+            onClick={() => {
+              triggerHaptic('light');
+              onFlipCamera();
+            }}
+            label="Flip camera"
+          >
+            <SwitchCamera className="h-5 w-5" />
+          </ControlChip>
+        </div>
       </div>
     </div>
   );

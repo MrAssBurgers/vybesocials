@@ -22,7 +22,6 @@ import { useGridLayout } from '@/hooks/useGridLayout';
 import SmartErrorBoundary from '@/components/error/SmartErrorBoundary';
 
 // Lazy load heavy components that aren't needed for initial render
-const AutoFriendDrop = lazy(() => import('@/components/friends/AutoFriendDrop').then(m => ({ default: m.AutoFriendDrop })));
 const AnnouncementModal = lazy(() => import('@/components/announcements/AnnouncementModal').then(m => ({ default: m.AnnouncementModal })));
 const VYBECommandBar = lazy(() => import('@/components/ai/VYBECommandBar').then(m => ({ default: m.VYBECommandBar })));
 const WeeklyRecapModal = lazy(() => import('@/components/recap/WeeklyRecapModal').then(m => ({ default: m.WeeklyRecapModal })));
@@ -292,12 +291,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   return (
     <AppLayout>
       {/* Lazy-loaded deferred components */}
-      <SmartErrorBoundary fallback={null}>
-        <Suspense fallback={null}>
-          <AutoFriendDrop />
-        </Suspense>
-      </SmartErrorBoundary>
-      
       {/* Pull to refresh indicator */}
       <PullToRefreshIndicator 
         pullDistance={pullDistance} 

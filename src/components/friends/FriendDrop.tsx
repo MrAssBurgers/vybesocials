@@ -411,12 +411,12 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     return () => { setNfcActive(false); };
   }, [isOpen, activeTab, nativeFriendDrop]);
 
-  const handleClose = useCallback(async () => {
+  const handleClose = useCallback(() => {
     stopScanning();
     nfcStopScan();
-    if (nativeFriendDrop.isAvailable) await nativeFriendDrop.stopSession();
     setNfcActive(false);
-    if (activeDropId) await friendDropSync.cancelDrop(activeDropId);
+    const dropId = activeDropId;
+    const nativeActive = nativeFriendDrop.isAvailable;
     setIsOpen(false);
     setPhase('idle');
     setFoundUser(null);
@@ -425,6 +425,18 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setIsScanning(false);
     setShowSwapAnimation(false);
     exchangeLockRef.current = false;
+    void (async () => {
+      if (nativeActive) {
+        try {
+          await nativeFriendDrop.stopSession();
+        } catch { /* ignore */ }
+      }
+      if (dropId) {
+        try {
+          await friendDropSync.cancelDrop(dropId);
+        } catch { /* ignore */ }
+      }
+    })();
   }, [stopScanning, activeDropId, friendDropSync, nfcStopScan, nativeFriendDrop]);
 
   const completeFriendAdd = useCallback(async () => {

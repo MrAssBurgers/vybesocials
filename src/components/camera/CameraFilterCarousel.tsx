@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
@@ -11,7 +11,7 @@ export interface FilterDef {
 }
 
 export const PRESET_FILTERS: FilterDef[] = [
-  { id: 'normal', name: 'Normal', css: '', emoji: '🔵' },
+  { id: 'normal', name: 'Normal', css: '', emoji: '○' },
   { id: 'warm', name: 'Warm', css: 'sepia(0.3) saturate(1.4) brightness(1.1)', emoji: '🌅' },
   { id: 'cool', name: 'Cool', css: 'saturate(0.9) hue-rotate(20deg) brightness(1.05)', emoji: '❄️' },
   { id: 'vintage', name: 'Vintage', css: 'sepia(0.5) contrast(1.1) brightness(0.9)', emoji: '📷' },
@@ -28,7 +28,7 @@ export const PRESET_FILTERS: FilterDef[] = [
 ];
 
 export function getFilterCSS(filterId: string): string {
-  return PRESET_FILTERS.find(f => f.id === filterId)?.css || '';
+  return PRESET_FILTERS.find((f) => f.id === filterId)?.css || '';
 }
 
 interface CameraFilterCarouselProps {
@@ -38,9 +38,8 @@ interface CameraFilterCarouselProps {
 
 export function CameraFilterCarousel({ currentFilter, onFilterChange }: CameraFilterCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const activeIndex = PRESET_FILTERS.findIndex(f => f.id === currentFilter);
+  const activeIndex = PRESET_FILTERS.findIndex((f) => f.id === currentFilter);
 
-  // Auto-scroll to active filter
   useEffect(() => {
     if (scrollRef.current && activeIndex >= 0) {
       const el = scrollRef.current.children[activeIndex] as HTMLElement | undefined;
@@ -49,39 +48,47 @@ export function CameraFilterCarousel({ currentFilter, onFilterChange }: CameraFi
   }, [activeIndex]);
 
   return (
-    <div className="w-full px-2">
-      {/* Snapchat-style circular filter buttons */}
+    <div className="w-full">
       <div
         ref={scrollRef}
-        className="flex gap-3 overflow-x-auto py-2 px-2 scrollbar-hide snap-x snap-mandatory"
+        className="flex gap-4 overflow-x-auto py-3 px-4 scrollbar-hide snap-x snap-mandatory"
       >
-        {PRESET_FILTERS.map((filter, i) => {
+        {PRESET_FILTERS.map((filter) => {
           const isActive = currentFilter === filter.id;
           return (
             <button
               key={filter.id}
+              type="button"
               onClick={() => {
                 triggerHaptic('light');
                 onFilterChange(filter.id);
               }}
-              className="flex-shrink-0 flex flex-col items-center gap-1 snap-center"
+              className="flex-shrink-0 flex flex-col items-center gap-1.5 snap-center touch-manipulation"
             >
               <motion.div
-                animate={isActive ? { scale: 1.15 } : { scale: 1 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                animate={isActive ? { scale: 1.12, y: -2 } : { scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 28 }}
                 className={cn(
-                  "w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all duration-200",
+                  'relative w-[62px] h-[62px] rounded-full overflow-hidden',
                   isActive
-                    ? "ring-[2.5px] ring-primary ring-offset-2 ring-offset-black bg-white/15"
-                    : "bg-white/10 border border-white/15"
+                    ? 'ring-[3px] ring-white ring-offset-[3px] ring-offset-black/80 shadow-[0_0_24px_rgba(255,255,255,0.35)]'
+                    : 'ring-1 ring-white/20 opacity-85',
                 )}
               >
-                <span className="text-xl">{filter.emoji}</span>
+                <div
+                  className="absolute inset-0 bg-gradient-to-br from-primary/80 via-accent/60 to-violet-600/80"
+                  style={filter.css ? { filter: filter.css } : undefined}
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                  <span className="text-2xl drop-shadow-md">{filter.emoji}</span>
+                </div>
               </motion.div>
-              <span className={cn(
-                "text-[10px] font-medium transition-colors max-w-[52px] truncate",
-                isActive ? "text-white" : "text-white/40"
-              )}>
+              <span
+                className={cn(
+                  'text-[10px] font-semibold max-w-[64px] truncate transition-all',
+                  isActive ? 'text-white opacity-100' : 'text-white/0 h-0 overflow-hidden',
+                )}
+              >
                 {filter.name}
               </span>
             </button>

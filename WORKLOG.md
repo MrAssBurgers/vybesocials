@@ -5,10 +5,14 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- Mobile AR + Lovable publish
+- Ship Friend Link + Create camera polish via Lovable Publish
 - Optional: `VITE_SNAP_CAMERA_KIT_TOKEN` for Snap-native lenses
 
-## What Changed (AR — latest)
+## What Changed (Friend Link + Create camera — latest, local)
+- **Friend Link:** single shake listener; iOS motion on pill tap + coach “Got it”; instant X close; activation hints (pill coach, sheet tips, feed spotlight); `AutoFriendDrop` mounted app-wide (pill only on `/home`); NFC/tap auto-add now calls `runAutoFriendAdd`
+- **Create camera:** Snapchat-style bottom stack (lenses → shutter → modes), glass top controls, viewfinder grid, one-time `CreateCameraCoach`
+
+## What Changed (AR — prior)
 - Mobile AR enabled: `arEngine.ts` lite profile (CPU, 320px, smoothed landmarks)
 - AR composited into photos (`arCapture.ts`); scan reticle while finding face
 - Friend Link QR scanner: orbital sweep + target pulse animation
@@ -33,22 +37,25 @@ Use this file as the Lovable -> Cursor handoff each session.
 - Custom wallpaper gate: `hasUserWallpaper` + `isBackgroundResolved` hide aurora/touch; `stripLiquidShellDocumentState()` on upload
 
 ## Current Status
-- Done: `npm run build` (platform polish + perf)
-- Done: pushed to `origin/main` — commit `601ebb39`
-- **Your turn:** Lovable → Share → Publish → hard-refresh https://vybehub.app
+- Done: `npm run build` + `npm run lint` (Friend Link + camera pass)
+- **Not pushed:** Friend Link fixes, camera revamp, activation hints (commit when ready)
+- **Your turn:** commit → push → Lovable → Share → Publish
 
 ## Publish log
-- **2026-06-01** — commit `601ebb39` — perf, offline UX, lazy i18n, Friend Link spotlight — **Publish in Lovable now**
+- **2026-06-02** — local WIP — Friend Link shake/close/hints + Create camera revamp — publish after commit
+- **2026-06-02** — commit `686f01c0` — mobile AR + Friend Link QR scanner
+- **2026-06-01** — commit `601ebb39` — perf, offline UX, lazy i18n, Friend Link spotlight
 - **2026-06-01** — commit `821c373d` — liquid FAB + auth liquid UI
 - **2026-06-01** — commit `6f265956` — auth liquid UI, Welcome heading
 
 ## Next 3 Tasks
-1. Push + Lovable Publish → smoke cold start + offline feed
-2. Friend Link NFC tap test on two Despia phones
-3. Create → Post camera smoke on Play Store build
+1. Commit + push + Lovable Publish
+2. Phone smoke: Friend Link tap/shake/X, QR scan, NFC tap (Despia)
+3. Create tab: lenses, AR FX, coach dismiss, photo + hold video
 
 ## Verification Checklist
 - [x] `npm run build` passes
+- [ ] Friend Link pill + shake on Home; X closes instantly
 - [ ] Friend Link spotlight → opens tap sheet
 - [ ] Offline: no cache → helpful empty state; with cache → banner + posts
 - [ ] Lovable Publish completed

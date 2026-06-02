@@ -100,7 +100,7 @@ export function FriendLinkSpotlight({ onOpen, onDismiss }: FriendLinkNudgeProps)
           <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-0.5">Friend Link</p>
           <h3 className="text-sm font-bold text-foreground mb-1">Tap phones. You&apos;re friends.</h3>
           <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-            No usernames to trade — NFC or QR connects you in seconds.
+            Open with the Friend Link button at the bottom of Home, or shake your phone. Then tap phones or scan QR.
           </p>
           <Button
             size="sm"
