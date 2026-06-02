@@ -34,7 +34,7 @@ export function useUpdateServer() {
 
       const { error } = await supabase
         .from('servers')
-        .update(updates)
+        .update(updates as never)
         .eq('id', serverId);
 
       if (error) throw error;

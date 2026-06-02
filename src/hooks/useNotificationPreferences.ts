@@ -97,7 +97,7 @@ export function useUpdateNotificationPreference() {
         // Update existing
         const { error } = await supabase
           .from('notification_preferences')
-          .update({ [key]: value, updated_at: new Date().toISOString() })
+          .update({ [key]: value, updated_at: new Date().toISOString() } as never)
           .eq('user_id', profile.id);
 
         if (error) throw error;
@@ -108,7 +108,7 @@ export function useUpdateNotificationPreference() {
           .insert({
             user_id: profile.id,
             [key]: value,
-          });
+          } as never);
 
         if (error) throw error;
       }

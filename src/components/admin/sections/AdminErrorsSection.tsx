@@ -82,7 +82,7 @@ export function AdminErrorsSection() {
           update.resolved_by = profile?.id || null;
         }
       }
-      const { error } = await supabase.from('bug_reports').update(update).eq('id', id);
+      const { error } = await supabase.from('bug_reports').update(update as never).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {

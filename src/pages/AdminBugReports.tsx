@@ -66,7 +66,7 @@ export default function AdminBugReports() {
       }
       if (notes) update.admin_notes = notes;
 
-      const { error } = await supabase.from('bug_reports').update(update).eq('id', id);
+      const { error } = await supabase.from('bug_reports').update(update as never).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {

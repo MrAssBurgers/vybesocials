@@ -67,7 +67,7 @@ export function useUpdateChannelPermission() {
     }) => {
       const { error } = await supabase
         .from('channel_permissions')
-        .update({ [field]: value, updated_at: new Date().toISOString() })
+        .update({ [field]: value, updated_at: new Date().toISOString() } as never)
         .eq('channel_id', channelId)
         .eq('role', role);
       if (error) throw error;
