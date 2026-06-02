@@ -219,10 +219,17 @@ serve(async (req) => {
     if (isServiceRole && overrideUserId) {
       user = { id: overrideUserId };
     } else {
-      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser(token);
+      // Validate the user token via an anon-key client carrying the user's Authorization header.
+      // Calling getUser(token) directly on a service-role client is unreliable in edge runtime.
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      });
+      const { data: { user: authUser }, error: userError } = await userClient.auth.getUser();
       if (userError || !authUser) {
+        console.warn("[ai-catch-up] getUser failed", userError?.message);
         return new Response(
-          JSON.stringify({ error: "Invalid user" }),
+          JSON.stringify({ error: "Invalid user", detail: userError?.message ?? null }),
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
