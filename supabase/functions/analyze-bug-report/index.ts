@@ -43,8 +43,11 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (fetchErr || !bug) {
-      return new Response(JSON.stringify({ error: "bug not found" }), {
-        status: 404,
+      // Not an error worth surfacing — the row may have been deleted, or the
+      // client invoked us with a stale id. Return 200 so the client doesn't log
+      // a runtime error.
+      return new Response(JSON.stringify({ ok: true, skipped: true, reason: "bug not found" }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
