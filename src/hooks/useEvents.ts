@@ -280,7 +280,7 @@ export function useUpdateEvent() {
     mutationFn: async ({ id, ...updates }: Partial<VybeEvent> & { id: string }) => {
       const { data, error } = await supabase
         .from('events')
-        .update(updates)
+        .update(updates as never)
         .eq('id', id)
         .select()
         .single();

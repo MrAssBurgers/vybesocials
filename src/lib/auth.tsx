@@ -713,7 +713,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update(updates as Record<string, unknown>)
+        .update(updates as never)
         .eq('id', profile.id);
 
       if (error) throw error;

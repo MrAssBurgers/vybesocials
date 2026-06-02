@@ -171,7 +171,7 @@ export function useUpdateListing() {
     mutationFn: async ({ id, ...updates }: Partial<Listing> & { id: string }) => {
       const { data, error } = await supabase
         .from('listings')
-        .update(updates)
+        .update(updates as never)
         .eq('id', id)
         .select()
         .single();

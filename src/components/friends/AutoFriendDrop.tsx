@@ -22,7 +22,7 @@ import { navVisibility } from '@/lib/navVisibility';
 import { cn } from '@/lib/utils';
 import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
 import { isDespiaRuntime, isIOSUA } from '@/lib/despiaBridge';
-import { buildFriendDropUrl, type FriendLinkTarget } from '@/lib/friendLinkNfc';
+import { buildFriendDropUrl, type FriendLinkTarget, extractFriendTarget } from '@/lib/friendLinkNfc';
 import { scanFriendLinkOnce } from '@/lib/friendLinkNfc';
 import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
 import { FRIEND_LINK_OPEN_EVENT } from '@/lib/friendLinkUi';
@@ -538,7 +538,7 @@ export function AutoFriendDrop() {
           )}
         >
           <div className="relative flex flex-col items-center">
-            <FriendLinkActivateHint onEnableShake={requestMotionPermission} />
+            <FriendLinkActivateHint onEnableShake={() => { void requestMotionPermission(); }} />
             <button
               type="button"
               onClick={handleBump}

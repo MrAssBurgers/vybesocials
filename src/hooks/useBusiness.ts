@@ -235,7 +235,7 @@ export function useUpdateBusiness() {
     mutationFn: async ({ id, ...updates }: Partial<BusinessProfile> & { id: string }) => {
       const { data, error } = await supabase
         .from('business_profiles')
-        .update(updates)
+        .update(updates as never)
         .eq('id', id)
         .select()
         .single();
@@ -346,7 +346,7 @@ export function useUpdateProduct() {
     mutationFn: async ({ id, ...updates }: Partial<BusinessProduct> & { id: string }) => {
       const { data, error } = await supabase
         .from('business_products')
-        .update(updates)
+        .update(updates as never)
         .eq('id', id)
         .select()
         .single();

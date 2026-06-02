@@ -255,7 +255,7 @@ export function useUpdateGroupSettings() {
 
       const { error } = await supabase
         .from('conversations')
-        .update(updates)
+        .update(updates as never)
         .eq('id', conversationId);
 
       if (error) throw error;

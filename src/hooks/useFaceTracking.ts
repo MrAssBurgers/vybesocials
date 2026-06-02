@@ -78,7 +78,6 @@ async function getFaceLandmarker(profile: ARProfile) {
   initProfile = profile;
   initPromise = (async () => {
     try {
-      // @ts-expect-error dynamic import for WASM module
       const vision = await import('@mediapipe/tasks-vision');
       const { FaceLandmarker, FilesetResolver } = vision;
 

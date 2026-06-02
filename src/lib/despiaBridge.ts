@@ -125,9 +125,9 @@ export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> 
     let settled = false;
     const previousCallback = w.readNFCResult;
     const initialValues = new Map(DESPIA_CALLBACK_KEYS.map((key) => [key, normalizeNfcPayload(w[key])]));
-    const timers = {
-      poll: 0 as ReturnType<typeof setInterval>,
-      timer: 0 as ReturnType<typeof setTimeout>,
+    const timers: { poll: number; timer: number } = {
+      poll: 0,
+      timer: 0,
     };
     const cleanup = () => {
       if (timers.timer) clearTimeout(timers.timer);

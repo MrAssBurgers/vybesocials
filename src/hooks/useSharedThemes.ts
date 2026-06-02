@@ -312,7 +312,7 @@ export function useUpdateSharedTheme() {
 
       const { data, error } = await supabase
         .from('shared_themes')
-        .update(updates)
+        .update(updates as never)
         .eq('id', themeId)
         .select()
         .single();
