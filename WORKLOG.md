@@ -5,10 +5,16 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- Platform polish: speed, offline UX, Friend Link as hero wedge
-- Publish all pending changes via Lovable
+- Mobile AR + Lovable publish
+- Optional: `VITE_SNAP_CAMERA_KIT_TOKEN` for Snap-native lenses
 
-## What Changed (platform polish — latest)
+## What Changed (AR — latest)
+- Mobile AR enabled: `arEngine.ts` lite profile (CPU, 320px, smoothed landmarks)
+- AR composited into photos (`arCapture.ts`); scan reticle while finding face
+- Friend Link QR scanner: orbital sweep + target pulse animation
+- `SnapARProvider` mounted in App (needs Snap token for full lens library)
+
+## What Changed (platform polish)
 - Lazy i18n: English only in main bundle; 19 locales on demand (`i18nLoadLocale.ts`)
 - Offline feed: empty-state when no cache; “saved feed” banner when offline with cache
 - Friend Link spotlight on Home + `openFriendLink()` → AutoFriendDrop sheet
