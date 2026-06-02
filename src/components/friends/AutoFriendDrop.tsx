@@ -808,13 +808,117 @@ export function AutoFriendDrop() {
                         </div>
                         {cameraActive && (
                           <>
+                            {/* Aurora radar wash */}
                             <motion.div
-                              className="absolute left-6 right-6 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent shadow-lg shadow-primary"
-                              animate={{ top: ['22px', 'calc(100% - 24px)', '22px'] }}
-                              transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                              className="pointer-events-none absolute inset-0"
+                              style={{
+                                background:
+                                  'radial-gradient(90% 60% at 50% 50%, hsl(var(--primary)/0.14), transparent 68%)',
+                                mixBlendMode: 'screen',
+                              }}
+                              animate={{ opacity: [0.35, 0.7, 0.35], scale: [0.96, 1.02, 0.96] }}
+                              transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
                             />
+
+                            {/* Orbiting scanner ring */}
+                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                              <motion.div
+                                className="relative h-[180px] w-[180px] rounded-full border border-primary/25"
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 7.5, repeat: Infinity, ease: 'linear' }}
+                              >
+                                <motion.div
+                                  className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_20px_hsl(var(--primary)/0.95)]"
+                                  animate={{ scale: [0.8, 1.18, 0.8], opacity: [0.55, 1, 0.55] }}
+                                  transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+                                />
+                                <motion.div
+                                  className="absolute inset-0 rounded-full"
+                                  style={{
+                                    background:
+                                      'conic-gradient(from 0deg, transparent 0deg, hsl(var(--primary)/0.55) 36deg, transparent 84deg)',
+                                    mask: 'radial-gradient(circle, transparent 65%, black 69%, black 100%)',
+                                    WebkitMask:
+                                      'radial-gradient(circle, transparent 65%, black 69%, black 100%)',
+                                  }}
+                                  animate={{ rotate: -360, opacity: [0.45, 0.85, 0.45] }}
+                                  transition={{ duration: 5.2, repeat: Infinity, ease: 'linear' }}
+                                />
+                              </motion.div>
+                            </div>
+
+                            {/* Vertical sweep line */}
+                            <div className="pointer-events-none absolute inset-0 px-6 py-[22px]">
+                              <motion.div
+                                className="relative h-0.5 w-full bg-gradient-to-r from-transparent via-primary to-transparent"
+                                style={{ willChange: 'transform' }}
+                                animate={{ y: [0, 176, 0] }}
+                                transition={{ duration: 2.4, repeat: Infinity, ease: [0.32, 0, 0.24, 1] }}
+                              >
+                                <motion.div
+                                  className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/70 to-transparent blur-[2px]"
+                                  animate={{ opacity: [0.4, 0.95, 0.4] }}
+                                  transition={{ duration: 1.3, repeat: Infinity, ease: 'easeInOut' }}
+                                />
+                              </motion.div>
+                            </div>
+
+                            {/* Horizontal cross sweep */}
+                            <div className="pointer-events-none absolute inset-0 py-6 px-[22px]">
+                              <motion.div
+                                className="relative h-full w-0.5 bg-gradient-to-b from-transparent via-primary/90 to-transparent"
+                                style={{ willChange: 'transform' }}
+                                animate={{ x: [0, 230, 0] }}
+                                transition={{ duration: 3.1, repeat: Infinity, ease: [0.22, 1, 0.36, 1] }}
+                              />
+                            </div>
+
+                            {/* Data blips */}
+                            <div className="pointer-events-none absolute inset-0">
+                              {[0, 1, 2, 3, 4].map((i) => (
+                                <motion.div
+                                  key={i}
+                                  className="absolute h-1.5 w-1.5 rounded-full bg-primary/80"
+                                  style={{
+                                    left: `${18 + i * 17}%`,
+                                    top: `${22 + (i % 3) * 19}%`,
+                                  }}
+                                  animate={{
+                                    opacity: [0, 1, 0],
+                                    scale: [0.4, 1.25, 0.4],
+                                  }}
+                                  transition={{
+                                    duration: 1.6 + i * 0.22,
+                                    delay: i * 0.24,
+                                    repeat: Infinity,
+                                    ease: 'easeInOut',
+                                  }}
+                                />
+                              ))}
+                            </div>
+
+                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                              <motion.div
+                                className="absolute h-14 w-14 rounded-full border border-primary/55"
+                                animate={{ scale: [0.92, 1.12, 0.92], opacity: [0.7, 0.15, 0.7] }}
+                                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+                              />
+                              <motion.div
+                                className="absolute h-24 w-24 rounded-full border border-primary/25"
+                                animate={{ scale: [0.85, 1.2, 0.85], opacity: [0.1, 0.4, 0.1] }}
+                                transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+                              />
+                              <motion.div
+                                className="h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_16px_hsl(var(--primary)/0.85)]"
+                                animate={{ scale: [0.85, 1.2, 0.85], opacity: [0.65, 1, 0.65] }}
+                                transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+                              />
+                            </div>
+
                             <div className="absolute bottom-4 inset-x-0 flex justify-center">
-                              <span className="rounded-full bg-card/90 px-4 py-1.5 text-xs font-bold text-foreground backdrop-blur-sm">Point at a friend's QR</span>
+                              <span className="rounded-full bg-card/90 px-4 py-1.5 text-xs font-bold text-foreground backdrop-blur-sm">
+                                Locking onto friend&apos;s QR
+                              </span>
                             </div>
                           </>
                         )}

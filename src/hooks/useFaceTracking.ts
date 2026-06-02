@@ -1,53 +1,44 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { isCameraSafeMode } from '@/lib/cameraSafeMode';
+import {
+  getARProfile,
+  getARDetectIntervalMs,
+  getARDetectWidth,
+  markARDisabledForSession,
+  type ARProfile,
+} from '@/lib/arEngine';
 
 // MediaPipe Face Landmark indices for key facial features
 export const FACE_LANDMARKS = {
-  // Nose tip
   noseTip: 1,
-  // Forehead (above nose bridge)
   forehead: 10,
-  // Chin
   chin: 152,
-  // Left eye center
   leftEye: 159,
-  // Right eye center
   rightEye: 386,
-  // Left eye outer
   leftEyeOuter: 33,
-  // Right eye outer
   rightEyeOuter: 263,
-  // Mouth center top
   mouthTop: 13,
-  // Mouth center bottom
   mouthBottom: 14,
-  // Left mouth corner
   mouthLeft: 61,
-  // Right mouth corner
   mouthRight: 291,
-  // Left cheek
   leftCheek: 234,
-  // Right cheek
   rightCheek: 454,
-  // Left eyebrow
   leftBrow: 70,
-  // Right eyebrow
   rightBrow: 300,
 } as const;
 
 export interface FaceLandmark {
-  x: number; // 0-1 normalized
+  x: number;
   y: number;
   z: number;
 }
 
 export interface FaceDetection {
   landmarks: FaceLandmark[];
-  faceWidth: number;   // Approximate face width in pixels
-  faceHeight: number;  // Approximate face height in pixels
-  centerX: number;     // Face center X in pixels
-  centerY: number;     // Face center Y in pixels
-  roll: number;        // Head roll in radians
+  faceWidth: number;
+  faceHeight: number;
+  centerX: number;
+  centerY: number;
+  roll: number;
 }
 
 interface UseFaceTrackingOptions {
@@ -57,11 +48,34 @@ interface UseFaceTrackingOptions {
 
 let faceLandmarkerInstance: any = null;
 let initPromise: Promise<any> | null = null;
+let initProfile: ARProfile | null = null;
 
-async function getFaceLandmarker() {
-  if (faceLandmarkerInstance) return faceLandmarkerInstance;
-  if (initPromise) return initPromise;
+function smoothLandmarks(prev: FaceLandmark[] | null, next: FaceLandmark[], alpha: number): FaceLandmark[] {
+  if (!prev || prev.length !== next.length) return next;
+  return next.map((lm, i) => ({
+    x: prev[i].x * (1 - alpha) + lm.x * alpha,
+    y: prev[i].y * (1 - alpha) + lm.y * alpha,
+    z: (prev[i].z ?? 0) * (1 - alpha) + (lm.z ?? 0) * alpha,
+  }));
+}
 
+function smoothDetection(prev: FaceDetection | null, next: FaceDetection, alpha: number): FaceDetection {
+  if (!prev) return next;
+  return {
+    landmarks: smoothLandmarks(prev.landmarks, next.landmarks, alpha),
+    faceWidth: prev.faceWidth * (1 - alpha) + next.faceWidth * alpha,
+    faceHeight: prev.faceHeight * (1 - alpha) + next.faceHeight * alpha,
+    centerX: prev.centerX * (1 - alpha) + next.centerX * alpha,
+    centerY: prev.centerY * (1 - alpha) + next.centerY * alpha,
+    roll: prev.roll * (1 - alpha) + next.roll * alpha,
+  };
+}
+
+async function getFaceLandmarker(profile: ARProfile) {
+  if (faceLandmarkerInstance && initProfile === profile) return faceLandmarkerInstance;
+  if (initPromise && initProfile === profile) return initPromise;
+
+  initProfile = profile;
   initPromise = (async () => {
     try {
       // @ts-expect-error dynamic import for WASM module
@@ -69,29 +83,31 @@ async function getFaceLandmarker() {
       const { FaceLandmarker, FilesetResolver } = vision;
 
       const filesetResolver = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm',
       );
 
-      // Try GPU first, fall back to CPU
+      const delegates = profile === 'lite' ? (['CPU'] as const) : (['GPU', 'CPU'] as const);
       let landmarker: any = null;
-      for (const delegate of ['GPU', 'CPU'] as const) {
+
+      for (const delegate of delegates) {
         try {
           landmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
             baseOptions: {
-              modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+              modelAssetPath:
+                'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
               delegate,
             },
             runningMode: 'VIDEO',
-            numFaces: 2,
-            minFaceDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5,
+            numFaces: profile === 'lite' ? 1 : 2,
+            minFaceDetectionConfidence: profile === 'lite' ? 0.55 : 0.5,
+            minTrackingConfidence: profile === 'lite' ? 0.55 : 0.5,
             outputFaceBlendshapes: false,
             outputFacialTransformationMatrixes: false,
           });
-          console.log(`[FaceTracking] Initialized with ${delegate} delegate`);
+          console.log(`[FaceTracking] Initialized (${profile}, ${delegate})`);
           break;
         } catch (delegateErr) {
-          console.warn(`[FaceTracking] ${delegate} delegate failed, trying fallback...`, delegateErr);
+          console.warn(`[FaceTracking] ${delegate} failed:`, delegateErr);
         }
       }
 
@@ -100,7 +116,9 @@ async function getFaceLandmarker() {
       return faceLandmarkerInstance;
     } catch (err) {
       console.error('[FaceTracking] Failed to initialize:', err);
+      markARDisabledForSession();
       initPromise = null;
+      faceLandmarkerInstance = null;
       return null;
     }
   })();
@@ -112,109 +130,156 @@ export function useFaceTracking({ enabled = true, maxFaces = 1 }: UseFaceTrackin
   const [faces, setFaces] = useState<FaceDetection[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [profile, setProfile] = useState<ARProfile>('off');
+
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const landmarkerRef = useRef<any>(null);
   const enabledRef = useRef(enabled);
+  const smoothRef = useRef<FaceDetection[]>([]);
+  const detectCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const detectCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const profileRef = useRef<ARProfile>('off');
+
   enabledRef.current = enabled;
 
-  // Initialize MediaPipe — skip on native app shells (WASM/GPU often OOM-crashes WebView)
   useEffect(() => {
-    if (!enabled || isCameraSafeMode()) {
+    const arProfile = getARProfile();
+    setProfile(arProfile);
+    profileRef.current = arProfile;
+
+    if (!enabled || arProfile === 'off') {
       setIsLoading(false);
+      setIsReady(false);
       return;
     }
 
     let cancelled = false;
     setIsLoading(true);
 
-    getFaceLandmarker().then(landmarker => {
-      if (cancelled || !landmarker) return;
+    getFaceLandmarker(arProfile).then((landmarker) => {
+      if (cancelled) return;
+      if (!landmarker) {
+        setIsReady(false);
+        setIsLoading(false);
+        return;
+      }
       landmarkerRef.current = landmarker;
       setIsReady(true);
       setIsLoading(false);
     });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [enabled]);
 
-  // Detection loop
-  const startTracking = useCallback((video: HTMLVideoElement) => {
-    videoRef.current = video;
+  const startTracking = useCallback(
+    (video: HTMLVideoElement) => {
+      videoRef.current = video;
 
-    const detect = () => {
-      if (!enabledRef.current || !landmarkerRef.current || !videoRef.current) return;
+      const detect = () => {
+        if (!enabledRef.current || !landmarkerRef.current || !videoRef.current) return;
 
-      const vid = videoRef.current;
-      if (vid.readyState < 2 || vid.paused) {
-        rafRef.current = requestAnimationFrame(detect);
-        return;
-      }
-
-      const now = performance.now();
-      // Throttle to ~30fps for performance
-      if (now - lastTimeRef.current < 33) {
-        rafRef.current = requestAnimationFrame(detect);
-        return;
-      }
-      lastTimeRef.current = now;
-
-      try {
-        const results = landmarkerRef.current.detectForVideo(vid, now);
-
-        if (results?.faceLandmarks?.length) {
-          const detections: FaceDetection[] = results.faceLandmarks
-            .slice(0, maxFaces)
-            .map((landmarks: FaceLandmark[]) => {
-              const leftEye = landmarks[FACE_LANDMARKS.leftEyeOuter];
-              const rightEye = landmarks[FACE_LANDMARKS.rightEyeOuter];
-              const chin = landmarks[FACE_LANDMARKS.chin];
-              const forehead = landmarks[FACE_LANDMARKS.forehead];
-
-              const w = vid.videoWidth;
-              const h = vid.videoHeight;
-
-              const faceWidth = Math.abs(rightEye.x - leftEye.x) * w * 2.2;
-              const faceHeight = Math.abs(chin.y - forehead.y) * h * 1.2;
-              const centerX = (leftEye.x + rightEye.x) / 2 * w;
-              const centerY = (forehead.y + chin.y) / 2 * h;
-
-              // Calculate head roll from eye positions
-              const roll = Math.atan2(
-                (rightEye.y - leftEye.y) * h,
-                (rightEye.x - leftEye.x) * w
-              );
-
-              return { landmarks, faceWidth, faceHeight, centerX, centerY, roll };
-            });
-
-          setFaces(detections);
-        } else {
-          setFaces([]);
+        const vid = videoRef.current;
+        if (vid.readyState < 2 || vid.paused) {
+          rafRef.current = requestAnimationFrame(detect);
+          return;
         }
-      } catch {
-        // Detection can fail transiently — just retry next frame
-      }
+
+        const now = performance.now();
+        const interval = getARDetectIntervalMs(profileRef.current);
+        if (now - lastTimeRef.current < interval) {
+          rafRef.current = requestAnimationFrame(detect);
+          return;
+        }
+        lastTimeRef.current = now;
+
+        try {
+          const detectWidth = getARDetectWidth(profileRef.current);
+          let results: any;
+
+          if (detectWidth && vid.videoWidth > 0) {
+            if (!detectCanvasRef.current) {
+              detectCanvasRef.current = document.createElement('canvas');
+              detectCtxRef.current = detectCanvasRef.current.getContext('2d', {
+                willReadFrequently: true,
+              });
+            }
+            const dc = detectCanvasRef.current;
+            const dctx = detectCtxRef.current;
+            if (dctx) {
+              const aspect = vid.videoHeight / vid.videoWidth;
+              dc.width = detectWidth;
+              dc.height = Math.max(1, Math.round(detectWidth * aspect));
+              dctx.drawImage(vid, 0, 0, dc.width, dc.height);
+              results = landmarkerRef.current.detectForVideo(dc, now);
+            } else {
+              results = landmarkerRef.current.detectForVideo(vid, now);
+            }
+          } else {
+            results = landmarkerRef.current.detectForVideo(vid, now);
+          }
+
+          if (results?.faceLandmarks?.length) {
+            const smoothAlpha = profileRef.current === 'lite' ? 0.42 : 0.55;
+            const detections: FaceDetection[] = results.faceLandmarks
+              .slice(0, maxFaces)
+              .map((landmarks: FaceLandmark[], idx: number) => {
+                const leftEye = landmarks[FACE_LANDMARKS.leftEyeOuter];
+                const rightEye = landmarks[FACE_LANDMARKS.rightEyeOuter];
+                const chin = landmarks[FACE_LANDMARKS.chin];
+                const forehead = landmarks[FACE_LANDMARKS.forehead];
+
+                const w = vid.videoWidth;
+                const h = vid.videoHeight;
+
+                const raw: FaceDetection = {
+                  landmarks,
+                  faceWidth: Math.abs(rightEye.x - leftEye.x) * w * 2.2,
+                  faceHeight: Math.abs(chin.y - forehead.y) * h * 1.2,
+                  centerX: ((leftEye.x + rightEye.x) / 2) * w,
+                  centerY: ((forehead.y + chin.y) / 2) * h,
+                  roll: Math.atan2(
+                    (rightEye.y - leftEye.y) * h,
+                    (rightEye.x - leftEye.x) * w,
+                  ),
+                };
+                const prev = smoothRef.current[idx];
+                return smoothDetection(prev ?? null, raw, smoothAlpha);
+              });
+
+            smoothRef.current = detections;
+            setFaces(detections);
+          } else {
+            smoothRef.current = [];
+            setFaces([]);
+          }
+        } catch {
+          // transient — retry next frame
+        }
+
+        rafRef.current = requestAnimationFrame(detect);
+      };
 
       rafRef.current = requestAnimationFrame(detect);
-    };
-
-    rafRef.current = requestAnimationFrame(detect);
-  }, [maxFaces]);
+    },
+    [maxFaces],
+  );
 
   const stopTracking = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     videoRef.current = null;
+    smoothRef.current = [];
     setFaces([]);
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, []);
 
-  return { faces, isReady, isLoading, startTracking, stopTracking };
+  return { faces, isReady, isLoading, profile, startTracking, stopTracking };
 }

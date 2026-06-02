@@ -19,7 +19,8 @@ import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
 import { Sound } from '@/hooks/useSounds';
 import { isCameraSafeMode } from '@/lib/cameraSafeMode';
-import { captureVideoFrame } from '@/lib/cameraCapture';
+import { captureVideoFrameWithAR } from '@/lib/arCapture';
+import { isARSupported } from '@/lib/arEngine';
 import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { toast } from 'sonner';
@@ -93,11 +94,12 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraBlocked, setCameraBlocked] = useState(false);
 
-  // Face tracking / AR — off on mobile & native WebViews (MediaPipe WASM OOM-crashes)
-  const arSupported = !isCameraSafeMode();
+  // Face tracking / AR — lite mode on phones/WebViews; full on desktop
+  const arSupported = isARSupported();
   const safeCamera = isCameraSafeMode();
-  const { faces, isReady: arReady, isLoading: arLoading, startTracking, stopTracking } = useFaceTracking({
-    enabled: arSupported && filterMode === 'ar',
+  const { faces, isReady: arReady, isLoading: arLoading, profile: arProfile, startTracking, stopTracking } = useFaceTracking({
+    // Preload face model while camera is open so AR tab feels instant
+    enabled: arSupported && phase === 'camera',
   });
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -112,6 +114,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const isHoldingRef = useRef(false);
   const isRecordingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const arOverlayRef = useRef<HTMLCanvasElement>(null);
 
   // Pinch zoom refs
   const lastPinchDistRef = useRef<number | null>(null);
@@ -277,11 +280,17 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         setTimeout(() => setShowFlash(false), 150);
       }
 
-      const ok = captureVideoFrame({
+      const filterCSS =
+        filterMode === 'ar' && arFilter?.cssFilter
+          ? arFilter.cssFilter
+          : getFilterCSS(currentFilter) || undefined;
+
+      const ok = captureVideoFrameWithAR({
         video: videoRef.current,
         canvas: canvasRef.current,
         facingMode,
-        filterCSS: getFilterCSS(currentFilter) || undefined,
+        filterCSS: safeCamera ? undefined : filterCSS,
+        arOverlay: filterMode === 'ar' ? arOverlayRef.current : null,
       });
       if (!ok) {
         toast.error('Camera not ready — wait a moment and try again');
@@ -315,7 +324,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
     } else {
       doCapture();
     }
-  }, [flash, facingMode, mode, capturedFiles.length, timer, currentFilter]);
+  }, [flash, facingMode, mode, capturedFiles.length, timer, currentFilter, filterMode, arFilter, safeCamera]);
 
   // Recording
   const startRecording = useCallback(async () => {
@@ -509,9 +518,17 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           </div>
         )}
 
-        {/* AR Overlay */}
-        {arFilter && faces.length > 0 && (
-          <AROverlayCanvas faces={faces} filter={arFilter} videoWidth={videoDimensions.width} videoHeight={videoDimensions.height} mirrored={facingMode === 'user'} />
+        {/* AR overlay — runs while filter active; reticle when searching for face */}
+        {filterMode === 'ar' && arFilter && cameraReady && (
+          <AROverlayCanvas
+            ref={arOverlayRef}
+            faces={faces}
+            filter={arFilter}
+            videoWidth={videoDimensions.width}
+            videoHeight={videoDimensions.height}
+            mirrored={facingMode === 'user'}
+            scanning={faces.length === 0}
+          />
         )}
 
         <CameraZoomIndicator zoom={zoomLevel} visible={showZoomIndicator} />
@@ -622,12 +639,25 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           <CreateModeSelector currentMode={mode} onModeChange={handleModeChange} />
         </div>
 
-        {/* Filter/AR row — AR disabled on native (MediaPipe crashes WebView) */}
+        {/* Filter/AR row */}
         <div className="mb-3">
           {arSupported && (
             <div className="flex items-center justify-center gap-1 mb-2">
               <button onClick={() => setFilterMode('color')} className={cn("text-[10px] px-3 py-1 rounded-full font-medium transition-all", filterMode === 'color' ? "bg-white/20 text-white" : "text-white/40")}>🎨 Filters</button>
-              <button onClick={() => setFilterMode('ar')} className={cn("text-[10px] px-3 py-1 rounded-full font-medium transition-all", filterMode === 'ar' ? "bg-white/20 text-white" : "text-white/40")}>🎭 AR</button>
+              <button
+                onClick={() => {
+                  setFilterMode('ar');
+                  if (!arFilter) {
+                    import('@/lib/arFilters').then(({ AR_FILTERS }) => {
+                      const first = AR_FILTERS.find((f) => f.category === 'face') || AR_FILTERS[0];
+                      if (first) setArFilter(first);
+                    });
+                  }
+                }}
+                className={cn("text-[10px] px-3 py-1 rounded-full font-medium transition-all", filterMode === 'ar' ? "bg-white/20 text-white" : "text-white/40")}
+              >
+                🎭 AR
+              </button>
             </div>
           )}
           {filterMode === 'ar' && arSupported ? (

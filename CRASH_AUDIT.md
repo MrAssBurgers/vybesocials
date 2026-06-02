@@ -19,7 +19,7 @@ Last updated: 2026-06-01. Use with `WORKLOG.md` when hardening releases.
 | jsQR scan loop | Main-thread jank if camera resolution high | Friend Link uses 640×480 or safe 720p stream |
 | `friend_drops` realtime | Duplicate events / race if both tap NFC twice | `exchangeLockRef` guards in Friend Link UI |
 | Global `globalStream` in `useCameraPreload` | Stale stream shared across routes | Prefer route-local streams where possible |
-| MediaPipe / AR filters | OOM on older phones | Gated by `isCameraSafeMode()` |
+| MediaPipe / AR filters | OOM on older phones | **Lite AR** on mobile (`arEngine.ts`: CPU, 320px detect, smoothed landmarks); session disable on init fail |
 | Despia NFC | Read/write in same gesture breaks native parse | Friend Link uses **read-only** loop; write only in `NFCWriteSheet` |
 
 ## Low risk

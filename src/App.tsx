@@ -82,6 +82,7 @@ import { useBriefPreFetch } from "@/hooks/useBriefPreFetch";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { WelcomeBackSplash } from "@/components/ui/WelcomeBackSplash";
 import { markPersistRestored } from "@/lib/persistRestoreGate";
+import { SnapARProvider } from "@/components/camera/SnapARProvider";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -430,6 +431,7 @@ const App = memo(() => {
         }}
       >
         <ThemeProvider>
+          <SnapARProvider>
           <GlassIntensityProvider>
             <AccessibilityProvider>
               {/* Tween defaults remove per-frame spring physics app-wide; components that
@@ -439,6 +441,7 @@ const App = memo(() => {
               </MotionConfig>
             </AccessibilityProvider>
           </GlassIntensityProvider>
+          </SnapARProvider>
         </ThemeProvider>
       </PersistQueryClientProvider>
     </SmartErrorBoundary>

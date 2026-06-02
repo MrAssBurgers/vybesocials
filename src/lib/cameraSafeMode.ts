@@ -2,7 +2,8 @@ import { isNativeAppShell } from '@/lib/despiaBridge';
 
 /**
  * True on Play Store / Despia WebView, phones, and tablets.
- * Used to disable AR/MediaPipe, lighten getUserMedia, and skip CSS filters that crash GPU compositors.
+ * Used to lighten getUserMedia and skip CSS canvas filters that crash GPU compositors.
+ * AR uses a separate lite profile (see arEngine.ts) — not disabled here.
  */
 export function isCameraSafeMode(): boolean {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return true;
