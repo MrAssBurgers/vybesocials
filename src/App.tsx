@@ -57,6 +57,8 @@ const SpotifyPresenceMount = () => {
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { SkipToMain, LiveRegion } from "@/components/a11y/Accessibility";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
+import { AppGlobalLiquidShell } from "@/components/layout/AppGlobalLiquidShell";
+import { VybeLiquidTouchShell } from "@/components/effects/VybeLiquidTouchShell";
 import { NavigationRefSetter } from "@/components/layout/NavigationRefSetter";
 import { initializeStoredFonts } from "@/hooks/useApplyThemeFonts";
 import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
@@ -322,6 +324,12 @@ function AppWithPreloader() {
                         <Toaster />
                         <Sonner />
                         <BrowserRouter>
+                          <AppGlobalLiquidShell />
+                          <div
+                            id="app-shell"
+                            data-app-shell
+                            className="relative z-[1] min-h-dvh bg-transparent"
+                          >
                           <Suspense fallback={null}>
                             <RewardNotificationProvider>
                               <DebugPanelProvider>
@@ -358,6 +366,8 @@ function AppWithPreloader() {
                               </DebugPanelProvider>
                             </RewardNotificationProvider>
                           </Suspense>
+                          <VybeLiquidTouchShell />
+                          </div>
                         </BrowserRouter>
                       </TooltipProvider>
                     </StreakProvider>

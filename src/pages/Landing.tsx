@@ -23,7 +23,9 @@ import { LoginGateModal } from '@/components/auth/LoginGateModal';
 import { FounderCounter } from '@/components/growth/FounderCounter';
 import { consumeAuthReturnPath, getPostLoginPath, stashAuthReturnPath } from '@/lib/authReturnPath';
 import { VybeLiquidBackground } from '@/components/effects/VybeLiquidBackground';
+import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
+import { useAuthLandingLiquid } from '@/hooks/useDefaultLiquidBackground';
 
 
 // Hide bottom nav on landing page + lock document scroll (auth is one-screen)
@@ -118,6 +120,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   
   // Hide bottom nav + lock page scroll while on auth screen
   useAuthPageShell();
+  const showAuthLiquid = useAuthLandingLiquid();
   
   // Check URL params for mode (login vs signup) and intro reset
   const modeParam = searchParams.get('mode');
@@ -543,7 +546,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         </button>
       )}
 
-      <VybeLiquidBackground interactive />
+      {showAuthLiquid && <VybeLiquidBackground interactive backgroundOnly />}
 
       <div
         ref={contentRef}
@@ -924,6 +927,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           <a href="/about">Learn more about VYBE</a>
         </p>
       </div>
+
+      {showAuthLiquid && <VybeLiquidTouchOverlay zIndex={25} />}
 
       <ForgotPasswordDialog 
         open={showForgotPassword} 

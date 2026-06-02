@@ -267,7 +267,19 @@
       :root { background: #0B0B10; color-scheme: dark; }
       html { background: #0B0B10; color-scheme: dark; }
       html, body { margin: 0; padding: 0; min-height: 100vh; background: #0B0B10; }
-      #root { min-height: 100vh; background: #0B0B10; }
+      /* Aurora paints in #vybe-aurora-mount (sibling behind #root) */
+      #vybe-aurora-mount {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+      }
+      #root {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+        background: transparent;
+      }
       /* Defensive: block injected pseudo overlays from extensions/ad scripts */
       body::before, body::after { content: none !important; }
       /* Prevent layout shift */
@@ -300,6 +312,7 @@
   <meta name="twitter:description" content="VYBE - The Next Generation Social Platform. Share moments, connect with friends, and discover amazing content from creators worldwide.">
 </head>
   <body>
+    <div id="vybe-aurora-mount" aria-hidden="true"></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx" fetchpriority="high"></script>
   </body>

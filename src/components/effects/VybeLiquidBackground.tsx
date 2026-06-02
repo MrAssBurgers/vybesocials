@@ -2,10 +2,13 @@ import { memo, useCallback, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/lib/theme';
 import { haptics } from '@/lib/haptics';
+import { registerVybeLiquidBgBoost } from '@/lib/vybeLiquidTouchBridge';
 
 interface VybeLiquidBackgroundProps {
   className?: string;
   interactive?: boolean;
+  /** App shell: blobs only: touch FX live in VybeLiquidTouchOverlay. */
+  backgroundOnly?: boolean;
 }
 
 const BLOB_LAYOUT = [
@@ -25,6 +28,7 @@ function retrigger(el: HTMLElement | null, activeClass: string) {
 export const VybeLiquidBackground = memo(function VybeLiquidBackground({
   className,
   interactive = true,
+  backgroundOnly = false,
 }: VybeLiquidBackgroundProps) {
   const { resolvedTheme } = useTheme();
   const isLight = resolvedTheme === 'light';
@@ -36,30 +40,19 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
   const lastTouchRef = useRef(0);
   const orientPendingRef = useRef(false);
 
-  const triggerTouchResponse = useCallback((clientX: number, clientY: number) => {
+  const applyBgBoost = useCallback((clientX: number, clientY: number) => {
     const root = rootRef.current;
     if (!root || root.classList.contains('vybe-liquid-bg--static')) return;
-
-    const now = Date.now();
-    if (now - lastTouchRef.current < 80) return;
-    lastTouchRef.current = now;
 
     const cx = window.innerWidth * 0.5;
     const cy = window.innerHeight * 0.5;
     const pullX = Math.max(-14, Math.min(14, ((clientX - cx) / cx) * -10));
     const pullY = Math.max(-10, Math.min(10, ((clientY - cy) / cy) * -8));
 
-    root.style.setProperty('--touch-x', `${clientX}px`);
-    root.style.setProperty('--touch-y', `${clientY}px`);
     root.style.setProperty('--pull-x', `${pullX}px`);
     root.style.setProperty('--pull-y', `${pullY}px`);
-
-    retrigger(touchRef.current, 'vybe-liquid-touch--play');
-    retrigger(surgeRef.current, 'vybe-liquid-surge--play');
-    retrigger(washRef.current, 'vybe-liquid-wash--play');
-    haptics.select();
-
     root.classList.add('vybe-liquid-bg--boost');
+
     if (boostTimerRef.current) window.clearTimeout(boostTimerRef.current);
     boostTimerRef.current = window.setTimeout(() => {
       root.classList.remove('vybe-liquid-bg--boost');
@@ -68,13 +61,42 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
     }, 1000);
   }, []);
 
+  const triggerTouchResponse = useCallback(
+    (clientX: number, clientY: number) => {
+      const root = rootRef.current;
+      if (!root || root.classList.contains('vybe-liquid-bg--static')) return;
+
+      const now = Date.now();
+      if (now - lastTouchRef.current < 80) return;
+      lastTouchRef.current = now;
+
+      const touchX = `${clientX}px`;
+      const touchY = `${clientY}px`;
+
+      root.style.setProperty('--touch-x', touchX);
+      root.style.setProperty('--touch-y', touchY);
+
+      retrigger(touchRef.current, 'vybe-liquid-touch--play');
+      retrigger(surgeRef.current, 'vybe-liquid-surge--play');
+      retrigger(washRef.current, 'vybe-liquid-wash--play');
+      haptics.select();
+      applyBgBoost(clientX, clientY);
+    },
+    [applyBgBoost],
+  );
+
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches && !interactive) {
       root.classList.add('vybe-liquid-bg--static');
     }
-  }, []);
+  }, [interactive]);
+
+  useEffect(() => {
+    if (!backgroundOnly || !interactive) return;
+    return registerVybeLiquidBgBoost(applyBgBoost);
+  }, [backgroundOnly, interactive, applyBgBoost]);
 
   useEffect(() => {
     return () => {
@@ -123,9 +145,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
   }, []);
 
   useEffect(() => {
-    if (!interactive) return;
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion) return;
+    if (!interactive || backgroundOnly) return;
 
     const onDown = (e: PointerEvent) => {
       triggerTouchResponse(e.clientX, e.clientY);
@@ -133,7 +153,20 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
 
     window.addEventListener('pointerdown', onDown, { capture: true, passive: true });
     return () => window.removeEventListener('pointerdown', onDown, { capture: true });
-  }, [interactive, triggerTouchResponse]);
+  }, [interactive, backgroundOnly, triggerTouchResponse]);
+
+  const touchEffects = (
+    <>
+      <div ref={washRef} className="vybe-liquid-wash absolute inset-0" />
+      <div ref={surgeRef} className="vybe-liquid-surge" />
+      <div ref={touchRef} className="vybe-liquid-touch" aria-hidden>
+        <span className="vybe-liquid-touch__compress" />
+        <span className="vybe-liquid-touch__nova" />
+        <span className="vybe-liquid-touch__shockwave" />
+        <span className="vybe-liquid-touch__shockwave vybe-liquid-touch__shockwave--alt" />
+      </div>
+    </>
+  );
 
   return (
     <div
@@ -143,6 +176,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
         isLight ? 'vybe-liquid-bg--bright' : 'vybe-liquid-bg--dark',
         className,
       )}
+      data-allow-animation="true"
       aria-hidden
     >
       <div className="vybe-liquid-parallax absolute inset-[-8%]">
@@ -164,17 +198,9 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
         ))}
       </div>
 
-      <div ref={washRef} className="vybe-liquid-wash absolute inset-0" />
-      <div ref={surgeRef} className="vybe-liquid-surge" />
-
       <div className="vybe-liquid-grain absolute inset-0" />
 
-      <div ref={touchRef} className="vybe-liquid-touch" aria-hidden>
-        <span className="vybe-liquid-touch__compress" />
-        <span className="vybe-liquid-touch__nova" />
-        <span className="vybe-liquid-touch__shockwave" />
-        <span className="vybe-liquid-touch__shockwave vybe-liquid-touch__shockwave--alt" />
-      </div>
+      {!backgroundOnly && touchEffects}
     </div>
   );
 });

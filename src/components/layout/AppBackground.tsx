@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { getSignedUrl, needsSigning } from '@/lib/signedUrlCache';
 import { THEME_IMAGES } from '@/lib/cosmeticConstants';
+import { stripLiquidShellDocumentState } from '@/lib/liquidShellState';
 
 interface BackgroundState {
   imageUrl: string | null;
@@ -20,6 +21,9 @@ interface BackgroundState {
 
 interface BackgroundContextType {
   background: BackgroundState;
+  /** True only for Settings → Background uploads, not equipped profile themes */
+  hasUserWallpaper: boolean;
+  isBackgroundResolved: boolean;
   setBackgroundImage: (url: string | null) => void;
   setBackgroundOpacity: (opacity: number) => void;
   setBackgroundBlur: (blur: number) => void;
@@ -88,10 +92,12 @@ function applyBodyBackground(state: BackgroundState) {
     body.style.removeProperty('--bg-blur');
     document.documentElement.dataset.hasBgImage = 'false';
     document.documentElement.style.removeProperty('--bg-luminance');
-    // Remove the pseudo-element opacity/blur layer
     body.classList.remove('has-custom-bg');
     return;
   }
+
+  // Custom wallpaper wins — tear down aurora / touch document state immediately
+  stripLiquidShellDocumentState();
 
   // Clear the shorthand first so the CSS gradient doesn't interfere
   body.style.background = 'none';
@@ -137,6 +143,8 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
     opacity: 0.85,
     blur: 0,
   });
+  const [hasUserWallpaper, setHasUserWallpaper] = useState(false);
+  const [isBackgroundResolved, setIsBackgroundResolved] = useState(false);
   const hasLoadedRef = useRef(false);
   const rawUrlRef = useRef<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -172,21 +180,28 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
     if (!profileId) {
       rawUrlRef.current = null;
       hasLoadedRef.current = false;
+      setHasUserWallpaper(false);
       setBackground(prev => ({ ...prev, imageUrl: null }));
       clearBodyBackground();
+      setIsBackgroundResolved(true);
       return;
     }
 
-    // 1. Equipped cosmetic theme image wins
+    setIsBackgroundResolved(false);
+    setHasUserWallpaper(false);
+
+    // 1. Equipped profile themes are profile cosmetics — do not replace the app-shell aurora
     const equippedTheme = (profile as unknown as { equipped_profile_theme?: string | null })?.equipped_profile_theme;
     if (equippedTheme && THEME_IMAGES[equippedTheme]) {
-      rawUrlRef.current = THEME_IMAGES[equippedTheme];
-      await signAndApply(THEME_IMAGES[equippedTheme], token);
-      hasLoadedRef.current = true;
+      rawUrlRef.current = null;
+      setHasUserWallpaper(false);
+      setBackground(prev => ({ ...prev, imageUrl: null }));
+      clearBodyBackground();
+      setIsBackgroundResolved(true);
       return;
     }
 
-    // 2. Active user_backgrounds upload
+    // 2. Active user_backgrounds upload — explicit custom wallpaper; hides liquid aurora
     try {
       const { data } = await supabase
         .from('user_backgrounds')
@@ -196,12 +211,16 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
       const url = data?.image_url ?? null;
       rawUrlRef.current = url;
+      setHasUserWallpaper(Boolean(url));
       await signAndApply(url, token);
       hasLoadedRef.current = true;
+      setIsBackgroundResolved(true);
     } catch {
       if (token !== applyTokenRef.current) return;
       rawUrlRef.current = null;
+      setHasUserWallpaper(false);
       setBackground(prev => ({ ...prev, imageUrl: null }));
+      setIsBackgroundResolved(true);
     }
   }, [profile, signAndApply]);
 
@@ -234,11 +253,12 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
 
   const setBackgroundImage = useCallback((url: string | null) => {
     rawUrlRef.current = url;
+    setHasUserWallpaper(url !== null);
     const token = ++applyTokenRef.current;
-    // Null clears body styles synchronously so the user sees the default
-    // gradient immediately (no waiting for React state → effect).
     if (url === null) {
       clearBodyBackground();
+    } else {
+      stripLiquidShellDocumentState();
     }
     signAndApply(url, token);
   }, [signAndApply]);
@@ -253,6 +273,8 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
 
   const contextValue: BackgroundContextType = {
     background,
+    hasUserWallpaper,
+    isBackgroundResolved,
     setBackgroundImage,
     setBackgroundOpacity,
     setBackgroundBlur,

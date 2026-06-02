@@ -192,7 +192,11 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   .platform-ios .vybe-liquid-button,
   .platform-ios .vybe-liquid-button::before,
   .platform-ios .vybe-liquid-button::after,
-  .platform-ios .vybe-liquid-button__flow {
+  .platform-ios .vybe-liquid-button__flow,
+  .platform-ios .vybe-liquid-bg,
+  .platform-ios .vybe-liquid-bg *,
+  .platform-ios [data-allow-animation="true"].vybe-liquid-bg,
+  .platform-ios [data-allow-animation="true"].vybe-liquid-bg * {
     animation-duration: unset !important;
     animation-play-state: running !important;
     animation-iteration-count: infinite !important;
@@ -577,33 +581,58 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
      transparent so the body background shows through.
      ============================================= */
   
-  /* When a custom background is active, remove body gradient and make all layout layers transparent */
+  /* When a custom wallpaper is active, drop the platform gradient but keep inline image */
   body.has-custom-bg {
     background-color: transparent !important;
   }
-  body.has-custom-bg #root {
+  /* Default liquid aurora — never override an active custom wallpaper upload */
+  body.has-liquid-bg:not(.has-custom-bg) {
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+  }
+  body.has-custom-bg #root,
+  body.has-liquid-bg #root {
+    position: relative;
+    z-index: 1;
     background: transparent !important;
     background-color: transparent !important;
   }
   /* Make the AnimatedRoutes wrapper and AppLayout shells transparent */
-  body.has-custom-bg #main-content {
+  body.has-custom-bg #main-content,
+  body.has-liquid-bg #main-content,
+  body.has-custom-bg [data-route-shell],
+  body.has-liquid-bg [data-route-shell],
+  body.has-custom-bg [data-app-shell],
+  body.has-liquid-bg [data-app-shell] {
     background: transparent !important;
     background-color: transparent !important;
   }
   body.has-custom-bg #root > div,
-  body.has-custom-bg #root > div > div {
+  body.has-custom-bg #root > div > div,
+  body.has-liquid-bg #root > div,
+  body.has-liquid-bg #root > div > div {
     background: transparent !important;
     background-color: transparent !important;
   }
-  /* Override .bg-background on all layout-level containers so the wallpaper shows through */
-  body.has-custom-bg .min-h-screen {
+  /* AppLayout shells + route wrappers — liquid aurora must show through Home scroll area */
+  body.has-custom-bg .h-screen,
+  body.has-liquid-bg .h-screen,
+  body.has-custom-bg .min-h-screen,
+  body.has-liquid-bg .min-h-screen {
+    background: transparent !important;
     background-color: transparent !important;
   }
-  body.has-custom-bg [data-app-scroll-container] {
+  body.has-custom-bg [data-app-scroll-container],
+  body.has-liquid-bg [data-app-scroll-container],
+  body.has-custom-bg [data-app-scroll-container="true"],
+  body.has-liquid-bg [data-app-scroll-container="true"] {
+    background: transparent !important;
     background-color: transparent !important;
   }
-  /* Sidebars become translucent glass so the wallpaper bleeds through */
+  /* Sidebars become translucent glass so the backdrop bleeds through */
   body.has-custom-bg .stable-sidebar-surface,
+  body.has-liquid-bg .stable-sidebar-surface,
   html[data-has-bg-image="true"] .stable-sidebar-surface {
     background-color: hsl(var(--card) / 0.55) !important;
     background-image: none !important;
@@ -648,10 +677,16 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
       hsl(var(--background)) 100%
     );
   }
-  /* Light mode also needs wallpaper passthrough */
+  /* Light mode also needs wallpaper / liquid passthrough */
   .light body.has-custom-bg,
   body.light.has-custom-bg {
     background-color: transparent !important;
+  }
+  .light body.has-liquid-bg,
+  body.light.has-liquid-bg {
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
   }
 
   /* Safe area inset utilities */
@@ -2517,6 +2552,149 @@ html, body, #root {
   background: hsl(var(--background));
 }
 
+/* When login aurora is active, never paint opaque shells over it */
+html.vybe-aurora-active,
+html.vybe-aurora-active body,
+html.vybe-aurora-active #root,
+html[data-liquid-bg='true'],
+html[data-liquid-bg='true'] body,
+html[data-liquid-bg='true'] #root,
+body.has-liquid-bg,
+body.has-liquid-bg #root {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+html.vybe-aurora-active #root > div,
+html.vybe-aurora-active #root > div > div,
+body.has-liquid-bg #root > div,
+body.has-liquid-bg #root > div > div,
+html.vybe-aurora-active [data-app-shell],
+html.vybe-aurora-active [data-route-shell],
+body.has-liquid-bg [data-app-shell],
+body.has-liquid-bg [data-route-shell] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+html.vybe-aurora-active #vybe-aurora-mount,
+html[data-liquid-bg='true'] #vybe-aurora-mount,
+body.has-liquid-bg #vybe-aurora-mount {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+html.vybe-aurora-active #vybe-aurora-mount .vybe-liquid-bg,
+html[data-liquid-bg='true'] #vybe-aurora-mount .vybe-liquid-bg {
+  z-index: 0;
+}
+
+html.vybe-aurora-active .vybe-liquid-touch-layer,
+html.vybe-liquid-touch-active .vybe-liquid-touch-layer,
+html[data-liquid-bg='true'] .vybe-liquid-touch-layer,
+body.has-liquid-bg .vybe-liquid-touch-layer {
+  --touch-x: 50%;
+  --touch-y: 50%;
+  background: transparent;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+/* App-shell tap FX — unlayered; beats .reduce-motion * / .perf-low * */
+html.vybe-aurora-active .vybe-liquid-touch-layer,
+html.vybe-aurora-active .vybe-liquid-touch-layer *,
+html.vybe-liquid-touch-active .vybe-liquid-touch-layer,
+html.vybe-liquid-touch-active .vybe-liquid-touch-layer *,
+html[data-liquid-bg='true'] .vybe-liquid-touch-layer,
+html[data-liquid-bg='true'] .vybe-liquid-touch-layer *,
+body.has-liquid-bg .vybe-liquid-touch-layer,
+body.has-liquid-bg .vybe-liquid-touch-layer *,
+.reduce-motion html.vybe-aurora-active .vybe-liquid-touch-layer,
+.reduce-motion html.vybe-aurora-active .vybe-liquid-touch-layer *,
+.reduce-motion html.vybe-liquid-touch-active .vybe-liquid-touch-layer,
+.reduce-motion html.vybe-liquid-touch-active .vybe-liquid-touch-layer *,
+.perf-low html.vybe-aurora-active .vybe-liquid-touch-layer,
+.perf-low html.vybe-aurora-active .vybe-liquid-touch-layer *,
+.perf-low html.vybe-liquid-touch-active .vybe-liquid-touch-layer,
+.perf-low html.vybe-liquid-touch-active .vybe-liquid-touch-layer * {
+  animation-duration: unset !important;
+  animation-iteration-count: unset !important;
+  animation-play-state: running !important;
+  transition-duration: unset !important;
+}
+
+.vybe-liquid-touch-layer .vybe-liquid-touch--play .vybe-liquid-touch__compress,
+.reduce-motion .vybe-liquid-touch-layer .vybe-liquid-touch--play .vybe-liquid-touch__compress,
+.perf-low .vybe-liquid-touch-layer .vybe-liquid-touch--play .vybe-liquid-touch__compress {
+  animation: vybe-touch-compress 0.55s cubic-bezier(0.34, 1.35, 0.64, 1) forwards !important;
+}
+
+.vybe-liquid-touch-layer .vybe-liquid-touch--play .vybe-liquid-touch__nova,
+.reduce-motion .vybe-liquid-touch-layer .vybe-liquid-touch--play .vybe-liquid-touch__nova,
+.perf-low .vybe-liquid-touch-layer .vybe-liquid-touch--play .vybe-liquid-touch__nova {
+  animation: vybe-touch-nova 1s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+}
+
+.vybe-liquid-touch-layer .vybe-liquid-touch--play .vybe-liquid-touch__shockwave,
+.reduce-motion .vybe-liquid-touch-layer .vybe-liquid-touch--play .vybe-liquid-touch__shockwave,
+.perf-low .vybe-liquid-touch-layer .vybe-liquid-touch--play .vybe-liquid-touch__shockwave {
+  animation: vybe-touch-shockwave 0.95s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+.vybe-liquid-touch-layer .vybe-liquid-touch--play .vybe-liquid-touch__shockwave--alt,
+.reduce-motion .vybe-liquid-touch-layer .vybe-liquid-touch--play .vybe-liquid-touch__shockwave--alt,
+.perf-low .vybe-liquid-touch-layer .vybe-liquid-touch--play .vybe-liquid-touch__shockwave--alt {
+  animation: vybe-touch-shockwave 1.15s cubic-bezier(0.16, 1, 0.3, 1) 0.08s forwards !important;
+}
+
+.vybe-liquid-touch-layer .vybe-liquid-surge--play,
+.reduce-motion .vybe-liquid-touch-layer .vybe-liquid-surge--play,
+.perf-low .vybe-liquid-touch-layer .vybe-liquid-surge--play {
+  animation: vybe-liquid-surge 1s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+}
+
+.vybe-liquid-touch-layer .vybe-liquid-wash--play,
+.reduce-motion .vybe-liquid-touch-layer .vybe-liquid-wash--play,
+.perf-low .vybe-liquid-touch-layer .vybe-liquid-wash--play {
+  animation: vybe-liquid-wash 1s ease-out forwards !important;
+}
+
+/* Blob pull on tap — .reduce-motion * kills parallax transition otherwise */
+.reduce-motion .vybe-liquid-bg .vybe-liquid-parallax,
+.perf-low .vybe-liquid-bg .vybe-liquid-parallax,
+html.vybe-aurora-active .vybe-liquid-bg .vybe-liquid-parallax,
+html.vybe-liquid-touch-active .vybe-liquid-bg .vybe-liquid-parallax {
+  transition-duration: 0.45s !important;
+  transition-property: transform !important;
+}
+
+.reduce-motion .vybe-liquid-bg--boost .vybe-liquid-parallax,
+.perf-low .vybe-liquid-bg--boost .vybe-liquid-parallax,
+html.vybe-aurora-active .vybe-liquid-bg--boost .vybe-liquid-parallax,
+html.vybe-liquid-touch-active .vybe-liquid-bg--boost .vybe-liquid-parallax {
+  transition-duration: 0.22s !important;
+}
+
+html.vybe-aurora-active #root,
+html[data-liquid-bg='true'] #root,
+body.has-liquid-bg #root {
+  position: relative;
+  z-index: 1;
+}
+
+html.vybe-aurora-active #root > div,
+html.vybe-aurora-active #main-content,
+html.vybe-aurora-active [data-app-shell],
+html.vybe-aurora-active [data-route-shell],
+body.has-liquid-bg #main-content,
+body.has-liquid-bg [data-app-shell],
+body.has-liquid-bg [data-route-shell] {
+  position: relative;
+  z-index: 1;
+}
+
 /* Post card layout isolation for reflow prevention */
 .post-card {
   contain: layout style paint;
@@ -4197,16 +4375,64 @@ html[data-theme-loading="true"] [style*="-webkit-background-clip: text"]:not(.vy
     animation-iteration-count: infinite !important;
   }
 
+  /* Immersive aurora — same priority as auth Landing; beats reduce-motion / perf-low kills */
+  .perf-low .vybe-liquid-bg .vybe-liquid-blob,
+  .reduce-motion .vybe-liquid-bg .vybe-liquid-blob,
+  .vybe-liquid-bg--static .vybe-liquid-blob {
+    animation-duration: var(--blob-dur, 30s) !important;
+    animation-iteration-count: infinite !important;
+    animation-play-state: running !important;
+    animation-timing-function: linear !important;
+  }
+
+  .vybe-liquid-bg .vybe-liquid-bloom,
+  .reduce-motion .vybe-liquid-bg .vybe-liquid-bloom,
+  .vybe-liquid-bg--static .vybe-liquid-bloom,
+  .perf-low .vybe-liquid-bg .vybe-liquid-bloom {
+    animation: vybe-liquid-bloom-spin 52s linear infinite !important;
+    animation-play-state: running !important;
+  }
+
+  /* perf-low global kill — restore aurora motion */
+  .perf-low .vybe-liquid-bg,
+  .perf-low .vybe-liquid-bg *,
+  .reduce-motion .vybe-liquid-bg,
+  .reduce-motion .vybe-liquid-bg * {
+    animation-duration: revert !important;
+    animation-iteration-count: infinite !important;
+    animation-play-state: running !important;
+  }
+
+  .perf-low .vybe-liquid-bg .vybe-liquid-blob {
+    animation-duration: var(--blob-dur, 30s) !important;
+  }
+
+  .vybe-liquid-bg .vybe-liquid-touch__compress,
+  .vybe-liquid-bg .vybe-liquid-touch__nova,
+  .vybe-liquid-bg .vybe-liquid-touch__shockwave,
+  .vybe-liquid-bg .vybe-liquid-surge,
+  .vybe-liquid-bg .vybe-liquid-wash,
+  .reduce-motion .vybe-liquid-bg .vybe-liquid-touch__compress,
+  .reduce-motion .vybe-liquid-bg .vybe-liquid-touch__nova,
+  .reduce-motion .vybe-liquid-bg .vybe-liquid-touch__shockwave,
+  .reduce-motion .vybe-liquid-bg .vybe-liquid-surge,
+  .reduce-motion .vybe-liquid-bg .vybe-liquid-wash {
+    animation-duration: unset !important;
+    animation-iteration-count: unset !important;
+    animation-play-state: running !important;
+  }
+
   .perf-low .gradient-animated::before,
   .perf-low .create-button-gradient::before {
     animation-duration: 24s !important;
   }
 }
 
-/* ── VYBE liquid aurora (auth / immersive backgrounds) ── */
 .vybe-liquid-bg {
   z-index: 0;
   background: #050508;
+  pointer-events: none;
+  isolation: isolate;
   --touch-x: 50%;
   --touch-y: 50%;
   --pull-x: 0px;
@@ -4618,8 +4844,6 @@ html[data-theme-loading="true"] [style*="-webkit-background-clip: text"]:not(.vy
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .vybe-liquid-blob,
-  .vybe-liquid-bloom,
   .vybe-liquid-text__stream,
   .vybe-liquid-text__shimmer,
   .vybe-liquid-button,

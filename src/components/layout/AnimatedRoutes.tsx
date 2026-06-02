@@ -141,8 +141,8 @@ export function AnimatedRoutes() {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.12, ease: 'linear' }}
-        className="min-h-screen"
-        id="main-content"
+        className="min-h-screen bg-transparent"
+        data-route-shell
       >
       <Suspense fallback={<PageFallback />}>
         <Routes location={location}>
