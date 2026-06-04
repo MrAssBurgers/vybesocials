@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { haptics } from '@/lib/haptics';
+
 import { useVybeLiquidTouchDocumentShell } from '@/hooks/useVybeLiquidTouchDocumentShell';
 import { setVybeLiquidTouchSystemActive } from '@/lib/liquidShellState';
 import {
@@ -37,15 +37,17 @@ export const VybeLiquidTouchOverlay = memo(function VybeLiquidTouchOverlay({
   }, []);
 
   const playTouchVisuals = useCallback((clientX: number, clientY: number) => {
+    // Skip while user is actively scrolling — repaints during scroll cause jank.
+    if (document.documentElement.classList.contains('is-scrolling')) return;
+
     const touchX = `${clientX}px`;
     const touchY = `${clientY}px`;
     hostRef.current?.style.setProperty('--touch-x', touchX);
     hostRef.current?.style.setProperty('--touch-y', touchY);
 
+    // Only play the lightweight compressed ripple. The full-screen wash + surge
+    // were the main source of touch lag (fullscreen repaints + gradient redraws).
     retrigger(touchRef.current, 'vybe-liquid-touch--play');
-    retrigger(surgeRef.current, 'vybe-liquid-surge--play');
-    retrigger(washRef.current, 'vybe-liquid-wash--play');
-    haptics.select();
   }, []);
 
   useEffect(() => registerVybeLiquidTouchVisuals(playTouchVisuals), [playTouchVisuals]);
@@ -57,6 +59,7 @@ export const VybeLiquidTouchOverlay = memo(function VybeLiquidTouchOverlay({
     window.addEventListener('pointerdown', onDown, { capture: true, passive: true });
     return () => window.removeEventListener('pointerdown', onDown, { capture: true });
   }, []);
+
 
   return (
     <div
