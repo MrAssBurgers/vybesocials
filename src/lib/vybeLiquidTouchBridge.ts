@@ -22,16 +22,20 @@ export function registerVybeLiquidBgBoost(listener: VybeLiquidTouchListener): ()
   };
 }
 
-/** Single entry — ripples + blob pull. No-op when custom wallpaper is active. */
+/** Single entry — small ripple only. Skips heavy aurora boost + during scroll. */
 export function triggerVybeLiquidTouch(clientX: number, clientY: number): void {
   if (!isVybeLiquidTouchSystemActive()) return;
+  if (typeof document !== 'undefined' &&
+      document.documentElement.classList.contains('is-scrolling')) return;
 
   const now = Date.now();
-  if (now - lastTouchAt < 80) return;
+  if (now - lastTouchAt < 220) return;
   lastTouchAt = now;
   touchVisualListener?.(clientX, clientY);
-  bgBoostListener?.(clientX, clientY);
+  // Intentionally NOT calling bgBoostListener — the aurora background pull
+  // was causing visible jank on every tap on mid-tier devices.
 }
+
 
 /** @deprecated Use triggerVybeLiquidTouch */
 export function emitVybeLiquidBgBoost(clientX: number, clientY: number): void {
