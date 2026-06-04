@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { haptics } from '@/lib/haptics';
+
 import { useVybeLiquidTouchDocumentShell } from '@/hooks/useVybeLiquidTouchDocumentShell';
 import { setVybeLiquidTouchSystemActive } from '@/lib/liquidShellState';
 import {
