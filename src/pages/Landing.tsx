@@ -928,7 +928,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         </p>
       </div>
 
-      {showAuthLiquid && <VybeLiquidTouchOverlay zIndex={25} />}
+      {/* Touch ripple removed */}
 
       <ForgotPasswordDialog 
         open={showForgotPassword} 
