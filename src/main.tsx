@@ -4,6 +4,8 @@ import App from "./App.tsx";
 import "./index.css";
 import { initializeNativePlugins, isNativePlatform, isWeb } from "./lib/capacitor";
 import { initializeAdMob } from "./lib/admob";
+import { syncNativeTrackingConsent } from "./lib/att";
+import { installAttResumeRecovery } from "./lib/attResumeRecovery";
 import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled } from "./lib/serviceWorker";
 import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
 import { installFlickerGuardCheck } from "./lib/flickerGuardCheck";
@@ -69,6 +71,10 @@ console.warn = (...args: unknown[]) => {
   if (isNoisy(args)) return;
   originalConsoleWarn.apply(console, args);
 };
+
+// Mirror Despia ATT before React paints; recover UI after system permission sheets.
+syncNativeTrackingConsent();
+installAttResumeRecovery();
 
 // Initialize native plugins if running on native platform
 if (isNativePlatform) {

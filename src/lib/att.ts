@@ -1,22 +1,52 @@
 /**
  * App Tracking Transparency (iOS 14.5+).
  *
- * The Despia shell handles the ATT system prompt natively as part of its own
- * AdMob initialization — we don't need to (and can't) trigger it from the
- * WebView with `@capacitor-community/admob` since Capacitor native plugins
- * aren't part of our build (Despia-only policy).
- *
- * These helpers remain as a thin shim so calling sites compile and behave
- * gracefully on web. Treat all results as 'unsupported' outside Despia.
+ * Despia shows the native ATT prompt and exposes `despia.trackingDisabled`.
+ * We mirror that into local consent storage so ads/analytics gate correctly.
+ * Do NOT show a second in-app tracking dialog on native — it caused App Review
+ * blank screens when stacked with the system ATT sheet.
  */
+
+import { isDespiaRuntime } from '@/lib/despiaBridge';
 
 export type ATTStatus = 'authorized' | 'denied' | 'notDetermined' | 'restricted' | 'unsupported';
 
+export const TRACKING_CONSENT_KEY = 'vybe_tracking_consent';
 const ATT_REQUESTED_KEY = 'vybe-att-requested-v1';
+
 let cachedStatus: ATTStatus | null = null;
 
+function readDespiaTrackingDisabled(): boolean | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as Window & {
+    despia?: { trackingDisabled?: boolean };
+    trackingDisabled?: boolean;
+  };
+  const value = w.despia?.trackingDisabled ?? w.trackingDisabled;
+  if (typeof value === 'boolean') return value;
+  return null;
+}
+
+/** Sync Despia ATT result into localStorage. Call at boot and after resume. */
+export function syncNativeTrackingConsent(): 'allowed' | 'denied' | null {
+  if (!isDespiaRuntime()) return null;
+  const trackingDisabled = readDespiaTrackingDisabled();
+  if (trackingDisabled === null) return null;
+
+  const consent: 'allowed' | 'denied' = trackingDisabled ? 'denied' : 'allowed';
+  try {
+    localStorage.setItem(TRACKING_CONSENT_KEY, consent);
+    localStorage.setItem(ATT_REQUESTED_KEY, '1');
+  } catch { /* ignore */ }
+
+  cachedStatus = trackingDisabled ? 'denied' : 'authorized';
+  return consent;
+}
+
 export async function requestTrackingAuthorization(): Promise<ATTStatus> {
-  // Despia owns the ATT prompt lifecycle; nothing for the WebView to do.
+  const synced = syncNativeTrackingConsent();
+  if (synced === 'allowed') return 'authorized';
+  if (synced === 'denied') return 'denied';
   cachedStatus = 'unsupported';
   return cachedStatus;
 }
@@ -26,7 +56,13 @@ export function getCachedATTStatus(): ATTStatus | null {
 }
 
 export function isTrackingAuthorized(): boolean {
-  return cachedStatus === 'authorized';
+  if (cachedStatus === 'authorized') return true;
+  if (cachedStatus === 'denied') return false;
+  try {
+    return localStorage.getItem(TRACKING_CONSENT_KEY) === 'allowed';
+  } catch {
+    return false;
+  }
 }
 
 export function hasRequestedATT(): boolean {

@@ -83,6 +83,8 @@ import { SplashScreen } from "@/components/ui/SplashScreen";
 import { WelcomeBackSplash } from "@/components/ui/WelcomeBackSplash";
 import { markPersistRestored } from "@/lib/persistRestoreGate";
 import { SnapARProvider } from "@/components/camera/SnapARProvider";
+import { ATT_RESUME_EVENT } from "@/lib/attResumeRecovery";
+import { syncNativeTrackingConsent } from "@/lib/att";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -268,8 +270,6 @@ function AppWithPreloader() {
   useEffect(() => {
     if (!showSplash) return;
     // Hide splash only when preloader is done AND auth has resolved.
-    // If we knew the user was logged in last time, also wait until session restored
-    // (or auth definitively says there is none) to avoid the login flash.
     const preloaderDone = preloadStatus.isComplete;
     const authDone = authResolved;
     if (preloaderDone && authDone) {
@@ -277,6 +277,26 @@ function AppWithPreloader() {
       hasInitialLoadCompleted = true;
     }
   }, [preloadStatus.isComplete, showSplash, authResolved, hasSession]);
+
+  // Never leave splash up after ATT / system sheets (App Review 2.1a blank screen).
+  useEffect(() => {
+    if (!showSplash) return;
+    const failsafe = setTimeout(() => {
+      setShowSplash(false);
+      hasInitialLoadCompleted = true;
+    }, 5000);
+    return () => clearTimeout(failsafe);
+  }, [showSplash]);
+
+  useEffect(() => {
+    const dismissSplash = () => {
+      syncNativeTrackingConsent();
+      setShowSplash(false);
+      hasInitialLoadCompleted = true;
+    };
+    window.addEventListener(ATT_RESUME_EVENT, dismissSplash);
+    return () => window.removeEventListener(ATT_RESUME_EVENT, dismissSplash);
+  }, []);
 
   // Show welcome-back splash on sign-in (not on initial page load with existing session)
   const signInHandledRef = useRef(false);

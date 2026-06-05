@@ -29,7 +29,7 @@ export default function RootGate() {
 
   useEffect(() => { setIsMobile(isMobileViewport()); }, []);
 
-  if (loading) return <div className="min-h-screen" />;
+  if (loading) return <VybePageLoader />;
   if (user) return <Navigate to="/home" replace />;
 
   const showIntro = !introDone && (isNativeAppShell() || isMobile);

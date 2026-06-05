@@ -280,7 +280,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   if (!isInviteMode) {
     if (user && authProfile?.username && authProfile?.onboarding_completed !== false && !gatePending && !loginGate) {
-      return null;
+      return (
+        <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
+        </div>
+      );
     }
   }
 

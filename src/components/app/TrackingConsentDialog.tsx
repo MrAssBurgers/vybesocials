@@ -4,65 +4,89 @@ import { Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
-
-const TRACKING_CONSENT_KEY = 'vybe_tracking_consent';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { syncNativeTrackingConsent, TRACKING_CONSENT_KEY } from '@/lib/att';
+import { ATT_RESUME_EVENT } from '@/lib/attResumeRecovery';
 
 export type TrackingConsent = 'allowed' | 'denied' | null;
 
 export function getTrackingConsent(): TrackingConsent {
-  return localStorage.getItem(TRACKING_CONSENT_KEY) as TrackingConsent;
+  try {
+    return localStorage.getItem(TRACKING_CONSENT_KEY) as TrackingConsent;
+  } catch {
+    return null;
+  }
 }
 
 export function isTrackingAllowed(): boolean {
   return getTrackingConsent() === 'allowed';
 }
 
+/** Web-only supplemental consent. Native uses system ATT via Despia — no duplicate dialog. */
 export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
   const [visible, setVisible] = useState(false);
   const { profile } = useAuth();
 
   useEffect(() => {
-    // If already answered locally, skip
-    if (getTrackingConsent()) return;
+    if (isDespiaRuntime()) {
+      syncNativeTrackingConsent();
+      const onResume = () => syncNativeTrackingConsent();
+      window.addEventListener(ATT_RESUME_EVENT, onResume);
+      return () => window.removeEventListener(ATT_RESUME_EVENT, onResume);
+    }
 
-    // If logged in, check DB first
+    if (getTrackingConsent()) return undefined;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const schedulePrompt = () => {
+      timer = setTimeout(() => {
+        if (!cancelled) setVisible(true);
+      }, 2000);
+    };
+
     if (profile?.id) {
       supabase
         .rpc('get_own_sensitive_profile')
         .single()
         .then(({ data }) => {
+          if (cancelled) return;
           if (data?.tracking_consent) {
             localStorage.setItem(TRACKING_CONSENT_KEY, data.tracking_consent);
           } else {
-            const timer = setTimeout(() => setVisible(true), 2000);
-            return () => clearTimeout(timer);
+            schedulePrompt();
           }
+        })
+        .catch(() => {
+          if (!cancelled) schedulePrompt();
         });
-      return;
     }
 
-    // Not logged in — don't show tracking dialog until they have an account
-    return;
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [profile?.id]);
 
   const handleResponse = async (consent: 'allowed' | 'denied') => {
     localStorage.setItem(TRACKING_CONSENT_KEY, consent);
     setVisible(false);
 
-    // Persist to DB so it never asks again on any device
     if (profile?.id) {
       await supabase
         .from('profiles')
-        .update({ tracking_consent: consent } as any)
+        .update({ tracking_consent: consent } as Record<string, string>)
         .eq('id', profile.id);
     }
   };
+
+  if (isDespiaRuntime()) return null;
 
   return (
     <AnimatePresence>
       {visible && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -72,7 +96,6 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
             onClick={() => handleResponse('denied')}
           />
 
-          {/* Dialog */}
           <motion.div
             initial={{ opacity: 0, scale: 0.92, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -81,24 +104,20 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
             className="fixed inset-0 flex items-center justify-center z-[10000] px-6 pointer-events-none"
           >
             <div className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl pointer-events-auto">
-              {/* Icon */}
               <div className="flex justify-center mb-4">
                 <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
                   <Shield className="w-7 h-7 text-primary" />
                 </div>
               </div>
 
-              {/* Title */}
               <h2 className="text-lg font-bold text-center text-foreground mb-2">
-                Allow "VYBE" to track your activity?
+                Allow &quot;VYBE&quot; to track your activity?
               </h2>
 
-              {/* Description */}
               <p className="text-sm text-muted-foreground text-center mb-6 leading-relaxed">
                 Your data will be used to personalize your feed, improve recommendations, and show relevant ads. We do not sell your data to third parties. VYBE+ members enjoy an ad-free experience.
               </p>
 
-              {/* Buttons */}
               <div className="flex flex-col gap-2.5">
                 <Button
                   onClick={() => handleResponse('allowed')}
