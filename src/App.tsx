@@ -385,7 +385,7 @@ function AppWithPreloader() {
                               </DebugPanelProvider>
                             </RewardNotificationProvider>
                           </Suspense>
-                          <VybeLiquidTouchShell />
+                          {/* Touch ripple removed */}
                           </div>
                         </BrowserRouter>
                       </TooltipProvider>
