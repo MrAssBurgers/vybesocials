@@ -5,10 +5,22 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- Ship Friend Link + Create camera polish via Lovable Publish
+- App Store resubmit: ATT blank-screen fix (`934af286` + ATT patch)
+- NFC demo video for App Review (see rejection notes)
 - Optional: `VITE_SNAP_CAMERA_KIT_TOKEN` for Snap-native lenses
 
-## What Changed (Friend Link + Create camera — latest, local)
+## What Changed (smoothness + bug pass — latest, local)
+- ATT resume only after real backgrounding (no cold-load splash skip)
+- IndexedDB restore 600ms cap so cold start never hangs
+- PublicOnlyRoute loader instead of blank null during auth
+- Friend Link: lighter QR scan (every 2nd frame), native NFC stop on close, duplicate-add guard
+
+## What Changed (App Store ATT fix — prior)
+- No duplicate tracking dialog on Despia native — uses `despia.trackingDisabled` only
+- `attResumeRecovery.ts` clears stuck splash/body lock after system permission sheets
+- Landing/RootGate never render blank during auth redirect (iPad review device)
+
+## What Changed (Friend Link + Create camera — prior)
 - **Friend Link:** single shake listener; iOS motion on pill tap + coach “Got it”; instant X close; activation hints (pill coach, sheet tips, feed spotlight); `AutoFriendDrop` mounted app-wide (pill only on `/home`); NFC/tap auto-add now calls `runAutoFriendAdd`
 - **Create camera:** Snapchat-style bottom stack (lenses → shutter → modes), glass top controls, viewfinder grid, one-time `CreateCameraCoach`
 
@@ -37,12 +49,13 @@ Use this file as the Lovable -> Cursor handoff each session.
 - Custom wallpaper gate: `hasUserWallpaper` + `isBackgroundResolved` hide aurora/touch; `stripLiquidShellDocumentState()` on upload
 
 ## Current Status
-- Done: `npm run build` + `npm run lint` (Friend Link + camera pass)
-- **Not pushed:** Friend Link fixes, camera revamp, activation hints (commit when ready)
-- **Your turn:** commit → push → Lovable → Share → Publish
+- Done: `npm run build` + smoke tests (iPhone/iPad local)
+- **Your turn:** Lovable Publish + Despia rebuild for App Store resubmit
 
 ## Publish log
-- **2026-06-02** — local WIP — Friend Link shake/close/hints + Create camera revamp — publish after commit
+- **2026-06-05** — smoothness/ATT resume + Friend Link perf — **Publish in Lovable + Despia now**
+- **2026-06-02** — commit `ee375394` — ATT blank-screen fix
+- **2026-06-02** — commit `934af286` — Friend Link polish + Create camera revamp
 - **2026-06-02** — commit `686f01c0` — mobile AR + Friend Link QR scanner
 - **2026-06-01** — commit `601ebb39` — perf, offline UX, lazy i18n, Friend Link spotlight
 - **2026-06-01** — commit `821c373d` — liquid FAB + auth liquid UI

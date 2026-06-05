@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { isNativeAppShell } from '@/lib/despiaBridge';
+import { VybePageLoader } from '@/components/ui/VybeLoader';
 
 /**
  * Wraps marketing pages (Landing, VybeHome) so:
@@ -15,7 +16,7 @@ export function PublicOnlyRoute({ children, redirectTo = '/home' }: { children: 
   if (isNativeAppShell()) {
     return <Navigate to={redirectTo} replace />;
   }
-  if (loading) return null;
+  if (loading) return <VybePageLoader />;
   if (user) return <Navigate to={redirectTo} replace />;
   return <>{children}</>;
 }

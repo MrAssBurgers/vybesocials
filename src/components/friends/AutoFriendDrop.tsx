@@ -309,20 +309,38 @@ export function AutoFriendDrop() {
     } catch { toast.error('Could not find user'); handleClose(); }
   }, [stopScanning, handleClose]);
 
+  const scanDimensionsRef = useRef({ width: 0, height: 0 });
+  const scanFrameSkipRef = useRef(0);
+
   const startScanLoop = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
+    scanFrameSkipRef.current = 0;
+
     const scanFrame = async () => {
       if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
         animationFrameRef.current = requestAnimationFrame(scanFrame);
         return;
       }
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      // Decode every other frame — halves CPU on iPad/iPhone without hurting scan speed.
+      scanFrameSkipRef.current = (scanFrameSkipRef.current + 1) % 2;
+      if (scanFrameSkipRef.current !== 0) {
+        animationFrameRef.current = requestAnimationFrame(scanFrame);
+        return;
+      }
+
+      const vw = videoRef.current.videoWidth;
+      const vh = videoRef.current.videoHeight;
+      if (scanDimensionsRef.current.width !== vw || scanDimensionsRef.current.height !== vh) {
+        canvas.width = vw;
+        canvas.height = vh;
+        scanDimensionsRef.current = { width: vw, height: vh };
+      }
+      ctx.drawImage(videoRef.current, 0, 0, vw, vh);
+      const imageData = ctx.getImageData(0, 0, vw, vh);
       const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
       if (code) {
         const target = extractFriendTarget(code.data || '');
@@ -435,7 +453,7 @@ export function AutoFriendDrop() {
   }, [profile?.username, user, friendDropSync, requestMotionPermission, startCamera]);
 
   const handleAddFriend = useCallback(async () => {
-    if (!foundUser) return;
+    if (!foundUser || completingRef.current) return;
     setShowSwapAnimation(true);
     setPhase('exchanging');
     haptics.impact();
@@ -490,6 +508,8 @@ export function AutoFriendDrop() {
   useEffect(() => {
     if (isActive && activeTab === 'tap' && nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
       void nativeFriendDrop.startSession();
+    } else if (!isActive && nativeFriendDrop.isActive) {
+      void nativeFriendDrop.stopSession();
     }
     return () => {
       if (webNfcRef.current) {
@@ -520,7 +540,7 @@ export function AutoFriendDrop() {
             : null
         }
         onAutoAdd={() => {
-          if (foundUser) void runAutoFriendAdd(foundUser.id);
+          if (foundUser && !completingRef.current) void runAutoFriendAdd(foundUser.id);
         }}
         onComplete={() => {
           setShowSwapAnimation(false);

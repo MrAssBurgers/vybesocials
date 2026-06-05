@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { hasWarmOfflineCache } from '@/lib/offlineCacheProbe';
-import { isPersistRestored, onPersistRestored } from '@/lib/persistRestoreGate';
+import { isPersistRestored, markPersistRestored, onPersistRestored } from '@/lib/persistRestoreGate';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 
 interface PreloadStatus {
@@ -39,6 +39,16 @@ export function useAppPreloader() {
   const [restoreReady, setRestoreReady] = useState(isPersistRestored);
 
   useEffect(() => onPersistRestored(() => setRestoreReady(true)), []);
+
+  // Never block cold start if IndexedDB restore is slow or unavailable (private mode).
+  useEffect(() => {
+    if (restoreReady) return;
+    const t = setTimeout(() => {
+      markPersistRestored();
+      setRestoreReady(true);
+    }, 600);
+    return () => clearTimeout(t);
+  }, [restoreReady]);
 
   // Smoothly animate progress to a target value
   const animateTo = useCallback((target: number, label: string, done = false) => {

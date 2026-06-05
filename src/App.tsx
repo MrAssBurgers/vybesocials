@@ -284,12 +284,16 @@ function AppWithPreloader() {
     const failsafe = setTimeout(() => {
       setShowSplash(false);
       hasInitialLoadCompleted = true;
-    }, 5000);
+    }, 3500);
     return () => clearTimeout(failsafe);
   }, [showSplash]);
 
+  const showSplashRef = useRef(showSplash);
+  showSplashRef.current = showSplash;
+
   useEffect(() => {
     const dismissSplash = () => {
+      if (!showSplashRef.current) return;
       syncNativeTrackingConsent();
       setShowSplash(false);
       hasInitialLoadCompleted = true;

@@ -38,27 +38,29 @@ export function installAttResumeRecovery(onRecover?: () => void): () => void {
   }
   installed = true;
 
-  let hiddenAt = 0;
+  let wasBackgrounded = false;
 
   const handleVisible = () => {
+    if (!wasBackgrounded) return;
+    wasBackgrounded = false;
     recoverFromSystemPermissionSheet();
     onRecover?.();
   };
 
   const onVisibility = () => {
     if (document.visibilityState === 'hidden') {
-      hiddenAt = Date.now();
+      wasBackgrounded = true;
       return;
     }
-    if (document.visibilityState === 'visible' && hiddenAt > 0) {
+    if (document.visibilityState === 'visible' && wasBackgrounded) {
       // ATT and other system sheets briefly hide the WebView.
       requestAnimationFrame(handleVisible);
-      hiddenAt = 0;
     }
   };
 
   const onPageShow = (e: PageTransitionEvent) => {
-    if (e.persisted || document.visibilityState === 'visible') {
+    // bfcache restore only — not initial cold load (that caused premature splash dismiss).
+    if (e.persisted && wasBackgrounded) {
       requestAnimationFrame(handleVisible);
     }
   };
