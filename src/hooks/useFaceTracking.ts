@@ -41,6 +41,35 @@ export interface FaceDetection {
   roll: number;
 }
 
+/** Synthetic face for color/lighting filters when no face is detected yet. */
+export function createFallbackFaceDetection(width: number, height: number): FaceDetection {
+  const cx = width * 0.5;
+  const cy = height * 0.42;
+  const faceWidth = width * 0.36;
+  const faceHeight = height * 0.46;
+  const landmarks: FaceLandmark[] = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.42, z: 0 }));
+
+  landmarks[FACE_LANDMARKS.leftEyeOuter] = { x: 0.38, y: 0.38, z: 0 };
+  landmarks[FACE_LANDMARKS.rightEyeOuter] = { x: 0.62, y: 0.38, z: 0 };
+  landmarks[FACE_LANDMARKS.leftEye] = { x: 0.4, y: 0.38, z: 0 };
+  landmarks[FACE_LANDMARKS.rightEye] = { x: 0.6, y: 0.38, z: 0 };
+  landmarks[FACE_LANDMARKS.forehead] = { x: 0.5, y: 0.28, z: 0 };
+  landmarks[FACE_LANDMARKS.chin] = { x: 0.5, y: 0.62, z: 0 };
+  landmarks[FACE_LANDMARKS.mouthTop] = { x: 0.5, y: 0.52, z: 0 };
+  landmarks[FACE_LANDMARKS.mouthBottom] = { x: 0.5, y: 0.56, z: 0 };
+  landmarks[FACE_LANDMARKS.mouthLeft] = { x: 0.44, y: 0.54, z: 0 };
+  landmarks[FACE_LANDMARKS.mouthRight] = { x: 0.56, y: 0.54, z: 0 };
+
+  return {
+    landmarks,
+    faceWidth,
+    faceHeight,
+    centerX: cx,
+    centerY: cy,
+    roll: 0,
+  };
+}
+
 interface UseFaceTrackingOptions {
   enabled?: boolean;
   maxFaces?: number;
@@ -176,6 +205,7 @@ export function useFaceTracking({ enabled = true, maxFaces = 1 }: UseFaceTrackin
 
   const startTracking = useCallback(
     (video: HTMLVideoElement) => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       videoRef.current = video;
 
       const detect = () => {

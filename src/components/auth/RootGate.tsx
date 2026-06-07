@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { isNativeAppShell } from '@/lib/despiaBridge';
@@ -25,11 +25,9 @@ export default function RootGate() {
   const [introDone, setIntroDone] = useState<boolean>(() => {
     try { return !!localStorage.getItem('vybe_intro_seen'); } catch { return true; }
   });
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => isMobileViewport());
 
-  useEffect(() => { setIsMobile(isMobileViewport()); }, []);
-
-  if (loading) return <VybePageLoader />;
+  if (loading) return <VybePageLoader delay={0} />;
   if (user) return <Navigate to="/home" replace />;
 
   const showIntro = !introDone && (isNativeAppShell() || isMobile);

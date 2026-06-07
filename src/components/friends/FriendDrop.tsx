@@ -218,6 +218,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const [showWriteSheet, setShowWriteSheet] = useState(false);
   const [showSwapAnimation, setShowSwapAnimation] = useState(false);
   const exchangeLockRef = useRef(false);
+  const scanLockRef = useRef(false);
   const [qrSvg, setQrSvg] = useState<string>('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -287,8 +288,8 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   }, []);
 
   const handleDropScan = useCallback(async (dropId: string) => {
-    if (exchangeLockRef.current) return;
-    exchangeLockRef.current = true;
+    if (scanLockRef.current || exchangeLockRef.current) return;
+    scanLockRef.current = true;
     stopScanning();
     haptics.success();
     setPhase('detected');
@@ -296,7 +297,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     if (!scannedDrop) {
       toast.error('This code has expired');
       setPhase('idle');
-      exchangeLockRef.current = false;
+      scanLockRef.current = false;
       return;
     }
     setActiveDropId(dropId);
@@ -311,8 +312,8 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   }, [friendDropSync, stopScanning]);
 
   const handleFoundUser = useCallback(async (userId: string) => {
-    if (exchangeLockRef.current) return;
-    exchangeLockRef.current = true;
+    if (scanLockRef.current || exchangeLockRef.current) return;
+    scanLockRef.current = true;
     stopScanning();
     haptics.success();
     setPhase('detected');
@@ -326,6 +327,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       toast.error('Could not find user');
       setPhase('idle');
       exchangeLockRef.current = false;
+      scanLockRef.current = false;
     }
   }, [stopScanning]);
 
@@ -425,6 +427,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     setIsScanning(false);
     setShowSwapAnimation(false);
     exchangeLockRef.current = false;
+    scanLockRef.current = false;
     void (async () => {
       if (nativeActive) {
         try {
@@ -460,6 +463,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
         setPhase('found');
         setShowSwapAnimation(false);
         exchangeLockRef.current = false;
+      scanLockRef.current = false;
       }
     }
   }, [foundUser, sendRequest, activeDropId, friendDropSync, handleClose]);

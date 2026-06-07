@@ -15,14 +15,14 @@ import { AROverlayCanvas } from '@/components/camera/AROverlayCanvas';
 import { ARFilterPicker } from '@/components/camera/ARFilterPicker';
 import { GalleryDrawer } from './GalleryDrawer';
 import { useFaceTracking } from '@/hooks/useFaceTracking';
-import { ARFilterDef } from '@/lib/arFilters';
+import { ARFilterDef, getDefaultARFilter, arFilterNeedsFace } from '@/lib/arFilters';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
 import { Sound } from '@/hooks/useSounds';
 import { isCameraSafeMode } from '@/lib/cameraSafeMode';
 import { captureVideoFrameWithAR } from '@/lib/arCapture';
-import { isARSupported } from '@/lib/arEngine';
+import { isARSupported, clearARDisabledForSession } from '@/lib/arEngine';
 import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { toast } from 'sonner';
@@ -133,7 +133,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
 
   useEffect(() => {
     navVisibility.setInCommunityChat(true);
-    return () => { navVisibility.forceShow(); };
+    return () => { navVisibility.setInCommunityChat(false); };
   }, []);
 
   // Start camera
@@ -212,12 +212,26 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   }, [stopTracking]);
 
   useEffect(() => {
-    if (filterMode === 'ar' && arReady && videoRef.current && phase === 'camera') {
-      startTracking(videoRef.current);
-    } else {
+    if (filterMode !== 'ar' || !arReady || phase !== 'camera') {
       stopTracking();
+      return;
     }
-  }, [filterMode, arReady, phase, startTracking, stopTracking]);
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    const tryStart = () => {
+      if (video.videoWidth > 0 && video.readyState >= 2) {
+        startTracking(video);
+      }
+    };
+
+    tryStart();
+    video.addEventListener('loadedmetadata', tryStart);
+    return () => {
+      video.removeEventListener('loadedmetadata', tryStart);
+    };
+  }, [filterMode, arReady, phase, startTracking, stopTracking, facingMode, cameraReady]);
 
   useEffect(() => {
     if (phase === 'camera' && mode !== 'text') {
@@ -256,15 +270,19 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           try { (track as any).applyConstraints({ advanced: [{ zoom: Math.min(nativeZoom, caps.zoom.max) }] }); } catch {}
         }
       }
-      if (videoRef.current) {
-        const flipTransform = facingMode === 'user' ? ' scaleX(-1)' : '';
-        videoRef.current.style.transform = `scale(${newZoom})${flipTransform}`;
-      }
       if (zoomIndicatorTimeoutRef.current) clearTimeout(zoomIndicatorTimeoutRef.current);
       zoomIndicatorTimeoutRef.current = setTimeout(() => setShowZoomIndicator(false), 1500);
     }
     lastPinchDistRef.current = dist;
-  }, [facingMode]);
+  }, []);
+
+  const previewTransform = `scale(${zoomLevel})`;
+  const videoCssFilter =
+    safeCamera
+      ? undefined
+      : filterMode === 'ar'
+        ? arFilter?.cssFilter || undefined
+        : getFilterCSS(currentFilter) || undefined;
 
   const handlePinchEnd = useCallback(() => { lastPinchDistRef.current = null; }, []);
 
@@ -485,24 +503,39 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         onTouchMove={handlePinchMove}
         onTouchEnd={handlePinchEnd}
       >
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          controls={false}
-          disablePictureInPicture
-          className={cn(
-            "w-full h-full object-cover bg-black transition-transform duration-75",
-            facingMode === 'user' && "scale-x-[-1]"
+        <div
+          className="absolute inset-0 w-full h-full origin-center transition-transform duration-75"
+          style={{ transform: previewTransform }}
+        >
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            controls={false}
+            disablePictureInPicture
+            className={cn(
+              'w-full h-full object-cover bg-black',
+              facingMode === 'user' && 'scale-x-[-1]',
+            )}
+            style={{
+              backgroundColor: '#000',
+              filter: videoCssFilter,
+            }}
+          />
+
+          {filterMode === 'ar' && arFilter && cameraReady && (
+            <AROverlayCanvas
+              ref={arOverlayRef}
+              faces={faces}
+              filter={arFilter}
+              videoWidth={videoDimensions.width}
+              videoHeight={videoDimensions.height}
+              mirrored={facingMode === 'user'}
+              scanning={arFilterNeedsFace(arFilter) && faces.length === 0}
+            />
           )}
-          style={{
-            backgroundColor: '#000',
-            filter: safeCamera
-              ? undefined
-              : [getFilterCSS(currentFilter) || '', arFilter?.cssFilter || ''].filter(Boolean).join(' ') || undefined,
-          }}
-        />
+        </div>
 
         {!cameraReady && !cameraBlocked && (
           <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
@@ -518,19 +551,6 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
               Enable camera
             </Button>
           </div>
-        )}
-
-        {/* AR overlay — runs while filter active; reticle when searching for face */}
-        {filterMode === 'ar' && arFilter && cameraReady && (
-          <AROverlayCanvas
-            ref={arOverlayRef}
-            faces={faces}
-            filter={arFilter}
-            videoWidth={videoDimensions.width}
-            videoHeight={videoDimensions.height}
-            mirrored={facingMode === 'user'}
-            scanning={faces.length === 0}
-          />
         )}
 
         {/* Viewfinder guides */}
@@ -643,7 +663,6 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           setFacingMode(f => f === 'user' ? 'environment' : 'user');
           zoomRef.current = 1;
           setZoomLevel(1);
-          if (videoRef.current) videoRef.current.style.transform = '';
         }}
         timer={timer}
         onTimerChange={setTimer}
@@ -657,11 +676,12 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
             arSupported={arSupported}
             onChange={(next) => {
               setFilterMode(next);
-              if (next === 'ar' && !arFilter) {
-                import('@/lib/arFilters').then(({ AR_FILTERS }) => {
-                  const first = AR_FILTERS.find((f) => f.category === 'face') || AR_FILTERS[0];
+              if (next === 'ar') {
+                clearARDisabledForSession();
+                if (!arFilter) {
+                  const first = getDefaultARFilter();
                   if (first) setArFilter(first);
-                });
+                }
               }
             }}
           />

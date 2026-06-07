@@ -263,6 +263,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     // Suppress auto-redirect while a 2FA / approval gate decision is in flight
     // (otherwise on mobile the SIGNED_IN listener races the gate and bypasses it).
     if (gatePending || loginGate) return;
+    if (authProfile?.onboarding_completed === false) {
+      navigate('/onboarding', { replace: true });
+      return;
+    }
     if (authProfile?.username && authProfile?.onboarding_completed !== false) {
       const returnPath = getPostLoginPath('/home');
       navigate(returnPath, { replace: true });
@@ -479,7 +483,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       }
     } finally {
       setLoading(false);
-      setGatePending(false);
+      if (!loginGate) setGatePending(false);
     }
   };
 

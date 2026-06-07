@@ -84,6 +84,8 @@ export function AutoFriendDrop() {
     } catch { return null; }
   };
 
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const autoCloseAfterSuccess = useCallback(async (friendId?: string) => {
     const targetUserId = friendId || foundUser?.id;
     if (targetUserId) {
@@ -92,7 +94,9 @@ export function AutoFriendDrop() {
         createdConversationIdRef.current = conversation.id;
       } catch {}
     }
-    setTimeout(() => {
+    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+    autoCloseTimerRef.current = setTimeout(() => {
+      autoCloseTimerRef.current = null;
       const convId = createdConversationIdRef.current;
       setIsActive(false);
       setPhase('idle');
@@ -196,6 +200,8 @@ export function AutoFriendDrop() {
   }, [activeDropId, sendRequest, friendDropSync, autoCloseAfterSuccess]);
 
   const handleDropScan = useCallback(async (dropId: string) => {
+    if (exchangeLockRef.current || completingRef.current) return;
+    exchangeLockRef.current = true;
     stopScanning();
     haptics.success();
     const scannedDrop = await friendDropSync.scanDrop(dropId);
@@ -283,6 +289,10 @@ export function AutoFriendDrop() {
     setShowSwapAnimation(false);
     exchangeLockRef.current = false;
     completingRef.current = false;
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current);
+      autoCloseTimerRef.current = null;
+    }
 
     void (async () => {
       if (dropId && phaseSnap !== 'success') {
@@ -497,12 +507,10 @@ export function AutoFriendDrop() {
     };
   }, [isActive]);
 
-  // Stop camera when leaving QR. Starting stays in the tab/button tap handler
-  // so native shells don't reject getUserMedia or show a browser placeholder.
+  // Stop QR camera whenever sheet closes or phase leaves activated.
   useEffect(() => {
-    if (!isActive || phase !== 'activated') return;
-    if (activeTab !== 'qr') stopScanning();
-    return () => { if (activeTab !== 'qr') stopScanning(); };
+    if (isActive && phase === 'activated' && activeTab === 'qr') return;
+    stopScanning();
   }, [isActive, phase, activeTab, stopScanning]);
 
   useEffect(() => {
@@ -515,6 +523,9 @@ export function AutoFriendDrop() {
       if (webNfcRef.current) {
         webNfcRef.current.abort();
         webNfcRef.current = null;
+      }
+      if (nativeFriendDrop.isActive) {
+        void nativeFriendDrop.stopSession();
       }
     };
   }, [isActive, activeTab, nativeFriendDrop]);

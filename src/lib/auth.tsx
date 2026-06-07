@@ -522,6 +522,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // If still not initialized after waiting, finalize as no session
           if (!authInitializedRef.current) {
             logEvent('auth', 'No session after refresh wait — finalizing as signed out');
+            try {
+              await supabase.auth.signOut({ scope: 'local' });
+            } catch { /* ignore */ }
             setSession(null);
             setUser(null);
             if (hasStoredToken() && hydrateCachedProfile()) {

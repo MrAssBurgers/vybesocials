@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
-import { syncNativeTrackingConsent, TRACKING_CONSENT_KEY } from '@/lib/att';
+import { syncNativeTrackingConsent, TRACKING_CONSENT_KEY, pollNativeTrackingConsent } from '@/lib/att';
 import { ATT_RESUME_EVENT } from '@/lib/attResumeRecovery';
 
 export type TrackingConsent = 'allowed' | 'denied' | null;
@@ -30,7 +30,10 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
   useEffect(() => {
     if (isDespiaRuntime()) {
       syncNativeTrackingConsent();
-      const onResume = () => syncNativeTrackingConsent();
+      const onResume = () => {
+        syncNativeTrackingConsent();
+        pollNativeTrackingConsent();
+      };
       window.addEventListener(ATT_RESUME_EVENT, onResume);
       return () => window.removeEventListener(ATT_RESUME_EVENT, onResume);
     }

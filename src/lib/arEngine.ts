@@ -44,10 +44,12 @@ export function isARSessionDisabled(): boolean {
 export function getARProfile(): ARProfile {
   if (typeof window === 'undefined') return 'off';
   if (isARSessionDisabled()) return 'off';
-  if (!isWebGLAvailable()) return 'off';
 
-  // Phones and Despia still get AR — in lite mode to avoid WebView OOM.
+  // Phones and Despia get CPU/lite AR — WebGL is not required for MediaPipe CPU delegate.
   if (isCameraSafeMode() || isNativeAppShell()) return 'lite';
+
+  // Desktop without WebGL still gets lite CPU tracking.
+  if (!isWebGLAvailable()) return 'lite';
   return 'full';
 }
 

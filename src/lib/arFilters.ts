@@ -58,6 +58,24 @@ export interface ARFilterDef {
   cssFilter?: string; // CSS filter string for the video element
 }
 
+/** True when masks or anchored particles require a detected face. */
+export function arFilterNeedsFace(filter: ARFilterDef): boolean {
+  if (filter.masks?.length) return true;
+  const anchor = filter.particles?.anchor;
+  if (filter.particles && anchor && anchor !== 'fullFace') return true;
+  return false;
+}
+
+/** Default AR filter when opening the AR tab (first free face filter). */
+export function getDefaultARFilter(filters: ARFilterDef[] = AR_FILTERS): ARFilterDef | null {
+  return (
+    filters.find((f) => f.category === 'face' && !f.premium) ||
+    filters.find((f) => !f.premium) ||
+    filters[0] ||
+    null
+  );
+}
+
 // ==================== PRESET AR FILTERS ====================
 
 export const AR_FILTERS: ARFilterDef[] = [

@@ -5,11 +5,24 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- App Store resubmit: ATT blank-screen fix (`934af286` + ATT patch)
-- NFC demo video for App Review (see rejection notes)
-- Optional: `VITE_SNAP_CAMERA_KIT_TOKEN` for Snap-native lenses
+- **App Store resubmit** — ATT blank screen + NFC demo video (see `docs/APP_STORE_RESUBMIT.md`)
+- New Despia build required (build > 5292359)
 
-## What Changed (smoothness + bug pass — latest, local)
+## What Changed (App Store rejection fixes — latest, local)
+- **2.1(a) ATT:** splash absolute max 6.5s (was 3.5s early dismiss); post-ATT poll until auth+preload ready; staggered WebView recovery; consent poll after resume
+- **2.1(a) routes:** loaders instead of blank null; stale token → `/auth`; local signOut on refresh timeout
+- **2.1 NFC:** `docs/APP_STORE_RESUBMIT.md` — demo video script + App Review notes to paste (video still required manually)
+- **AR filters:** lite CPU on all phones, overlay/zoom alignment, color filters without face lock
+- **Stability:** Friend Link perf, cold start hardening (prior batch)
+
+## What Changed (AR filters — prior local)
+- **AR on all phones:** lite CPU profile no longer blocked by missing WebGL
+- **Overlay alignment:** selfie roll corrected when mirrored; video + AR share pinch-zoom wrapper
+- **Color AR filters:** golden hour / midnight / noir work without a detected face (fallback + no scan reticle)
+- **Tracking lifecycle:** survives camera flip/restart; session AR retry when opening AR tab
+- **AR tab default:** first free face filter (Neon Eyes), not premium Holographic
+
+## What Changed (smoothness + bug pass — prior)
 - ATT resume only after real backgrounding (no cold-load splash skip)
 - IndexedDB restore 600ms cap so cold start never hangs
 - PublicOnlyRoute loader instead of blank null during auth
@@ -49,8 +62,13 @@ Use this file as the Lovable -> Cursor handoff each session.
 - Custom wallpaper gate: `hasUserWallpaper` + `isBackgroundResolved` hide aurora/touch; `stripLiquidShellDocumentState()` on upload
 
 ## Current Status
-- Done: `npm run build` + smoke tests (iPhone/iPad local)
-- **Your turn:** Lovable Publish + Despia rebuild for App Store resubmit
+- Done: `npm run build` + `npm run lint`
+- **Your turn:** Lovable Publish → Despia rebuild → paste notes from `docs/APP_STORE_RESUBMIT.md` → film NFC video → resubmit
+
+## Next 3 tasks
+1. Despia rebuild + fresh-install ATT test (Allow + Don't Allow) on iPad + iPhone
+2. Record NFC Friend Link demo video; add URL to App Store Connect
+3. Reply to Apple in App Store Connect with build number + video link
 
 ## Publish log
 - **2026-06-05** — smoothness/ATT resume + Friend Link perf — **Publish in Lovable + Despia now**

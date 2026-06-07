@@ -3,6 +3,8 @@
  * WebViews can resume with stuck splash/body scroll locks — this clears them.
  */
 
+import { pollNativeTrackingConsent, syncNativeTrackingConsent } from '@/lib/att';
+
 export const ATT_RESUME_EVENT = 'vybe:resume-recover';
 
 function clearStuckDocumentState() {
@@ -22,11 +24,35 @@ function clearStuckDocumentState() {
   } else {
     document.documentElement.style.overflow = '';
   }
+
+  const root = document.getElementById('root');
+  if (root) {
+    root.style.visibility = '';
+    root.style.opacity = '';
+  }
 }
+
+let stopConsentPoll: (() => void) | null = null;
 
 export function recoverFromSystemPermissionSheet(): void {
   clearStuckDocumentState();
+  syncNativeTrackingConsent();
+  stopConsentPoll?.();
+  stopConsentPoll = pollNativeTrackingConsent();
+  window.setTimeout(() => {
+    stopConsentPoll?.();
+    stopConsentPoll = null;
+  }, 3200);
+
   window.dispatchEvent(new CustomEvent(ATT_RESUME_EVENT));
+  // Staggered pulses — WKWebView sometimes needs a second frame after ATT.
+  for (const delay of [50, 180, 450, 1000]) {
+    window.setTimeout(() => {
+      clearStuckDocumentState();
+      syncNativeTrackingConsent();
+      window.dispatchEvent(new CustomEvent(ATT_RESUME_EVENT));
+    }, delay);
+  }
 }
 
 /** Install once at app boot. Safe to call multiple times — only one listener set. */

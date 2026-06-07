@@ -23,6 +23,8 @@ const POST_QUERY_KEYS = [
   ['following-posts'],
   ['saved-posts'],
   ['personalized-feed'],
+  ['personalized-feed-v2'],
+  ['local-feed'],
 ] as const;
 
 /**

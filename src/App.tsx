@@ -226,7 +226,7 @@ function useAuthResolved() {
     let cancelled = false;
     const forceDone = setTimeout(() => {
       if (!cancelled) setResolved(true);
-    }, 900);
+    }, 5500);
 
     supabase.auth.getSession().then(({ data }) => {
       if (cancelled) return;
@@ -281,23 +281,51 @@ function AppWithPreloader() {
   // Never leave splash up after ATT / system sheets (App Review 2.1a blank screen).
   useEffect(() => {
     if (!showSplash) return;
-    const failsafe = setTimeout(() => {
+    const absoluteMax = setTimeout(() => {
+      syncNativeTrackingConsent();
       setShowSplash(false);
       hasInitialLoadCompleted = true;
-    }, 3500);
-    return () => clearTimeout(failsafe);
+    }, 6500);
+    return () => clearTimeout(absoluteMax);
   }, [showSplash]);
 
   const showSplashRef = useRef(showSplash);
+  const preloadCompleteRef = useRef(preloadStatus.isComplete);
+  const authResolvedRef = useRef(authResolved);
   showSplashRef.current = showSplash;
+  preloadCompleteRef.current = preloadStatus.isComplete;
+  authResolvedRef.current = authResolved;
 
   useEffect(() => {
     const dismissSplash = () => {
       if (!showSplashRef.current) return;
       syncNativeTrackingConsent();
-      setShowSplash(false);
-      hasInitialLoadCompleted = true;
+
+      const attempt = () => {
+        if (!showSplashRef.current) return true;
+        if (preloadCompleteRef.current && authResolvedRef.current) {
+          setShowSplash(false);
+          hasInitialLoadCompleted = true;
+          return true;
+        }
+        return false;
+      };
+
+      if (attempt()) return;
+
+      let tries = 0;
+      const poll = window.setInterval(() => {
+        tries += 1;
+        if (attempt() || tries >= 45) {
+          window.clearInterval(poll);
+          if (showSplashRef.current && tries >= 45) {
+            setShowSplash(false);
+            hasInitialLoadCompleted = true;
+          }
+        }
+      }, 100);
     };
+
     window.addEventListener(ATT_RESUME_EVENT, dismissSplash);
     return () => window.removeEventListener(ATT_RESUME_EVENT, dismissSplash);
   }, []);

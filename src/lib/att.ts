@@ -43,6 +43,26 @@ export function syncNativeTrackingConsent(): 'allowed' | 'denied' | null {
   return consent;
 }
 
+/**
+ * Despia may set trackingDisabled slightly after the ATT sheet closes.
+ * Poll briefly after resume so consent + splash dismiss stay in sync.
+ */
+export function pollNativeTrackingConsent(
+  maxMs = 3000,
+  intervalMs = 150,
+): () => void {
+  if (!isDespiaRuntime()) return () => {};
+  const started = performance.now();
+  syncNativeTrackingConsent();
+  const id = window.setInterval(() => {
+    syncNativeTrackingConsent();
+    if (performance.now() - started >= maxMs) {
+      window.clearInterval(id);
+    }
+  }, intervalMs);
+  return () => window.clearInterval(id);
+}
+
 export async function requestTrackingAuthorization(): Promise<ATTStatus> {
   const synced = syncNativeTrackingConsent();
   if (synced === 'allowed') return 'authorized';

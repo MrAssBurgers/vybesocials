@@ -41,6 +41,7 @@ export function useNativeFriendDrop({
   // Start FriendDrop session
   const startSession = useCallback(async () => {
     if (!isAvailable || !user || !profile?.username) return;
+    if (serviceRef.current || isActive) return;
     
     try {
       const service = new NativeFriendDropService();
@@ -78,7 +79,7 @@ export function useNativeFriendDrop({
     } catch (error) {
       console.error('Failed to start FriendDrop session:', error);
     }
-  }, [isAvailable, user, profile, onPeerFound, onPeerConnected]);
+  }, [isAvailable, user, profile, isActive, onPeerFound, onPeerConnected]);
   
   // Stop FriendDrop session
   const stopSession = useCallback(async () => {

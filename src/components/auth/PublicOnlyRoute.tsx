@@ -16,7 +16,7 @@ export function PublicOnlyRoute({ children, redirectTo = '/home' }: { children: 
   if (isNativeAppShell()) {
     return <Navigate to={redirectTo} replace />;
   }
-  if (loading) return <VybePageLoader />;
+  if (loading) return <VybePageLoader delay={0} />;
   if (user) return <Navigate to={redirectTo} replace />;
   return <>{children}</>;
 }

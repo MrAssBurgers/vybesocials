@@ -125,6 +125,7 @@ export function useGlobalRealtimeMessages() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
         async (payload) => {
+          try {
           const newMessage = payload.new as any;
           const conversationId = newMessage.conversation_id;
           const isFromCurrentUser = newMessage.sender_id === profile.id;
@@ -262,6 +263,9 @@ export function useGlobalRealtimeMessages() {
           const cached = queryClient.getQueryData<any[]>(['dm-conversations', profile.id]);
           if (cached && !cached.some(c => c.id === conversationId)) {
             scheduleUnknownConvoRefetch(queryClient, profile.id);
+          }
+          } catch (err) {
+            if (import.meta.env.DEV) console.warn('[GlobalRT] INSERT handler failed', err);
           }
         }
       )

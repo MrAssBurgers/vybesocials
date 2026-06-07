@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, memo, forwardRef, useImperativeHandle } from 'react';
-import { FaceDetection, FACE_LANDMARKS } from '@/hooks/useFaceTracking';
-import { ARFilterDef, ParticleSystem } from '@/lib/arFilters';
+import { FaceDetection, FACE_LANDMARKS, createFallbackFaceDetection } from '@/hooks/useFaceTracking';
+import { ARFilterDef, ParticleSystem, arFilterNeedsFace } from '@/lib/arFilters';
 import { getPrimaryHex } from '@/lib/themeColor';
 
 interface AROverlayCanvasProps {
@@ -115,13 +115,24 @@ export const AROverlayCanvas = memo(
         return;
       }
 
-      if (isScanning && currentFaces.length === 0) {
+      const needsFace = arFilterNeedsFace(currentFilter);
+      const hasRealFace = currentFaces.length > 0;
+      const showScanning = isScanning && needsFace && !hasRealFace;
+
+      if (showScanning) {
         drawScanReticle(ctx, canvas.width, canvas.height, scanPhaseRef.current);
         rafRef.current = requestAnimationFrame(render);
         return;
       }
 
-      if (currentFaces.length === 0) {
+      const facesToRender =
+        hasRealFace
+          ? currentFaces
+          : needsFace
+            ? []
+            : [createFallbackFaceDetection(canvas.width, canvas.height)];
+
+      if (facesToRender.length === 0) {
         rafRef.current = requestAnimationFrame(render);
         return;
       }
@@ -132,7 +143,7 @@ export const AROverlayCanvas = memo(
         ctx.scale(-1, 1);
       }
 
-      for (const face of currentFaces) {
+      for (const face of facesToRender) {
         const lm = face.landmarks;
 
         if (currentFilter.colorGrade) {
@@ -198,7 +209,7 @@ export const AROverlayCanvas = memo(
             }
 
             ctx.translate(face.centerX, face.centerY);
-            ctx.rotate(face.roll);
+            ctx.rotate(mirrored ? -face.roll : face.roll);
             ctx.translate(-face.centerX, -face.centerY);
 
             const sx = mask.scale || 1;
@@ -326,13 +337,11 @@ export const AROverlayCanvas = memo(
     }, [videoWidth, videoHeight, mirrored, drawScanReticle]);
 
     useEffect(() => {
-      if (filter) {
-        rafRef.current = requestAnimationFrame(render);
-      }
+      rafRef.current = requestAnimationFrame(render);
       return () => {
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
       };
-    }, [filter, render]);
+    }, [filter, render, videoWidth, videoHeight]);
 
     if (!filter) return null;
 
