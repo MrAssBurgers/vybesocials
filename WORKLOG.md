@@ -71,6 +71,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 3. Reply to Apple in App Store Connect with build number + video link
 
 ## Publish log
+- **2026-06-05** — commit `0da5c235` pushed — App Store ATT + AR + resubmit guide — **Lovable Publish now** (web) + **Despia rebuild** (iOS)
 - **2026-06-05** — smoothness/ATT resume + Friend Link perf — **Publish in Lovable + Despia now**
 - **2026-06-02** — commit `ee375394` — ATT blank-screen fix
 - **2026-06-02** — commit `934af286` — Friend Link polish + Create camera revamp
