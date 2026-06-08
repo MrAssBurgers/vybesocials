@@ -53,17 +53,19 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
       supabase
         .rpc('get_own_sensitive_profile')
         .single()
-        .then(({ data }) => {
-          if (cancelled) return;
-          if (data?.tracking_consent) {
-            localStorage.setItem(TRACKING_CONSENT_KEY, data.tracking_consent);
-          } else {
-            schedulePrompt();
-          }
-        })
-        .catch(() => {
-          if (!cancelled) schedulePrompt();
-        });
+        .then(
+          ({ data }) => {
+            if (cancelled) return;
+            if (data?.tracking_consent) {
+              localStorage.setItem(TRACKING_CONSENT_KEY, data.tracking_consent);
+            } else {
+              schedulePrompt();
+            }
+          },
+          () => {
+            if (!cancelled) schedulePrompt();
+          },
+        );
     }
 
     return () => {

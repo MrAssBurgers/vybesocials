@@ -267,7 +267,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       navigate('/onboarding', { replace: true });
       return;
     }
-    if (authProfile?.username && authProfile?.onboarding_completed !== false) {
+    if (authProfile?.username) {
       const returnPath = getPostLoginPath('/home');
       navigate(returnPath, { replace: true });
     }
