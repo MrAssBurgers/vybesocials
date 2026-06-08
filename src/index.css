@@ -1062,6 +1062,18 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     animation-play-state: paused !important;
   }
 
+  /* Pause heavy aurora background layers during scroll — biggest source of
+     scroll jank on mid-tier mobile (large blurred fullscreen layers
+     repainting every frame). */
+  .is-scrolling .vybe-liquid-bg .vybe-liquid-blob,
+  .is-scrolling .vybe-liquid-bg .vybe-liquid-bloom,
+  .is-scrolling .vybe-liquid-bg .vybe-liquid-mesh,
+  .is-scrolling .vybe-liquid-bg .vybe-liquid-grain,
+  .is-scrolling .vybe-liquid-bg .vybe-liquid-parallax {
+    animation-play-state: paused !important;
+    transition: none !important;
+  }
+
   /* Reduce transition complexity during scroll - target specific classes only */
   .is-scrolling .liquid-glass,
   .is-scrolling .liquid-glass-card,
