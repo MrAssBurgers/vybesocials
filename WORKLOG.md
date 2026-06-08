@@ -5,10 +5,23 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **App Store resubmit** — ATT blank screen + NFC demo video (see `docs/APP_STORE_RESUBMIT.md`)
-- New Despia build required (build > 5292359)
+- **App Store resubmit** — iPad blank launch (build 6061901) + NFC demo video (see `docs/APP_STORE_RESUBMIT.md`)
+- New Despia build required (build **> 6061901**)
 
-## What Changed (App Store rejection fixes — latest, local)
+## What Changed (iPad launch fix — latest, local)
+- **`deviceDetection.ts`** — iPad/Macintosh UA + embedded WebView heuristics
+- **`RootGate`** — iPad always gets mobile intro/Landing (not desktop `VybeHome`)
+- **`despiaBridge`** — native shell detection for iPadOS desktop-class UA
+- **`auth.tsx`** — 6s auth safety timeout + 5s `getSession` race
+- **`App.tsx`** — clear stuck `#root` visibility after splash dismiss
+- **`PublicOnlyRoute`** — iPad redirects to `/auth` instead of marketing pages
+
+## What Changed (colorful background restore — prior local)
+- **`STABLE_APP_BACKGROUND = false`** — liquid aurora + touch ripples back app-wide (Home, Clips, Explore, auth Landing)
+- App shell transparent again; `VybeLiquidTouchShell` remounted in `App.tsx`
+- Custom wallpaper still overrides aurora when set
+
+## What Changed (App Store rejection fixes — prior local)
 - **2.1(a) ATT:** splash absolute max 6.5s (was 3.5s early dismiss); post-ATT poll until auth+preload ready; staggered WebView recovery; consent poll after resume
 - **2.1(a) routes:** loaders instead of blank null; stale token → `/auth`; local signOut on refresh timeout
 - **2.1 NFC:** `docs/APP_STORE_RESUBMIT.md` — demo video script + App Review notes to paste (video still required manually)
@@ -62,7 +75,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - Custom wallpaper gate: `hasUserWallpaper` + `isBackgroundResolved` hide aurora/touch; `stripLiquidShellDocumentState()` on upload
 
 ## Current Status
-- Done: `npm run build` + `npm run lint`
+- Done: colorful aurora restored; `npm run build` + `npm run lint`
 - **Your turn:** Lovable Publish → Despia rebuild → paste notes from `docs/APP_STORE_RESUBMIT.md` → film NFC video → resubmit
 
 ## Next 3 tasks

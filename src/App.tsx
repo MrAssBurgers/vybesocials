@@ -289,6 +289,19 @@ function AppWithPreloader() {
     return () => clearTimeout(absoluteMax);
   }, [showSplash]);
 
+  // Ensure WebView is visible after splash (App Review 2.1a blank launch on iPad).
+  useEffect(() => {
+    if (showSplash) return;
+    document.body.classList.remove('splash-visible');
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+    const root = document.getElementById('root');
+    if (root) {
+      root.style.visibility = '';
+      root.style.opacity = '';
+    }
+  }, [showSplash]);
+
   const showSplashRef = useRef(showSplash);
   const preloadCompleteRef = useRef(preloadStatus.isComplete);
   const authResolvedRef = useRef(authResolved);
@@ -395,6 +408,7 @@ function AppWithPreloader() {
                         <Sonner />
                         <BrowserRouter>
                           <AppGlobalLiquidShell />
+                          <VybeLiquidTouchShell />
                           <div
                             id="app-shell"
                             data-app-shell

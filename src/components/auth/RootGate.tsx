@@ -2,15 +2,15 @@ import { lazy, Suspense, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { isNativeAppShell } from '@/lib/despiaBridge';
+import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
 import { VybePageLoader } from '@/components/ui/VybeLoader';
 
 const VybeHome = lazy(() => import('@/pages/VybeHome'));
 const Landing = lazy(() => import('@/pages/Landing'));
 const MobileIntro = lazy(() => import('@/pages/MobileIntro'));
 
-function isMobileViewport() {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia('(max-width: 768px)').matches;
+function useMobileAppEntry(): boolean {
+  return isNativeAppShell() || isMobileOrTabletDevice();
 }
 
 /**
@@ -25,29 +25,29 @@ export default function RootGate() {
   const [introDone, setIntroDone] = useState<boolean>(() => {
     try { return !!localStorage.getItem('vybe_intro_seen'); } catch { return true; }
   });
-  const [isMobile, setIsMobile] = useState(() => isMobileViewport());
+  const isMobileApp = useMobileAppEntry();
 
   if (loading) return <VybePageLoader delay={0} />;
   if (user) return <Navigate to="/home" replace />;
 
-  const showIntro = !introDone && (isNativeAppShell() || isMobile);
+  const showIntro = !introDone && isMobileApp;
   if (showIntro) {
     return (
-      <Suspense fallback={<VybePageLoader />}>
+      <Suspense fallback={<VybePageLoader delay={0} />}>
         <MobileIntro onDone={() => setIntroDone(true)} />
       </Suspense>
     );
   }
 
-  if (isNativeAppShell() || isMobile) {
+  if (isMobileApp) {
     return (
-      <Suspense fallback={<VybePageLoader />}>
+      <Suspense fallback={<VybePageLoader delay={0} />}>
         <Landing />
       </Suspense>
     );
   }
   return (
-    <Suspense fallback={<VybePageLoader />}>
+    <Suspense fallback={<VybePageLoader delay={0} />}>
       <VybeHome />
     </Suspense>
   );

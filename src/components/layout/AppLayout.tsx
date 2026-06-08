@@ -48,7 +48,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
   if (loading) {
     return (
-      <div className={cn('min-h-screen', showLiquidBg && 'bg-transparent')}>
+      <div className={cn('min-h-screen bg-background', showLiquidBg && 'bg-transparent')}>
         {children}
       </div>
     );
@@ -63,7 +63,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
         >
           Skip to content
         </a>
-        <div ref={ref} className={cn('h-screen w-full overflow-hidden relative', showLiquidBg && 'bg-transparent')}>
+        <div ref={ref} className={cn('h-screen w-full overflow-hidden relative bg-background', showLiquidBg && 'bg-transparent')}>
           <div className="relative z-[1] flex h-screen w-full">
             <DesktopLeftSidebar
               collapsed={leftCollapsed}
@@ -72,7 +72,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             <main
               id="main-content"
               className={cn(
-                'flex-1 min-w-0 h-screen overflow-x-hidden relative z-[2]',
+                'flex-1 min-w-0 h-screen overflow-x-hidden relative z-[2] bg-background',
                 showLiquidBg && 'bg-transparent',
                 noPadding ? 'overflow-hidden' : 'overflow-y-auto scroller',
               )}
@@ -103,7 +103,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     <div
         ref={ref}
         className={cn(
-          'h-screen w-full overflow-hidden overflow-x-hidden relative',
+          'h-screen w-full overflow-hidden overflow-x-hidden relative bg-background',
           showLiquidBg && 'bg-transparent',
           hideNav && noPadding && '!overflow-hidden',
         )}
@@ -124,7 +124,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             id="main-content"
             data-app-scroll-container="true"
             className={cn(
-              'overflow-x-hidden relative z-[2]',
+              'overflow-x-hidden relative z-[2] bg-background',
               showLiquidBg && 'bg-transparent',
               noPadding ? 'overflow-hidden' : 'overflow-y-auto scroller',
               hideNav ? '' : 'pt-14',

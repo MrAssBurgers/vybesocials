@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { isNativeAppShell } from '@/lib/despiaBridge';
+import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
 import { VybePageLoader } from '@/components/ui/VybeLoader';
 
 /**
@@ -13,8 +14,8 @@ import { VybePageLoader } from '@/components/ui/VybeLoader';
 export function PublicOnlyRoute({ children, redirectTo = '/home' }: { children: ReactNode; redirectTo?: string }) {
   const { user, loading } = useAuth();
 
-  if (isNativeAppShell()) {
-    return <Navigate to={redirectTo} replace />;
+  if (isNativeAppShell() || isMobileOrTabletDevice()) {
+    return <Navigate to={user ? redirectTo : '/auth'} replace />;
   }
   if (loading) return <VybePageLoader delay={0} />;
   if (user) return <Navigate to={redirectTo} replace />;

@@ -1,14 +1,31 @@
 import { useEffect } from 'react';
+import { STABLE_APP_BACKGROUND } from '@/lib/appBackgroundMode';
 import { useDefaultLiquidBackground } from '@/hooks/useDefaultLiquidBackground';
 
-/** Sync `body.has-liquid-bg` when the default aurora is active. */
+/** Sync document classes for liquid aurora or stable solid background. */
 export function useLiquidBackgroundShell(active: boolean) {
   useEffect(() => {
-    document.body.classList.toggle('has-liquid-bg', active);
-    document.documentElement.dataset.liquidBg = active ? 'true' : 'false';
+    const html = document.documentElement;
+    const body = document.body;
+
+    if (STABLE_APP_BACKGROUND) {
+      html.classList.add('vybe-stable-background');
+      html.classList.remove('vybe-aurora-active');
+      body.classList.remove('has-liquid-bg');
+      delete html.dataset.liquidBg;
+      return () => {
+        html.classList.remove('vybe-stable-background');
+      };
+    }
+
+    body.classList.toggle('has-liquid-bg', active);
+    html.dataset.liquidBg = active ? 'true' : 'false';
+    if (!active) {
+      delete html.dataset.liquidBg;
+    }
     return () => {
-      document.body.classList.remove('has-liquid-bg');
-      delete document.documentElement.dataset.liquidBg;
+      body.classList.remove('has-liquid-bg');
+      delete html.dataset.liquidBg;
     };
   }, [active]);
 }

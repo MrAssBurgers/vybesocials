@@ -393,6 +393,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hydrateCachedProfile();
     }
 
+    // Never block launch if getSession / refresh hangs (App Review 2.1a iPad).
+    const authSafetyTimeout = window.setTimeout(() => {
+      if (authInitializedRef.current) return;
+      logEvent('auth', 'Auth init safety timeout — continuing');
+      authInitializedRef.current = true;
+      setLoading(false);
+      setIsInitialized(true);
+    }, 6000);
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -470,11 +479,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     extractHashTokens().then((extracted) => {
       if (extracted) {
         authInitializedRef.current = true;
+        setLoading(false);
+        setIsInitialized(true);
         return;
       }
 
       logEvent('auth', 'Initializing: checking existing session');
-      supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      Promise.race([
+        supabase.auth.getSession(),
+        new Promise<{ data: { session: null }; error: null }>((resolve) =>
+          window.setTimeout(
+            () => resolve({ data: { session: null }, error: null }),
+            5000,
+          ),
+        ),
+      ]).then(async ({ data: { session }, error }) => {
         if (error) {
           logEvent('auth', 'getSession error (stale token?) — starting fresh', { error: error.message });
           setSession(null);
@@ -561,6 +580,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     // Cleanup on unmount
     return () => {
+      window.clearTimeout(authSafetyTimeout);
       subscription.unsubscribe();
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);

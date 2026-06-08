@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import despia from 'despia-native';
-import { isDespiaRuntime as inDespiaShell } from '@/lib/despiaBridge';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { useEarnTokens } from '@/hooks/useVybeTokens';
 import { useHasBoost } from '@/hooks/useActiveBoosts';
 import { useAuth } from '@/lib/auth';
+import { useAdEligibility } from '@/hooks/useAdEligibility';
 import { toast } from 'sonner';
 import { hapticNotification } from '@/lib/capacitor';
+import { recordAdImpression } from '@/lib/adPreferences';
 
 /**
  * Watch & Earn rewarded-ad system.
@@ -63,12 +65,6 @@ function saveState(userId: string, s: RewardState) {
   }
 }
 
-// True when the app is running inside the Despia native runtime.
-function isDespiaRuntime(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return navigator.userAgent.toLowerCase().includes('despia');
-}
-
 // Augment the window type for the Despia callback.
 declare global {
   interface Window {
@@ -78,6 +74,7 @@ declare global {
 
 export function useRewardedAd() {
   const { user } = useAuth();
+  const { showNativeAds } = useAdEligibility();
   const earn = useEarnTokens();
   const tokens2x = useHasBoost('tokens_2x');
   const [state, setState] = useState<RewardState>(() =>
@@ -130,7 +127,7 @@ export function useRewardedAd() {
   const remainingToday = Math.max(0, DAILY_AD_LIMIT - state.count);
   const onCooldown = cooldownRemaining > 0;
   const capReached = remainingToday <= 0;
-  const canWatch = !!user?.id && !onCooldown && !capReached && !isLoading;
+  const canWatch = !!user?.id && showNativeAds && !onCooldown && !capReached && !isLoading;
 
   // Run a Despia rewarded ad and wait for the native callback.
   const runDespiaRewarded = useCallback((): Promise<boolean> => {
@@ -183,12 +180,11 @@ export function useRewardedAd() {
       }
 
       if (!granted) {
-        // Per Despia/AdMob spec: status !== 'true' or no reward object → no credit.
         toast.info('Ad was not completed — no reward this time');
         return;
       }
 
-      // Credit tokens server-side
+      recordAdImpression();
       const earned = REWARD_PER_AD * (tokens2x ? 2 : 1);
       await earn.mutateAsync({
         amount: earned,
@@ -213,7 +209,7 @@ export function useRewardedAd() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, state, capReached, onCooldown, cooldownRemaining, earn, tokens2x, runDespiaRewarded]);
+  }, [user?.id, state, capReached, onCooldown, cooldownRemaining, earn, tokens2x, runDespiaRewarded, showNativeAds]);
 
   return {
     watchAd,

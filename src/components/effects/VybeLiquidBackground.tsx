@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { useTheme } from '@/lib/theme';
 import { haptics } from '@/lib/haptics';
 import { registerVybeLiquidBgBoost } from '@/lib/vybeLiquidTouchBridge';
+import { STABLE_APP_BACKGROUND } from '@/lib/appBackgroundMode';
 
 interface VybeLiquidBackgroundProps {
   className?: string;
@@ -88,12 +89,17 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches && !interactive) {
+    if (
+      STABLE_APP_BACKGROUND ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+      !interactive
+    ) {
       root.classList.add('vybe-liquid-bg--static');
     }
   }, [interactive]);
 
   useEffect(() => {
+    if (STABLE_APP_BACKGROUND) return;
     if (!backgroundOnly || !interactive) return;
     return registerVybeLiquidBgBoost(applyBgBoost);
   }, [backgroundOnly, interactive, applyBgBoost]);
@@ -105,6 +111,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
   }, []);
 
   useEffect(() => {
+    if (STABLE_APP_BACKGROUND) return;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduceMotion) return;
 
@@ -145,6 +152,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
   }, []);
 
   useEffect(() => {
+    if (STABLE_APP_BACKGROUND) return;
     if (!interactive || backgroundOnly) return;
 
     const onDown = (e: PointerEvent) => {
@@ -181,24 +189,27 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
     >
       <div className="vybe-liquid-parallax absolute inset-[-8%]">
         <div className="vybe-liquid-mesh absolute inset-0" />
-        <div className="vybe-liquid-bloom absolute inset-[-15%]" />
-
-        {BLOB_LAYOUT.map((blob) => (
-          <div
-            key={blob.id}
-            className={cn('vybe-liquid-blob absolute', `vybe-liquid-blob--${blob.id}`)}
-            style={{
-              top: blob.top,
-              left: blob.left,
-              width: blob.size,
-              height: blob.size,
-              ['--blob-dur' as string]: `${blob.dur}s`,
-            }}
-          />
-        ))}
+        {!STABLE_APP_BACKGROUND && (
+          <>
+            <div className="vybe-liquid-bloom absolute inset-[-15%]" />
+            {BLOB_LAYOUT.map((blob) => (
+              <div
+                key={blob.id}
+                className={cn('vybe-liquid-blob absolute', `vybe-liquid-blob--${blob.id}`)}
+                style={{
+                  top: blob.top,
+                  left: blob.left,
+                  width: blob.size,
+                  height: blob.size,
+                  ['--blob-dur' as string]: `${blob.dur}s`,
+                }}
+              />
+            ))}
+          </>
+        )}
       </div>
 
-      <div className="vybe-liquid-grain absolute inset-0" />
+      {!STABLE_APP_BACKGROUND && <div className="vybe-liquid-grain absolute inset-0" />}
 
       {!backgroundOnly && touchEffects}
     </div>

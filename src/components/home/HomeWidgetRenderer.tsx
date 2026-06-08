@@ -22,6 +22,7 @@ import { Loader2 } from 'lucide-react';
 import { lazy, Suspense, useMemo } from 'react';
 import { useShowAds } from '@/hooks/useShowAds';
 import { getAdInterval } from '@/components/ads/FeedAdCard';
+import { useDNAPreferences } from '@/hooks/useDNAPreferences';
 import { motion } from 'framer-motion';
 import { CreatorAnalytics } from '@/components/analytics/CreatorAnalytics';
 import { BattlePassWidget } from '@/components/gamification/BattlePassWidget';
@@ -371,18 +372,19 @@ function InlinePostList({
   onExplore?: () => void;
   showAds: boolean;
 }) {
+  const { data: dnaPrefs } = useDNAPreferences();
   const adPositions = useMemo(() => {
     if (!showAds || posts.length === 0) return new Set<number>();
     const positions = new Set<number>();
     let adIndex = 0;
-    let next = getAdInterval(adIndex) - 1;
+    let next = getAdInterval(adIndex, dnaPrefs) - 1;
     while (next < posts.length) {
       positions.add(next);
       adIndex++;
-      next += getAdInterval(adIndex);
+      next += getAdInterval(adIndex, dnaPrefs);
     }
     return positions;
-  }, [showAds, posts.length]);
+  }, [showAds, posts.length, dnaPrefs]);
 
   // Variable reward injection positions (every 8-15 posts)
   const rewardPositions = useMemo(() => {

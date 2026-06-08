@@ -5061,3 +5061,31 @@ html[data-anim-style='bouncy'] .vybe-liquid-button__flow {
 .perf-low .vybe-liquid-text__shimmer {
   animation-duration: calc(var(--vybe-shimmer-dur) * 1.25) !important;
 }
+
+/* Stable solid background — no animated aurora, no transparent shell flicker */
+html.vybe-stable-background,
+html.vybe-stable-background body,
+html.vybe-stable-background #root {
+  background: hsl(var(--background)) !important;
+  background-color: hsl(var(--background)) !important;
+}
+
+html.vybe-stable-background #vybe-aurora-mount {
+  display: none !important;
+}
+
+html.vybe-stable-background [data-app-shell],
+html.vybe-stable-background [data-route-shell],
+html.vybe-stable-background #main-content {
+  background-color: hsl(var(--background)) !important;
+}
+
+html.vybe-stable-background.vybe-aurora-active body,
+html.vybe-stable-background[data-liquid-bg='true'] body,
+html.vybe-stable-background body.has-liquid-bg {
+  background: hsl(var(--background)) !important;
+}
+
+html.vybe-stable-background .vybe-liquid-touch-layer {
+  display: none !important;
+}

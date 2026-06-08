@@ -10,6 +10,7 @@
  */
 
 import { isNativePlatform } from '@/lib/capacitor';
+import { isAppleTouchDevice, isEmbeddedAppleWebView, isStandaloneApp } from '@/lib/deviceDetection';
 
 const DESPIA_UA_HINT = /despia|vybeapp|app\.lovable\.416714c8d0134aff984d522418a9bbc7|com\.despia\.vybe/i;
 const DESPIA_CALLBACK_KEYS = ['nfcResult', 'payload', 'data', 'url', 'readNFCData'];
@@ -21,12 +22,14 @@ export function isDespiaRuntime(): boolean {
   const w = window as any;
   const isAndroidWebView = /Android/i.test(ua) && (/; wv\)/i.test(ua) || /Version\/4\.0.*Chrome/i.test(ua));
   const isIOSWebView =
-    /iPhone|iPad|iPod/i.test(ua) &&
+    isAppleTouchDevice() &&
     /AppleWebKit/i.test(ua) &&
     !/Safari/i.test(ua.split('AppleWebKit')[1] || '');
   return Boolean(
     isAndroidWebView ||
     isIOSWebView ||
+    (isAppleTouchDevice() && isEmbeddedAppleWebView()) ||
+    (isAppleTouchDevice() && isStandaloneApp()) ||
     w.ReactNativeWebView ||
     w.webkit?.messageHandlers?.despia ||
     w.despiaVersion ||
@@ -49,8 +52,7 @@ export function isAndroidUA(): boolean {
 }
 
 export function isIOSUA(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  return isAppleTouchDevice();
 }
 
 let despiaMod: any | null = null;

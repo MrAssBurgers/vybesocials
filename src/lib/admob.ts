@@ -1,22 +1,14 @@
 /**
  * AdMob integration for VYBE — Despia-only.
  *
- * IMPORTANT: This module used to depend on `@capacitor-community/admob`. That
- * plugin requires a native Xcode/Android Studio build via `npx cap sync`, which
- * is explicitly forbidden by project policy — we ship through Despia only.
- * Inside the Despia shell that plugin is never compiled in, so every call
- * silently failed and the wallet's "Watch & Earn" never delivered an ad.
+ * Unit IDs + App ID are configured in the **Despia dashboard**, not in this repo.
+ * Required bridge URLs:
+ *   displayrewardedad://
+ *   displayinterstitialad://
+ *   displaybannerad://
+ *   hidebannerad://
  *
- * Despia bridge schemes used here:
- *   - displayrewardedad://     → fires rewarded video; result returned via the
- *                                global `window.updateRewardedStatus(status)`
- *                                callback (see useRewardedAd.ts).
- *   - displayinterstitialad:// → fires an interstitial (fire-and-forget).
- *   - displaybannerad://       → shows the bottom banner.
- *   - hidebannerad://          → hides the banner.
- *
- * The AdMob App ID + unit IDs are configured in the Despia dashboard, not in
- * client code. AdMob's test/production behavior is chosen there as well.
+ * Reward callback: window.updateRewardedStatus('true' | 'false')
  */
 
 import despia from 'despia-native';

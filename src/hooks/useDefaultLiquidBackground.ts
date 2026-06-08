@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useAppBackground } from '@/components/layout/AppBackground';
+import { STABLE_APP_BACKGROUND } from '@/lib/appBackgroundMode';
 import { isAuthLiquidPath, isExcludedLiquidPath } from '@/lib/vybeLiquidPaths';
 
 /** Primary app surfaces where guests can browse without signing in */
@@ -13,17 +14,17 @@ function isGuestAppPath(pathname: string): boolean {
   );
 }
 
-/** Custom Settings wallpaper always wins over default aurora / touch. */
 function canUseDefaultLiquidExperience(
   hasUserWallpaper: boolean,
   isBackgroundResolved: boolean,
 ): boolean {
+  if (STABLE_APP_BACKGROUND) return false;
   return isBackgroundResolved && !hasUserWallpaper;
 }
 
 /**
  * True when the portaled app-shell aurora should show (Home, Explore, etc.).
- * Blocked by explicit Settings → Background uploads — not equipped profile themes.
+ * Disabled in stable mode — app uses solid `hsl(var(--background))` instead.
  */
 export function useDefaultLiquidBackground(): boolean {
   const { user } = useAuth();
@@ -38,7 +39,7 @@ export function useDefaultLiquidBackground(): boolean {
   }, [user, hasUserWallpaper, isBackgroundResolved, pathname]);
 }
 
-/** Inline aurora on auth Landing — same wallpaper gate as app shell. */
+/** Inline aurora on auth Landing — off in stable mode. */
 export function useAuthLandingLiquid(): boolean {
   const { hasUserWallpaper, isBackgroundResolved } = useAppBackground();
   const { pathname } = useLocation();
@@ -51,9 +52,10 @@ export function useAuthLandingLiquid(): boolean {
   );
 }
 
-/** Tap ripples + blob pull — app shell or auth Landing, never with custom wallpaper. */
+/** Tap ripples + blob pull — off in stable mode. */
 export function useLiquidTouchActive(): boolean {
   const showApp = useDefaultLiquidBackground();
   const showAuth = useAuthLandingLiquid();
+  if (STABLE_APP_BACKGROUND) return false;
   return showApp || showAuth;
 }
