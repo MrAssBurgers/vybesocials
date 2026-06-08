@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 
 interface AccessibilityState {
   reduceMotion: boolean;
@@ -22,9 +23,9 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
     const contrastQuery = window.matchMedia('(prefers-contrast: more)');
     
     const updateMotion = (e: MediaQueryListEvent | MediaQueryList) => {
-      setState(prev => ({ ...prev, reduceMotion: e.matches }));
-      // Apply to document for CSS usage
-      document.documentElement.classList.toggle('reduce-motion', e.matches);
+      const reduce = isNativePerfMode() || e.matches;
+      setState(prev => ({ ...prev, reduceMotion: reduce }));
+      document.documentElement.classList.toggle('reduce-motion', reduce);
     };
     
     const updateContrast = (e: MediaQueryListEvent | MediaQueryList) => {

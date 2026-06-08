@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { isNativeAppShell } from '@/lib/despiaBridge';
 
 export type GlassIntensity = 'calm' | 'normal' | 'max';
 export type ContrastMode = 'normal' | 'high';
@@ -50,8 +51,8 @@ export function GlassIntensityProvider({ children }: { children: ReactNode }) {
   const [intensity, setIntensityState] = useState<GlassIntensity>(() => {
     if (typeof window === 'undefined') return 'normal';
     const stored = localStorage.getItem('vybe-glass-intensity') as GlassIntensity;
-    // Default to 'calm' on iOS for better performance
-    return stored || (isIOSDevice() ? 'calm' : 'normal');
+    // Default to 'calm' on iOS and native store shell for better performance
+    return stored || (isIOSDevice() || isNativeAppShell() ? 'calm' : 'normal');
   });
   
   const [contrast, setContrastState] = useState<ContrastMode>(() => {

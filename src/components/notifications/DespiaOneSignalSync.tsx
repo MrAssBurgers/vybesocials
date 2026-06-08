@@ -73,8 +73,8 @@ export function DespiaOneSignalSync() {
         const permission = await checkDespiaPushPermission();
         const shouldAskPermission = permission !== true;
         void ensureDespiaOneSignalLinked(externalId, {
-          requestPermission: shouldAskPermission,
-          waitForPlayerIdMs: 3_000,
+          requestPermission: shouldAskPermission || trigger === 'login',
+          waitForPlayerIdMs: trigger === 'login' ? 6_000 : 3_000,
           authUserId,
           trigger,
         });

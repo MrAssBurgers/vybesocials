@@ -3,8 +3,9 @@
 // password/OAuth has succeeded and we want a second factor.
 import {
   corsHeaders, jsonResponse, getServiceClient, getClientIp, parseUserAgent,
-  geolocateIp, sha256Hex, generate6DigitCode, sendTransactional,
+  geolocateIp, sha256Hex, generate6DigitCode,
 } from '../_shared/security.ts';
+import { sendLoginVerificationEmail } from '../_shared/loginVerificationEmail.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -102,13 +103,15 @@ Deno.serve(async (req) => {
       .single();
     if (insErr || !chal) return jsonResponse({ error: 'create_challenge_failed' }, 500);
 
-    const sendResult = await sendTransactional('login-verification', normalized, {
+    const sendResult = await sendLoginVerificationEmail({
+      recipient: normalized,
       code,
       ip,
       city: geo.city,
       country: geo.country,
       device,
-    }, `2fa-${chal.id}`);
+      idempotencyKey: `2fa-${chal.id}`,
+    });
 
     if (!sendResult.ok) {
       await admin.from('auth_challenges').delete().eq('id', chal.id);

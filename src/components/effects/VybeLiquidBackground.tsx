@@ -4,6 +4,7 @@ import { useTheme } from '@/lib/theme';
 import { haptics } from '@/lib/haptics';
 import { registerVybeLiquidBgBoost } from '@/lib/vybeLiquidTouchBridge';
 import { STABLE_APP_BACKGROUND } from '@/lib/appBackgroundMode';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 
 interface VybeLiquidBackgroundProps {
   className?: string;
@@ -86,17 +87,20 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
     [applyBgBoost],
   );
 
+  const useStaticAurora =
+    STABLE_APP_BACKGROUND ||
+    isNativePerfMode() ||
+    (typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches) ||
+    !interactive;
+
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    if (
-      STABLE_APP_BACKGROUND ||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
-      !interactive
-    ) {
+    if (useStaticAurora) {
       root.classList.add('vybe-liquid-bg--static');
     }
-  }, [interactive]);
+  }, [useStaticAurora]);
 
   useEffect(() => {
     if (STABLE_APP_BACKGROUND) return;
@@ -111,7 +115,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
   }, []);
 
   useEffect(() => {
-    if (STABLE_APP_BACKGROUND) return;
+    if (STABLE_APP_BACKGROUND || isNativePerfMode()) return;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduceMotion) return;
 
@@ -189,7 +193,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
     >
       <div className="vybe-liquid-parallax absolute inset-[-8%]">
         <div className="vybe-liquid-mesh absolute inset-0" />
-        {!STABLE_APP_BACKGROUND && (
+        {!STABLE_APP_BACKGROUND && !isNativePerfMode() && (
           <>
             <div className="vybe-liquid-bloom absolute inset-[-15%]" />
             {BLOB_LAYOUT.map((blob) => (
@@ -209,9 +213,11 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
         )}
       </div>
 
-      {!STABLE_APP_BACKGROUND && <div className="vybe-liquid-grain absolute inset-0" />}
+      {!STABLE_APP_BACKGROUND && !isNativePerfMode() && (
+        <div className="vybe-liquid-grain absolute inset-0" />
+      )}
 
-      {!backgroundOnly && touchEffects}
+      {!backgroundOnly && !isNativePerfMode() && touchEffects}
     </div>
   );
 });

@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { liquidSpring } from '@/motion/liquidConfig';
 import { MOTION_CONFIG } from '@/lib/motion';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PublicOnlyRoute } from '@/components/auth/PublicOnlyRoute';
 import { preloadCriticalRoutes } from '@/lib/routePreloader';
@@ -132,18 +133,10 @@ export function AnimatedRoutes() {
   
   useDebugCapture();
   usePageTitle();
-  
-  return (
-    <AnimatePresence mode="popLayout" initial={false}>
-      <motion.div
-        key={location.pathname}
-        initial={false}
-        animate={{ opacity: 1 }}
-        className="min-h-screen bg-transparent"
-        data-route-shell
-      >
-      <Suspense fallback={<PageFallback />}>
-        <Routes location={location}>
+
+  const routeContent = (
+    <Suspense fallback={<PageFallback />}>
+      <Routes location={location}>
             {/* Public routes - no authentication required */}
             <Route path="/" element={<RootGate />} />
             <Route path="/vybe-home" element={<PublicOnlyRoute><VybeHome /></PublicOnlyRoute>} />
@@ -283,6 +276,26 @@ export function AnimatedRoutes() {
             </Suspense>
           )}
         </Suspense>
+  );
+
+  if (isNativePerfMode()) {
+    return (
+      <div className="min-h-screen bg-transparent" data-route-shell>
+        {routeContent}
+      </div>
+    );
+  }
+
+  return (
+    <AnimatePresence mode="popLayout" initial={false}>
+      <motion.div
+        key={location.pathname}
+        initial={false}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-transparent"
+        data-route-shell
+      >
+        {routeContent}
       </motion.div>
     </AnimatePresence>
   );

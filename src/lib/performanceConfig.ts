@@ -1,9 +1,9 @@
+import { isNativeAppShell } from '@/lib/despiaBridge';
+
 /**
  * VYBE Performance Configuration
  * Centralized performance settings for the app
  */
-
-// Detect iOS Safari specifically
 export const isIOSSafari = (): boolean => {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent.toLowerCase();
@@ -16,6 +16,7 @@ export const isIOSSafari = (): boolean => {
 // Detect low-end devices
 export const isLowEndDevice = (): boolean => {
   if (typeof window === 'undefined') return false;
+  if (isNativeAppShell()) return true;
   
   // Check for extremely limited memory only (< 2GB)
   const memory = (navigator as any).deviceMemory;

@@ -485,15 +485,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       logEvent('auth', 'Initializing: checking existing session');
-      Promise.race([
-        supabase.auth.getSession(),
-        new Promise<{ data: { session: null }; error: null }>((resolve) =>
-          window.setTimeout(
-            () => resolve({ data: { session: null }, error: null }),
-            5000,
-          ),
-        ),
-      ]).then(async ({ data: { session }, error }) => {
+
+      let getSessionHandled = false;
+      const handleGetSession = async (
+        result: Awaited<ReturnType<typeof supabase.auth.getSession>>,
+      ) => {
+        if (getSessionHandled) return;
+        getSessionHandled = true;
+
+        const { data: { session }, error } = result;
         if (error) {
           logEvent('auth', 'getSession error (stale token?) — starting fresh', { error: error.message });
           setSession(null);
@@ -576,6 +576,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         setLoading(false);
         setIsInitialized(true);
+      };
+
+      const getSessionTimeout = window.setTimeout(() => {
+        if (getSessionHandled) return;
+        logEvent('auth', 'getSession timed out — continuing');
+        void handleGetSession({ data: { session: null }, error: null });
+      }, 5000);
+
+      supabase.auth.getSession().then((result) => {
+        window.clearTimeout(getSessionTimeout);
+        void handleGetSession(result);
       });
     });
     // Cleanup on unmount

@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useAppBackground } from '@/components/layout/AppBackground';
 import { STABLE_APP_BACKGROUND } from '@/lib/appBackgroundMode';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isAuthLiquidPath, isExcludedLiquidPath } from '@/lib/vybeLiquidPaths';
 
 /** Primary app surfaces where guests can browse without signing in */
@@ -52,10 +53,10 @@ export function useAuthLandingLiquid(): boolean {
   );
 }
 
-/** Tap ripples + blob pull — off in stable mode. */
+/** Tap ripples + blob pull — off in stable mode and native store shell. */
 export function useLiquidTouchActive(): boolean {
   const showApp = useDefaultLiquidBackground();
   const showAuth = useAuthLandingLiquid();
-  if (STABLE_APP_BACKGROUND) return false;
+  if (STABLE_APP_BACKGROUND || isNativePerfMode()) return false;
   return showApp || showAuth;
 }

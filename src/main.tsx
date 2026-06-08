@@ -11,11 +11,15 @@ import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
 import { installFlickerGuardCheck } from "./lib/flickerGuardCheck";
 import { installDespiaRealtimeTransport } from "./lib/installDespiaRealtimeTransport";
 import { initSentry } from "./lib/sentry";
+import { initNativePerfMode } from "./lib/nativePerfMode";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { installDespiaNfcDispatcher } from "./lib/despiaNFCv2";
 
 // Initialize Sentry as early as possible so we capture init-time errors.
 initSentry();
+
+// Native store shell: static aurora + reduced motion before first paint.
+initNativePerfMode();
 
 // Despia NFC: define window.onNFCEvent multiplexer before any nfc://read/write.
 installDespiaNfcDispatcher();
@@ -27,8 +31,9 @@ installDespiaRealtimeTransport();
 // One-time cleanup: legacy biometric app-lock pref (card + gate were removed).
 try { localStorage.removeItem('vybe.bioauth.enabled'); } catch { /* ignore */ }
 
-// Warm up keyframes and preload Framer Motion when idle — keeps first paint fast
+// Warm up keyframes and preload Framer Motion when idle — skip on native (startup jank)
 const scheduleAnimationWarmup = () => {
+  if (isNativePlatform) return;
   const idle = (window as any).requestIdleCallback as
     | ((cb: () => void, opts?: { timeout: number }) => number)
     | undefined;

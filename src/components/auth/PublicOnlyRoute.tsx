@@ -14,10 +14,10 @@ import { VybePageLoader } from '@/components/ui/VybeLoader';
 export function PublicOnlyRoute({ children, redirectTo = '/home' }: { children: ReactNode; redirectTo?: string }) {
   const { user, loading } = useAuth();
 
+  if (loading) return <VybePageLoader delay={0} />;
   if (isNativeAppShell() || isMobileOrTabletDevice()) {
     return <Navigate to={user ? redirectTo : '/auth'} replace />;
   }
-  if (loading) return <VybePageLoader delay={0} />;
   if (user) return <Navigate to={redirectTo} replace />;
   return <>{children}</>;
 }

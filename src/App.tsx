@@ -26,6 +26,7 @@ import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
 import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import { useContrastAutoGuard } from "@/hooks/useContrastAutoGuard";
+import { isNativePerfMode } from "@/lib/nativePerfMode";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
 import LocalErrorBoundary from "@/components/error/LocalErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
@@ -261,8 +262,8 @@ function AppWithPreloader() {
   // Auto-update checker
   useAutoUpdate();
 
-  // Auto-detect low-contrast text and fix it on the fly
-  useContrastAutoGuard();
+  // Auto-detect low-contrast text and fix it on the fly (skip on native — DOM scans cause jank)
+  useContrastAutoGuard(!isNativePerfMode());
 
   // Track on-screen keyboard height as --kb-h CSS variable (Android polish)
   useKeyboardHeight();
@@ -504,7 +505,7 @@ const App = memo(() => {
             <AccessibilityProvider>
               {/* Tween defaults remove per-frame spring physics app-wide; components that
                   need a spring still opt-in explicitly via their own `transition` prop. */}
-              <MotionConfig reducedMotion="user" transition={{ type: 'tween', ease: [0.22, 1, 0.36, 1], duration: 0.18 }}>
+              <MotionConfig reducedMotion={isNativePerfMode() ? 'always' : 'user'} transition={{ type: 'tween', ease: [0.22, 1, 0.36, 1], duration: 0.18 }}>
                 <AppWithPreloader />
               </MotionConfig>
             </AccessibilityProvider>

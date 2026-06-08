@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { usePushNotifications } from './usePushNotifications';
 import { useAuth } from '@/lib/auth';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
 
 const SNOOZE_KEY = 'vybe_push_prompt_snoozed_until';
 const DISABLED_KEY = 'vybe_push_prompt_disabled';
@@ -44,7 +45,8 @@ export function useEnablePushPrompt() {
     if (!isSupported) return;
     if (isCheckingSubscription) return;
     if (isSubscribed) return;
-    if (permission === 'denied' || permission === 'granted') return;
+    // Only skip when browser/OS explicitly denied — granted without token still prompts relink.
+    if (!isDespiaRuntime() && permission === 'denied') return;
     if (isSnoozed()) return;
     setOpen(true);
   }, [ready, profile?.id, isSupported, isCheckingSubscription, isSubscribed, permission]);

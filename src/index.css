@@ -5101,3 +5101,39 @@ html.vybe-stable-background body.has-liquid-bg {
 html.vybe-stable-background .vybe-liquid-touch-layer {
   display: none !important;
 }
+
+/* Native Despia/Capacitor shell — colorful static aurora, no touch FX, lighter glass */
+html.native-perf-mode .vybe-liquid-touch-layer {
+  display: none !important;
+}
+
+html.native-perf-mode .vybe-liquid-grain {
+  display: none !important;
+}
+
+html.native-perf-mode .liquid-glass,
+html.native-perf-mode .liquid-glass-card,
+html.native-perf-mode .liquid-glass-button,
+html.native-perf-mode .glass-card {
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+}
+
+html.native-perf-mode .vybe-liquid-bg .vybe-liquid-blob,
+html.native-perf-mode .vybe-liquid-bg .vybe-liquid-bloom {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html.native-perf-mode .vybe-liquid-bg .vybe-liquid-blob,
+  html.native-perf-mode .vybe-liquid-bg .vybe-liquid-bloom,
+  html.native-perf-mode .vybe-liquid-bg--static .vybe-liquid-blob,
+  html.native-perf-mode .vybe-liquid-bg--static .vybe-liquid-bloom {
+    animation: none !important;
+  }
+
+  html.native-perf-mode html.vybe-liquid-touch-active .vybe-liquid-touch-layer,
+  html.native-perf-mode html.vybe-liquid-touch-active .vybe-liquid-touch-layer * {
+    animation: none !important;
+  }
+}

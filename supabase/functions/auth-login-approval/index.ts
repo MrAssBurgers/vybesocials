@@ -5,8 +5,9 @@
 import {
   corsHeaders, jsonResponse, getServiceClient, getUserFromAuthHeader,
   getClientIp, parseUserAgent, geolocateIp,
-  sha256Hex, generate6DigitCode, sendTransactional,
+  sha256Hex, generate6DigitCode,
 } from '../_shared/security.ts';
+import { sendLoginVerificationEmail } from '../_shared/loginVerificationEmail.ts';
 
 const TTL_MS = 5 * 60 * 1000;
 const CODE_TTL_MS = 10 * 60 * 1000;
@@ -264,13 +265,15 @@ Deno.serve(async (req) => {
         return jsonResponse({ ok: false, error: 'create_failed' }, 200);
       }
 
-      const sendResult = await sendTransactional('login-verification', chal.email!, {
+      const sendResult = await sendLoginVerificationEmail({
+        recipient: chal.email!,
         code,
         ip,
         city: geo?.city,
         country: geo?.country,
         device,
-      }, `2fa-${codeChal.id}`);
+        idempotencyKey: `2fa-${codeChal.id}`,
+      });
 
       if (!sendResult.ok) {
         await admin.from('auth_challenges').delete().eq('id', codeChal.id);

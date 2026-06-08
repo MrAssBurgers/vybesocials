@@ -36,6 +36,15 @@ export function isMobileOrTabletDevice(): boolean {
   return window.innerWidth < TABLET_BREAKPOINT;
 }
 
+/** Safari browser on iPhone/iPad (not an embedded in-app WebView). */
+export function isMobileSafariBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  if (!isAppleTouchDevice()) return false;
+  const ua = navigator.userAgent;
+  if (/CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(ua)) return false;
+  return /Safari\//i.test(ua) && /Version\//i.test(ua);
+}
+
 /**
  * Likely embedded iOS WebView (Despia / Capacitor / in-app browser shell).
  * Catches iPadOS desktop UA where `iPad` is absent from userAgent.
@@ -43,6 +52,7 @@ export function isMobileOrTabletDevice(): boolean {
 export function isEmbeddedAppleWebView(): boolean {
   if (typeof navigator === 'undefined' || typeof window === 'undefined') return false;
   if (!isAppleTouchDevice()) return false;
+  if (isMobileSafariBrowser()) return false;
 
   const ua = navigator.userAgent;
   if (/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua)) return false;
@@ -53,13 +63,6 @@ export function isEmbeddedAppleWebView(): boolean {
     const afterWebKit = ua.split('AppleWebKit')[1] || '';
     // WKWebView often lacks a Safari token in the WebKit segment.
     if (!/Safari/i.test(afterWebKit)) return true;
-  }
-
-  // Coarse pointer + touch → tablet/phone shell, not desktop Safari.
-  const coarseTouch =
-    window.matchMedia?.('(pointer: coarse)').matches === true && navigator.maxTouchPoints > 0;
-  if (coarseTouch && !window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) {
-    return true;
   }
 
   return false;

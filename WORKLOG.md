@@ -8,7 +8,22 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **App Store resubmit** — iPad blank launch (build 6061901) + NFC demo video (see `docs/APP_STORE_RESUBMIT.md`)
 - New Despia build required (build **> 6061901**)
 
-## What Changed (iPad launch fix — latest, local)
+## What Changed (native perf mode — latest, local)
+- **`nativePerfMode.ts`** — Despia/Capacitor store shell gets static colorful aurora (mesh only), no touch ripples, reduced Framer motion, no contrast DOM scans
+- **`VybeLiquidBackground`** — skips animated blobs, bloom, grain, device tilt, and pointer FX on native
+- **`AnimatedRoutes`** — plain route shell on native (no `AnimatePresence popLayout`)
+- **`main.tsx`** — `native-perf-mode` + `reduce-motion` classes before first paint; skip animation warmup on native
+- **`index.css`** — native overrides beat immersive aurora/touch CSS
+
+## What Changed (launch polish — prior local)
+- Safari vs WebView detection — iPad Safari no longer mis-detected as native app
+- Auth `getSession` — late responses no longer ignored after timeout
+- `RootGate` — orientation/resize-aware mobile routing
+- `PublicOnlyRoute` — waits for auth before redirect (no flash to sign-in)
+- Friend Link pill visible on iPad (`useIsMobileOrTablet`)
+- Shared `detectIsIPad` in `deviceDetection.ts` + `use-mobile.tsx`
+
+## What Changed (iPad launch fix — pushed `94b22cad`)
 - **`deviceDetection.ts`** — iPad/Macintosh UA + embedded WebView heuristics
 - **`RootGate`** — iPad always gets mobile intro/Landing (not desktop `VybeHome`)
 - **`despiaBridge`** — native shell detection for iPadOS desktop-class UA
@@ -75,16 +90,16 @@ Use this file as the Lovable -> Cursor handoff each session.
 - Custom wallpaper gate: `hasUserWallpaper` + `isBackgroundResolved` hide aurora/touch; `stripLiquidShellDocumentState()` on upload
 
 ## Current Status
-- Done: colorful aurora restored; `npm run build` + `npm run lint`
-- **Your turn:** Lovable Publish → Despia rebuild → paste notes from `docs/APP_STORE_RESUBMIT.md` → film NFC video → resubmit
+- Done: launch polish pass; `npm run build` + `npm run lint`
+- **Your turn:** Lovable Publish → Despia rebuild (>6061901) → App Review notes + demo account
 
 ## Next 3 tasks
-1. Despia rebuild + fresh-install ATT test (Allow + Don't Allow) on iPad + iPhone
-2. Record NFC Friend Link demo video; add URL to App Store Connect
-3. Reply to Apple in App Store Connect with build number + video link
+1. Lovable Publish + Despia rebuild (build > 6061901)
+2. Fresh-install iPad test (portrait + landscape) + demo account in App Store Connect
+3. Film NFC demo video + reply to Apple (see `docs/APP_STORE_RESUBMIT.md`)
 
 ## Publish log
-- **2026-06-05** — commit `0da5c235` pushed — App Store ATT + AR + resubmit guide — **Lovable Publish now** (web) + **Despia rebuild** (iOS)
+- **2026-06-07** — commit `94b22cad` pushed — iPad launch fix + aurora + ads — **Lovable Publish + Despia rebuild**
 - **2026-06-05** — smoothness/ATT resume + Friend Link perf — **Publish in Lovable + Despia now**
 - **2026-06-02** — commit `ee375394` — ATT blank-screen fix
 - **2026-06-02** — commit `934af286` — Friend Link polish + Create camera revamp
@@ -92,11 +107,6 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **2026-06-01** — commit `601ebb39` — perf, offline UX, lazy i18n, Friend Link spotlight
 - **2026-06-01** — commit `821c373d` — liquid FAB + auth liquid UI
 - **2026-06-01** — commit `6f265956` — auth liquid UI, Welcome heading
-
-## Next 3 Tasks
-1. Commit + push + Lovable Publish
-2. Phone smoke: Friend Link tap/shake/X, QR scan, NFC tap (Despia)
-3. Create tab: lenses, AR FX, coach dismiss, photo + hold video
 
 ## Verification Checklist
 - [x] `npm run build` passes

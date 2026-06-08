@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { normalizeE164, formatDisplayUS, maskPhone } from '@/lib/phone';
+import { parseEdgeInvokeResult, phoneVerifyErrorMessage } from '@/lib/edgeFunctionResponse';
 
 interface Props {
   /** When true, hides the card chrome — for use inside a forced verification modal. */
@@ -86,23 +87,23 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
     if (!challengeId || code.length !== 6) return;
     setVerifying(true);
     try {
-      const { data, error } = await supabase.functions.invoke('phone-verify-confirm', {
+      const result = await supabase.functions.invoke('phone-verify-confirm', {
         body: { challengeId, code },
       });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      const { payload, errorCode } = await parseEdgeInvokeResult(result);
+      if (errorCode) {
+        toast.error(phoneVerifyErrorMessage(errorCode));
+        return;
+      }
+      if (!payload) throw new Error('verify_failed');
       toast.success('Phone verified ✅');
       setPhoneVerified(true);
-      setStoredPhone((data as any).phone || normalizeE164(phone) || '');
+      setStoredPhone((payload as { phone?: string }).phone || normalizeE164(phone) || '');
       setStage('idle');
       setPhone(''); setCode(''); setChallengeId(null);
-      onVerified?.((data as any).phone);
+      onVerified?.((payload as { phone?: string }).phone);
     } catch (e: any) {
-      const msg = e?.message || '';
-      if (msg.includes('wrong_code')) toast.error('Incorrect code');
-      else if (msg.includes('expired')) toast.error('Code expired. Send a new one.');
-      else if (msg.includes('too_many_attempts')) toast.error('Too many tries. Send a new code.');
-      else toast.error('Could not verify');
+      toast.error(phoneVerifyErrorMessage(e?.message));
     } finally {
       setVerifying(false);
     }

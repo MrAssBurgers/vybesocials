@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { isNativeAppShell } from '@/lib/despiaBridge';
@@ -10,15 +10,30 @@ const Landing = lazy(() => import('@/pages/Landing'));
 const MobileIntro = lazy(() => import('@/pages/MobileIntro'));
 
 function useMobileAppEntry(): boolean {
-  return isNativeAppShell() || isMobileOrTabletDevice();
+  const [mobileApp, setMobileApp] = useState(
+    () => isNativeAppShell() || isMobileOrTabletDevice(),
+  );
+
+  useEffect(() => {
+    const update = () => setMobileApp(isNativeAppShell() || isMobileOrTabletDevice());
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('orientationchange', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('orientationchange', update);
+    };
+  }, []);
+
+  return mobileApp;
 }
 
 /**
  * Root `/` gate:
  *  - Signed-in users → /home
  *  - First-time mobile/native logged-out users → MobileIntro (then /auth)
- *  - Native (Despia / Capacitor) builds → Landing (auth) directly
- *  - Everyone else (web desktop, logged out) → VybeHome marketing page
+ *  - Native (Despia / Capacitor) + iPad/tablet → Landing (auth)
+ *  - Desktop web (logged out) → VybeHome marketing page
  */
 export default function RootGate() {
   const { user, loading } = useAuth();

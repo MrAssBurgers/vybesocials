@@ -5,6 +5,7 @@ import { Loader2, Mail, ShieldCheck, Smartphone, ShieldAlert, KeyRound } from 'l
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
+import { gateVerifyErrorMessage, parseEdgeInvokeResult } from '@/lib/edgeFunctionResponse';
 
 type Mode = 'code' | 'approval' | 'options' | 'sms';
 
@@ -90,11 +91,11 @@ export function LoginGateModal({
 
   // Auto-focus first cell when the modal opens
   useEffect(() => {
-    if (open && currentMode === 'code') {
+    if (open && (currentMode === 'code' || currentMode === 'sms')) {
       const t = window.setTimeout(() => inputsRef.current[0]?.focus(), 80);
       return () => window.clearTimeout(t);
     }
-  }, [open, mode]);
+  }, [open, currentMode]);
 
   // ── Approval realtime + polling fallback ─────────────────
   useEffect(() => {
@@ -180,22 +181,34 @@ export function LoginGateModal({
     setBusy(true);
     try {
       const fn = currentMode === 'sms' ? 'auth-2fa-verify-phone' : 'auth-2fa-verify';
-      const { data, error } = await supabase.functions.invoke(fn, {
+      const result = await supabase.functions.invoke(fn, {
         body: { challengeId: activeChallengeId, code: codeStr },
       });
-      if (error || (data as any)?.error) {
-        toast.error('Invalid or expired code');
+      const { payload, errorCode } = await parseEdgeInvokeResult(result);
+
+      if (errorCode || !payload?.ok) {
+        toast.error(gateVerifyErrorMessage(errorCode));
         setDigits(['', '', '', '', '', '']);
         inputsRef.current[0]?.focus();
         submittedRef.current = false;
         return;
       }
-      const session = (data as any)?.session ?? null;
+
+      const session = (payload as { session?: SessionTokens | null }).session ?? null;
+      if (!session?.access_token || !session?.refresh_token) {
+        toast.error('Sign-in session expired — go back and sign in again.');
+        submittedRef.current = false;
+        onCancel();
+        return;
+      }
       onSuccess(session);
+    } catch {
+      toast.error('Verification failed — check your connection and try again.');
+      submittedRef.current = false;
     } finally {
       setBusy(false);
     }
-  }, [busy, activeChallengeId, onSuccess, currentMode]);
+  }, [busy, activeChallengeId, onSuccess, onCancel, currentMode]);
 
   // Auto-submit when all 6 digits are filled
   useEffect(() => {

@@ -1,16 +1,10 @@
 import * as React from "react";
+import { detectIsIPad } from '@/lib/deviceDetection';
 
 const MOBILE_BREAKPOINT = 768;
 const TABLET_BREAKPOINT = 1024;
 
-/**
- * Detects if device is an iPad (modern iPads report as Macintosh)
- */
-function detectIsIPad(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent.toLowerCase();
-  return /ipad/.test(ua) || (/macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-}
+export { detectIsIPad };
 
 /**
  * Returns true for mobile phones only (< 768px)

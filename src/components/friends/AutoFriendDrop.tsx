@@ -14,7 +14,7 @@ import { useSwingDetection } from '@/hooks/useSwingDetection';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { getPreloadedStream, requestCameraStream, stopCameraStream } from '@/hooks/useCameraPreload';
 import jsQR from 'jsqr';
 import { getPrimaryHex } from '@/lib/themeColor';
@@ -45,9 +45,9 @@ export function AutoFriendDrop() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isMobile = useIsMobile();
+  const { isMobileOrTablet } = useIsMobileOrTablet();
   const showHomePill =
-    isMobile &&
+    isMobileOrTablet &&
     (location.pathname === '/home' || location.pathname === '/');
   const sendRequest = useSendFriendRequest();
   const createConversation = useCreateConversation();

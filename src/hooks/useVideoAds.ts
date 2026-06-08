@@ -1,8 +1,7 @@
 import { useCallback, useRef } from 'react';
 import despia from 'despia-native';
 import { showInterstitial } from '@/lib/admob';
-import { isNativePlatform } from '@/lib/capacitor';
-import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { isNativeAppShell } from '@/lib/despiaBridge';
 import { useAdEligibility } from '@/hooks/useAdEligibility';
 import { recordAdImpression } from '@/lib/adPreferences';
 
@@ -64,9 +63,9 @@ function saveSession(s: SessionState) {
 export function useVideoAds() {
   const { showNativeAds, personalizedAds } = useAdEligibility();
   const inFlightRef = useRef(false);
-  const inDespia = isDespiaRuntime();
+  const inNativeShell = isNativeAppShell();
 
-  const adsAllowed = showNativeAds && (isNativePlatform || inDespia);
+  const adsAllowed = showNativeAds && inNativeShell;
 
   const showVideoAd = useCallback(
     async (surface: Surface): Promise<boolean> => {
@@ -84,7 +83,7 @@ export function useVideoAds() {
 
       inFlightRef.current = true;
       try {
-        if (inDespia) {
+        if (inNativeShell) {
           try {
             despia('displayinterstitialad://');
           } catch (e) {
@@ -111,7 +110,7 @@ export function useVideoAds() {
         inFlightRef.current = false;
       }
     },
-    [adsAllowed, inDespia],
+    [adsAllowed, inNativeShell],
   );
 
   const isMidFeedAdSlot = useCallback(

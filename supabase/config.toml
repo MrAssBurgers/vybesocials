@@ -23,9 +23,19 @@ project_id = "hprmicwhlaaqfgshucec"
     verify_jwt = false
   [functions.auth-2fa-request]
     verify_jwt = false
+  [functions.auth-2fa-preauth]
+    verify_jwt = false
   [functions.auth-2fa-verify]
     verify_jwt = false
+  [functions.auth-2fa-verify-phone]
+    verify_jwt = false
   [functions.auth-login-approval]
+    verify_jwt = false
+  [functions.phone-verify-request]
+    verify_jwt = false
+  [functions.phone-verify-confirm]
+    verify_jwt = false
+  [functions.send-push-notification]
     verify_jwt = false
   [functions.auth-login-notify]
     verify_jwt = false
