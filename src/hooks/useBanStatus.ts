@@ -12,7 +12,7 @@ export const useBanStatus = () => {
     if (!profile?.id) return;
 
     const channel = supabase
-      .channel(`ban-status-${profile.id}`)
+      .channel(`ban-status-${profile.id}-${Math.random().toString(36).slice(2, 8)}`)
       .on(
         'postgres_changes',
         {
