@@ -1502,7 +1502,6 @@ export function ChatView() {
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'contain',
           touchAction: 'pan-y',
-          contain: 'layout style paint',
         }}
       >
         {/* Messages container - extra bottom padding on mobile for bottom nav */}
@@ -2025,7 +2024,7 @@ const MessageInputArea = memo(function MessageInputArea({
   safetyFilterNode?: React.ReactNode;
 }) {
   return (
-    <div className="flex-shrink-0 sticky bottom-0 z-30 bg-transparent px-2 sm:px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] relative">
+    <div className="flex-shrink-0 z-30 bg-transparent px-2 sm:px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
       {/* Sticker Panel */}
       {onSendSticker && showStickerPanel && setShowStickerPanel && (
         <StickerPanel

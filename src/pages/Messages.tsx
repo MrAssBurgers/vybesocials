@@ -7,11 +7,12 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { MessageCircle, Send } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 function MessagesLoadingSkeleton() {
   return (
     <AppLayout hideRightSidebar fullWidth noPadding>
-      <div className="h-[100dvh] w-full flex bg-background overflow-hidden">
+      <div className="flex flex-1 min-h-0 w-full bg-background overflow-hidden">
         <div className="w-full md:w-80 lg:w-96 border-r border-border/50 flex-shrink-0 bg-card/30 p-3 space-y-3">
           <Skeleton className="h-10 w-full rounded-xl" />
           {Array.from({ length: 8 }).map((_, i) => (
@@ -55,48 +56,36 @@ export default function Messages() {
     return <MessagesLoadingSkeleton />;
   }
 
-  // On mobile (not in chat), pin to viewport so bg-background covers area behind bottom nav
-  const mobileListMode = !isDesktop && !isInChat;
-
   return (
     <AppLayout hideRightSidebar fullWidth hideNav={isImmersive} noPadding>
-      <div 
-        className={`
-          ${isImmersive
-            ? 'h-[100dvh] fixed inset-0 z-50'
-            : mobileListMode
-              ? 'fixed inset-x-0 bottom-0 z-[1]'
-              : 'h-[100dvh] w-full'
-          } 
-          flex max-w-full pb-0 bg-background
-        `}
-        style={{
-          position: isImmersive ? 'fixed' : (mobileListMode ? 'fixed' : undefined),
-          top: mobileListMode ? 'var(--app-header-height)' : isImmersive ? 0 : undefined,
-          inset: isImmersive ? 0 : undefined,
-          zIndex: isImmersive ? 50 : (mobileListMode ? 1 : undefined),
-          overflow: 'hidden',
-          touchAction: 'pan-y',
-        }}
+      <div
+        className={cn(
+          'flex flex-1 min-h-0 w-full max-w-full overflow-hidden bg-background',
+          !isImmersive && 'pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]',
+        )}
+        style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
       >
         {/* Conversation list */}
-        <div 
-          className={`w-full md:w-80 lg:w-96 border-r border-border/50 flex-shrink-0 min-w-0 min-h-0 h-full bg-card/30 backdrop-blur-xl ${isInChat ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}
-          style={{ overflow: 'hidden' }}
+        <div
+          className={cn(
+            'w-full md:w-80 lg:w-96 border-r border-border/50 flex-shrink-0 min-w-0 min-h-0 bg-card/30 backdrop-blur-xl',
+            isInChat ? 'hidden md:flex md:flex-col' : 'flex flex-col',
+          )}
         >
           <ConversationList />
         </div>
-        
+
         {/* Chat area */}
-        <div 
-          className={`flex-1 min-w-0 min-h-0 h-full ${!isInChat ? 'hidden md:flex' : 'flex'} flex-col`}
-          style={{ overflow: 'hidden' }}
+        <div
+          className={cn(
+            'flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden',
+            !isInChat && 'hidden md:flex',
+          )}
         >
           {isInChat ? (
             <ChatView />
           ) : (
-            <div className="hidden md:flex flex-1 w-full h-full items-center justify-center relative overflow-hidden">
-              {/* Floating background particles */}
+            <div className="hidden md:flex flex-1 w-full min-h-0 items-center justify-center relative overflow-hidden">
               <div className="absolute inset-0 pointer-events-none">
                 {[...Array(5)].map((_, i) => (
                   <motion.div
@@ -122,7 +111,6 @@ export default function Messages() {
               </div>
 
               <div className="text-center relative z-10 liquid-glass-depth px-10 py-8 max-w-sm mx-4">
-                {/* Animated chat bubbles */}
                 <div className="relative w-20 h-20 mx-auto mb-5">
                   <motion.div
                     animate={{ y: [0, -6, 0], rotate: [0, -5, 0] }}

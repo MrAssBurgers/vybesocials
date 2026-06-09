@@ -290,7 +290,7 @@ export function ConversationList() {
   ];
 
   return (
-    <div className="flex flex-col h-full w-full min-w-0 overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 overflow-hidden">
       {/* Snapchat-style Header */}
       <div className="flex-shrink-0">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">

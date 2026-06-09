@@ -103,9 +103,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     <div
         ref={ref}
         className={cn(
-          'h-screen w-full overflow-hidden overflow-x-hidden relative bg-background',
+          'h-[100dvh] w-full overflow-hidden overflow-x-hidden relative bg-background',
           showLiquidBg && 'bg-transparent',
-          hideNav && noPadding && '!overflow-hidden',
         )}
         {...(hideNav && noPadding ? {} : swipeBackHandlers)}
       >
@@ -125,11 +124,16 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             className={cn(
               'overflow-x-hidden relative z-[2] bg-background',
               showLiquidBg && 'bg-transparent',
-              noPadding ? 'overflow-hidden' : 'overflow-y-auto scroller',
-              hideNav ? '' : 'content-with-header',
+              noPadding ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-y-auto scroller',
+              !hideNav && !noPadding ? 'content-with-header' : '',
             )}
             style={{
-              height: hideNav ? '100dvh' : noPadding ? 'calc(100dvh - var(--app-header-height))' : 'calc(100dvh)',
+              height: hideNav
+                ? '100dvh'
+                : noPadding
+                  ? 'calc(100dvh - var(--app-header-height))'
+                  : '100dvh',
+              marginTop: hideNav || !noPadding ? undefined : 'var(--app-header-height)',
               touchAction: noPadding ? 'pan-y' : undefined,
               paddingBottom:
                 hideNav || noPadding
