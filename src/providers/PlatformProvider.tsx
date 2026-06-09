@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, ReactNode } from 'react';
 import { usePlatform, PlatformType, DeviceType, PerformanceTier } from '@/hooks/usePlatform';
+import { applySafeAreaCssVars } from '@/lib/safeAreaInsets';
 
 interface PlatformContextValue {
   platform: PlatformType;
@@ -46,19 +47,18 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       html.classList.remove('reduce-motion');
     }
 
-    // Notch support
+    // Notch support — avoid body padding-top; fixed header owns top safe area
     if (hasNotch) {
       html.classList.add('has-notch');
-      body.classList.add('safe-all');
+    } else {
+      html.classList.remove('has-notch');
+      body.classList.remove('safe-all');
     }
 
-    // Set CSS custom properties for safe areas
-    body.style.setProperty('--sat', 'env(safe-area-inset-top, 0px)');
-    body.style.setProperty('--sar', 'env(safe-area-inset-right, 0px)');
-    body.style.setProperty('--sab', 'env(safe-area-inset-bottom, 0px)');
-    body.style.setProperty('--sal', 'env(safe-area-inset-left, 0px)');
+    const cleanupSafeArea = applySafeAreaCssVars(platform, device);
 
     return () => {
+      cleanupSafeArea();
       html.classList.remove(
         `platform-${platform}`,
         `device-${device}`,
