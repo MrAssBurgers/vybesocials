@@ -43,14 +43,10 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
     return <>{children}</>;
   }
 
-  // Auth still resolving — render children optimistically while session restores.
-  if (!authReady) {
+  // Auth still resolving, or token just written (signup/OAuth) before React state updates —
+  // render children optimistically instead of bouncing to /auth.
+  if (!authReady || (!user && hasStoredToken)) {
     return <>{children}</>;
-  }
-
-  // Stale token after auth finalized with no user → redirect (don't trap on blank protected routes).
-  if (!user && hasStoredToken) {
-    return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
   // Genuinely signed out — stash intended destination, then send to auth.

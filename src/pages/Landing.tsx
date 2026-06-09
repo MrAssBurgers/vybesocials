@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@/lib/auth';
+import { useAuth, waitForAuthSession } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 // Checkbox removed — using custom inline toggle for iOS compatibility
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Mail } from 'lucide-react';
 import { isNativeAppShell } from '@/lib/despiaBridge';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable/index';
@@ -156,6 +156,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     approvalLocation?: { city?: string | null; country?: string | null; ip?: string | null };
   }>(null);
   const [gatePending, setGatePending] = useState(false);
+  const [awaitingEmailVerification, setAwaitingEmailVerification] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -455,8 +456,24 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         if (!agreedToTerms) {
           throw new Error('You must agree to the Terms of Use');
         }
-        const { error } = await signUp(formData.email, formData.password, formData.username);
+        const { error, needsEmailConfirmation } = await signUp(
+          formData.email,
+          formData.password,
+          formData.username,
+        );
         if (error) throw error;
+
+        if (needsEmailConfirmation) {
+          setAwaitingEmailVerification(true);
+          toast.success('Account created! Verify your email to continue.');
+          return;
+        }
+
+        const session = await waitForAuthSession();
+        if (!session?.user) {
+          throw new Error('Account created — please sign in to continue.');
+        }
+
         toast.success('Welcome to VYBE! 🎉');
         navTo('onboarding', '/onboarding');
       }
@@ -602,6 +619,52 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             </div>
 
             <div className="px-4 sm:px-5 py-3.5 space-y-2.5">
+              {awaitingEmailVerification ? (
+                <div className="space-y-3 text-center py-1">
+                  <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-primary/15">
+                    <Mail className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold">Check your email</p>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      We sent a verification link to{' '}
+                      <span className="text-foreground font-medium">{formData.email}</span>.
+                      Open it to activate your account, then you&apos;ll go straight into onboarding.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-9 text-sm border-white/10"
+                    disabled={loading}
+                    onClick={async () => {
+                      setLoading(true);
+                      try {
+                        const { error: resendErr } = await resendVerification(formData.email);
+                        if (resendErr) throw resendErr;
+                        toast.success('Verification email sent — check your inbox.');
+                      } catch (err: any) {
+                        toast.error(getUserFriendlyError(err));
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >
+                    Resend verification email
+                  </Button>
+                  <button
+                    type="button"
+                    className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => {
+                      setAwaitingEmailVerification(false);
+                      setIsLogin(true);
+                    }}
+                  >
+                    Already verified? Sign in
+                  </button>
+                </div>
+              ) : (
+              <>
               <form onSubmit={handleSubmit} className="space-y-2">
                 {!isLogin && (
                   <div className="space-y-1 animate-in fade-in duration-200">
@@ -908,6 +971,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   {isLogin ? t('auth.signup') : t('auth.login')}
                 </button>
               </p>
+              </>
+              )}
             </div>
           </div>
         </motion.div>

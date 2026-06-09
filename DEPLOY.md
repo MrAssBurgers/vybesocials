@@ -19,8 +19,88 @@ Backend is **Supabase** project **`hprmicwhlaaqfgshucec`**.
 | Supabase Edge Functions | `npx supabase functions deploy <name>` **or** Lovable Backend deploy |
 | DB schema / RLS | Supabase migrations / `db pull` / manual SQL in `supabase/manual/` |
 | Play Store / Despia native shell | See `PLAY_STORE_GUIDE.md` (separate from web publish) |
+| Despia local server OTA (native apps) | **Lovable Publish** updates `despia/local.json` on `vybehub.app` — see below |
 
 Cursor agents **cannot** click Lovable Publish for you. They can: build locally, push git, deploy Supabase functions, and verify `vybehub.app` after **you** publish.
+
+---
+
+## Despia local server (native iOS / Android OTA)
+
+VYBE uses [@despia/local](https://www.npmjs.com/package/@despia/local) so Despia can cache the web build on-device and serve it from `http://localhost` (instant boot, real offline, store-compliant OTA).
+
+**Docs:** [Introduction](https://setup.despia.com/local-server/introduction.md) · [Reference](https://setup.despia.com/local-server/reference.md) · [Index](https://setup.despia.com/llms.txt)
+
+### Already wired in this repo
+
+| Piece | Location |
+|-------|----------|
+| Vite plugin | `vite.config.ts` → `despiaLocalPlugin({ outDir: 'dist', entryHtml: 'index.html' })` |
+| Dev dependency | `package.json` → `@despia/local` |
+| Build output | `dist/despia/local.json` (generated on every `npm run build`) |
+| Production URL | https://vybehub.app/despia/local.json |
+
+The manifest includes `entry`, `deployed_at`, and a sorted `assets` list. Despia compares `deployed_at` with the cached value to decide whether to download a new build.
+
+### How updates reach native users
+
+1. **First launch** — Despia hydrates from `vybehub.app` (HTML, CSS, JS, images, fonts only — no native binaries).
+2. **Subsequent launches** — App boots from on-device localhost cache (fast, works offline).
+3. **After Lovable Publish** — `deployed_at` changes → native app downloads the new build in the background → applies on **next** cold launch.
+
+**OTA without store review:** UI, routing, business logic, and how existing native APIs are used (push, NFC, RevenueCat, etc.).
+
+**Requires new store submission:** new native permissions, new Despia editor features, Capacitor plugin changes, or anything that adds native code to the binary.
+
+### Despia dashboard checklist
+
+Confirm in the Despia project (one-time, or when enabling local server):
+
+- [ ] **Local server** enabled for VYBE (public beta)
+- [ ] Hydration / start URL points at **`https://vybehub.app`**
+- [ ] Submit **one new store build** after enabling so the binary includes the on-device HTTP server
+
+If local server is off in Despia, the app still runs in URL mode even though `despia/local.json` is published.
+
+### Despia warning: “Native offline support requires…”
+
+Despia shows this when it **cannot fetch a valid** `despia/local.json` from the URL configured in your Despia project, or when the web app is not a client-side SPA build.
+
+**VYBE requirements (all met in repo):**
+
+| Requirement | VYBE |
+|-------------|------|
+| Client-side SPA (not SSR-only) | Vite + React + `BrowserRouter` |
+| `@despia/local` in build | `dependencies` + Vite plugin + `postbuild` script |
+| Manifest at `/despia/local.json` | Generated on every `npm run build` |
+
+**Most common fix — wrong URL in Despia:**
+
+Set the Despia app / hydration URL to **`https://vybehub.app`** (production), **not** the Lovable preview URL (`*.lovableproject.com`). Preview URLs may redirect behind auth, so Despia’s validator never sees the manifest.
+
+**Verify Despia can reach the manifest:**
+
+```bash
+curl -s https://vybehub.app/despia/local.json | head -3
+```
+
+Must return JSON with `entry`, `deployed_at`, and `assets` (HTTP 200, no login redirect).
+
+After changing Despia URL or pushing plugin fixes: **Lovable Publish** once, re-check the curl command, then re-save / rebuild in Despia.
+
+### Verify after Lovable Publish
+
+```bash
+curl -s https://vybehub.app/despia/local.json | head -5
+```
+
+Expect HTTP 200 and a fresh `deployed_at` timestamp. On a physical device: force-quit the app, reopen twice (second launch may apply a background download from the prior session).
+
+### Play Console notes
+
+- **APK size warnings** are mostly **native shell** code (Despia, WebRTC, RevenueCat, etc.), not the web bundle in the AAB.
+- **Web publish** does not change the store binary size; it updates cached web assets via OTA.
+- **Debug symbols** — upload native symbol zip from the Android release build (Despia automatic build or local `android/` gradle); see [Google Android deployment](https://setup.despia.com/deployment/google-android/automatic.md).
 
 ---
 
@@ -107,7 +187,7 @@ Hard-refresh or use a private window:
 - [ ] Feed loads without console errors
 - [ ] `/reset-password` link from email (if testing auth)
 
-Optional: test on **Play Store / Despia** app — it loads `vybehub.app` in a WebView; web publish updates the app without a store release **unless** native/Capacitor config changed.
+Optional: test on **Play Store / Despia** app — with local server enabled, web publish updates OTA via `despia/local.json` (no store release) **unless** native/Despia editor config changed. Verify manifest: https://vybehub.app/despia/local.json
 
 ---
 

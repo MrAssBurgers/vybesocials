@@ -5,7 +5,15 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — Share → Publish (`cc046265` — header lowered below camera, floating island bar)
+- **Lovable Publish** — Share → Publish (signup → onboarding fix, header polish, pending commits)
+- **Despia local server** — wired in repo; confirm enabled in Despia dashboard + one store build if not yet live (`DEPLOY.md`)
+
+## Despia local server (handoff)
+- **`@despia/local`** in `dependencies` + Vite plugin + `postbuild: despia-local dist index.html`
+- **Production manifest:** https://vybehub.app/despia/local.json (`deployed_at` drives OTA)
+- **Despia URL must be `vybehub.app`** — preview `*.lovableproject.com` redirects to auth; offline validator fails
+- **OTA path:** Lovable Publish → manifest updates → native app background download → next launch
+- **Store build only when:** new Despia native features / permissions / plugins (not for web UI fixes)
 
 ## Publish log
 - **2026-06-02** — pushed `cc046265` (header gap + safe-area fallbacks, floating pill bar). **Lovable Publish pending.**

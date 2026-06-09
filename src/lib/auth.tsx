@@ -49,7 +49,7 @@ interface AuthContextType {
   loading: boolean;
   authReady: boolean;
   banInfo: BanInfo | null;
-  signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null; needsEmailConfirmation?: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   resendVerification: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -57,6 +57,34 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+/** Wait until Supabase has a session (post-signup / OAuth race). */
+export async function waitForAuthSession(timeoutMs = 8000): Promise<Session | null> {
+  const initial = (await supabase.auth.getSession()).data.session;
+  if (initial?.user) return initial;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (session: Session | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      subscription.unsubscribe();
+      resolve(session);
+    };
+
+    const timer = setTimeout(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      finish(session);
+    }, timeoutMs);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user && event !== 'INITIAL_SESSION') {
+        finish(session);
+      }
+    });
+  });
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -626,11 +654,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (data.session?.user) {
         await (supabase as any).rpc('sync_signup_username');
+        return { error: null, needsEmailConfirmation: false };
       }
 
-      return { error: null };
+      return {
+        error: null,
+        needsEmailConfirmation: Boolean(data.user),
+      };
     } catch (error) {
-      return { error: error as Error };
+      return { error: error as Error, needsEmailConfirmation: false };
     }
   };
 

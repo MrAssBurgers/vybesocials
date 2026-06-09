@@ -10,6 +10,14 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 import { navVisibility } from '@/lib/navVisibility';
 
+const iconButtonClass = (active: boolean) =>
+  cn(
+    'relative flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200 active:scale-95',
+    active
+      ? 'bg-primary/15 text-primary'
+      : 'text-muted-foreground hover:bg-white/[0.06] hover:text-foreground',
+  );
+
 export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWithoutRef<'header'>>(function MobileHeader(_props, ref) {
   const { data: unreadCount = 0 } = useUnreadCount();
   const streakCount = useStreakCount();
@@ -46,7 +54,6 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
       data-app-mobile-header
       className="fixed top-0 inset-x-0 z-50 pointer-events-none"
     >
-      {/* Camera / status bar dead zone — toolbar starts below this */}
       <div
         className="w-full shrink-0"
         style={{ height: 'var(--app-header-top, calc(var(--app-header-safe, env(safe-area-inset-top, 0px)) + var(--app-header-gap, 0.75rem)))' }}
@@ -54,37 +61,44 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
       />
 
       <div
-        className="pointer-events-auto px-4 pb-[var(--app-header-tail,0.625rem)]"
-        style={{ paddingRight: 'max(1rem, calc(0.75rem + var(--app-header-safe-right, 0px)))' }}
+        className={cn(
+          'pointer-events-auto border-b border-white/[0.07]',
+          'bg-[hsl(var(--background)/0.82)] backdrop-blur-2xl backdrop-saturate-150',
+          'shadow-[0_1px_0_0_hsl(var(--primary)/0.08)]',
+        )}
+        style={{ paddingRight: 'max(1rem, calc(1rem + var(--app-header-safe-right, 0px)))' }}
       >
-        <div className="relative flex items-center gap-2.5 h-12 px-2.5 rounded-[1.35rem] bg-[hsl(var(--background)/0.88)] backdrop-blur-xl border border-white/10 shadow-[0_12px_40px_-18px_rgba(0,0,0,0.9)]">
+        <div className="flex items-center gap-2.5 h-12 px-4 pb-[var(--app-header-tail,0.625rem)]">
           <Link
             to="/home"
-            className="flex items-center justify-center h-9 w-9 flex-shrink-0 active:scale-95 transition-transform"
+            className="flex items-center gap-2 flex-shrink-0 active:scale-[0.98] transition-transform"
             onClick={() => debugPanel?.handleLogoTap?.()}
             aria-label="Home"
           >
             <VYBELogo size="sm" showText={false} />
+            <span className="text-[13px] font-semibold tracking-[0.18em] text-foreground/90 uppercase">
+              VYBE
+            </span>
           </Link>
 
           <HeaderSearch className="flex-1 min-w-0" variant="header" />
 
-          <div className="flex items-center flex-shrink-0">
+          <div
+            className="flex items-center gap-0.5 flex-shrink-0 rounded-xl bg-white/[0.04] p-0.5 ring-1 ring-inset ring-white/[0.06]"
+            aria-label="Quick actions"
+          >
             <Link
               to="/notifications"
               data-tutorial="notifications-badge"
               aria-label="Notifications"
-              className={cn(
-                'relative flex items-center justify-center h-9 w-9 rounded-full transition-colors active:scale-95',
-                isNotificationsActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
-              )}
+              className={iconButtonClass(isNotificationsActive)}
             >
-              <Bell className={cn('h-[19px] w-[19px]', bellBounce && 'animate-bell-ring')} strokeWidth={1.75} />
+              <Bell className={cn('h-[18px] w-[18px]', bellBounce && 'animate-bell-ring')} strokeWidth={1.75} />
               {unreadCount > 0 && (
                 <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary"
+                  className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-[hsl(var(--background))]"
                 />
               )}
             </Link>
@@ -92,14 +106,11 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
             <Link
               to="/challenges"
               aria-label={streakCount > 0 ? `Challenges, ${streakCount} day streak` : 'Challenges'}
-              className={cn(
-                'relative flex items-center justify-center h-9 w-9 rounded-full transition-colors active:scale-95',
-                isChallengesActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground',
-              )}
+              className={iconButtonClass(isChallengesActive)}
             >
-              <Target className="h-[19px] w-[19px]" strokeWidth={1.75} />
+              <Target className="h-[18px] w-[18px]" strokeWidth={1.75} />
               {streakCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full bg-gradient-to-br from-orange-500 to-fuchsia-600 text-[9px] font-bold text-white leading-none ring-2 ring-[hsl(var(--background))]">
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold leading-none text-primary-foreground ring-2 ring-[hsl(var(--background))]">
                   {streakCount > 99 ? '99+' : streakCount}
                 </span>
               )}

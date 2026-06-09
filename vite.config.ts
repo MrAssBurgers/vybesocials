@@ -57,7 +57,12 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
       'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(publishableKey),
     },
-    plugins: [previewSupabaseClientShimPlugin(), react(), mode === "development" && componentTagger(), despiaLocalPlugin({ outDir: "dist", entryHtml: "index.html" })].filter(Boolean),
+    plugins: [
+      previewSupabaseClientShimPlugin(),
+      react(),
+      despiaLocalPlugin({ outDir: "dist", entryHtml: "index.html" }),
+      mode === "development" && componentTagger(),
+    ].filter(Boolean),
     resolve: {
       dedupe: ['react', 'react-dom'],
       alias: [
