@@ -11,6 +11,13 @@ import { useIsMobileOrTablet } from "@/hooks/use-mobile";
 // Routes where bottom nav should be hidden
 const HIDDEN_NAV_ROUTES = ['/', '/onboarding', '/complete-profile', '/upload', '/camera', '/map', '/spaces', '/VYBE-AI'];
 
+function isFullscreenMediaRoute(pathname: string): boolean {
+  return (
+    /^\/watch\/[^/]+/.test(pathname) ||
+    /^\/clips\/[^/]+/.test(pathname)
+  );
+}
+
 export const RootBottomNavMount = memo(function RootBottomNavMount() {
   const { isMobileOrTablet } = useIsMobileOrTablet();
   const location = useLocation();
@@ -20,7 +27,8 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
   
   // Hide nav on landing, onboarding, and profile completion pages
   const isHiddenRoute = HIDDEN_NAV_ROUTES.includes(location.pathname);
+  const hideForMedia = isFullscreenMediaRoute(location.pathname);
   
-  if (!isMobileOrTablet || isInDMConversation || isHiddenRoute) return null;
+  if (!isMobileOrTablet || isInDMConversation || isHiddenRoute || hideForMedia) return null;
   return <BottomNav />;
 });

@@ -47,7 +47,13 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
   const isNotificationsActive = location.pathname === '/notifications';
   const isChallengesActive = location.pathname === '/challenges';
 
-  if (location.pathname === '/clips' || !headerVisible) {
+  const hideHeader =
+    location.pathname === '/clips' ||
+    location.pathname === '/shorts' ||
+    location.pathname.startsWith('/clips/') ||
+    location.pathname.startsWith('/watch/');
+
+  if (hideHeader || !headerVisible) {
     return null;
   }
 

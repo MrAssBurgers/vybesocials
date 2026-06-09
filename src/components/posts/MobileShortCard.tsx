@@ -238,6 +238,12 @@ export const MobileShortCard = memo(function MobileShortCard({
 
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => {
+    return () => {
+      if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+    };
+  }, []);
+
   const handleReaction = useCallback(async (reactionType: ReactionType | null) => {
     if (!profile) return;
 

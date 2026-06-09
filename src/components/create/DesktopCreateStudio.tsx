@@ -19,6 +19,7 @@ import { INTEREST_CATEGORIES, getSuggestedTagsForInterests } from '@/lib/tagCate
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Camera } from '@/components/camera/Camera';
 import { toast } from 'sonner';
+import { applyPostPublishNavigation } from '@/lib/postPublishNavigation';
 import { ImageCropEditor } from './editors/ImageCropEditor';
 import { ImageRotateEditor } from './editors/ImageRotateEditor';
 import { ImageFilterEditor } from './editors/ImageFilterEditor';
@@ -180,7 +181,8 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
       });
       if (pi) clearInterval(pi);
       setUploadProgress(100); setPublishSuccess(true);
-      setTimeout(() => { toast.success('Posted!'); navigate('/home'); }, 800);
+      const dest = applyPostPublishNavigation(contentType);
+      setTimeout(() => { toast.success('Posted!'); navigate(dest); }, 800);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to upload';
       toast.error(message.includes('timed out') ? message : 'Failed to upload. Please try again.');

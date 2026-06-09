@@ -114,6 +114,13 @@ export default function ClipsViewer() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Long-form videos use the watch player, not the vertical clip viewer
+  useEffect(() => {
+    if (initialPost?.type === 'video' && postId) {
+      navigate(`/watch/${postId}`, { replace: true, state: location.state });
+    }
+  }, [initialPost?.type, postId, navigate, location.state]);
+
   // ─── 2. Fetch infinite feed AFTER initial post ───
   const feedQuery = useInfiniteQuery({
     queryKey: ['clips-viewer-feed', profile?.id, postId],
@@ -300,6 +307,7 @@ export default function ClipsViewer() {
                 isActive={index === currentIndex}
                 globalMuted={globalMuted}
                 onToggleMute={handleToggleMute}
+                {...(isMobileOrTablet ? { immersiveFlow: true as const } : {})}
               />
             </div>
           </div>

@@ -483,7 +483,16 @@ export function useCreatePost() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
-      toast.success('Post created successfully!');
+      queryClient.invalidateQueries({
+        predicate: (q) => {
+          const key = JSON.stringify(q.queryKey).toLowerCase();
+          return (
+            key.includes('personalized-feed') ||
+            key.includes('infinite-following') ||
+            key.includes('infinite-posts')
+          );
+        },
+      });
     },
     onError: (error) => {
       console.error('[usePosts] Create post error:', error.message, error);

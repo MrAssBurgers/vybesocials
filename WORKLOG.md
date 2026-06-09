@@ -5,10 +5,18 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — clips polish pass (short + long video flows)
+- **Lovable Publish** — production perfection pass (publish routing, feeds, fullscreen UX)
 
 ## Publish log
-- **2026-06-09** — pushed clips perfection pass. **Lovable Publish pending.**
+- **2026-06-09** — production perfection pass pushed. **Lovable Publish pending.**
+
+## What Changed (production perfection pass)
+- **After publish** — clips → `/clips`, long videos → Videos tab; feeds invalidate instantly
+- **No duplicate** “Post created” toast on upload
+- **Email verify** — auth state + app resume detection (faster onboarding)
+- **Watch** — mobile autoplay (muted), immersive layout, bottom nav hidden
+- **Clip deep links** — `/clips/:id` redirects long videos to `/watch/:id`
+- **Header/nav** — hidden on clips, watch, and clip viewer routes
 
 ## What Changed (clips perfection pass)
 - **Videos tab header** — readable on light background (was invisible white-on-white)

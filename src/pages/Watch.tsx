@@ -38,6 +38,7 @@ export default function WatchPage() {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const hasCountedView = useRef(false);
+  const didAutoplayRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -123,6 +124,18 @@ export default function WatchPage() {
 
   const signedUrl = useSignedUrl(video?.media_url);
   const signedAvatar = useSignedUrl(video?.author?.avatar_url);
+
+  // Autoplay when signed URL loads (mobile starts muted — browser policy)
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!signedUrl || !el || video?.type === 'short' || didAutoplayRef.current) return;
+    didAutoplayRef.current = true;
+    if (isMobileOrTablet) {
+      el.muted = true;
+      setIsMuted(true);
+    }
+    el.play().catch(() => {});
+  }, [signedUrl, video?.type, isMobileOrTablet]);
 
   // Video controls
   const togglePlay = () => {
@@ -212,7 +225,7 @@ export default function WatchPage() {
 
   if (isLoading || video?.type === 'short') {
     return (
-      <AppLayout>
+      <AppLayout hideNav={isMobileOrTablet}>
         <div className="flex items-center justify-center h-96">
           <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
         </div>
@@ -235,7 +248,7 @@ export default function WatchPage() {
   const timeAgo = formatDistanceToNow(new Date(video.created_at), { addSuffix: true });
 
   return (
-    <AppLayout hideRightSidebar>
+    <AppLayout hideRightSidebar hideNav={isMobileOrTablet}>
       <div className={cn('max-w-7xl mx-auto', isMobileOrTablet && 'pb-24')}>
         <div className="flex flex-col lg:flex-row gap-6 p-4">
           {/* Main video player */}
