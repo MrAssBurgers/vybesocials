@@ -30,7 +30,8 @@ export async function getUserFromAuthHeader(req: Request): Promise<{ id: string;
     Deno.env.get('SUPABASE_ANON_KEY')!,
     { global: { headers: { Authorization: auth } } },
   );
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const token = auth.replace(/^Bearer\s+/i, '');
+  const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) return null;
   return { id: user.id, email: user.email ?? null };
 }
