@@ -73,11 +73,17 @@ export function AIBriefCustomizeSheet({ open, onOpenChange, onPreferencesUpdated
     if (!profile?.id) return;
     setIsLoading(true);
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('ai_brief_preferences')
         .select('*')
         .eq('user_id', profile.id)
-        .single();
+        .maybeSingle();
+
+      if (error) {
+        console.error('[AIBriefCustomize] load failed', error);
+        toast.error('Could not load brief settings');
+        return;
+      }
 
       if (data) {
         setPreferences({

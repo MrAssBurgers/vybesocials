@@ -30,6 +30,12 @@ label {
 }
 
 :root {
+  --app-header-height: calc(3.5rem + env(safe-area-inset-top, 0px));
+  --app-floating-header-scroll: calc(env(safe-area-inset-top, 0px) + 4.75rem);
+  --kb-h: 0px;
+}
+
+:root {
   --vybe-aura-grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.78' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%28%23n%29'/%3E%3C/svg%3E");
 }
 
@@ -699,6 +705,25 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   }
   
   .safe-area-all {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  .pt-safe,
+  .pt-safe-top,
+  .safe-area-inset-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .pb-safe,
+  .pb-safe-bottom,
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .safe-all {
     padding-top: env(safe-area-inset-top, 0px);
     padding-right: env(safe-area-inset-right, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -5136,4 +5161,13 @@ html.native-perf-mode .vybe-liquid-bg .vybe-liquid-bloom {
   html.native-perf-mode html.vybe-liquid-touch-active .vybe-liquid-touch-layer * {
     animation: none !important;
   }
+}
+
+.ai-chat-composer {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--kb-h, 0px));
+  transition: padding-bottom 0.2s ease-out;
+}
+
+body[data-kb-open="true"] .ai-chat-messages {
+  padding-bottom: calc(1rem + var(--kb-h, 0px));
 }

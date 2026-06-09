@@ -1,5 +1,4 @@
 import { useCallback, useRef } from 'react';
-import despia from 'despia-native';
 import { showInterstitial } from '@/lib/admob';
 import { isNativeAppShell } from '@/lib/despiaBridge';
 import { useAdEligibility } from '@/hooks/useAdEligibility';
@@ -83,15 +82,12 @@ export function useVideoAds() {
 
       inFlightRef.current = true;
       try {
-        if (inNativeShell) {
-          try {
-            despia('displayinterstitialad://');
-          } catch (e) {
-            console.warn('[useVideoAds] despia interstitial failed', e);
-            return false;
+        const fired = showInterstitial();
+        if (!fired) {
+          if (import.meta.env.DEV) {
+            console.warn('[useVideoAds] interstitial bridge returned false', { surface, adsAllowed });
           }
-        } else {
-          await showInterstitial();
+          return false;
         }
 
         recordAdImpression();
@@ -110,7 +106,7 @@ export function useVideoAds() {
         inFlightRef.current = false;
       }
     },
-    [adsAllowed, inNativeShell],
+    [adsAllowed],
   );
 
   const isMidFeedAdSlot = useCallback(

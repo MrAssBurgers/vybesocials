@@ -275,6 +275,10 @@ export function LoginGateModal({
         toast.error("Couldn't send a new code. Try again in a moment.");
         return;
       }
+      if ((data as any)?.requires2fa === false) {
+        toast.error("Couldn't resend the verification email. Try signing in again.");
+        return;
+      }
       if ((data as any)?.challengeId) setActiveChallengeId((data as any).challengeId);
       if ((data as any)?.expiresAt) setActiveExpiresAt((data as any).expiresAt);
       toast.success('New code sent');

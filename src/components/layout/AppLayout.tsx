@@ -127,10 +127,10 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
               'overflow-x-hidden relative z-[2] bg-background',
               showLiquidBg && 'bg-transparent',
               noPadding ? 'overflow-hidden' : 'overflow-y-auto scroller',
-              hideNav ? '' : 'pt-14',
+              hideNav ? '' : 'content-with-header',
             )}
             style={{
-              height: hideNav ? '100dvh' : noPadding ? 'calc(100dvh - 3.5rem)' : 'calc(100dvh)',
+              height: hideNav ? '100dvh' : noPadding ? 'calc(100dvh - var(--app-header-height))' : 'calc(100dvh)',
               paddingBottom:
                 hideNav || noPadding
                   ? undefined

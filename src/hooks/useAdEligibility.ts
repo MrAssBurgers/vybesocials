@@ -51,11 +51,11 @@ export function useAdEligibility() {
   const onNative = isNativeAppShell();
   const isLoading = rcLoading || ageLoading;
 
-  const showNativeAds = onNative && !isLoading && !isAdFreeSubscriber && !isUnder13;
+  const showNativeAds = onNative && !rcLoading && !isAdFreeSubscriber && !isUnder13;
   const showWebAds =
     !onNative &&
     WEB_ADSENSE_ENABLED &&
-    !isLoading &&
+    !rcLoading &&
     !isAdFreeSubscriber &&
     !isUnder13 &&
     consent !== null;

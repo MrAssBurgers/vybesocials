@@ -65,13 +65,14 @@ export default function Messages() {
           ${isImmersive
             ? 'h-[100dvh] fixed inset-0 z-50'
             : mobileListMode
-              ? 'fixed inset-x-0 top-14 bottom-0 z-[1]'
+              ? 'fixed inset-x-0 bottom-0 z-[1]'
               : 'h-[100dvh] w-full'
           } 
           flex max-w-full pb-0 bg-background
         `}
         style={{ 
           position: isImmersive ? 'fixed' : (mobileListMode ? 'fixed' : undefined),
+          top: mobileListMode ? 'var(--app-header-height)' : isImmersive ? 0 : undefined,
           inset: isImmersive ? 0 : undefined,
           zIndex: isImmersive ? 50 : (mobileListMode ? 1 : undefined),
           overflow: 'hidden',

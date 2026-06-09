@@ -50,11 +50,7 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
       data-no-auto-contrast
       className="fixed top-0 left-0 right-0 z-50 backdrop-blur-2xl bg-background/60"
     >
-      {/* Ambient gradient wash — replaces the boxy border */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-16 left-1/4 h-32 w-1/2 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute -top-12 right-0 h-24 w-1/3 rounded-full bg-accent/10 blur-3xl" />
-      </div>
+      {/* Ambient gradient wash — hidden on mobile (blur renders as grey blobs on WebKit) */}
 
       <div className="safe-area-top relative">
         <div className="flex items-center gap-2 h-14 px-4 relative z-10">

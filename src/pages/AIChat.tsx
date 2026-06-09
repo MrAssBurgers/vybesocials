@@ -562,8 +562,8 @@ export default function AIChat() {
 
         {/* Messages */}
         <div
-          className="flex-1 overflow-y-auto overscroll-contain px-3 pb-4 space-y-3"
-          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4.75rem)' }}
+          className="flex-1 overflow-y-auto overscroll-contain px-3 pb-4 space-y-3 ai-chat-messages"
+          style={{ paddingTop: 'var(--app-floating-header-scroll)' }}
         >
           {messages.map((message, index) => {
             const isOwn = message.role === 'user';
@@ -690,7 +690,7 @@ export default function AIChat() {
         </AnimatePresence>
 
         {/* Input */}
-        <div className="px-3 py-2.5 border-t border-border/40 bg-card shrink-0">
+        <div className="px-3 py-2.5 border-t border-border/40 bg-card shrink-0 ai-chat-composer">
           <div className="flex items-center gap-1 mb-1.5 px-1">
             {feedDNA && (
               <div className="flex items-center gap-1">
@@ -737,6 +737,11 @@ export default function AIChat() {
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onFocus={() => {
+                window.setTimeout(() => {
+                  messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }, 120);
+              }}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               placeholder={`Message ${aiName}...`}
               className="flex-1 h-9 text-sm rounded-full bg-muted/40 border-border/30 px-4"

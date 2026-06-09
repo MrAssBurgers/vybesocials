@@ -586,8 +586,7 @@ export function AutoFriendDrop() {
             <span className="relative z-10 text-xs font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               Friend Link
             </span>
-            {/* Pulse ring */}
-            <span className="absolute inset-0 rounded-full border border-primary/30 animate-ping opacity-20" />
+            {/* Pulse ring removed — animate-ping renders as a grey ghost on WebKit */}
             </button>
             <p className="mt-1.5 text-[10px] font-semibold text-foreground/80 drop-shadow-sm pointer-events-none">
               Tap or shake to open
@@ -758,25 +757,15 @@ export function AutoFriendDrop() {
                       className="flex flex-col items-center gap-4 py-2"
                     >
                       <div className="relative flex h-44 w-full items-center justify-center overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-accent/10">
-                        {[0, 1, 2, 3].map((i) => (
+                        {[0, 1, 2].map((i) => (
                           <motion.div
                             key={i}
-                            className="absolute h-24 w-24 rounded-full border border-primary/35"
+                            className="absolute h-20 w-20 rounded-full border-2 border-primary/40"
                             initial={false}
-                            animate={{ scale: [0.55, 2.45], opacity: [0.7, 0] }}
-                            transition={{ duration: 2.8, repeat: Infinity, delay: i * 0.62, ease: [0.22, 1, 0.36, 1] }}
+                            animate={{ scale: [0.6, 2.2], opacity: [0.55, 0] }}
+                            transition={{ duration: 2.4, repeat: Infinity, delay: i * 0.75, ease: [0.22, 1, 0.36, 1] }}
                           />
                         ))}
-                        <motion.div
-                          className="absolute h-44 w-44 rounded-full"
-                          style={{
-                            background: 'conic-gradient(from 0deg, transparent 0deg, hsl(var(--primary)/0.5) 44deg, transparent 92deg)',
-                            mask: 'radial-gradient(circle, transparent 28%, black 30%, black 70%, transparent 72%)',
-                            WebkitMask: 'radial-gradient(circle, transparent 28%, black 30%, black 70%, transparent 72%)',
-                          }}
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 2.6, repeat: Infinity, ease: 'linear' }}
-                        />
                         <div className="relative flex items-center justify-center gap-4">
                           <motion.div animate={{ x: tapLive ? [0, 10, 0] : 0, rotate: -7 }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}>
                             <div className="relative h-24 w-14 rounded-[18px] border border-primary/35 bg-card shadow-2xl shadow-primary/20">

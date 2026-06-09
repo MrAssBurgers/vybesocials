@@ -5,10 +5,24 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **App Store resubmit** — iPad blank launch (build 6061901) + NFC demo video (see `docs/APP_STORE_RESUBMIT.md`)
+- **Publish** — commit `e489cfa2` pushed; **you** must Lovable → Share → Publish
+- **App Store resubmit** — iPad blank launch + NFC demo video (see `docs/APP_STORE_RESUBMIT.md`)
 - New Despia build required (build **> 6061901**)
 
-## What Changed (native perf mode — latest, local)
+## Publish log
+- **2026-06-02** — pushed `e489cfa2` (native perf mode, auth/SMS/push client + edge function code). Web publish: pending Lovable Share → Publish. Supabase functions: pending `npx supabase login` + deploy (see `docs/AUTH_SMS_PUSH_SETUP.md`).
+
+## What Changed (mobile polish batch — latest, local)
+- **Safe area** — `--app-header-height` CSS var; AppLayout/Messages/ChatView respect notch; removed body safe-area padding that broke fixed headers
+- **MobileHeader** — removed blur blobs that rendered as grey circles on WebKit
+- **Verification email** — `auth-2fa-request` resend now matches preauth (no silent skip); LoginGateModal surfaces resend failures
+- **Daily brief** — unified cache slots (`morning/lunch/dinner`); refresh keeps content visible; settings load via `.maybeSingle()` + error toast
+- **Friend Link** — removed `animate-ping` grey ring; simplified phone-tap ripples (no conic-gradient mask)
+- **VYBE AI chat** — composer uses `--kb-h` keyboard offset + scroll-on-focus
+- **Bottom nav Create** — uses login-style `vybeLiquid` button
+- **Ads** — no longer blocked while age RPC loads; Despia AdMob init on shell startup
+
+## What Changed (native perf mode — prior)
 - **`nativePerfMode.ts`** — Despia/Capacitor store shell gets static colorful aurora (mesh only), no touch ripples, reduced Framer motion, no contrast DOM scans
 - **`VybeLiquidBackground`** — skips animated blobs, bloom, grain, device tilt, and pointer FX on native
 - **`AnimatedRoutes`** — plain route shell on native (no `AnimatePresence popLayout`)

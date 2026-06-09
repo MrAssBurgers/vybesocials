@@ -15,6 +15,7 @@ import { navVisibility } from '@/lib/navVisibility';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { T, TAP, MOTION_CONFIG } from '@/lib/motion';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { useUserPreferences, useUpdatePreferences } from '@/hooks/useUserPreferences';
 
 // Singleton scroll direction detection to prevent duplicate listeners
@@ -619,89 +620,47 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                     className="relative flex flex-1 items-center justify-center"
                     data-tutorial="create-nav"
                   >
-                    <motion.button
-                      className="relative flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation"
+                    {isEditMode && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute -top-1 -left-1 z-30"
+                      >
+                        <GripVertical className="h-3 w-3 text-white" />
+                      </motion.div>
+                    )}
+                    {isHighlighted && (
+                      <motion.div
+                        animate={{ scale: [1, 1.1, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                        className="absolute -inset-1 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background pointer-events-none"
+                      />
+                    )}
+                    <Button
+                      type="button"
+                      variant={isEditMode ? 'default' : 'vybeLiquid'}
+                      size="icon-lg"
                       onClick={handleCreateClick}
                       onTouchStart={handleCreateTouchStart}
                       onTouchEnd={handleCreateTouchEnd}
                       onTouchCancel={handleCreateTouchEnd}
-                      onMouseDown={handleCreateTouchStart}
-                      onMouseUp={handleCreateTouchEnd}
-                      onMouseLeave={handleCreateTouchEnd}
-                      whileTap={{ scale: 0.8 }}
-                      whileHover={{ scale: 1.08 }}
-                    >
-                      {isEditMode && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="absolute -top-1 -left-1 z-30"
-                        >
-                          <GripVertical className="h-3 w-3 text-white" />
-                        </motion.div>
+                      className={cn(
+                        'relative min-h-[44px] min-w-[44px] rounded-2xl h-11 w-11 touch-manipulation',
+                        isEditMode && 'bg-primary',
                       )}
-                      <motion.div
-                        className="absolute rounded-full pointer-events-none"
-                        style={{
-                          inset: -6,
-                          background: 'radial-gradient(circle, hsl(var(--primary) / 0.55), hsl(var(--accent) / 0.35), transparent 70%)',
-                          opacity: 0.5,
-                          filter: 'blur(14px)',
-                          transform: 'translateZ(0)',
-                          willChange: 'transform',
-                          WebkitBackfaceVisibility: 'hidden',
-                          backfaceVisibility: 'hidden',
-                        }}
-                      />
-                      <AnimatePresence>
-                        {isCreateMenuOpen && !isEditMode && (
-                          <motion.div
-                            initial={{ scale: 0.85, opacity: 0 }}
-                            animate={{ scale: 1.2, opacity: 0.65 }}
-                            exit={{ scale: 0.85, opacity: 0 }}
-                            transition={{ duration: 0.3 }}
-                            className="absolute inset-0 rounded-2xl pointer-events-none"
-                            style={{
-                              background: 'linear-gradient(135deg, hsl(var(--primary) / 0.6), hsl(var(--accent) / 0.6))',
-                              filter: 'blur(12px)',
-                              transform: 'translateZ(0)',
-                              willChange: 'transform, opacity',
-                              WebkitBackfaceVisibility: 'hidden',
-                              backfaceVisibility: 'hidden',
-                            }}
-                          />
-                        )}
-                      </AnimatePresence>
-                      {isHighlighted && (
-                        <motion.div
-                          animate={{ scale: [1, 1.1, 1] }}
-                          transition={{ duration: 1.5, repeat: Infinity }}
-                          className="absolute -inset-1 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background"
+                    >
+                      {isEditMode ? (
+                        <Check className="h-6 w-6 text-white" strokeWidth={2.5} />
+                      ) : (
+                        <Plus
+                          className={cn(
+                            'h-6 w-6 text-white transition-transform duration-200',
+                            isCreateMenuOpen && 'rotate-45 scale-110',
+                          )}
+                          strokeWidth={2.5}
                         />
                       )}
-                      <motion.div 
-                        animate={{ 
-                          rotate: isEditMode ? 0 : (isCreateMenuOpen ? 45 : 0),
-                          scale: isCreateMenuOpen ? 1.15 : 1,
-                        }}
-                        transition={{ type: 'spring', damping: 12, stiffness: 200 }}
-                        className={cn(
-                          'rounded-2xl p-2.5 relative overflow-hidden',
-                          isEditMode
-                            ? 'bg-primary'
-                            : 'vybe-liquid-button vybe-liquid-button--fab text-primary-foreground'
-                        )}
-                      >
-                        {!isEditMode && (
-                          <span className="vybe-liquid-button__flow" aria-hidden />
-                        )}
-                        {isEditMode ? (
-                          <Check className="h-6 w-6 text-white relative z-[2]" strokeWidth={2.5} />
-                        ) : (
-                          <Plus className="h-6 w-6 text-white relative z-[2]" strokeWidth={2.5} />
-                        )}
-                      </motion.div>
-                    </motion.button>
+                    </Button>
                   </Reorder.Item>
                 );
               }

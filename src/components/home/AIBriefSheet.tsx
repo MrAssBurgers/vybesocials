@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { AIBriefCustomizeSheet } from './AIBriefCustomizeSheet';
 import { GeneratingScreen } from './AIBriefLoadingState';
+import { getBriefTimeSlot, getNextBriefSlotTime } from '@/lib/briefTimeSlot';
 
 interface AIBriefSheetProps {
   open: boolean;
@@ -283,24 +284,13 @@ const NewsCard = memo(function NewsCard({ update, index }: { update: BriefUpdate
   );
 });
 
-// Time-slotted cache: morning (6am-12pm), afternoon (12pm-6pm), evening (6pm-6am)
-function getTimeSlot(): 'morning' | 'afternoon' | 'evening' {
-  const hour = new Date().getHours();
-  if (hour >= 6 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 18) return 'afternoon';
-  return 'evening';
+// Time-slotted cache aligned with daily_brief_cache + prefetch
+function getTimeSlot() {
+  return getBriefTimeSlot();
 }
 
-function getNextSlotTime(): Date {
-  const now = new Date();
-  const hour = now.getHours();
-  const next = new Date(now);
-  next.setMinutes(0, 0, 0);
-  if (hour < 6) next.setHours(6);
-  else if (hour < 12) next.setHours(12);
-  else if (hour < 18) next.setHours(18);
-  else { next.setDate(next.getDate() + 1); next.setHours(6); }
-  return next;
+function getNextSlotTime() {
+  return getNextBriefSlotTime();
 }
 
 function formatNextUpdate(): string {
@@ -567,10 +557,9 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
 
   const handleRefresh = useCallback(() => {
     hasFetchedRef.current = true;
-    setIsLoading(true);
-    setBriefData(null);
     setError(null);
-    fetchBrief(false);
+    setIsRefreshing(true);
+    fetchBrief(true);
   }, [fetchBrief]);
 
   const stats = briefData ? [

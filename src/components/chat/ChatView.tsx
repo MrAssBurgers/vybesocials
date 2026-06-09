@@ -1493,11 +1493,12 @@ export function ChatView() {
         ref={messagesContainerRef}
         className={cn(
           "flex-1 overflow-y-auto overflow-x-hidden min-h-0",
-          "px-3 sm:px-4 pt-20 sm:pt-24 pb-3 sm:pb-4",
+          "px-3 sm:px-4 pb-3 sm:pb-4",
           "scroll-smooth",
           getWallpaperClass()
         )}
         style={{ 
+          paddingTop: 'var(--app-floating-header-scroll)',
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'contain',
           touchAction: 'pan-y',

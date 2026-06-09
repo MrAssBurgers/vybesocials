@@ -297,13 +297,8 @@
         -webkit-user-select: text;
         user-select: text;
       }
-      /* Safe area support for notched devices */
-      body {
-        padding-top: env(safe-area-inset-top);
-        padding-bottom: env(safe-area-inset-bottom);
-        padding-left: env(safe-area-inset-left);
-        padding-right: env(safe-area-inset-right);
-      }
+      /* Safe area: handled per-component (AppLayout, headers). Body padding
+         breaks fixed headers and double-counts inset on notched phones. */
       /* NOTE: Avoid transforms on #root — they break position:fixed (e.g., bottom nav) on some browsers */
     </style>
   <meta property="og:title" content="VYBE - The Next Generation Social Platform">

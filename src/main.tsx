@@ -4,6 +4,7 @@ import App from "./App.tsx";
 import "./index.css";
 import { initializeNativePlugins, isNativePlatform, isWeb } from "./lib/capacitor";
 import { initializeAdMob } from "./lib/admob";
+import { isDespiaRuntime } from "./lib/despiaBridge";
 import { syncNativeTrackingConsent } from "./lib/att";
 import { installAttResumeRecovery } from "./lib/attResumeRecovery";
 import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled } from "./lib/serviceWorker";
@@ -85,9 +86,12 @@ installAttResumeRecovery();
 if (isNativePlatform) {
   initializeNativePlugins().then(() => {
     console.log('[VYBE] Native platform initialized');
-    // Initialize AdMob after native plugins are ready
     initializeAdMob();
   });
+}
+
+if (isDespiaRuntime()) {
+  void initializeAdMob();
 }
 
 // Register service worker for web push notifications

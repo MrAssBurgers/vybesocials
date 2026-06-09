@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
+import { getBriefTimeSlot } from '@/lib/briefTimeSlot';
 
 const BRIEF_CACHE_KEY = 'vybe_ai_brief_cache';
 const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
@@ -31,20 +32,8 @@ function isCacheFresh(): boolean {
   } catch { return false; }
 }
 
-function getSlot(): 'morning' | 'lunch' | 'dinner' {
-  const h = new Date().getHours();
-  if (h >= 4 && h < 10) return 'morning';
-  if (h >= 10 && h < 16) return 'lunch';
-  return 'dinner';
-}
-
-// MUST match AIBriefSheet.getTimeSlot() exactly — the reader rejects cache
-// entries whose timeSlot doesn't equal the current slot.
-function getTimeSlot(): 'morning' | 'afternoon' | 'evening' {
-  const hour = new Date().getHours();
-  if (hour >= 6 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 18) return 'afternoon';
-  return 'evening';
+function getSlot() {
+  return getBriefTimeSlot();
 }
 
 function writeBriefCache(data: unknown) {
@@ -52,7 +41,7 @@ function writeBriefCache(data: unknown) {
     localStorage.setItem(BRIEF_CACHE_KEY, JSON.stringify({
       data,
       timestamp: Date.now(),
-      timeSlot: getTimeSlot(),
+      timeSlot: getBriefTimeSlot(),
     }));
   } catch { /* ignore */ }
 }
