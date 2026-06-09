@@ -5,10 +5,23 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — Share → Publish (`b4330cbb` — signup→onboarding, header, Despia local OTA)
+- **Lovable Publish** — Share → Publish (header safe-area redesign + native perf)
 
 ## Publish log
+- **2026-06-02** — pushed header safe-area redesign + native scroll perf. **Lovable Publish pending.**
+
+## What Changed (latest)
+- **Mobile header** — safe-area padding on shell; unified 40px toolbar; logo-only + pill search/actions
+- **Safe area** — stronger Android/CSS fallbacks; `safeAreaInsets.ts` native floor 52px
+- **Native perf** — disable liquid aurora on native; app scroll container `.is-scrolling`; swipe-back off on native
+
+## Publish log (prior)
 - **2026-06-09** — pushed `b4330cbb`. **Lovable Publish pending.**
+
+## What Changed (`b4330cbb`)
+- **Signup → onboarding** — `waitForAuthSession`, email verification screen, `ProtectedRoute` race fix
+- **Mobile header** — cleaner full-width bar redesign
+- **Despia local OTA** — `@despia/local` in dependencies, `postbuild`, `DEPLOY.md` troubleshooting
 
 ## Despia local server (handoff)
 - **`@despia/local`** in `dependencies` + Vite plugin + `postbuild: despia-local dist index.html`

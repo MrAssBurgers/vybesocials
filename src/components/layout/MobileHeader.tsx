@@ -5,17 +5,20 @@ import { motion } from 'framer-motion';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { useStreakCount } from '@/hooks/useLoginStreak';
 import { cn } from '@/lib/utils';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { HeaderSearch } from './HeaderSearch';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 import { navVisibility } from '@/lib/navVisibility';
 
+const TOOLBAR_H = 'h-10';
+
 const iconButtonClass = (active: boolean) =>
   cn(
-    'relative flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200 active:scale-95',
+    'relative flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150 active:scale-95',
     active
-      ? 'bg-primary/15 text-primary'
-      : 'text-muted-foreground hover:bg-white/[0.06] hover:text-foreground',
+      ? 'text-primary'
+      : 'text-muted-foreground hover:text-foreground',
   );
 
 export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWithoutRef<'header'>>(function MobileHeader(_props, ref) {
@@ -26,6 +29,7 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
   const location = useLocation();
   const debugPanel = useDebugPanel();
   const [headerVisible, setHeaderVisible] = useState(true);
+  const nativePerf = isNativePerfMode();
 
   useEffect(() => {
     if (unreadCount > prevUnreadRef.current) {
@@ -55,36 +59,45 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
       className="fixed top-0 inset-x-0 z-50 pointer-events-none"
     >
       <div
-        className="w-full shrink-0"
-        style={{ height: 'var(--app-header-top, calc(var(--app-header-safe, env(safe-area-inset-top, 0px)) + var(--app-header-gap, 0.75rem)))' }}
-        aria-hidden
-      />
-
-      <div
         className={cn(
-          'pointer-events-auto border-b border-white/[0.07]',
-          'bg-[hsl(var(--background)/0.82)] backdrop-blur-2xl backdrop-saturate-150',
-          'shadow-[0_1px_0_0_hsl(var(--primary)/0.08)]',
+          'pointer-events-auto',
+          'border-b border-white/[0.06]',
+          nativePerf
+            ? 'bg-[hsl(var(--background))]'
+            : 'bg-[hsl(var(--background)/0.94)] backdrop-blur-xl backdrop-saturate-150',
         )}
-        style={{ paddingRight: 'max(1rem, calc(1rem + var(--app-header-safe-right, 0px)))' }}
+        style={{
+          paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 48px))',
+          paddingBottom: 'var(--app-header-tail, 0.5rem)',
+          paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(1rem, calc(1rem + var(--app-header-safe-right, env(safe-area-inset-right, 0px))))',
+        }}
       >
-        <div className="flex items-center gap-2.5 h-12 px-4 pb-[var(--app-header-tail,0.625rem)]">
+        <div
+          className={cn('flex items-center gap-2.5', TOOLBAR_H)}
+          style={{ marginTop: 'var(--app-header-gap, 0.5rem)' }}
+        >
           <Link
             to="/home"
-            className="flex items-center gap-2 flex-shrink-0 active:scale-[0.98] transition-transform"
+            className={cn(
+              'flex shrink-0 items-center justify-center rounded-full active:scale-95 transition-transform',
+              TOOLBAR_H,
+              'w-10',
+            )}
             onClick={() => debugPanel?.handleLogoTap?.()}
             aria-label="Home"
           >
             <VYBELogo size="sm" showText={false} />
-            <span className="text-[13px] font-semibold tracking-[0.18em] text-foreground/90 uppercase">
-              VYBE
-            </span>
           </Link>
 
-          <HeaderSearch className="flex-1 min-w-0" variant="header" />
+          <HeaderSearch className="flex-1 min-w-0 h-full" variant="header" />
 
           <div
-            className="flex items-center gap-0.5 flex-shrink-0 rounded-xl bg-white/[0.04] p-0.5 ring-1 ring-inset ring-white/[0.06]"
+            className={cn(
+              'flex shrink-0 items-center gap-0.5 px-0.5',
+              TOOLBAR_H,
+              'rounded-full border border-white/[0.08] bg-white/[0.04]',
+            )}
             aria-label="Quick actions"
           >
             <Link
@@ -93,24 +106,26 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
               aria-label="Notifications"
               className={iconButtonClass(isNotificationsActive)}
             >
-              <Bell className={cn('h-[18px] w-[18px]', bellBounce && 'animate-bell-ring')} strokeWidth={1.75} />
+              <Bell className={cn('h-[17px] w-[17px]', bellBounce && 'animate-bell-ring')} strokeWidth={1.75} />
               {unreadCount > 0 && (
                 <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-[hsl(var(--background))]"
+                  className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary ring-[1.5px] ring-[hsl(var(--background))]"
                 />
               )}
             </Link>
+
+            <span className="h-4 w-px bg-white/[0.08]" aria-hidden />
 
             <Link
               to="/challenges"
               aria-label={streakCount > 0 ? `Challenges, ${streakCount} day streak` : 'Challenges'}
               className={iconButtonClass(isChallengesActive)}
             >
-              <Target className="h-[18px] w-[18px]" strokeWidth={1.75} />
+              <Target className="h-[17px] w-[17px]" strokeWidth={1.75} />
               {streakCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold leading-none text-primary-foreground ring-2 ring-[hsl(var(--background))]">
+                <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-0.5 text-[8px] font-bold leading-none text-primary-foreground ring-[1.5px] ring-[hsl(var(--background))]">
                   {streakCount > 99 ? '99+' : streakCount}
                 </span>
               )}

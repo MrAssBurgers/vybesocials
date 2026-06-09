@@ -19,7 +19,7 @@ function canUseDefaultLiquidExperience(
   hasUserWallpaper: boolean,
   isBackgroundResolved: boolean,
 ): boolean {
-  if (STABLE_APP_BACKGROUND) return false;
+  if (STABLE_APP_BACKGROUND || isNativePerfMode()) return false;
   return isBackgroundResolved && !hasUserWallpaper;
 }
 

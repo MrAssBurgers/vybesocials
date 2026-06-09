@@ -31,12 +31,12 @@ label {
 
 :root {
   --app-header-safe: env(safe-area-inset-top, 0px);
-  --app-header-gap: 0.75rem;
+  --app-header-gap: 0.5rem;
   --app-header-safe-right: env(safe-area-inset-right, 0px);
-  --app-header-toolbar: 3rem;
-  --app-header-tail: 0.625rem;
+  --app-header-toolbar: 2.5rem;
+  --app-header-tail: 0.5rem;
   --app-header-top: calc(var(--app-header-safe) + var(--app-header-gap));
-  --app-header-height: calc(var(--app-header-top) + var(--app-header-toolbar) + var(--app-header-tail));
+  --app-header-height: calc(var(--app-header-safe) + var(--app-header-gap) + var(--app-header-toolbar) + var(--app-header-tail));
   --app-floating-header-scroll: calc(var(--app-header-height) + 0.5rem);
   --kb-h: 0px;
 }
@@ -44,19 +44,24 @@ label {
 /* Before JS measures insets, keep mobile headers below status bar / camera cutout */
 @media (max-width: 1023px) {
   html.device-mobile,
-  html.device-tablet {
-    --app-header-safe: max(env(safe-area-inset-top, 0px), 40px);
-    --app-header-gap: 0.875rem;
+  html.device-tablet,
+  html:not(.device-desktop) {
+    --app-header-safe: max(env(safe-area-inset-top, 0px), 44px);
+    --app-header-gap: 0.5rem;
   }
 
   html.platform-ios.device-mobile,
   html.platform-ios.device-tablet {
-    --app-header-safe: max(env(safe-area-inset-top, 0px), 52px);
+    --app-header-safe: max(env(safe-area-inset-top, 0px), 54px);
   }
 
   html.platform-android.device-mobile,
   html.platform-android.device-tablet {
-    --app-header-safe: max(env(safe-area-inset-top, 0px), 44px);
+    --app-header-safe: max(env(safe-area-inset-top, 0px), 48px);
+  }
+
+  html.native-perf-mode.platform-android {
+    --app-header-safe: max(env(safe-area-inset-top, 0px), 52px);
   }
 }
 

@@ -297,9 +297,9 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
           setTimeout(() => inputRef.current?.focus(), 100);
         }}
         className={cn(
-          'flex items-center gap-2 cursor-pointer min-w-0 w-full transition-all duration-200',
+          'flex items-center gap-2.5 cursor-pointer min-w-0 w-full h-full transition-colors duration-150',
           variant === 'header'
-            ? 'h-9 px-3 rounded-lg bg-white/[0.04] ring-1 ring-inset ring-white/[0.06] hover:bg-white/[0.07] hover:ring-white/[0.1] active:scale-[0.99]'
+            ? 'px-3.5 rounded-full border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.06] active:scale-[0.99]'
             : 'px-3 py-2 rounded-full bg-secondary/50 hover:bg-secondary',
         )}
       >

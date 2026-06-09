@@ -37,7 +37,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const { isDesktop } = useBreakpoint();
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [navEffectiveVisible, setNavEffectiveVisible] = useState(true);
-  const { swipeBackHandlers, swipeProgress } = useSwipeBack();
+  const { swipeBackHandlers, swipeProgress } = useSwipeBack(!isNativePerfMode());
   const showLiquidBg = useDefaultLiquidBackground();
 
   useEffect(() => navVisibility.subscribeEffective(setNavEffectiveVisible), []);

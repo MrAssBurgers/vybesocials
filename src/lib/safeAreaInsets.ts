@@ -44,14 +44,13 @@ function fallbackTop(platform: PlatformType, device: DeviceType): number {
 
   const native = isDespiaRuntime();
   if (platform === 'ios') return native ? 59 : 52;
-  if (platform === 'android') return native ? 48 : 40;
+  if (platform === 'android') return native ? 52 : 44;
   return native ? 44 : 36;
 }
 
 function fallbackGap(device: DeviceType): number {
   if (device === 'desktop') return 0;
-  // Extra air below status bar / punch-hole camera before the toolbar island
-  return isDespiaRuntime() ? 16 : 12;
+  return isDespiaRuntime() ? 12 : 8;
 }
 
 function fallbackRight(device: DeviceType): number {

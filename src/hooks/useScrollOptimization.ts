@@ -5,6 +5,7 @@ let scrollListenerAttached = false;
 let isScrolling = false;
 let settleRaf: number | null = null;
 let settleTimeout: ReturnType<typeof setTimeout> | null = null;
+let appScrollContainer: Element | null = null;
 
 function markScrolling() {
   if (!isScrolling) {
@@ -24,32 +25,52 @@ function markScrolling() {
   }, 90);
 }
 
+function bindAppScrollContainer() {
+  const next = document.querySelector('[data-app-scroll-container="true"]');
+  if (next === appScrollContainer) return;
+  if (appScrollContainer) {
+    appScrollContainer.removeEventListener('scroll', markScrolling);
+  }
+  appScrollContainer = next;
+  if (appScrollContainer) {
+    appScrollContainer.addEventListener('scroll', markScrolling, { passive: true });
+  }
+}
+
 /**
  * Lightweight scroll optimization hook - uses passive listeners.
  * SINGLETON: Only one listener set across all components.
  *
- * PROACTIVE: We mark `.is-scrolling` on the very first input event
- * (pointerdown / touchstart / wheel), not after the first scroll frame.
- * That way the FIRST frame is already optimized — no startup jank.
+ * Listens to window wheel/touchmove plus the main app scroll container so
+ * feed/thread scroll pauses expensive animations on native WebViews.
  */
 export function useScrollOptimization() {
+  const observerRef = useRef<MutationObserver | null>(null);
+
   useEffect(() => {
     if (scrollListenerAttached) return;
     scrollListenerAttached = true;
 
     const opts: AddEventListenerOptions = { passive: true, capture: true };
 
-    // Only mark scrolling on actual scroll movement (or wheel/touchmove which
-    // imply imminent scroll). Plain pointerdown/touchstart should NOT toggle
-    // scroll mode — that caused taps to flash the UI into a darkened state.
     window.addEventListener('scroll', markScrolling, opts);
     window.addEventListener('wheel', markScrolling, opts);
     window.addEventListener('touchmove', markScrolling, opts);
+
+    bindAppScrollContainer();
+    observerRef.current = new MutationObserver(bindAppScrollContainer);
+    observerRef.current.observe(document.body, { childList: true, subtree: true });
 
     return () => {
       window.removeEventListener('scroll', markScrolling, { capture: true } as any);
       window.removeEventListener('wheel', markScrolling, opts);
       window.removeEventListener('touchmove', markScrolling, opts);
+      if (appScrollContainer) {
+        appScrollContainer.removeEventListener('scroll', markScrolling);
+        appScrollContainer = null;
+      }
+      observerRef.current?.disconnect();
+      observerRef.current = null;
       scrollListenerAttached = false;
       if (settleTimeout) clearTimeout(settleTimeout);
       if (settleRaf !== null) cancelAnimationFrame(settleRaf);

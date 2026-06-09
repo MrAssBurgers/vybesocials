@@ -9,5 +9,6 @@ export function isNativePerfMode(): boolean {
 export function initNativePerfMode(): void {
   if (typeof document === 'undefined' || !isNativePerfMode()) return;
   const html = document.documentElement;
-  html.classList.add('native-perf-mode', 'reduce-motion');
+  html.classList.add('native-perf-mode', 'reduce-motion', 'vybe-stable-background');
+  html.setAttribute('data-glass-intensity', 'calm');
 }
