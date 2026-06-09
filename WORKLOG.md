@@ -5,7 +5,10 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — Share → Publish for vybehub.app (brief settings + header polish)
+- **Lovable Publish** — Share → Publish (`e7c8d285` — header safe area + DM scroll + brief settings)
+
+## Publish log
+- **2026-06-08** — pushed `e7c8d285` (status bar clearance, header polish). **Lovable Publish pending.**
 
 ## What Changed (brief settings + header polish — local)
 - **`AIBriefCustomizePanel`** — inline in brief sheet (no nested dialog); load/save `finally` fixes infinite spinner
