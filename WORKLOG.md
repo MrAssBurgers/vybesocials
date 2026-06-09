@@ -129,7 +129,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 3. Despia rebuild (>6061901) + App Store resubmit prep
 
 ## Publish log
-- **2026-06-07** — commit `94b22cad` pushed — iPad launch fix + aurora + ads — **Lovable Publish + Despia rebuild**
+- **2026-06-02** — pushed `edbf9205` (Realtime crash fix on Home). **Lovable Publish pending.**
 - **2026-06-05** — smoothness/ATT resume + Friend Link perf — **Publish in Lovable + Despia now**
 - **2026-06-02** — commit `ee375394` — ATT blank-screen fix
 - **2026-06-02** — commit `934af286` — Friend Link polish + Create camera revamp
