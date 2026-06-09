@@ -5,12 +5,26 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — Instagram-ready native pass (auth keepalive, scroll perf, email poll)
+- **Lovable Publish** — TikTok-style clips tab + Following/For You feeds
 
 ## Publish log
-- **2026-06-02** — Instagram-ready native foundation. **Lovable Publish pending.**
+- **2026-06-02** — TikTok clips pass + Instagram polish (pending Lovable Publish).
 
-## What Changed (Instagram-ready pass)
+## What Changed (TikTok-style clips)
+- **Bottom nav** — Clips is a primary tab (Film icon); Explore still available via search on clips header
+- **Clips page** — Full-screen `100dvh` feed with bottom nav overlay (TikTok-style)
+- **Following | For You** tabs at top; Following uses `get_following_posts_with_counts`
+- **MobileShortCard** — Progress bar, spinning sound pill, expandable caption, TikTok layout offsets
+- **ClipsFeedHeader** — Search shortcut to Explore
+
+## What Changed (Instagram-ready polish)
+- **`instagram-ready` document class** on native shell alongside perf mode
+- **Clips** — no pre-roll on native; mid-feed ads after 4 clips; instant snap scroll; swipe hint once
+- **Feed** — double-tap to like on touch; flat card separators on native
+- **PWA banner** — hidden in Despia/native shell
+- **Post publish** — faster return to feed on native (~900ms)
+
+## What Changed (Instagram-ready foundation)
 - **Auth keepalive** — periodic + resume refresh; `wasLoggedIn` flag synced on restore/sign-out
 - **AppLayout** — don’t blank screen while auth loads if stored token exists; native scroll shell
 - **Feed perf** — native `content-visibility`, no backdrop-blur on native, swipe transform off

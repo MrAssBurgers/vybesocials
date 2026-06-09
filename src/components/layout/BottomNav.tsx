@@ -1,4 +1,4 @@
-import { Home, Compass, Plus, MessageCircle, User, GripVertical, Check } from 'lucide-react';
+import { Home, Compass, Film, Plus, MessageCircle, User, GripVertical, Check } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { preloadRoute } from '@/lib/routePreloader';
 import { cn } from '@/lib/utils';
@@ -109,7 +109,7 @@ function useNavVisibility() {
 }
 
 // Default nav order
-const DEFAULT_NAV_ORDER = ['home', 'explore', 'create', 'messages', 'profile'];
+const DEFAULT_NAV_ORDER = ['home', 'clips', 'create', 'messages', 'profile'];
 
 // Nav item type
 interface NavItemConfig {
@@ -350,12 +350,14 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
   // Get nav order from preferences
   const navOrder = useMemo(() => {
     const savedOrder = (prefs?.extra as any)?.nav_order as string[] | undefined;
-    return savedOrder && savedOrder.length === 5 ? savedOrder : DEFAULT_NAV_ORDER;
+    const base = savedOrder && savedOrder.length === 5 ? savedOrder : DEFAULT_NAV_ORDER;
+    return base.map((id) => (id === 'explore' ? 'clips' : id));
   }, [prefs?.extra]);
 
   // Nav items configuration
   const navItemsConfig: NavItemConfig[] = useMemo(() => [
     { id: 'home', icon: Home, label: 'Home', getPath: () => '/home', tutorialId: 'home-nav', requiresAuth: false },
+    { id: 'clips', icon: Film, label: 'Clips', getPath: () => '/clips', tutorialId: 'clips-nav', requiresAuth: false },
     { id: 'explore', icon: Compass, label: 'Explore', getPath: () => '/explore', tutorialId: 'explore-nav', requiresAuth: false },
     { id: 'create', icon: Plus, label: 'Create', getPath: () => '/upload', isCreate: true, tutorialId: 'create-nav', requiresAuth: true },
     { id: 'messages', icon: MessageCircle, label: 'Messages', getPath: () => '/messages', tutorialId: 'messages-nav', requiresAuth: true, authAction: 'send messages' },

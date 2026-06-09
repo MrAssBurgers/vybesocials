@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Send, Bookmark, Volume2, VolumeX, MoreVertical, Eye } from 'lucide-react';
+import { Heart, MessageCircle, Send, Bookmark, Volume2, VolumeX, MoreVertical, Eye, Music2 } from 'lucide-react';
 import { ReactionPicker } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,6 +22,9 @@ import { CommentSheet } from '@/components/comments/CommentSheet';
 import { ShareSheet } from '@/components/share/ShareSheet';
 import { HoldToShare } from '@/components/share/HoldToShare';
 import { FollowPlusButton } from '@/components/clips/FollowPlusButton';
+import { ClipVideoProgress } from '@/components/clips/ClipVideoProgress';
+import { CLIPS_BOTTOM_UI_OFFSET } from '@/lib/clipsLayout';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 
 interface MobileShortCardProps {
   post: {
@@ -43,19 +46,22 @@ interface MobileShortCardProps {
   isActive: boolean;
   globalMuted?: boolean;
   onToggleMute?: () => void;
+  /** TikTok-style full-bleed layout with bottom nav overlay offsets. */
+  tiktokLayout?: boolean;
 }
 
 /**
- * Instagram Reels-style ShortCard for mobile/iPad
+ * TikTok-style ShortCard for mobile/iPad
  * - Single tap = toggle mute
- * - Hold = pause (no overlay)
- * - Pulsing mute icon when muted
+ * - Double tap = like
+ * - Hold = pause
  */
 export const MobileShortCard = memo(function MobileShortCard({ 
   post, 
   isActive, 
   globalMuted = true, 
-  onToggleMute 
+  onToggleMute,
+  tiktokLayout = false,
 }: MobileShortCardProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -75,6 +81,14 @@ export const MobileShortCard = memo(function MobileShortCard({
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
+  const [captionExpanded, setCaptionExpanded] = useState(false);
+  const nativePerf = isNativePerfMode();
+  const bottomUiOffset = tiktokLayout
+    ? 'var(--clips-bottom-ui, ' + CLIPS_BOTTOM_UI_OFFSET + ')'
+    : 'calc(env(safe-area-inset-bottom, 0px) + 16px)';
+  const railBottomOffset = tiktokLayout
+    ? 'calc(var(--clips-bottom-ui, ' + CLIPS_BOTTOM_UI_OFFSET + ') + 72px)'
+    : 'calc(env(safe-area-inset-bottom, 0px) + 88px)';
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
   const playAttemptRef = useRef<NodeJS.Timeout | null>(null);
@@ -398,12 +412,19 @@ export const MobileShortCard = memo(function MobileShortCard({
         ) : null}
 
         {/* Instagram-style pulsing muted icon - only visible when muted AND playing */}
-        {isVideo && isMuted && isPlaying && !isHolding && (
+        {isVideo && isMuted && isPlaying && !isHolding && !tiktokLayout && (
           <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
-            <div className="w-20 h-20 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center animate-pulse">
+            <div className={cn(
+              "w-20 h-20 rounded-full bg-black/50 flex items-center justify-center animate-pulse",
+              !nativePerf && "backdrop-blur-sm",
+            )}>
               <VolumeX className="h-10 w-10 text-white/90" />
             </div>
           </div>
+        )}
+
+        {isVideo && (
+          <ClipVideoProgress videoRef={videoRef} isActive={isActive && isPlaying} />
         )}
       </div>
 
@@ -473,7 +494,7 @@ export const MobileShortCard = memo(function MobileShortCard({
       {/* Right side actions - responsive sizing for mobile/tablet, safe-area aware */}
       <div
         className="absolute right-3 sm:right-4 flex flex-col items-center gap-4 sm:gap-5 z-10"
-        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)' }}
+        style={{ bottom: railBottomOffset }}
       >
         {/* Author avatar with follow + badge */}
         <div className="relative">
@@ -550,16 +571,18 @@ export const MobileShortCard = memo(function MobileShortCard({
       {/* Bottom info - responsive padding and sizing, safe-area aware */}
       <div
         className="absolute left-3 sm:left-4 right-16 sm:right-20 z-10"
-        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
+        style={{ bottom: bottomUiOffset }}
       >
         <div className="flex items-center gap-2 mb-1.5 sm:mb-2 flex-wrap">
           <Link to={`/u/${post.author.username}`} className="flex items-center gap-1.5 sm:gap-2">
-            <Avatar className="h-5 w-5 sm:h-6 sm:w-6 border border-white/50">
-              <AvatarImage src={signedAvatarUrl || undefined} />
-              <AvatarFallback className="bg-primary text-white text-[10px] sm:text-xs font-bold">
-                {post.author.username[0].toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            {!tiktokLayout && (
+              <Avatar className="h-5 w-5 sm:h-6 sm:w-6 border border-white/50">
+                <AvatarImage src={signedAvatarUrl || undefined} />
+                <AvatarFallback className="bg-primary text-white text-[10px] sm:text-xs font-bold">
+                  {post.author.username[0].toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            )}
             <span className="font-bold text-base sm:text-lg text-white drop-shadow-lg">
               @{post.author.username}
             </span>
@@ -569,12 +592,49 @@ export const MobileShortCard = memo(function MobileShortCard({
             <span>{formatViewCount(viewCount)}</span>
           </div>
         </div>
+
+        {isVideo && tiktokLayout && (
+          <button
+            type="button"
+            onClick={() => onToggleMute ? onToggleMute() : setIsMuted((m) => !m)}
+            className="flex items-center gap-2 mb-2 max-w-[min(100%,220px)] active:opacity-80"
+          >
+            <div
+              className={cn(
+                'w-9 h-9 rounded-full bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0',
+                isPlaying && !isMuted && 'animate-[spin_4s_linear_infinite]',
+              )}
+            >
+              <Music2 className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-xs text-white/90 truncate drop-shadow-md">
+              Original sound · @{post.author.username}
+            </span>
+          </button>
+        )}
+
         {post.caption && (
-          <p className="text-xs sm:text-sm text-white drop-shadow-lg line-clamp-2 mb-1.5 sm:mb-2">{post.caption}</p>
+          <button
+            type="button"
+            onClick={() => setCaptionExpanded((v) => !v)}
+            className="text-left w-full"
+          >
+            <p
+              className={cn(
+                'text-xs sm:text-sm text-white drop-shadow-lg mb-1.5 sm:mb-2',
+                !captionExpanded && 'line-clamp-2',
+              )}
+            >
+              {post.caption}
+            </p>
+            {post.caption.length > 72 && !captionExpanded && (
+              <span className="text-xs text-white/60 font-semibold">more</span>
+            )}
+          </button>
         )}
         {post.tags && post.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 sm:gap-1.5">
-            {post.tags.map((tag) => (
+            {post.tags.slice(0, tiktokLayout ? 4 : undefined).map((tag) => (
               <span 
                 key={tag} 
                 className="text-[11px] sm:text-xs text-cyan-300 font-medium drop-shadow-lg"

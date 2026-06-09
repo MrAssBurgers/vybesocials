@@ -12,6 +12,8 @@ import { recordAdImpression } from '@/lib/adPreferences';
 
 const SESSION_KEY = 'vybe_video_ads_session';
 const GLOBAL_COOLDOWN_MS = 28 * 1000;
+const NATIVE_GLOBAL_COOLDOWN_MS = 45 * 1000;
+const NATIVE_MIN_CLIPS_BEFORE_ADS = 4;
 const MID_FEED_RANGE: [number, number] = [4, 6];
 const MAX_VIDEO_ADS_PER_SESSION = 14;
 const PRE_VIDEO_COOLDOWN_MS = 75 * 1000;
@@ -75,8 +77,12 @@ export function useVideoAds() {
       const now = Date.now();
 
       if (s.totalShown >= MAX_VIDEO_ADS_PER_SESSION) return false;
-      if (now - s.lastAdAt < GLOBAL_COOLDOWN_MS) return false;
 
+      const cooldownMs = inNativeShell ? NATIVE_GLOBAL_COOLDOWN_MS : GLOBAL_COOLDOWN_MS;
+      if (now - s.lastAdAt < cooldownMs) return false;
+
+      // Native clips: skip pre-roll so the first reel paints instantly (Instagram-style)
+      if (inNativeShell && surface === 'pre_roll') return false;
       if (surface === 'pre_roll' && s.preRollShown) return false;
       if (surface === 'pre_video' && now - s.lastPreVideoAt < PRE_VIDEO_COOLDOWN_MS) return false;
 
@@ -113,9 +119,10 @@ export function useVideoAds() {
     (clipIndex: number) => {
       if (!adsAllowed) return false;
       if (clipIndex <= 0) return false;
+      if (inNativeShell && clipIndex < NATIVE_MIN_CLIPS_BEFORE_ADS) return false;
       return getMidFeedSlots(clipIndex).includes(clipIndex);
     },
-    [adsAllowed],
+    [adsAllowed, inNativeShell],
   );
 
   const scheduleMidVideoAd = useCallback(

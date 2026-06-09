@@ -1,52 +1,61 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { usePersonalizedFeed } from '@/hooks/useInfinitePosts';
+import { usePersonalizedFeed, useInfiniteFollowingPosts } from '@/hooks/useInfinitePosts';
 import { ShortCard } from '@/components/posts/ShortCard';
 import { MobileShortCard } from '@/components/posts/MobileShortCard';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ClipSkeleton } from '@/components/clips/ClipSkeleton';
+import { ClipsFeedHeader } from '@/components/clips/ClipsFeedHeader';
 import { useInView } from 'react-intersection-observer';
-import { X } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { useAheadMediaPreload } from '@/hooks/useAheadMediaPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { useVideoAds } from '@/hooks/useVideoAds';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
+import {
+  CLIPS_BOTTOM_UI_OFFSET,
+  loadClipsFeedTab,
+  saveClipsFeedTab,
+  type ClipsFeedTab,
+} from '@/lib/clipsLayout';
 
-// Bottom nav height - accounts for safe area on all devices
-const BOTTOM_NAV_HEIGHT = 80; // px (including safe area padding)
+const CLIPS_HINT_KEY = 'vybe-clips-hint-seen';
+const CLIPS_PAGE_CLASS = 'vybe-clips-page';
+
+function shuffleWithSeed<T>(items: T[], seed: number): T[] {
+  const shuffled = [...items];
+  let s = seed;
+  const seededRandom = () => {
+    s = (s * 16807 + 0.5) % 1;
+    return Math.abs(s);
+  };
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(seededRandom() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
 
 export default function ClipsPage() {
   const navigate = useNavigate();
-  const { 
-    data, 
-    isLoading, 
-    fetchNextPage, 
-    hasNextPage, 
-    isFetchingNextPage 
-  } = usePersonalizedFeed('short');
-  
-  // Stable session-seeded shuffle - prevents re-ordering on every re-render
+  const [feedTab, setFeedTab] = useState<ClipsFeedTab>(() => loadClipsFeedTab());
   const sessionSeed = useMemo(() => Math.random(), []);
+
+  const forYouQuery = usePersonalizedFeed('short', { enabled: feedTab === 'foryou' });
+  const followingQuery = useInfiniteFollowingPosts('short', { enabled: feedTab === 'following' });
+
+  const activeQuery = feedTab === 'foryou' ? forYouQuery : followingQuery;
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = activeQuery;
+
   const shorts = useMemo(() => {
-    const allPosts = data?.pages.flatMap(page => page.posts) || [];
+    const allPosts = data?.pages.flatMap((page) => page.posts) || [];
     if (allPosts.length === 0) return [];
-    // Seeded shuffle for stable ordering within a session
-    const shuffled = [...allPosts];
-    let seed = sessionSeed;
-    const seededRandom = () => {
-      seed = (seed * 16807 + 0.5) % 1;
-      return Math.abs(seed);
-    };
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(seededRandom() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-  }, [data, sessionSeed]);
-  
+    return feedTab === 'foryou' ? shuffleWithSeed(allPosts, sessionSeed) : allPosts;
+  }, [data, sessionSeed, feedTab]);
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [globalMuted, setGlobalMuted] = useState(() => {
     const stored = localStorage.getItem('vybe-clips-muted');
@@ -55,40 +64,67 @@ export default function ClipsPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const observerRef = useRef<IntersectionObserver | null>(null);
-  
-  // Use isMobileOrTablet to properly detect iPads in any orientation
-  const { isMobileOrTablet, isIPad } = useIsMobileOrTablet();
+
+  const { isMobileOrTablet } = useIsMobileOrTablet();
+  const nativePerf = isNativePerfMode();
   const { isSlowConnection } = useNetworkStatus();
-  
-  // Smart preload videos around current position - preload next 5 for instant scrolling
-  const videoUrls = useMemo(() => shorts.map(s => s.media_url), [shorts]);
-  useVideoPreload(videoUrls, { 
-    currentIndex, 
-    preloadDepth: isSlowConnection ? 2 : 5,
-    enabled: !isSlowConnection 
+  const [showSwipeHint, setShowSwipeHint] = useState(() => {
+    try {
+      return !localStorage.getItem(CLIPS_HINT_KEY);
+    } catch {
+      return true;
+    }
   });
 
-  // Aggressive: warm next 3 posts' first-frame + thumbnails (no scroll pause)
+  const containerHeight = '100dvh';
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add(CLIPS_PAGE_CLASS);
+    root.style.setProperty('--clips-bottom-ui', CLIPS_BOTTOM_UI_OFFSET);
+    root.style.setProperty('--clips-progress-bottom', CLIPS_BOTTOM_UI_OFFSET);
+    return () => {
+      root.classList.remove(CLIPS_PAGE_CLASS);
+      root.style.removeProperty('--clips-bottom-ui');
+      root.style.removeProperty('--clips-progress-bottom');
+    };
+  }, []);
+
+  const handleFeedTabChange = useCallback((tab: ClipsFeedTab) => {
+    setFeedTab(tab);
+    saveClipsFeedTab(tab);
+    setCurrentIndex(0);
+    containerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, []);
+
+  useEffect(() => {
+    setCurrentIndex(0);
+    containerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [feedTab]);
+
+  const videoUrls = useMemo(() => shorts.map((s) => s.media_url), [shorts]);
+  useVideoPreload(videoUrls, {
+    currentIndex,
+    preloadDepth: isSlowConnection ? 2 : 5,
+    enabled: !isSlowConnection,
+  });
+
   useAheadMediaPreload(shorts as any, currentIndex, 3);
 
-  // Infinite scroll trigger
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0,
     rootMargin: '1200px',
   });
 
-  // Fetch next page when approaching end
   useEffect(() => {
     if (inView && hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
     }
   }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Simplified IntersectionObserver for mobile - reduces jank
   useEffect(() => {
     if (!shorts?.length) return;
 
-    // Clean up previous observer
     if (observerRef.current) {
       observerRef.current.disconnect();
     }
@@ -96,7 +132,7 @@ export default function ClipsPage() {
     observerRef.current = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.55) {
             const index = itemRefs.current.findIndex((ref) => ref === entry.target);
             if (index !== -1 && index !== currentIndex) {
               setCurrentIndex(index);
@@ -106,8 +142,8 @@ export default function ClipsPage() {
       },
       {
         root: containerRef.current,
-        threshold: 0.6,
-      }
+        threshold: [0.55, 0.75],
+      },
     );
 
     itemRefs.current.forEach((ref) => {
@@ -119,22 +155,21 @@ export default function ClipsPage() {
     };
   }, [shorts?.length, currentIndex]);
 
-  // YouTube-style ads: pre-roll once when Clips opens, then mid-feed every N clips.
   const { showVideoAd, isMidFeedAdSlot } = useVideoAds();
   const preRollFiredRef = useRef(false);
   const lastAdIndexRef = useRef(-1);
 
-  // Pre-roll: fire once after the first clip is ready
   useEffect(() => {
+    if (nativePerf) return;
     if (preRollFiredRef.current) return;
     if (!shorts || shorts.length === 0) return;
     preRollFiredRef.current = true;
-    // Small delay so the first clip can paint behind the ad
-    const t = setTimeout(() => { showVideoAd('pre_roll'); }, 800);
+    const t = setTimeout(() => {
+      showVideoAd('pre_roll');
+    }, 800);
     return () => clearTimeout(t);
-  }, [shorts, showVideoAd]);
+  }, [shorts, showVideoAd, nativePerf]);
 
-  // Mid-feed: when the user lands on a slot index, fire an interstitial
   useEffect(() => {
     if (currentIndex === lastAdIndexRef.current) return;
     if (!isMidFeedAdSlot(currentIndex)) return;
@@ -142,7 +177,6 @@ export default function ClipsPage() {
     showVideoAd('mid_feed');
   }, [currentIndex, isMidFeedAdSlot, showVideoAd]);
 
-  // Keyboard navigation (desktop only)
   useEffect(() => {
     if (isMobileOrTablet) return;
 
@@ -159,16 +193,31 @@ export default function ClipsPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, shorts?.length, isMobileOrTablet]);
 
-  const scrollToIndex = useCallback((index: number) => {
-    if (!shorts || index < 0 || index >= shorts.length) return;
-    const target = itemRefs.current[index];
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const scrollToIndex = useCallback(
+    (index: number) => {
+      if (!shorts || index < 0 || index >= shorts.length) return;
+      const target = itemRefs.current[index];
+      if (target) {
+        target.scrollIntoView({
+          behavior: nativePerf ? 'auto' : 'smooth',
+          block: 'start',
+        });
+      }
+    },
+    [shorts, nativePerf],
+  );
+
+  useEffect(() => {
+    if (currentIndex > 0 && showSwipeHint) {
+      setShowSwipeHint(false);
+      try {
+        localStorage.setItem(CLIPS_HINT_KEY, '1');
+      } catch { /* ignore */ }
     }
-  }, [shorts]);
+  }, [currentIndex, showSwipeHint]);
 
   const handleToggleMute = useCallback(() => {
-    setGlobalMuted(prev => {
+    setGlobalMuted((prev) => {
       const next = !prev;
       localStorage.setItem('vybe-clips-muted', String(next));
       return next;
@@ -177,11 +226,9 @@ export default function ClipsPage() {
 
   if (isLoading) {
     return (
-      <AppLayout hideNav>
-        <div 
-          className="bg-black"
-          style={{ height: isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh' }}
-        >
+      <AppLayout hideNav fullWidth noPadding>
+        <div className="bg-black" style={{ height: containerHeight }}>
+          <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
           <ClipSkeleton />
         </div>
       </AppLayout>
@@ -190,52 +237,58 @@ export default function ClipsPage() {
 
   if (!shorts || shorts.length === 0) {
     return (
-      <AppLayout hideNav>
-        <div 
+      <AppLayout hideNav fullWidth noPadding>
+        <div
           className="flex items-center justify-center bg-black px-4"
-          style={{ height: isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh' }}
+          style={{ height: containerHeight }}
         >
+          <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
           <EmptyState
-            emoji="🎬"
-            title="No clips yet"
-            description="Be the first to upload a clip"
-            actionLabel="Upload Clip"
-            onAction={() => navigate('/upload')}
+            emoji={feedTab === 'following' ? '👥' : '🎬'}
+            title={feedTab === 'following' ? 'No clips from people you follow' : 'No clips yet'}
+            description={
+              feedTab === 'following'
+                ? 'Follow creators to fill your Following feed'
+                : 'Be the first to upload a clip'
+            }
+            actionLabel={feedTab === 'following' ? 'Discover creators' : 'Upload clip'}
+            onAction={() => navigate(feedTab === 'following' ? '/explore' : '/upload')}
           />
         </div>
       </AppLayout>
     );
   }
 
-  // Calculate container height - on mobile/tablet leave room for bottom nav
-  const containerHeight = isMobileOrTablet ? `calc(100dvh - ${BOTTOM_NAV_HEIGHT}px)` : '100dvh';
-
-  // Use simplified card on mobile/iPad to prevent freezing
   const CardComponent = isMobileOrTablet ? MobileShortCard : ShortCard;
+  const cardProps = isMobileOrTablet
+    ? { tiktokLayout: true as const }
+    : {};
 
   return (
-    <AppLayout hideNav>
+    <AppLayout hideNav fullWidth noPadding>
+      <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
       <div
         ref={containerRef}
-        className="overflow-y-scroll scrollbar-hide bg-black"
-        style={{ 
+        className="clips-scroll-container tiktok-clips-feed overflow-y-scroll scrollbar-hide bg-black"
+        style={{
           height: containerHeight,
           scrollSnapType: 'y mandatory',
           overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch',
           scrollSnapStop: 'always',
-          scrollBehavior: 'smooth',
+          scrollBehavior: nativePerf ? 'auto' : 'smooth',
           touchAction: 'pan-y',
         }}
       >
-        {/* TikTok-style vertical scroll container */}
         <div className="flex flex-col w-full">
           {shorts.map((short, index) => (
             <div
-              key={short.id}
-              ref={(el) => { itemRefs.current[index] = el; }}
-              className="w-full flex-shrink-0 flex justify-center"
-              style={{ 
+              key={`${feedTab}-${short.id}`}
+              ref={(el) => {
+                itemRefs.current[index] = el;
+              }}
+              className="w-full flex-shrink-0 flex justify-center snap-start"
+              style={{
                 height: containerHeight,
                 scrollSnapAlign: 'start',
                 scrollSnapStop: 'always',
@@ -243,26 +296,21 @@ export default function ClipsPage() {
                 containIntrinsicSize: `0 ${containerHeight}`,
               }}
             >
-              {/* Full screen container - responsive max-width for different devices */}
-              <div className={cn(
-                "relative h-full w-full",
-                // Mobile: full width, Tablet/iPad: constrained for better UX
-                "max-w-full sm:max-w-[480px] md:max-w-[420px] lg:max-w-[400px]"
-              )}>
-                <CardComponent 
-                  post={short} 
+              <div className="relative h-full w-full max-w-full">
+                <CardComponent
+                  post={short}
                   isActive={index === currentIndex}
                   globalMuted={globalMuted}
                   onToggleMute={handleToggleMute}
+                  {...cardProps}
                 />
               </div>
             </div>
           ))}
-          
-          {/* Infinite scroll trigger */}
+
           {hasNextPage && (
-            <div 
-              ref={loadMoreRef} 
+            <div
+              ref={loadMoreRef}
               className="h-20 flex items-center justify-center bg-black snap-start"
             >
               {isFetchingNextPage && (
@@ -272,15 +320,6 @@ export default function ClipsPage() {
           )}
         </div>
 
-        {/* Navigation button - always visible */}
-        <Link 
-          to="/home"
-          className="fixed top-4 left-4 z-30 w-11 h-11 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center border border-white/20 active:bg-black/70 transition-colors shadow-lg"
-        >
-          <X className="w-6 h-6 text-white" strokeWidth={2.5} />
-        </Link>
-
-        {/* Progress indicator - simplified for mobile */}
         {!isMobileOrTablet && (
           <div className="fixed right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 pointer-events-none">
             {shorts.slice(Math.max(0, currentIndex - 3), currentIndex + 4).map((_, idx) => {
@@ -299,14 +338,16 @@ export default function ClipsPage() {
           </div>
         )}
 
-        {/* Swipe hint - first clip only on mobile */}
-        {currentIndex === 0 && isMobileOrTablet && (
-          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 pointer-events-none z-20 animate-pulse">
+        {currentIndex === 0 && isMobileOrTablet && showSwipeHint && (
+          <div
+            className="fixed left-1/2 -translate-x-1/2 pointer-events-none z-20 animate-pulse"
+            style={{ bottom: CLIPS_BOTTOM_UI_OFFSET }}
+          >
             <div className="text-white/70 text-sm flex flex-col items-center">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
               </svg>
-              <span className="font-medium">Swipe up</span>
+              <span className="font-medium">Swipe up for more</span>
             </div>
           </div>
         )}

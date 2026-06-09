@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { UserProfileHoverCard } from '@/components/ui/UserProfileHoverCard';
 import { StyledUsername } from '@/components/ui/StyledUsername';
+import { useDoubleTap } from '@/hooks/useGestures';
 import { cn } from '@/lib/utils';
 import { transformedImage, transformedSrcSet } from '@/lib/imageTransform';
 import { formatDistanceToNow } from 'date-fns';
@@ -496,6 +497,9 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
     setTimeout(() => setShowHeart(false), 800);
   }, [currentReaction, handleReaction]);
 
+  const handleMediaDoubleTap = useDoubleTap(handleDoubleTap);
+  const isTouchFeed = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
   const handleShare = useCallback(async () => {
     const url = `${window.location.origin}/p/${post.id}`;
     if (navigator.share) {
@@ -564,7 +568,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={T.enter}
-      className="relative rounded-2xl overflow-hidden bg-card"
+      className="relative rounded-2xl overflow-hidden bg-card feed-post-card"
       style={{ contentVisibility: 'auto', containIntrinsicSize: '600px' }}
     >
       {/* Subtle animated VYBE aurora outline (full perimeter, low opacity) */}
@@ -766,7 +770,11 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
         }
         
         return (
-          <div className="relative w-full cursor-pointer" onDoubleClick={handleDoubleTap}>
+          <div
+            className="relative w-full cursor-pointer"
+            onDoubleClick={handleDoubleTap}
+            onClick={isTouchFeed ? handleMediaDoubleTap : undefined}
+          >
             {post.type === 'video' ? (
               <SmartErrorBoundary fallback={<div className="w-full aspect-video bg-black" />}>
                 <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />

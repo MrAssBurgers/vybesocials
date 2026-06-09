@@ -1,12 +1,15 @@
 import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePWAInstallPrompt } from '@/hooks/usePWAInstallPrompt';
+import { isNativeAppShell } from '@/lib/despiaBridge';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { X, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const PWAInstallBanner = memo(function PWAInstallBanner() {
   const { showPrompt, install, dismiss } = usePWAInstallPrompt();
+
+  if (isNativeAppShell()) return null;
 
   return (
     <AnimatePresence>

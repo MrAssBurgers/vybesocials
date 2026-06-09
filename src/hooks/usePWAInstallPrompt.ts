@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { isNativeAppShell } from '@/lib/despiaBridge';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -18,6 +19,12 @@ export function usePWAInstallPrompt() {
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
+    // Already inside Despia/Capacitor — never show browser install chrome
+    if (isNativeAppShell()) {
+      setIsInstalled(true);
+      return;
+    }
+
     // Check if already installed as PWA
     if (window.matchMedia('(display-mode: standalone)').matches) {
       setIsInstalled(true);

@@ -17,6 +17,7 @@ import { StyledUsername } from '@/components/ui/StyledUsername';
 import { INTEREST_CATEGORIES, getSuggestedTagsForInterests, getTagCategories } from '@/lib/tagCategories';
 import { Sound } from '@/hooks/useSounds';
 import { toast } from 'sonner';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { triggerHaptic } from '@/lib/haptics';
 import { useComposerDraft } from '@/hooks/useComposerDraft';
 import { DraftBanner } from '@/components/create/DraftBanner';
@@ -208,7 +209,8 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
       setPublishSuccess(true);
       succeeded = true;
       draft.clear();
-      setTimeout(() => { navigate('/home'); }, 2000);
+      const homeDelayMs = isNativePerfMode() ? 900 : 2000;
+      setTimeout(() => { navigate('/home'); }, homeDelayMs);
     } catch (err: any) {
       console.error('[Composer] Failed:', err);
       const msg =

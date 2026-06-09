@@ -5203,6 +5203,39 @@ html.native-perf-mode .vybe-liquid-bg .vybe-liquid-bloom {
   }
 }
 
+/* Instagram-ready native shell — tighter feed rhythm, instant clip snap */
+html.instagram-ready .feed-post-card {
+  border-radius: 0;
+  margin-bottom: 0;
+}
+
+html.instagram-ready .clips-scroll-container {
+  scroll-snap-type: y mandatory;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.instagram-ready .native-scroll-shell {
+  scroll-padding-top: var(--app-header-height, 56px);
+}
+
+html.instagram-ready [data-post-card] {
+  border-bottom: 1px solid hsl(var(--border) / 0.35);
+}
+
+/* TikTok-style clips feed — full bleed under floating bottom nav */
+html.vybe-clips-page {
+  --clips-bottom-ui: calc(env(safe-area-inset-bottom, 0px) + 78px);
+}
+
+html.vybe-clips-page .tiktok-clips-feed {
+  scroll-snap-type: y mandatory;
+}
+
+html.vybe-clips-page .tiktok-clips-feed::-webkit-scrollbar {
+  display: none;
+}
+
 .ai-chat-composer {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--kb-h, 0px));
   transition: padding-bottom 0.2s ease-out;

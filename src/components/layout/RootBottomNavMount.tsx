@@ -9,7 +9,7 @@ import { useIsMobileOrTablet } from "@/hooks/use-mobile";
  * Hides nav when inside a DM conversation.
  */
 // Routes where bottom nav should be hidden
-const HIDDEN_NAV_ROUTES = ['/', '/onboarding', '/complete-profile', '/upload', '/camera', '/map', '/clips', '/spaces', '/VYBE-AI'];
+const HIDDEN_NAV_ROUTES = ['/', '/onboarding', '/complete-profile', '/upload', '/camera', '/map', '/spaces', '/VYBE-AI'];
 
 export const RootBottomNavMount = memo(function RootBottomNavMount() {
   const { isMobileOrTablet } = useIsMobileOrTablet();
