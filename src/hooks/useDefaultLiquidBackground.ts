@@ -19,8 +19,10 @@ function canUseDefaultLiquidExperience(
   hasUserWallpaper: boolean,
   isBackgroundResolved: boolean,
 ): boolean {
-  if (STABLE_APP_BACKGROUND || isNativePerfMode()) return false;
-  return isBackgroundResolved && !hasUserWallpaper;
+  if (STABLE_APP_BACKGROUND || hasUserWallpaper) return false;
+  // Native uses mesh-only aurora (no blobs/touch) — don't wait on bg DB fetch.
+  if (isNativePerfMode()) return true;
+  return isBackgroundResolved;
 }
 
 /**

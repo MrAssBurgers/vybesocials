@@ -80,8 +80,18 @@ export default function ClipsPage() {
       return true;
     }
   });
+  const [feedLoadTimedOut, setFeedLoadTimedOut] = useState(false);
 
   const containerHeight = '100dvh';
+
+  useEffect(() => {
+    if (!isShortsMode || !isLoading) {
+      setFeedLoadTimedOut(false);
+      return;
+    }
+    const t = window.setTimeout(() => setFeedLoadTimedOut(true), 10_000);
+    return () => window.clearTimeout(t);
+  }, [isShortsMode, isLoading]);
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
@@ -244,12 +254,34 @@ export default function ClipsPage() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && !feedLoadTimedOut) {
     return (
       <AppLayout hideNav fullWidth noPadding>
         <div className="bg-black" style={{ height: containerHeight }}>
           <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
           <ClipSkeleton />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (isLoading && feedLoadTimedOut) {
+    return (
+      <AppLayout hideNav fullWidth noPadding>
+        <div
+          className="flex items-center justify-center bg-black px-4"
+          style={{ height: containerHeight }}
+        >
+          <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
+          <div className="flex flex-col items-center">
+            <EmptyState
+              emoji="📡"
+              title="Clips are taking a while"
+              description="Check your connection or try again"
+              actionLabel="Retry"
+              onAction={() => activeQuery.refetch()}
+            />
+          </div>
         </div>
       </AppLayout>
     );

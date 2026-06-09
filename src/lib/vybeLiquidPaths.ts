@@ -14,7 +14,22 @@ export function isAuthLiquidPath(pathname: string): boolean {
   );
 }
 
+/** Immersive media routes — solid black player chrome, no aurora behind. */
+function isImmersiveMediaPath(pathname: string): boolean {
+  return (
+    pathname === '/clips' ||
+    pathname === '/shorts' ||
+    pathname.startsWith('/clips/') ||
+    pathname.startsWith('/watch/')
+  );
+}
+
 /** Routes where the portaled app-shell aurora is suppressed. */
 export function isExcludedLiquidPath(pathname: string): boolean {
-  return pathname === '/upload' || pathname.startsWith('/upload/') || isAuthLiquidPath(pathname);
+  return (
+    pathname === '/upload' ||
+    pathname.startsWith('/upload/') ||
+    isImmersiveMediaPath(pathname) ||
+    isAuthLiquidPath(pathname)
+  );
 }

@@ -5158,6 +5158,10 @@ html.vybe-stable-background .vybe-liquid-touch-layer {
 }
 
 /* Native Despia/Capacitor shell — colorful static aurora, no touch FX, lighter glass */
+html.native-perf-mode #vybe-aurora-mount {
+  display: block !important;
+}
+
 html.native-perf-mode .vybe-liquid-touch-layer {
   display: none !important;
 }

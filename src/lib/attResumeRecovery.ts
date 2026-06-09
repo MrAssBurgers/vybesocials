@@ -7,6 +7,11 @@ import { pollNativeTrackingConsent, syncNativeTrackingConsent } from '@/lib/att'
 
 export const ATT_RESUME_EVENT = 'vybe:resume-recover';
 
+/** Clear splash locks / hidden #root after boot or system permission sheets. */
+export function ensureAppShellVisible(): void {
+  clearStuckDocumentState();
+}
+
 function clearStuckDocumentState() {
   document.body.style.overflow = '';
   document.body.classList.remove('splash-visible');

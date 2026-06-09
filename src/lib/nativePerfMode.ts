@@ -9,6 +9,8 @@ export function isNativePerfMode(): boolean {
 export function initNativePerfMode(): void {
   if (typeof document === 'undefined' || !isNativePerfMode()) return;
   const html = document.documentElement;
-  html.classList.add('native-perf-mode', 'instagram-ready', 'reduce-motion', 'vybe-stable-background');
+  html.classList.remove('vybe-stable-background');
+  // Keep clips/feed perf classes; aurora uses static mesh via AppGlobalLiquidShell.
+  html.classList.add('native-perf-mode', 'instagram-ready', 'reduce-motion');
   html.setAttribute('data-glass-intensity', 'calm');
 }

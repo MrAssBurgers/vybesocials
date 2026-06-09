@@ -86,7 +86,7 @@ import { SplashScreen } from "@/components/ui/SplashScreen";
 import { WelcomeBackSplash } from "@/components/ui/WelcomeBackSplash";
 import { markPersistRestored } from "@/lib/persistRestoreGate";
 import { SnapARProvider } from "@/components/camera/SnapARProvider";
-import { ATT_RESUME_EVENT } from "@/lib/attResumeRecovery";
+import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery";
 import { syncNativeTrackingConsent } from "@/lib/att";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
@@ -290,14 +290,7 @@ function AppWithPreloader() {
   // Ensure WebView is visible after splash (App Review 2.1a blank launch on iPad).
   useEffect(() => {
     if (showSplash) return;
-    document.body.classList.remove('splash-visible');
-    document.body.style.overflow = '';
-    document.documentElement.style.overflow = '';
-    const root = document.getElementById('root');
-    if (root) {
-      root.style.visibility = '';
-      root.style.opacity = '';
-    }
+    ensureAppShellVisible();
   }, [showSplash]);
 
   const showSplashRef = useRef(showSplash);

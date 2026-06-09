@@ -5,10 +5,18 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — production perfection pass (publish routing, feeds, fullscreen UX)
+- **Lovable Publish** — native black screen fix (aurora + splash recovery)
 
 ## Publish log
+- **2026-06-09** — native black screen fix (local, publish pending)
 - **2026-06-09** — production perfection pass pushed. **Lovable Publish pending.**
+
+## What Changed (native black screen fix)
+- **Native aurora restored** — static mesh gradient on Home/Explore/DMs (was flat `#0B0B10`)
+- **Removed `vybe-stable-background`** from native boot — aurora mount no longer hidden
+- **Clips/Watch** — aurora suppressed on immersive routes (intentional black player)
+- **Splash dismiss** — `ensureAppShellVisible()` clears stuck `#root` visibility
+- **Clips loading** — 10s timeout shows retry UI instead of infinite black skeleton
 
 ## What Changed (production perfection pass)
 - **After publish** — clips → `/clips`, long videos → Videos tab; feeds invalidate instantly
