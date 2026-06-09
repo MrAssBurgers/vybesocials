@@ -696,6 +696,8 @@ export function GlobalCallOverlay() {
 
     const handleFocus = () => { reEnableMic(); };
 
+    const handleAppResumed = () => { void handleVisibility(); };
+
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (state.phase === 'connected' || state.phase === 'joining') {
         e.preventDefault();
@@ -704,10 +706,12 @@ export function GlobalCallOverlay() {
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('app-resumed', handleAppResumed);
     window.addEventListener('focus', handleFocus);
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('app-resumed', handleAppResumed);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };

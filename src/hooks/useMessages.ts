@@ -399,9 +399,13 @@ export function useSendMessage() {
         throw err;
       }
     },
-    onSuccess: async (_data, variables) => {
+    onSuccess: async (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['messages', variables.conversationId] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+
+      if ((data as { _queued?: boolean })?._queued) {
+        toast.info('Message queued — will send when you\'re back online', { duration: 3500 });
+      }
 
       // Push notifications are handled server-side by the
       // `on_message_insert_notify` AFTER INSERT trigger on `messages`, which

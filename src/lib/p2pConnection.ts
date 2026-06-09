@@ -116,6 +116,13 @@ export class P2PConnection {
     // 0. Release any existing camera stream (e.g. from VybeSnapCamera).
     //    Tracks are stopped synchronously — no artificial wait needed.
     stopCameraStream();
+    // Wait out overlapping post/create camera acquire (WebView crash guard).
+    if (typeof window !== 'undefined') {
+      const { isAcquiringPostCamera } = await import('@/lib/postCameraStream');
+      for (let i = 0; i < 20 && isAcquiringPostCamera(); i += 1) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    }
     // Defensive: if a prior call left a localStream on this instance, stop it
     // before requesting new tracks (Android WebViews crash on duplicate gUM).
     if (this.localStream) {

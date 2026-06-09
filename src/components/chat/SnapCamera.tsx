@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { motion, AnimatePresence, PanInfo } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, SwitchCamera, Type, Check, 
   Send, Smile, Trash2, AlignCenter, AlignLeft, AlignRight
@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
+import { SnapOverlayDraggable } from '@/components/camera/SnapOverlayDraggable';
 
+/** @deprecated Legacy DM snap camera — use VybeSnapCamera + VybeSnapEditor for all entry points. */
 // Snapchat-style text styles
 type TextStyle = 'classic' | 'glow' | 'outline' | 'background' | 'neon';
 type TextAlign = 'left' | 'center' | 'right';
@@ -412,32 +414,19 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
     }
   };
 
-  // Handle drag for overlays - using percentages
-  const handleDrag = useCallback((id: string, info: PanInfo) => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const rect = container.getBoundingClientRect();
-    
-    setTextOverlays(prev => prev.map(overlay => {
-      if (overlay.id !== id) return overlay;
-      
-      // Calculate new position as percentage
-      const deltaXPercent = (info.delta.x / rect.width) * 100;
-      const deltaYPercent = (info.delta.y / rect.height) * 100;
-      
-      const newX = Math.min(95, Math.max(5, overlay.x + deltaXPercent));
-      const newY = Math.min(95, Math.max(5, overlay.y + deltaYPercent));
-      
-      return { ...overlay, x: newX, y: newY };
-    }));
-  }, []);
-
   // Remove overlay on double tap
   const handleDoubleTap = (id: string) => {
     haptics.impact();
     setTextOverlays(prev => prev.filter(o => o.id !== id));
   };
+
+  const handleOverlayDragEnd = useCallback((id: string, x: number, y: number, deleted?: boolean) => {
+    if (deleted) {
+      setTextOverlays(prev => prev.filter(o => o.id !== id));
+      return;
+    }
+    setTextOverlays(prev => prev.map(o => (o.id !== id ? o : { ...o, x, y })));
+  }, []);
 
   // Clear all
   const clearAll = () => {
@@ -854,37 +843,31 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
 
               {/* Text Overlays - with style support */}
               {textOverlays.map(overlay => (
-                <motion.div
+                <SnapOverlayDraggable
                   key={overlay.id}
+                  id={overlay.id}
+                  x={overlay.x}
+                  y={overlay.y}
+                  mode="free"
+                  containerRef={containerRef}
+                  onDraggingChange={setDraggedId}
+                  onDragEnd={handleOverlayDragEnd}
                   className={cn(
-                    "absolute touch-none select-none cursor-grab active:cursor-grabbing whitespace-pre-wrap max-w-[90%]",
-                    draggedId === overlay.id && "z-50"
+                    'whitespace-pre-wrap max-w-[90%]',
+                    draggedId === overlay.id && 'z-50',
                   )}
                   style={{
-                    left: `${overlay.x}%`,
-                    top: `${overlay.y}%`,
-                    x: '-50%',
-                    y: '-50%',
-                    color: overlay.style === 'background' 
+                    color: overlay.style === 'background'
                       ? (overlay.color === '#ffffff' || overlay.color === '#FACC15' ? '#000000' : '#ffffff')
                       : overlay.color,
                     fontSize: overlay.fontSize,
                     fontWeight: 'bold',
-                    rotate: overlay.rotation,
                     textAlign: overlay.align,
                     ...getTextStyleCSS(overlay.style, overlay.color),
                   }}
-                  drag
-                  dragMomentum={false}
-                  dragElastic={0}
-                  onDragStart={() => setDraggedId(overlay.id)}
-                  onDrag={(_, info) => handleDrag(overlay.id, info)}
-                  onDragEnd={() => setDraggedId(null)}
-                  onDoubleClick={() => handleDoubleTap(overlay.id)}
-                  whileTap={{ scale: 1.1 }}
                 >
-                  {overlay.text}
-                </motion.div>
+                  <span onDoubleClick={() => handleDoubleTap(overlay.id)}>{overlay.text}</span>
+                </SnapOverlayDraggable>
               ))}
             </div>
 

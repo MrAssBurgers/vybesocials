@@ -5,11 +5,20 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — Vybe Snap text drag fix (local, publish pending)
+- **Lovable Publish** — Messaging Polish epic (Phase 1) pushed; publish + device verify pending
 
 ## Publish log
+- **2026-06-02** — Messaging Polish Phase 1 (snap drag parity, outbox/call resume, voice scrub). **Lovable Publish pending.**
 - **2026-06-09** — Vybe Snap text drag 1:1 finger tracking fix (local, publish pending)
 - **2026-06-09** — production perfection pass pushed. **Lovable Publish pending.**
+
+## What Changed (Messaging Polish — Phase 1)
+- **`SnapOverlayDraggable`** — shared 1:1 drag component for `VybeSnapEditor` + legacy `SnapCamera`
+- **DM outbox** — flush on `visibilitychange` + `app-resumed` (background resume)
+- **Send UX** — toast when message queued offline; vybe upload already marks `_failed` for retry
+- **Calls** — `GlobalCallOverlay` listens for `app-resumed`; P2P waits out post-camera acquire
+- **Voice notes** — waveform scrubbing on `AudioMessage`
+- **Roadmap doc** — `docs/ARCHITECTURE_ROADMAP.md` (Phases 2–6 sequenced)
 
 ## What Changed (Vybe Snap text drag fix)
 - **Text overlay drag** — removed Framer `drag="y"` + delta state double-move; new `SnapOverlayBar` uses start+delta touch math (1:1 finger tracking)

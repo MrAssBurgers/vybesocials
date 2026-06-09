@@ -62,7 +62,11 @@ export async function requestCallMediaPermissions(callType: CallMediaType): Prom
   // Release any existing camera stream (e.g. VybeSnapCamera) before requesting new media
   try {
     const { stopCameraStream } = await import('@/hooks/useCameraPreload');
+    const { isAcquiringPostCamera } = await import('@/lib/postCameraStream');
     stopCameraStream();
+    for (let i = 0; i < 10 && isAcquiringPostCamera(); i += 1) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
     await new Promise(r => setTimeout(r, 100));
   } catch {
     // Non-critical

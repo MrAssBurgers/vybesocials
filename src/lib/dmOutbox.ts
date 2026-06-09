@@ -155,4 +155,14 @@ export function startOutbox(): void {
   window.addEventListener('focus', () => {
     void flush();
   });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      void flush();
+    }
+  });
+
+  window.addEventListener('app-resumed', () => {
+    void flush();
+  });
 }

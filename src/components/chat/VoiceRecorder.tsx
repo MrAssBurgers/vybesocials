@@ -376,6 +376,14 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
     setIsPlaying(!isPlaying);
   };
 
+  const seekToProgress = (pct: number) => {
+    const audio = audioRef.current;
+    if (!audio || !audio.duration) return;
+    const next = Math.max(0, Math.min(1, pct));
+    audio.currentTime = next * audio.duration;
+    setProgress(next * 100);
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -408,7 +416,23 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
       </motion.button>
 
       <div className="flex-1 flex flex-col gap-1.5 min-h-[32px]">
-        <div className="flex items-center gap-0.5 h-6">
+        <div
+          className="flex items-center gap-0.5 h-6 cursor-pointer touch-none"
+          role="slider"
+          aria-label="Voice message progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress)}
+          onPointerDown={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            seekToProgress((e.clientX - rect.left) / rect.width);
+          }}
+          onPointerMove={(e) => {
+            if (e.buttons !== 1) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            seekToProgress((e.clientX - rect.left) / rect.width);
+          }}
+        >
           {waveformBars.map((height, i) => {
             const isActive = (i / waveformBars.length) * 100 <= progress;
             return (
@@ -429,7 +453,7 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
           "text-[10px] sm:text-xs",
           isOwn ? "text-primary-foreground/70" : "text-muted-foreground"
         )}>
-          {formatTime(audioDuration)}
+          {formatTime(isPlaying ? (progress / 100) * audioDuration : audioDuration)}
         </span>
       </div>
     </div>

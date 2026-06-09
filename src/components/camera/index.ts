@@ -7,5 +7,6 @@ export { CameraShareSheet } from './CameraShareSheet';
 export { VybeRecordButton } from './VybeRecordButton';
 export { VybeSnapCamera } from './VybeSnapCamera';
 export { VybeSnapEditor } from './VybeSnapEditor';
+export { SnapOverlayDraggable } from './SnapOverlayDraggable';
 export { CameraTopControls } from './CameraTopControls';
 export { CameraZoomIndicator } from './CameraZoom';
