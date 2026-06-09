@@ -81,7 +81,7 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
     if (profile?.id) {
       await supabase
         .from('profiles')
-        .update({ tracking_consent: consent } as Record<string, string>)
+        .update({ tracking_consent: consent } as any)
         .eq('id', profile.id);
     }
   };
