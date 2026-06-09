@@ -299,13 +299,13 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
         className={cn(
           'flex items-center gap-2 cursor-pointer transition-colors',
           variant === 'header'
-            ? 'h-9 px-3 rounded-xl bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.07]'
+            ? 'h-8 px-2.5 rounded-[0.7rem] bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.07]'
             : 'px-3 py-2 rounded-full bg-secondary/50 hover:bg-secondary',
         )}
       >
-        <Search className={cn('text-muted-foreground', variant === 'header' ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
+        <Search className={cn('text-muted-foreground shrink-0', variant === 'header' ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
         <span className={cn(
-          'text-sm text-muted-foreground truncate',
+          'text-[13px] text-muted-foreground truncate',
           variant === 'header' ? 'inline' : 'hidden sm:inline',
         )}>
           Search

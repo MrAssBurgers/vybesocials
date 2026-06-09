@@ -30,8 +30,12 @@ label {
 }
 
 :root {
-  --app-header-height: calc(env(safe-area-inset-top, 0px) + 3.75rem);
-  --app-floating-header-scroll: calc(env(safe-area-inset-top, 0px) + 4.25rem);
+  --app-header-safe: env(safe-area-inset-top, 0px);
+  --app-header-offset: 0.75rem;
+  --app-header-toolbar: 2.5rem;
+  --app-header-tail: 0.375rem;
+  --app-header-height: calc(var(--app-header-safe) + var(--app-header-offset) + var(--app-header-toolbar) + var(--app-header-tail));
+  --app-floating-header-scroll: calc(var(--app-header-height) + 0.5rem);
   --kb-h: 0px;
 }
 

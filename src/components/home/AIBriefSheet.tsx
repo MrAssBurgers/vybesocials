@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
-import { AIBriefCustomizeSheet } from './AIBriefCustomizeSheet';
+import { AIBriefCustomizePanel } from './AIBriefCustomizeSheet';
 import { GeneratingScreen } from './AIBriefLoadingState';
 import { getBriefTimeSlot, getNextBriefSlotTime } from '@/lib/briefTimeSlot';
 
@@ -584,6 +584,13 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
             <div className="w-10 h-1 rounded-full bg-muted-foreground/15" />
           </div>
 
+          {showCustomize ? (
+            <AIBriefCustomizePanel
+              onClose={() => setShowCustomize(false)}
+              onPreferencesUpdated={handleRefresh}
+            />
+          ) : (
+          <>
           {/* Header with greeting gradient */}
           <div className={`flex-shrink-0 px-5 py-3 bg-gradient-to-r ${bg} rounded-xl mx-4 mb-2`}>
             <div className="flex items-center justify-between">
@@ -849,14 +856,10 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
               <GeneratingScreen />
             )}
           </div>
+          </>
+          )}
         </SheetContent>
       </Sheet>
-
-      <AIBriefCustomizeSheet
-        open={showCustomize}
-        onOpenChange={setShowCustomize}
-        onPreferencesUpdated={handleRefresh}
-      />
     </>
   );
 }

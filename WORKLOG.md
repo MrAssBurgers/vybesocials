@@ -5,16 +5,14 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — push `d1ebdbd9` then Share → Publish for vybehub.app
-- **Local preview** — `http://127.0.0.1:8080`
+- **Lovable Publish** — Share → Publish for vybehub.app (brief settings + header polish)
 
-## What Changed (DM scroll + header — `d1ebdbd9`)
-- **`AppLayout` / `Messages` / `ChatView`** — removed `touch-action: none` scroll trap in DMs
-- **`ConversationList`** — native overflow scroll instead of Radix ScrollArea
-- **`MobileHeader`** — unified glass pill bar, lower below status bar, cleaner icons + search
+## What Changed (brief settings + header polish — local)
+- **`AIBriefCustomizePanel`** — inline in brief sheet (no nested dialog); load/save `finally` fixes infinite spinner
+- **`MobileHeader`** — lower compact bar via `--app-header-*` CSS vars; streak hides on narrow screens
 
 ## Publish log
-- **2026-06-08** — pushed `9f7920ef` (DM scroll + header redesign, WORKLOG). **Lovable Publish pending.**
+- **2026-06-08** — pushed brief settings + header polish. **Lovable Publish pending.**
 - **2026-06-08** — pushed `d1ebdbd9` (DM scroll fix + header redesign)
 - **2026-06-08** — pushed `edbf9205` / `28cdf141` (Realtime crash fix)
 - **2026-06-08** — pushed `5fa238d3` (mobile safe area, brief, AI keyboard, Friend Link, nav liquid, ads gating). Supabase auth/SMS/email/push functions deployed (user CLI). Redeploy `auth-2fa-request` after resend fix.
