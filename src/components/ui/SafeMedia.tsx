@@ -2,6 +2,7 @@ import { useState, memo, useCallback, forwardRef } from 'react';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { MediaFallback, MediaSkeleton } from './MediaFallback';
 import { cn } from '@/lib/utils';
+import { isValidMediaUrl } from '@/lib/mediaUrl';
 
 interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string | null | undefined;

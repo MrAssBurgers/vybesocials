@@ -1,8 +1,4 @@
-import type {
-  RealtimeChannel,
-  RealtimePostgresChangesFilter,
-  RealtimePostgresChangesPayload,
-} from '@supabase/supabase-js';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 function channelTopic(name: string): string {
@@ -31,24 +27,26 @@ export function removeRealtimeChannel(channel: RealtimeChannel | null | undefine
   }
 }
 
-type PostgresBinding<T extends Record<string, unknown>> = {
-  event: RealtimePostgresChangesFilter<T>['event'];
+type PostgresEvent = '*' | 'INSERT' | 'UPDATE' | 'DELETE';
+
+type PostgresBinding = {
+  event: PostgresEvent;
   schema?: string;
   table: string;
   filter?: string;
-  callback: (payload: RealtimePostgresChangesPayload<T>) => void;
+  callback: (payload: any) => void;
 };
 
-export function subscribePostgresChannel<T extends Record<string, unknown> = Record<string, unknown>>(
+export function subscribePostgresChannel(
   channelName: string,
-  bindings: PostgresBinding<T>[],
+  bindings: PostgresBinding[],
   onStatus?: (status: string) => void,
 ): RealtimeChannel {
   removeChannelByTopic(channelName);
 
   let channel = supabase.channel(channelName);
   for (const binding of bindings) {
-    channel = channel.on(
+    channel = (channel as any).on(
       'postgres_changes',
       {
         event: binding.event,
