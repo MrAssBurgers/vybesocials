@@ -93,6 +93,12 @@ function pickHeuristic(rawKey: string): FixAction | null {
 async function requestAiFix(record: ErrorRecord, toastId: string | number) {
   try {
     const { supabase } = await import('@/integrations/supabase/client');
+    // Avoid sending an anon-only bearer (which fails with "missing sub claim").
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.dismiss(toastId);
+      return;
+    }
     const { data, error } = await supabase.functions.invoke('ai-auto-fix', {
       body: {
         message: record.key,
