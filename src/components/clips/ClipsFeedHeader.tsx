@@ -28,7 +28,7 @@ function TabButton({
     >
       <span
         className={cn(
-          'text-[15px] font-semibold transition-all drop-shadow-md',
+          'text-[13px] sm:text-[15px] font-semibold transition-all drop-shadow-md',
           isActive
             ? 'bg-gradient-to-r from-primary via-accent to-[hsl(var(--neon-pink))] bg-clip-text text-transparent'
             : 'text-white/50 hover:text-white/75',
@@ -62,16 +62,21 @@ export const ClipsFeedHeader = memo(function ClipsFeedHeader({
           <VybeMiniIcon size={22} className="drop-shadow-lg opacity-90" />
         </div>
 
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-5 sm:gap-6">
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3.5 sm:gap-5 max-w-[min(100vw-7rem,240px)] justify-center">
           <TabButton
             label="Following"
             isActive={active === 'following'}
             onClick={() => onChange('following')}
           />
           <TabButton
-            label="For You"
+            label="Clips"
             isActive={active === 'foryou'}
             onClick={() => onChange('foryou')}
+          />
+          <TabButton
+            label="Videos"
+            isActive={active === 'videos'}
+            onClick={() => onChange('videos')}
           />
         </div>
 

@@ -5227,6 +5227,14 @@ html.vybe-clips-page .vybe-clips-feed::-webkit-scrollbar {
   display: none;
 }
 
+html.vybe-clips-page .vybe-clips-videos-panel {
+  -webkit-overflow-scrolling: touch;
+}
+
+html.vybe-clips-page .vybe-clips-videos-panel .liquid-glass-card {
+  background: hsl(var(--card) / 0.65);
+}
+
 html.vybe-clips-page .clips-feed-header::after {
   content: '';
   position: absolute;

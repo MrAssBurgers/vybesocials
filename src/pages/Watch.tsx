@@ -203,7 +203,7 @@ export default function WatchPage() {
         <div className="flex flex-col items-center justify-center h-96">
           <span className="text-6xl mb-4">📹</span>
           <h2 className="text-xl font-semibold mb-2">Video not found</h2>
-          <Button onClick={() => navigate('/explore')}>Back to Explore</Button>
+          <Button onClick={() => navigate('/clips')}>Back to Clips</Button>
         </div>
       </AppLayout>
     );

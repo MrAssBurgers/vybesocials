@@ -25,7 +25,7 @@ import { captureVideoFrameWithAR } from '@/lib/arCapture';
 import { isARSupported, clearARDisabledForSession } from '@/lib/arEngine';
 import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
-import { toast } from 'sonner';
+import { resolveVideoContentType } from '@/lib/resolveVideoContentType';
 
 const SoundPicker = lazy(() =>
   import('@/components/sounds/SoundPicker').then((m) => ({ default: m.SoundPicker }))
@@ -77,6 +77,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [recordingProgress, setRecordingProgress] = useState(0);
   const [capturedFiles, setCapturedFiles] = useState<File[]>([]);
   const [capturedPreviews, setCapturedPreviews] = useState<string[]>([]);
+  const [composeContentType, setComposeContentType] = useState<'text' | 'post' | 'short' | 'video'>('post');
   const [showFlash, setShowFlash] = useState(false);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
   const [selectedSound, setSelectedSound] = useState<Sound | null>(initialSound || null);
@@ -95,6 +96,26 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [shutterFlash, setShutterFlash] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraBlocked, setCameraBlocked] = useState(false);
+
+  useEffect(() => {
+    if (phase !== 'compose' || capturedFiles.length === 0) return;
+    if (mode === 'text') {
+      setComposeContentType('text');
+      return;
+    }
+    const file = capturedFiles[0];
+    if (!file.type.startsWith('video/')) {
+      setComposeContentType('post');
+      return;
+    }
+    let cancelled = false;
+    resolveVideoContentType(file).then((type) => {
+      if (!cancelled) setComposeContentType(type);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, capturedFiles, mode]);
 
   // Face tracking / AR — lite mode on phones/WebViews; full on desktop
   const arSupported = isARSupported();
@@ -473,7 +494,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       <MobilePostComposer
         files={capturedFiles}
         previews={capturedPreviews}
-        contentType={mode === 'text' ? 'text' : mode === 'video' ? (capturedFiles[0]?.type.startsWith('video/') ? 'short' : 'post') : 'post'}
+        contentType={composeContentType}
         selectedSound={selectedSound}
         soundStartTime={soundStartTime}
         onBack={() => {

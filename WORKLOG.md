@@ -8,7 +8,12 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Lovable Publish** — TikTok-style clips tab + Following/For You feeds
 
 ## Publish log
-- **2026-06-02** — TikTok clips pass + Instagram polish (pending Lovable Publish).
+- **2026-06-09** — pushed `83c60114` (VYBE-branded clips flow). **Lovable Publish pending — user action required.**
+
+## What Changed (long-form Videos tab)
+- **Clips → Videos tab** — YouTube-style grid browse inside Clips; tap opens `/watch/:id`
+- **Sort chips** — For You, Following, Trending, Recent (type `video` posts)
+- **Upload** — Mobile videos **>60s** auto-publish as `video` (long), shorter as `short` (clip)
 
 ## What Changed (VYBE-branded clips flow)
 - **Same TikTok flow** — Clips tab, Following | For You, full-screen swipe, progress bar, sound pill

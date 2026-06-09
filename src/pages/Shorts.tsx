@@ -15,10 +15,12 @@ import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { useVideoAds } from '@/hooks/useVideoAds';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
+import { ClipsLongVideosPanel } from '@/components/clips/ClipsLongVideosPanel';
 import {
   CLIPS_BOTTOM_UI_OFFSET,
   loadClipsFeedTab,
   saveClipsFeedTab,
+  isShortClipsTab,
   type ClipsFeedTab,
 } from '@/lib/clipsLayout';
 
@@ -44,8 +46,10 @@ export default function ClipsPage() {
   const [feedTab, setFeedTab] = useState<ClipsFeedTab>(() => loadClipsFeedTab());
   const sessionSeed = useMemo(() => Math.random(), []);
 
-  const forYouQuery = usePersonalizedFeed('short', { enabled: feedTab === 'foryou' });
-  const followingQuery = useInfiniteFollowingPosts('short', { enabled: feedTab === 'following' });
+  const isShortsMode = isShortClipsTab(feedTab);
+
+  const forYouQuery = usePersonalizedFeed('short', { enabled: isShortsMode && feedTab === 'foryou' });
+  const followingQuery = useInfiniteFollowingPosts('short', { enabled: isShortsMode && feedTab === 'following' });
 
   const activeQuery = feedTab === 'foryou' ? forYouQuery : followingQuery;
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = activeQuery;
@@ -223,6 +227,15 @@ export default function ClipsPage() {
       return next;
     });
   }, []);
+
+  if (feedTab === 'videos') {
+    return (
+      <AppLayout hideNav fullWidth noPadding>
+        <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
+        <ClipsLongVideosPanel />
+      </AppLayout>
+    );
+  }
 
   if (isLoading) {
     return (
