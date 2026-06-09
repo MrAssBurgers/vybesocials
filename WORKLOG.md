@@ -5,15 +5,16 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — native auth persistence + email redirects + fast boot
+- **Lovable Publish** — PWA-first offline (default); Despia URL mode on vybehub.app
 
 ## Publish log
-- **2026-06-02** — pushed native auth/session + email redirect + Despia perf fixes. **Lovable Publish pending.**
+- **2026-06-02** — PWA default offline mode; Despia local server opt-in via `VITE_OFFLINE_MODE`. **Lovable Publish pending.**
 
-## What Changed (latest)
-- **Logout on quit** — stop local sign-out on slow refresh; explicit `refreshSession()`; mirrored auth storage backup; resume refresh on app foreground
-- **Verification emails** — signup/resend/OAuth use `https://vybehub.app/auth/callback` on Despia (not localhost)
-- **Slow native load** — skip auto-update cache purge on Despia; native fast-path splash/preloader; shorter splash cap (2.8s)
+## What Changed (PWA default)
+- **`VITE_OFFLINE_MODE=pwa`** — service worker caches shell; skip `despia/local.json` unless `despia-local`
+- **`registerVybeServiceWorker`** — works on vybehub.app in browser + Despia URL mode
+- **`manifest.webmanifest`** — local PNG icons + `id` for installability
+- **`DEPLOY.md`** — Despia dashboard: disable local server, use URL mode
 
 ## Publish log (prior)
 - **2026-06-09** — pushed `b4330cbb`. **Lovable Publish pending.**

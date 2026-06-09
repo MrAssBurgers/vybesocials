@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "postbuild": "despia-local dist",
+    "postbuild": "node scripts/postbuild-offline.mjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "validate:css": "node scripts/validate-css.mjs",

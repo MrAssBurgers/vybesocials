@@ -44,6 +44,8 @@ export default defineConfig(({ mode }) => {
   const publishableKey =
     env.VITE_SUPABASE_PUBLISHABLE_KEY ||
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwcm1pY3dobGFhcWZnc2h1Y2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDkwODgsImV4cCI6MjA4NDYyNTA4OH0.Lk72yBKNj3sRjf5E5DQ8TLBfXB2tbjTpAAb075hbMa4";
+  const offlineMode = env.VITE_OFFLINE_MODE || "pwa";
+  const useDespiaLocal = offlineMode === "despia-local";
 
   return {
     server: {
@@ -56,11 +58,12 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_SUPABASE_PROJECT_ID': JSON.stringify(projectId),
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
       'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(publishableKey),
+      'import.meta.env.VITE_OFFLINE_MODE': JSON.stringify(offlineMode),
     },
     plugins: [
       previewSupabaseClientShimPlugin(),
       react(),
-      despiaLocalPlugin({ outDir: "dist", entryHtml: "index.html" }),
+      useDespiaLocal && despiaLocalPlugin({ outDir: "dist", entryHtml: "index.html" }),
       mode === "development" && componentTagger(),
     ].filter(Boolean),
     resolve: {

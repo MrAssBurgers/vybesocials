@@ -1,3 +1,6 @@
+import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { isOfflineModePwa } from '@/lib/offlineStrategy';
+
 const PREVIEW_HOST_TOKENS = ['preview'];
 
 export function isPreviewServiceWorkerDisabled() {
@@ -11,6 +14,52 @@ export function isPreviewServiceWorkerDisabled() {
     hostname.endsWith('.lovableproject.com') ||
     params.has('__lovable_token')
   );
+}
+
+/**
+ * Register the VYBE service worker on production HTTPS and local dev.
+ * Skips Despia localhost shells (despia-local mode) and Lovable preview hosts.
+ */
+export function shouldRegisterServiceWorker(): boolean {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return false;
+  if (isPreviewServiceWorkerDisabled()) return false;
+
+  const { hostname } = window.location;
+
+  // Despia on-device HTTP server — SW would fight localhost caching.
+  if (isDespiaRuntime() && (hostname === 'localhost' || hostname === '127.0.0.1')) {
+    return false;
+  }
+
+  // Production PWA: browser install + Despia URL mode loading vybehub.app.
+  if (hostname === 'vybehub.app' || hostname === 'www.vybehub.app') {
+    return true;
+  }
+
+  // Local Vite dev server (optional PWA testing).
+  if (import.meta.env.DEV && (hostname === 'localhost' || hostname === '127.0.0.1')) {
+    return isOfflineModePwa();
+  }
+
+  return false;
+}
+
+export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (!shouldRegisterServiceWorker()) return null;
+
+  try {
+    const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    console.log('[VYBE] Service worker registered:', registration.scope);
+
+    setInterval(() => {
+      registration.update().catch(() => {});
+    }, 60 * 60 * 1000);
+
+    return registration;
+  } catch (error) {
+    console.error('[VYBE] Service worker registration failed:', error);
+    return null;
+  }
 }
 
 export async function cleanupPreviewServiceWorkers() {

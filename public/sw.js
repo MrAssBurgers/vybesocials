@@ -1,11 +1,11 @@
 // VYBE Service Worker
-// Version 8.0 - App-shell + media offline caching for instant cold-start
+// Version 9.0 — PWA-first app shell + asset caching (see VITE_OFFLINE_MODE=pwa)
 
-const CACHE_NAME = 'vybe-v8';
-const STATIC_CACHE = 'vybe-static-v8';
+const CACHE_NAME = 'vybe-v9';
+const STATIC_CACHE = 'vybe-static-v9';
 const MEDIA_CACHE = 'vybe-media-v2';
-const SHELL_CACHE = 'vybe-shell-v3';
-const ASSETS_CACHE = 'vybe-assets-v3';
+const SHELL_CACHE = 'vybe-shell-v4';
+const ASSETS_CACHE = 'vybe-assets-v4';
 const SHELL_URL = '/';
 const ASSETS_CACHE_MAX = 180;
 const APP_ICON = '/icons/icon-192x192.png';
@@ -48,7 +48,7 @@ const isAndroid = () => /Android/.test(self.navigator?.userAgent || '');
 
 // Install event - precache critical assets + warm app shell
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing VYBE Service Worker v7');
+  console.log('[SW] Installing VYBE Service Worker v9');
   event.waitUntil(
     Promise.all([
       caches.open(STATIC_CACHE).then((cache) =>
@@ -69,7 +69,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean old caches, claim clients
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating VYBE Service Worker v7');
+  console.log('[SW] Activating VYBE Service Worker v9');
   const VALID_CACHES = new Set([CACHE_NAME, STATIC_CACHE, MEDIA_CACHE, SHELL_CACHE, ASSETS_CACHE]);
   event.waitUntil(
     Promise.all([

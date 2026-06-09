@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { isPreviewServiceWorkerDisabled } from '@/lib/serviceWorker';
+import { isPreviewServiceWorkerDisabled, registerVybeServiceWorker } from '@/lib/serviceWorker';
 import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 
@@ -97,13 +97,11 @@ export function usePushNotifications() {
   // Register service worker
   const registerServiceWorker = async () => {
     try {
-      const registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/'
-      });
+      const registration = await registerVybeServiceWorker();
+      if (!registration) return null;
       registrationRef.current = registration;
       console.log('[Push] Service worker registered:', registration.scope);
       
-      // Wait for the service worker to be ready
       await navigator.serviceWorker.ready;
       console.log('[Push] Service worker ready');
       

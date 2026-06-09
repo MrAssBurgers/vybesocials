@@ -25,7 +25,31 @@ Cursor agents **cannot** click Lovable Publish for you. They can: build locally,
 
 ---
 
-## Despia local server (native iOS / Android OTA)
+## Offline strategy (PWA default)
+
+VYBE ships with **PWA service worker caching** as the default offline layer. Despia’s `@despia/local` on-device server is **optional** and only needed for large-scale native OTA without hitting the network on every cold start.
+
+| Mode | Env | What it does |
+|------|-----|--------------|
+| **PWA** (default) | `VITE_OFFLINE_MODE=pwa` | `public/sw.js` caches app shell + hashed JS/CSS on **vybehub.app** |
+| Despia local server | `VITE_OFFLINE_MODE=despia-local` | Also generates `dist/despia/local.json` at build time |
+
+### Despia native app (PWA / URL mode — recommended)
+
+1. In the **Despia dashboard**, set the app URL to **`https://vybehub.app`**
+2. **Disable** “Local server” / on-device HTTP server (or leave it off)
+3. The WebView loads production directly; the service worker caches assets after the first visit
+4. Updates ship via **Lovable Publish** → users get new assets on next online visit (SW update)
+
+This avoids localhost hydration delays, auth storage split-brain, and the “native offline requires despia/local.json” warning.
+
+### Optional: Despia local server (large-scale OTA)
+
+See section below. Set `VITE_OFFLINE_MODE=despia-local` before build, enable local server in Despia, and publish so `/despia/local.json` exists.
+
+---
+
+## Despia local server (native iOS / Android OTA) — optional
 
 VYBE uses [@despia/local](https://www.npmjs.com/package/@despia/local) so Despia can cache the web build on-device and serve it from `http://localhost` (instant boot, real offline, store-compliant OTA).
 

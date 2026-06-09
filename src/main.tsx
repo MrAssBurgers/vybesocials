@@ -2,12 +2,12 @@ import { createRoot } from "react-dom/client";
 import { StrictMode } from "react";
 import App from "./App.tsx";
 import "./index.css";
-import { initializeNativePlugins, isNativePlatform, isWeb } from "./lib/capacitor";
+import { initializeNativePlugins, isNativePlatform } from "./lib/capacitor";
 import { initializeAdMob } from "./lib/admob";
 import { isDespiaRuntime } from "./lib/despiaBridge";
 import { syncNativeTrackingConsent } from "./lib/att";
 import { installAttResumeRecovery } from "./lib/attResumeRecovery";
-import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled } from "./lib/serviceWorker";
+import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled, registerVybeServiceWorker } from "./lib/serviceWorker";
 import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
 import { installFlickerGuardCheck } from "./lib/flickerGuardCheck";
 import { installDespiaRealtimeTransport } from "./lib/installDespiaRealtimeTransport";
@@ -96,8 +96,8 @@ if (isDespiaRuntime()) {
   void initializeAdMob();
 }
 
-// Register service worker for web push notifications
-if (isWeb && 'serviceWorker' in navigator) {
+// Register service worker for PWA offline shell (web + Despia URL mode on vybehub.app)
+if ('serviceWorker' in navigator) {
   const shouldIgnorePreviewPushErrors = isPreviewServiceWorkerDisabled();
 
   window.addEventListener('error', (event) => {
@@ -123,15 +123,7 @@ if (isWeb && 'serviceWorker' in navigator) {
         return;
       }
 
-      const registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/'
-      });
-      console.log('[VYBE] Service worker registered:', registration.scope);
-      
-      // Check for updates periodically
-      setInterval(() => {
-        registration.update();
-      }, 60 * 60 * 1000); // Check every hour
+      await registerVybeServiceWorker();
     } catch (error) {
       console.error('[VYBE] Service worker registration failed:', error);
     }
