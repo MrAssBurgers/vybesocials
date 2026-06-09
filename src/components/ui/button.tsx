@@ -16,7 +16,7 @@ const buttonVariants = cva(
         secondary: "liquid-glass-button text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent/50 hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        gradient: "gradient-animated text-primary-foreground font-semibold transition-[transform,box-shadow,opacity] duration-200",
+        gradient: "vybe-liquid-button text-primary-foreground font-semibold active:!scale-[0.985]",
         vybeLiquid:
           "vybe-liquid-button text-primary-foreground font-semibold active:!scale-[0.985]",
         glass: "liquid-glass text-foreground hover:bg-muted/50",
@@ -51,12 +51,19 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, children, onPointerDown, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
-    const isVybeLiquid = variant === "vybeLiquid";
+    // Treat legacy `gradient-animated` className as the unified vybeLiquid look so every
+    // CTA matches the login button animation.
+    const classHasGradientAnimated =
+      typeof className === "string" && className.includes("gradient-animated");
+    const normalizedClassName =
+      typeof className === "string" && classHasGradientAnimated
+        ? className.replace(/\bgradient-animated\b/g, "vybe-liquid-button")
+        : className;
+    const isVybeLiquid =
+      variant === "vybeLiquid" || variant === "gradient" || classHasGradientAnimated;
     const hasVybeLiquidClass =
-      typeof className === "string" && className.includes("vybe-liquid-button");
-    const isGradient =
-      variant === "gradient" ||
-      (typeof className === "string" && className.includes("gradient-animated"));
+      typeof normalizedClassName === "string" &&
+      normalizedClassName.includes("vybe-liquid-button");
     const content =
       isVybeLiquid && !asChild ? (
         <>
@@ -65,10 +72,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             {children}
           </span>
         </>
-      ) : isGradient && !asChild ? (
-        <span className="relative z-[2] inline-flex items-center justify-center gap-2">
-          {children}
-        </span>
       ) : (
         children
       );
@@ -83,7 +86,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size }), className)}
+        className={cn(buttonVariants({ variant, size }), normalizedClassName)}
         ref={ref}
         onPointerDown={handlePointerDown}
         {...props}
