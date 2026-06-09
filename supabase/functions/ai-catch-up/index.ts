@@ -225,7 +225,7 @@ serve(async (req) => {
       const userClient = createClient(supabaseUrl, anonKey, {
         global: { headers: { Authorization: `Bearer ${token}` } },
       });
-      const { data: { user: authUser }, error: userError } = await userClient.auth.getUser();
+      const { data: { user: authUser }, error: userError } = await userClient.auth.getUser(token);
       if (userError || !authUser) {
         console.warn("[ai-catch-up] getUser failed", userError?.message);
         return new Response(
