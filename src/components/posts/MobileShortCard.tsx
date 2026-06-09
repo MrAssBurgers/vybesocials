@@ -238,6 +238,38 @@ export const MobileShortCard = memo(function MobileShortCard({
 
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const handleReaction = useCallback(async (reactionType: ReactionType | null) => {
+    if (!profile) return;
+
+    const wasLiked = currentReaction !== null;
+    const newIsLiked = reactionType !== null;
+    
+    setCurrentReaction(reactionType);
+    setIsLiked(newIsLiked);
+    setLikeCount(prev => {
+      if (wasLiked && !newIsLiked) return prev - 1;
+      if (!wasLiked && newIsLiked) return prev + 1;
+      return prev;
+    });
+
+    if (newIsLiked) {
+      await supabase.from('likes').upsert(
+        { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
+        { onConflict: 'user_id,post_id', ignoreDuplicates: false }
+      );
+      if (!wasLiked && post.author.id !== profile.id) {
+        await supabase.from('notifications').insert({
+          user_id: post.author.id,
+          type: 'like',
+          actor_id: profile.id,
+          post_id: post.id,
+        });
+      }
+    } else {
+      await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
+    }
+  }, [profile, currentReaction, post.author.id, post.id]);
+
   const handleTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     
@@ -277,39 +309,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         singleTapTimer.current = null;
       }, 300);
     }
-  }, [isMuted, onToggleMute, isLiked, isHolding, isPlaying]);
-
-  const handleReaction = async (reactionType: ReactionType | null) => {
-    if (!profile) return;
-
-    const wasLiked = currentReaction !== null;
-    const newIsLiked = reactionType !== null;
-    
-    setCurrentReaction(reactionType);
-    setIsLiked(newIsLiked);
-    setLikeCount(prev => {
-      if (wasLiked && !newIsLiked) return prev - 1;
-      if (!wasLiked && newIsLiked) return prev + 1;
-      return prev;
-    });
-
-    if (newIsLiked) {
-      await supabase.from('likes').upsert(
-        { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
-        { onConflict: 'user_id,post_id', ignoreDuplicates: false }
-      );
-      if (!wasLiked && post.author.id !== profile.id) {
-        await supabase.from('notifications').insert({
-          user_id: post.author.id,
-          type: 'like',
-          actor_id: profile.id,
-          post_id: post.id,
-        });
-      }
-    } else {
-      await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
-    }
-  };
+  }, [isMuted, onToggleMute, isHolding, isPlaying, currentReaction, handleReaction]);
 
   const handleBookmark = async () => {
     if (!profile) return;

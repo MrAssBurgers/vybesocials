@@ -1,13 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { 
   ArrowLeft, 
-  Heart, 
-  MessageCircle, 
   Share2, 
   Bookmark, 
-  MoreVertical,
   ThumbsUp,
   ThumbsDown,
   Play,
@@ -15,7 +12,6 @@ import {
   Volume2,
   VolumeX,
   Maximize,
-  Settings
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -26,7 +22,7 @@ import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { VideoCard } from '@/components/explore/VideoCard';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
-import { usePosts } from '@/hooks/usePosts';
+import { usePersonalizedFeed } from '@/hooks/useInfinitePosts';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
@@ -38,10 +34,10 @@ export default function WatchPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const queryClient = useQueryClient();
   const { isMobileOrTablet } = useIsMobileOrTablet();
   
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hasCountedView = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -79,11 +75,30 @@ export default function WatchPage() {
     enabled: !!id,
   });
 
-  // Fetch related videos
-  const { data: allPosts } = usePosts();
-  const relatedVideos = allPosts?.filter(p => 
-    p.id !== id && (p.type === 'video' || p.type === 'short')
-  ).slice(0, 10);
+  // Related long-form videos from personalized feed
+  const { data: relatedFeed } = usePersonalizedFeed('video', { enabled: !!id });
+  const relatedVideos = useMemo(
+    () =>
+      relatedFeed?.pages
+        .flatMap((page) => page.posts)
+        .filter((p) => p.id !== id && p.type === 'video')
+        .slice(0, 12) ?? [],
+    [relatedFeed, id],
+  );
+
+  // Short clips belong in the vertical viewer
+  useEffect(() => {
+    if (video?.type === 'short' && id) {
+      navigate(`/clips/${id}`, { replace: true });
+    }
+  }, [video?.type, id, navigate]);
+
+  // Count a view once playback starts
+  useEffect(() => {
+    if (!isPlaying || !id || hasCountedView.current) return;
+    hasCountedView.current = true;
+    supabase.rpc('increment_view_count', { post_id_param: id }).catch(() => {});
+  }, [isPlaying, id]);
 
   // Fetch like/bookmark status
   useEffect(() => {
@@ -183,11 +198,19 @@ export default function WatchPage() {
     }
   };
 
-  const handleShare = async () => {
+  const goBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate('/clips');
+  };
+
+  const handleShare = () => {
     setShowShareSheet(true);
   };
 
-  if (isLoading) {
+  if (isLoading || video?.type === 'short') {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-96">
@@ -213,22 +236,26 @@ export default function WatchPage() {
 
   return (
     <AppLayout hideRightSidebar>
-      <div className="max-w-7xl mx-auto">
+      <div className={cn('max-w-7xl mx-auto', isMobileOrTablet && 'pb-24')}>
         <div className="flex flex-col lg:flex-row gap-6 p-4">
           {/* Main video player */}
           <div className="flex-1 min-w-0">
-            {/* Video container */}
             <div 
               className="relative aspect-video bg-black rounded-xl overflow-hidden group"
-              onMouseEnter={() => setShowControls(true)}
-              onMouseLeave={() => setShowControls(false)}
+              onMouseEnter={() => !isMobileOrTablet && setShowControls(true)}
+              onMouseLeave={() => !isMobileOrTablet && setShowControls(false)}
+              onClick={() => isMobileOrTablet && setShowControls((v) => !v)}
             >
               <video
                 ref={videoRef}
                 src={signedUrl || undefined}
                 className="w-full h-full object-contain"
                 playsInline
-                onClick={togglePlay}
+                preload="metadata"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePlay();
+                }}
                 onTimeUpdate={handleTimeUpdate}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
@@ -237,15 +264,14 @@ export default function WatchPage() {
               {/* Video controls overlay */}
               <div className={cn(
                 "absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 transition-opacity",
-                showControls || !isPlaying ? "opacity-100" : "opacity-0"
+                showControls || !isPlaying || isMobileOrTablet ? "opacity-100" : "opacity-0"
               )}>
-                {/* Top bar */}
                 <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
                   <Button
                     variant="ghost"
                     size="icon"
                     className="text-white hover:bg-white/20"
-                    onClick={() => navigate(-1)}
+                    onClick={goBack}
                   >
                     <ArrowLeft className="h-5 w-5" />
                   </Button>
@@ -271,7 +297,7 @@ export default function WatchPage() {
                     onClick={handleSeek}
                   >
                     <div 
-                      className="h-full bg-primary rounded-full relative"
+                      className="h-full bg-gradient-to-r from-primary via-accent to-[hsl(var(--neon-pink))] rounded-full relative"
                       style={{ width: `${progress}%` }}
                     >
                       <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full opacity-0 group-hover/progress:opacity-100 transition-opacity" />
@@ -353,7 +379,7 @@ export default function WatchPage() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    className={cn("gap-2", isBookmarked && "bg-yellow-500/20 text-yellow-600")}
+                    className={cn("gap-2", isBookmarked && "bg-primary/15 text-primary")}
                     onClick={handleBookmark}
                   >
                     <Bookmark className={cn("h-4 w-4", isBookmarked && "fill-current")} />
@@ -385,7 +411,9 @@ export default function WatchPage() {
                     {video.author?.display_name}
                   </p>
                 </div>
-                <Button>Subscribe</Button>
+                <Button variant="secondary" size="sm" onClick={() => navigate(`/u/${video.author?.username}`)}>
+                  View profile
+                </Button>
               </div>
 
               {/* Tags */}
@@ -412,13 +440,17 @@ export default function WatchPage() {
             </div>
           </div>
 
-          {/* Sidebar - Related videos */}
+          {/* Related videos — below on mobile, sidebar on desktop */}
           <div className="w-full lg:w-96 space-y-4">
-            <h3 className="font-semibold">Related Videos</h3>
+            <h3 className="font-semibold">Up next</h3>
             <div className="space-y-3">
-              {relatedVideos?.map((post) => (
-                <VideoCard key={post.id} post={post} variant="horizontal" />
-              ))}
+              {relatedVideos.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No related videos yet</p>
+              ) : (
+                relatedVideos.map((post) => (
+                  <VideoCard key={post.id} post={post} variant="horizontal" />
+                ))
+              )}
             </div>
           </div>
         </div>

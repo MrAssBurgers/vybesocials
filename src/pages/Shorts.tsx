@@ -68,6 +68,7 @@ export default function ClipsPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const currentIndexRef = useRef(0);
 
   const { isMobileOrTablet } = useIsMobileOrTablet();
   const nativePerf = isNativePerfMode();
@@ -81,6 +82,10 @@ export default function ClipsPage() {
   });
 
   const containerHeight = '100dvh';
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -106,14 +111,14 @@ export default function ClipsPage() {
     containerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   }, [feedTab]);
 
-  const videoUrls = useMemo(() => shorts.map((s) => s.media_url), [shorts]);
+  const videoUrls = useMemo(() => (isShortsMode ? shorts.map((s) => s.media_url) : []), [shorts, isShortsMode]);
   useVideoPreload(videoUrls, {
     currentIndex,
     preloadDepth: isSlowConnection ? 2 : 5,
-    enabled: !isSlowConnection,
+    enabled: isShortsMode && !isSlowConnection,
   });
 
-  useAheadMediaPreload(shorts as any, currentIndex, 3);
+  useAheadMediaPreload(shorts as any, currentIndex, 3, isShortsMode);
 
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0,
@@ -127,7 +132,7 @@ export default function ClipsPage() {
   }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   useEffect(() => {
-    if (!shorts?.length) return;
+    if (!isShortsMode || !shorts?.length) return;
 
     if (observerRef.current) {
       observerRef.current.disconnect();
@@ -138,7 +143,7 @@ export default function ClipsPage() {
         entries.forEach((entry) => {
           if (entry.isIntersecting && entry.intersectionRatio >= 0.55) {
             const index = itemRefs.current.findIndex((ref) => ref === entry.target);
-            if (index !== -1 && index !== currentIndex) {
+            if (index !== -1 && index !== currentIndexRef.current) {
               setCurrentIndex(index);
             }
           }
@@ -157,13 +162,14 @@ export default function ClipsPage() {
     return () => {
       observerRef.current?.disconnect();
     };
-  }, [shorts?.length, currentIndex]);
+  }, [shorts?.length, isShortsMode]);
 
   const { showVideoAd, isMidFeedAdSlot } = useVideoAds();
   const preRollFiredRef = useRef(false);
   const lastAdIndexRef = useRef(-1);
 
   useEffect(() => {
+    if (!isShortsMode) return;
     if (nativePerf) return;
     if (preRollFiredRef.current) return;
     if (!shorts || shorts.length === 0) return;
@@ -172,30 +178,15 @@ export default function ClipsPage() {
       showVideoAd('pre_roll');
     }, 800);
     return () => clearTimeout(t);
-  }, [shorts, showVideoAd, nativePerf]);
+  }, [shorts, showVideoAd, nativePerf, isShortsMode]);
 
   useEffect(() => {
+    if (!isShortsMode) return;
     if (currentIndex === lastAdIndexRef.current) return;
     if (!isMidFeedAdSlot(currentIndex)) return;
     lastAdIndexRef.current = currentIndex;
     showVideoAd('mid_feed');
-  }, [currentIndex, isMidFeedAdSlot, showVideoAd]);
-
-  useEffect(() => {
-    if (isMobileOrTablet) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown' || e.key === 'j') {
-        e.preventDefault();
-        scrollToIndex(currentIndex + 1);
-      } else if (e.key === 'ArrowUp' || e.key === 'k') {
-        e.preventDefault();
-        scrollToIndex(currentIndex - 1);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, shorts?.length, isMobileOrTablet]);
+  }, [currentIndex, isMidFeedAdSlot, showVideoAd, isShortsMode]);
 
   const scrollToIndex = useCallback(
     (index: number) => {
@@ -210,6 +201,22 @@ export default function ClipsPage() {
     },
     [shorts, nativePerf],
   );
+
+  useEffect(() => {
+    if (!isShortsMode || isMobileOrTablet) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        e.preventDefault();
+        scrollToIndex(currentIndex + 1);
+      } else if (e.key === 'ArrowUp' || e.key === 'k') {
+        e.preventDefault();
+        scrollToIndex(currentIndex - 1);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex, shorts?.length, isMobileOrTablet, isShortsMode, scrollToIndex]);
 
   useEffect(() => {
     if (currentIndex > 0 && showSwipeHint) {
@@ -256,17 +263,26 @@ export default function ClipsPage() {
           style={{ height: containerHeight }}
         >
           <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
-          <EmptyState
-            emoji={feedTab === 'following' ? '👥' : '🎬'}
-            title={feedTab === 'following' ? 'No clips from people you follow' : 'No clips yet'}
-            description={
-              feedTab === 'following'
-                ? 'Follow creators to fill your Following feed'
-                : 'Be the first to upload a clip'
-            }
-            actionLabel={feedTab === 'following' ? 'Discover creators' : 'Upload clip'}
-            onAction={() => navigate(feedTab === 'following' ? '/explore' : '/upload')}
-          />
+          <div className="flex flex-col items-center">
+            <EmptyState
+              emoji={feedTab === 'following' ? '👥' : '🎬'}
+              title={feedTab === 'following' ? 'No clips from people you follow' : 'No clips yet'}
+              description={
+                feedTab === 'following'
+                  ? 'Follow creators to fill your Following feed'
+                  : 'Be the first to upload a clip'
+              }
+              actionLabel={feedTab === 'following' ? 'Discover creators' : 'Upload clip'}
+              onAction={() => navigate(feedTab === 'following' ? '/explore' : '/upload')}
+            />
+            <button
+              type="button"
+              onClick={() => handleFeedTabChange('videos')}
+              className="mt-4 text-sm font-semibold text-primary hover:underline"
+            >
+              Browse long videos →
+            </button>
+          </div>
         </div>
       </AppLayout>
     );

@@ -347,14 +347,13 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const longPressTriggered = useRef(false);
 
-  // Get nav order from preferences
+  // Get nav order from preferences — always yield 5 valid tabs
   const navOrder = useMemo(() => {
     const savedOrder = (prefs?.extra as any)?.nav_order as string[] | undefined;
     const base = savedOrder && savedOrder.length === 5 ? savedOrder : DEFAULT_NAV_ORDER;
     return base.map((id) => (id === 'explore' ? 'clips' : id));
   }, [prefs?.extra]);
 
-  // Nav items configuration
   const navItemsConfig: NavItemConfig[] = useMemo(() => [
     { id: 'home', icon: Home, label: 'Home', getPath: () => '/home', tutorialId: 'home-nav', requiresAuth: false },
     { id: 'clips', icon: Film, label: 'Clips', getPath: () => '/clips', tutorialId: 'clips-nav', requiresAuth: false },
@@ -364,9 +363,27 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
     { id: 'profile', icon: User, label: 'Profile', getPath: (p) => p ? `/u/${p.username}` : '/settings', tutorialId: 'profile-nav', requiresAuth: false, isProfile: true },
   ], []);
 
-  // Ordered nav items based on saved preference
   const orderedNavItems = useMemo(() => {
-    return navOrder.map(id => navItemsConfig.find(item => item.id === id)!).filter(Boolean);
+    const known = new Set(navItemsConfig.map((item) => item.id));
+    const normalized = navOrder.filter((id) => known.has(id));
+    const picked = normalized
+      .map((id) => navItemsConfig.find((item) => item.id === id))
+      .filter((item): item is NavItemConfig => !!item);
+
+    if (picked.length >= 5) return picked.slice(0, 5);
+
+    const seen = new Set(picked.map((item) => item.id));
+    const filled = [...picked];
+    for (const id of DEFAULT_NAV_ORDER) {
+      if (filled.length >= 5) break;
+      if (seen.has(id)) continue;
+      const item = navItemsConfig.find((i) => i.id === id);
+      if (item) {
+        filled.push(item);
+        seen.add(id);
+      }
+    }
+    return filled;
   }, [navOrder, navItemsConfig]);
 
   // Report effective visibility to AppLayout (so it can collapse padding)
@@ -608,7 +625,12 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
           >
             {orderedNavItems.map((item) => {
               const path = item.getPath(profile);
-              const isActive = location.pathname === path || location.pathname.startsWith(path + '/');
+              const isActive =
+                item.id === 'clips'
+                  ? location.pathname === '/clips' ||
+                    location.pathname === '/shorts' ||
+                    location.pathname.startsWith('/clips/')
+                  : location.pathname === path || location.pathname.startsWith(path + '/');
               const isHighlighted = highlightedNav === item.tutorialId;
               const badge = item.id === 'messages' ? unreadMessages : 0;
 

@@ -5,10 +5,17 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — TikTok-style clips tab + Following/For You feeds
+- **Lovable Publish** — clips polish pass (short + long video flows)
 
 ## Publish log
-- **2026-06-09** — pushed `83c60114` (VYBE-branded clips flow). **Lovable Publish pending — user action required.**
+- **2026-06-09** — pushed clips perfection pass. **Lovable Publish pending.**
+
+## What Changed (clips perfection pass)
+- **Videos tab header** — readable on light background (was invisible white-on-white)
+- **Clips scroll** — stable intersection observer, no reconnect jank per swipe
+- **Watch page** — mobile controls, view counts, related videos feed, short→clips redirect
+- **Bottom nav** — Clips tab highlights on `/clips/*`; safe nav order fallback
+- **Double-tap like** — fixed stale handler on clip cards
 
 ## What Changed (long-form Videos tab)
 - **Clips → Videos tab** — YouTube-style grid browse inside Clips; tap opens `/watch/:id`

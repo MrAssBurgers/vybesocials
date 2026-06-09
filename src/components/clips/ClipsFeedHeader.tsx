@@ -14,10 +14,12 @@ interface ClipsFeedHeaderProps {
 function TabButton({
   label,
   isActive,
+  isDark,
   onClick,
 }: {
   label: string;
   isActive: boolean;
+  isDark: boolean;
   onClick: () => void;
 }) {
   return (
@@ -28,10 +30,13 @@ function TabButton({
     >
       <span
         className={cn(
-          'text-[13px] sm:text-[15px] font-semibold transition-all drop-shadow-md',
+          'text-[13px] sm:text-[15px] font-semibold transition-all',
+          isDark && 'drop-shadow-md',
           isActive
             ? 'bg-gradient-to-r from-primary via-accent to-[hsl(var(--neon-pink))] bg-clip-text text-transparent'
-            : 'text-white/50 hover:text-white/75',
+            : isDark
+              ? 'text-white/50 hover:text-white/75'
+              : 'text-muted-foreground hover:text-foreground',
         )}
       >
         {label}
@@ -51,31 +56,39 @@ export const ClipsFeedHeader = memo(function ClipsFeedHeader({
   onChange,
 }: ClipsFeedHeaderProps) {
   const nativePerf = isNativePerfMode();
+  const isDark = active !== 'videos';
 
   return (
     <div
-      className="fixed inset-x-0 top-0 z-40 pointer-events-none clips-feed-header"
+      className={cn(
+        'fixed inset-x-0 top-0 z-40 pointer-events-none clips-feed-header',
+        !isDark && 'bg-background/90 border-b border-border/40',
+        !isDark && !nativePerf && 'backdrop-blur-md',
+      )}
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
       <div className="relative flex items-center justify-between h-11 px-3 pointer-events-auto">
         <div className="flex items-center gap-1.5 w-10">
-          <VybeMiniIcon size={22} className="drop-shadow-lg opacity-90" />
+          <VybeMiniIcon size={22} className={cn('opacity-90', isDark && 'drop-shadow-lg')} />
         </div>
 
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3.5 sm:gap-5 max-w-[min(100vw-7rem,240px)] justify-center">
           <TabButton
             label="Following"
             isActive={active === 'following'}
+            isDark={isDark}
             onClick={() => onChange('following')}
           />
           <TabButton
             label="Clips"
             isActive={active === 'foryou'}
+            isDark={isDark}
             onClick={() => onChange('foryou')}
           />
           <TabButton
             label="Videos"
             isActive={active === 'videos'}
+            isDark={isDark}
             onClick={() => onChange('videos')}
           />
         </div>
@@ -85,7 +98,7 @@ export const ClipsFeedHeader = memo(function ClipsFeedHeader({
           className={cn(
             'w-9 h-9 rounded-full flex items-center justify-center text-foreground active:scale-95 transition-transform',
             nativePerf
-              ? 'bg-card/80 border border-white/10'
+              ? 'bg-card/80 border border-border/40'
               : 'liquid-glass-button border border-primary/20',
           )}
           aria-label="Search and explore"
