@@ -13,7 +13,14 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **2026-06-08** — pushed `5fa238d3` (mobile safe area, brief, AI keyboard, Friend Link, nav liquid, ads gating). Supabase auth/SMS/email/push functions deployed (user CLI). Redeploy `auth-2fa-request` after resend fix.
 - **2026-06-02** — pushed `e489cfa2` (native perf mode). Web publish: pending Lovable.
 
-## What Changed (mobile polish batch — latest, local)
+## What Changed (console error cleanup — `29b17a08`)
+- **`mediaUrl.ts`** — rewrite legacy Supabase hosts, block Pexels 403 URLs, resolve bare filenames safely
+- **Preload hooks** — skip dead URLs; removed `<link rel=preload>` spam
+- **`get_public_user_count`** — fail soft when RPC missing (Lovable preview DB)
+- **YouTube embed** — pass `origin` to fix postMessage mismatch
+- **`index.html`** — removed unused GPT Engineer font preload
+
+## What Changed (mobile polish batch — `5fa238d3`)
 - **Safe area** — `--app-header-height` CSS var; AppLayout/Messages/ChatView respect notch; removed body safe-area padding that broke fixed headers
 - **MobileHeader** — removed blur blobs that rendered as grey circles on WebKit
 - **Verification email** — `auth-2fa-request` resend now matches preauth (no silent skip); LoginGateModal surfaces resend failures
