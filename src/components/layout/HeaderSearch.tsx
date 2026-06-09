@@ -297,18 +297,18 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
           setTimeout(() => inputRef.current?.focus(), 100);
         }}
         className={cn(
-          'flex items-center gap-1.5 cursor-pointer transition-colors min-w-0',
+          'flex items-center gap-2 cursor-pointer transition-colors min-w-0 w-full',
           variant === 'header'
-            ? 'h-9 px-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.07]'
+            ? 'h-10 px-3 rounded-full bg-white/[0.05] hover:bg-white/[0.08]'
             : 'px-3 py-2 rounded-full bg-secondary/50 hover:bg-secondary',
         )}
       >
-        <Search className={cn('text-muted-foreground shrink-0', variant === 'header' ? 'h-4 w-4' : 'h-4 w-4')} />
+        <Search className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className={cn(
-          'text-[13px] text-muted-foreground truncate',
-          variant === 'header' ? 'hidden min-[390px]:inline' : 'hidden sm:inline',
+          'text-sm text-muted-foreground/90 truncate',
+          variant === 'header' ? 'inline' : 'hidden sm:inline',
         )}>
-          Search
+          Search VYBE
         </span>
         <kbd className="hidden md:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground ml-auto">
           <span className="text-xs">⌘</span>K
@@ -333,7 +333,8 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className="fixed inset-x-4 top-4 lg:absolute lg:inset-x-0 lg:top-full lg:mt-2 lg:w-[400px] lg:right-0 lg:left-auto z-50 bg-card rounded-2xl border border-border shadow-xl overflow-hidden"
+              className="fixed inset-x-4 z-50 lg:absolute lg:inset-x-0 lg:top-full lg:mt-2 lg:w-[400px] lg:right-0 lg:left-auto bg-card rounded-2xl border border-border shadow-xl overflow-hidden"
+              style={{ top: 'max(1rem, var(--app-header-height, 5rem))' }}
             >
               {/* Search input */}
               <div className="flex items-center gap-2 p-3 border-b border-border">

@@ -34,35 +34,47 @@ function measureEnvSafeAreaInsets(): MeasuredSafeAreaInsets {
   return insets;
 }
 
+function readVisualViewportTop(): number {
+  if (typeof window === 'undefined') return 0;
+  return window.visualViewport?.offsetTop ?? 0;
+}
+
 function fallbackTop(platform: PlatformType, device: DeviceType): number {
   if (device === 'desktop') return 0;
-  if (isDespiaRuntime()) {
-    if (platform === 'ios') return 48;
-    if (platform === 'android') return 40;
-    return 36;
-  }
-  if (platform === 'ios') return 47;
-  if (platform === 'android') return 32;
-  return 28;
+
+  const native = isDespiaRuntime();
+  if (platform === 'ios') return native ? 59 : 52;
+  if (platform === 'android') return native ? 48 : 40;
+  return native ? 44 : 36;
+}
+
+function fallbackGap(device: DeviceType): number {
+  if (device === 'desktop') return 0;
+  // Extra air below status bar / punch-hole camera before the toolbar island
+  return isDespiaRuntime() ? 16 : 12;
 }
 
 function fallbackRight(device: DeviceType): number {
   if (device === 'desktop') return 0;
-  return isDespiaRuntime() ? 14 : 10;
+  return isDespiaRuntime() ? 16 : 12;
 }
 
 export function resolveSafeAreaInsets(
   measured: MeasuredSafeAreaInsets,
   platform: PlatformType,
   device: DeviceType,
-): MeasuredSafeAreaInsets {
+): MeasuredSafeAreaInsets & { gap: number } {
   const topFloor = fallbackTop(platform, device);
+  const viewportTop = readVisualViewportTop();
   const rightFloor = fallbackRight(device);
+  const gap = fallbackGap(device);
+
   return {
-    top: Math.max(measured.top, topFloor),
+    top: Math.max(measured.top, topFloor, viewportTop),
     right: Math.max(measured.right, rightFloor),
-    bottom: Math.max(measured.bottom, device === 'desktop' ? 0 : 0),
+    bottom: Math.max(measured.bottom, 0),
     left: Math.max(measured.left, 0),
+    gap,
   };
 }
 
@@ -79,6 +91,7 @@ export function applySafeAreaCssVars(
     const body = document.body;
 
     root.style.setProperty('--app-header-safe', `${resolved.top}px`);
+    root.style.setProperty('--app-header-gap', `${resolved.gap}px`);
     root.style.setProperty('--app-header-safe-right', `${resolved.right}px`);
     body.style.setProperty('--sat', `${resolved.top}px`);
     body.style.setProperty('--sar', `${resolved.right}px`);

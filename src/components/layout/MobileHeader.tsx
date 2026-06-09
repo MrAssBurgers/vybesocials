@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bell, Target, Flame } from 'lucide-react';
+import { Bell, Target } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { useStreakCount } from '@/hooks/useLoginStreak';
@@ -46,53 +46,45 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
       data-app-mobile-header
       className="fixed top-0 inset-x-0 z-50 pointer-events-none"
     >
-      {/* Status bar zone — keep UI out of system clock / signal / battery */}
-      <div className="h-[var(--app-header-safe,env(safe-area-inset-top,0px))] w-full shrink-0" aria-hidden />
+      {/* Camera / status bar dead zone — toolbar starts below this */}
+      <div
+        className="w-full shrink-0"
+        style={{ height: 'var(--app-header-top, calc(var(--app-header-safe, env(safe-area-inset-top, 0px)) + var(--app-header-gap, 0.75rem)))' }}
+        aria-hidden
+      />
 
       <div
-        className="pointer-events-auto px-3 pb-2 pt-1"
-        style={{
-          paddingRight: 'max(0.75rem, var(--app-header-safe-right, 0px))',
-        }}
+        className="pointer-events-auto px-4 pb-[var(--app-header-tail,0.625rem)]"
+        style={{ paddingRight: 'max(1rem, calc(0.75rem + var(--app-header-safe-right, 0px)))' }}
       >
-        <div className="relative flex items-center gap-2 h-11 px-2 rounded-2xl bg-background/78 backdrop-blur-2xl backdrop-saturate-150 border border-white/[0.09] shadow-[0_10px_36px_-16px_rgba(0,0,0,0.85)] ring-1 ring-inset ring-white/[0.06]">
-          <div
-            className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-primary/45 to-transparent"
-            aria-hidden
-          />
-
+        <div className="relative flex items-center gap-2.5 h-12 px-2.5 rounded-[1.35rem] bg-[hsl(var(--background)/0.88)] backdrop-blur-xl border border-white/10 shadow-[0_12px_40px_-18px_rgba(0,0,0,0.9)]">
           <Link
             to="/home"
-            className="group relative flex items-center justify-center h-9 w-9 rounded-xl bg-gradient-to-br from-white/[0.06] to-white/[0.02] border border-white/[0.08] flex-shrink-0 active:scale-95 transition-transform"
+            className="flex items-center justify-center h-9 w-9 flex-shrink-0 active:scale-95 transition-transform"
             onClick={() => debugPanel?.handleLogoTap?.()}
             aria-label="Home"
           >
-            <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary/35 to-accent/35 opacity-0 group-active:opacity-100 transition-opacity" />
-            <span className="relative">
-              <VYBELogo size="sm" showText={false} />
-            </span>
+            <VYBELogo size="sm" showText={false} />
           </Link>
 
           <HeaderSearch className="flex-1 min-w-0" variant="header" />
 
-          <div className="flex items-center gap-0.5 flex-shrink-0 rounded-xl bg-white/[0.04] border border-white/[0.06] p-0.5">
+          <div className="flex items-center flex-shrink-0">
             <Link
               to="/notifications"
               data-tutorial="notifications-badge"
               aria-label="Notifications"
               className={cn(
-                'relative flex items-center justify-center h-8 w-8 rounded-lg transition-colors active:scale-95',
-                isNotificationsActive
-                  ? 'bg-primary/20 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.06]',
+                'relative flex items-center justify-center h-9 w-9 rounded-full transition-colors active:scale-95',
+                isNotificationsActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              <Bell className={cn('h-[18px] w-[18px]', bellBounce && 'animate-bell-ring')} strokeWidth={1.85} />
+              <Bell className={cn('h-[19px] w-[19px]', bellBounce && 'animate-bell-ring')} strokeWidth={1.75} />
               {unreadCount > 0 && (
                 <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]"
+                  className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary"
                 />
               )}
             </Link>
@@ -101,16 +93,13 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
               to="/challenges"
               aria-label={streakCount > 0 ? `Challenges, ${streakCount} day streak` : 'Challenges'}
               className={cn(
-                'relative flex items-center justify-center h-8 w-8 rounded-lg transition-colors active:scale-95',
-                isChallengesActive
-                  ? 'bg-accent/20 text-accent'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.06]',
+                'relative flex items-center justify-center h-9 w-9 rounded-full transition-colors active:scale-95',
+                isChallengesActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              <Target className="h-[18px] w-[18px]" strokeWidth={1.85} />
+              <Target className="h-[19px] w-[19px]" strokeWidth={1.75} />
               {streakCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex items-center gap-px h-4 min-w-4 px-1 rounded-full bg-gradient-to-r from-orange-500 via-rose-500 to-fuchsia-500 text-[8px] font-bold text-white leading-none shadow-[0_0_10px_rgba(244,63,94,0.55)]">
-                  <Flame className="h-2 w-2 shrink-0" fill="currentColor" strokeWidth={0} />
+                <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full bg-gradient-to-br from-orange-500 to-fuchsia-600 text-[9px] font-bold text-white leading-none ring-2 ring-[hsl(var(--background))]">
                   {streakCount > 99 ? '99+' : streakCount}
                 </span>
               )}
