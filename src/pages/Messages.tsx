@@ -70,12 +70,13 @@ export default function Messages() {
           } 
           flex max-w-full pb-0 bg-background
         `}
-        style={{ 
+        style={{
           position: isImmersive ? 'fixed' : (mobileListMode ? 'fixed' : undefined),
           top: mobileListMode ? 'var(--app-header-height)' : isImmersive ? 0 : undefined,
           inset: isImmersive ? 0 : undefined,
           zIndex: isImmersive ? 50 : (mobileListMode ? 1 : undefined),
           overflow: 'hidden',
+          touchAction: 'pan-y',
         }}
       >
         {/* Conversation list */}

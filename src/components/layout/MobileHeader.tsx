@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bell, Target, Flame, Crown } from 'lucide-react';
+import { Bell, Target, Flame } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '@/lib/auth';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { useStreakCount } from '@/hooks/useLoginStreak';
-import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { cn } from '@/lib/utils';
 import { HeaderSearch } from './HeaderSearch';
 import { VYBELogo } from '@/components/ui/VYBELogo';
@@ -13,13 +11,14 @@ import { useDebugPanel } from '@/contexts/DebugPanelContext';
 import { navVisibility } from '@/lib/navVisibility';
 
 export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWithoutRef<'header'>>(function MobileHeader(_props, ref) {
-  const { profile } = useAuth();
   const { data: unreadCount = 0 } = useUnreadCount();
   const streakCount = useStreakCount();
   const prevUnreadRef = useRef(unreadCount);
   const [bellBounce, setBellBounce] = useState(false);
+  const location = useLocation();
+  const debugPanel = useDebugPanel();
+  const [headerVisible, setHeaderVisible] = useState(true);
 
-  // Bell bounce when unread count increases
   useEffect(() => {
     if (unreadCount > prevUnreadRef.current) {
       setBellBounce(true);
@@ -28,10 +27,6 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
     }
     prevUnreadRef.current = unreadCount;
   }, [unreadCount]);
-  const { isPremium } = usePremiumStatus();
-  const location = useLocation();
-  const debugPanel = useDebugPanel();
-  const [headerVisible, setHeaderVisible] = useState(true);
 
   useEffect(() => {
     return navVisibility.subscribeHeader(setHeaderVisible);
@@ -40,101 +35,98 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
   const isNotificationsActive = location.pathname === '/notifications';
   const isChallengesActive = location.pathname === '/challenges';
 
-  // Hide header on clips page or during edit mode
   if (location.pathname === '/clips' || !headerVisible) {
     return null;
   }
 
   return (
     <header
+      ref={ref}
       data-no-auto-contrast
-      className="fixed top-0 left-0 right-0 z-50 backdrop-blur-2xl bg-background/60"
+      data-app-mobile-header
+      className="fixed top-0 inset-x-0 z-50 pointer-events-none"
     >
-      {/* Ambient gradient wash — hidden on mobile (blur renders as grey blobs on WebKit) */}
-
-      <div className="safe-area-top relative">
-        <div className="flex items-center gap-2 h-14 px-4 relative z-10">
-
-          {/* Logo — naked with a soft gradient halo on press */}
+      <div
+        className="px-3 pb-2 pointer-events-auto"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}
+      >
+        <div className="flex items-center gap-1.5 h-11 pl-1 pr-1.5 rounded-[1.25rem] bg-background/78 backdrop-blur-2xl backdrop-saturate-150 border border-white/[0.08] shadow-[0_10px_40px_-14px_rgba(0,0,0,0.72)] ring-1 ring-inset ring-white/[0.05]">
           <Link
             to="/home"
-            className="group relative flex items-center justify-center h-10 w-10 -ml-1 flex-shrink-0 active:scale-90 transition-transform"
+            className="group relative flex items-center justify-center h-9 w-9 rounded-xl bg-white/[0.04] border border-white/[0.06] flex-shrink-0 active:scale-95 transition-transform"
             onClick={() => debugPanel?.handleLogoTap?.()}
+            aria-label="Home"
           >
-            <span className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/40 to-accent/40 blur-md opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity" />
+            <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary/30 to-accent/30 opacity-0 group-active:opacity-100 transition-opacity" />
             <span className="relative">
               <VYBELogo size="sm" showText={false} />
             </span>
           </Link>
 
-          {/* Center — fluid pill search with gradient ring on focus */}
-          <HeaderSearch className="flex-1 mx-1" />
+          <HeaderSearch className="flex-1 min-w-0" variant="header" />
 
-          {/* Right side — naked icons, generous spacing */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {/* Notifications — circular, no box */}
+          <div className="flex items-center gap-0.5 flex-shrink-0">
             <Link
               to="/notifications"
               data-tutorial="notifications-badge"
+              aria-label="Notifications"
               className={cn(
-                "relative flex items-center justify-center h-10 w-10 rounded-full transition-all active:scale-90",
+                'relative flex items-center justify-center h-9 w-9 rounded-xl transition-colors active:scale-95',
                 isNotificationsActive
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? 'bg-primary/15 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.05]',
               )}
             >
-              <Bell className={cn("h-[22px] w-[22px]", bellBounce && "animate-bell-ring")} strokeWidth={1.75} />
+              <Bell className={cn('h-[19px] w-[19px]', bellBounce && 'animate-bell-ring')} strokeWidth={1.85} />
               {unreadCount > 0 && (
-                <motion.div
+                <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_hsl(var(--primary))]"
+                  className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]"
                 />
               )}
             </Link>
 
-            {/* Challenges + integrated streak chip */}
             <Link
               to="/challenges"
+              aria-label="Challenges"
               className={cn(
-                "relative flex items-center gap-1.5 h-10 pl-2 pr-1 rounded-full transition-all active:scale-95",
+                'relative flex items-center justify-center h-9 w-9 rounded-xl transition-colors active:scale-95',
                 isChallengesActive
-                  ? "text-accent"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? 'bg-accent/15 text-accent'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.05]',
               )}
             >
-              <Target className="h-[22px] w-[22px]" strokeWidth={1.75} />
+              <Target className="h-[19px] w-[19px]" strokeWidth={1.85} />
+            </Link>
 
-              {/* Inline streak pill — flows next to the icon, not a floating badge */}
-              <AnimatePresence>
-                {streakCount > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.6, x: -4 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.6, x: -4 }}
-                    transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-                    className="relative flex items-center gap-0.5 h-6 px-1.5 rounded-full overflow-hidden"
+            <AnimatePresence>
+              {streakCount > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, width: 0, marginLeft: 0 }}
+                  animate={{ opacity: 1, width: 'auto', marginLeft: 2 }}
+                  exit={{ opacity: 0, width: 0, marginLeft: 0 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                  className="overflow-hidden"
+                >
+                  <Link
+                    to="/challenges"
+                    className="relative flex items-center gap-0.5 h-7 px-2 rounded-full overflow-hidden active:scale-95 transition-transform"
+                    aria-label={`${streakCount} day streak`}
                   >
-                    {/* Gradient fill */}
                     <span className="absolute inset-0 bg-gradient-to-r from-orange-500 via-rose-500 to-fuchsia-500" />
-                    {/* Glossy highlight */}
-                    <span className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent" />
-                    {/* Outer glow */}
-                    <span className="absolute -inset-px rounded-full shadow-[0_0_12px_-2px_rgba(244,63,94,0.7)]" />
-                    <Flame className="relative h-3 w-3 text-white drop-shadow" fill="currentColor" strokeWidth={0} />
-                    <span className="relative text-[10px] leading-none font-bold text-white tabular-nums tracking-tight">
+                    <span className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" />
+                    <Flame className="relative h-3 w-3 text-white" fill="currentColor" strokeWidth={0} />
+                    <span className="relative text-[10px] font-bold text-white tabular-nums leading-none">
                       {streakCount > 99 ? '99+' : streakCount}
                     </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </Link>
+                  </Link>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>
-
-      {/* Whisper-thin gradient hairline instead of a hard border */}
-      <div className="h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
     </header>
   );
 });

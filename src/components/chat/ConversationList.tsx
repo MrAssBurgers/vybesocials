@@ -18,7 +18,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -378,7 +377,14 @@ export function ConversationList() {
       />
 
       {/* Conversation List */}
-      <ScrollArea className="flex-1" style={{ overflowX: 'hidden' }}>
+      <div
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroller"
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-y',
+          overscrollBehavior: 'contain',
+        }}
+      >
 
         {/* Notes Row - Instagram/Snapchat style */}
         <NotesRow />
@@ -487,7 +493,7 @@ export function ConversationList() {
         {!searchQuery && chatFilter === 'all' && (
           <div className="pb-24" />
         )}
-      </ScrollArea>
+      </div>
 
       {/* VybeSnap Camera */}
       {showSnapCamera && (

@@ -1274,7 +1274,7 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background relative overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 bg-background relative overflow-hidden" style={{ touchAction: 'pan-y' }}>
       {/* DM Image Safety Gate */}
       <AnimatePresence>
         {showImageSafetyGate && pendingSafetyImage && (
@@ -1502,7 +1502,7 @@ export function ChatView() {
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'contain',
           touchAction: 'pan-y',
-          contain: 'layout style',
+          contain: 'layout style paint',
         }}
       >
         {/* Messages container - extra bottom padding on mobile for bottom nav */}

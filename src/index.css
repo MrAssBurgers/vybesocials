@@ -30,8 +30,8 @@ label {
 }
 
 :root {
-  --app-header-height: calc(3.5rem + env(safe-area-inset-top, 0px));
-  --app-floating-header-scroll: calc(env(safe-area-inset-top, 0px) + 4.75rem);
+  --app-header-height: calc(env(safe-area-inset-top, 0px) + 3.75rem);
+  --app-floating-header-scroll: calc(env(safe-area-inset-top, 0px) + 4.25rem);
   --kb-h: 0px;
 }
 
@@ -2837,7 +2837,7 @@ img, video, picture, svg, canvas {
 
 /* Content padding for header */
 .content-with-header {
-  padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
+  padding-top: var(--app-header-height);
 }
 
 /* Mobile-first card sizing */

@@ -98,7 +98,7 @@ const SearchResultItem = memo(function SearchResultItem({
   );
 });
 
-export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: string }>(function HeaderSearch({ className }, ref) {
+export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: string; variant?: 'default' | 'header' }>(function HeaderSearch({ className, variant = 'default' }, ref) {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -296,11 +296,21 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
           setIsOpen(true);
           setTimeout(() => inputRef.current?.focus(), 100);
         }}
-        className="flex items-center gap-2 px-3 py-2 rounded-full bg-secondary/50 hover:bg-secondary cursor-pointer transition-colors"
+        className={cn(
+          'flex items-center gap-2 cursor-pointer transition-colors',
+          variant === 'header'
+            ? 'h-9 px-3 rounded-xl bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.07]'
+            : 'px-3 py-2 rounded-full bg-secondary/50 hover:bg-secondary',
+        )}
       >
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground hidden sm:inline">Search...</span>
-        <kbd className="hidden md:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+        <Search className={cn('text-muted-foreground', variant === 'header' ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
+        <span className={cn(
+          'text-sm text-muted-foreground truncate',
+          variant === 'header' ? 'inline' : 'hidden sm:inline',
+        )}>
+          Search
+        </span>
+        <kbd className="hidden md:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground ml-auto">
           <span className="text-xs">⌘</span>K
         </kbd>
       </div>
