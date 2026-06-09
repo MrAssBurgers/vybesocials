@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth, waitForAuthSession } from '@/lib/auth';
+import { isLovablePreviewHost } from '@/lib/lovablePreview';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -99,12 +100,6 @@ function useAuthScreenFit(enabled: boolean, ...deps: unknown[]) {
 
 // Invite mode stage type - shared between invite flow components
 export type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
-
-const isLovablePreviewHost = () => {
-  if (typeof window === 'undefined') return false;
-  const host = window.location.hostname;
-  return host.startsWith('id-preview--') || host.endsWith('.lovableproject.com');
-};
 
 interface LandingProps {
   onInviteNavigate?: (stage: InviteStage) => void;
@@ -318,8 +313,17 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             }
             throw error;
           }
+          const session = await waitForAuthSession(5000);
+          if (!session?.user) {
+            throw new Error(
+              'Signed in but the session did not stick. Open the preview in a new browser tab and try again.',
+            );
+          }
           sessionStorage.removeItem('vybe-session-only');
           toast.success('Welcome back! ✨');
+          if (session.user && !session.user.email_confirmed_at) {
+            toast.info('Verify your email to unlock all features on preview.');
+          }
           navTo('home', '/home');
           return;
         }
@@ -410,6 +414,19 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         const stage = (pre as any)?.stage as 'code' | 'approval' | 'none' | undefined;
 
         if (stage === 'code') {
+          if (isLovablePreviewHost()) {
+            const { error: directErr } = await supabase.auth.signInWithPassword({
+              email: formData.email,
+              password: formData.password,
+            });
+            setGatePending(false);
+            if (directErr) {
+              throw createHandledLoginError('Invalid email or password');
+            }
+            toast.success('Welcome back! ✨');
+            navTo('home', '/home');
+            return;
+          }
           setLoginGate({
             mode: 'code',
             email: formData.email,
