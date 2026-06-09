@@ -74,7 +74,7 @@ export function useGridLayout() {
     fetchAutoOverride();
     if (!user?.id) return;
     const ch = supabase
-      .channel(`autopilot-grid-${user.id}`)
+      .channel(`autopilot-grid-${user.id}-${Math.random().toString(36).slice(2, 8)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'dna_agent_actions', filter: `user_id=eq.${user.id}` }, () => fetchAutoOverride())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'dna_agent_settings', filter: `user_id=eq.${user.id}` }, () => fetchAutoOverride())
       .subscribe();
