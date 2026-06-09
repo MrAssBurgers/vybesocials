@@ -5,6 +5,7 @@ import { Mail, Shield, CheckCircle, Loader2 } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { toast } from 'sonner';
 
 const RESEND_COOLDOWN_SECONDS = 30;
@@ -66,7 +67,7 @@ export function EmailVerification({ onVerified }: EmailVerificationProps) {
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: user.email,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: { emailRedirectTo: getAuthRedirectUrl('/auth/callback') },
       });
 
       if (error) {

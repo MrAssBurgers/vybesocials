@@ -27,6 +27,7 @@ import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import { useContrastAutoGuard } from "@/hooks/useContrastAutoGuard";
 import { isNativePerfMode } from "@/lib/nativePerfMode";
+import { hasStoredSupabaseSession } from "@/lib/supabaseStorageKey";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
 import LocalErrorBoundary from "@/components/error/LocalErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
@@ -225,9 +226,15 @@ function useAuthResolved() {
   const [hasSession, setHasSession] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    const authTimeoutMs = isNativePerfMode() && hasStoredSupabaseSession() ? 1200 : 5500;
     const forceDone = setTimeout(() => {
       if (!cancelled) setResolved(true);
-    }, 5500);
+    }, authTimeoutMs);
+
+    if (isNativePerfMode() && hasStoredSupabaseSession()) {
+      setHasSession(true);
+      setWasLoggedIn(true);
+    }
 
     supabase.auth.getSession().then(({ data }) => {
       if (cancelled) return;
@@ -286,7 +293,7 @@ function AppWithPreloader() {
       syncNativeTrackingConsent();
       setShowSplash(false);
       hasInitialLoadCompleted = true;
-    }, 6500);
+    }, isNativePerfMode() ? 2800 : 6500);
     return () => clearTimeout(absoluteMax);
   }, [showSplash]);
 

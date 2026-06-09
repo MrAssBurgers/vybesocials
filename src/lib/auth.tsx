@@ -6,6 +6,8 @@ import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache } from '@/lib/profileCache';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
+import { getAuthRedirectUrl } from '@/lib/authRedirect';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { logEvent } from '@/lib/debugLogger';
 import {
   clearSignupUsername,
@@ -18,6 +20,29 @@ import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeC
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
+
+function getStoredSessionRefreshTimeoutMs(): number {
+  return isDespiaRuntime() ? 15000 : 8000;
+}
+
+function isFatalRefreshError(message: string): boolean {
+  const msg = message.toLowerCase();
+  return (
+    msg.includes('invalid refresh token') ||
+    msg.includes('refresh token not found') ||
+    msg.includes('session not found') ||
+    (msg.includes('refresh') && msg.includes('invalid'))
+  );
+}
+
+async function refreshStoredSession(timeoutMs = getStoredSessionRefreshTimeoutMs()) {
+  const refreshPromise = supabase.auth.refreshSession();
+  const timeoutPromise = new Promise<{ data: { session: null }; error: null }>((resolve) => {
+    setTimeout(() => resolve({ data: { session: null }, error: null }), timeoutMs);
+  });
+
+  return Promise.race([refreshPromise, timeoutPromise]) as ReturnType<typeof supabase.auth.refreshSession>;
+}
 
 interface Profile {
   id: string;
@@ -494,6 +519,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
+    const resumeRefresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!hasStoredSupabaseSession()) return;
+      void supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session?.user) void supabase.auth.refreshSession();
+      });
+    };
+    document.addEventListener('visibilitychange', resumeRefresh);
+
     // Try to extract hash tokens first (redirect OAuth flow on mobile/tablet).
     // If successful, onAuthStateChange will fire with the session.
     // If not, fall through to normal getSession() flow.
@@ -534,51 +568,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // ── KEY FIX: If getSession returns null but we have a stored token,
-        // a background refresh is likely in progress. Wait for it. ──
+        // Stored token but no session yet — actively refresh instead of timing out
+        // into a local sign-out (common on Despia cold start over slow networks).
         if (!session && hasStoredToken()) {
-          logEvent('auth', 'getSession returned null but stored token exists — waiting for refresh');
-          
-          // Give the token refresh up to 5 seconds to complete
-          // onAuthStateChange will fire TOKEN_REFRESHED and set everything
-          const waitForRefresh = new Promise<void>((resolve) => {
-            const timeout = setTimeout(() => {
-              logEvent('auth', 'Token refresh wait timed out — no session');
-              resolve();
-            }, 5000);
-            
-            // If onAuthStateChange already set the user, we're done
-            const checkInterval = setInterval(() => {
-              if (authInitializedRef.current) {
-                clearTimeout(timeout);
-                clearInterval(checkInterval);
-                resolve();
-              }
-            }, 100);
-          });
-          
-          await waitForRefresh;
-          
-          // If still not initialized after waiting, finalize as no session
-          if (!authInitializedRef.current) {
-            logEvent('auth', 'No session after refresh wait — finalizing as signed out');
+          logEvent('auth', 'getSession returned null but stored token exists — refreshing');
+
+          const { data, error } = await refreshStoredSession();
+
+          if (data.session?.user) {
+            logEvent('auth', 'refreshSession restored session', { userId: data.session.user.id });
+            authInitializedRef.current = true;
+            setSession(data.session);
+            setUser(data.session.user);
+            if (data.session.expires_at) {
+              scheduleTokenRefresh(data.session.expires_at);
+            }
+            fetchProfile(data.session.user.id);
+            sessionStorage.removeItem('vybe-oauth-pending');
+            setLoading(false);
+            setIsInitialized(true);
+            return;
+          }
+
+          if (error && isFatalRefreshError(error.message)) {
+            logEvent('auth', 'Refresh token invalid — clearing local session', { error: error.message });
             try {
               await supabase.auth.signOut({ scope: 'local' });
             } catch { /* ignore */ }
             setSession(null);
             setUser(null);
-            if (hasStoredToken() && hydrateCachedProfile()) {
-              logEvent('auth', 'Keeping cached profile after refresh timeout');
-            } else if (typeof navigator !== 'undefined' && !navigator.onLine && hasStoredToken()) {
-              hydrateCachedProfile();
-            } else {
-              setProfile(null);
-              clearProfileCache();
-            }
-            authInitializedRef.current = true;
-            setLoading(false);
-            setIsInitialized(true);
+            setProfile(null);
+            clearProfileCache();
+          } else {
+            logEvent('auth', 'Session refresh pending — keeping stored token (offline/slow network)');
+            hydrateCachedProfile();
           }
+
+          authInitializedRef.current = true;
+          setLoading(false);
+          setIsInitialized(true);
           return;
         }
 
@@ -612,6 +640,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     // Cleanup on unmount
     return () => {
+      document.removeEventListener('visibilitychange', resumeRefresh);
       window.clearTimeout(authSafetyTimeout);
       subscription.unsubscribe();
       if (refreshTimerRef.current) {
@@ -645,7 +674,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: getAuthRedirectUrl('/auth/callback'),
           data: { username: cleanUsername },
         },
       });
@@ -685,7 +714,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email,
-        options: { emailRedirectTo: window.location.origin },
+        options: { emailRedirectTo: getAuthRedirectUrl('/auth/callback') },
       });
       if (error) throw error;
       return { error: null };

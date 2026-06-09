@@ -22,7 +22,7 @@ import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 import { LoginGateModal } from '@/components/auth/LoginGateModal';
 import { FounderCounter } from '@/components/growth/FounderCounter';
-import { consumeAuthReturnPath, getPostLoginPath, stashAuthReturnPath } from '@/lib/authReturnPath';
+import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { VybeLiquidBackground } from '@/components/effects/VybeLiquidBackground';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
@@ -896,7 +896,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                     try {
                       sessionStorage.setItem('vybe-oauth-pending', 'true');
                       const { error } = await lovable.auth.signInWithOAuth('google', {
-                        redirect_uri: window.location.origin,
+                        redirect_uri: getAuthRedirectUrl('/auth/callback'),
                         extraParams: { prompt: 'select_account' },
                       });
                       if (error) {
@@ -930,7 +930,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                     try {
                       sessionStorage.setItem('vybe-oauth-pending', 'true');
                       const { error } = await lovable.auth.signInWithOAuth('apple', {
-                        redirect_uri: `${window.location.origin}/auth/callback`,
+                        redirect_uri: getAuthRedirectUrl('/auth/callback'),
                       });
                       if (error) {
                         sessionStorage.removeItem('vybe-oauth-pending');

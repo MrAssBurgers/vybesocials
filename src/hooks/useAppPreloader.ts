@@ -5,6 +5,8 @@ import { batchSignUrls } from '@/lib/signedUrlCache';
 import { hasWarmOfflineCache } from '@/lib/offlineCacheProbe';
 import { isPersistRestored, markPersistRestored, onPersistRestored } from '@/lib/persistRestoreGate';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
+import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 
 interface PreloadStatus {
   step: string;
@@ -46,7 +48,7 @@ export function useAppPreloader() {
     const t = setTimeout(() => {
       markPersistRestored();
       setRestoreReady(true);
-    }, 600);
+    }, isNativePerfMode() ? 180 : 600);
     return () => clearTimeout(t);
   }, [restoreReady]);
 
@@ -97,9 +99,12 @@ export function useAppPreloader() {
     if (hasStarted.current) return;
     hasStarted.current = true;
 
-    // Warm cache (memory or IndexedDB hydrate) — skip splash work entirely.
-    if (hasWarmOfflineCache(queryClient)) {
-      console.log('[Preloader] Warm offline cache — instant ready');
+    // Warm cache or returning native user — skip network splash work.
+    if (
+      hasWarmOfflineCache(queryClient) ||
+      (isNativePerfMode() && hasStoredSupabaseSession())
+    ) {
+      console.log('[Preloader] Fast path — instant ready');
       setStatus({ step: 'Ready!', progress: 100, isComplete: true });
       requestAnimationFrame(() => preloadCriticalRoutes());
       return;
@@ -108,7 +113,7 @@ export function useAppPreloader() {
     // Safety timeout — never block the UI on network.
     const safetyTimeout = setTimeout(() => {
       animateTo(100, 'Ready!', true);
-    }, 350);
+    }, isNativePerfMode() ? 200 : 350);
 
     const preload = async () => {
       const startTime = performance.now();

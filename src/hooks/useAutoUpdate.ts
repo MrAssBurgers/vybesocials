@@ -1,11 +1,14 @@
 import { useEffect, useRef } from 'react';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { isNativePlatform } from '@/lib/capacitor';
 
 export function useAutoUpdate() {
   const hasChecked = useRef(false);
 
   useEffect(() => {
-    // Only run in production and only once
     if (import.meta.env.DEV) return;
+    // Despia/Capacitor use OTA via despia/local.json — never purge WebView caches here.
+    if (isDespiaRuntime() || isNativePlatform) return;
     if (hasChecked.current) return;
 
     const checkForUpdates = async () => {

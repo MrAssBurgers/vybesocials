@@ -25,8 +25,23 @@ export function getSupabaseAuthStorageKey(): string {
 
 export function hasStoredSupabaseSession(): boolean {
   try {
-    return !!localStorage.getItem(getSupabaseAuthStorageKey());
+    const key = getSupabaseAuthStorageKey();
+    return !!localStorage.getItem(key) || !!localStorage.getItem(`${key}-vybe-backup`);
   } catch {
     return false;
+  }
+}
+
+/** One-time repair if Despia dropped the primary auth key but backup survived. */
+export function repairSupabaseAuthStorage(): void {
+  try {
+    const key = getSupabaseAuthStorageKey();
+    const backupKey = `${key}-vybe-backup`;
+    const primary = localStorage.getItem(key);
+    const backup = localStorage.getItem(backupKey);
+    if (primary && !backup) localStorage.setItem(backupKey, primary);
+    else if (!primary && backup) localStorage.setItem(key, backup);
+  } catch {
+    /* ignore */
   }
 }
