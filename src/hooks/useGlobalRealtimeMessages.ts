@@ -120,7 +120,7 @@ export function useGlobalRealtimeMessages() {
 
     // Create a single global channel for all message events
     const channel = supabase
-      .channel(`global-messages:${profile.id}`)
+      .channel(`global-messages:${profile.id}:${Math.random().toString(36).slice(2, 8)}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
