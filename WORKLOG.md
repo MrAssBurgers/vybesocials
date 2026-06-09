@@ -5,11 +5,15 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — native black screen fix (aurora + splash recovery)
+- **Lovable Publish** — Vybe Snap text drag fix (local, publish pending)
 
 ## Publish log
-- **2026-06-09** — native black screen fix (local, publish pending)
+- **2026-06-09** — Vybe Snap text drag 1:1 finger tracking fix (local, publish pending)
 - **2026-06-09** — production perfection pass pushed. **Lovable Publish pending.**
+
+## What Changed (Vybe Snap text drag fix)
+- **Text overlay drag** — removed Framer `drag="y"` + delta state double-move; new `SnapOverlayBar` uses start+delta touch math (1:1 finger tracking)
+- **Trash zone** — still works during drag; position commits to state only on pointer/touch end
 
 ## What Changed (native black screen fix)
 - **Native aurora restored** — static mesh gradient on Home/Explore/DMs (was flat `#0B0B10`)

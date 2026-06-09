@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { motion, AnimatePresence, PanInfo } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Type, Smile, Pencil, Check, Undo, Trash2,
   Download, Send,
@@ -56,6 +56,155 @@ const TEXT_STYLES: { id: TextStyle; label: string }[] = [
   { id: 'background', label: 'Box' },
   { id: 'neon', label: 'Neon' },
 ];
+
+function clampOverlayY(y: number): number {
+  return Math.min(95, Math.max(5, y));
+}
+
+function isFingerOverTrash(clientY: number, containerRect: DOMRect): boolean {
+  const threshold = containerRect.bottom - containerRect.height * 0.15;
+  return clientY > threshold;
+}
+
+interface SnapOverlayBarProps {
+  overlay: TextOverlay;
+  containerRef: React.RefObject<HTMLDivElement>;
+  getTextStyleCSS: (style: TextStyle, color: string) => React.CSSProperties;
+  onDragStart: () => void;
+  onDragTrashChange: (over: boolean) => void;
+  onDragEnd: (id: string, y: number, deleted: boolean) => void;
+}
+
+/** Vertical-only overlay drag — 1:1 finger tracking (no Framer drag double-move). */
+function SnapOverlayBar({
+  overlay,
+  containerRef,
+  getTextStyleCSS,
+  onDragStart,
+  onDragTrashChange,
+  onDragEnd,
+}: SnapOverlayBarProps) {
+  const divRef = useRef<HTMLDivElement>(null);
+  const yRef = useRef(overlay.y);
+  const dragRef = useRef<{ startFingerY: number; startYPercent: number } | null>(null);
+  const rafRef = useRef(0);
+  const overTrashRef = useRef(false);
+
+  useEffect(() => {
+    yRef.current = overlay.y;
+    const el = divRef.current;
+    if (el) el.style.top = `${overlay.y}%`;
+  }, [overlay.y]);
+
+  const applyTop = useCallback((y: number) => {
+    const el = divRef.current;
+    if (el) el.style.top = `${y}%`;
+  }, []);
+
+  const scheduleApply = useCallback((y: number) => {
+    yRef.current = y;
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => applyTop(y));
+  }, [applyTop]);
+
+  const handleMove = useCallback((clientY: number) => {
+    const drag = dragRef.current;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!drag || !rect) return;
+
+    const dyPx = clientY - drag.startFingerY;
+    const newY = clampOverlayY(drag.startYPercent + (dyPx / rect.height) * 100);
+    scheduleApply(newY);
+
+    const over = isFingerOverTrash(clientY, rect);
+    if (over !== overTrashRef.current) {
+      overTrashRef.current = over;
+      onDragTrashChange(over);
+    }
+  }, [containerRef, onDragTrashChange, scheduleApply]);
+
+  const finishDrag = useCallback(() => {
+    if (!dragRef.current) return;
+    onDragEnd(overlay.id, yRef.current, overTrashRef.current);
+    dragRef.current = null;
+    overTrashRef.current = false;
+  }, [onDragEnd, overlay.id]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation();
+    onDragStart();
+    dragRef.current = { startFingerY: e.touches[0].clientY, startYPercent: yRef.current };
+  }, [onDragStart]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    handleMove(e.touches[0].clientY);
+  }, [handleMove]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation();
+    finishDrag();
+  }, [finishDrag]);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') return;
+    e.stopPropagation();
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    onDragStart();
+    dragRef.current = { startFingerY: e.clientY, startYPercent: yRef.current };
+  }, [onDragStart]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === 'touch' || !dragRef.current) return;
+    e.stopPropagation();
+    handleMove(e.clientY);
+  }, [handleMove]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') return;
+    e.stopPropagation();
+    finishDrag();
+  }, [finishDrag]);
+
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
+
+  return (
+    <div
+      ref={divRef}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      className="absolute left-0 right-0 cursor-move select-none flex items-center justify-center active:scale-[1.01] transition-transform"
+      style={{
+        top: `${overlay.y}%`,
+        transform: 'translateY(-50%)',
+        touchAction: 'none',
+        background: overlay.fontSize > 30 ? 'transparent' : 'rgba(0, 0, 0, 0.55)',
+        padding: overlay.fontSize > 30 ? 0 : '6px 14px',
+      }}
+    >
+      <span
+        className="text-center whitespace-pre-wrap break-words font-medium pointer-events-none"
+        style={{
+          color: overlay.color,
+          fontSize: overlay.fontSize,
+          lineHeight: 1.25,
+          letterSpacing: '-0.01em',
+          maxWidth: '92%',
+          ...getTextStyleCSS(overlay.style, overlay.color),
+        }}
+      >
+        {overlay.text}
+      </span>
+    </div>
+  );
+}
 
 export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSnapEditorProps) {
   const [mode, setMode] = useState<'none' | 'text' | 'sticker' | 'draw'>('none');
@@ -187,28 +336,19 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
     setCurrentPath([]);
   };
 
-  // Drag overlay (vertical only)
-  const handleDrag = useCallback((id: string, info: PanInfo) => {
-    const container = containerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    setTextOverlays(prev => prev.map(o => o.id !== id ? o : ({
-      ...o,
-      y: Math.min(95, Math.max(5, o.y + (info.delta.y / rect.height) * 100)),
-    })));
-    const threshold = rect.bottom - rect.height * 0.15;
-    setDragOverTrash(info.point.y > threshold);
-  }, []);
-
-  const handleDragStart = useCallback(() => setDragTrashVisible(true), []);
-  const handleDragEnd = useCallback((id: string) => {
-    if (dragOverTrash) {
+  // Overlay drag — commit position on pointer/touch end (1:1 tracking in SnapOverlayBar)
+  const handleOverlayDragStart = useCallback(() => setDragTrashVisible(true), []);
+  const handleOverlayDragTrashChange = useCallback((over: boolean) => setDragOverTrash(over), []);
+  const handleOverlayDragEnd = useCallback((id: string, y: number, deleted: boolean) => {
+    if (deleted) {
       haptics.impact();
       setTextOverlays(prev => prev.filter(o => o.id !== id));
+    } else {
+      setTextOverlays(prev => prev.map(o => (o.id !== id ? o : { ...o, y })));
     }
     setDragTrashVisible(false);
     setDragOverTrash(false);
-  }, [dragOverTrash]);
+  }, []);
 
   const undoDrawing = () => { haptics.impact(); setDrawings(prev => prev.slice(0, -1)); };
   const clearAll = () => { haptics.impact(); setTextOverlays([]); setDrawings([]); };
@@ -359,37 +499,15 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
 
         {/* Text/sticker overlays */}
         {textOverlays.map(overlay => (
-          <motion.div
+          <SnapOverlayBar
             key={overlay.id}
-            drag="y"
-            dragMomentum={false}
-            dragConstraints={containerRef}
-            onDragStart={handleDragStart}
-            onDrag={(_, info) => handleDrag(overlay.id, info)}
-            onDragEnd={() => handleDragEnd(overlay.id)}
-            className="absolute left-0 right-0 cursor-move select-none flex items-center justify-center"
-            style={{
-              top: `${overlay.y}%`,
-              transform: 'translateY(-50%)',
-              background: overlay.fontSize > 30 ? 'transparent' : 'rgba(0, 0, 0, 0.55)',
-              padding: overlay.fontSize > 30 ? 0 : '6px 14px',
-            }}
-            whileTap={{ scale: 1.01 }}
-          >
-            <span
-              className="text-center whitespace-pre-wrap break-words font-medium"
-              style={{
-                color: overlay.color,
-                fontSize: overlay.fontSize,
-                lineHeight: 1.25,
-                letterSpacing: '-0.01em',
-                maxWidth: '92%',
-                ...getTextStyleCSS(overlay.style, overlay.color),
-              }}
-            >
-              {overlay.text}
-            </span>
-          </motion.div>
+            overlay={overlay}
+            containerRef={containerRef}
+            getTextStyleCSS={getTextStyleCSS}
+            onDragStart={handleOverlayDragStart}
+            onDragTrashChange={handleOverlayDragTrashChange}
+            onDragEnd={handleOverlayDragEnd}
+          />
         ))}
 
         {/* Drag-to-trash zone */}
