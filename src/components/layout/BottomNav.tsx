@@ -628,8 +628,9 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
               const isActive =
                 item.id === 'clips'
                   ? location.pathname === '/clips' ||
-                    location.pathname === '/shorts' ||
-                    location.pathname.startsWith('/clips/')
+                    location.pathname.startsWith('/clips/') ||
+                    location.pathname === '/watch' ||
+                    location.pathname.startsWith('/watch/')
                   : location.pathname === path || location.pathname.startsWith(path + '/');
               const isHighlighted = highlightedNav === item.tutorialId;
               const badge = item.id === 'messages' ? unreadMessages : 0;

@@ -39,6 +39,7 @@ function transform(row: any): Post {
     is_liked: !!row.is_liked,
     is_bookmarked: !!row.is_bookmarked,
     reaction_type: row.reaction_type || null,
+    view_count: Number(row.view_count) || 0,
   };
 }
 

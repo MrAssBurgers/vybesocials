@@ -1,43 +1,46 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Play, TrendingUp, Clock, Film, Sparkles } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Play, TrendingUp, Clock, Sparkles, Film, Loader2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { usePosts } from '@/hooks/usePosts';
+import { useRankedFeed } from '@/hooks/useRankedFeed';
 import { VideoCard } from '@/components/explore/VideoCard';
 
 const CATEGORIES = [
-  { id: 'all', label: 'All', icon: Film },
+  { id: 'foryou', label: 'For You', icon: Sparkles },
   { id: 'trending', label: 'Trending', icon: TrendingUp },
   { id: 'recent', label: 'Recent', icon: Clock },
-  { id: 'featured', label: 'Featured', icon: Sparkles },
 ] as const;
 
 export default function VideoBrowse() {
-  const navigate = useNavigate();
-  const [activeCategory, setActiveCategory] = useState<string>('all');
-  const { data: allPosts = [], isLoading } = usePosts();
+  const [activeCategory, setActiveCategory] = useState<string>('foryou');
+  const {
+    data,
+    isLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useRankedFeed({ contentType: 'video' });
 
-  // Filter to only video posts
-  const videos = allPosts.filter(p => p.type === 'video');
+  const videos = useMemo(
+    () => data?.pages.flatMap((p) => p.posts) ?? [],
+    [data],
+  );
 
-  // Sort/filter based on category
-  const filteredVideos = (() => {
+  // 'foryou' keeps the server ranking; other chips re-sort the loaded pages.
+  const filteredVideos = useMemo(() => {
     switch (activeCategory) {
       case 'trending':
         return [...videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
       case 'recent':
-        return [...videos].sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        return [...videos].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
         );
-      case 'featured':
-        return videos.filter(v => (v.view_count || 0) > 10);
       default:
         return videos;
     }
-  })();
+  }, [videos, activeCategory]);
 
   return (
     <AppLayout>
@@ -92,18 +95,32 @@ export default function VideoBrowse() {
           <div className="text-center py-16">
             <Film className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
             <p className="font-medium mb-1">No videos yet</p>
-            <p className="text-sm text-muted-foreground">
-              {activeCategory === 'all' 
-                ? 'Be the first to upload a video!'
-                : 'Try a different category'}
-            </p>
+            <p className="text-sm text-muted-foreground">Be the first to upload a video!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {filteredVideos.map(post => (
-              <VideoCard key={post.id} post={post} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {filteredVideos.map(post => (
+                <VideoCard key={post.id} post={post} />
+              ))}
+            </div>
+            {hasNextPage && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  variant="secondary"
+                  className="rounded-full"
+                  disabled={isFetchingNextPage}
+                  onClick={() => fetchNextPage()}
+                >
+                  {isFetchingNextPage ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Load more'
+                  )}
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </AppLayout>

@@ -24,6 +24,7 @@ export interface Post {
   is_liked: boolean;
   is_bookmarked: boolean;
   reaction_type?: string | null;
+  view_count?: number;
 }
 
 // Optimized page sizes for faster initial load

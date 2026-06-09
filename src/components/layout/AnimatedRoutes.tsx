@@ -1,5 +1,5 @@
 import { lazy, Suspense, memo, useEffect } from 'react';
-import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate, useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { liquidSpring } from '@/motion/liquidConfig';
 import { MOTION_CONFIG } from '@/lib/motion';
@@ -12,6 +12,12 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { CrashReportConsent } from '@/components/error/CrashReportConsent';
 import { VybePageLoader } from '@/components/ui/VybeLoader';
 // VYBELogo removed from fallback for instant navigation
+
+/** Legacy /shorts/:postId deep links → canonical /clips/:postId */
+function ShortsPostRedirect() {
+  const { postId } = useParams<{ postId: string }>();
+  return <Navigate to={`/clips/${postId}`} replace />;
+}
 
 // Lazy-load all pages to reduce unused JavaScript in the initial bundle
 const Landing = lazy(() => import("@/pages/Landing"));
@@ -183,7 +189,8 @@ export function AnimatedRoutes() {
             <Route path="/welcome" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />
             <Route path="/vision" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />
             <Route path="/clips" element={<ProtectedRoute><Shorts /></ProtectedRoute>} />
-            <Route path="/shorts" element={<ProtectedRoute><Shorts /></ProtectedRoute>} />
+            <Route path="/shorts" element={<Navigate to="/clips" replace />} />
+            <Route path="/shorts/:postId" element={<ShortsPostRedirect />} />
             <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
             <Route path="/market" element={<ProtectedRoute><Market /></ProtectedRoute>} />
             <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />

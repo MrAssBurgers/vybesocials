@@ -126,11 +126,11 @@ export default function ClipsViewer() {
     queryKey: ['clips-viewer-feed', profile?.id, postId],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       if (profile?.id) {
-        const { data, error } = await supabase.rpc('get_ranked_feed', {
+        const { data, error } = await supabase.rpc('get_ranked_feed_v2', {
           p_user_id: profile.id,
           p_content_type: 'short',
-          p_page: pageParam,
-          p_page_size: PAGE_SIZE,
+          p_offset: (pageParam as number) * PAGE_SIZE,
+          p_limit: PAGE_SIZE,
         });
         if (error) throw error;
         const posts = (data || []).map(transformRankedPost).filter(p => p.id !== postId);

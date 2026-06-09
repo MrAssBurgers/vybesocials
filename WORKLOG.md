@@ -5,12 +5,20 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — Messaging Polish epic (Phase 1) pushed; publish + device verify pending
+- **Lovable Publish** — Phase 1 (Messaging Polish) + Phase 2 (Content unification) pushed; publish + device verify pending
 
 ## Publish log
+- **2026-06-02** — Phase 2 content unification (/shorts redirect, ranked Watch browse, ClipsViewer v2). **Lovable Publish pending.**
 - **2026-06-02** — Messaging Polish Phase 1 (snap drag parity, outbox/call resume, voice scrub). **Lovable Publish pending.**
 - **2026-06-09** — Vybe Snap text drag 1:1 finger tracking fix (local, publish pending)
 - **2026-06-09** — production perfection pass pushed. **Lovable Publish pending.**
+
+## What Changed (Phase 2 — Content unification)
+- **`/shorts` → `/clips` redirect** — one canonical clips route; `/shorts/:postId` deep links redirect too
+- **Watch browse (`VideoBrowse`)** — now uses `get_ranked_feed_v2` ("For You" default) with load-more pagination; Trending/Recent re-sort loaded pages
+- **`ClipsViewer`** — upgraded from legacy `get_ranked_feed` (v1) to `get_ranked_feed_v2`
+- **Bottom nav** — Clips tab highlights on `/watch` + `/watch/:id` (Videos lives inside Clips)
+- **Locales** — removed unused `allowDuet` ("Allow Duet/Remix") promise from all 20 locale files (feature not implemented)
 
 ## What Changed (Messaging Polish — Phase 1)
 - **`SnapOverlayDraggable`** — shared 1:1 drag component for `VybeSnapEditor` + legacy `SnapCamera`
