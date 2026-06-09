@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useUserPreferences, useUpdatePreferences } from './useUserPreferences';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
 
 export interface WidgetDef {
   id: string;
@@ -44,7 +42,6 @@ export interface HomeLayout {
 export function useHomeLayout() {
   const { data: prefs } = useUserPreferences();
   const update = useUpdatePreferences();
-  const { user } = useAuth();
   const [autoOverride, setAutoOverride] = useState<{ order?: string[]; hidden?: string[] } | null>(null);
 
   const fetchOverride = useCallback(async () => {
@@ -54,14 +51,7 @@ export function useHomeLayout() {
 
   useEffect(() => {
     fetchOverride();
-    if (!user?.id) return;
-    const ch = supabase
-      .channel(`autopilot-layout-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dna_agent_actions', filter: `user_id=eq.${user.id}` }, () => fetchOverride())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dna_agent_settings', filter: `user_id=eq.${user.id}` }, () => fetchOverride())
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [user?.id, fetchOverride]);
+  }, [fetchOverride]);
 
   const layout = useMemo((): HomeLayout => ({
     order: (autoOverride?.order ?? (prefs?.extra as any)?.home_layout?.order ?? DEFAULT_ORDER) as string[],

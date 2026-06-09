@@ -5,9 +5,17 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — push `5fa238d3` then Share → Publish for vybehub.app
+- **Lovable Publish** — push realtime fix + Share → Publish for vybehub.app
 - **Local preview** — `http://127.0.0.1:8080`
 - **App Store resubmit** — Despia build > 6061901 + NFC demo video
+
+## What Changed (realtime crash fix — local)
+- **`realtimeChannel.ts`** — remove stale channels by topic before `.on()` / `.subscribe()` (fixes `postgres_changes after subscribe()` crashes)
+- **`auth.tsx`** — single ban-status subscription via safe helper
+- **`useBanStatus.ts`** — removed duplicate ban realtime (auth owns it)
+- **`useGridLayout` / `useHomeLayout`** — removed no-op autopilot-grid/layout subscriptions (were duplicated per widget mount)
+- **`useGlobalRealtimeMessages.ts`** — stable channel names, generation guard for async setup, safe teardown
+- **`AppBackground.tsx`** — fail soft on `user_backgrounds` query errors (57014 timeout)
 
 ## Publish log
 - **2026-06-08** — pushed `5fa238d3` (mobile safe area, brief, AI keyboard, Friend Link, nav liquid, ads gating). Supabase auth/SMS/email/push functions deployed (user CLI). Redeploy `auth-2fa-request` after resend fix.
@@ -112,13 +120,13 @@ Use this file as the Lovable -> Cursor handoff each session.
 - Custom wallpaper gate: `hasUserWallpaper` + `isBackgroundResolved` hide aurora/touch; `stripLiquidShellDocumentState()` on upload
 
 ## Current Status
-- Done: launch polish pass; `npm run build` + `npm run lint`
-- **Your turn:** Lovable Publish → Despia rebuild (>6061901) → App Review notes + demo account
+- Done: realtime crash fix (`realtimeChannel.ts`, ban/global-messages/autopilot cleanup); `npm run build` + `npm run lint`
+- **Your turn:** Lovable Publish → verify `/home` loads without Realtime errors → Despia rebuild
 
 ## Next 3 tasks
-1. Lovable Publish + Despia rebuild (build > 6061901)
-2. Fresh-install iPad test (portrait + landscape) + demo account in App Store Connect
-3. Film NFC demo video + reply to Apple (see `docs/APP_STORE_RESUBMIT.md`)
+1. Lovable Publish + verify Home loads (no `postgres_changes after subscribe()` errors)
+2. Investigate `user_backgrounds` statement timeout on preview DB (index/RLS if persists)
+3. Despia rebuild (>6061901) + App Store resubmit prep
 
 ## Publish log
 - **2026-06-07** — commit `94b22cad` pushed — iPad launch fix + aurora + ads — **Lovable Publish + Despia rebuild**

@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { callSounds } from '@/lib/callSounds';
+import { removeChannelByTopic, removeRealtimeChannel } from '@/lib/realtimeChannel';
 
 // Track the current conversation globally with a tiny pub/sub so React
 // effects can react to changes (a plain module variable did not trigger
@@ -97,14 +98,17 @@ export function useGlobalRealtimeMessages() {
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const setupGenerationRef = useRef(0);
 
   const setupChannel = useCallback(async () => {
     if (!profile?.id) return;
+    const generation = ++setupGenerationRef.current;
+    const profileId = profile.id;
+    const channelName = `global-messages:${profileId}`;
 
-    // Clean up existing channel
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
+    removeRealtimeChannel(channelRef.current);
+    channelRef.current = null;
+    removeChannelByTopic(channelName);
 
     // Ensure the Realtime socket carries the current JWT so RLS-filtered
     // postgres_changes events (e.g. messages INSERT) actually reach us.
@@ -118,9 +122,11 @@ export function useGlobalRealtimeMessages() {
       if (import.meta.env.DEV) console.warn('[GlobalRT] setAuth failed', e);
     }
 
+    if (generation !== setupGenerationRef.current) return;
+
     // Create a single global channel for all message events
     const channel = supabase
-      .channel(`global-messages:${profile.id}:${Math.random().toString(36).slice(2, 8)}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
@@ -335,10 +341,9 @@ export function useGlobalRealtimeMessages() {
             
             if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
             retryTimeoutRef.current = setTimeout(() => {
-              if (channelRef.current) {
-                supabase.removeChannel(channelRef.current);
-                channelRef.current = null;
-              }
+              removeRealtimeChannel(channelRef.current);
+              channelRef.current = null;
+              removeChannelByTopic(channelName);
               setupChannel();
             }, delay);
           } else {
@@ -350,6 +355,11 @@ export function useGlobalRealtimeMessages() {
         }
       });
 
+    if (generation !== setupGenerationRef.current) {
+      removeRealtimeChannel(channel);
+      return;
+    }
+
     channelRef.current = channel;
   }, [profile?.id, queryClient]);
 
@@ -359,9 +369,10 @@ export function useGlobalRealtimeMessages() {
   const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   useEffect(() => {
     if (!profile?.id) return;
-    if (presenceChannelRef.current) {
-      supabase.removeChannel(presenceChannelRef.current);
-    }
+    removeRealtimeChannel(presenceChannelRef.current);
+    presenceChannelRef.current = null;
+    removeChannelByTopic(`global-presence:${profile.id}`);
+
     const ch = supabase
       .channel(`global-presence:${profile.id}`)
       .on(
@@ -383,10 +394,8 @@ export function useGlobalRealtimeMessages() {
     presenceChannelRef.current = ch;
     return () => {
       try {
-        if (presenceChannelRef.current) {
-          supabase.removeChannel(presenceChannelRef.current);
-          presenceChannelRef.current = null;
-        }
+        removeRealtimeChannel(presenceChannelRef.current);
+        presenceChannelRef.current = null;
       } catch { /* never throw from cleanup */ }
     };
   }, [profile?.id, queryClient]);
@@ -401,14 +410,14 @@ export function useGlobalRealtimeMessages() {
 
   useEffect(() => {
     if (!profile?.id || !activeConvoId) {
-      if (broadcastChannelRef.current) {
-        supabase.removeChannel(broadcastChannelRef.current);
-        broadcastChannelRef.current = null;
-      }
+      removeRealtimeChannel(broadcastChannelRef.current);
+      broadcastChannelRef.current = null;
       return;
     }
 
     const convoId = activeConvoId;
+    removeChannelByTopic(`dm-broadcast:${convoId}`);
+
     const bc = supabase
       .channel(`dm-broadcast:${convoId}`)
       .on('broadcast', { event: 'new-message' }, (payload: any) => {
@@ -435,7 +444,7 @@ export function useGlobalRealtimeMessages() {
 
     return () => {
       try {
-        if (bc) supabase.removeChannel(bc);
+        removeRealtimeChannel(bc);
       } catch { /* noop */ }
       broadcastChannelRef.current = null;
     };
@@ -445,6 +454,7 @@ export function useGlobalRealtimeMessages() {
     setupChannel();
 
     return () => {
+      setupGenerationRef.current += 1;
       try {
         if (retryTimeoutRef.current) {
           clearTimeout(retryTimeoutRef.current);
@@ -452,14 +462,15 @@ export function useGlobalRealtimeMessages() {
         }
         if (channelRef.current) {
           if (import.meta.env.DEV) console.log('[GlobalRT] Cleaning up global channel');
-          supabase.removeChannel(channelRef.current);
+          removeRealtimeChannel(channelRef.current);
           channelRef.current = null;
         }
-        if (broadcastChannelRef.current) {
-          supabase.removeChannel(broadcastChannelRef.current);
-          broadcastChannelRef.current = null;
+        if (profile?.id) {
+          removeChannelByTopic(`global-messages:${profile.id}`);
         }
+        removeRealtimeChannel(broadcastChannelRef.current);
+        broadcastChannelRef.current = null;
       } catch { /* never throw from cleanup */ }
     };
-  }, [setupChannel]);
+  }, [setupChannel, profile?.id]);
 }

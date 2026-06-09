@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useUserPreferences, useUpdatePreferences } from './useUserPreferences';
 import { ALL_WIDGETS, type WidgetDef } from './useHomeLayout';
 import { useIsMobileOrTablet } from './use-mobile';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
 
 export interface GridWidgetState extends WidgetDef {
   enabled: boolean;
@@ -60,7 +58,6 @@ export function useGridLayout() {
   const { data: prefs } = useUserPreferences();
   const update = useUpdatePreferences();
   const { isMobileOrTablet } = useIsMobileOrTablet();
-  const { user } = useAuth();
   const [autoOverride, setAutoOverride] = useState<{ order?: string[]; hidden?: string[] } | null>(null);
 
   const variant: LayoutVariant = isMobileOrTablet ? 'mobile' : 'desktop';
@@ -72,14 +69,7 @@ export function useGridLayout() {
 
   useEffect(() => {
     fetchAutoOverride();
-    if (!user?.id) return;
-    const ch = supabase
-      .channel(`autopilot-grid-${user.id}-${Math.random().toString(36).slice(2, 8)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dna_agent_actions', filter: `user_id=eq.${user.id}` }, () => fetchAutoOverride())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dna_agent_settings', filter: `user_id=eq.${user.id}` }, () => fetchAutoOverride())
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [user?.id, fetchAutoOverride]);
+  }, [fetchAutoOverride]);
 
   const config = useMemo((): GridLayoutConfig => {
     const gridRoot = (prefs?.extra as any)?.grid_layout;

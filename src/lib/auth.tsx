@@ -14,6 +14,7 @@ import {
   stashSignupUsername,
 } from '@/lib/username';
 import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
+import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -121,32 +122,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Subscribe to realtime ban changes
+  // Subscribe to realtime ban changes (single channel per profile — see realtimeChannel.ts)
   const subscribeToBanChanges = (profileId: string) => {
-    // Clean up existing subscription
-    if (banSubscriptionRef.current) {
-      supabase.removeChannel(banSubscriptionRef.current);
-      banSubscriptionRef.current = null;
-    }
+    removeRealtimeChannel(banSubscriptionRef.current);
+    banSubscriptionRef.current = null;
 
-    const channel = supabase
-      .channel(`ban-status-${profileId}`)
-      .on(
-        'postgres_changes',
+    banSubscriptionRef.current = subscribePostgresChannel(
+      `ban-status-${profileId}`,
+      [
         {
           event: '*',
-          schema: 'public',
           table: 'user_bans',
           filter: `user_id=eq.${profileId}`,
+          callback: () => {
+            checkBanStatus(profileId);
+          },
         },
-        () => {
-          // Re-check ban status on any change (INSERT, UPDATE, DELETE)
-          checkBanStatus(profileId);
-        }
-      )
-      .subscribe();
-
-    banSubscriptionRef.current = channel;
+      ],
+    );
   };
 
   // Schedule token refresh before expiry

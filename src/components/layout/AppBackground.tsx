@@ -203,12 +203,25 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
 
     // 2. Active user_backgrounds upload — explicit custom wallpaper; hides liquid aurora
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('user_backgrounds')
         .select('image_url')
         .eq('user_id', profileId)
         .eq('is_active', true)
         .maybeSingle();
+
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.warn('[AppBackground] user_backgrounds query failed:', error.message);
+        }
+        if (token !== applyTokenRef.current) return;
+        rawUrlRef.current = null;
+        setHasUserWallpaper(false);
+        setBackground(prev => ({ ...prev, imageUrl: null }));
+        setIsBackgroundResolved(true);
+        return;
+      }
+
       const url = data?.image_url ?? null;
       rawUrlRef.current = url;
       setHasUserWallpaper(Boolean(url));
