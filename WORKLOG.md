@@ -5,12 +5,19 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — Share → Publish (`e7c8d285` — header safe area + DM scroll + brief settings)
+- **Lovable Publish** — Share → Publish (`cc046265` — header lowered below camera, floating island bar)
 
 ## Publish log
+- **2026-06-02** — pushed `cc046265` (header gap + safe-area fallbacks, floating pill bar). **Lovable Publish pending.**
 - **2026-06-08** — pushed `e7c8d285` (status bar clearance, header polish). **Lovable Publish pending.**
 
-## What Changed (brief settings + header polish — local)
+## What Changed (header below camera — `cc046265`)
+- **`safeAreaInsets.ts`** — `--app-header-top` / `--app-header-gap`; higher iOS/Android Despia fallbacks; visualViewport offset
+- **`index.css`** — header height = safe top + gap + toolbar + tail; CSS fallbacks before JS
+- **`MobileHeader`** — dead zone under notch; floating rounded pill bar; compact streak badge
+- **`HeaderSearch`** — full-width pill in header; overlay positioned below header
+
+## What Changed (brief settings + header polish — `318e40e8`)
 - **`AIBriefCustomizePanel`** — inline in brief sheet (no nested dialog); load/save `finally` fixes infinite spinner
 - **`MobileHeader`** — lower compact bar via `--app-header-*` CSS vars; streak hides on narrow screens
 
