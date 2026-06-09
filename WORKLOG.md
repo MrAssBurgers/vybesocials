@@ -5,12 +5,13 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Publish** — commit `e489cfa2` pushed; **you** must Lovable → Share → Publish
-- **App Store resubmit** — iPad blank launch + NFC demo video (see `docs/APP_STORE_RESUBMIT.md`)
-- New Despia build required (build **> 6061901**)
+- **Lovable Publish** — push `5fa238d3` then Share → Publish for vybehub.app
+- **Local preview** — `http://127.0.0.1:8080`
+- **App Store resubmit** — Despia build > 6061901 + NFC demo video
 
 ## Publish log
-- **2026-06-02** — pushed `e489cfa2` (native perf mode, auth/SMS/push client + edge function code). Web publish: pending Lovable Share → Publish. Supabase functions: pending `npx supabase login` + deploy (see `docs/AUTH_SMS_PUSH_SETUP.md`).
+- **2026-06-08** — pushed `5fa238d3` (mobile safe area, brief, AI keyboard, Friend Link, nav liquid, ads gating). Supabase auth/SMS/email/push functions deployed (user CLI). Redeploy `auth-2fa-request` after resend fix.
+- **2026-06-02** — pushed `e489cfa2` (native perf mode). Web publish: pending Lovable.
 
 ## What Changed (mobile polish batch — latest, local)
 - **Safe area** — `--app-header-height` CSS var; AppLayout/Messages/ChatView respect notch; removed body safe-area padding that broke fixed headers
