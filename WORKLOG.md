@@ -14,18 +14,19 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **`MobileHeader`** — unified glass pill bar, lower below status bar, cleaner icons + search
 
 ## Publish log
-- **2026-06-08** — pushed `d1ebdbd9` (DM scroll fix + header redesign). **Lovable Publish pending.**
-- **2026-06-08** — pushed `edbf9205` / `28cdf141` (Realtime crash fix). Lovable Publish pending.
+- **2026-06-08** — pushed `9f7920ef` (DM scroll + header redesign, WORKLOG). **Lovable Publish pending.**
+- **2026-06-08** — pushed `d1ebdbd9` (DM scroll fix + header redesign)
+- **2026-06-08** — pushed `edbf9205` / `28cdf141` (Realtime crash fix)
+- **2026-06-08** — pushed `5fa238d3` (mobile safe area, brief, AI keyboard, Friend Link, nav liquid, ads gating). Supabase auth/SMS/email/push functions deployed (user CLI). Redeploy `auth-2fa-request` after resend fix.
+- **2026-06-02** — pushed `e489cfa2` (native perf mode). Web publish: pending Lovable.
+
+## What Changed (realtime crash fix — `edbf9205`)
 - **`realtimeChannel.ts`** — remove stale channels by topic before `.on()` / `.subscribe()` (fixes `postgres_changes after subscribe()` crashes)
 - **`auth.tsx`** — single ban-status subscription via safe helper
 - **`useBanStatus.ts`** — removed duplicate ban realtime (auth owns it)
 - **`useGridLayout` / `useHomeLayout`** — removed no-op autopilot-grid/layout subscriptions (were duplicated per widget mount)
 - **`useGlobalRealtimeMessages.ts`** — stable channel names, generation guard for async setup, safe teardown
 - **`AppBackground.tsx`** — fail soft on `user_backgrounds` query errors (57014 timeout)
-
-## Publish log
-- **2026-06-08** — pushed `5fa238d3` (mobile safe area, brief, AI keyboard, Friend Link, nav liquid, ads gating). Supabase auth/SMS/email/push functions deployed (user CLI). Redeploy `auth-2fa-request` after resend fix.
-- **2026-06-02** — pushed `e489cfa2` (native perf mode). Web publish: pending Lovable.
 
 ## What Changed (console error cleanup — `29b17a08`)
 - **`mediaUrl.ts`** — rewrite legacy Supabase hosts, block Pexels 403 URLs, resolve bare filenames safely
