@@ -1,13 +1,16 @@
 import { memo, useEffect, useState } from 'react';
+import { cn } from '@/lib/utils';
 
 interface ClipVideoProgressProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   isActive: boolean;
+  branded?: boolean;
 }
 
 export const ClipVideoProgress = memo(function ClipVideoProgress({
   videoRef,
   isActive,
+  branded = false,
 }: ClipVideoProgressProps) {
   const [progress, setProgress] = useState(0);
 
@@ -35,9 +38,14 @@ export const ClipVideoProgress = memo(function ClipVideoProgress({
       className="absolute inset-x-0 z-20 pointer-events-none"
       style={{ bottom: 'var(--clips-progress-bottom, 0px)' }}
     >
-      <div className="h-[2px] w-full bg-white/15">
+      <div className={cn('h-[2px] w-full', branded ? 'bg-white/10' : 'bg-white/15')}>
         <div
-          className="h-full bg-white/90 transition-[width] duration-75 ease-linear"
+          className={cn(
+            'h-full transition-[width] duration-75 ease-linear',
+            branded
+              ? 'bg-gradient-to-r from-primary via-accent to-[hsl(var(--neon-pink))]'
+              : 'bg-white/90',
+          )}
           style={{ width: `${progress}%` }}
         />
       </div>

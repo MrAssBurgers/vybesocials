@@ -10,6 +10,11 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## Publish log
 - **2026-06-02** — TikTok clips pass + Instagram polish (pending Lovable Publish).
 
+## What Changed (VYBE-branded clips flow)
+- **Same TikTok flow** — Clips tab, Following | For You, full-screen swipe, progress bar, sound pill
+- **VYBE skin** — gradient tabs, VybeMiniIcon, aurora hearts, story-ring avatars, primary progress bar
+- **Home feed** — rounded VYBE cards restored (removed flat Instagram-style overrides on native)
+
 ## What Changed (TikTok-style clips)
 - **Bottom nav** — Clips is a primary tab (Film icon); Explore still available via search on clips header
 - **Clips page** — Full-screen `100dvh` feed with bottom nav overlay (TikTok-style)

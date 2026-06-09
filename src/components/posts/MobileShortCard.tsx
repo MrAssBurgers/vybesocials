@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Send, Bookmark, Volume2, VolumeX, MoreVertical, Eye, Music2 } from 'lucide-react';
+import { Heart, MessageCircle, Send, Bookmark, Volume2, VolumeX, MoreVertical, Eye } from 'lucide-react';
 import { ReactionPicker } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
 import { motion, AnimatePresence } from 'framer-motion';
+import { T, MOTION_CONFIG } from '@/lib/motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -25,6 +26,7 @@ import { FollowPlusButton } from '@/components/clips/FollowPlusButton';
 import { ClipVideoProgress } from '@/components/clips/ClipVideoProgress';
 import { CLIPS_BOTTOM_UI_OFFSET } from '@/lib/clipsLayout';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 
 interface MobileShortCardProps {
   post: {
@@ -46,22 +48,19 @@ interface MobileShortCardProps {
   isActive: boolean;
   globalMuted?: boolean;
   onToggleMute?: () => void;
-  /** TikTok-style full-bleed layout with bottom nav overlay offsets. */
-  tiktokLayout?: boolean;
+  /** Full-screen clips flow (TikTok-style UX, VYBE visual language). */
+  immersiveFlow?: boolean;
 }
 
 /**
- * TikTok-style ShortCard for mobile/iPad
- * - Single tap = toggle mute
- * - Double tap = like
- * - Hold = pause
+ * VYBE clips card — TikTok-style flow (swipe, tabs, rail) with brand visuals.
  */
 export const MobileShortCard = memo(function MobileShortCard({ 
   post, 
   isActive, 
   globalMuted = true, 
   onToggleMute,
-  tiktokLayout = false,
+  immersiveFlow = false,
 }: MobileShortCardProps) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -83,10 +82,10 @@ export const MobileShortCard = memo(function MobileShortCard({
   const [showHeart, setShowHeart] = useState(false);
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const nativePerf = isNativePerfMode();
-  const bottomUiOffset = tiktokLayout
+  const bottomUiOffset = immersiveFlow
     ? 'var(--clips-bottom-ui, ' + CLIPS_BOTTOM_UI_OFFSET + ')'
     : 'calc(env(safe-area-inset-bottom, 0px) + 16px)';
-  const railBottomOffset = tiktokLayout
+  const railBottomOffset = immersiveFlow
     ? 'calc(var(--clips-bottom-ui, ' + CLIPS_BOTTOM_UI_OFFSET + ') + 72px)'
     : 'calc(env(safe-area-inset-bottom, 0px) + 88px)';
   const hasCountedInitialView = useRef(false);
@@ -412,7 +411,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         ) : null}
 
         {/* Instagram-style pulsing muted icon - only visible when muted AND playing */}
-        {isVideo && isMuted && isPlaying && !isHolding && !tiktokLayout && (
+        {isVideo && isMuted && isPlaying && !isHolding && !immersiveFlow && (
           <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
             <div className={cn(
               "w-20 h-20 rounded-full bg-black/50 flex items-center justify-center animate-pulse",
@@ -424,72 +423,54 @@ export const MobileShortCard = memo(function MobileShortCard({
         )}
 
         {isVideo && (
-          <ClipVideoProgress videoRef={videoRef} isActive={isActive && isPlaying} />
+          <ClipVideoProgress
+            videoRef={videoRef}
+            isActive={isActive && isPlaying}
+            branded={immersiveFlow}
+          />
         )}
       </div>
 
-      {/* Double tap heart - fun burst effect */}
+      {/* Double tap heart — VYBE aurora burst */}
       <AnimatePresence>
         {showHeart && (
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            transition={{ duration: 0.4, type: 'spring', stiffness: 400, damping: 15 }}
+            transition={MOTION_CONFIG.spring.bouncy}
             className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
           >
-            {/* Main heart with pop */}
             <motion.div
-              animate={{ 
-                scale: [0, 1.5, 0.85, 1.15, 1],
-                rotate: [0, -20, 20, -8, 0]
+              className="absolute h-32 w-32 rounded-full"
+              style={{
+                background:
+                  'radial-gradient(circle, hsl(var(--primary) / 0.55) 0%, hsl(var(--accent) / 0.35) 40%, transparent 70%)',
               }}
-              transition={{ duration: 0.6, type: 'spring', stiffness: 300 }}
+              initial={{ scale: 0.4, opacity: 0 }}
+              animate={{ scale: [0.4, 1.6, 2.2], opacity: [0, 0.9, 0] }}
+              transition={{ duration: 0.7, ease: MOTION_CONFIG.ease.expoOut }}
+            />
+            <motion.div
+              animate={{ scale: [0, 1.4, 0.9, 1.1, 1], rotate: [0, -15, 15, -5, 0] }}
+              transition={{ duration: 0.6, ease: MOTION_CONFIG.ease.expoOut }}
+              style={{ filter: 'drop-shadow(0 0 24px hsl(var(--neon-pink) / 0.7))' }}
             >
-              <Heart className="h-36 w-36 text-rose-500 fill-rose-500 drop-shadow-2xl" />
+              <Heart className="h-28 w-28 text-[hsl(var(--neon-pink))] fill-[hsl(var(--neon-pink))]" />
             </motion.div>
-            
-            {/* Particle burst */}
-            {[...Array(14)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute w-4 h-4 rounded-full"
-                style={{ background: i % 2 === 0 ? '#f43f5e' : '#fb7185' }}
-                initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                animate={{ 
-                  scale: [0, 1.5, 0],
-                  x: Math.cos(i * (360/14) * Math.PI / 180) * 100,
-                  y: Math.sin(i * (360/14) * Math.PI / 180) * 100,
-                  opacity: [1, 1, 0],
-                }}
-                transition={{ duration: 0.6, delay: 0.05 }}
-              />
-            ))}
-            
-            {/* Mini hearts burst */}
-            {[...Array(8)].map((_, i) => (
-              <motion.div
-                key={`heart-${i}`}
-                className="absolute"
-                initial={{ scale: 0, x: 0, y: 0, opacity: 1, rotate: 0 }}
-                animate={{ 
-                  scale: [0, 1.2, 0.6],
-                  x: Math.cos((i * 45 + 22) * Math.PI / 180) * 75,
-                  y: Math.sin((i * 45 + 22) * Math.PI / 180) * 75,
-                  opacity: [1, 1, 0],
-                  rotate: i % 2 === 0 ? 30 : -30,
-                }}
-                transition={{ duration: 0.7, delay: 0.1 }}
-              >
-                <Heart className="h-8 w-8 text-pink-400 fill-pink-400" />
-              </motion.div>
-            ))}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Gradient overlays */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+      {/* Gradient overlays — subtle VYBE tint at bottom */}
+      <div
+        className={cn(
+          'absolute inset-0 pointer-events-none',
+          immersiveFlow
+            ? 'bg-gradient-to-t from-black/85 via-primary/10 to-black/35'
+            : 'bg-gradient-to-t from-black/80 via-transparent to-black/30',
+        )}
+      />
 
       {/* Right side actions - responsive sizing for mobile/tablet, safe-area aware */}
       <div
@@ -498,8 +479,8 @@ export const MobileShortCard = memo(function MobileShortCard({
       >
         {/* Author avatar with follow + badge */}
         <div className="relative">
-          <Link to={`/u/${post.author.username}`}>
-            <Avatar className="h-11 w-11 sm:h-12 sm:w-12 border-2 border-white shadow-lg">
+          <Link to={`/u/${post.author.username}`} className="story-ring rounded-full">
+            <Avatar className="h-11 w-11 sm:h-12 sm:w-12 border-2 border-background shadow-lg">
               <AvatarImage src={signedAvatarUrl || undefined} />
               <AvatarFallback className="bg-primary text-white font-bold text-sm sm:text-base">
                 {post.author.username[0].toUpperCase()}
@@ -538,7 +519,7 @@ export const MobileShortCard = memo(function MobileShortCard({
           <Bookmark
             className={cn(
               "h-7 w-7 sm:h-8 sm:w-8 drop-shadow-lg",
-              isBookmarked ? "fill-yellow-400 text-yellow-400" : "text-white"
+              isBookmarked ? "fill-primary text-primary" : "text-white"
             )}
           />
         </button>
@@ -575,7 +556,7 @@ export const MobileShortCard = memo(function MobileShortCard({
       >
         <div className="flex items-center gap-2 mb-1.5 sm:mb-2 flex-wrap">
           <Link to={`/u/${post.author.username}`} className="flex items-center gap-1.5 sm:gap-2">
-            {!tiktokLayout && (
+            {!immersiveFlow && (
               <Avatar className="h-5 w-5 sm:h-6 sm:w-6 border border-white/50">
                 <AvatarImage src={signedAvatarUrl || undefined} />
                 <AvatarFallback className="bg-primary text-white text-[10px] sm:text-xs font-bold">
@@ -583,7 +564,14 @@ export const MobileShortCard = memo(function MobileShortCard({
                 </AvatarFallback>
               </Avatar>
             )}
-            <span className="font-bold text-base sm:text-lg text-white drop-shadow-lg">
+            <span
+              className={cn(
+                'font-bold text-base sm:text-lg drop-shadow-lg',
+                immersiveFlow
+                  ? 'bg-gradient-to-r from-white via-white to-primary/90 bg-clip-text text-transparent'
+                  : 'text-white',
+              )}
+            >
               @{post.author.username}
             </span>
           </Link>
@@ -593,22 +581,23 @@ export const MobileShortCard = memo(function MobileShortCard({
           </div>
         </div>
 
-        {isVideo && tiktokLayout && (
+        {isVideo && immersiveFlow && (
           <button
             type="button"
             onClick={() => onToggleMute ? onToggleMute() : setIsMuted((m) => !m)}
-            className="flex items-center gap-2 mb-2 max-w-[min(100%,220px)] active:opacity-80"
+            className="flex items-center gap-2 mb-2 max-w-[min(100%,240px)] active:opacity-80"
           >
             <div
               className={cn(
-                'w-9 h-9 rounded-full bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0',
+                'relative w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 border border-primary/40',
+                'bg-gradient-to-br from-primary/30 via-accent/20 to-[hsl(var(--neon-pink)/0.25)]',
                 isPlaying && !isMuted && 'animate-[spin_4s_linear_infinite]',
               )}
             >
-              <Music2 className="w-4 h-4 text-white" />
+              <VybeMiniIcon size={18} />
             </div>
             <span className="text-xs text-white/90 truncate drop-shadow-md">
-              Original sound · @{post.author.username}
+              VYBE sound · @{post.author.username}
             </span>
           </button>
         )}
@@ -634,10 +623,10 @@ export const MobileShortCard = memo(function MobileShortCard({
         )}
         {post.tags && post.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 sm:gap-1.5">
-            {post.tags.slice(0, tiktokLayout ? 4 : undefined).map((tag) => (
+            {post.tags.slice(0, immersiveFlow ? 4 : undefined).map((tag) => (
               <span 
                 key={tag} 
-                className="text-[11px] sm:text-xs text-cyan-300 font-medium drop-shadow-lg"
+                className="text-[11px] sm:text-xs font-medium drop-shadow-lg text-primary"
               >
                 #{tag}
               </span>

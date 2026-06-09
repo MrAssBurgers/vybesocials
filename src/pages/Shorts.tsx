@@ -261,7 +261,7 @@ export default function ClipsPage() {
 
   const CardComponent = isMobileOrTablet ? MobileShortCard : ShortCard;
   const cardProps = isMobileOrTablet
-    ? { tiktokLayout: true as const }
+    ? { immersiveFlow: true as const }
     : {};
 
   return (
@@ -269,7 +269,7 @@ export default function ClipsPage() {
       <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
       <div
         ref={containerRef}
-        className="clips-scroll-container tiktok-clips-feed overflow-y-scroll scrollbar-hide bg-black"
+        className="clips-scroll-container vybe-clips-feed overflow-y-scroll scrollbar-hide bg-black"
         style={{
           height: containerHeight,
           scrollSnapType: 'y mandatory',

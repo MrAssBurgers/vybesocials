@@ -5203,12 +5203,7 @@ html.native-perf-mode .vybe-liquid-bg .vybe-liquid-bloom {
   }
 }
 
-/* Instagram-ready native shell — tighter feed rhythm, instant clip snap */
-html.instagram-ready .feed-post-card {
-  border-radius: 0;
-  margin-bottom: 0;
-}
-
+/* Instagram-ready native shell — keep feed cards rounded; clips use vybe-clips-page */
 html.instagram-ready .clips-scroll-container {
   scroll-snap-type: y mandatory;
   overscroll-behavior-y: contain;
@@ -5219,21 +5214,32 @@ html.instagram-ready .native-scroll-shell {
   scroll-padding-top: var(--app-header-height, 56px);
 }
 
-html.instagram-ready [data-post-card] {
-  border-bottom: 1px solid hsl(var(--border) / 0.35);
-}
-
-/* TikTok-style clips feed — full bleed under floating bottom nav */
+/* VYBE clips feed — TikTok-style flow, brand chrome */
 html.vybe-clips-page {
   --clips-bottom-ui: calc(env(safe-area-inset-bottom, 0px) + 78px);
 }
 
-html.vybe-clips-page .tiktok-clips-feed {
+html.vybe-clips-page .vybe-clips-feed {
   scroll-snap-type: y mandatory;
 }
 
-html.vybe-clips-page .tiktok-clips-feed::-webkit-scrollbar {
+html.vybe-clips-page .vybe-clips-feed::-webkit-scrollbar {
   display: none;
+}
+
+html.vybe-clips-page .clips-feed-header::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--primary) / 0.35),
+    hsl(var(--accent) / 0.35),
+    transparent
+  );
+  pointer-events: none;
 }
 
 .ai-chat-composer {
