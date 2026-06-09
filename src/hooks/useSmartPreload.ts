@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useNetworkStatus } from './useNetworkStatus';
+import { shouldPreloadMediaUrl } from '@/lib/mediaUrl';
 
 interface PreloadConfig {
   /** URLs to preload */
@@ -51,31 +52,25 @@ export function useSmartPreload({
 
   // Preload function
   const preload = useCallback((url: string) => {
-    if (preloadedUrls.current.has(url)) return;
-    
+    if (!shouldPreloadMediaUrl(url) || preloadedUrls.current.has(url)) return;
+
+    preloadedUrls.current.add(url);
+
     const isVideo = /\.(mp4|webm|mov|m3u8)(\?|$)/i.test(url);
-    
+
     if (isVideo) {
-      // For videos, just preload metadata (fast, low bandwidth)
       const video = document.createElement('video');
       video.preload = 'metadata';
       video.muted = true;
       video.src = url;
-      video.onloadedmetadata = () => {
-        preloadedUrls.current.add(url);
+      video.onerror = () => {
+        preloadedUrls.current.delete(url);
       };
     } else {
-      // For images, use link preload and Image object
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.as = 'image';
-      link.href = url;
-      document.head.appendChild(link);
-      
       const img = new Image();
       img.src = url;
-      img.onload = () => {
-        preloadedUrls.current.add(url);
+      img.onerror = () => {
+        preloadedUrls.current.delete(url);
       };
     }
   }, []);
@@ -102,7 +97,7 @@ export function useSmartPreload({
     
     for (let i = startIndex; i < endIndex; i++) {
       const url = urls[i];
-      if (url && typeof url === 'string' && url.startsWith('http')) {
+      if (url && typeof url === 'string' && shouldPreloadMediaUrl(url)) {
         // Use requestIdleCallback for non-blocking preload
         if ('requestIdleCallback' in window) {
           requestIdleCallback(() => preload(url), { timeout: 2000 });

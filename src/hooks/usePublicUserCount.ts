@@ -11,9 +11,16 @@ export function usePublicUserCount() {
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc('get_public_user_count');
       if (error) {
-        // RPC missing until migration is applied — don't treat as zero members.
-        if (/could not find the function/i.test(error.message)) {
-          throw new Error('PUBLIC_USER_COUNT_RPC_MISSING');
+        const code = (error as { code?: string }).code;
+        const msg = error.message || '';
+        // RPC missing on preview DB or not migrated yet — fail soft, no console spam.
+        if (
+          code === 'PGRST202' ||
+          code === '42883' ||
+          /could not find the function/i.test(msg) ||
+          /404/.test(msg)
+        ) {
+          return null;
         }
         throw error;
       }
@@ -21,11 +28,6 @@ export function usePublicUserCount() {
     },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    retry: (failureCount, error) => {
-      if (error instanceof Error && error.message === 'PUBLIC_USER_COUNT_RPC_MISSING') {
-        return false;
-      }
-      return failureCount < 2;
-    },
+    retry: false,
   });
 }

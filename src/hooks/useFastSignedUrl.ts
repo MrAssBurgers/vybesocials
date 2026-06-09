@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useSyncExternalStore, useRef, useMemo } from 'react';
 import { getCachedSignedUrl, getSignedUrl, needsSigning, batchSignUrls } from '@/lib/signedUrlCache';
+import { normalizeMediaUrl } from '@/lib/mediaUrl';
 
 // Subscribers for reactive updates when cache changes
 const subscribers = new Set<() => void>();
@@ -26,52 +27,47 @@ function subscribe(callback: () => void) {
  * Falls back to async fetch if not cached
  */
 export function useFastSignedUrl(publicUrl: string | null | undefined): string | null {
-  // Try cache first (synchronous) - this enables instant display
+  const normalizedUrl = normalizeMediaUrl(publicUrl);
   const cached = useSyncExternalStore(
     subscribe,
-    () => getCachedSignedUrl(publicUrl),
-    () => getCachedSignedUrl(publicUrl)
+    () => getCachedSignedUrl(normalizedUrl),
+    () => getCachedSignedUrl(normalizedUrl)
   );
   
   const [asyncUrl, setAsyncUrl] = useState<string | null>(null);
   const fetchedRef = useRef<string | null>(null);
   
   useEffect(() => {
-    if (!publicUrl) {
+    if (!normalizedUrl) {
       setAsyncUrl(null);
       return;
     }
     
-    // If not a storage URL, use directly
-    if (!needsSigning(publicUrl)) {
-      setAsyncUrl(publicUrl);
+    if (!needsSigning(normalizedUrl)) {
+      setAsyncUrl(normalizedUrl);
       return;
     }
     
-    // If already cached or we already fetched this URL, skip
-    if (cached || fetchedRef.current === publicUrl) {
+    if (cached || fetchedRef.current === normalizedUrl) {
       return;
     }
     
-    // Fetch async
-    fetchedRef.current = publicUrl;
+    fetchedRef.current = normalizedUrl;
     let cancelled = false;
     
-    getSignedUrl(publicUrl).then(url => {
+    getSignedUrl(normalizedUrl).then(url => {
       if (cancelled) return;
-      if (url && url !== publicUrl) {
+      if (url && url !== normalizedUrl) {
         setAsyncUrl(url);
       }
-      // Always notify so consumers can react to failed entries too
       notifySubscribers();
     }).catch(() => {
       if (!cancelled) notifySubscribers();
     });
     
     return () => { cancelled = true; };
-  }, [publicUrl, cached]);
+  }, [normalizedUrl, cached]);
   
-  // Return cached first, then async result
   return cached || asyncUrl;
 }
 
@@ -91,9 +87,10 @@ export function useFastSignedUrls(urls: (string | null | undefined)[]): (string 
     
     // First pass: get all cached immediately
     const results: (string | null)[] = urls.map(url => {
-      if (!url) return null;
-      if (!needsSigning(url)) return url;
-      return getCachedSignedUrl(url);
+      const normalized = normalizeMediaUrl(url);
+      if (!normalized) return null;
+      if (!needsSigning(normalized)) return normalized;
+      return getCachedSignedUrl(normalized);
     });
     
     setSignedUrls(results);
@@ -101,8 +98,9 @@ export function useFastSignedUrls(urls: (string | null | undefined)[]): (string 
     // Find uncached URLs (deduplicated)
     const uncached = new Set<string>();
     urls.forEach((url, i) => {
-      if (url && needsSigning(url) && !results[i]) {
-        uncached.add(url);
+      const normalized = normalizeMediaUrl(url);
+      if (normalized && needsSigning(normalized) && !results[i]) {
+        uncached.add(normalized);
       }
     });
     
@@ -115,9 +113,10 @@ export function useFastSignedUrls(urls: (string | null | undefined)[]): (string 
       
       // Re-read from cache after batch sign
       const updated = urls.map(url => {
-        if (!url) return null;
-        if (!needsSigning(url)) return url;
-        return getCachedSignedUrl(url) || url;
+        const normalized = normalizeMediaUrl(url);
+        if (!normalized) return null;
+        if (!needsSigning(normalized)) return normalized;
+        return getCachedSignedUrl(normalized) || normalized;
       });
       
       setSignedUrls(updated);
@@ -141,7 +140,10 @@ export function usePreloadUrls(urls: (string | null | undefined)[]) {
     if (preloadedRef.current === urlsKey) return;
     preloadedRef.current = urlsKey;
     
-    const toPreload = urls.filter(u => u && needsSigning(u) && !getCachedSignedUrl(u));
+    const toPreload = urls.filter(u => {
+      const normalized = normalizeMediaUrl(u);
+      return normalized && needsSigning(normalized) && !getCachedSignedUrl(normalized);
+    });
     if (toPreload.length === 0) return;
     
     // Use batch API instead of individual calls

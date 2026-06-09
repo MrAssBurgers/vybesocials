@@ -32,6 +32,7 @@ import { CommentSheet } from '@/components/comments/CommentSheet';
 import { ShareSheet } from '@/components/share/ShareSheet';
 import { HoldToShare } from '@/components/share/HoldToShare';
 import { FollowPlusButton } from '@/components/clips/FollowPlusButton';
+import { isValidMediaUrl } from '@/lib/mediaUrl';
 
 interface ShortCardProps {
   post: {
@@ -404,7 +405,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     return count.toString();
   };
 
-  const isVideo = post.media_url.includes('.mp4') || post.media_url.includes('.webm') || post.media_url.includes('.mov');
+  const isVideo = !!post.media_url && (post.media_url.includes('.mp4') || post.media_url.includes('.webm') || post.media_url.includes('.mov'));
+  const hasRenderableMedia = isValidMediaUrl(post.media_url);
 
   return (
     <div className="relative h-full w-full bg-black flex items-center justify-center overflow-hidden">
@@ -420,16 +422,16 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         onMouseLeave={handleTouchEnd}
       >
         {/* Loading skeleton */}
-        {isLoading && !hasError && (
+        {hasRenderableMedia && isLoading && !hasError && (
           <MediaSkeleton className="absolute inset-0" />
         )}
 
-        {/* Error fallback */}
-        {hasError && (
+        {/* Error / blocked media fallback */}
+        {(hasError || !hasRenderableMedia) && (
           <MediaFallback type={isVideo ? 'video' : 'image'} caption={post.caption} className="absolute inset-0" />
         )}
 
-        {isVideo ? (
+        {hasRenderableMedia && isVideo ? (
           <video
             ref={videoRef}
             src={signedMediaUrl || undefined}

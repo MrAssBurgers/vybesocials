@@ -84,6 +84,7 @@ export function YouTubePlayer({
           modestbranding: 1,
           rel: 0,
           playsinline: 1,
+          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
         },
         events: {
           onReady: () => {

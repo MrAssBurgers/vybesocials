@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { shouldPreloadMediaUrl, normalizeMediaUrl } from '@/lib/mediaUrl';
 
 // Global cache for preloaded media
 const preloadCache = new Set<string>();
@@ -63,8 +64,8 @@ export function useVideoPreload(
     const end = Math.min(currentIndex + preloadDepth, videoUrls.length);
 
     for (let i = start; i < end; i++) {
-      const url = videoUrls[i];
-      if (!url || preloadCache.has(url) || preloadingInProgress.has(url)) continue;
+      const url = normalizeMediaUrl(videoUrls[i]);
+      if (!url || !shouldPreloadMediaUrl(url) || preloadCache.has(url) || preloadingInProgress.has(url)) continue;
       if (preloadingInProgress.size >= MAX_CONCURRENT_PRELOADS) break;
 
       preloadingInProgress.add(url);

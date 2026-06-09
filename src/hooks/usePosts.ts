@@ -8,15 +8,9 @@ import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
 import { setCachedProfiles } from '@/lib/profileCache';
 
-// Utility to validate media URLs - now returns true for any non-empty URL
-// so migrated posts with broken storage links still appear (with placeholder)
-function isValidMediaUrl(url: string | null | undefined): boolean {
-  if (!url) return false;
-  if (typeof url !== 'string') return false;
-  if (url.trim() === '') return false;
-  if (url === 'undefined' || url === 'null') return false;
-  return true; // Allow all URLs, broken ones will show placeholder
-}
+import { isValidMediaUrl } from '@/lib/mediaUrl';
+
+export { isValidMediaUrl };
 
 interface Post {
   id: string;

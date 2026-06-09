@@ -798,9 +798,11 @@ const VybeHome = memo(function VybeHome() {
               </div>
               <span className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                {countLoading || countError
+                {countLoading || (countError && liveUserCount == null)
                   ? 'Joining a small, growing crew'
-                  : `${(liveUserCount ?? 0).toLocaleString()} ${liveUserCount === 1 ? 'early member' : 'early members'}`}
+                  : liveUserCount == null
+                    ? 'Joining a small, growing crew'
+                    : `${liveUserCount.toLocaleString()} ${liveUserCount === 1 ? 'early member' : 'early members'}`}
               </span>
             </div>
             <h1 className="font-display font-black text-5xl sm:text-6xl lg:text-7xl leading-[1.05] tracking-tight">

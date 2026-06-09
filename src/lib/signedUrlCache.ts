@@ -6,6 +6,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { getSupabaseProjectRef } from '@/lib/supabaseStorageKey';
+import { normalizeMediaUrl } from '@/lib/mediaUrl';
 
 interface CacheEntry {
   signedUrl: string;
@@ -24,13 +25,16 @@ const FAILED_CACHE_DURATION = 30 * 1000;
 
 // Project IDs for URL validation (current + legacy)
 const CURRENT_SUPABASE_PROJECT = getSupabaseProjectRef();
-const LEGACY_SUPABASE_PROJECT = 'eabvbtkxdbttjpdpbmuw';
+const LEGACY_SUPABASE_PROJECTS = [
+  'eabvbtkxdbttjpdpbmuw',
+  'agtcyxjxgkdyoxwxkjth',
+  'szthqtnbepupjqjxaduu',
+  'hprmicwhlaaqfgshucec',
+];
 
-/**
- * Check if URL belongs to the current Supabase project
- */
 function isProjectUrl(url: string): boolean {
-  return url.includes(CURRENT_SUPABASE_PROJECT) || url.includes(LEGACY_SUPABASE_PROJECT);
+  if (url.includes(CURRENT_SUPABASE_PROJECT)) return true;
+  return LEGACY_SUPABASE_PROJECTS.some((ref) => url.includes(ref));
 }
 
 /**
@@ -72,88 +76,77 @@ export function needsSigning(url: string | null | undefined): boolean {
  * Returns original URL for failed entries (cached 404s)
  */
 export function getCachedSignedUrl(publicUrl: string | null | undefined): string | null {
-  if (!publicUrl) return null;
-  
-  // Not a storage URL - return as-is
-  if (!needsSigning(publicUrl)) return publicUrl;
-  
-  const entry = cache.get(publicUrl);
+  const url = normalizeMediaUrl(publicUrl);
+  if (!url) return null;
+
+  if (!needsSigning(url)) return url;
+
+  const entry = cache.get(url);
   if (entry && entry.expiresAt > Date.now()) {
-    // Return null for failed entries so consumers show loading/retry instead of broken image
     return entry.failed ? null : entry.signedUrl;
   }
-  
+
   return null;
 }
 
-/**
- * Check if a URL has failed (404) and is cached
- */
 export function isFailedUrl(publicUrl: string): boolean {
-  const entry = cache.get(publicUrl);
+  const url = normalizeMediaUrl(publicUrl);
+  if (!url) return false;
+  const entry = cache.get(url);
   return !!(entry && entry.failed && entry.expiresAt > Date.now());
 }
 
-/**
- * Get or create signed URL (async with deduplication)
- */
 export async function getSignedUrl(publicUrl: string): Promise<string | null> {
-  if (!publicUrl) return null;
-  
-  // Not a storage URL - return as-is
-  if (!needsSigning(publicUrl)) return publicUrl;
-  
-  // Check cache (includes failed entries)
-  const entry = cache.get(publicUrl);
+  const url = normalizeMediaUrl(publicUrl);
+  if (!url) return null;
+
+  if (!needsSigning(url)) return url;
+
+  const entry = cache.get(url);
   if (entry && entry.expiresAt > Date.now()) {
     return entry.failed ? null : entry.signedUrl;
   }
-  
-  // Check if already fetching
-  const pending = pendingRequests.get(publicUrl);
+
+  const pending = pendingRequests.get(url);
   if (pending) return pending;
-  
-  // Create new request
+
   const request = (async () => {
     try {
-      const parsed = parseStorageUrl(publicUrl);
-      if (!parsed) return publicUrl;
-      
+      const parsed = parseStorageUrl(url);
+      if (!parsed) return url;
+
       const { data, error } = await supabase.storage
         .from(parsed.bucket)
         .createSignedUrl(parsed.path, 3600);
-      
+
       if (error || !data?.signedUrl) {
-        // Cache the failure to prevent repeated attempts
-        cache.set(publicUrl, {
-          signedUrl: publicUrl,
+        cache.set(url, {
+          signedUrl: url,
           expiresAt: Date.now() + FAILED_CACHE_DURATION,
           failed: true,
         });
-        return publicUrl; // Fallback to original
+        return null;
       }
-      
-      // Cache the success
-      cache.set(publicUrl, {
+
+      cache.set(url, {
         signedUrl: data.signedUrl,
         expiresAt: Date.now() + CACHE_DURATION,
       });
-      
+
       return data.signedUrl;
     } catch {
-      // Cache the failure
-      cache.set(publicUrl, {
-        signedUrl: publicUrl,
+      cache.set(url, {
+        signedUrl: url,
         expiresAt: Date.now() + FAILED_CACHE_DURATION,
         failed: true,
       });
-      return publicUrl;
+      return null;
     } finally {
-      pendingRequests.delete(publicUrl);
+      pendingRequests.delete(url);
     }
   })();
-  
-  pendingRequests.set(publicUrl, request);
+
+  pendingRequests.set(url, request);
   return request;
 }
 
@@ -167,17 +160,17 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
   const urlsToSign: { url: string; bucket: string; path: string }[] = [];
   
   for (const url of uniqueUrls) {
-    if (!needsSigning(url)) continue;
+    const normalized = normalizeMediaUrl(url);
+    if (!normalized || !needsSigning(normalized)) continue;
     
-    // Check if already cached (including failed entries)
-    const entry = cache.get(url);
+    const entry = cache.get(normalized);
     if (entry && entry.expiresAt > Date.now()) continue;
-    
-    if (pendingRequests.has(url)) continue; // Already fetching
-    
-    const parsed = parseStorageUrl(url);
+
+    if (pendingRequests.has(normalized)) continue;
+
+    const parsed = parseStorageUrl(normalized);
     if (parsed) {
-      urlsToSign.push({ url, ...parsed });
+      urlsToSign.push({ url: normalized, ...parsed });
     }
   }
   

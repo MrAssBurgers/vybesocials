@@ -131,20 +131,7 @@ export const SafeVideo = memo(forwardRef<HTMLVideoElement, SafeVideoProps>(
 /**
  * Utility to check if a media URL is valid
  */
-export function isValidMediaUrl(url: string | null | undefined): boolean {
-  if (!url) return false;
-  if (typeof url !== 'string') return false;
-  if (url.trim() === '') return false;
-  
-  // Check for common invalid patterns
-  if (url === 'undefined' || url === 'null') return false;
-  
-  // Must start with http/https or be a relative path
-  return url.startsWith('http://') || 
-         url.startsWith('https://') || 
-         url.startsWith('/') ||
-         url.startsWith('blob:');
-}
+export { isValidMediaUrl } from '@/lib/mediaUrl';
 
 /**
  * Filter posts to only include those with valid media

@@ -14,6 +14,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { batchSignUrls, getCachedSignedUrl, needsSigning } from '@/lib/signedUrlCache';
+import { normalizeMediaUrl, shouldPreloadMediaUrl } from '@/lib/mediaUrl';
 
 interface PostLike {
   id: string;
@@ -65,7 +66,7 @@ function schedule(task: (done: () => void) => void) {
 }
 
 function preloadImage(url: string) {
-  if (preloaded.has(url)) return;
+  if (!shouldPreloadMediaUrl(url) || preloaded.has(url)) return;
   preloaded.add(url);
   schedule((done) => {
     const img = new Image();
@@ -84,7 +85,7 @@ function preloadImage(url: string) {
 }
 
 function preloadVideoFirstFrame(url: string) {
-  if (preloaded.has(url)) return;
+  if (!shouldPreloadMediaUrl(url) || preloaded.has(url)) return;
   preloaded.add(url);
   // iOS chokes on hidden <video> decoding — only preload metadata there
   schedule((done) => {
@@ -144,9 +145,9 @@ export function useAheadMediaPreload(
     // 1) Collect every URL we want signed
     const urlsToSign: string[] = [];
     for (const p of window) {
-      if (p.thumbnail_url) urlsToSign.push(p.thumbnail_url);
-      if (p.media_url) urlsToSign.push(p.media_url);
-      if (p.author?.avatar_url) urlsToSign.push(p.author.avatar_url);
+      if (shouldPreloadMediaUrl(p.thumbnail_url)) urlsToSign.push(p.thumbnail_url!);
+      if (shouldPreloadMediaUrl(p.media_url)) urlsToSign.push(p.media_url!);
+      if (shouldPreloadMediaUrl(p.author?.avatar_url)) urlsToSign.push(p.author!.avatar_url!);
     }
 
     // 2) Sign in one batch, then warm media
@@ -184,7 +185,7 @@ export function useAheadMediaPreload(
  */
 export function warmMediaAhead(urls: Array<{ url: string; isVideo?: boolean }>) {
   for (const item of urls) {
-    if (!item.url) continue;
+    if (!shouldPreloadMediaUrl(item.url)) continue;
     if (item.isVideo) preloadVideoFirstFrame(item.url);
     else preloadImage(item.url);
   }
