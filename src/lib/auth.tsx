@@ -527,6 +527,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     };
     document.addEventListener('visibilitychange', resumeRefresh);
+    window.addEventListener('app-resumed', resumeRefresh);
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) resumeRefresh();
+    };
+    window.addEventListener('pageshow', onPageShow);
 
     // Try to extract hash tokens first (redirect OAuth flow on mobile/tablet).
     // If successful, onAuthStateChange will fire with the session.
@@ -550,6 +555,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const { data: { session }, error } = result;
         if (error) {
+          if (hasStoredToken()) {
+            logEvent('auth', 'getSession error with stored token — refreshing', { error: error.message });
+            const { data: refreshed, error: refreshError } = await refreshStoredSession();
+            if (refreshed.session?.user) {
+              logEvent('auth', 'refreshSession restored session after getSession error', { userId: refreshed.session.user.id });
+              authInitializedRef.current = true;
+              setSession(refreshed.session);
+              setUser(refreshed.session.user);
+              if (refreshed.session.expires_at) scheduleTokenRefresh(refreshed.session.expires_at);
+              fetchProfile(refreshed.session.user.id);
+              sessionStorage.removeItem('vybe-oauth-pending');
+              setLoading(false);
+              setIsInitialized(true);
+              return;
+            }
+            if (!refreshError || !isFatalRefreshError(refreshError.message)) {
+              logEvent('auth', 'Keeping stored token after getSession error (offline/slow network)');
+              hydrateCachedProfile();
+              authInitializedRef.current = true;
+              setLoading(false);
+              setIsInitialized(true);
+              return;
+            }
+          }
+
           logEvent('auth', 'getSession error (stale token?) — starting fresh', { error: error.message });
           setSession(null);
           setUser(null);
@@ -641,6 +671,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Cleanup on unmount
     return () => {
       document.removeEventListener('visibilitychange', resumeRefresh);
+      window.removeEventListener('app-resumed', resumeRefresh);
+      window.removeEventListener('pageshow', onPageShow);
       window.clearTimeout(authSafetyTimeout);
       subscription.unsubscribe();
       if (refreshTimerRef.current) {

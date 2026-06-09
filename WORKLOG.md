@@ -8,7 +8,13 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Lovable Publish** — PWA-first offline (default); Despia URL mode on vybehub.app
 
 ## Publish log
-- **2026-06-02** — PWA default offline mode; Despia local server opt-in via `VITE_OFFLINE_MODE`. **Lovable Publish pending.**
+- **2026-06-02** — auth resume + email callback hardening. **Lovable Publish pending.**
+
+## What Changed (auth hardening)
+- **getSession errors** — refresh stored token instead of clearing session on native cold start
+- **App resume** — refresh on `visibilitychange`, `app-resumed`, iOS `pageshow` bfcache
+- **AuthCallback** — detect `token_hash` / `refresh_token`; don’t bounce valid email links
+- **Password reset** — always uses `https://vybehub.app/reset-password` on native shells
 
 ## What Changed (PWA default)
 - **`VITE_OFFLINE_MODE=pwa`** — service worker caches shell; skip `despia/local.json` unless `despia-local`

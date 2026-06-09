@@ -22,17 +22,21 @@ export default function AuthCallback() {
     try {
       const hash = window.location.hash || '';
       const search = window.location.search || '';
+      const combined = `${hash}${search}`;
       const hasError = /(?:^|[?&#])error=/.test(hash) || /(?:^|[?&])error=/.test(search);
-      const hasTokens = /access_token=|code=/.test(hash) || /code=/.test(search);
-      if (hasError || !hasTokens) {
+      const hasTokens = /access_token=|refresh_token=|code=|token_hash=/.test(combined);
+      if (hasError) {
         sessionStorage.removeItem('vybe-oauth-pending');
-        // Tiny delay lets Supabase's detectSessionInUrl run if tokens *are*
-        // actually present and just need a tick to parse.
+        navigate('/', { replace: true });
+        return;
+      }
+      if (!hasTokens) {
+        sessionStorage.removeItem('vybe-oauth-pending');
         const t = setTimeout(() => {
           if (!sessionStorage.getItem('vybe-oauth-pending')) {
-            navigate('/', { replace: true });
+            navigate('/auth', { replace: true });
           }
-        }, 250);
+        }, 800);
         return () => clearTimeout(t);
       }
     } catch { /* ignore */ }
@@ -80,7 +84,7 @@ export default function AuthCallback() {
     }
 
     if (timedOut) {
-      navigate('/', { replace: true });
+      navigate('/auth', { replace: true });
     }
   }, [user, profile, profileSettled, timedOut, navigate]);
 

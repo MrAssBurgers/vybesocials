@@ -35,3 +35,8 @@ export function getAuthRedirectUrl(path = '/auth/callback'): string {
 
   return `${origin}${cleanPath}`;
 }
+
+/** Password reset links must use production HTTPS on native shells. */
+export function getPasswordResetRedirectUrl(): string {
+  return getAuthRedirectUrl('/reset-password');
+}

@@ -1,13 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-
-export function getPasswordResetRedirectUrl(): string {
-  if (typeof window === 'undefined') return 'https://vybehub.app/reset-password';
-  const { origin } = window.location;
-  if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-    return `${origin}/reset-password`;
-  }
-  return 'https://vybehub.app/reset-password';
-}
+import { getPasswordResetRedirectUrl } from '@/lib/authRedirect';
 
 /** Branded Resend email when configured; falls back to Supabase Auth email. */
 export async function requestPasswordReset(email: string): Promise<void> {
