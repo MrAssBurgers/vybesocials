@@ -5,11 +5,17 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — push realtime fix + Share → Publish for vybehub.app
+- **Lovable Publish** — push `d1ebdbd9` then Share → Publish for vybehub.app
 - **Local preview** — `http://127.0.0.1:8080`
-- **App Store resubmit** — Despia build > 6061901 + NFC demo video
 
-## What Changed (realtime crash fix — local)
+## What Changed (DM scroll + header — `d1ebdbd9`)
+- **`AppLayout` / `Messages` / `ChatView`** — removed `touch-action: none` scroll trap in DMs
+- **`ConversationList`** — native overflow scroll instead of Radix ScrollArea
+- **`MobileHeader`** — unified glass pill bar, lower below status bar, cleaner icons + search
+
+## Publish log
+- **2026-06-08** — pushed `d1ebdbd9` (DM scroll fix + header redesign). **Lovable Publish pending.**
+- **2026-06-08** — pushed `edbf9205` / `28cdf141` (Realtime crash fix). Lovable Publish pending.
 - **`realtimeChannel.ts`** — remove stale channels by topic before `.on()` / `.subscribe()` (fixes `postgres_changes after subscribe()` crashes)
 - **`auth.tsx`** — single ban-status subscription via safe helper
 - **`useBanStatus.ts`** — removed duplicate ban realtime (auth owns it)
