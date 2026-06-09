@@ -14,6 +14,7 @@ import { installDespiaRealtimeTransport } from "./lib/installDespiaRealtimeTrans
 import { initSentry } from "./lib/sentry";
 import { initNativePerfMode } from "./lib/nativePerfMode";
 import { repairSupabaseAuthStorage } from "./lib/supabaseStorageKey";
+import { installAuthSessionKeepAlive } from "./lib/authSessionKeepAlive";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { installDespiaNfcDispatcher } from "./lib/despiaNFCv2";
 
@@ -23,6 +24,7 @@ initSentry();
 // Native store shell: static aurora + reduced motion before first paint.
 initNativePerfMode();
 repairSupabaseAuthStorage();
+installAuthSessionKeepAlive();
 
 // Despia NFC: define window.onNFCEvent multiplexer before any nfc://read/write.
 installDespiaNfcDispatcher();

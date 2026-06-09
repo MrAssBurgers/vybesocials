@@ -3,6 +3,7 @@ import { MobileHeader } from './MobileHeader';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
 import { useAuth } from '@/lib/auth';
+import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
 import { usePresence } from '@/hooks/usePresence';
 import { useScrollOptimization } from '@/hooks/useScrollOptimization';
 import { useScreenTimeTracker } from '@/hooks/useScreenTime';
@@ -10,6 +11,7 @@ import { useBreakpoint } from '@/hooks/usePlatform';
 import { cn } from '@/lib/utils';
 import { useDefaultLiquidBackground } from '@/hooks/useDefaultLiquidBackground';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
 import { Enable2FANudge } from '@/components/auth/Enable2FANudge';
 import { PhoneVerifyGate } from '@/components/auth/PhoneVerifyGate';
@@ -34,10 +36,12 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   noPadding = false,
 }, ref) {
   const { loading } = useAuth();
+  const hasStoredSession = hasStoredSupabaseSession();
   const { isDesktop } = useBreakpoint();
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [navEffectiveVisible, setNavEffectiveVisible] = useState(true);
-  const { swipeBackHandlers, swipeProgress } = useSwipeBack(!isNativePerfMode());
+  const nativePerf = isNativePerfMode();
+  const { swipeBackHandlers, swipeProgress } = useSwipeBack(!nativePerf);
   const showLiquidBg = useDefaultLiquidBackground();
 
   useEffect(() => navVisibility.subscribeEffective(setNavEffectiveVisible), []);
@@ -46,7 +50,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   useScreenTimeTracker();
   useScrollOptimization();
 
-  if (loading) {
+  if (loading && !hasStoredSession) {
     return (
       <div className={cn('min-h-screen bg-background', showLiquidBg && 'bg-transparent')}>
         {children}
@@ -124,7 +128,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             className={cn(
               'overflow-x-hidden relative z-[2] bg-background',
               showLiquidBg && 'bg-transparent',
-              noPadding ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-y-auto scroller',
+              noPadding ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-y-auto scroller native-scroll-shell',
               !hideNav && !noPadding ? 'content-with-header' : '',
             )}
             style={{
@@ -143,7 +147,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
                     : 'env(safe-area-inset-bottom)',
               WebkitOverflowScrolling: 'touch',
               overscrollBehaviorY: 'contain',
-              transform: swipeProgress > 0 ? `translateX(${swipeProgress * 60}px)` : undefined,
+              transform: !nativePerf && swipeProgress > 0 ? `translateX(${swipeProgress * 60}px)` : undefined,
               transition:
                 swipeProgress === 0
                   ? 'transform 0.2s ease-out, padding-bottom 0.3s ease'

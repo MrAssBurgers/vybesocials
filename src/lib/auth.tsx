@@ -6,6 +6,7 @@ import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache } from '@/lib/profileCache';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
+import { setWasLoggedIn } from '@/lib/wasLoggedIn';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { logEvent } from '@/lib/debugLogger';
@@ -480,6 +481,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch { /* noop */ }
 
         if (session?.user) {
+          setWasLoggedIn(true);
           logEvent('auth', 'Session active, fetching profile', { userId: session.user.id });
           startHeartbeat();
           if (session.expires_at) {
@@ -492,6 +494,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           sessionStorage.removeItem('vybe-oauth-pending');
         } else if (event === 'SIGNED_OUT') {
+          setWasLoggedIn(false);
           // Only clear state on explicit sign-out, not on ambiguous events
           logEvent('auth', 'Explicit sign out — clearing state');
           setProfile(null);
@@ -560,6 +563,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const { data: refreshed, error: refreshError } = await refreshStoredSession();
             if (refreshed.session?.user) {
               logEvent('auth', 'refreshSession restored session after getSession error', { userId: refreshed.session.user.id });
+              setWasLoggedIn(true);
               authInitializedRef.current = true;
               setSession(refreshed.session);
               setUser(refreshed.session.user);
@@ -607,6 +611,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (data.session?.user) {
             logEvent('auth', 'refreshSession restored session', { userId: data.session.user.id });
+            setWasLoggedIn(true);
             authInitializedRef.current = true;
             setSession(data.session);
             setUser(data.session.user);
@@ -646,6 +651,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          setWasLoggedIn(true);
           if (session.expires_at) {
             scheduleTokenRefresh(session.expires_at);
           }
@@ -756,6 +762,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    setWasLoggedIn(false);
     // 1) Flip local auth state IMMEDIATELY so the UI navigates instantly.
     setProfile(null);
     setUser(null);

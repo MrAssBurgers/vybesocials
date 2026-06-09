@@ -28,6 +28,7 @@ import { CreatorAnalytics } from '@/components/analytics/CreatorAnalytics';
 import { BattlePassWidget } from '@/components/gamification/BattlePassWidget';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { useAheadMediaPreload } from '@/hooks/useAheadMediaPreload';
 import { FEED_PRELOAD_AHEAD } from '@/lib/performanceConfig';
 import { useFeedOfflineState } from '@/hooks/useFeedOfflineState';
@@ -495,6 +496,7 @@ function InlinePostList({
   // Attach the load-more sentinel 5 posts BEFORE the end so the next page
   // is fetched while the user is still scrolling through current content.
   const earlyTriggerIndex = Math.max(0, posts.length - 5);
+  const postIntrinsicHeight = isNativePerfMode() ? 520 : 720;
 
   let rewardCount = 0;
 
@@ -507,11 +509,11 @@ function InlinePostList({
       {posts.map((post, index) => (
         <div
           key={post.id}
+          data-post-card
           ref={registerPostRef(index)}
           style={{
-            // Browser skips layout/paint for cards offscreen — major scroll win
             contentVisibility: 'auto',
-            containIntrinsicSize: '0 720px',
+            containIntrinsicSize: `0 ${postIntrinsicHeight}px`,
           }}
         >
           <MemoizedPostCard post={post} />

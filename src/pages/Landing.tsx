@@ -27,6 +27,7 @@ import { VybeLiquidBackground } from '@/components/effects/VybeLiquidBackground'
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
 import { useAuthLandingLiquid } from '@/hooks/useDefaultLiquidBackground';
+import { useEmailVerificationPoll } from '@/hooks/useEmailVerificationPoll';
 
 
 // Hide bottom nav on landing page + lock document scroll (auth is one-screen)
@@ -152,6 +153,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   }>(null);
   const [gatePending, setGatePending] = useState(false);
   const [awaitingEmailVerification, setAwaitingEmailVerification] = useState(false);
+  useEmailVerificationPoll(awaitingEmailVerification, () => setAwaitingEmailVerification(false));
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -646,7 +648,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
                       We sent a verification link to{' '}
                       <span className="text-foreground font-medium">{formData.email}</span>.
-                      Open it to activate your account, then you&apos;ll go straight into onboarding.
+                      Open it to activate your account — check spam and promotions too.
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/80">
+                      This screen updates automatically once you verify.
                     </p>
                   </div>
                   <Button

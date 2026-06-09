@@ -5170,8 +5170,18 @@ html.native-perf-mode .liquid-glass,
 html.native-perf-mode .liquid-glass-card,
 html.native-perf-mode .liquid-glass-button,
 html.native-perf-mode .glass-card {
-  backdrop-filter: blur(6px) !important;
-  -webkit-backdrop-filter: blur(6px) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.native-perf-mode .native-scroll-shell {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  contain: strict;
+}
+
+html.native-perf-mode [style*="content-visibility"] {
+  contain-intrinsic-size: 0 520px;
 }
 
 html.native-perf-mode .vybe-liquid-bg .vybe-liquid-blob,

@@ -28,6 +28,7 @@ import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import { useContrastAutoGuard } from "@/hooks/useContrastAutoGuard";
 import { isNativePerfMode } from "@/lib/nativePerfMode";
 import { hasStoredSupabaseSession } from "@/lib/supabaseStorageKey";
+import { getWasLoggedIn, setWasLoggedIn } from "@/lib/wasLoggedIn";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
 import LocalErrorBoundary from "@/components/error/LocalErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
@@ -209,17 +210,6 @@ function BriefPreFetchInit() {
 
 // Persist a flag whenever the user has an active session, so on next boot
 // we know to keep the splash up until auth resolves (no login flash).
-const WAS_LOGGED_IN_KEY = 'vybe-was-logged-in';
-function getWasLoggedIn(): boolean {
-  try { return localStorage.getItem(WAS_LOGGED_IN_KEY) === '1'; } catch { return false; }
-}
-function setWasLoggedIn(value: boolean) {
-  try {
-    if (value) localStorage.setItem(WAS_LOGGED_IN_KEY, '1');
-    else localStorage.removeItem(WAS_LOGGED_IN_KEY);
-  } catch { /* noop */ }
-}
-
 // Tracks Supabase auth resolution at the App root so the splash can wait for it.
 function useAuthResolved() {
   const [resolved, setResolved] = useState(false);

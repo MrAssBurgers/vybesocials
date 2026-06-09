@@ -5,10 +5,16 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Lovable Publish** — PWA-first offline (default); Despia URL mode on vybehub.app
+- **Lovable Publish** — Instagram-ready native pass (auth keepalive, scroll perf, email poll)
 
 ## Publish log
-- **2026-06-02** — auth resume + email callback hardening. **Lovable Publish pending.**
+- **2026-06-02** — Instagram-ready native foundation. **Lovable Publish pending.**
+
+## What Changed (Instagram-ready pass)
+- **Auth keepalive** — periodic + resume refresh; `wasLoggedIn` flag synced on restore/sign-out
+- **AppLayout** — don’t blank screen while auth loads if stored token exists; native scroll shell
+- **Feed perf** — native `content-visibility`, no backdrop-blur on native, swipe transform off
+- **Signup email** — auto-detect verification + spam-folder copy on auth screen
 
 ## What Changed (auth hardening)
 - **getSession errors** — refresh stored token instead of clearing session on native cold start
