@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   Sparkles,
@@ -285,6 +286,13 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     };
   }, []);
 
+  // Lock background scroll while the designer overlay is open
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prevOverflow; };
+  }, []);
+
   // Build phase timer
   useEffect(() => {
     if (step !== 'building') return;
@@ -476,8 +484,11 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const stepIndex = step === 'building' ? 2 : stepOrder.indexOf(step);
   const progressIndex = Math.min(stepIndex, 2);
 
-  return (
-    <div className="fixed inset-0 z-50 bg-background overflow-hidden">
+  // Rendered in a portal: ancestors with CSS transforms (page transitions)
+  // break `position: fixed`, which left the overlay scrolling with the page
+  // and the app header visible on top of it.
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-background overflow-hidden overscroll-contain">
       <AuroraBackdrop colors={auroraColors} animate={!reduceMotion} />
 
       {/* ── Top bar: close + progress ── */}
@@ -880,6 +891,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </div>,
+    document.body,
   );
 }
