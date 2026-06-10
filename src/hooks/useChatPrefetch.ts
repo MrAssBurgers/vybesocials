@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 
 /**
@@ -90,31 +91,24 @@ export function useNotificationChatPrefetch() {
   useEffect(() => {
     if (!profile?.id) return;
 
-    // Listen for new message notifications and prefetch the chat
-    const channel = supabase
-      .channel(`notification-prefetch:${profile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${profile.id}`,
-        },
-        (payload) => {
-          // Prefetch chat for message/friend notifications
+    const channel = subscribePostgresChannel(`notification-prefetch:${profile.id}`, [
+      {
+        event: 'INSERT',
+        table: 'notifications',
+        filter: `user_id=eq.${profile.id}`,
+        callback: (payload) => {
           const type = payload.new?.type;
           const actorId = payload.new?.actor_id;
           
           if (actorId && ['message', 'friend_accepted', 'friend_request'].includes(type)) {
             prefetchConversation(actorId);
           }
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [profile?.id, prefetchConversation]);
 }

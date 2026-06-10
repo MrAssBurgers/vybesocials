@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { navigationRef } from '@/lib/navigationRef';
@@ -207,17 +208,12 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
   useEffect(() => {
     if (!profile) return;
 
-    const channel = supabase
-      .channel(`challenge-rewards-${profile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'challenge_rewards',
-          filter: `user_id=eq.${profile.id}`,
-        },
-        async (payload) => {
+    const channel = subscribePostgresChannel(`challenge-rewards-${profile.id}`, [
+      {
+        event: 'INSERT',
+        table: 'challenge_rewards',
+        filter: `user_id=eq.${profile.id}`,
+        callback: async (payload) => {
           if (import.meta.env.DEV) {
             console.log('[BattlePass] New reward received:', payload);
           }
@@ -247,12 +243,12 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
               }
             );
           }
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [profile?.id, queryClient]);
 }
@@ -267,27 +263,22 @@ export function useRealtimeLevelUpdates() {
   useEffect(() => {
     if (!profile) return;
 
-    const channel = supabase
-      .channel(`user-level-${profile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'user_levels',
-          filter: `user_id=eq.${profile.id}`,
-        },
-        (payload) => {
+    const channel = subscribePostgresChannel(`user-level-${profile.id}`, [
+      {
+        event: 'UPDATE',
+        table: 'user_levels',
+        filter: `user_id=eq.${profile.id}`,
+        callback: (payload) => {
           if (import.meta.env.DEV) {
             console.log('[BattlePass] Level updated:', payload);
           }
           queryClient.invalidateQueries({ queryKey: ['user-level', profile.id] });
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [profile?.id, queryClient]);
 }
@@ -302,28 +293,22 @@ export function useRealtimeChallengeProgress() {
   useEffect(() => {
     if (!profile) return;
 
-    const channel = supabase
-      .channel(`challenge-progress-${profile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'challenge_progress',
-          filter: `user_id=eq.${profile.id}`,
-        },
-        (payload) => {
+    const channel = subscribePostgresChannel(`challenge-progress-${profile.id}`, [
+      {
+        event: '*',
+        table: 'challenge_progress',
+        filter: `user_id=eq.${profile.id}`,
+        callback: (payload) => {
           if (import.meta.env.DEV) {
             console.log('[BattlePass] Challenge progress updated:', payload);
           }
-          // Invalidate queries to refresh UI
           queryClient.invalidateQueries({ queryKey: ['challenge-progress', profile.id] });
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [profile?.id, queryClient]);
 }

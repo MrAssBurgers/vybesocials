@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -188,24 +189,20 @@ export function useLiveActivity(communityId: string | undefined) {
   useEffect(() => {
     if (!communityId) return;
 
-    const channel = supabase
-      .channel(`live-activity-${communityId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'live_activity',
-          filter: `community_id=eq.${communityId}`,
-        },
-        () => {
+    const channel = subscribePostgresChannel(
+      `live-activity-${communityId}`,
+      [{
+        event: '*',
+        table: 'live_activity',
+        filter: `community_id=eq.${communityId}`,
+        callback: () => {
           queryClient.invalidateQueries({ queryKey: ['live-activity', communityId] });
         },
-      )
-      .subscribe();
+      }],
+    );
 
     return () => {
-      void supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [communityId, queryClient]);
 

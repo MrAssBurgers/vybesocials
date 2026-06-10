@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -246,27 +247,19 @@ export function AdminLiveAnalytics() {
 
   // ── Real-time subscription for instant updates ──
   useEffect(() => {
-    const channel = supabase
-      .channel('admin-live-feed')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['admin-live-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['admin-recent-activity'] });
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['admin-live-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['admin-recent-activity'] });
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['admin-live-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['admin-recent-activity'] });
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'follows' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['admin-live-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['admin-recent-activity'] });
-      })
-      .subscribe();
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-live-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-recent-activity'] });
+    };
 
-    return () => { supabase.removeChannel(channel); };
+    const channel = subscribePostgresChannel('admin-live-feed', [
+      { event: 'INSERT', table: 'messages', callback: invalidate },
+      { event: 'INSERT', table: 'posts', callback: invalidate },
+      { event: 'INSERT', table: 'likes', callback: invalidate },
+      { event: 'INSERT', table: 'follows', callback: invalidate },
+    ]);
+
+    return () => { removeRealtimeChannel(channel); };
   }, [queryClient]);
 
   // Animate live count

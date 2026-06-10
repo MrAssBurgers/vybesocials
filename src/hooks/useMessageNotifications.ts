@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { showMessageNotification } from '@/components/notifications/MessageNotificationToast';
@@ -81,17 +82,11 @@ export function useMessageNotifications() {
   useEffect(() => {
     if (!profile?.id) return;
 
-    // Listen for new messages across all conversations
-    const channel = supabase
-      .channel('instant-dm-notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-        },
-        async (payload) => {
+    const channel = subscribePostgresChannel('instant-dm-notifications', [
+      {
+        event: 'INSERT',
+        table: 'messages',
+        callback: async (payload) => {
           const newMessage = payload.new as any;
           
           // Skip our own messages
@@ -189,12 +184,12 @@ export function useMessageNotifications() {
             // Only invalidate the badge count; the DM list is already patched by global realtime
             queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
           }
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [profile?.id, queryClient]);
 }
@@ -283,18 +278,12 @@ export function useCrossDeviceSync() {
   useEffect(() => {
     if (!profile?.id) return;
 
-    // Listen for conversation_members updates (read state changes)
-    const channel = supabase
-      .channel('cross-device-read-sync')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'conversation_members',
-          filter: `user_id=eq.${profile.id}`,
-        },
-        (payload) => {
+    const channel = subscribePostgresChannel('cross-device-read-sync', [
+      {
+        event: 'UPDATE',
+        table: 'conversation_members',
+        filter: `user_id=eq.${profile.id}`,
+        callback: (payload) => {
           // Patch caches in place instead of invalidating — invalidations
           // were causing the entire conversation list to refetch and visibly
           // flicker every time the user opened a DM on any device.
@@ -313,12 +302,12 @@ export function useCrossDeviceSync() {
           queryClient.setQueryData<any[]>(['conversations', profile.id], patch);
           // The badge count is cheap to recompute; let it refresh.
           queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [profile?.id, queryClient]);
 }

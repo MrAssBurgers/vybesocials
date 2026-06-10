@@ -9,6 +9,7 @@ import {
   Share2,
   Bell,
   ChevronDown,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -20,7 +21,9 @@ import { useLiveMemberCount } from '@/hooks/useLiveMemberCount';
 import { useAuth } from '@/lib/auth';
 import { isVoiceChannel } from '@/lib/communityChannels';
 import { CommunityVoiceProvider, useCommunityVoiceContext } from '@/contexts/CommunityVoiceContext';
-import { ServerRail } from './ServerRail';
+import { navVisibility } from '@/lib/navVisibility';
+import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { CommunityOrbitBar } from './CommunityOrbitBar';
 import { CommunityChannelSidebar } from './CommunityChannelSidebar';
 import { RoomChat } from './RoomChat';
 import { VoiceChannelView } from './VoiceChannelView';
@@ -76,6 +79,17 @@ function CommunityShellInner({
 
   const selectedRoom = rooms.find((r) => r.id === selectedRoomId);
   const canManage = myRole === 'owner' || myRole === 'moderator';
+  const communityCover = useSignedUrl(selectedCommunity.cover_url || selectedCommunity.banner_url);
+  const communityIcon = useSignedUrl(selectedCommunity.icon_url);
+
+  useEffect(() => {
+    navVisibility.setImmersiveView(true);
+    navVisibility.setInCommunityChat(true);
+    return () => {
+      navVisibility.setImmersiveView(false);
+      navVisibility.setInCommunityChat(false);
+    };
+  }, []);
 
   const voicePresenceByChannel = useMemo(() => {
     const map: Record<string, { userId: string; name: string; avatar?: string | null }[]> = {};
@@ -98,7 +112,7 @@ function CommunityShellInner({
   useEffect(() => {
     if (!selectedRoom || !isVoiceChannel(selectedRoom)) return;
     void voice.connect(selectedCommunityId, selectedRoom.id, selectedRoom.name);
-  }, [selectedRoom?.id, selectedCommunityId]);
+  }, [selectedRoom?.id, selectedCommunityId, selectedRoom?.name]);
 
   // Track presence in live_activity (voice + text)
   useEffect(() => {
@@ -211,32 +225,83 @@ function CommunityShellInner({
       </div>
       <h2 className="text-xl font-bold community-title-gradient mb-1">Pick a channel</h2>
       <p className="text-sm text-muted-foreground max-w-sm">
-        Text channels for chat, voice channels for live hangouts — just like Discord, but VYBE.
+        Pick a text channel to chat or a voice lounge to hang out live with your crew.
       </p>
     </div>
   );
 
   return (
-    <div className="community-shell h-full flex overflow-hidden">
-      <ServerRail
-        communities={communities}
-        selectedId={selectedCommunityId}
-        onSelect={onSelectCommunity}
-        onCreate={onCreateCommunity}
-        onDiscover={onBackToDiscover}
-        unreadCounts={serverUnreadCounts}
-      />
+    <div className="community-shell community-shell--immersive h-full flex flex-col overflow-hidden">
+      {/* VYBE orbit switcher + server identity */}
+      <div className="community-hero shrink-0 relative overflow-hidden">
+        {communityCover && (
+          <img src={communityCover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+        )}
+        <div className="community-hero-aurora absolute inset-0" />
+        <div className="relative z-10 px-3 pt-[calc(var(--sat,0px)+0.5rem)] pb-3 space-y-3">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onBackToList}
+              className="h-9 w-9 shrink-0 community-hero-btn"
+            >
+              <ChevronDown className="h-4 w-4 rotate-90" />
+            </Button>
+            <div className="community-hero-icon shrink-0">
+              {communityIcon ? (
+                <img src={communityIcon} alt="" className="h-full w-full object-cover rounded-[inherit]" />
+              ) : (
+                <span className="text-sm font-black">{selectedCommunity.name.slice(0, 2).toUpperCase()}</span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="font-bold text-base truncate community-title-gradient">{selectedCommunity.name}</h1>
+              <p className="text-[11px] text-muted-foreground">
+                {selectedCommunity.member_count} members
+                {liveCount > 0 && (
+                  <span className="text-green-400 ml-1.5">· {liveCount} vibing</span>
+                )}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 community-hero-btn xl:hidden"
+              onClick={() => setShowMembers((v) => !v)}
+            >
+              <Users className="h-4 w-4" />
+            </Button>
+            {canManage && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 community-hero-btn"
+                onClick={() => setShowSettings(true)}
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          <CommunityOrbitBar
+            communities={communities}
+            selectedId={selectedCommunityId}
+            onSelect={onSelectCommunity}
+            onCreate={onCreateCommunity}
+            onDiscover={onBackToDiscover}
+            unreadCounts={serverUnreadCounts}
+            compact
+          />
+        </div>
+      </div>
 
       <div className="flex flex-1 min-w-0 min-h-0">
-        {/* Desktop channel sidebar */}
         <div className="hidden md:flex w-[240px] lg:w-[260px] shrink-0 flex-col min-h-0">
           {sidebar}
         </div>
 
-        {/* Main column */}
         <div className="flex flex-1 flex-col min-w-0 min-h-0">
-          {/* Channel header */}
-          <header className="community-channel-header shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-foreground/8">
+          <header className="community-channel-header shrink-0 flex items-center gap-2 px-3 py-2 border-b border-foreground/8">
             <Sheet open={mobileChannelsOpen} onOpenChange={setMobileChannelsOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="md:hidden h-9 w-9 shrink-0">
@@ -247,15 +312,6 @@ function CommunityShellInner({
                 {sidebar}
               </SheetContent>
             </Sheet>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onBackToList}
-              className="md:hidden h-9 w-9 shrink-0"
-            >
-              <ChevronDown className="h-4 w-4 rotate-90" />
-            </Button>
 
             {selectedRoom && (
               <>

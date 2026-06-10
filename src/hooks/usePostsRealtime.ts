@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 
 // Global new post signal - listeners can subscribe
 type NewPostListener = () => void;
@@ -48,28 +48,30 @@ export function usePostsRealtime() {
   }, [queryClient]);
 
   useEffect(() => {
-    const channel = supabase
-      .channel('posts-realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'posts' },
-        () => { notifyNewPost(); }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'posts' },
-        (payload) => { invalidatePostCaches(payload.old?.id); }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'posts' },
-        () => { invalidatePostCaches(); }
-      )
-      .subscribe();
+    const channel = subscribePostgresChannel(
+      'posts-realtime',
+      [
+        {
+          event: 'INSERT',
+          table: 'posts',
+          callback: () => { notifyNewPost(); },
+        },
+        {
+          event: 'DELETE',
+          table: 'posts',
+          callback: (payload) => { invalidatePostCaches(payload.old?.id); },
+        },
+        {
+          event: 'UPDATE',
+          table: 'posts',
+          callback: () => { invalidatePostCaches(); },
+        },
+      ],
+    );
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [queryClient, invalidatePostCaches]);
 }

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 
 // Convert hex (#RRGGBB) to "h s% l%" string for CSS HSL tokens
@@ -62,16 +63,15 @@ export function useApplyAutoTheme() {
 
     apply();
 
-    const ch = supabase
-      .channel(`auto-theme-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dna_auto_theme', filter: `user_id=eq.${user.id}` }, apply)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dna_agent_settings', filter: `user_id=eq.${user.id}` }, apply)
-      .subscribe();
+    const ch = subscribePostgresChannel(`auto-theme-${user.id}`, [
+      { event: '*', table: 'dna_auto_theme', filter: `user_id=eq.${user.id}`, callback: apply },
+      { event: '*', table: 'dna_agent_settings', filter: `user_id=eq.${user.id}`, callback: apply },
+    ]);
 
     return () => {
       active = false;
       try {
-        if (ch) supabase.removeChannel(ch);
+        removeRealtimeChannel(ch);
         APPLIED_VARS.forEach(v => document.documentElement.style.removeProperty(v));
       } catch { /* never throw from cleanup */ }
     };

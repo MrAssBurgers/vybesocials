@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ShieldCheck, ShieldX, MapPin, Smartphone } from 'lucide-react';
@@ -59,29 +60,27 @@ export function LoginApprovalSheet() {
     };
     refresh();
 
-    const channel = supabase
-      .channel(`login-approval-${user.id}`)
-      .on('postgres_changes', {
+    const channel = subscribePostgresChannel(`login-approval-${user.id}`, [
+      {
         event: 'INSERT',
-        schema: 'public',
         table: 'auth_challenges',
         filter: `user_id=eq.${user.id}`,
-      }, (payload) => present(payload.new))
-      .on('postgres_changes', {
+        callback: (payload) => present(payload.new),
+      },
+      {
         event: 'UPDATE',
-        schema: 'public',
         table: 'auth_challenges',
         filter: `user_id=eq.${user.id}`,
-      }, (payload) => {
-        const row = payload.new as any;
-        // If a row we're showing got resolved elsewhere, dismiss it.
-        if (row?.status && row.status !== 'pending') {
-          setPending((cur) => (cur && cur.id === row.id ? null : cur));
-        } else {
-          present(row);
-        }
-      })
-      .subscribe();
+        callback: (payload) => {
+          const row = payload.new as any;
+          if (row?.status && row.status !== 'pending') {
+            setPending((cur) => (cur && cur.id === row.id ? null : cur));
+          } else {
+            present(row);
+          }
+        },
+      },
+    ]);
 
     const onVisible = () => {
       if (document.visibilityState === 'visible') refresh();
@@ -95,7 +94,7 @@ export function LoginApprovalSheet() {
       cancelled = true;
       window.clearInterval(pollId);
       document.removeEventListener('visibilitychange', onVisible);
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [authReady, user?.id]);
 

@@ -49,11 +49,21 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "serverId and channelId required" }, 400);
     }
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("id, username, display_name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!profileRow?.id) {
+      return jsonResponse({ error: "Profile not found" }, 404);
+    }
+
     const { data: membership } = await supabase
       .from("server_members")
       .select("role")
       .eq("server_id", serverId)
-      .eq("user_id", user.id)
+      .eq("user_id", profileRow.id)
       .maybeSingle();
 
     if (!membership) {
@@ -82,12 +92,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Service not configured" }, 500);
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("username, display_name")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    const displayName = profile?.display_name || profile?.username || "Member";
+    const displayName = profileRow.display_name || profileRow.username || "Member";
 
     const roomName = `community-${serverId}-${channelId}`;
 
@@ -104,7 +109,7 @@ Deno.serve(async (req) => {
     }
 
     const at = new AccessToken(livekitApiKey, livekitApiSecret, {
-      identity: user.id,
+      identity: profileRow.id,
       name: displayName,
       ttl: "4h",
     });

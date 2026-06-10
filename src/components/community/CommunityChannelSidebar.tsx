@@ -172,31 +172,28 @@ function ChannelGroup({
 
   return (
     <div className="mb-3">
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="community-channel-group-header w-full"
-      >
-        <span className="flex items-center gap-1 min-w-0">
+      <div className="community-channel-group-header w-full flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex items-center gap-1 min-w-0 flex-1 text-left"
+        >
           <ChevronDown
             className={cn('h-3 w-3 shrink-0 transition-transform', !expanded && '-rotate-90')}
           />
           <span className="truncate">{title}</span>
-        </span>
+        </button>
         {canManage && onCreateChannel && (
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onCreateChannel();
-            }}
-            className="p-0.5 rounded hover:bg-foreground/10 opacity-60 hover:opacity-100"
+            onClick={onCreateChannel}
+            className="p-0.5 rounded hover:bg-foreground/10 opacity-60 hover:opacity-100 shrink-0"
             aria-label={`Create ${title}`}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
         )}
-      </button>
+      </div>
 
       {expanded && (
         <div className="mt-0.5 space-y-0.5">

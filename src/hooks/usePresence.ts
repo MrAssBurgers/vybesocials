@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 
 // Debug flag - set to true for dev debugging
@@ -208,18 +209,12 @@ export function useUserOnlineStatus(userId: string | undefined) {
   useEffect(() => {
     if (!userId) return;
 
-    const channel = supabase
-      .channel(`presence:${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_presence',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          // Patch cache directly — avoid forced refetch storms on every event.
+    const channel = subscribePostgresChannel(`presence:${userId}`, [
+      {
+        event: '*',
+        table: 'user_presence',
+        filter: `user_id=eq.${userId}`,
+        callback: (payload) => {
           const next = (payload as any).new;
           if (next) {
             queryClient.setQueryData(['user-presence', userId], {
@@ -229,12 +224,12 @@ export function useUserOnlineStatus(userId: string | undefined) {
           } else {
             queryClient.invalidateQueries({ queryKey: ['user-presence', userId] });
           }
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [userId, queryClient]);
 

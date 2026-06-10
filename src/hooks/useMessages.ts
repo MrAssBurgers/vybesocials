@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
@@ -671,17 +672,12 @@ export function useTypingIndicator(conversationId: string | undefined) {
   useEffect(() => {
     if (!conversationId) return;
 
-    const channel = supabase
-      .channel(`typing:${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'typing_indicators',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        async () => {
+    const channel = subscribePostgresChannel(`typing:${conversationId}`, [
+      {
+        event: '*',
+        table: 'typing_indicators',
+        filter: `conversation_id=eq.${conversationId}`,
+        callback: async () => {
           const { data } = await supabase
             .from('typing_indicators')
             .select('user_id')
@@ -690,12 +686,12 @@ export function useTypingIndicator(conversationId: string | undefined) {
             .gt('started_at', new Date(Date.now() - 5000).toISOString());
 
           setTypingUsers(data?.map((t) => t.user_id) || []);
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [conversationId, profile?.id]);
 
@@ -793,17 +789,12 @@ export function useScreenshotNotification(conversationId: string | undefined) {
   useEffect(() => {
     if (!conversationId) return;
 
-    const channel = supabase
-      .channel(`screenshots:${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'screenshot_notifications',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        async (payload) => {
+    const channel = subscribePostgresChannel(`screenshots:${conversationId}`, [
+      {
+        event: 'INSERT',
+        table: 'screenshot_notifications',
+        filter: `conversation_id=eq.${conversationId}`,
+        callback: async (payload) => {
           if ((payload.new as any).user_id !== profile?.id) {
             const { data: user } = await supabase
               .from('profiles')
@@ -826,12 +817,12 @@ export function useScreenshotNotification(conversationId: string | undefined) {
               timestamp: (payload.new as any).created_at,
             }]);
           }
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [conversationId, profile?.id]);
 

@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { Message } from './useMessages';
 
@@ -42,11 +43,6 @@ export function useRealtimeMessages(conversationId: string | undefined) {
   useEffect(() => {
     if (!conversationId || !profile?.id) return;
 
-    // Clean up existing channel
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
-
     // Debounced refetchers — bursts of reactions/views across the whole app
     // were invalidating this conversation many times per second, causing the
     // message list to refetch and flicker on the live site.
@@ -72,63 +68,54 @@ export function useRealtimeMessages(conversationId: string | undefined) {
       return new Set((list || []).map(m => m.id));
     };
 
-    const channel = supabase
-      .channel(`conv-events:${conversationId}`)
-      .on(
-        'postgres_changes',
+    const channel = subscribePostgresChannel(
+      `conv-events:${conversationId}`,
+      [
         {
           event: 'UPDATE',
-          schema: 'public',
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const updatedMessage = payload.new as any;
-          const oldMessage = payload.old as any;
-          
-          if (updatedMessage.is_deleted) {
-            removeMessageFromCache(updatedMessage.id);
-          } else {
-            updateMessageInCache(updatedMessage);
-            if (updatedMessage.viewed_at && !oldMessage?.viewed_at) {
-              console.log('[ConvRT] VYBE viewed:', updatedMessage.id);
+          callback: (payload) => {
+            const updatedMessage = payload.new as any;
+            const oldMessage = payload.old as any;
+            
+            if (updatedMessage.is_deleted) {
+              removeMessageFromCache(updatedMessage.id);
+            } else {
+              updateMessageInCache(updatedMessage);
+              if (updatedMessage.viewed_at && !oldMessage?.viewed_at) {
+                console.log('[ConvRT] VYBE viewed:', updatedMessage.id);
+              }
             }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
+          },
+        },
         {
           event: '*',
-          schema: 'public',
           table: 'message_reactions',
+          callback: (payload) => {
+            const row: any = (payload.new as any) || (payload.old as any);
+            if (!row?.message_id) return;
+            if (!knownMessageIds().has(row.message_id)) return;
+            scheduleReactionRefetch();
+          },
         },
-        (payload) => {
-          const row: any = (payload.new as any) || (payload.old as any);
-          if (!row?.message_id) return;
-          if (!knownMessageIds().has(row.message_id)) return;
-          scheduleReactionRefetch();
-        }
-      )
-      .on(
-        'postgres_changes',
         {
           event: '*',
-          schema: 'public',
           table: 'message_views',
+          callback: (payload) => {
+            const row: any = (payload.new as any) || (payload.old as any);
+            if (!row?.message_id) return;
+            if (!knownMessageIds().has(row.message_id)) return;
+            scheduleViewRefetch();
+          },
         },
-        (payload) => {
-          const row: any = (payload.new as any) || (payload.old as any);
-          if (!row?.message_id) return;
-          if (!knownMessageIds().has(row.message_id)) return;
-          scheduleViewRefetch();
-        }
-      )
-      .subscribe((status) => {
+      ],
+      (status) => {
         if (status === 'SUBSCRIBED') {
           console.log(`[ConvRT] Subscribed to ${conversationId}`);
         }
-      });
+      },
+    );
 
     channelRef.current = channel;
 
@@ -137,10 +124,8 @@ export function useRealtimeMessages(conversationId: string | undefined) {
       if (viewDebounceRef.current) clearTimeout(viewDebounceRef.current);
       reactionDebounceRef.current = null;
       viewDebounceRef.current = null;
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
+      removeRealtimeChannel(channelRef.current);
+      channelRef.current = null;
     };
   }, [conversationId, profile?.id, queryClient, updateMessageInCache, removeMessageFromCache]);
 

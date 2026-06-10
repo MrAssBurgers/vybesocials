@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 
 export type LivePresenceProvider = 'spotify' | 'apple_music' | 'youtube' | 'steam' | 'twitch';
 
@@ -61,21 +62,20 @@ function subscribe(authUserId: string, listener: Listener): () => void {
   let entry = registry.get(authUserId);
 
   if (!entry || !entry.channel) {
-    const channel = supabase
-      .channel(`music-presence:${authUserId}`)
-      .on('postgres_changes', {
+    const channel = subscribePostgresChannel(`music-presence:${authUserId}`, [
+      {
         event: '*',
-        schema: 'public',
         table: 'live_music_presence',
         filter: `user_id=eq.${authUserId}`,
-      }, (payload) => {
-        const e = registry.get(authUserId);
-        if (!e) return;
-        const next = payload.eventType === 'DELETE' ? null : ((payload.new as any) ?? null);
-        e.latest = next;
-        e.listeners.forEach((l) => l(next));
-      })
-      .subscribe();
+        callback: (payload) => {
+          const e = registry.get(authUserId);
+          if (!e) return;
+          const next = payload.eventType === 'DELETE' ? null : ((payload.new as any) ?? null);
+          e.latest = next;
+          e.listeners.forEach((l) => l(next));
+        },
+      },
+    ]);
 
     if (entry) {
       entry.channel = channel;
@@ -106,7 +106,7 @@ function subscribe(authUserId: string, listener: Listener): () => void {
     e.listeners.delete(listener);
     e.refCount -= 1;
     if (e.refCount <= 0) {
-      if (e.channel) supabase.removeChannel(e.channel);
+      if (e.channel) removeRealtimeChannel(e.channel);
       if (e.pollTimer) clearInterval(e.pollTimer);
       registry.delete(authUserId);
     }

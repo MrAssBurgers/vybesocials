@@ -660,6 +660,10 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   background: hsl(var(--background));
 }
 
+.community-shell--immersive {
+  padding-bottom: 0;
+}
+
 .community-shell::before {
   content: '';
   position: absolute;
@@ -891,6 +895,108 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     hsl(var(--accent) / 0.08)
   );
   box-shadow: 0 12px 40px hsl(var(--background) / 0.4);
+}
+
+.community-orbit-bar {
+  position: relative;
+}
+
+.community-orbit-orb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: linear-gradient(145deg, hsl(var(--foreground) / 0.08), hsl(var(--primary) / 0.12));
+  border: 2px solid hsl(var(--foreground) / 0.1);
+  box-shadow: 0 4px 20px hsl(var(--background) / 0.5);
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.community-orbit-orb--active {
+  border-color: hsl(var(--primary) / 0.7);
+  box-shadow:
+    0 0 0 3px hsl(var(--primary) / 0.15),
+    0 8px 28px hsl(var(--primary) / 0.35);
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.25), hsl(var(--accent) / 0.2));
+}
+
+.community-orbit-orb--add {
+  border-style: dashed;
+  border-color: hsl(var(--primary) / 0.35);
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.06);
+}
+
+.community-hero {
+  border-bottom: 1px solid hsl(var(--foreground) / 0.08);
+  background: hsl(var(--background) / 0.85);
+}
+
+.community-hero-aurora {
+  background:
+    radial-gradient(ellipse 80% 80% at 0% 0%, hsl(var(--primary) / 0.22), transparent 55%),
+    radial-gradient(ellipse 60% 60% at 100% 0%, hsl(var(--accent) / 0.18), transparent 50%),
+    linear-gradient(180deg, hsl(var(--background) / 0.2), hsl(var(--background) / 0.92));
+}
+
+.community-hero-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  box-shadow: 0 0 20px hsl(var(--primary) / 0.35);
+}
+
+.community-hero-btn {
+  background: hsl(var(--foreground) / 0.05);
+  border: 1px solid hsl(var(--foreground) / 0.08);
+  border-radius: 0.75rem;
+}
+
+/* VYBE Map — Snap-inspired, VYBE-branded */
+.vybe-map-glass {
+  background: hsl(0 0% 0% / 0.45);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid hsl(0 0% 100% / 0.1);
+  box-shadow: 0 8px 32px hsl(0 0% 0% / 0.35);
+}
+
+.vybe-map-chip-active {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 4px 20px hsl(var(--primary) / 0.4);
+}
+
+.vybe-map-friend-ring-live {
+  background: conic-gradient(from 180deg, #22c55e, #06b6d4, #a855f7, #22c55e);
+  animation: vybe-map-ring-spin 4s linear infinite;
+}
+
+@keyframes vybe-map-ring-spin {
+  to { transform: rotate(360deg); }
+}
+
+.friends-shell-card {
+  border: 1px solid hsl(var(--foreground) / 0.08);
+  background: linear-gradient(
+    145deg,
+    hsl(var(--foreground) / 0.05),
+    hsl(var(--primary) / 0.04),
+    hsl(var(--background) / 0.6)
+  );
+  box-shadow: inset 0 1px 0 hsl(var(--foreground) / 0.06);
+}
+
+.friends-avatar-ring {
+  background: conic-gradient(from 0deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)));
+  padding: 2px;
+  border-radius: 9999px;
 }
 
 /* ========================================

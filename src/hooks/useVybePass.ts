@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { navigationRef } from '@/lib/navigationRef';
@@ -208,17 +209,12 @@ export function useRealtimeChallengeRewards(
   useEffect(() => {
     if (!profile?.user_id || !profile?.id) return;
 
-    const channel = supabase
-      .channel(`vybepass-${profile.user_id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'challenge_rewards',
-          filter: `user_id=eq.${profile.user_id}`,
-        },
-        async (payload) => {
+    const channel = subscribePostgresChannel(`vybepass-${profile.user_id}`, [
+      {
+        event: 'INSERT',
+        table: 'challenge_rewards',
+        filter: `user_id=eq.${profile.user_id}`,
+        callback: async (payload) => {
           const { data: reward } = await supabase
             .from('challenge_rewards')
             .select(`*, challenge:challenges(title, description)`)
@@ -242,17 +238,13 @@ export function useRealtimeChallengeRewards(
               }
             );
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'user_levels',
-          filter: `user_id=eq.${profile.user_id}`,
         },
-        (payload) => {
+      },
+      {
+        event: 'UPDATE',
+        table: 'user_levels',
+        filter: `user_id=eq.${profile.user_id}`,
+        callback: (payload) => {
           const newLevel = (payload.new as any)?.current_level;
           const oldLevel = lastKnownLevel.current;
           
@@ -270,24 +262,20 @@ export function useRealtimeChallengeRewards(
           } else if (newLevel) {
             lastKnownLevel.current = newLevel;
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'challenge_progress',
-          filter: `user_id=eq.${profile.id}`,
         },
-        () => {
+      },
+      {
+        event: '*',
+        table: 'challenge_progress',
+        filter: `user_id=eq.${profile.id}`,
+        callback: () => {
           queryClient.invalidateQueries({ queryKey: ['challenge-progress', profile.id] });
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [profile?.user_id, profile?.id, queryClient]);
 }

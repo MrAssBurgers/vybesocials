@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -145,24 +146,19 @@ export function useChannels(serverId: string | undefined) {
   useEffect(() => {
     if (!serverId) return;
 
-    const channel = supabase
-      .channel(`channels-realtime-${serverId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'channels',
-          filter: `server_id=eq.${serverId}`,
-        },
-        () => {
+    const channel = subscribePostgresChannel(`channels-realtime-${serverId}`, [
+      {
+        event: '*',
+        table: 'channels',
+        filter: `server_id=eq.${serverId}`,
+        callback: () => {
           queryClient.invalidateQueries({ queryKey: ['channels', serverId] });
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [serverId, queryClient]);
 
@@ -210,33 +206,24 @@ export function useChannelMessages(channelId: string | undefined) {
     enabled: !!channelId,
   });
 
-  // Subscribe to realtime updates
-  useQuery({
-    queryKey: ['channel-messages-subscription', channelId],
-    queryFn: async () => {
-      if (!channelId) return null;
+  useEffect(() => {
+    if (!channelId) return;
 
-      const channel = supabase
-        .channel(`channel-messages:${channelId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'channel_messages',
-            filter: `channel_id=eq.${channelId}`,
-          },
-          () => {
-            queryClient.invalidateQueries({ queryKey: ['channel-messages', channelId] });
-          }
-        )
-        .subscribe();
+    const channel = subscribePostgresChannel(`channel-messages:${channelId}`, [
+      {
+        event: '*',
+        table: 'channel_messages',
+        filter: `channel_id=eq.${channelId}`,
+        callback: () => {
+          queryClient.invalidateQueries({ queryKey: ['channel-messages', channelId] });
+        },
+      },
+    ]);
 
-      return () => supabase.removeChannel(channel);
-    },
-    enabled: !!channelId,
-    staleTime: Infinity,
-  });
+    return () => {
+      removeRealtimeChannel(channel);
+    };
+  }, [channelId, queryClient]);
 
   return query;
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { ActivityType } from '@/components/chat/LiveActivityIndicator';
 
@@ -210,34 +211,24 @@ export function useLiveActivity(conversationId: string | undefined) {
       fetchActivity();
     }, 1500);
 
-    // Realtime subscription for instant updates
-    const channel = supabase
-      .channel(`live-activity:${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'typing_indicators',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        () => {
+    const channel = subscribePostgresChannel(`live-activity:${conversationId}`, [
+      {
+        event: '*',
+        table: 'typing_indicators',
+        filter: `conversation_id=eq.${conversationId}`,
+        callback: () => {
           if (isMounted) fetchActivity();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'chat_presence',
-          filter: `conversation_id=eq.${conversationId}`,
         },
-        () => {
+      },
+      {
+        event: '*',
+        table: 'chat_presence',
+        filter: `conversation_id=eq.${conversationId}`,
+        callback: () => {
           if (isMounted) fetchActivity();
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     // Visibility change handler
     const handleVisibilityChange = () => {
@@ -258,7 +249,7 @@ export function useLiveActivity(conversationId: string | undefined) {
         heartbeatRef.current = null;
       }
       leavePresence();
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [conversationId, profile?.id, fetchActivity]);

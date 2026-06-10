@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 
 /**
@@ -145,61 +146,44 @@ export function useTabNotificationBadge() {
   useEffect(() => {
     if (!profile?.id) return;
 
-    const channel = supabase
-      .channel('tab-badge-consolidated')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-        },
-        (payload) => {
+    const channel = subscribePostgresChannel('tab-badge-consolidated', [
+      {
+        event: 'INSERT',
+        table: 'messages',
+        callback: (payload) => {
           if (payload.new.sender_id !== profile.id) {
             queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${profile.id}`,
         },
-        () => {
+      },
+      {
+        event: 'INSERT',
+        table: 'notifications',
+        filter: `user_id=eq.${profile.id}`,
+        callback: () => {
           queryClient.invalidateQueries({ queryKey: ['unread-notifications-count'] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'conversation_members',
-          filter: `user_id=eq.${profile.id}`,
         },
-        () => {
+      },
+      {
+        event: 'UPDATE',
+        table: 'conversation_members',
+        filter: `user_id=eq.${profile.id}`,
+        callback: () => {
           queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${profile.id}`,
         },
-        () => {
+      },
+      {
+        event: 'UPDATE',
+        table: 'notifications',
+        filter: `user_id=eq.${profile.id}`,
+        callback: () => {
           queryClient.invalidateQueries({ queryKey: ['unread-notifications-count'] });
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [profile?.id, queryClient]);
 

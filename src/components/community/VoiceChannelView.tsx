@@ -103,7 +103,7 @@ export const VoiceChannelView = memo(function VoiceChannelView({
   return (
     <div className="community-voice-view flex flex-col h-full">
       <div className="community-voice-header px-4 py-3 border-b border-foreground/8 flex items-center gap-3 shrink-0">
-        <div className="h-9 w-9 rounded-xl bg-green-500/15 flex items-center justify-center">
+        <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-green-500/30 to-cyan-500/20 flex items-center justify-center shadow-[0_0_20px_hsl(142_76%_56%/0.25)]">
           <Volume2 className="h-4 w-4 text-green-400" />
         </div>
         <div className="min-w-0 flex-1">

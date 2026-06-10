@@ -13,7 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { callSounds } from '@/lib/callSounds';
-import { removeChannelByTopic, removeRealtimeChannel } from '@/lib/realtimeChannel';
+import { removeChannelByTopic, removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 
 // Track the current conversation globally with a tiny pub/sub so React
 // effects can react to changes (a plain module variable did not trigger
@@ -124,13 +124,11 @@ export function useGlobalRealtimeMessages() {
 
     if (generation !== setupGenerationRef.current) return;
 
-    // Create a single global channel for all message events
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        async (payload) => {
+    const channel = subscribePostgresChannel(channelName, [
+      {
+        event: 'INSERT',
+        table: 'messages',
+        callback: async (payload) => {
           try {
           const newMessage = payload.new as any;
           const conversationId = newMessage.conversation_id;
@@ -273,12 +271,12 @@ export function useGlobalRealtimeMessages() {
           } catch (err) {
             if (import.meta.env.DEV) console.warn('[GlobalRT] INSERT handler failed', err);
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages' },
-        (payload) => {
+        },
+      },
+      {
+        event: 'UPDATE',
+        table: 'messages',
+        callback: (payload) => {
           const updatedMessage = payload.new as any;
           const conversationId = updatedMessage.conversation_id;
 
@@ -303,12 +301,12 @@ export function useGlobalRealtimeMessages() {
           if (updatedMessage.is_deleted) {
             scheduleUnknownConvoRefetch(queryClient, profile.id);
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'messages' },
-        (payload) => {
+        },
+      },
+      {
+        event: 'DELETE',
+        table: 'messages',
+        callback: (payload) => {
           const deletedMessage = payload.old as any;
           const conversationId = deletedMessage.conversation_id;
 
@@ -322,18 +320,17 @@ export function useGlobalRealtimeMessages() {
 
           // Update conversation list (debounced + scoped)
           scheduleUnknownConvoRefetch(queryClient, profile.id);
-        }
-      )
-      .subscribe((status) => {
+        },
+      },
+    ], (status) => {
         if (import.meta.env.DEV) console.log('[GlobalRT] Subscription status:', status);
         if (status === 'SUBSCRIBED') {
           if (import.meta.env.DEV) console.log('[GlobalRT] ✅ Global realtime connected for user:', profile.id);
-          retryCount = 0; // Reset retry count on successful connection
+          retryCount = 0;
         }
         if (status === 'CHANNEL_ERROR') {
           console.error('[GlobalRT] ❌ Channel error - will retry');
           
-          // Exponential backoff retry
           if (retryCount < MAX_RETRIES) {
             const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
             retryCount++;
@@ -373,24 +370,21 @@ export function useGlobalRealtimeMessages() {
     presenceChannelRef.current = null;
     removeChannelByTopic(`global-presence:${profile.id}`);
 
-    const ch = supabase
-      .channel(`global-presence:${profile.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_presence' },
-        (payload: any) => {
+    const ch = subscribePostgresChannel(`global-presence:${profile.id}`, [
+      {
+        event: '*',
+        table: 'user_presence',
+        callback: (payload: any) => {
           const row = payload.new || payload.old;
           if (!row?.user_id) return;
-          // Patch single-user cache
           queryClient.setQueryData(['user-presence', row.user_id], {
             is_online: row.is_online,
             last_seen_at: row.last_seen_at,
           });
-          // Invalidate any multi-user presence queries so they recompute
           queryClient.invalidateQueries({ queryKey: ['users-presence'], exact: false });
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
     presenceChannelRef.current = ch;
     return () => {
       try {

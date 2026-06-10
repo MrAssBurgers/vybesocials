@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
@@ -265,17 +266,12 @@ export function useCaptureNotifications() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const channel = supabase
-      .channel(`capture-notifications-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'capture_events',
-          filter: `sender_id=eq.${user.id}`,
-        },
-        async (payload) => {
+    const channel = subscribePostgresChannel(`capture-notifications-${user.id}`, [
+      {
+        event: 'INSERT',
+        table: 'capture_events',
+        filter: `sender_id=eq.${user.id}`,
+        callback: async (payload) => {
           const event = payload.new as any;
           
           const { data: viewer } = await supabase
@@ -294,12 +290,12 @@ export function useCaptureNotifications() {
 
           toast(`${icon} ${name} ${action}`, { duration: 5000 });
           haptics.warning();
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [user?.id]);
 }

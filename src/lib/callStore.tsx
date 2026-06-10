@@ -14,6 +14,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
@@ -310,25 +311,24 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     let lastPollTime = new Date().toISOString();
     let isSubscribed = false;
 
-    const channel = supabase
-      .channel(`incoming-calls-${profile.id}`)
-      .on(
-        'postgres_changes',
+    const channel = subscribePostgresChannel(
+      `incoming-calls-${profile.id}`,
+      [
         {
           event: 'INSERT',
-          schema: 'public',
           table: 'calls',
           filter: `receiver_id=eq.${profile.id}`,
+          callback: (payload) => processIncomingCall(payload.new),
         },
-        (payload) => processIncomingCall(payload.new)
-      )
-      .subscribe((status) => {
+      ],
+      (status) => {
         if (status === 'SUBSCRIBED') {
           isSubscribed = true;
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           isSubscribed = false;
         }
-      });
+      },
+    );
 
     const poll = async () => {
       if (globalCallState.phase !== 'idle' || globalIncomingCall) {
@@ -361,7 +361,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     pollTimeoutId = setTimeout(poll, 2000);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
       if (pollTimeoutId) clearTimeout(pollTimeoutId);
     };
   }, [profile?.id, processIncomingCall]);
@@ -472,18 +472,22 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       if (watchedId === id) return;
       detach();
       watchedId = id;
-      channel = supabase
-        .channel(`lingering-call-${id}`)
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls', filter: `id=eq.${id}` }, (payload) => {
-          const s = (payload.new as any)?.status;
-          if (s === 'ended' || s === 'declined' || s === 'missed') {
-            setLingeringCall(null);
-          }
-        })
-        .subscribe();
+      channel = subscribePostgresChannel(`lingering-call-${id}`, [
+        {
+          event: 'UPDATE',
+          table: 'calls',
+          filter: `id=eq.${id}`,
+          callback: (payload) => {
+            const s = (payload.new as any)?.status;
+            if (s === 'ended' || s === 'declined' || s === 'missed') {
+              setLingeringCall(null);
+            }
+          },
+        },
+      ]);
     };
     const detach = () => {
-      if (channel) { supabase.removeChannel(channel); channel = null; }
+      if (channel) { removeRealtimeChannel(channel); channel = null; }
       watchedId = null;
     };
 
@@ -501,17 +505,12 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     const callId = state.call?.id;
     if (!callId) return;
 
-    const channel = supabase
-      .channel(`call-status-${callId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'calls',
-          filter: `id=eq.${callId}`,
-        },
-        (payload) => {
+    const channel = subscribePostgresChannel(`call-status-${callId}`, [
+      {
+        event: 'UPDATE',
+        table: 'calls',
+        filter: `id=eq.${callId}`,
+        callback: (payload) => {
           const updated = payload.new as any;
           const newStatus = updated.status;
           const newMode = updated.call_mode as CallMode | undefined;
@@ -521,21 +520,19 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
             setState(initialState);
           }
 
-          // Detect mode change from remote user
           if (newMode && state.call && newMode !== state.call.callMode) {
             if (import.meta.env.DEV) console.log('[CallStore] Remote mode switch detected:', newMode);
-            // Update our local call mode — GlobalCallOverlay will handle the reconnect
             setState(prev => ({
               ...prev,
               phase: 'switching',
               call: prev.call ? { ...prev.call, callMode: newMode } : null,
             }));
           }
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { removeRealtimeChannel(channel); };
   }, [state.call?.id, state.call?.callMode, setState]);
 
   /**

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { PRESENCE } from '@/lib/constants';
 
@@ -25,17 +26,11 @@ export function useConversationTyping(conversationIds: string[]) {
       return;
     }
 
-    // Subscribe to typing_indicators table for all conversations
-    const channel = supabase
-      .channel('conversation-typing-global')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'typing_indicators',
-        },
-        (payload) => {
+    const channel = subscribePostgresChannel('conversation-typing-global', [
+      {
+        event: '*',
+        table: 'typing_indicators',
+        callback: (payload) => {
           const data = payload.new as any;
           const oldData = payload.old as any;
           
@@ -89,12 +84,12 @@ export function useConversationTyping(conversationIds: string[]) {
               });
             }
           }
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [profile?.id, conversationIds.join(',')]); // Join for stable dependency
 

@@ -14,10 +14,15 @@ export const SuggestedFriends = memo(function SuggestedFriends() {
   if (isLoading || !suggestions || suggestions.length === 0) return null;
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 px-1">
-        <Users className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-semibold">People You May Know</h3>
+    <div className="friends-shell-card rounded-2xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="h-8 w-8 rounded-xl bg-primary/15 flex items-center justify-center">
+          <Users className="h-4 w-4 text-primary" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold">People You May Know</h3>
+          <p className="text-[10px] text-muted-foreground">Tap to view their vybe</p>
+        </div>
       </div>
 
       <ScrollArea className="w-full">
@@ -31,19 +36,21 @@ export const SuggestedFriends = memo(function SuggestedFriends() {
             >
               <Link
                 to={`/u/${person.username}`}
-                className="flex flex-col items-center w-20 group"
+                className="flex flex-col items-center w-[76px] group"
                 onClick={() => triggerHaptic('light')}
               >
-                <Avatar className="h-14 w-14 ring-2 ring-primary/20 group-hover:ring-primary/50 transition-all">
-                  <AvatarImage src={person.avatar_url || undefined} />
-                  <AvatarFallback className="text-sm font-semibold">
-                    {(person.display_name || person.username)?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <p className="text-xs font-medium mt-1.5 truncate w-full text-center">
+                <div className="friends-avatar-ring">
+                  <Avatar className="h-14 w-14 border-2 border-background">
+                    <AvatarImage src={person.avatar_url || undefined} />
+                    <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
+                      {(person.display_name || person.username)?.[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                <p className="text-xs font-semibold mt-2 truncate w-full text-center">
                   {person.display_name || person.username}
                 </p>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[10px] text-primary/80 font-medium">
                   {person.mutual_count > 0
                     ? `${person.mutual_count} mutual${person.mutual_count !== 1 ? 's' : ''}`
                     : `@${person.username}`}

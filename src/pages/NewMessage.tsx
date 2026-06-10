@@ -49,7 +49,7 @@ function AddedMeSection() {
           </button>
         )}
       </div>
-      <div className="rounded-xl border border-border overflow-hidden">
+      <div className="friends-shell-card rounded-2xl overflow-hidden">
         <AnimatePresence initial={false}>
           {displayed.map((req) => (
             <motion.div
@@ -118,7 +118,7 @@ function InviteBanner() {
   return (
     <button
       onClick={handleShare}
-      className="w-full rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-accent/10 p-3 flex items-center gap-3 hover:from-primary/15 transition-all"
+      className="w-full friends-shell-card rounded-2xl p-3 flex items-center gap-3 hover:border-primary/25 transition-all"
     >
       <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
         <Share2 className="h-5 w-5 text-primary" />

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { PRESENCE } from '@/lib/constants';
 
@@ -172,30 +173,20 @@ export function useChatPresence(conversationId: string | undefined) {
     // Also poll presence state every 3 seconds as a safety net for missed realtime events
     const presencePollRef = setInterval(fetchPresence, 3000);
 
-    // Single consolidated channel for presence + typing (was 2 separate channels)
-    const presenceChannel = supabase
-      .channel(`chat-presence:${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'chat_presence',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        () => {
+    const presenceChannel = subscribePostgresChannel(`chat-presence:${conversationId}`, [
+      {
+        event: '*',
+        table: 'chat_presence',
+        filter: `conversation_id=eq.${conversationId}`,
+        callback: () => {
           if (isMounted) fetchPresence();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'typing_indicators',
-          filter: `conversation_id=eq.${conversationId}`,
         },
-        (payload) => {
+      },
+      {
+        event: '*',
+        table: 'typing_indicators',
+        filter: `conversation_id=eq.${conversationId}`,
+        callback: (payload) => {
           if (!isMounted) return;
           
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
@@ -224,9 +215,9 @@ export function useChatPresence(conversationId: string | undefined) {
               setTypingUsers(prev => prev.filter(id => id !== oldData.user_id));
             }
           }
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     // Visibility change handler
     const handleVisibilityChange = () => {
@@ -249,7 +240,7 @@ export function useChatPresence(conversationId: string | undefined) {
       }
       clearInterval(presencePollRef);
       leavePresence();
-      supabase.removeChannel(presenceChannel);
+      removeRealtimeChannel(presenceChannel);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [conversationId, profile?.id]);

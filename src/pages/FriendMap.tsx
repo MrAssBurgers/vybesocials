@@ -10,6 +10,8 @@ import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { useLocationContext } from '@/providers/LocationProvider';
+import { navVisibility } from '@/lib/navVisibility';
+import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -119,7 +121,16 @@ const MAP_TILES: Record<string, { url: string; label: string; icon: string }> = 
 
 type MapStyleKey = keyof typeof MAP_TILES;
 
-const FILTER_CHIPS = ['Friends', 'Trending', 'Memories', 'Popular'];
+const FILTER_CHIPS = ['Friends', 'Live', 'Hangouts', 'Explore'] as const;
+
+const MAP_STATUSES = [
+  { emoji: '🏠', label: 'At home' },
+  { emoji: '☕', label: 'Chillin' },
+  { emoji: '🎉', label: 'Out rn' },
+  { emoji: '✈️', label: 'Traveling' },
+  { emoji: '💤', label: 'Lowkey' },
+  { emoji: '🔥', label: 'On the move' },
+] as const;
 
 function isMapStyleKey(value: string | null): value is MapStyleKey {
   return !!value && Object.prototype.hasOwnProperty.call(MAP_TILES, value);
@@ -444,7 +455,30 @@ function FriendMapInner() {
   const [manualRotation, setManualRotation] = useState(0);
   const [mapStyle, setMapStyle] = useState<MapStyleKey>(getInitialMapStyle);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
-  const [activeFilter, setActiveFilter] = useState('Friends');
+  const [activeFilter, setActiveFilter] = useState<(typeof FILTER_CHIPS)[number]>('Friends');
+  const [myStatus, setMyStatus] = useState(() => {
+    try { return localStorage.getItem('vybe-map-status') || ''; } catch { return ''; }
+  });
+
+  useEffect(() => {
+    navVisibility.setImmersiveView(true);
+    document.body.classList.add('hide-bottom-nav');
+    return () => {
+      navVisibility.setImmersiveView(false);
+      document.body.classList.remove('hide-bottom-nav');
+    };
+  }, []);
+
+  const updateMapStatus = useCallback(async (status: string) => {
+    setMyStatus(status);
+    try { localStorage.setItem('vybe-map-status', status); } catch { /* ignore */ }
+    if (!profile?.id) return;
+    await supabase
+      .from('user_locations')
+      .update({ status })
+      .eq('user_id', profile.id);
+    triggerHaptic('light');
+  }, [profile?.id]);
   const [visibilityPref, setVisibilityPref] = useState<string>(() => {
     try { return localStorage.getItem(VISIBILITY_PREF_KEY) || 'friends'; } catch { return 'friends'; }
   });
@@ -590,17 +624,19 @@ function FriendMapInner() {
 
   useEffect(() => {
     if (!friendIds.length) return;
-    const channel = supabase
-      .channel('friend-locations-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_locations' },
-        (payload) => {
-          const rec = payload.new as any;
+    const channel = subscribePostgresChannel(
+      'friend-locations-rt',
+      [{
+        event: '*',
+        table: 'user_locations',
+        callback: (payload) => {
+          const rec = payload.new as { user_id?: string } | undefined;
           if (!rec?.user_id || !friendIds.includes(rec.user_id)) return;
           qc.invalidateQueries({ queryKey: ['friend-locations'] });
-        }
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+        },
+      }],
+    );
+    return () => { removeRealtimeChannel(channel); };
   }, [friendIds, qc]);
 
   /* ── toggle handler ────────────────────────────────── */
@@ -1160,7 +1196,7 @@ function FriendMapInner() {
             <motion.button
               onClick={() => navigate(-1)}
               whileTap={{ scale: 0.9 }}
-              className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-xl"
+              className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full vybe-map-glass text-white"
             >
               <ChevronLeft className="h-5 w-5" />
             </motion.button>
@@ -1169,7 +1205,7 @@ function FriendMapInner() {
             <motion.button
               onClick={recenter}
               whileTap={{ scale: 0.9 }}
-              className="pointer-events-auto relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden bg-black/50 backdrop-blur-xl border-2 border-primary/50"
+              className="pointer-events-auto relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden vybe-map-glass border-2 border-primary/50"
             >
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
@@ -1188,7 +1224,7 @@ function FriendMapInner() {
               <motion.div
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-black/50 backdrop-blur-xl px-3 py-2"
+                className="pointer-events-auto flex items-center gap-1.5 rounded-full vybe-map-glass px-3 py-2"
               >
                 <span className="text-sm">{weather.icon}</span>
                 <span className="text-xs font-semibold text-white">{weather.city}{weather.city ? ', ' : ''}{weather.temp}°F</span>
@@ -1199,7 +1235,7 @@ function FriendMapInner() {
             <motion.button
               onClick={() => { setStylesOpen(!stylesOpen); triggerHaptic('light'); }}
               whileTap={{ scale: 0.9 }}
-              className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-xl"
+              className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full vybe-map-glass text-white"
             >
               <Layers className="h-4 w-4" />
             </motion.button>
@@ -1213,10 +1249,10 @@ function FriendMapInner() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => { setActiveFilter(chip); triggerHaptic('light'); }}
                 className={cn(
-                  'shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-all backdrop-blur-xl',
+                  'shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-all',
                   activeFilter === chip
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25'
-                    : 'bg-black/40 text-white/70 hover:bg-black/60'
+                    ? 'vybe-map-chip-active'
+                    : 'vybe-map-glass text-white/80 hover:text-white'
                 )}
               >
                 {chip}
@@ -1357,6 +1393,28 @@ function FriendMapInner() {
                           sharing ? 'translate-x-7' : 'translate-x-1'
                         )} />
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Snap-style status */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-white/40 uppercase tracking-wider">My Status</p>
+                    <div className="flex flex-wrap gap-2">
+                      {MAP_STATUSES.map((s) => (
+                        <button
+                          key={s.label}
+                          type="button"
+                          onClick={() => void updateMapStatus(`${s.emoji} ${s.label}`)}
+                          className={cn(
+                            'rounded-full px-3 py-1.5 text-xs font-semibold transition-all border',
+                            myStatus === `${s.emoji} ${s.label}`
+                              ? 'bg-primary/25 border-primary/50 text-white'
+                              : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10',
+                          )}
+                        >
+                          {s.emoji} {s.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
@@ -1588,7 +1646,7 @@ function FriendMapInner() {
                       <div className={cn(
                         'relative h-14 w-14 rounded-full p-[3px] transition-all',
                         isSelected ? 'bg-gradient-to-br from-primary to-primary/60'
-                          : isMoving ? 'bg-gradient-to-br from-green-400 via-emerald-500 to-cyan-500'
+                          : isMoving ? 'vybe-map-friend-ring-live'
                           : isRecent ? 'bg-green-500'
                           : 'bg-white/20'
                       )}>
@@ -1676,7 +1734,7 @@ function FriendMapInner() {
               onClick={() => { setSearchSheetOpen(true); triggerHaptic('light'); }}
               className={cn(
                 'pointer-events-auto flex w-full items-center gap-3 rounded-full px-4 py-3 backdrop-blur-xl transition-all',
-                'bg-black/50 border border-white/10'
+                'vybe-map-glass'
               )}
             >
               <Search className="h-4 w-4 text-white/40" />

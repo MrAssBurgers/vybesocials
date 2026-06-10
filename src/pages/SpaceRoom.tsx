@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
+import { navVisibility } from '@/lib/navVisibility';
 
 export default function SpaceRoom() {
   const { spaceId } = useParams<{ spaceId: string }>();
@@ -37,6 +38,11 @@ export default function SpaceRoom() {
   const speakers = participants.filter(p => ['host', 'co_host', 'speaker'].includes(p.role));
   const listeners = participants.filter(p => p.role === 'listener');
   const requests = participants.filter(p => p.role === 'requested');
+
+  useEffect(() => {
+    navVisibility.setImmersiveView(true);
+    return () => navVisibility.setImmersiveView(false);
+  }, []);
 
   // Auto-join on mount
   useEffect(() => {

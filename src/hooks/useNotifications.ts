@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -141,30 +142,22 @@ export function useNotifications() {
   useEffect(() => {
     if (!profile?.id) return;
 
-    const channel = supabase
-      .channel(`notifications:${profile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${profile.id}`,
-        },
-        async (payload) => {
-          // Don't show notification if actor is the same as user (self-notification)
+    const channel = subscribePostgresChannel(`notifications:${profile.id}`, [
+      {
+        event: 'INSERT',
+        table: 'notifications',
+        filter: `user_id=eq.${profile.id}`,
+        callback: async (payload) => {
           if (payload.new.actor_id === profile.id) {
             return;
           }
 
-          // Fetch the actor details
           const { data: actor } = await supabase
             .from('profiles')
             .select('username, avatar_url')
             .eq('id', payload.new.actor_id)
             .single();
 
-          // Show toast for new notification
           const type = payload.new.type as NotificationType;
           const messages: Record<NotificationType, string> = {
             like: 'liked your post',
@@ -183,22 +176,20 @@ export function useNotifications() {
 
           const message = `${actor?.username || 'Someone'} ${messages[type] || 'interacted with you'}`;
           
-          // Show in-app toast
           toast.info(message, { duration: 4000 });
           
-          // Show native browser notification if page is not focused
           if (document.hidden) {
             showNativeNotification('VYBE', message, type === 'message' ? '/messages' : '/notifications');
           }
 
           queryClient.invalidateQueries({ queryKey: ['notifications'] });
           queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [profile?.id, queryClient]);
 

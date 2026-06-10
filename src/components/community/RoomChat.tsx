@@ -44,15 +44,7 @@ export const RoomChat = memo(function RoomChat({
   const isAnnouncement = roomType === 'announcements';
   const canPost = !isAnnouncement || canModerate;
 
-  // Hide bottom nav when inside community chat
-  useEffect(() => {
-    navVisibility.setInCommunityChat(true);
-    return () => {
-      navVisibility.setInCommunityChat(false);
-    };
-  }, []);
-
-  // Handle input focus to hide nav on mobile keyboard
+  // Handle input focus to hide nav on mobile keyboard (shell owns immersive nav)
   const handleInputFocus = useCallback(() => {
     navVisibility.setCommunityInputFocused(true);
   }, []);

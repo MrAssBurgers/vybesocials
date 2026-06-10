@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 
 interface ServerNotification {
@@ -71,26 +72,21 @@ export function useUnreadCountPerServer() {
   useEffect(() => {
     if (!profile?.id) return;
 
-    const channel = supabase
-      .channel(`server-notifications:${profile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'server_notifications',
-          filter: `user_id=eq.${profile.id}`,
-        },
-        () => {
+    const channel = subscribePostgresChannel(`server-notifications:${profile.id}`, [
+      {
+        event: '*',
+        table: 'server_notifications',
+        filter: `user_id=eq.${profile.id}`,
+        callback: () => {
           queryClient.invalidateQueries({ queryKey: ['unread-per-server'] });
           queryClient.invalidateQueries({ queryKey: ['unread-server-notifications-count'] });
           queryClient.invalidateQueries({ queryKey: ['unread-per-channel'] });
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [profile?.id, queryClient]);
 

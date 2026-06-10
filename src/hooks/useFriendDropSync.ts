@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { haptics } from '@/lib/haptics';
 
@@ -180,73 +181,66 @@ export function useFriendDropSync({
 
     console.log('[FriendDropSync] Setting up realtime subscription for user:', profile.id);
     
-    // Subscribe to drops where user is either party
-    const channel = supabase
-      .channel(`friend-drops-${profile.id}-${Date.now()}`)
-      .on(
-        'postgres_changes',
+    const channel = subscribePostgresChannel(
+      `friend-drops-${profile.id}`,
+      [
         {
           event: 'UPDATE',
-          schema: 'public',
           table: 'friend_drops',
           filter: `from_user_id=eq.${profile.id}`,
+          callback: (payload) => {
+            const drop = payload.new as FriendDrop;
+            if (!drop) return;
+            
+            console.log('[FriendDropSync] Owner received update:', drop.status, drop);
+            setActiveDrop(drop);
+            
+            if (drop.status === 'scanned') {
+              console.log('[FriendDropSync] QR was scanned! Triggering onScanned callback');
+              haptics.impact();
+              callbacksRef.current.onScanned?.(drop);
+            } else if (drop.status === 'confirmed') {
+              console.log('[FriendDropSync] Drop confirmed! Triggering onConfirmed callback');
+              haptics.success();
+              callbacksRef.current.onConfirmed?.(drop);
+            } else if (drop.status === 'completed') {
+              console.log('[FriendDropSync] Drop completed! Triggering onCompleted callback');
+              callbacksRef.current.onCompleted?.(drop);
+            }
+          },
         },
-        (payload) => {
-          const drop = payload.new as FriendDrop;
-          if (!drop) return;
-          
-          console.log('[FriendDropSync] Owner received update:', drop.status, drop);
-          setActiveDrop(drop);
-          
-          // Trigger callbacks based on status changes
-          if (drop.status === 'scanned') {
-            console.log('[FriendDropSync] QR was scanned! Triggering onScanned callback');
-            haptics.impact();
-            callbacksRef.current.onScanned?.(drop);
-          } else if (drop.status === 'confirmed') {
-            console.log('[FriendDropSync] Drop confirmed! Triggering onConfirmed callback');
-            haptics.success();
-            callbacksRef.current.onConfirmed?.(drop);
-          } else if (drop.status === 'completed') {
-            console.log('[FriendDropSync] Drop completed! Triggering onCompleted callback');
-            callbacksRef.current.onCompleted?.(drop);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
         {
           event: 'UPDATE',
-          schema: 'public',
           table: 'friend_drops',
           filter: `to_user_id=eq.${profile.id}`,
+          callback: (payload) => {
+            const drop = payload.new as FriendDrop;
+            if (!drop) return;
+            
+            console.log('[FriendDropSync] Scanner received update:', drop.status, drop);
+            setActiveDrop(drop);
+            
+            if (drop.status === 'confirmed') {
+              console.log('[FriendDropSync] Scanner sees confirm! Triggering onConfirmed callback');
+              haptics.success();
+              callbacksRef.current.onConfirmed?.(drop);
+            } else if (drop.status === 'completed') {
+              console.log('[FriendDropSync] Scanner sees complete! Triggering onCompleted callback');
+              callbacksRef.current.onCompleted?.(drop);
+            }
+          },
         },
-        (payload) => {
-          const drop = payload.new as FriendDrop;
-          if (!drop) return;
-          
-          console.log('[FriendDropSync] Scanner received update:', drop.status, drop);
-          setActiveDrop(drop);
-          
-          if (drop.status === 'confirmed') {
-            console.log('[FriendDropSync] Scanner sees confirm! Triggering onConfirmed callback');
-            haptics.success();
-            callbacksRef.current.onConfirmed?.(drop);
-          } else if (drop.status === 'completed') {
-            console.log('[FriendDropSync] Scanner sees complete! Triggering onCompleted callback');
-            callbacksRef.current.onCompleted?.(drop);
-          }
-        }
-      )
-      .subscribe((status) => {
+      ],
+      (status) => {
         console.log('[FriendDropSync] Subscription status:', status);
-      });
+      },
+    );
 
     channelRef.current = channel;
 
     return () => {
       console.log('[FriendDropSync] Cleaning up subscription');
-      channel.unsubscribe();
+      removeRealtimeChannel(channel);
       channelRef.current = null;
     };
   }, [enabled, profile?.id]);

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 
 export type RouletteMode = 'text' | 'video' | 'audio';
@@ -34,7 +35,7 @@ export function useRouletteMatch() {
   useEffect(() => {
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
+      if (channelRef.current) removeRealtimeChannel(channelRef.current);
       // Remove from queue on unmount
       if (user?.id) {
         supabase.from('roulette_queue' as any).delete().eq('user_id', user.id);
@@ -71,50 +72,35 @@ export function useRouletteMatch() {
         return;
       }
 
-      // No match yet — listen for matches via realtime
-      const channel = supabase
-        .channel(`roulette-${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'roulette_matches',
-            filter: `user_a=eq.${user.id}`,
+      const handleMatch = async (m: any) => {
+        const partnerId = m.user_a === user.id ? m.user_b : m.user_a;
+        const { data: partnerProfile } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url, display_name')
+          .eq('id', partnerId)
+          .single();
+        setMatch({ ...m, partner: partnerProfile });
+        setStatus('matched');
+      };
+
+      const channel = subscribePostgresChannel(`roulette-${user.id}`, [
+        {
+          event: 'INSERT',
+          table: 'roulette_matches',
+          filter: `user_a=eq.${user.id}`,
+          callback: async (payload) => {
+            await handleMatch(payload.new as any);
           },
-          async (payload) => {
-            const m = payload.new as any;
-            const partnerId = m.user_a === user.id ? m.user_b : m.user_a;
-            const { data: partnerProfile } = await supabase
-              .from('profiles')
-              .select('id, username, avatar_url, display_name')
-              .eq('id', partnerId)
-              .single();
-            setMatch({ ...m, partner: partnerProfile });
-            setStatus('matched');
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'roulette_matches',
-            filter: `user_b=eq.${user.id}`,
+        },
+        {
+          event: 'INSERT',
+          table: 'roulette_matches',
+          filter: `user_b=eq.${user.id}`,
+          callback: async (payload) => {
+            await handleMatch(payload.new as any);
           },
-          async (payload) => {
-            const m = payload.new as any;
-            const partnerId = m.user_a === user.id ? m.user_b : m.user_a;
-            const { data: partnerProfile } = await supabase
-              .from('profiles')
-              .select('id, username, avatar_url, display_name')
-              .eq('id', partnerId)
-              .single();
-            setMatch({ ...m, partner: partnerProfile });
-            setStatus('matched');
-          }
-        )
-        .subscribe();
+        },
+      ]);
 
       channelRef.current = channel;
 
@@ -134,7 +120,7 @@ export function useRouletteMatch() {
           setMatch({ ...(pollData as any), partner: partnerProfile });
           setStatus('matched');
           if (pollingRef.current) clearInterval(pollingRef.current);
-          if (channelRef.current) supabase.removeChannel(channelRef.current);
+          if (channelRef.current) removeRealtimeChannel(channelRef.current);
         }
       }, 5000);
 
@@ -146,7 +132,7 @@ export function useRouletteMatch() {
 
   const cancelSearch = useCallback(async () => {
     if (pollingRef.current) clearInterval(pollingRef.current);
-    if (channelRef.current) supabase.removeChannel(channelRef.current);
+    if (channelRef.current) removeRealtimeChannel(channelRef.current);
     if (user?.id) {
       await supabase.from('roulette_queue' as any).delete().eq('user_id', user.id);
     }

@@ -6,6 +6,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { useEffect, useCallback, useMemo } from 'react';
@@ -116,25 +117,25 @@ export function useConversationSafety(conversationId: string | undefined) {
   useEffect(() => {
     if (!conversationId) return;
 
-    const channel = supabase
-      .channel(`safety-override:${conversationId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversation_safety_overrides', filter: `conversation_id=eq.${conversationId}` },
-        () => {
+    const channel = subscribePostgresChannel(`safety-override:${conversationId}`, [
+      {
+        event: '*',
+        table: 'conversation_safety_overrides',
+        filter: `conversation_id=eq.${conversationId}`,
+        callback: () => {
           refetchOverride();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversation_safety_responses' },
-        () => {
+        },
+      },
+      {
+        event: '*',
+        table: 'conversation_safety_responses',
+        callback: () => {
           queryClient.invalidateQueries({ queryKey: ['safety-responses'] });
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { removeRealtimeChannel(channel); };
   }, [conversationId, refetchOverride, queryClient]);
 
   // Request to disable AI filter

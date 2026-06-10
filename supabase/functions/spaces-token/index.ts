@@ -49,9 +49,103 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Invalid token" }, 401);
     }
 
-    const { spaceId } = await req.json() as { spaceId?: string };
+    const body = await req.json() as {
+      spaceId?: string;
+      serverId?: string;
+      channelId?: string;
+    };
+
+    const livekitApiKey = Deno.env.get("LIVEKIT_API_KEY");
+    const livekitApiSecret = Deno.env.get("LIVEKIT_API_SECRET");
+    const livekitUrl = Deno.env.get("LIVEKIT_URL");
+    if (!livekitApiKey || !livekitApiSecret || !livekitUrl) {
+      console.error("LiveKit secrets not configured");
+      return jsonResponse({ error: "Service not configured" }, 500);
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, username, display_name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const displayName = profile?.display_name || profile?.username || "Member";
+
+    // ── Community voice channel (persistent LiveKit lounges) ──
+    if (body.serverId && body.channelId) {
+      const { serverId, channelId } = body;
+      if (typeof serverId !== "string" || typeof channelId !== "string") {
+        return jsonResponse({ error: "Invalid serverId or channelId" }, 400);
+      }
+
+      if (!profile?.id) {
+        return jsonResponse({ error: "Profile not found" }, 404);
+      }
+
+      const { data: membership } = await supabase
+        .from("server_members")
+        .select("role")
+        .eq("server_id", serverId)
+        .eq("user_id", profile.id)
+        .maybeSingle();
+
+      if (!membership) {
+        return jsonResponse({ error: "Not a member of this community" }, 403);
+      }
+
+      const { data: channel } = await supabase
+        .from("channels")
+        .select("id, type, server_id")
+        .eq("id", channelId)
+        .eq("server_id", serverId)
+        .maybeSingle();
+
+      if (!channel) {
+        return jsonResponse({ error: "Channel not found" }, 404);
+      }
+      if (channel.type !== "voice") {
+        return jsonResponse({ error: "Not a voice channel" }, 400);
+      }
+
+      const roomName = `community-${serverId}-${channelId}`;
+
+      try {
+        const httpUrl = livekitUrl.replace(/^wss?:/, (m) => (m === "wss:" ? "https:" : "http:"));
+        const svc = new RoomServiceClient(httpUrl, livekitApiKey, livekitApiSecret);
+        await svc.createRoom({
+          name: roomName,
+          emptyTimeout: 300,
+          maxParticipants: 100,
+        });
+      } catch (e) {
+        console.log("createRoom skipped:", (e as Error)?.message);
+      }
+
+      const at = new AccessToken(livekitApiKey, livekitApiSecret, {
+        identity: profile.id,
+        name: displayName,
+        ttl: "4h",
+      });
+
+      at.addGrant({
+        roomJoin: true,
+        room: roomName,
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+      });
+
+      return jsonResponse({
+        token: await at.toJwt(),
+        url: livekitUrl,
+        roomName,
+        canPublish: true,
+        role: "speaker",
+      });
+    }
+
+    const { spaceId } = body;
     if (!spaceId || typeof spaceId !== "string") {
-      return jsonResponse({ error: "spaceId required" }, 400);
+      return jsonResponse({ error: "spaceId or (serverId + channelId) required" }, 400);
     }
 
     // Space must exist and be live
@@ -82,22 +176,6 @@ Deno.serve(async (req) => {
     }
 
     const canPublish = SPEAKER_ROLES.includes(participant.role);
-
-    const livekitApiKey = Deno.env.get("LIVEKIT_API_KEY");
-    const livekitApiSecret = Deno.env.get("LIVEKIT_API_SECRET");
-    const livekitUrl = Deno.env.get("LIVEKIT_URL");
-    if (!livekitApiKey || !livekitApiSecret || !livekitUrl) {
-      console.error("LiveKit secrets not configured");
-      return jsonResponse({ error: "Service not configured" }, 500);
-    }
-
-    // Display name for participant list inside LiveKit
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("username, display_name")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    const displayName = profile?.display_name || profile?.username || "Listener";
 
     const roomName = `space-${spaceId}`;
 

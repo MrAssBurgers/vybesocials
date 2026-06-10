@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -32,20 +33,14 @@ export function useFriendRequests() {
   useEffect(() => {
     if (!profile?.id) return;
 
-    const channel = supabase
-      .channel(`friend-requests:${profile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'friend_requests',
-          filter: `receiver_id=eq.${profile.id}`,
-        },
-        async (payload) => {
+    const channel = subscribePostgresChannel(`friend-requests:${profile.id}`, [
+      {
+        event: 'INSERT',
+        table: 'friend_requests',
+        filter: `receiver_id=eq.${profile.id}`,
+        callback: async (payload) => {
           console.log('[FriendRequests] New incoming request:', payload.new);
           
-          // Fetch sender info for the toast
           const { data: sender } = await supabase
             .from('profiles')
             .select('username, display_name, avatar_url')
@@ -57,19 +52,14 @@ export function useFriendRequests() {
             duration: 5000,
           });
           
-          // Invalidate to refresh the list
           queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'friend_requests',
-          filter: `sender_id=eq.${profile.id}`,
         },
-        (payload) => {
+      },
+      {
+        event: 'UPDATE',
+        table: 'friend_requests',
+        filter: `sender_id=eq.${profile.id}`,
+        callback: (payload) => {
           console.log('[FriendRequests] Request updated (outgoing):', payload.new);
           const status = (payload.new as any).status;
           if (status === 'accepted') {
@@ -77,12 +67,12 @@ export function useFriendRequests() {
           }
           queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
           queryClient.invalidateQueries({ queryKey: ['friends'] });
-        }
-      )
-      .subscribe();
+        },
+      },
+    ]);
 
     return () => {
-      supabase.removeChannel(channel);
+      removeRealtimeChannel(channel);
     };
   }, [profile?.id, queryClient]);
 

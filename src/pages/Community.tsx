@@ -15,7 +15,7 @@ import { CommunityCard, PublicCommunityCard } from '@/components/community/Commu
 import { CommunityShell } from '@/components/community/CommunityShell';
 import { CreateServerDialog } from '@/components/community/CreateServerDialog';
 import { JoinServerDialog } from '@/components/community/JoinServerDialog';
-import { ServerRail } from '@/components/community/ServerRail';
+import { CommunityOrbitBar } from '@/components/community/CommunityOrbitBar';
 import {
   Plus,
   Users,
@@ -109,16 +109,17 @@ export default function Community() {
   return (
     <TooltipProvider delayDuration={300}>
       <AppLayout hideRightSidebar fullWidth noPadding>
-        <div className="community-shell h-full flex overflow-hidden">
-          <ServerRail
-            communities={communities}
-            selectedId={null}
-            onSelect={handleSelectCommunity}
-            onCreate={() => setShowCreateDialog(true)}
-            onDiscover={() => setActiveTab('discover')}
-            unreadCounts={unreadCounts}
-          />
-
+        <div className="community-shell h-full flex flex-col overflow-hidden">
+          <div className="shrink-0 px-4 pt-[calc(var(--sat,0px)+0.75rem)] pb-2 border-b border-foreground/8">
+            <CommunityOrbitBar
+              communities={communities}
+              selectedId={null}
+              onSelect={handleSelectCommunity}
+              onCreate={() => setShowCreateDialog(true)}
+              onDiscover={() => setActiveTab('discover')}
+              unreadCounts={unreadCounts}
+            />
+          </div>
           <div className="flex-1 overflow-y-auto min-h-0">
             <div className="max-w-6xl mx-auto px-4 py-6 md:py-8 space-y-6">
               <motion.div
@@ -141,7 +142,7 @@ export default function Community() {
                         Your servers, your vibe
                       </h1>
                       <p className="text-sm text-muted-foreground mt-1 max-w-md">
-                        Discord-style channels with iconic VYBE polish — text, voice, and live hangouts.
+                        Your crews, your channels — text lounges, voice hangouts, and live energy in one iconic shell.
                       </p>
                     </div>
                   </div>

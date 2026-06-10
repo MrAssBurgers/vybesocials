@@ -159,11 +159,19 @@ export function useCommunityVoice() {
 
       try {
         const { data, error: fnError } = await supabase.functions.invoke<VoiceTokenResponse>(
-          'community-voice-token',
+          'spaces-token',
           { body: { serverId, channelId } },
         );
         if (fnError || !data?.token) {
-          throw new Error(fnError?.message || 'Could not join voice channel');
+          const ctx = (fnError as { context?: { json?: () => Promise<{ error?: string }> } })?.context;
+          let detail = fnError?.message;
+          if (ctx?.json) {
+            try {
+              const payload = await ctx.json();
+              if (payload?.error) detail = payload.error;
+            } catch { /* ignore */ }
+          }
+          throw new Error(detail || 'Could not join voice channel');
         }
 
         const room = new Room({ adaptiveStream: true, dynacast: true });

@@ -5,7 +5,19 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Communities Discord redesign + working voice channels** — pushed `4d295871`; **Lovable Publish + edge function deploy pending**
+- **Realtime hardening complete** — all `postgres_changes` subscriptions now use `subscribePostgresChannel`. **Lovable Publish pending**
+
+## What Changed (realtime hardening — app-wide)
+- **`subscribePostgresChannel`** — migrated every remaining raw `.channel().on('postgres_changes')` across hooks, `callStore`, admin/auth components (~30 files)
+- **`useServers`** — replaced anti-pattern `useQuery` subscription for channel messages with proper `useEffect`
+- **`useFriendDropSync`** — stable channel name (removed `Date.now()` suffix that leaked channels)
+- Broadcast/signaling channels (`useInstantSend`, `p2pConnection`, `LoginGateModal`, DM broadcast) intentionally unchanged
+
+## What Changed (stability audit)
+- **`spaces-token` community voice** — membership + LiveKit identity use `profiles.id` (was auth uid → 403 / missing avatars)
+- **`RoomChat`** — removed nav cleanup that re-showed bottom nav when switching text → voice
+- **`CommunityChannelSidebar`** — fixed nested `<button>` invalid HTML
+- **`RootBottomNavMount`** — hide nav on all `/messages/*` sub-routes
 
 ## Publish log
 - **2026-06-09** — Pushed `4d295871` to `main`: Discord-style communities shell, LiveKit voice (`community-voice-token`, `useCommunityVoice`), theme equip persistence, home/DM polish. Build + lint pass. Edge fn deploy blocked (Supabase CLI 403 — needs login or Lovable deploy). **Lovable Publish pending.**
@@ -258,11 +270,11 @@ Use this file as the Lovable -> Cursor handoff each session.
 - Custom wallpaper gate: `hasUserWallpaper` + `isBackgroundResolved` hide aurora/touch; `stripLiquidShellDocumentState()` on upload
 
 ## Current Status
-- Done: realtime crash fix (`realtimeChannel.ts`, ban/global-messages/autopilot cleanup); `npm run build` + `npm run lint`
-- **Your turn:** Lovable Publish → verify `/home` loads without Realtime errors → Despia rebuild
+- Done: app-wide `subscribePostgresChannel` migration (~30 files); `npm run build` + `npm run lint`
+- **Your turn:** Lovable Publish → smoke DMs, communities voice, map realtime → Despia rebuild
 
 ## Next 3 tasks
-1. Lovable Publish + verify Home loads (no `postgres_changes after subscribe()` errors)
+1. Lovable Publish + smoke test (Home feed, DMs, community voice, Vybe Map — no Realtime console errors)
 2. Investigate `user_backgrounds` statement timeout on preview DB (index/RLS if persists)
 3. Despia rebuild (>6061901) + App Store resubmit prep
 

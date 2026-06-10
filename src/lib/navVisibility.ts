@@ -18,9 +18,10 @@ let inCommunityChat = false;
 let inStoryViewer = false;
 let inDesigner = false;
 let inEditMode = false;
+let inImmersiveView = false;
 
 function updateVisibility() {
-  const shouldBeVisible = !communityInputFocused && !inCommunityChat && !inStoryViewer && !inDesigner;
+  const shouldBeVisible = !communityInputFocused && !inCommunityChat && !inStoryViewer && !inDesigner && !inImmersiveView;
   if (navVisible !== shouldBeVisible) {
     navVisible = shouldBeVisible;
     listeners.forEach(fn => fn(navVisible));
@@ -69,11 +70,23 @@ export const navVisibility = {
     inStoryViewer = false;
     inDesigner = false;
     inEditMode = false;
+    inImmersiveView = false;
     updateVisibility();
   },
 
   setInEditMode(editing: boolean) {
     inEditMode = editing;
+    updateVisibility();
+  },
+
+  /** Full-screen experiences: map, community server, space room, etc. */
+  setImmersiveView(immersive: boolean) {
+    inImmersiveView = immersive;
+    updateVisibility();
+  },
+
+  forceHide() {
+    inImmersiveView = true;
     updateVisibility();
   },
 

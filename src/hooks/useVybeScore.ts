@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 
 export interface VybeScoreEvent {
@@ -32,18 +33,18 @@ export function useVybeScore(profileId: string | undefined) {
   // Realtime: tick up live
   useEffect(() => {
     if (!profileId) return;
-    const channel = supabase
-      .channel(`vybe-score:${profileId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'vybe_scores', filter: `profile_id=eq.${profileId}` },
-        (payload: any) => {
+    const channel = subscribePostgresChannel(`vybe-score:${profileId}`, [
+      {
+        event: '*',
+        table: 'vybe_scores',
+        filter: `profile_id=eq.${profileId}`,
+        callback: (payload: any) => {
           const next = Number(payload.new?.score ?? 0);
           qc.setQueryData(['vybe-score', profileId], next);
-        }
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+        },
+      },
+    ]);
+    return () => { removeRealtimeChannel(channel); };
   }, [profileId, qc]);
 
   return query;
