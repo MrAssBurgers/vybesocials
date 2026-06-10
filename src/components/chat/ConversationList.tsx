@@ -383,6 +383,11 @@ export function ConversationList() {
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-y',
           overscrollBehavior: 'contain',
+          // Fade rows at the viewport edges instead of hard-clipping them
+          maskImage:
+            'linear-gradient(to bottom, transparent 0, black 14px, black calc(100% - 48px), transparent 100%)',
+          WebkitMaskImage:
+            'linear-gradient(to bottom, transparent 0, black 14px, black calc(100% - 48px), transparent 100%)',
         }}
       >
 
@@ -415,7 +420,7 @@ export function ConversationList() {
         )}
 
         {/* Conversations */}
-        <div className="px-3 pb-4 space-y-0.5">
+        <div className="px-3 pb-10 space-y-0.5">
           {(filteredPinned.length > 0 || filteredUnpinned.length > 0) ? (
             <>
               {filteredPinned.map((conv) => (
