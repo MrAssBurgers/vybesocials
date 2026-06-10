@@ -171,10 +171,10 @@ Deno.serve(async (req) => {
               userId: profileId,
               title: 'Approve sign-in?',
               body: `${device} from ${where}`,
-              url: '/home',
+              url: `/?login-approval=${chal.id}`,
               tag: `login-approval-${chal.id}`,
               type: 'security',
-              data: { challengeId: chal.id, kind: 'login_approval' },
+              data: { challengeId: chal.id, kind: 'login_approval', path: `/?login-approval=${chal.id}` },
             }),
           }).catch(() => {});
         }

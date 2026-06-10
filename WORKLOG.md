@@ -5,7 +5,34 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Community voice + DM list stability** — `livekit-token` community path, messages tab flicker fix. **Lovable Publish + Backend deploy pending**
+- **Incoming call full-screen UX** — Snapchat-style overlay + native CallKit / Android full-screen intent. **Despia native rebuild + Lovable Backend deploy pending**
+
+## What Changed (incoming calls — 2026-06-09)
+- **`GlobalCallOverlay`** — Snapchat-style full-screen incoming UI (portal → `document.body`, blurred caller wallpaper, slide-to-answer + Accept/Decline, locks scroll)
+- **`nativeIncomingCall.ts`** + **`NativeIncomingCallBridge`** — Capacitor `@capgo/capacitor-incoming-call-kit` for iOS CallKit + Android full-screen intent; Despia `scanningmode://auto` during ring
+- **`callStore`** — presents/dismisses native UI on ring/accept/decline; `vybe:incoming-call` event for push deep links
+- **`NotificationActionRouter`** — tapping call notification surfaces full overlay before poll catches it
+- **`send-push-notification`** — `ios_interruption_level: time_sensitive` for calls; optional `ONESIGNAL_CALL_CHANNEL_ID`
+- **`DespiaOneSignalSync`** — requests incoming-call permissions on login
+- **`index.css`** — `body.vybe-incoming-call-active` hides app chrome under overlay
+- **Build:** `npm run build` pass
+
+## What Changed (stability + UX pass — 2026-06-09)
+- **DM refresh loop** — `ChatView` mark-read patches React Query cache instead of invalidating; `useMessages`/`useConversations` `refetchOnMount: false`
+- **DM list density** — removed edge mask gradient; compact `.dm-convo-row`; smaller avatars; removed composer bottom shadow/fade
+- **Bottom nav stuck** — `navVisibility.forceShow()` + scroll-hide reset on main tab routes
+- **Splash preload** — warms user level, preferences, DNA settings before dismiss
+- **Login approval** — `LoginGateModal` uses `activeChallengeId`; session retry on approve; push uses `profiles.id`
+- **OneSignal push** — `send-push-notification` resolves auth uid → profile id for OneSignal lookup
+- **Clips scroll** — removed `contentVisibility: auto`; explicit `touchAction: pan-y`; `vybe-clips-page` on ClipsViewer
+- **Vybe DNA** — instant cache from preloader + localStorage actions cache
+
+## What Changed (notifications — 2026-06-09)
+- **`NotificationActionRouter`** — unified handler for Despia taps, OneSignal web clicks, service worker actions, and deep links (`?call=`, `?login-approval=`)
+- **Call push** — Answer/Decline buttons on OneSignal Android; accept joins call instantly; decline updates DB
+- **`send-push-notification`** — VAPID optional when OneSignal delivers to native; always sends `path` + `url` for Despia routing; profile-id resolution
+- **Login approval push** — deep link `/?login-approval={id}` opens approval sheet on trusted device
+- **Service worker** — call accept uses `?call=&action=accept`; posts `NOTIFICATION_CLICK` to app for decline
 
 ## What Changed (realtime hardening — app-wide)
 - **`subscribePostgresChannel`** — migrated every remaining raw `.channel().on('postgres_changes')` across hooks, `callStore`, admin/auth components (~30 files)
@@ -272,13 +299,13 @@ Use this file as the Lovable -> Cursor handoff each session.
 - Custom wallpaper gate: `hasUserWallpaper` + `isBackgroundResolved` hide aurora/touch; `stripLiquidShellDocumentState()` on upload
 
 ## Current Status
-- Done: community voice → `livekit-token`, DM list flicker fixes; `npm run build` pass
-- **Your turn:** Lovable Backend deploy `livekit-token` + LIVEKIT secrets → Publish → test community voice
+- Done: Snapchat-style full-screen incoming call overlay; native CallKit bridge wired; build pass
+- **Your turn:** Despia native rebuild (Capacitor plugin) + Lovable Backend deploy `send-push-notification` → test locked-phone incoming call
 
 ## Next 3 tasks
-1. Lovable Backend: deploy `livekit-token` with LIVEKIT_URL/KEY/SECRET → Publish → join community voice channel
-2. Investigate `user_backgrounds` statement timeout on preview DB (index/RLS if persists)
-3. Despia rebuild (>6061901) + App Store resubmit prep
+1. Despia rebuild with `@capgo/capacitor-incoming-call-kit` (`npx cap sync` + native build); create OneSignal Android channel → set `ONESIGNAL_CALL_CHANNEL_ID`
+2. Lovable Backend deploy `send-push-notification` → Publish → smoke test: locked phone incoming call (Answer/Decline from notification + full-screen UI)
+3. Lovable Backend deploy `livekit-token` with LIVEKIT secrets → test community voice
 
 ## Publish log
 - **2026-06-02** — pushed `edbf9205` (Realtime crash fix on Home). **Lovable Publish pending.**

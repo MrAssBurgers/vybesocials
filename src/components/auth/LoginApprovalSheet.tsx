@@ -60,6 +60,20 @@ export function LoginApprovalSheet() {
     };
     refresh();
 
+    const onLoginApprovalPush = (event: Event) => {
+      const challengeId = (event as CustomEvent<{ challengeId?: string }>).detail?.challengeId;
+      if (!challengeId) return;
+      void supabase
+        .from('auth_challenges')
+        .select('id, metadata, created_at, expires_at, status, challenge_type')
+        .eq('id', challengeId)
+        .eq('user_id', user.id)
+        .eq('challenge_type', 'login_approval')
+        .maybeSingle()
+        .then(({ data }) => present(data));
+    };
+    window.addEventListener('vybe:login-approval-push', onLoginApprovalPush);
+
     const channel = subscribePostgresChannel(`login-approval-${user.id}`, [
       {
         event: 'INSERT',
@@ -94,6 +108,7 @@ export function LoginApprovalSheet() {
       cancelled = true;
       window.clearInterval(pollId);
       document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('vybe:login-approval-push', onLoginApprovalPush);
       removeRealtimeChannel(channel);
     };
   }, [authReady, user?.id]);
@@ -102,10 +117,20 @@ export function LoginApprovalSheet() {
     if (!pending) return;
     setBusy(true);
     try {
-      const { error } = await supabase.functions.invoke('auth-login-approval', {
+      const { data, error } = await supabase.functions.invoke('auth-login-approval', {
         body: { action: 'respond', challengeId: pending.id, intent },
       });
       if (error) throw error;
+      const payload = data as { error?: string; status?: string } | null;
+      if (payload?.error) {
+        const msg =
+          payload.error === 'expired' ? 'Request expired — sign in again'
+          : payload.error === 'already_resolved' ? 'Already handled on another device'
+          : 'Could not respond — try again';
+        toast.error(msg);
+        setPending(null);
+        return;
+      }
       toast.success(intent === 'approve' ? 'Sign-in approved' : 'Sign-in denied');
       setPending(null);
     } catch {

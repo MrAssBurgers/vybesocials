@@ -50,6 +50,8 @@ async function presignPosts(posts: Post[]) {
   await batchSignUrls(urls);
 }
 
+const CLIPS_PAGE_CLASS = 'vybe-clips-page';
+
 export default function ClipsViewer() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
@@ -120,6 +122,12 @@ export default function ClipsViewer() {
       navigate(`/watch/${postId}`, { replace: true, state: location.state });
     }
   }, [initialPost?.type, postId, navigate, location.state]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add(CLIPS_PAGE_CLASS);
+    return () => root.classList.remove(CLIPS_PAGE_CLASS);
+  }, []);
 
   // ─── 2. Fetch infinite feed AFTER initial post ───
   const feedQuery = useInfiniteQuery({

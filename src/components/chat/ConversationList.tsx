@@ -321,11 +321,6 @@ export function ConversationList() {
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-y',
           overscrollBehavior: 'contain',
-          // Fade rows at the viewport edges instead of hard-clipping them
-          maskImage:
-            'linear-gradient(to bottom, transparent 0, black 14px, black calc(100% - 48px), transparent 100%)',
-          WebkitMaskImage:
-            'linear-gradient(to bottom, transparent 0, black 14px, black calc(100% - 48px), transparent 100%)',
         }}
       >
 
@@ -358,7 +353,7 @@ export function ConversationList() {
         )}
 
         {/* Conversations */}
-        <div className="px-3 pb-10 space-y-0.5">
+        <div className="px-2 pb-4 space-y-0">
           {(filteredPinned.length > 0 || filteredUnpinned.length > 0) ? (
             <>
               {filteredPinned.map((conv) => (
@@ -563,7 +558,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
       <div className="relative flex-shrink-0">
         {conversation.is_group ? (
           <div className="relative">
-            <Avatar className="h-12 w-12 ring-2 ring-background shadow-md">
+            <Avatar className="h-10 w-10 ring-2 ring-background shadow-md">
               {avatarUrl ? (
                 <AvatarImage src={avatarUrl} />
               ) : (

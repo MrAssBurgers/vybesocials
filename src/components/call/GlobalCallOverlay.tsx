@@ -21,6 +21,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizontal, RefreshCw, Minimize2, Crown, Zap, Smile } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -1453,14 +1454,20 @@ export function GlobalCallOverlay() {
         </div>
       )}
 
-      {/* Incoming call dialog */}
-      <AnimatePresence>
-        {isRinging && state.call && (
-          <motion.div key={`incoming-${state.call.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100000] flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, hsl(240 10% 4%) 0%, hsl(280 20% 8%) 50%, hsl(240 10% 6%) 100%)', isolation: 'isolate' }}>
-            <IncomingCallDialog call={state.call} onAccept={handleAccept} onDecline={dismissIncoming} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Incoming call — Snapchat-style full-screen overlay (portal → body) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isRinging && state.call && (
+            <IncomingCallFullscreen
+              key={`incoming-${state.call.id}`}
+              call={state.call}
+              onAccept={handleAccept}
+              onDecline={dismissIncoming}
+            />
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
 
       {/* Settings Sheet */}
       <CallSettingsSheet
@@ -1483,9 +1490,9 @@ export function GlobalCallOverlay() {
   );
 }
 
-// ── Incoming Call Dialog ────────────────────────────────────
+// ── Incoming Call — Snapchat-style full-screen overlay ────────
 
-function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onAccept: () => void; onDecline: () => void }) {
+function IncomingCallFullscreen({ call, onAccept, onDecline }: { call: CallData; onAccept: () => void; onDecline: () => void }) {
   const [timeLeft, setTimeLeft] = useState(INCOMING_CALL_TIMEOUT_SECONDS);
   const [isProcessing, setIsProcessing] = useState(false);
   const processingRef = useRef(false);
@@ -1495,16 +1502,33 @@ function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onA
   const isGroupCall = call.isGroupCall;
   const groupName = call.groupName;
   const groupAvatar = call.groupAvatar;
-  const incomingDisplayName = isGroupCall && groupName ? groupName : (caller?.display_name || caller?.username);
-  const incomingDisplayAvatar = isGroupCall ? groupAvatar : caller?.avatar_url;
-  const incomingDisplayInitial = isGroupCall && groupName ? groupName.charAt(0) : (caller?.display_name?.charAt(0) || caller?.username?.charAt(0));
+  const displayName = isGroupCall && groupName ? groupName : (caller?.display_name || caller?.username || 'Unknown');
+  const displayAvatar = isGroupCall ? groupAvatar : caller?.avatar_url;
+  const displayInitial = isGroupCall && groupName
+    ? groupName.charAt(0)
+    : (caller?.display_name?.charAt(0) || caller?.username?.charAt(0) || '?');
 
   const onDeclineRef = useRef(onDecline);
   onDeclineRef.current = onDecline;
 
   useEffect(() => {
+    document.body.classList.add('vybe-incoming-call-active');
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.classList.remove('vybe-incoming-call-active');
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
+
+  useEffect(() => {
     const interval = setInterval(() => {
-      setTimeLeft(prev => { if (prev <= 1) { onDeclineRef.current(); return 0; } return prev - 1; });
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          onDeclineRef.current();
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
     return () => clearInterval(interval);
   }, []);
@@ -1513,6 +1537,7 @@ function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onA
     if (processingRef.current) return;
     processingRef.current = true;
     setIsProcessing(true);
+    triggerHaptic('success');
     onAccept();
   };
 
@@ -1520,44 +1545,87 @@ function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onA
     if (processingRef.current) return;
     processingRef.current = true;
     setIsProcessing(true);
+    triggerHaptic('heavy');
     callSounds.end();
     onDecline();
   };
 
   return (
-    <>
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div animate={{ x: [0, 50, 0], y: [0, 30, 0], scale: [1, 1.2, 1] }} transition={{ duration: 8, repeat: Infinity, ease: "linear" }} className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }} />
-        <motion.div animate={{ x: [0, -30, 0], y: [0, -50, 0], scale: [1, 1.3, 1] }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }} className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%)' }} />
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="vybe-incoming-call-overlay fixed inset-0 z-[999999] flex flex-col overflow-hidden touch-none"
+      style={{
+        height: '100dvh',
+        width: '100vw',
+        isolation: 'isolate',
+      }}
+    >
+      {/* Blurred caller wallpaper (Snapchat-style) */}
+      {displayAvatar ? (
+        <img
+          src={displayAvatar}
+          alt=""
+          aria-hidden
+          className="absolute inset-0 h-full w-full object-cover scale-110 blur-3xl opacity-60"
+        />
+      ) : (
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(circle at 30% 20%, hsl(var(--primary) / 0.45), transparent 55%), radial-gradient(circle at 70% 80%, hsl(var(--accent) / 0.35), transparent 50%), hsl(240 12% 6%)',
+          }}
+        />
+      )}
+      <div className="absolute inset-0 bg-black/55" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/80" />
+
+      {/* Top — avatar + identity */}
+      <div
+        className="relative z-10 flex flex-col items-center flex-1 justify-center px-6 pt-safe pb-8"
+        style={{ paddingTop: 'calc(var(--app-header-safe, env(safe-area-inset-top, 0px)) + 2.5rem)' }}
+      >
+        <motion.div
+          animate={{ scale: [1, 1.04, 1] }}
+          transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+          className="relative mb-8"
+        >
+          <motion.div
+            animate={{ scale: [1, 1.35, 1], opacity: [0.5, 0, 0.5] }}
+            transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
+            className="absolute inset-0 rounded-full border-2 border-white/30"
+            style={{ margin: '-12px' }}
+          />
+          <Avatar className="h-36 w-36 sm:h-44 sm:w-44 ring-4 ring-white/20 shadow-2xl">
+            <AvatarImage src={displayAvatar || undefined} />
+            <AvatarFallback className="text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">
+              {displayInitial}
+            </AvatarFallback>
+          </Avatar>
+        </motion.div>
+
+        <h1 className="text-3xl sm:text-4xl font-bold text-white text-center tracking-tight mb-2">
+          {displayName}
+        </h1>
+        <motion.p
+          className="text-white/70 text-lg sm:text-xl font-medium"
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ repeat: Infinity, duration: 1.8 }}
+        >
+          {isGroupCall
+            ? `${caller?.display_name || caller?.username || 'Someone'} is calling…`
+            : isVideoCall ? 'Video Chat' : 'Audio Call'}
+        </motion.p>
+        <p className="mt-3 text-white/40 text-sm">VYBE</p>
       </div>
-      <div className="absolute inset-0 backdrop-blur-3xl" />
-      <motion.div initial={{ scale: 0.8, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: 40 }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="relative z-10 flex flex-col items-center max-w-sm w-full px-4">
-        <div className="relative mb-6 sm:mb-8">
-          <motion.div animate={{ scale: [1, 1.5], opacity: [0.6, 0] }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }} className="absolute inset-0 rounded-full border-2 border-primary/50" style={{ width: 120, height: 120, margin: '-8px' }} />
-          <motion.div animate={{ scale: [1, 1.4], opacity: [0.4, 0] }} transition={{ repeat: Infinity, duration: 2, delay: 0.5, ease: "linear" }} className="absolute inset-0 rounded-full border-2 border-accent/40" style={{ width: 120, height: 120, margin: '-8px' }} />
-          <motion.div animate={{ scale: [1, 1.02, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "linear" }}>
-            <Avatar className="h-24 w-24 sm:h-32 sm:w-32 ring-4 ring-white/10 shadow-2xl">
-              <AvatarImage src={incomingDisplayAvatar || undefined} />
-              <AvatarFallback className="text-3xl sm:text-4xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{incomingDisplayInitial}</AvatarFallback>
-            </Avatar>
-          </motion.div>
-          <motion.div initial={{ scale: 0, y: 10 }} animate={{ scale: 1, y: 0 }} transition={{ delay: 0.2, type: "spring" }} className="absolute -bottom-3 left-1/2 -translate-x-1/2">
-            <div className="px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-gradient-to-r from-primary to-accent flex items-center gap-1.5 shadow-lg">
-              {isVideoCall ? <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" /> : <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />}
-              <span className="text-[10px] sm:text-xs font-semibold text-white">
-                {isGroupCall ? (isVideoCall ? 'Group FaceTime' : 'Group Call') : (isVideoCall ? 'FaceTime' : 'Audio Call')}
-              </span>
-            </div>
-          </motion.div>
-        </div>
-        <div className="text-center mb-8 sm:mb-10">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">{incomingDisplayName}</h2>
-          <motion.p className="text-white/60 text-base sm:text-lg" animate={{ opacity: [0.4, 0.8, 0.4] }} transition={{ repeat: Infinity, duration: 2 }}>
-            {isGroupCall ? `${caller?.display_name || caller?.username} is calling...` : 'is calling you...'}
-          </motion.p>
-        </div>
-        {/* Slide to Answer */}
-        <div className="w-full px-6 mb-6 sm:mb-8">
+
+      {/* Bottom — slide + quick actions */}
+      <div
+        className="relative z-10 w-full px-6 pb-safe"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.75rem)' }}
+      >
+        <div className="w-full max-w-md mx-auto mb-6">
           <SlideToAnswer
             isVideoCall={isVideoCall}
             onAccept={handleAccept}
@@ -1565,11 +1633,38 @@ function IncomingCallDialog({ call, onAccept, onDecline }: { call: CallData; onA
             disabled={isProcessing}
           />
         </div>
-        <div className="flex items-center gap-2 text-white/30 text-xs sm:text-sm">
-          <div className="w-1.5 h-1.5 rounded-full bg-white/30 animate-pulse" />
-          <span>Auto-declining in {timeLeft}s</span>
+
+        <div className="flex items-center justify-center gap-10 sm:gap-14">
+          <div className="flex flex-col items-center gap-2">
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={handleDecline}
+              disabled={isProcessing}
+              className="h-16 w-16 rounded-full bg-red-500 text-white shadow-lg shadow-red-500/40 flex items-center justify-center disabled:opacity-60"
+              aria-label="Decline call"
+            >
+              <PhoneOff className="h-7 w-7" />
+            </motion.button>
+            <span className="text-white/80 text-sm font-medium">Decline</span>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={handleAccept}
+              disabled={isProcessing}
+              className="h-16 w-16 rounded-full bg-green-500 text-white shadow-lg shadow-green-500/40 flex items-center justify-center disabled:opacity-60"
+              aria-label="Accept call"
+            >
+              {isVideoCall ? <Video className="h-7 w-7" /> : <Phone className="h-7 w-7" />}
+            </motion.button>
+            <span className="text-white/80 text-sm font-medium">Accept</span>
+          </div>
         </div>
-      </motion.div>
-    </>
+
+        <p className="text-center text-white/35 text-xs mt-5">
+          Auto-declining in {timeLeft}s
+        </p>
+      </div>
+    </motion.div>
   );
 }

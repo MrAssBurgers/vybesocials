@@ -226,7 +226,7 @@ export function useConversations() {
     staleTime: 60000, // 1 minute cache
     gcTime: 1000 * 60 * 60 * 24, // 24h — keep conversations cached for offline
     refetchOnWindowFocus: true, // Refetch when user returns to app
-    refetchOnMount: 'always', // Always re-pull truth on mount; cache shows instantly via placeholderData
+    refetchOnMount: false,
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
     networkMode: 'online',
@@ -298,7 +298,7 @@ export function useMessages(conversationId: string | undefined) {
     staleTime: 30000,
     gcTime: 1000 * 60 * 60 * 24 * 14, // 14d — keep past messages cached for offline
     refetchOnWindowFocus: false,
-    refetchOnMount: 'always', // Always re-pull thread on mount; cache shows instantly via placeholderData
+    refetchOnMount: false,
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
     networkMode: 'online',

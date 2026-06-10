@@ -275,6 +275,7 @@ self.addEventListener('push', (event) => {
   // Customize based on notification type
   switch (notificationType) {
     case 'call':
+    case 'incoming_call':
       // Incoming call - high priority
       title = `📞 ${data.callerName || 'Someone'} is calling`;
       body = data.callType === 'video' ? 'Video call' : 'Audio call';
@@ -414,11 +415,26 @@ self.addEventListener('notificationclick', (event) => {
   let targetUrl = data.url || '/';
 
   // Handle specific actions
-  if (data.type === 'call') {
+  if (data.type === 'call' || data.type === 'incoming_call') {
     if (action === 'accept') {
-      targetUrl = `/messages/${data.conversationId}?acceptCall=true`;
+      const qs = new URLSearchParams();
+      if (data.callId) qs.set('call', data.callId);
+      qs.set('action', 'accept');
+      targetUrl = data.conversationId
+        ? `/messages/${data.conversationId}?${qs.toString()}`
+        : '/messages';
     } else if (action === 'decline') {
-      // Just close notification, call will be declined
+      event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+          for (const client of clientList) {
+            client.postMessage({
+              type: 'NOTIFICATION_CLICK',
+              action: 'decline',
+              payload: data,
+            });
+          }
+        })
+      );
       return;
     }
   } else if (data.type === 'message' || data.type === 'dm' || data.type === 'group_message') {
@@ -445,15 +461,26 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      const notifyClients = () => {
+        for (const client of clientList) {
+          client.postMessage({
+            type: 'NOTIFICATION_CLICK',
+            action: action || 'open',
+            payload: { ...data, url: targetUrl, path: targetUrl },
+          });
+        }
+      };
+
       // Try to find an existing window and focus it
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           return client.focus().then(() => {
-            // Navigate to the target URL
-            return client.navigate(targetUrl);
+            notifyClients();
+            if (client.navigate) return client.navigate(targetUrl);
           });
         }
       }
+      notifyClients();
       // No existing window, open a new one
       if (clients.openWindow) {
         return clients.openWindow(targetUrl);

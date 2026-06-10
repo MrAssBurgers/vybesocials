@@ -74,6 +74,13 @@ export const navVisibility = {
     updateVisibility();
   },
 
+  /** Reset scroll-hide state so bottom nav cannot get stuck off-screen. */
+  resetScrollHide() {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('vybe:nav-scroll-reset'));
+    }
+  },
+
   setInEditMode(editing: boolean) {
     inEditMode = editing;
     updateVisibility();

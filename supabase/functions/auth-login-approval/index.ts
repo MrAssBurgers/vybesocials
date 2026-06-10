@@ -81,6 +81,13 @@ Deno.serve(async (req) => {
 
       // Fire-and-forget push to wake any trusted device (web/Despia/native).
       try {
+        const { data: prof } = await admin
+          .from('profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const profileId = prof?.id as string | undefined;
+        const pushTargetId = profileId || user.id;
         const where = [geo?.city, geo?.country].filter(Boolean).join(', ') || ip || 'Unknown location';
         const deviceLabel = (device as any)?.label || (device as any)?.os || (device as any)?.browser || 'Unknown device';
         fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
@@ -90,13 +97,17 @@ Deno.serve(async (req) => {
             'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
           },
           body: JSON.stringify({
-            userId: user.id,
+            userId: pushTargetId,
             title: 'Approve sign-in?',
             body: `${deviceLabel} · ${where}`,
             url: `/?login-approval=${chal.id}`,
             tag: `vybe-login-approval-${chal.id}`,
-            type: 'general',
-            data: { challengeId: chal.id, kind: 'login_approval' },
+            type: 'security',
+            data: {
+              challengeId: chal.id,
+              kind: 'login_approval',
+              path: `/?login-approval=${chal.id}`,
+            },
           }),
         }).catch(() => {});
       } catch { /* best-effort */ }

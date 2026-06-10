@@ -102,6 +102,8 @@ export function LoginGateModal({
     if (!open || currentMode !== 'approval') return;
     cancelledRef.current = false;
 
+    const pollChallengeId = activeChallengeId;
+
     const finalize = (status: string, session?: any) => {
       if (cancelledRef.current) return;
       cancelledRef.current = true;
@@ -116,17 +118,30 @@ export function LoginGateModal({
       }
     };
 
+    let sessionRetryCount = 0;
+
     const poll = async () => {
       if (cancelledRef.current) return;
       try {
         const { data, error } = await supabase.functions.invoke('auth-login-approval', {
-          body: { action: 'poll', challengeId },
+          body: { action: 'poll', challengeId: pollChallengeId },
         });
         if (cancelledRef.current) return;
         if (!error) {
           const status = (data as any)?.status;
           if (status === 'approved') {
-            finalize('approved', (data as any)?.session ?? null);
+            const session = (data as any)?.session ?? null;
+            if (session?.access_token && session?.refresh_token) {
+              finalize('approved', session);
+              return;
+            }
+            // Broadcast may have scrubbed metadata before poll — retry briefly.
+            if (sessionRetryCount < 4) {
+              sessionRetryCount += 1;
+              pollTimerRef.current = window.setTimeout(poll, 400);
+              return;
+            }
+            finalize('approved', null);
             return;
           }
           if (status === 'denied' || status === 'expired' || status === 'not_found') {
@@ -141,15 +156,19 @@ export function LoginGateModal({
     };
 
     // Instant resolution via broadcast from auth-login-approval `respond`.
-    // The payload now carries the session directly — no extra poll needed.
     const bc = supabase
-      .channel(`login-approval:${challengeId}`)
+      .channel(`login-approval:${pollChallengeId}`)
       .on('broadcast', { event: 'resolved' }, (payload: any) => {
         const status = payload?.payload?.status;
         const session = payload?.payload?.session;
         if (status === 'approved') {
-          if (session) finalize('approved', session);
-          else poll(); // fallback for older edge function versions
+          if (session?.access_token && session?.refresh_token) {
+            finalize('approved', session);
+          } else {
+            // Fall back to poll — edge may still be handing back the session row.
+            if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
+            poll();
+          }
         } else if (status) {
           finalize(status);
         }
@@ -171,7 +190,7 @@ export function LoginGateModal({
       document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(bc);
     };
-  }, [open, currentMode, challengeId, onSuccess, onCancel]);
+  }, [open, currentMode, activeChallengeId, onSuccess, onCancel]);
 
   // ── Verify code (email or sms) ───────────────────────────
   const verifyCode = useCallback(async (codeStr: string) => {

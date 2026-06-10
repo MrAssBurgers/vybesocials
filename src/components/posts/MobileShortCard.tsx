@@ -363,6 +363,7 @@ export const MobileShortCard = memo(function MobileShortCard({
       {/* Media */}
       <div 
         className="absolute inset-0 flex items-center justify-center touch-pan-y"
+        style={{ touchAction: 'pan-y' }}
         onClick={handleTap}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}

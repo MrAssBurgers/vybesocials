@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
 import { useSyncCustomSounds } from '@/hooks/useCustomSounds';
 import { warmCallMedia, clearWarmCallMedia } from '@/lib/callMediaWarmup';
+import { dismissNativeIncomingCall, presentNativeIncomingCall } from '@/lib/nativeIncomingCall';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
@@ -300,7 +301,22 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       setIncomingCall(callData);
       premiumSounds.startRinging();
       showCallNotification(data.caller as CallUser, data.call_type as CallType, data.id, isGroupCall, groupName);
+      void presentNativeIncomingCall(callData);
     }
+  }, [setIncomingCall]);
+
+  // Surface incoming call when user opens a call push / deep link before poll catches it.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const call = (event as CustomEvent<CallData>).detail;
+      if (!call?.id) return;
+      if (globalCallState.phase !== 'idle' || globalIncomingCall) return;
+      setIncomingCall(call);
+      premiumSounds.startRinging();
+      void presentNativeIncomingCall(call);
+    };
+    window.addEventListener('vybe:incoming-call', handler);
+    return () => window.removeEventListener('vybe:incoming-call', handler);
   }, [setIncomingCall]);
 
   // Realtime + polling for incoming calls
@@ -678,13 +694,16 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
                 userId,
                 title,
                 body,
+                url: `/messages/${params.conversationId}?call=${callSession.id}`,
+                tag: `vybe-call-${callSession.id}`,
+                type: 'call',
                 data: {
-                  type: 'incoming_call',
+                  type: 'call',
                   callId: callSession.id,
                   conversationId: params.conversationId,
                   callType: params.callType,
+                  path: `/messages/${params.conversationId}?call=${callSession.id}`,
                 },
-                priority: 'high',
               },
             }).catch((e) => console.warn('[CallStore] push notification failed:', e));
           }
@@ -712,6 +731,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     if (import.meta.env.DEV) console.log('[CallStore] Accepting call:', call.id, 'mode:', call.callMode);
     premiumSounds.stopAllCallSounds();
     setIncomingCall(null);
+    void dismissNativeIncomingCall(call.id);
 
     // Pre-warm camera/mic the instant the user taps Accept so by the time
     // signaling completes, tracks are already live and the in-call UI snaps in.
@@ -928,6 +948,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
     const currentIncoming = globalIncomingCall;
     if (currentIncoming?.id) {
+      void dismissNativeIncomingCall(currentIncoming.id);
       await supabase
         .from('calls')
         .update({ status: 'declined' })

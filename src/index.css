@@ -374,8 +374,8 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 /* Conversation card — screenshot-style layered panel */
 .dm-convo-row {
   position: relative;
-  border-radius: 1.125rem;
-  padding: 0.75rem 0.875rem;
+  border-radius: 0.875rem;
+  padding: 0.5rem 0.625rem;
   background: linear-gradient(
     145deg,
     hsl(var(--foreground) / 0.06),
@@ -462,12 +462,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     hsl(var(--background));
 }
 .dm-chat-header {
-  background: linear-gradient(
-    to bottom,
-    hsl(var(--background)) 0%,
-    hsl(var(--background)) 72%,
-    hsl(var(--background) / 0) 100%
-  );
+  background: hsl(var(--background));
 }
 .dm-chat-header-pill {
   /* legacy — kept empty so old refs don't add blur */
@@ -476,9 +471,9 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   box-shadow: none;
 }
 .dm-composer {
-  background: hsl(var(--card) / 0.95);
+  background: hsl(var(--card));
   border: 1px solid hsl(var(--foreground) / 0.1);
-  box-shadow: 0 -4px 24px hsl(var(--background) / 0.5);
+  box-shadow: none;
 }
 .dm-chat-header-name {
   background: linear-gradient(
@@ -6179,6 +6174,17 @@ html.native-perf-mode .native-scroll-shell {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   contain: strict;
+}
+
+/* Full-screen incoming call — hide app chrome underneath */
+body.vybe-incoming-call-active #root > *:not(.vybe-incoming-call-overlay) {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+body.vybe-incoming-call-active .vybe-bottom-nav,
+body.vybe-incoming-call-active [data-vybe-bottom-nav] {
+  display: none !important;
 }
 
 html.native-perf-mode [style*="content-visibility"] {

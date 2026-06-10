@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -31,28 +32,77 @@ export interface AutoPilotAction {
   created_at: string;
 }
 
+const DNA_ACTIONS_CACHE_KEY = 'vybe-dna-actions-cache';
+
+function readCachedActions(userId: string): AutoPilotAction[] {
+  try {
+    const raw = localStorage.getItem(`${DNA_ACTIONS_CACHE_KEY}:${userId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedActions(userId: string, actions: AutoPilotAction[]) {
+  try {
+    localStorage.setItem(`${DNA_ACTIONS_CACHE_KEY}:${userId}`, JSON.stringify(actions.slice(0, 30)));
+  } catch { /* noop */ }
+}
+
+function buildDefaultSettings(userId: string): AutoPilotSettings {
+  return {
+    user_id: userId,
+    mode: 'suggest',
+    cadence_minutes: 360,
+    last_run_at: null,
+    trigger_on_post: true,
+    trigger_on_follow: true,
+    trigger_on_session: true,
+    max_intensity: 'balanced',
+    learning_paused: false,
+    personalization_opted_out: false,
+  };
+}
+
 export function useDNAAutoPilot() {
   const { user } = useAuth();
-  const [settings, setSettings] = useState<AutoPilotSettings | null>(null);
-  const [actions, setActions] = useState<AutoPilotAction[]>([]);
+  const queryClient = useQueryClient();
+  const [settings, setSettings] = useState<AutoPilotSettings | null>(() =>
+    user?.id ? buildDefaultSettings(user.id) : null,
+  );
+  const [actions, setActions] = useState<AutoPilotAction[]>(() =>
+    user?.id ? readCachedActions(user.id) : [],
+  );
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!user?.id) return;
+
+    const cachedSettings = queryClient.getQueryData<AutoPilotSettings>(['dna-agent-settings', user.id]);
+    if (cachedSettings) {
+      setSettings({ ...buildDefaultSettings(user.id), ...cachedSettings });
+      setLoading(false);
+    }
+
+    const cachedActions = readCachedActions(user.id);
+    if (cachedActions.length > 0) {
+      setActions(cachedActions);
+      setLoading(false);
+    }
+
     const [s, a] = await Promise.all([
       supabase.from('dna_agent_settings').select('*').eq('user_id', user.id).maybeSingle(),
       supabase.from('dna_agent_actions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
     ]);
-    const defaults: AutoPilotSettings = {
-      user_id: user.id, mode: 'suggest', cadence_minutes: 360, last_run_at: null,
-      trigger_on_post: true, trigger_on_follow: true, trigger_on_session: true,
-      max_intensity: 'balanced', learning_paused: false, personalization_opted_out: false,
-    };
-    setSettings({ ...defaults, ...((s.data as any) || {}) });
-    setActions((a.data as any[]) || []);
+    const mergedSettings = { ...buildDefaultSettings(user.id), ...((s.data as any) || {}) };
+    const nextActions = ((a.data as any[]) || []) as AutoPilotAction[];
+    setSettings(mergedSettings);
+    setActions(nextActions);
+    queryClient.setQueryData(['dna-agent-settings', user.id], mergedSettings);
+    writeCachedActions(user.id, nextActions);
     setLoading(false);
-  }, [user?.id]);
+  }, [user?.id, queryClient]);
 
   useEffect(() => { refresh(); }, [refresh]);
 

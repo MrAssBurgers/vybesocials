@@ -79,7 +79,7 @@ import { scheduleOfflinePush, isNativeShell } from '@/lib/despiaPush';
      userId: recipientUserId,
      title: `${callerName} is calling`,
      body: callType === 'video' ? 'Video call' : 'Audio call',
-     url: `/messages/${conversationId}`,
+     url: `/messages/${conversationId}?call=${callId}`,
      tag: `vybe-call-${callId}`,
      type: 'call',
      data: {
@@ -87,6 +87,7 @@ import { scheduleOfflinePush, isNativeShell } from '@/lib/despiaPush';
        callerName,
        callType,
        conversationId,
+       path: `/messages/${conversationId}?call=${callId}`,
      },
    });
  }

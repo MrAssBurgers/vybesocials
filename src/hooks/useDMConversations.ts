@@ -372,17 +372,22 @@ export function useMarkConversationRead() {
     },
     onSuccess: (_data, conversationId) => {
       if (!profile?.id) return;
+      let clearedCount = 0;
       const patch = (old: DMConversation[] | undefined) => {
         if (!old) return old;
-        return old.map((c) =>
-          c.id === conversationId
-            ? { ...c, unread_count: 0, _hasUnread: false }
-            : c,
-        );
+        return old.map((c) => {
+          if (c.id === conversationId) {
+            clearedCount = c.unread_count ?? 0;
+            return { ...c, unread_count: 0, _hasUnread: false };
+          }
+          return c;
+        });
       };
       queryClient.setQueryData(['dm-conversations', profile.id], patch);
       queryClient.setQueryData(['conversations', profile.id], patch);
-      queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
+      queryClient.setQueryData<number>(['unread-messages-count', profile.id], (prev) =>
+        typeof prev === 'number' ? Math.max(0, prev - clearedCount) : 0,
+      );
     },
   });
 }

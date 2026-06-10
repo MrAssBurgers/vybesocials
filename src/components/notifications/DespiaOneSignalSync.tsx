@@ -4,6 +4,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ensureDespiaOneSignalLinked, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { navigationRef } from '@/lib/navigationRef';
+import {
+  buildNotificationRoute,
+  normalizeNotificationPayload,
+} from '@/lib/notificationActions';
 
 
 const PUSH_PERM_KEY = 'vybe_push_permission_asked_v1';
@@ -78,6 +82,9 @@ export function DespiaOneSignalSync() {
           authUserId,
           trigger,
         });
+        if (trigger === 'login' || trigger === 'initial-session') {
+          void import('@/lib/nativeIncomingCall').then((m) => m.ensureIncomingCallPermissions());
+        }
 
         // Web OneSignal SDK bridge — required so web/PWA users receive
         // pushes targeted via include_aliases.external_id. Safe on hosts
@@ -259,6 +266,7 @@ export function DespiaOneSignalSync() {
       type?: string;
       path?: string;
       url?: string;
+      action?: string;
       metadata?: unknown;
     };
     const w = window as Window & {
@@ -267,23 +275,30 @@ export function DespiaOneSignalSync() {
     const previousHandler = w.onNotificationEvent;
     w.onNotificationEvent = (payload: DespiaNotificationPayload) => {
       try {
-        const target = payload?.path || payload?.url;
-        if (target && navigationRef.current) {
-          // Strip origin if a full URL was sent so React Router stays in-app.
-          let route = target;
-          try {
-            if (/^https?:\/\//i.test(target)) {
-              const u = new URL(target);
-              route = `${u.pathname}${u.search}${u.hash}`;
-            }
-          } catch { /* ignore */ }
-          navigationRef.current(route);
-        }
-        if (payload?.metadata !== undefined) {
-          const meta = typeof payload.metadata === 'string'
-            ? (() => { try { return JSON.parse(payload.metadata as string); } catch { return payload.metadata; } })()
-            : payload.metadata;
-          window.dispatchEvent(new CustomEvent('despia:notification:metadata', { detail: meta }));
+        const normalized = normalizeNotificationPayload(payload);
+        if (normalized) {
+          const route = buildNotificationRoute(normalized);
+          if (navigationRef.current) navigationRef.current(route);
+          else if (route) window.location.assign(route);
+          window.dispatchEvent(new CustomEvent('vybe:notification-action', { detail: normalized }));
+        } else {
+          const target = payload?.path || payload?.url;
+          if (target && navigationRef.current) {
+            let route = target;
+            try {
+              if (/^https?:\/\//i.test(target)) {
+                const u = new URL(target);
+                route = `${u.pathname}${u.search}${u.hash}`;
+              }
+            } catch { /* ignore */ }
+            navigationRef.current(route);
+          }
+          if (payload?.metadata !== undefined) {
+            const meta = typeof payload.metadata === 'string'
+              ? (() => { try { return JSON.parse(payload.metadata as string); } catch { return payload.metadata; } })()
+              : payload.metadata;
+            window.dispatchEvent(new CustomEvent('despia:notification:metadata', { detail: meta }));
+          }
         }
         refresh();
       } catch (err) {

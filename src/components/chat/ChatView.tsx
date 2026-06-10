@@ -368,9 +368,25 @@ export function ChatView() {
             console.error('Failed to set last_read_at:', error);
             return;
           }
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
-          queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-          queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+          // Patch list caches in-place — invalidating refetches the whole DM list
+          // and causes visible flicker while reading a thread.
+          const convUnread =
+            queryClient.getQueryData<any[]>(['dm-conversations', profile.id])
+              ?.find((c) => c.id === conversationId)?.unread_count ?? 0;
+          const patchLists = (old: any[] | undefined) => {
+            if (!old) return old;
+            return old.map((c) =>
+              c.id === conversationId
+                ? { ...c, unread_count: 0, _hasUnread: false }
+                : c,
+            );
+          };
+          queryClient.setQueryData(['dm-conversations', profile.id], patchLists);
+          queryClient.setQueryData(['conversations', profile.id], patchLists);
+          queryClient.setQueryData<number>(
+            ['unread-messages-count', profile.id],
+            (prev) => (typeof prev === 'number' ? Math.max(0, prev - convUnread) : 0),
+          );
         });
     }
 
@@ -1505,7 +1521,7 @@ export function ChatView() {
         }}
       >
         {/* Messages container - extra bottom padding on mobile for bottom nav */}
-        <div className="flex flex-col gap-0 pb-20 md:pb-4">
+        <div className="flex flex-col gap-0 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pb-4">
           <AnimatePresence mode="popLayout" initial={false}>
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
             // Instagram/Snapchat spacing rules:

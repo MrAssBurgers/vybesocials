@@ -52,6 +52,17 @@ async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, ex
   return subs.filter(isActivePushSubscription).map((sub) => String(sub.id));
 }
 
+/** push_tokens + OneSignal external_id use profiles.id — accept auth uid too. */
+async function resolvePushTargetProfileId(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<string | null> {
+  const { data: byId } = await supabase.from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (byId?.id) return byId.id as string;
+  const { data: byAuth } = await supabase.from("profiles").select("id").eq("user_id", userId).maybeSingle();
+  return (byAuth?.id as string | undefined) ?? null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -94,20 +105,16 @@ Deno.serve(async (req) => {
       callerAuthUserId = userData.user.id;
     }
 
-    // VAPID keys are required for Web Push
-    if (!vapidPublicKey || !vapidPrivateKey) {
-      console.error("VAPID keys not configured - push notifications will fail");
-      return new Response(
-        JSON.stringify({ success: false, error: "VAPID keys not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const vapid: VapidKeys = {
-      subject: "mailto:support@vybe.app",
-      publicKey: vapidPublicKey,
-      privateKey: vapidPrivateKey,
-    };
+    // VAPID keys are required for Web Push (browser/PWA). Native OneSignal
+    // delivery still works when VAPID is unset.
+    const vapid: VapidKeys | null =
+      vapidPublicKey && vapidPrivateKey
+        ? {
+          subject: "mailto:support@vybe.app",
+          publicKey: vapidPublicKey,
+          privateKey: vapidPrivateKey,
+        }
+        : null;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { userId, title, body, url, tag, type, data }: PushPayload = await req.json();
@@ -118,6 +125,11 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const targetProfileId = (await resolvePushTargetProfileId(supabase, userId)) ?? userId;
+    const routePath = url || "/notifications";
+    const mergedData = { type: type || "general", url: routePath, path: routePath, ...(data || {}) };
+    const isCall = type === "call" || mergedData.type === "call" || mergedData.type === "incoming_call";
 
     // Authorization: non-service callers can only push to themselves or to a
     // user with whom they share an active conversation. Prevents push phishing.
@@ -161,7 +173,7 @@ Deno.serve(async (req) => {
           const { data: shared } = await supabase
             .from("conversation_members")
             .select("id")
-            .eq("user_id", userId)
+            .eq("user_id", targetProfileId)
             .in("conversation_id", convIds)
             .limit(1);
           allowed = !!(shared && shared.length > 0);
@@ -183,12 +195,13 @@ Deno.serve(async (req) => {
     let onesignalDelivered = false;
     if (onesignalAppId && onesignalRestKey) {
       try {
-        const subscriptionIds = await lookupOneSignalSubscriptionIds(onesignalAppId, onesignalRestKey, userId);
+        const subscriptionIds = await lookupOneSignalSubscriptionIds(onesignalAppId, onesignalRestKey, targetProfileId);
         const imageUrl = typeof data?.image_url === "string" ? data.image_url : undefined;
         if (subscriptionIds.length === 0) {
-          console.warn("[push] No actively subscribed OneSignal subscriptions", userId);
+          console.warn("[push] No actively subscribed OneSignal subscriptions", targetProfileId);
           onesignalResult = { status: 0, ok: false, subscriptionIds: 0, recipients: 0, errors: ["No actively subscribed OneSignal subscriptions"] };
         } else {
+          const callChannelId = Deno.env.get("ONESIGNAL_CALL_CHANNEL_ID");
           const res = await fetchJsonWithTimeout("https://api.onesignal.com/notifications", {
           method: "POST",
           headers: {
@@ -204,19 +217,24 @@ Deno.serve(async (req) => {
             big_picture: imageUrl,
             ios_attachments: imageUrl ? { id1: imageUrl } : undefined,
             chrome_web_image: imageUrl,
-            data: { type: type || "general", url: url || "/notifications", ...(data || {}) },
-            ios_sound: type === "call" ? "ringtone.caf" : "default",
-            // NOTE: android_channel_id intentionally omitted — custom channels
-            // ("calls"/"messages") are not configured in the OneSignal app, and
-            // sending an unknown channel id causes OneSignal to reject the
-            // entire push with HTTP 400, blocking ALL phone notifications.
-            // OneSignal falls back to its default channel when omitted.
+            url: routePath,
+            web_url: routePath,
+            data: mergedData,
+            ios_sound: isCall ? "ringtone.caf" : "default",
+            ios_interruption_level: isCall ? "time_sensitive" : undefined,
             android_visibility: 1,
             mutable_content: true,
             content_available: true,
             priority: 10,
-            ttl: type === "call" ? 30 : 86400,
+            ttl: isCall ? 45 : 86400,
             collapse_id: tag || undefined,
+            ...(callChannelId ? { android_channel_id: callChannelId } : {}),
+            ...(isCall ? {
+              buttons: [
+                { id: "accept", text: "Answer", icon: "ic_menu_call" },
+                { id: "decline", text: "Decline", icon: "ic_menu_close_clear_cancel" },
+              ],
+            } : {}),
           }),
           }, 4_000);
           const json = await res.json().catch(() => null);
@@ -235,7 +253,7 @@ Deno.serve(async (req) => {
     const { data: tokens, error: tokenError } = await supabase
       .from("push_tokens")
       .select("id, token, platform")
-      .eq("user_id", userId);
+      .eq("user_id", targetProfileId);
 
     if (tokenError) {
       console.error("Error fetching tokens:", tokenError);
@@ -250,12 +268,24 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (!vapid) {
+      return new Response(
+        JSON.stringify({
+          success: onesignalDelivered,
+          sent: 0,
+          onesignal: onesignalResult,
+          error: onesignalDelivered ? undefined : "VAPID keys not configured for web push",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // Build push payload
-    const dataAny = (data || {}) as Record<string, unknown>;
+    const dataAny = mergedData as Record<string, unknown>;
     const pushPayload = JSON.stringify({
       title,
       body,
-      url: url || "/notifications",
+      url: routePath,
       tag: tag || "vybe-notification",
       type: type || "general",
       icon: "/icons/icon-192x192.png",

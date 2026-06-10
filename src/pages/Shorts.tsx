@@ -353,8 +353,6 @@ export default function ClipsPage() {
                 height: containerHeight,
                 scrollSnapAlign: 'start',
                 scrollSnapStop: 'always',
-                contentVisibility: 'auto',
-                containIntrinsicSize: `0 ${containerHeight}`,
               }}
             >
               <div className="relative h-full w-full max-w-full">

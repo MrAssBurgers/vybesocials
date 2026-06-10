@@ -80,6 +80,7 @@ function setupScrollDirectionListener() {
 
 function useScrollDirection() {
   const [isVisible, setIsVisible] = useState(true);
+  const location = useLocation();
 
   useEffect(() => {
     setupScrollDirectionListener();
@@ -93,6 +94,21 @@ function useScrollDirection() {
         scrollDirectionCleanup();
       }
     };
+  }, []);
+
+  // Never leave nav stuck hidden after route changes or tab switches.
+  useEffect(() => {
+    scrollVisibility = true;
+    scrollVisibilityListeners.forEach((fn) => fn(true));
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const onReset = () => {
+      scrollVisibility = true;
+      scrollVisibilityListeners.forEach((fn) => fn(true));
+    };
+    window.addEventListener('vybe:nav-scroll-reset', onReset);
+    return () => window.removeEventListener('vybe:nav-scroll-reset', onReset);
   }, []);
 
   return isVisible;

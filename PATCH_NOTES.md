@@ -1,5 +1,39 @@
 # VYBE Patch Notes
 
+## v1.2.0 — June 10, 2026
+
+### Google Play — paste this (≤500 chars)
+
+```
+• Communities — new layout, text & voice channels, live voice lounges
+• Vybe Map — cleaner map, live friend rings & status picker
+• Messages — smoother chat list, faster updates, less flicker
+• Friends — refreshed suggestions & profile cards
+• Home & Settings — new look, easier navigation, theme polish
+• Nav — bottom bar hides in chats, map, voice & communities
+• Stability — crash fixes & realtime improvements app-wide
+```
+
+_Char count: 397 — fits Google Play release notes._
+
+### Short summary (internal)
+
+**Communities** — Orbit community switcher, glass channel sidebar, hero banner, text + voice channels, LiveKit voice lounges (join muted, unmute when ready), voice connection bar.
+
+**Vybe Map** — Glass UI, gradient filters, animated live friend rings, status picker in Ghost Mode.
+
+**Messages** — DM shell polish, composer/header seams fixed, list stops constant refreshing, realtime hardening.
+
+**Friends** — Glass cards, gradient avatar rings, suggested friends polish.
+
+**Home** — Aurora hero card, feed tabs, quick-access cards.
+
+**Settings** — iOS-style grouped layout, glass panels, Connections/Security/Appearance refresh.
+
+**Stability** — App-wide realtime channel hardening, community voice membership fix, bottom nav immersion, nested-button HTML fix, feed/settings/deep-link bug fixes.
+
+---
+
 ## v1.1.5 — May 18, 2026
 
 ### 🎧 Spotify

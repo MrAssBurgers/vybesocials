@@ -92,9 +92,11 @@ import { syncNativeTrackingConsent } from "@/lib/att";
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
 const GlobalCallOverlay = lazy(() => import("@/components/call/GlobalCallOverlay").then(m => ({ default: m.GlobalCallOverlay })));
+const NativeIncomingCallBridge = lazy(() => import("@/components/call/NativeIncomingCallBridge").then(m => ({ default: m.NativeIncomingCallBridge })));
 // PushNotificationPrompt removed — was causing floating bell icon
 const GlobalMessageNotifications = lazy(() => import("@/components/notifications/GlobalMessageNotifications").then(m => ({ default: m.GlobalMessageNotifications })));
 const DespiaOneSignalSync = lazy(() => import("@/components/notifications/DespiaOneSignalSync").then(m => ({ default: m.DespiaOneSignalSync })));
+const NotificationActionRouter = lazy(() => import("@/components/notifications/NotificationActionRouter").then(m => ({ default: m.NotificationActionRouter })));
 const EnablePushPrompt = lazy(() => import("@/components/notifications/EnablePushPrompt").then(m => ({ default: m.EnablePushPrompt })));
 const SmartPingBridge = lazy(() => import("@/components/notifications/SmartPingBridge").then(m => ({ default: m.SmartPingBridge })));
 const TabNotificationBadge = lazy(() => import("@/components/notifications/TabNotificationBadge").then(m => ({ default: m.TabNotificationBadge })));
@@ -420,10 +422,12 @@ function AppWithPreloader() {
                                         {/* PushNotificationPrompt removed */}
                                         <GlobalMessageNotifications />
                                         <DespiaOneSignalSync />
+                                        <NotificationActionRouter />
                                         <EnablePushPrompt />
                                         <SmartPingBridge />
                                         <TabNotificationBadge />
                                         <GlobalCallOverlay />
+                                        <NativeIncomingCallBridge />
                                         <WarningPopup />
                                         <InvitePopup />
                                         <BanCheck />
