@@ -26,6 +26,7 @@ import { isARSupported, clearARDisabledForSession } from '@/lib/arEngine';
 import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { resolveVideoContentType } from '@/lib/resolveVideoContentType';
+import { toast } from 'sonner';
 
 const SoundPicker = lazy(() =>
   import('@/components/sounds/SoundPicker').then((m) => ({ default: m.SoundPicker }))
