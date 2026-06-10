@@ -109,7 +109,7 @@ export function CustomRingtoneUploader({
   const audioSrc = previewUrl || existingSound?.file_url;
   
   return (
-    <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
+    <div className="settings-panel rounded-xl">
       <div className="flex items-start gap-3 mb-3">
         <div className={cn(
           "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",

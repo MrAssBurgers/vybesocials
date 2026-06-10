@@ -811,7 +811,7 @@ export function DesignYourVybe() {
               </div>
 
               {/* Animation Preview with Logo */}
-              <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
+              <div className="settings-panel rounded-xl">
                 <p className="text-xs text-muted-foreground mb-3">Preview</p>
                 <div className="flex items-center gap-4">
                   <div className="flex-shrink-0">

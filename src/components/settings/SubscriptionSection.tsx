@@ -21,7 +21,7 @@ export function SubscriptionSection() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className="relative overflow-hidden rounded-3xl border border-border/40 bg-card p-6"
+        className="relative overflow-hidden liquid-glass-card rounded-3xl p-6"
       >
         {/* Soft aurora wash */}
         <div

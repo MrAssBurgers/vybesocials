@@ -114,10 +114,10 @@ export function BadgeSettingsSection() {
     >
       <div className="flex items-center gap-2 mb-6">
         <Award className="w-5 h-5 text-primary" />
-        <h3 className="font-semibold text-base text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Badge Display</h3>
+        <h3 className="font-semibold text-base text-foreground">Badge Display</h3>
       </div>
       
-      <p className="text-sm text-foreground/80 mb-6 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+      <p className="text-sm text-foreground/80 mb-6">
         Choose which badges are visible on your profile
       </p>
 

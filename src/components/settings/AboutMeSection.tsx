@@ -99,7 +99,7 @@ export function AboutMeSection() {
       transition={{ delay: 0.15 }}
       className="liquid-glass-card p-4 sm:p-6 space-y-5"
     >
-      <h3 className="font-semibold text-base text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+      <h3 className="font-semibold text-base text-foreground">
         About You
       </h3>
 

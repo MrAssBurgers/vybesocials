@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { Layout, Brush, Sparkles, Compass, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeCustomizer } from './ThemeCustomizer';
@@ -19,35 +20,45 @@ export function ThemesSection() {
       <div className="space-y-5">
         <MyCurrentVybeCard />
 
-        {/* Primary CTA — glass with subtle gradient sheen */}
-        <Button
+        {/* Primary CTA — animated aurora sheen */}
+        <motion.button
+          type="button"
           onClick={() => setShowVybeDesigner(true)}
-          className="w-full h-14 rounded-2xl font-semibold text-base bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground shadow-lg shadow-primary/25 border-0"
+          whileTap={{ scale: 0.98 }}
+          className="relative w-full h-[3.75rem] rounded-2xl overflow-hidden shadow-[0_12px_40px_-12px_hsl(var(--primary)/0.55)] group"
         >
-          <Wand2 className="w-5 h-5 mr-2" />
-          Design Your Own VYBE
-        </Button>
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] animate-[gradient-x_4s_ease_infinite]"
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+            style={{
+              background: 'radial-gradient(circle at 30% 50%, hsl(var(--foreground) / 0.15), transparent 55%)',
+            }}
+          />
+          <div className="relative z-10 flex items-center justify-center gap-2.5 h-full px-4 text-primary-foreground font-bold text-base tracking-tight">
+            <Wand2 className="w-5 h-5 drop-shadow-sm" />
+            Design Your Own VYBE
+            <Sparkles className="w-4 h-4 opacity-80" />
+          </div>
+        </motion.button>
 
         <Tabs defaultValue="customize" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 h-12 p-1 rounded-2xl bg-card/60 backdrop-blur-xl border border-border/50">
+          <TabsList className="grid w-full grid-cols-3 h-12 p-1 rounded-2xl">
             <TabsTrigger
               value="customize"
-              className="rounded-xl text-xs gap-1.5 data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              className="rounded-xl text-xs gap-1.5 data-[state=active]:shadow-sm"
             >
               <Brush className="h-3.5 w-3.5" />
               Customize
             </TabsTrigger>
-            <TabsTrigger
-              value="marketplace"
-              className="rounded-xl text-xs gap-1.5 data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm"
-            >
+            <TabsTrigger value="marketplace" className="rounded-xl text-xs gap-1.5">
               <Compass className="h-3.5 w-3.5" />
               Browse
             </TabsTrigger>
-            <TabsTrigger
-              value="gallery"
-              className="rounded-xl text-xs gap-1.5 data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm"
-            >
+            <TabsTrigger value="gallery" className="rounded-xl text-xs gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
               Mine
             </TabsTrigger>

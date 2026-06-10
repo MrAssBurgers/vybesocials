@@ -17,18 +17,16 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useConversationTyping } from '@/hooks/useConversationTyping';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Plus, Search, Pin, Check, CheckCheck, Users, UserPlus, Bot, UsersRound, Trash2, Nfc, X, UserCheck, Flame, Camera } from 'lucide-react';
+import { MessageCircle, Pin, Check, Users, UserPlus, Trash2, X, UserCheck, Camera, Search } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 
 import { toast } from 'sonner';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { ConversationOptionsSheet } from './ConversationOptionsSheet';
-import { TrashBin } from './TrashBin';
 import { StreakIndicator } from './StreakIndicator';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
@@ -40,7 +38,7 @@ import { useUsersRoles } from '@/hooks/useUserRoleById';
 import { AvatarRing } from '@/components/ui/AvatarRing';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useBatchUserStatuses } from '@/hooks/useUserStatus';
-import { StatusPicker, getVibeColor } from '@/components/status/StatusPicker';
+import { getVibeColor } from '@/components/status/StatusPicker';
 import { compactTime } from '@/lib/compactTime';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
@@ -51,6 +49,8 @@ import { useSendFriendRequest } from '@/hooks/useFriends';
 import { NowPlayingInline } from '@/components/music/NowPlayingInline';
 import { MessageRequestsBadge } from './MessageRequestsList';
 import { usePendingRequestCount } from '@/hooks/useMessageRequests';
+import { DMsHeader } from './DMsHeader';
+import { cn } from '@/lib/utils';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
@@ -72,8 +72,9 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
 
   return (
     <button
+      type="button"
       onClick={() => navigate('/VYBE-AI')}
-      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all mb-0.5 box-border"
+      className="dm-ai-row w-full flex items-center gap-3 text-left mb-0.5 box-border"
     >
       <div className="relative flex-shrink-0">
         <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary blur-md opacity-60 animate-pulse" />
@@ -291,90 +292,18 @@ export function ConversationList() {
     );
   }
 
-  const filterTabs = [
-    { key: 'all' as const, label: 'All' },
-    { key: 'unread' as const, label: 'Unread' },
-    { key: 'groups' as const, label: 'Groups' },
-    { key: 'streaks' as const, label: '🔥 Streaks' },
-  ];
-
   return (
     <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 overflow-hidden">
-      {/* Snapchat-style Header */}
-      <div className="flex-shrink-0">
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          {/* Left: User Avatar */}
-          <div className="flex items-center gap-1.5">
-            {profile && (
-              <button onClick={() => navigate(`/u/${profile.username}`)} className="flex-shrink-0">
-                <Avatar className="h-9 w-9 ring-2 ring-primary/20">
-                  <AvatarImage src={profile.avatar_url || undefined} />
-                  <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-primary/60 to-accent/60 text-primary-foreground">
-                    {profile.username?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </button>
-            )}
-          </div>
-
-          {/* Center: Title + Status */}
-          <div className="flex flex-col items-center">
-            <h1 className="text-lg font-bold text-foreground tracking-tight">Chat</h1>
-            <StatusPicker />
-          </div>
-
-          {/* Right: Actions */}
-          <div className="flex items-center gap-0.5">
-            <TrashBin 
-              open={isTrashOpen} 
-              onOpenChange={setIsTrashOpen}
-              trigger={
-                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              }
-            />
-            <Button size="icon" variant="ghost" onClick={() => setIsGroupDialogOpen(true)} className="h-8 w-8 rounded-full">
-              <UsersRound className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={() => navigate('/messages/new')} className="h-8 w-8 rounded-full">
-              <UserPlus className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Search Bar */}
-        <div className="px-4 pb-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 rounded-full bg-muted/40 border-0 text-sm placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-primary/30"
-            />
-          </div>
-        </div>
-
-        {/* Filter Tabs - Snapchat style horizontal pills */}
-        <div className="px-4 pb-2">
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
-            {filterTabs.map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setChatFilter(tab.key)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                  chatFilter === tab.key
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      <DMsHeader
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        chatFilter={chatFilter}
+        onFilterChange={setChatFilter}
+        totalUnreadCount={totalUnreadCount}
+        isTrashOpen={isTrashOpen}
+        onTrashOpenChange={setIsTrashOpen}
+        onCreateGroup={() => setIsGroupDialogOpen(true)}
+      />
       
       {/* Create Group Dialog */}
       <CreateGroupDialog 
@@ -479,11 +408,11 @@ export function ConversationList() {
               <p className="text-sm text-muted-foreground">No {chatFilter} conversations</p>
             </div>
           ) : !isFetched ? null : !acceptedRequests?.length ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+            <div className="dm-empty-state flex flex-col items-center justify-center py-12 text-center px-6 mx-1">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-4 ring-2 ring-primary/20">
                 <MessageCircle className="h-7 w-7 text-primary" />
               </div>
-              <h3 className="text-base font-semibold mb-1">{t('messages.noConversations')}</h3>
+              <h3 className="dm-title text-lg font-black mb-1">{t('messages.noConversations')}</h3>
               <p className="text-xs text-muted-foreground mb-5 max-w-[240px]">
                 {convError ? "We couldn't load your chats. Pull down to retry." : "Add friends to start chatting. Your conversations will show up here."}
               </p>
@@ -792,7 +721,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
                 </span>
               )}
             {unreadCount > 0 && (
-              <span className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm flex-shrink-0">
+              <span className="dm-unread-badge text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
@@ -1093,7 +1022,11 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
             transition={isDeleting ? { duration: 0.35, ease: [0.4, 0, 0.2, 1] } : { type: 'spring', stiffness: 400, damping: 35 }}
           >
             <div 
-              className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all cursor-pointer box-border"
+              className={cn(
+                'group dm-convo-row w-full flex items-center gap-3 text-left cursor-pointer box-border',
+                unreadCount > 0 && 'dm-convo-row--unread',
+                isPinned && 'dm-convo-row--pinned'
+              )}
               onClick={handleClick}
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
@@ -1128,7 +1061,11 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
   return (
     <>
       <div 
-        className="group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all mb-0.5 cursor-pointer box-border"
+        className={cn(
+          'group relative dm-convo-row w-full flex items-center gap-3 text-left cursor-pointer box-border mb-0.5',
+          unreadCount > 0 && 'dm-convo-row--unread',
+          isPinned && 'dm-convo-row--pinned'
+        )}
         onClick={handleClick}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -1194,7 +1131,7 @@ const RecommendedFriendsSection = memo(function RecommendedFriendsSection() {
   return (
     <div className="px-3 pb-4">
       <div className="flex items-center justify-between px-1 mb-2">
-        <span className="text-xs font-semibold text-foreground tracking-wide uppercase">Quick Add</span>
+        <span className="dm-quick-add-label">Quick Add</span>
         <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-primary" onClick={() => navigate('/messages/new')}>
           More
         </Button>

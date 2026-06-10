@@ -110,7 +110,7 @@ export function MyCurrentVybeCard() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="relative rounded-3xl bg-card border border-border/40 p-4 overflow-hidden"
+        className="relative liquid-glass-card overflow-hidden rounded-3xl p-4"
       >
         {/* Animated ambient gradient halo (matches Ambient Visual standard) */}
         <div

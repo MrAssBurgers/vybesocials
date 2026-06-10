@@ -1,42 +1,32 @@
-import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Sun, Moon, Monitor, Zap, Layers, Contrast, Paintbrush } from 'lucide-react';
-import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { Sun, Moon, Monitor, Zap, Layers, Contrast, Paintbrush, Sparkles } from 'lucide-react';
 import { useTheme } from '@/lib/theme';
 import { useGlassIntensity } from '@/components/ui/glass/GlassIntensityProvider';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
+import { SettingsSectionCard, SettingsPanel, SettingsToggleRow } from './SettingsUI';
 
 export function AppearanceSection() {
   const { t } = useTranslation();
-  const { 
-    theme, setTheme, 
-    reducedMotion, setReducedMotion,
-    motionIntensity, setMotionIntensity,
+  const {
+    theme,
+    setTheme,
+    reducedMotion,
+    setReducedMotion,
+    motionIntensity,
+    setMotionIntensity,
   } = useTheme();
   const { intensity, setIntensity, contrast, setContrast } = useGlassIntensity();
 
   return (
     <div className="space-y-6">
-      {/* Theme Selection */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="liquid-glass-card p-4 sm:p-6"
+      <SettingsSectionCard
+        icon={Paintbrush}
+        title={t('settings.theme')}
+        description="Choose your preferred color mode"
       >
-        <div className="flex items-start gap-4 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/10 ring-1 ring-primary/20 shadow-[0_4px_16px_-6px_hsl(var(--primary)/0.4)] flex items-center justify-center flex-shrink-0">
-            <Paintbrush className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-base mb-1 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{t('settings.theme')}</h3>
-            <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Choose your preferred color mode</p>
-          </div>
-        </div>
-
         <div className="grid grid-cols-3 gap-3">
           {[
             { id: 'dark', icon: Moon, label: t('settings.darkMode'), desc: 'Easy on eyes' },
@@ -45,22 +35,23 @@ export function AppearanceSection() {
           ].map((option) => (
             <button
               key={option.id}
+              type="button"
+              data-active={theme === option.id}
               onClick={() => {
                 haptics.tap();
                 setTheme(option.id as 'dark' | 'light' | 'system');
                 toast.success(`Switched to ${option.label}`);
               }}
               className={cn(
-                'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 active:scale-95',
-                theme === option.id
-                  ? 'border-primary bg-primary/10 shadow-lg shadow-primary/10'
-                  : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                'settings-segment-btn flex flex-col items-center gap-2 p-4 rounded-xl active:scale-95'
               )}
             >
-              <div className={cn(
-                'w-12 h-12 rounded-xl flex items-center justify-center transition-colors',
-                theme === option.id ? 'bg-primary text-primary-foreground' : 'bg-muted'
-              )}>
+              <div
+                className={cn(
+                  'w-12 h-12 rounded-xl flex items-center justify-center transition-colors',
+                  theme === option.id ? 'bg-primary text-primary-foreground' : 'bg-foreground/[0.06]'
+                )}
+              >
                 <option.icon className="w-6 h-6" />
               </div>
               <div className="text-center">
@@ -70,27 +61,16 @@ export function AppearanceSection() {
             </button>
           ))}
         </div>
-      </motion.div>
+      </SettingsSectionCard>
 
-      {/* Visual Effects */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="liquid-glass-card p-4 sm:p-6"
+      <SettingsSectionCard
+        icon={Sparkles}
+        iconClassName="from-accent/20 to-primary/10 ring-accent/25"
+        title="Visual Effects"
+        description="Customize animations and glass styling"
+        delay={0.1}
       >
-        <div className="flex items-start gap-4 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent/20 to-primary/10 ring-1 ring-accent/20 shadow-[0_4px_16px_-6px_hsl(var(--accent)/0.4)] flex items-center justify-center flex-shrink-0">
-            <VybeMiniIcon size={24} showSparkles />
-          </div>
-          <div>
-            <h3 className="font-semibold text-base mb-1">Visual Effects</h3>
-            <p className="text-sm text-muted-foreground">Customize animations and effects</p>
-          </div>
-        </div>
-
         <div className="space-y-6">
-          {/* Motion Intensity */}
           <div className="space-y-3">
             <Label className="text-sm flex items-center gap-2 font-medium">
               <Zap className="w-4 h-4 text-muted-foreground" />
@@ -103,16 +83,13 @@ export function AppearanceSection() {
               ].map((option) => (
                 <button
                   key={option.id}
+                  type="button"
+                  data-active={motionIntensity === option.id}
                   onClick={() => {
                     haptics.tap();
                     setMotionIntensity(option.id as 'calm' | 'normal');
                   }}
-                  className={cn(
-                    'p-3 rounded-xl border-2 transition-all text-left active:scale-95',
-                    motionIntensity === option.id
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50'
-                  )}
+                  className="settings-segment-btn p-3 rounded-xl text-left active:scale-95"
                 >
                   <p className="font-medium text-sm">{option.label}</p>
                   <p className="text-xs text-muted-foreground">{option.desc}</p>
@@ -121,8 +98,7 @@ export function AppearanceSection() {
             </div>
           </div>
 
-          {/* Glass Intensity */}
-          <div className="space-y-3 pt-4 border-t border-border">
+          <div className="space-y-3 pt-4 border-t border-foreground/[0.06]">
             <Label className="text-sm flex items-center gap-2 font-medium">
               <Layers className="w-4 h-4 text-muted-foreground" />
               Glass Intensity
@@ -135,17 +111,14 @@ export function AppearanceSection() {
               ].map((option) => (
                 <button
                   key={option.id}
+                  type="button"
+                  data-active={intensity === option.id}
                   onClick={() => {
                     haptics.tap();
                     setIntensity(option.id as 'calm' | 'normal' | 'max');
                     toast.success(`Glass set to ${option.label}`);
                   }}
-                  className={cn(
-                    'p-3 rounded-xl border-2 transition-all text-sm font-medium active:scale-95',
-                    intensity === option.id
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50'
-                  )}
+                  className="settings-segment-btn p-3 rounded-xl text-sm font-medium active:scale-95"
                 >
                   {option.label}
                 </button>
@@ -153,8 +126,7 @@ export function AppearanceSection() {
             </div>
           </div>
 
-          {/* Contrast Mode */}
-          <div className="space-y-3 pt-4 border-t border-border">
+          <div className="space-y-3 pt-4 border-t border-foreground/[0.06]">
             <Label className="text-sm flex items-center gap-2 font-medium">
               <Contrast className="w-4 h-4 text-muted-foreground" />
               Contrast Mode
@@ -166,17 +138,14 @@ export function AppearanceSection() {
               ].map((option) => (
                 <button
                   key={option.id}
+                  type="button"
+                  data-active={contrast === option.id}
                   onClick={() => {
                     haptics.tap();
                     setContrast(option.id as 'normal' | 'high');
                     toast.success(`Contrast set to ${option.label}`);
                   }}
-                  className={cn(
-                    'p-3 rounded-xl border-2 transition-all text-left active:scale-95',
-                    contrast === option.id
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50'
-                  )}
+                  className="settings-segment-btn p-3 rounded-xl text-left active:scale-95"
                 >
                   <p className="font-medium text-sm">{option.label}</p>
                   <p className="text-xs text-muted-foreground">{option.desc}</p>
@@ -185,24 +154,19 @@ export function AppearanceSection() {
             </div>
           </div>
 
-          {/* Reduced Motion */}
-          <div className="pt-4">
-            <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
-              <div className="min-w-0 flex-1 mr-3">
-                <p className="font-medium text-sm">{t('settings.reducedMotion')}</p>
-                <p className="text-xs text-muted-foreground">Minimize all animations</p>
-              </div>
-              <Switch 
-                checked={reducedMotion} 
-                onCheckedChange={(checked) => {
-                  haptics.tap();
-                  setReducedMotion(checked);
-                }} 
-              />
-            </div>
-          </div>
+          <SettingsPanel className="mt-2">
+            <SettingsToggleRow
+              title={t('settings.reducedMotion')}
+              description="Minimize all animations"
+              checked={reducedMotion}
+              onCheckedChange={(checked) => {
+                haptics.tap();
+                setReducedMotion(checked);
+              }}
+            />
+          </SettingsPanel>
         </div>
-      </motion.div>
+      </SettingsSectionCard>
     </div>
   );
 }

@@ -1,17 +1,23 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
-import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Shield, Smartphone, Mail, Trash2, LogOut, Loader2, QrCode } from 'lucide-react';
+import { Shield, Mail, Trash2, LogOut, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PasskeysCard } from './PasskeysCard';
 import { QrSignInScannerCard } from './QrSignInScannerCard';
 import { PhoneNumberCard } from './PhoneNumberCard';
 import { ContactSyncCard } from './ContactSyncCard';
 import { useIsOwner } from '@/hooks/useIsOwner';
+import {
+  SettingsSectionCard,
+  SettingsPanel,
+  SettingsToggleRow,
+  SettingsListRow,
+} from './SettingsUI';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Session {
   id: string;
@@ -74,7 +80,6 @@ export function SecuritySection() {
       login_approvals_enabled: !!row.login_approvals_enabled,
     });
     toast.success('Saved');
-    // Defensive resync from DB so the toggle reflects persisted state
     const { data: fresh } = await supabase.rpc('ensure_2fa_settings');
     const freshRow = Array.isArray(fresh) ? fresh[0] : fresh;
     if (freshRow) {
@@ -92,114 +97,110 @@ export function SecuritySection() {
       if (error) throw error;
       toast.success(all ? 'Signed out everywhere' : 'Session revoked');
       await load();
-    } catch (e) {
+    } catch {
       toast.error('Could not revoke session');
     } finally {
       setBusy(false);
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center p-8"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-32 w-full rounded-2xl" />
+        <Skeleton className="h-40 w-full rounded-2xl" />
+        <Skeleton className="h-48 w-full rounded-2xl" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      {/* Phone number (verification + change) */}
+    <div className="space-y-5">
       <PhoneNumberCard />
-
-      {/* Contact discovery */}
       <ContactSyncCard />
 
+      <SettingsSectionCard
+        icon={Shield}
+        title="Two-Factor & Approvals"
+        description="Extra layers to keep your account secure"
+        delay={0.05}
+      >
+        <SettingsPanel className="space-y-0">
+          <SettingsToggleRow
+            icon={Mail}
+            title="Email 2-Step Verification"
+            description="Email a 6-digit code on every sign-in"
+            checked={!!settings?.email_2fa_enabled}
+            onCheckedChange={(v) => updateSetting({ email_2fa_enabled: v })}
+          />
+          <SettingsToggleRow
+            icon={Shield}
+            title="Login Approvals"
+            description="Require approval from a trusted device for new sign-ins"
+            checked={!!settings?.login_approvals_enabled}
+            onCheckedChange={(v) => updateSetting({ login_approvals_enabled: v })}
+          />
+        </SettingsPanel>
+      </SettingsSectionCard>
 
-      {/* Email 2FA */}
-      <Card className="p-4">
-        <div className="flex items-start gap-3">
-          <Mail className="w-5 h-5 mt-0.5 text-primary" />
-          <div className="flex-1">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-semibold">Email 2-Step Verification</div>
-                <div className="text-xs text-muted-foreground">Email a 6-digit code on every sign-in.</div>
-              </div>
-              <Switch
-                checked={!!settings?.email_2fa_enabled}
-                onCheckedChange={(v) => updateSetting({ email_2fa_enabled: v })}
-              />
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Login approvals */}
-      <Card className="p-4">
-        <div className="flex items-start gap-3">
-          <Shield className="w-5 h-5 mt-0.5 text-primary" />
-          <div className="flex-1">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-semibold">Login Approvals</div>
-                <div className="text-xs text-muted-foreground">Require approval from a trusted device for new sign-ins.</div>
-              </div>
-              <Switch
-                checked={!!settings?.login_approvals_enabled}
-                onCheckedChange={(v) => updateSetting({ login_approvals_enabled: v })}
-              />
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Passkeys — owner only (hidden from regular users while the system is internal) */}
       {isOwner && <PasskeysCard />}
-
-      {/* Quick QR sign-in (claim from signed-out device) */}
       <QrSignInScannerCard />
 
-      {/* Active sessions */}
-      <Card className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="font-semibold">Active devices</div>
-          {sessions.length > 1 && (
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => revoke(undefined, true)}>
+      <SettingsSectionCard
+        icon={Shield}
+        iconClassName="from-emerald-400/20 to-green-600/10 ring-emerald-500/20"
+        title="Active devices"
+        description="Sessions currently signed in to your account"
+        delay={0.1}
+      >
+        {sessions.length > 1 && (
+          <div className="flex justify-end mb-3">
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => revoke(undefined, true)} className="rounded-full h-8 text-xs">
               <LogOut className="w-3.5 h-3.5 mr-1.5" /> Sign out everywhere
             </Button>
-          )}
-        </div>
+          </div>
+        )}
         {sessions.length === 0 ? (
-          <div className="text-sm text-muted-foreground">No active sessions tracked yet.</div>
+          <p className="text-sm text-muted-foreground text-center py-4">No active sessions tracked yet.</p>
         ) : (
           <div className="space-y-2">
-            {sessions.map(s => (
-              <div key={s.id} className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-muted/30">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">{s.device_label || 'Unknown device'}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {[s.city, s.country].filter(Boolean).join(', ') || s.ip || 'Unknown'} • {formatDistanceToNow(new Date(s.last_seen_at), { addSuffix: true })}
-                  </div>
-                </div>
-                <Button size="sm" variant="ghost" disabled={busy} onClick={() => revoke(s.id)}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
+            {sessions.map((s) => (
+              <SettingsListRow
+                key={s.id}
+                title={s.device_label || 'Unknown device'}
+                subtitle={`${[s.city, s.country].filter(Boolean).join(', ') || s.ip || 'Unknown'} · ${formatDistanceToNow(new Date(s.last_seen_at), { addSuffix: true })}`}
+                action={
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => revoke(s.id)} className="h-8 w-8 p-0 rounded-full">
+                    <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                  </Button>
+                }
+              />
             ))}
           </div>
         )}
-      </Card>
+      </SettingsSectionCard>
 
-      {/* Login history */}
       {history.length > 0 && (
-        <Card className="p-4">
-          <div className="font-semibold mb-3">Recent login activity</div>
+        <SettingsSectionCard
+          title="Recent login activity"
+          description="Last 10 sign-in attempts"
+          delay={0.15}
+        >
           <div className="space-y-1.5">
-            {history.map(h => (
-              <div key={h.id} className="flex items-center justify-between text-xs text-muted-foreground">
+            {history.map((h) => (
+              <div
+                key={h.id}
+                className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg text-xs text-muted-foreground border-b border-foreground/[0.04] last:border-0"
+              >
                 <span className="truncate">
-                  {h.success ? '✓' : '✗'} {h.method} • {h.device_label || 'Unknown'} • {[h.city, h.country].filter(Boolean).join(', ') || 'Unknown'}
+                  <span className={h.success ? 'text-emerald-500' : 'text-destructive'}>{h.success ? '✓' : '✗'}</span>
+                  {' '}{h.method} · {h.device_label || 'Unknown'} · {[h.city, h.country].filter(Boolean).join(', ') || 'Unknown'}
                 </span>
-                <span className="shrink-0 ml-2">{formatDistanceToNow(new Date(h.created_at), { addSuffix: true })}</span>
+                <span className="shrink-0">{formatDistanceToNow(new Date(h.created_at), { addSuffix: true })}</span>
               </div>
             ))}
           </div>
-        </Card>
+        </SettingsSectionCard>
       )}
     </div>
   );

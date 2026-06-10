@@ -21,8 +21,8 @@ export function FeedbackSection() {
             <Vibrate className="w-6 h-6 text-primary" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-base mb-1 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Haptic Feedback</h3>
-            <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+            <h3 className="font-semibold text-base mb-1 text-foreground">Haptic Feedback</h3>
+            <p className="text-sm text-foreground/80">
               Feel subtle vibrations when interacting
             </p>
           </div>
@@ -47,8 +47,8 @@ export function FeedbackSection() {
         className="liquid-glass-card p-4 sm:p-6 bg-muted/20"
       >
         <div className="flex items-start gap-3">
-          <Smartphone className="w-5 h-5 text-primary mt-0.5 flex-shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" />
-          <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+          <Smartphone className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-foreground/80">
             Haptic feedback works best on mobile devices. All feedback is designed to be subtle and enhance your experience.
           </p>
         </div>

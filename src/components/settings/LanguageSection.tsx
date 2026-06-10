@@ -45,10 +45,10 @@ export function LanguageSection() {
             <Globe className="w-6 h-6 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-base mb-0.5 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+            <h3 className="font-semibold text-base mb-0.5 text-foreground">
               {t('settings.language')}
             </h3>
-            <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+            <p className="text-sm text-foreground/80">
               {t('settings.chooseLanguage')}
             </p>
           </div>

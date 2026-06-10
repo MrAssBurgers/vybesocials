@@ -83,7 +83,7 @@ export const NotesRow = memo(function NotesRow() {
     if (noteGifUrl) {
       return (
         <div className="absolute -top-9 left-1/2 -translate-x-1/2 z-[2]">
-          <div className="bg-foreground/90 rounded-xl overflow-hidden shadow-lg" style={{ width: 56, height: 56 }}>
+          <div className="dm-note-bubble rounded-xl overflow-hidden shadow-lg" style={{ width: 56, height: 56 }}>
             <img src={noteGifUrl} alt="" className="w-full h-full object-cover" />
           </div>
           <div className="w-2 h-2 bg-foreground/90 rounded-full mx-auto -mt-0.5" />
@@ -92,7 +92,7 @@ export const NotesRow = memo(function NotesRow() {
     }
     return (
       <div className={`absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap ${maxW} z-[2]`}>
-        <div className={`bg-foreground/90 text-background text-[10px] px-2 py-0.5 rounded-full font-medium truncate ${maxW}`}>
+        <div className={`dm-note-bubble text-[10px] px-2.5 py-1 rounded-full font-medium truncate ${maxW}`}>
           {content}
         </div>
         <div className="w-2 h-2 bg-foreground/90 rounded-full mx-auto -mt-0.5" />
@@ -102,13 +102,13 @@ export const NotesRow = memo(function NotesRow() {
 
   return (
     <>
-      <div className="relative z-0 px-3 pt-10 pb-2 overflow-x-auto no-scrollbar" style={{ overflowY: 'clip' }}>
+      <div className="dm-notes-row relative z-0 px-3 pt-8 pb-3 overflow-x-auto no-scrollbar" style={{ overflowY: 'clip' }}>
         <div className="flex gap-4 min-w-max" style={{ overflow: 'visible' }}>
           {/* Current user's note */}
           <button onClick={handleOpenEdit} className="flex flex-col items-center w-16 flex-shrink-0" style={{ overflow: 'visible' }}>
             <div className="relative mb-1" style={{ overflow: 'visible' }}>
               {(myNote?.content || myNote?.gif_url) && renderNoteBubble(myNote?.content || '', myNote?.gif_url)}
-              <Avatar className="h-14 w-14 ring-2 ring-dashed ring-muted-foreground/30">
+              <Avatar className="dm-note-avatar dm-note-avatar--mine h-14 w-14">
                 <AvatarImage src={profile?.avatar_url || undefined} />
                 <AvatarFallback className="text-sm bg-muted">
                   {profile?.username?.[0]?.toUpperCase()}
@@ -130,7 +130,7 @@ export const NotesRow = memo(function NotesRow() {
             >
               <div className="relative mb-1" style={{ overflow: 'visible' }}>
                 {renderNoteBubble(note.content, note.gif_url)}
-                <Avatar className="h-14 w-14 ring-2 ring-primary/30">
+                <Avatar className="dm-note-avatar dm-note-avatar--friend h-14 w-14">
                   <AvatarImage src={note.profile?.avatar_url || undefined} />
                   <AvatarFallback className="text-sm">
                     {note.profile?.username?.[0]?.toUpperCase()}

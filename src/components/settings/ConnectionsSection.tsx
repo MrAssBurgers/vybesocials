@@ -179,7 +179,7 @@ export function ConnectionsSection() {
       animate={{ opacity: 1, y: 0 }}
       className="liquid-glass-card p-4 sm:p-6"
     >
-      <h3 className="font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+      <h3 className="font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base text-foreground">
         <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
         Account Connections
       </h3>

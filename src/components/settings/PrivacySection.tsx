@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Lock, Eye, EyeOff, Shield, Users, KeyRound, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, Shield, Users, KeyRound, Sparkles } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -12,6 +10,7 @@ import { getUserFriendlyError } from '@/lib/errorUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { haptics } from '@/lib/haptics';
 import { BlockedUsersCard } from './BlockedUsersCard';
+import { SettingsSectionCard, SettingsPanel, SettingsToggleRow } from './SettingsUI';
 
 export function PrivacySection() {
   const { t } = useTranslation();
@@ -117,94 +116,37 @@ export function PrivacySection() {
 
   return (
     <div className="space-y-6">
-      {/* Privacy Overview Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="liquid-glass-card p-4 sm:p-6"
+      <SettingsSectionCard
+        icon={Shield}
+        title="Privacy & Security"
+        description="Control who can see your content and interact with you"
       >
-        <div className="flex items-start gap-4 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/10 ring-1 ring-primary/20 shadow-[0_4px_16px_-6px_hsl(var(--primary)/0.4)] flex items-center justify-center flex-shrink-0">
-            <Shield className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-base mb-1 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Privacy & Security</h3>
-            <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
-              Control who can see your content and interact with you
-            </p>
-          </div>
-        </div>
+        <SettingsPanel className="space-y-0">
+          <SettingsToggleRow
+            icon={isPrivate ? EyeOff : Eye}
+            title={t('settings.privateAccount')}
+            description={t('settings.privateAccountDesc')}
+            checked={isPrivate}
+            onCheckedChange={handlePrivacyChange}
+            disabled={privacyLoading}
+          />
+          <SettingsToggleRow
+            icon={Sparkles}
+            title="Feature me on the landing page"
+            description="When you're trending today, your avatar can show in the early members row on vybehub.app. Only public accounts."
+            checked={featureOnLanding}
+            onCheckedChange={handleLandingChange}
+            disabled={landingLoading || isPrivate}
+          />
+        </SettingsPanel>
+      </SettingsSectionCard>
 
-        {/* Private Account Toggle */}
-        <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center flex-shrink-0 mt-0.5">
-                {isPrivate ? (
-                  <EyeOff className="w-5 h-5 text-primary" />
-                ) : (
-                  <Eye className="w-5 h-5 text-muted-foreground" />
-                )}
-              </div>
-              <div className="min-w-0">
-                <p className="font-medium">{t('settings.privateAccount')}</p>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  {t('settings.privateAccountDesc')}
-                </p>
-              </div>
-            </div>
-            <Switch 
-              checked={isPrivate} 
-              onCheckedChange={handlePrivacyChange}
-              disabled={privacyLoading}
-              className="mt-1"
-            />
-          </div>
-        </div>
-
-        {/* Feature on landing page */}
-        <div className="mt-3 p-4 rounded-xl bg-muted/30 border border-border/50">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center flex-shrink-0 mt-0.5">
-                <Sparkles className="w-5 h-5 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-medium">Feature me on the landing page</p>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  When you're trending today, your avatar can show in the "early members" row on vybehub.app. Only public accounts.
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={featureOnLanding}
-              onCheckedChange={handleLandingChange}
-              disabled={landingLoading || isPrivate}
-              className="mt-1"
-            />
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Change Password Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-        className="liquid-glass-card p-4 sm:p-6"
+      <SettingsSectionCard
+        icon={KeyRound}
+        title="Change Password"
+        description="Update your account password"
+        delay={0.05}
       >
-        <div className="flex items-start gap-4 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/10 ring-1 ring-primary/20 shadow-[0_4px_16px_-6px_hsl(var(--primary)/0.4)] flex items-center justify-center flex-shrink-0">
-            <KeyRound className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-base mb-1 text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Change Password</h3>
-            <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
-              Update your account password
-            </p>
-          </div>
-        </div>
-
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="new-password">New Password</Label>
@@ -214,7 +156,6 @@ export function PrivacySection() {
               placeholder="Enter new password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="bg-muted/30 border-border/50"
               minLength={6}
             />
           </div>
@@ -226,49 +167,40 @@ export function PrivacySection() {
               placeholder="Confirm new password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="bg-muted/30 border-border/50"
               minLength={6}
             />
           </div>
           <Button
             onClick={handlePasswordChange}
             disabled={passwordLoading || !newPassword || !confirmPassword}
-            className="w-full"
+            className="w-full rounded-xl"
           >
             {passwordLoading ? 'Updating...' : 'Update Password'}
           </Button>
         </div>
-      </motion.div>
+      </SettingsSectionCard>
 
-      {/* Current Status */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="liquid-glass-card p-4 sm:p-6"
+      <SettingsSectionCard
+        title="Current Visibility"
+        delay={0.1}
       >
-        <h4 className="font-medium mb-4 flex items-center gap-2">
-          <Users className="w-4 h-4 text-muted-foreground" />
-          Current Visibility
-        </h4>
-        
-        <div className={`p-4 rounded-xl border-2 ${isPrivate ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/20'}`}>
+        <div className={`settings-panel rounded-xl border-2 ${isPrivate ? 'border-primary/40' : 'border-emerald-500/30'}`}>
           <div className="flex items-center gap-3">
-            <div className={`w-3 h-3 rounded-full ${isPrivate ? 'bg-primary' : 'bg-green-500'}`} />
+            <div className={`w-3 h-3 rounded-full shrink-0 ${isPrivate ? 'bg-primary' : 'bg-emerald-500'}`} />
             <div>
-              <p className="font-medium">
+              <p className="font-medium flex items-center gap-2">
+                <Users className="w-4 h-4 text-muted-foreground" />
                 {isPrivate ? 'Private Account' : 'Public Account'}
               </p>
-              <p className="text-sm text-muted-foreground">
-                {isPrivate 
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {isPrivate
                   ? 'Only approved followers can see your posts'
-                  : 'Anyone can see your posts and follow you'
-                }
+                  : 'Anyone can see your posts and follow you'}
               </p>
             </div>
           </div>
         </div>
-      </motion.div>
+      </SettingsSectionCard>
 
       <BlockedUsersCard />
     </div>

@@ -183,7 +183,7 @@ export function ProfileSection() {
         transition={{ delay: 0.1 }}
         className="liquid-glass-card p-4 sm:p-6"
       >
-        <h3 className="font-semibold mb-6 text-base text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Edit Profile</h3>
+        <h3 className="font-semibold mb-6 text-base text-foreground">Edit Profile</h3>
 
         <div className="space-y-5">
           {/* Display Name */}
