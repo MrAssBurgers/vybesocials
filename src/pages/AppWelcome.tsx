@@ -250,7 +250,7 @@ export default function AppWelcome() {
           </Button>
           <Button
             variant="ghost"
-            onClick={() => navigate('/feature-voting')}
+            onClick={() => navigate('/roadmap')}
             className="h-11 rounded-2xl text-muted-foreground"
           >
             Shape what we build next →

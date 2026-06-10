@@ -82,7 +82,7 @@ function FirstPostCTA() {
         Post a photo, video, or thought to get started
       </p>
       <Button
-        onClick={() => navigate('/create')}
+        onClick={() => navigate('/upload')}
         className="rounded-full px-6 h-9 text-sm"
       >
         Create Post
@@ -516,7 +516,7 @@ function InlinePostList({
             containIntrinsicSize: `0 ${postIntrinsicHeight}px`,
           }}
         >
-          <MemoizedPostCard post={post} />
+          <MemoizedPostCard post={post} eager={index < 2} />
           {/* Early load-more sentinel — fires 5 posts before the end */}
           {index === earlyTriggerIndex && (
             <div ref={loadMoreRef} aria-hidden className="h-px w-full" />

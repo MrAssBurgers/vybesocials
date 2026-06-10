@@ -218,7 +218,7 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
 
 // Natural aspect ratio image component - NO black padding, natural sizing
 // NEVER shows broken placeholder - graceful degradation
-function NaturalAspectImage({ src, caption }: { src: string; caption?: string }) {
+function NaturalAspectImage({ src, caption, eager = false }: { src: string; caption?: string; eager?: boolean }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -293,9 +293,9 @@ function NaturalAspectImage({ src, caption }: { src: string; caption?: string })
           isLoaded ? "opacity-100 blur-0 scale-100" : "opacity-0 blur-sm scale-[1.02]"
         )}
         style={!isLoaded ? { position: 'absolute', top: 0, left: 0 } : undefined}
-        loading="eager"
+        loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        fetchPriority="high"
+        fetchPriority={eager ? 'high' : 'auto'}
         onLoad={handleLoad}
         onError={() => setHasError(true)}
       />
@@ -328,9 +328,11 @@ interface PostCardProps {
     ai_confidence?: number;
     ai_override?: boolean | null;
   };
+  /** Load media eagerly at high priority — only for the first couple of posts above the fold */
+  eager?: boolean;
 }
 
-export const PostCard = memo(function PostCard({ post }: PostCardProps) {
+export const PostCard = memo(function PostCard({ post, eager = false }: PostCardProps) {
   const { profile } = useAuth();
   const { isGuest } = useIsGuest();
   const queryClient = useQueryClient();
@@ -782,7 +784,7 @@ export const PostCard = memo(function PostCard({ post }: PostCardProps) {
             ) : allUrls.length > 1 ? (
               <PostCarousel urls={allUrls} onDoubleTap={handleDoubleTap} />
             ) : (
-              <NaturalAspectImage src={signedMediaUrl || ''} caption={post.caption} />
+              <NaturalAspectImage src={signedMediaUrl || ''} caption={post.caption} eager={eager} />
             )}
             
             {/* Double tap heart animation */}

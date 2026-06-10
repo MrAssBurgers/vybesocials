@@ -194,21 +194,20 @@ export function useInviteStats() {
         .order('redeemed_at', { ascending: false })
         .limit(10);
       
-      // Fetch profiles for redeemers
-      const redemptionsWithProfiles = await Promise.all(
-        (recentRedemptions || []).map(async (r) => {
-          const { data: redeemerProfile } = await supabase
+      // Fetch all redeemer profiles in a single batched query (was N+1)
+      const redeemerIds = [...new Set((recentRedemptions || []).map(r => r.redeemer_id))];
+      const { data: redeemerProfiles } = redeemerIds.length
+        ? await supabase
             .from('profiles')
-            .select('username, avatar_url')
-            .eq('user_id', r.redeemer_id)
-            .single();
-          
-          return {
-            ...r,
-            profile: redeemerProfile,
-          };
-        })
-      );
+            .select('user_id, username, avatar_url')
+            .in('user_id', redeemerIds)
+        : { data: [] as { user_id: string; username: string | null; avatar_url: string | null }[] };
+      const profileById = new Map((redeemerProfiles || []).map(p => [p.user_id, p]));
+
+      const redemptionsWithProfiles = (recentRedemptions || []).map(r => ({
+        ...r,
+        profile: profileById.get(r.redeemer_id) || null,
+      }));
       
       return {
         totalRedemptions,
@@ -216,9 +215,9 @@ export function useInviteStats() {
       };
     },
     enabled: !!user?.id,
-    // Refetch frequently so inviter progress feels instant
-    refetchInterval: 1000,
-    staleTime: 0,
+    // Poll at a sane rate — 1s polling was hammering the API (~13 req/s with the N+1 profiles)
+    refetchInterval: 15_000,
+    staleTime: 10_000,
   });
 
   // Award badges when milestones are reached

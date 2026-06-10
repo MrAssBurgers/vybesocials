@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { useTrashedConversationIds, useTrashConversation } from '@/hooks/useTrashedConversations';
 import { useStories, StoryGroup } from '@/hooks/useStories';
+import { StoryViewer } from '@/components/stories/StoryViewer';
 import { useAcceptedFriendRequests, useDismissAcceptedRequest } from '@/hooks/useAcceptedFriendRequests';
 import { useStreakMap, Streak } from '@/hooks/useStreaks';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -143,6 +144,7 @@ export function ConversationList() {
   const [isTrashOpen, setIsTrashOpen] = useState(false);
   const [showSnapCamera, setShowSnapCamera] = useState(false);
   const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);
+  const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
   
   // Create a map of user IDs to story groups for quick lookup
   const userStoryMap = useMemo(() => {
@@ -151,6 +153,13 @@ export function ConversationList() {
       map.set(group.user.id, group);
     });
     return map;
+  }, [storyGroups]);
+
+  // Open the story viewer for a user (there is no /stories route — the old
+  // navigate('/stories/...') call 404'd to NotFound)
+  const openStoryForUser = useCallback((userId: string) => {
+    const idx = storyGroups?.findIndex(g => g.user.id === userId) ?? -1;
+    if (idx >= 0) setStoryViewerIndex(idx);
   }, [storyGroups]);
   
   // Debug logging in dev mode
@@ -436,6 +445,7 @@ export function ConversationList() {
                   isTypingFn={checkTyping}
                   onClick={handleConversationClick}
                   onTrash={handleTrashConversation}
+                  onOpenStory={openStoryForUser}
                 />
               ))}
               {filteredUnpinned.map((conv) => (
@@ -451,6 +461,7 @@ export function ConversationList() {
                   isTypingFn={checkTyping}
                   onClick={handleConversationClick}
                   onTrash={handleTrashConversation}
+                  onOpenStory={openStoryForUser}
                 />
               ))}
             </>
@@ -513,6 +524,17 @@ export function ConversationList() {
           />
         </CameraMountBoundary>
       )}
+
+      {/* Story viewer — opened by tapping an avatar with an active story ring */}
+      <AnimatePresence>
+        {storyViewerIndex !== null && storyGroups && (
+          <StoryViewer
+            groups={storyGroups}
+            initialGroupIndex={storyViewerIndex}
+            onClose={() => setStoryViewerIndex(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -796,6 +818,7 @@ interface ConversationRowProps {
   isTypingFn: (id: string) => boolean;
   onClick: (id: string) => void;
   onTrash: (id: string) => void;
+  onOpenStory?: (userId: string) => void;
 }
 
 const ConversationRow = memo(function ConversationRow({
@@ -809,6 +832,7 @@ const ConversationRow = memo(function ConversationRow({
   isTypingFn,
   onClick,
   onTrash,
+  onOpenStory,
 }: ConversationRowProps) {
   const otherMemberId = !conv.is_group
     ? conv.members?.find(m => m.user_id !== currentUserId)?.profile?.id
@@ -831,6 +855,7 @@ const ConversationRow = memo(function ConversationRow({
       storyGroup={storyGroup}
       streak={streak}
       userStatus={otherMemberId ? (statusMap as any).get?.(otherMemberId) : undefined}
+      onOpenStory={onOpenStory}
     />
   );
 });
@@ -847,6 +872,7 @@ interface ConversationItemProps {
   storyGroup?: StoryGroup;
   streak?: Streak;
   userStatus?: { emoji: string; text: string } | null;
+  onOpenStory?: (userId: string) => void;
 }
 
 const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(function ConversationItem({ 
@@ -861,6 +887,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
   storyGroup,
   streak,
   userStatus,
+  onOpenStory,
 }, _ref) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -999,8 +1026,8 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
   const handleAvatarClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!conversation.is_group && otherMember) {
-      if (hasStory && storyGroup) {
-        navigate(`/stories/${otherMember.username}`);
+      if (hasStory && storyGroup && onOpenStory) {
+        onOpenStory(storyGroup.user.id);
       } else {
         navigate(`/u/${otherMember.username}`);
       }
