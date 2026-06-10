@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   Sparkles,
-  Wand2,
   Palette,
   Zap,
   Heart,
@@ -17,10 +16,10 @@ import {
   ArrowRight,
   ArrowLeft,
   RotateCcw,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
@@ -42,16 +41,17 @@ import { VybeGenerationAnimation } from './VybeGenerationAnimation';
 import { toast } from 'sonner';
 
 const EASE_OUT_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
+const SPRING = { type: 'spring' as const, stiffness: 380, damping: 30 };
 
 const PERSONALITY_VIBES = [
-  { id: 'chill', label: 'Chill', icon: Cloud, gradient: 'from-blue-400 to-cyan-500', prompt: 'calm, peaceful, serene ocean vibes with soft blues and gentle motion' },
-  { id: 'bold', label: 'Bold', icon: Flame, gradient: 'from-orange-500 to-red-500', prompt: 'bold, energetic, vibrant with hot colors and dynamic effects' },
-  { id: 'dark', label: 'Mysterious', icon: Moon, gradient: 'from-purple-600 to-indigo-900', prompt: 'dark, mysterious, gothic with deep purples and subtle glow' },
-  { id: 'pastel', label: 'Dreamy', icon: Heart, gradient: 'from-pink-300 to-purple-300', prompt: 'soft pastel, dreamy, aesthetic with gentle pinks and lavenders' },
-  { id: 'neon', label: 'Neon', icon: Zap, gradient: 'from-cyan-400 to-pink-500', prompt: 'cyberpunk neon, electric, glowing brights against dark backgrounds' },
-  { id: 'nature', label: 'Earthy', icon: Leaf, gradient: 'from-green-400 to-emerald-600', prompt: 'natural, earthy, forest with greens and organic textures' },
-  { id: 'minimal', label: 'Minimal', icon: Sun, gradient: 'from-slate-300 to-slate-500', prompt: 'minimal, clean, modern with monochrome palette and sharp edges' },
-  { id: 'cozy', label: 'Cozy', icon: Coffee, gradient: 'from-amber-400 to-orange-600', prompt: 'warm, cozy, autumn with warm oranges and browns' },
+  { id: 'chill', label: 'Chill', tagline: 'calm waters', icon: Cloud, gradient: 'from-sky-400 to-cyan-500', glow: ['#38bdf8', '#06b6d4'], prompt: 'calm, peaceful, serene ocean vibes with soft blues and gentle motion' },
+  { id: 'bold', label: 'Bold', tagline: 'full send', icon: Flame, gradient: 'from-orange-500 to-red-500', glow: ['#f97316', '#ef4444'], prompt: 'bold, energetic, vibrant with hot colors and dynamic effects' },
+  { id: 'dark', label: 'Mysterious', tagline: 'after midnight', icon: Moon, gradient: 'from-purple-600 to-indigo-900', glow: ['#9333ea', '#312e81'], prompt: 'dark, mysterious, gothic with deep purples and subtle glow' },
+  { id: 'pastel', label: 'Dreamy', tagline: 'soft focus', icon: Heart, gradient: 'from-pink-300 to-purple-400', glow: ['#f9a8d4', '#c084fc'], prompt: 'soft pastel, dreamy, aesthetic with gentle pinks and lavenders' },
+  { id: 'neon', label: 'Neon', tagline: 'city lights', icon: Zap, gradient: 'from-cyan-400 to-pink-500', glow: ['#22d3ee', '#ec4899'], prompt: 'cyberpunk neon, electric, glowing brights against dark backgrounds' },
+  { id: 'nature', label: 'Earthy', tagline: 'touch grass', icon: Leaf, gradient: 'from-green-400 to-emerald-600', glow: ['#4ade80', '#059669'], prompt: 'natural, earthy, forest with greens and organic textures' },
+  { id: 'minimal', label: 'Minimal', tagline: 'less is more', icon: Sun, gradient: 'from-slate-300 to-slate-500', glow: ['#cbd5e1', '#64748b'], prompt: 'minimal, clean, modern with monochrome palette and sharp edges' },
+  { id: 'cozy', label: 'Cozy', tagline: 'golden hour', icon: Coffee, gradient: 'from-amber-400 to-orange-600', glow: ['#fbbf24', '#ea580c'], prompt: 'warm, cozy, autumn with warm oranges and browns' },
 ] as const;
 
 const INTEREST_THEMES: Record<string, string> = {
@@ -101,10 +101,73 @@ const SNAPSHOT_PROPS = [
   '--muted-foreground', '--card-foreground',
 ];
 
+// Curated local themes per vibe — used when the edge function is unreachable
+// so the designer ALWAYS produces a theme.
+const LOCAL_VIBE_THEMES: Record<string, GeneratedTheme> = {
+  chill: {
+    themeName: 'Ocean Drift', colorPrimary: '199 89% 56%', colorSecondary: '217 60% 18%', colorAccent: '174 72% 50%',
+    bgMain: '215 50% 6%', bgCard: '215 45% 10%', bgGradientFrom: '215 55% 5%', bgGradientMid: '205 50% 9%', bgGradientTo: '190 45% 7%',
+    textPrimary: '200 30% 96%', textSecondary: '205 20% 68%', borderColor: '210 40% 18%',
+    neonPink: '330 80% 65%', neonPurple: '260 75% 65%', neonCyan: '185 95% 55%',
+    borderRadius: 'large', mode: 'dark', animationSpeed: 'slow', animationStyle: 'smooth', backgroundEffect: 'bubbles',
+  } as GeneratedTheme,
+  bold: {
+    themeName: 'Voltage Rush', colorPrimary: '16 100% 57%', colorSecondary: '350 85% 22%', colorAccent: '45 100% 55%',
+    bgMain: '340 35% 6%', bgCard: '340 30% 10%', bgGradientFrom: '350 45% 5%', bgGradientMid: '20 50% 9%', bgGradientTo: '340 40% 6%',
+    textPrimary: '20 30% 97%', textSecondary: '20 15% 70%', borderColor: '350 35% 18%',
+    neonPink: '340 100% 60%', neonPurple: '280 90% 62%', neonCyan: '180 100% 50%',
+    borderRadius: 'medium', mode: 'dark', animationSpeed: 'fast', animationStyle: 'bouncy', backgroundEffect: 'particles',
+  } as GeneratedTheme,
+  dark: {
+    themeName: 'Violet Eclipse', colorPrimary: '270 85% 65%', colorSecondary: '260 45% 16%', colorAccent: '300 80% 60%',
+    bgMain: '262 50% 5%', bgCard: '262 45% 9%', bgGradientFrom: '265 55% 4%', bgGradientMid: '280 50% 8%', bgGradientTo: '250 45% 6%',
+    textPrimary: '270 25% 96%', textSecondary: '265 15% 66%', borderColor: '265 40% 17%',
+    neonPink: '320 90% 62%', neonPurple: '275 95% 66%', neonCyan: '200 90% 58%',
+    borderRadius: 'large', mode: 'dark', animationSpeed: 'normal', animationStyle: 'smooth', backgroundEffect: 'stars',
+  } as GeneratedTheme,
+  pastel: {
+    themeName: 'Blush Reverie', colorPrimary: '330 80% 66%', colorSecondary: '315 35% 90%', colorAccent: '265 70% 70%',
+    bgMain: '320 40% 97%', bgCard: '0 0% 100%', bgGradientFrom: '325 50% 98%', bgGradientMid: '300 45% 96%', bgGradientTo: '260 40% 97%',
+    textPrimary: '325 35% 12%', textSecondary: '320 15% 42%', borderColor: '320 30% 88%',
+    neonPink: '335 90% 62%', neonPurple: '275 80% 64%', neonCyan: '195 85% 55%',
+    borderRadius: 'large', mode: 'light', animationSpeed: 'normal', animationStyle: 'smooth', backgroundEffect: 'aurora',
+  } as GeneratedTheme,
+  neon: {
+    themeName: 'Neon District', colorPrimary: '180 100% 50%', colorSecondary: '280 60% 20%', colorAccent: '320 100% 60%',
+    bgMain: '240 30% 5%', bgCard: '240 25% 9%', bgGradientFrom: '245 35% 4%', bgGradientMid: '270 35% 8%', bgGradientTo: '220 30% 6%',
+    textPrimary: '200 30% 97%', textSecondary: '220 15% 68%', borderColor: '240 30% 17%',
+    neonPink: '320 100% 60%', neonPurple: '275 95% 64%', neonCyan: '182 100% 52%',
+    borderRadius: 'small', mode: 'dark', animationSpeed: 'fast', animationStyle: 'snappy', backgroundEffect: 'geometric',
+  } as GeneratedTheme,
+  nature: {
+    themeName: 'Forest Pulse', colorPrimary: '152 65% 45%', colorSecondary: '150 35% 15%', colorAccent: '88 60% 52%',
+    bgMain: '160 35% 5%', bgCard: '158 30% 9%', bgGradientFrom: '162 40% 4%', bgGradientMid: '150 35% 8%', bgGradientTo: '140 30% 6%',
+    textPrimary: '140 25% 96%', textSecondary: '145 15% 66%', borderColor: '152 30% 16%',
+    neonPink: '330 70% 62%', neonPurple: '265 60% 62%', neonCyan: '170 85% 48%',
+    borderRadius: 'large', mode: 'dark', animationSpeed: 'slow', animationStyle: 'smooth', backgroundEffect: 'fireflies',
+  } as GeneratedTheme,
+  minimal: {
+    themeName: 'Monochrome', colorPrimary: '0 0% 15%', colorSecondary: '0 0% 88%', colorAccent: '0 0% 40%',
+    bgMain: '0 0% 99%', bgCard: '0 0% 100%', bgGradientFrom: '0 0% 100%', bgGradientMid: '0 0% 98%', bgGradientTo: '0 0% 97%',
+    textPrimary: '0 0% 8%', textSecondary: '0 0% 42%', borderColor: '0 0% 88%',
+    neonPink: '330 70% 60%', neonPurple: '265 60% 60%', neonCyan: '190 80% 50%',
+    borderRadius: 'small', mode: 'light', animationSpeed: 'instant', animationStyle: 'snappy', backgroundEffect: 'none',
+  } as GeneratedTheme,
+  cozy: {
+    themeName: 'Amber Hours', colorPrimary: '32 95% 55%', colorSecondary: '25 45% 16%', colorAccent: '14 80% 56%',
+    bgMain: '24 35% 6%', bgCard: '24 30% 10%', bgGradientFrom: '26 40% 5%', bgGradientMid: '20 35% 9%', bgGradientTo: '32 30% 7%',
+    textPrimary: '30 35% 96%', textSecondary: '28 18% 68%', borderColor: '26 30% 17%',
+    neonPink: '345 80% 62%', neonPurple: '275 60% 62%', neonCyan: '180 75% 50%',
+    borderRadius: 'large', mode: 'dark', animationSpeed: 'slow', animationStyle: 'smooth', backgroundEffect: 'fireflies',
+  } as GeneratedTheme,
+};
+
+function buildLocalTheme(vibeId: string | null): GeneratedTheme {
+  return { ...(LOCAL_VIBE_THEMES[vibeId || 'dark'] || LOCAL_VIBE_THEMES.dark) };
+}
+
 function isValidTheme(t: any): t is GeneratedTheme {
   if (!t || typeof t !== 'object') return false;
-  // Accept the edge function's camelCase shape (colorPrimary/bgMain/textPrimary)
-  // as well as legacy CSS-var/nested shapes.
   const hasPrimary =
     typeof t.colorPrimary === 'string' ||
     typeof t['--primary'] === 'string' ||
@@ -112,6 +175,73 @@ function isValidTheme(t: any): t is GeneratedTheme {
     typeof t.tokens?.['--primary'] === 'string' ||
     typeof t.tokens?.colorPrimary === 'string';
   return hasPrimary;
+}
+
+/* ── Aurora backdrop — morphs to the selected vibe's colors ── */
+function AuroraBackdrop({ colors, animate }: { colors: [string, string]; animate: boolean }) {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
+      <div className="absolute inset-0 bg-background" />
+      <motion.div
+        className="absolute w-[70vw] h-[70vw] max-w-[560px] max-h-[560px] rounded-full blur-[100px]"
+        style={{
+          backgroundColor: colors[0],
+          top: '-12%',
+          left: '-18%',
+          opacity: 0.32,
+          transition: 'background-color 1.2s ease',
+        }}
+        animate={animate ? { x: [0, 36, -16, 0], y: [0, 26, 50, 0], scale: [1, 1.12, 0.96, 1] } : undefined}
+        transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        className="absolute w-[64vw] h-[64vw] max-w-[500px] max-h-[500px] rounded-full blur-[100px]"
+        style={{
+          backgroundColor: colors[1],
+          bottom: '-14%',
+          right: '-16%',
+          opacity: 0.28,
+          transition: 'background-color 1.2s ease',
+        }}
+        animate={animate ? { x: [0, -42, 14, 0], y: [0, -30, -54, 0], scale: [1, 0.94, 1.1, 1] } : undefined}
+        transition={{ duration: 19, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        className="absolute w-[46vw] h-[46vw] max-w-[380px] max-h-[380px] rounded-full blur-[90px]"
+        style={{
+          backgroundColor: colors[0],
+          top: '38%',
+          left: '32%',
+          opacity: 0.14,
+          transition: 'background-color 1.2s ease',
+        }}
+        animate={animate ? { x: [0, 26, -32, 0], y: [0, -38, 22, 0] } : undefined}
+        transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      {/* Fine grain + vignette for depth */}
+      <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-transparent to-background/70" />
+    </div>
+  );
+}
+
+/* ── Animated headline — words rise in one by one ── */
+function AnimatedHeadline({ words, className, reduceMotion }: { words: string[]; className?: string; reduceMotion: boolean | null }) {
+  return (
+    <h1 className={cn('flex flex-wrap justify-center gap-x-[0.3em] overflow-hidden', className)}>
+      {words.map((word, i) => (
+        <span key={`${word}-${i}`} className="inline-block overflow-hidden pb-1 -mb-1">
+          <motion.span
+            className="inline-block"
+            initial={reduceMotion ? { opacity: 0 } : { y: '110%', opacity: 0 }}
+            animate={reduceMotion ? { opacity: 1 } : { y: 0, opacity: 1 }}
+            transition={{ delay: 0.12 + i * 0.07, duration: 0.6, ease: EASE_OUT_EXPO }}
+          >
+            {word}
+          </motion.span>
+        </span>
+      ))}
+    </h1>
+  );
 }
 
 export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDesignerProps) {
@@ -132,7 +262,6 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const snapshotRef = useRef<Record<string, string> | null>(null);
   const mountedRef = useRef(true);
 
-  // Capture theme snapshot on mount, abort + restore nav on unmount
   useEffect(() => {
     mountedRef.current = true;
     navVisibility.setInDesigner(true);
@@ -152,11 +281,11 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     return () => {
       mountedRef.current = false;
       navVisibility.setInDesigner(false);
-      try { abortRef.current?.abort(); } catch {}
+      try { abortRef.current?.abort(); } catch { /* noop */ }
     };
   }, []);
 
-  // Build phase timer with proper cleanup
+  // Build phase timer
   useEffect(() => {
     if (step !== 'building') return;
     setBuildPhase(0);
@@ -176,7 +305,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const restoreSnapshot = useCallback(() => {
     const snap = snapshotRef.current;
     if (!snap) {
-      try { resetThemeToDefault(); } catch {}
+      try { resetThemeToDefault(); } catch { /* noop */ }
       return;
     }
     try {
@@ -186,7 +315,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
       });
     } catch (e) {
       console.warn('[AIVybeDesigner] restore failed, resetting to default', e);
-      try { resetThemeToDefault(); } catch {}
+      try { resetThemeToDefault(); } catch { /* noop */ }
     }
   }, []);
 
@@ -195,10 +324,18 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     return match ? INTEREST_THEMES[match] : null;
   }, [interests]);
 
+  const activeVibe = useMemo(
+    () => PERSONALITY_VIBES.find(v => v.id === selectedVibe) || null,
+    [selectedVibe],
+  );
+
+  // Backdrop colors follow the selected vibe (defaults to brand purple/cyan)
+  const auroraColors: [string, string] = activeVibe
+    ? [activeVibe.glow[0], activeVibe.glow[1]]
+    : ['#8b5cf6', '#06b6d4'];
+
   const generateTheme = async () => {
-    const vibePrompt = selectedVibe
-      ? PERSONALITY_VIBES.find(v => v.id === selectedVibe)?.prompt
-      : '';
+    const vibePrompt = activeVibe?.prompt || '';
     const fontPref = selectedFont ? `Use ${FONT_PAIRINGS[selectedFont].description} typography` : '';
     const animPref = selectedAnimation ? `Use ${ANIMATION_PRESETS[selectedAnimation].description} motion` : '';
 
@@ -223,6 +360,9 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     const minBuildTime = BUILD_PHASES.reduce((sum, p) => sum + p.duration, 0);
     const buildStart = Date.now();
 
+    // Resolve a theme: try AI edge function, fall back to the curated local
+    // palette for the selected vibe so the flow NEVER dead-ends.
+    let theme: GeneratedTheme;
     try {
       const { data, error } = await supabase.functions.invoke('generate-advanced-theme', {
         body: {
@@ -238,9 +378,16 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      const theme = data?.theme as GeneratedTheme | undefined;
-      if (!isValidTheme(theme)) throw new Error('Invalid theme response');
+      const aiTheme = data?.theme as GeneratedTheme | undefined;
+      if (!isValidTheme(aiTheme)) throw new Error('Invalid theme response');
+      theme = aiTheme;
+    } catch (err: unknown) {
+      if ((err as Error)?.name === 'AbortError') return;
+      console.warn('[AIVybeDesigner] AI generation failed — using local theme', err);
+      theme = buildLocalTheme(selectedVibe);
+    }
 
+    try {
       // Apply font + motion presets if user picked them
       if (selectedFont) {
         try {
@@ -255,19 +402,18 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         try {
           const anim = ANIMATION_PRESETS[selectedAnimation];
           applyAnimationSettings(anim.speed, anim.style);
-          theme.animationSpeed = anim.speed as any;
-          theme.animationStyle = anim.style as any;
+          theme.animationSpeed = anim.speed as GeneratedTheme['animationSpeed'];
+          theme.animationStyle = anim.style as GeneratedTheme['animationStyle'];
         } catch (e) { console.warn('animation apply failed', e); }
       }
 
-      // Wait for the build animation to finish for a satisfying reveal
+      // Let the build animation play out for a satisfying reveal
       const elapsed = Date.now() - buildStart;
       const remaining = Math.max(0, minBuildTime - elapsed);
       await new Promise(r => setTimeout(r, remaining));
 
       if (!mountedRef.current) return;
 
-      // Apply the theme and reveal preview
       try { applyThemeTokens(theme); } catch (e) {
         console.error('applyThemeTokens failed', e);
         restoreSnapshot();
@@ -278,10 +424,8 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
 
       setGeneratedTheme(theme);
       setStep('preview');
-      // Stagger preview cards in after the step transition settles
       setTimeout(() => mountedRef.current && setShowPreviewElements(true), 250);
-    } catch (err: any) {
-      if (err?.name === 'AbortError') return;
+    } catch (err: unknown) {
       console.error('[AIVybeDesigner] generation failed', err);
       if (mountedRef.current) {
         toast.error('Could not generate theme. Try a different vibe.');
@@ -320,136 +464,99 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     onComplete();
   };
 
-  // Animation variants — respect reduced motion
   const stepVariants = reduceMotion
     ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } }
     : {
-        initial: { opacity: 0, y: 20 },
-        animate: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE_OUT_EXPO } },
-        exit: { opacity: 0, y: -10, transition: { duration: 0.25, ease: EASE_OUT_EXPO } },
+        initial: { opacity: 0, y: 24, scale: 0.985 },
+        animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: EASE_OUT_EXPO } },
+        exit: { opacity: 0, y: -14, scale: 0.99, transition: { duration: 0.25, ease: EASE_OUT_EXPO } },
       };
 
-  // Step ordering for HUD
   const stepOrder = ['vibe', 'style', 'building', 'preview'] as const;
   const stepIndex = step === 'building' ? 2 : stepOrder.indexOf(step);
-  const stepLabels = ['VIBE', 'STYLE', 'PREVIEW'] as const;
-
-  // Particle positions (stable across renders)
-  const particles = useMemo(
-    () => Array.from({ length: 10 }, (_, i) => ({
-      id: i,
-      top: `${(i * 9.7) % 100}%`,
-      left: `${(i * 17.3) % 100}%`,
-      delay: `${(i * 0.7) % 5}s`,
-      duration: `${5 + (i % 4)}s`,
-    })),
-    []
-  );
+  const progressIndex = Math.min(stepIndex, 2);
 
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-hidden">
-      {/* === FORGE BACKDROP — simplified for mobile perf === */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
-        {/* Static deep-space gradient (cheap, GPU-friendly) */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              'radial-gradient(ellipse at 50% 0%, hsl(var(--primary) / 0.22), transparent 60%), radial-gradient(ellipse at 50% 100%, hsl(var(--accent) / 0.16), transparent 55%), hsl(var(--background))',
-          }}
-        />
-        {/* Scan line during build only */}
-        {step === 'building' && !reduceMotion && <div className="vybe-forge-scan" />}
-        {/* Vignette */}
-        <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-transparent to-background/60" />
-      </div>
+      <AuroraBackdrop colors={auroraColors} animate={!reduceMotion} />
 
-      {/* === Close button (top-left) === */}
-      {onSkip && (
-        <button
-          type="button"
-          onClick={onSkip}
-          aria-label="Close"
-          className="absolute z-30 left-4 top-[max(var(--sat,0px),1rem)] h-10 w-10 rounded-full border border-primary/30 bg-background/60 backdrop-blur-md flex items-center justify-center text-foreground hover:bg-background/80 active:scale-95 transition"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-      )}
+      {/* ── Top bar: close + progress ── */}
+      <div
+        className="absolute top-0 inset-x-0 z-30 px-4"
+        style={{ paddingTop: 'max(var(--sat, 0px), 0.875rem)' }}
+      >
+        <div className="max-w-md mx-auto flex items-center gap-3 h-10">
+          {onSkip ? (
+            <motion.button
+              type="button"
+              onClick={onSkip}
+              aria-label="Close"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+              whileTap={{ scale: 0.9 }}
+              className="h-9 w-9 shrink-0 rounded-full bg-foreground/[0.06] backdrop-blur-md border border-foreground/[0.08] flex items-center justify-center text-foreground/80 hover:text-foreground hover:bg-foreground/[0.1] transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </motion.button>
+          ) : <div className="w-9 shrink-0" />}
 
-      {/* === HUD: top progress chevrons === */}
-      <div className="absolute top-0 inset-x-0 z-20 px-5 pt-[max(var(--sat,0px),1rem)] pl-16">
-        <div className="max-w-md mx-auto flex items-center justify-between gap-2">
-          <span className="vybe-forge-chip shrink-0">VYBE · FORGE</span>
+          {/* Progress segments */}
           <div className="flex-1 flex items-center gap-1.5">
-            {stepLabels.map((label, i) => {
-              const active = i === Math.min(stepIndex, 2);
-              const passed = i < Math.min(stepIndex, 2);
-              return (
-                <div key={label} className="flex-1 flex items-center gap-1.5">
-                  <motion.div
-                    layout
-                    className={cn(
-                      'h-1.5 flex-1 rounded-sm transition-all',
-                      active
-                        ? 'bg-gradient-to-r from-primary to-accent shadow-[0_0_10px_hsl(var(--primary)/0.7)]'
-                        : passed
-                        ? 'bg-primary/60'
-                        : 'bg-muted/30'
-                    )}
-                    animate={{ scaleY: active ? 1.6 : 1 }}
-                    transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
-                  />
-                </div>
-              );
-            })}
+            {[0, 1, 2].map(i => (
+              <div key={i} className="flex-1 h-1 rounded-full bg-foreground/[0.08] overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
+                  initial={false}
+                  animate={{ width: i < progressIndex ? '100%' : i === progressIndex ? '100%' : '0%', opacity: i === progressIndex ? 1 : i < progressIndex ? 0.55 : 0 }}
+                  transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
+                />
+              </div>
+            ))}
           </div>
-          <span className="vybe-forge-chip shrink-0 tabular-nums">
-            {String(Math.min(stepIndex + 1, 3)).padStart(2, '0')}/03
+
+          <span className="w-9 shrink-0 text-right text-[11px] font-semibold tabular-nums text-foreground/40">
+            {progressIndex + 1}/3
           </span>
         </div>
       </div>
 
       <AnimatePresence mode="wait">
-        {/* STEP 1 — VIBE */}
+        {/* ════ STEP 1 — PICK A VIBE ════ */}
         {step === 'vibe' && (
           <motion.div
             key="vibe"
             {...stepVariants}
-            className="relative z-10 h-full flex flex-col px-5 pt-20 pb-5 max-w-md mx-auto w-full"
+            className="relative z-10 h-full flex flex-col px-5 pb-5 max-w-md mx-auto w-full"
+            style={{ paddingTop: 'calc(max(var(--sat, 0px), 0.875rem) + 3.5rem)' }}
           >
-            {/* === HERO ORB === */}
-            <div className="relative flex flex-col items-center mb-5 mt-1">
-              <div className="relative w-[120px] h-[120px] flex items-center justify-center">
-                {/* Orbital rings */}
-                {!reduceMotion && (
-                  <>
-                    <div className="absolute inset-[-14px] vybe-forge-ring" />
-                    <div className="absolute inset-[-26px] vybe-forge-ring-rev" />
-                  </>
-                )}
-                {/* Orb */}
-                <motion.div
-                  /* layoutId removed for perf */
-                  className="vybe-forge-orb w-[110px] h-[110px] rounded-full flex items-center justify-center"
-                  transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
-                >
-                  <Wand2 className="h-7 w-7 text-primary-foreground drop-shadow-[0_0_8px_hsl(var(--primary))]" />
-                </motion.div>
-              </div>
-              <div className="text-center mt-4">
-                <span className="vybe-forge-chip">[ 01 / SIGNAL ]</span>
-                <h1 className="text-2xl sm:text-[28px] font-bold text-foreground mt-2 tracking-tight">
-                  Design Your VYBE
-                </h1>
-                <p className="text-xs text-muted-foreground mt-1 font-mono tracking-wide">
-                  // select a frequency to tune the system
-                </p>
-              </div>
+            <div className="text-center mb-5">
+              <motion.span
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-foreground/[0.06] border border-foreground/[0.08] text-[11px] font-semibold text-foreground/70 backdrop-blur-md"
+              >
+                <Sparkles className="h-3 w-3 text-primary" />
+                AI Theme Designer
+              </motion.span>
+              <AnimatedHeadline
+                words={["What's", 'your', 'vybe?']}
+                reduceMotion={reduceMotion}
+                className="text-[34px] leading-[1.05] font-bold tracking-tight text-foreground mt-3"
+              />
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.45, duration: 0.5 }}
+                className="text-sm text-muted-foreground mt-2"
+              >
+                Pick a mood and we'll design your whole app around it.
+              </motion.p>
             </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain -mx-1 px-1">
-              {/* Vibe constellation */}
-              <div className="grid grid-cols-4 gap-2 mb-4">
+            <div className="flex-1 overflow-y-auto overscroll-contain -mx-1 px-1 pb-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 {PERSONALITY_VIBES.map((vibe, idx) => {
                   const Icon = vibe.icon;
                   const isSelected = selectedVibe === vibe.id;
@@ -457,73 +564,90 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                     <motion.button
                       key={vibe.id}
                       type="button"
-                      initial={reduceMotion ? false : { opacity: 0, scale: 0.6 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: idx * 0.04, duration: 0.4, ease: EASE_OUT_EXPO }}
-                      whileTap={{ scale: 0.92 }}
+                      initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.92 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ delay: 0.3 + idx * 0.05, ...SPRING }}
+                      whileTap={{ scale: 0.96 }}
                       onClick={() => setSelectedVibe(isSelected ? null : vibe.id)}
                       className={cn(
-                        'group relative flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all min-h-[78px]',
-                        isSelected ? 'bg-primary/10' : 'hover:bg-card/40'
+                        'relative flex items-center gap-3 p-3 rounded-2xl text-left overflow-hidden transition-colors duration-300 border backdrop-blur-md',
+                        isSelected
+                          ? 'border-primary/60 bg-foreground/[0.07]'
+                          : 'border-foreground/[0.07] bg-foreground/[0.03] hover:bg-foreground/[0.06]',
                       )}
                     >
-                      {/* Orbital ring on selection */}
-                      {isSelected && !reduceMotion && (
-                        <motion.div
-                          layoutId="vibe-select-ring"
-                          className="absolute inset-x-2 top-1.5 h-12 rounded-full ring-2 ring-primary shadow-[0_0_18px_hsl(var(--primary)/0.7)] pointer-events-none"
-                          transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
-                        />
-                      )}
+                      {/* Glow wash inside the card when selected */}
                       <div
                         className={cn(
-                          'w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br shadow-lg transition-transform',
+                          'absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl bg-gradient-to-br transition-opacity duration-500',
                           vibe.gradient,
-                          isSelected ? 'scale-110' : 'group-hover:scale-105'
+                          isSelected ? 'opacity-40' : 'opacity-0',
                         )}
-                        style={{
-                          boxShadow: isSelected
-                            ? '0 0 24px hsl(var(--primary) / 0.5), inset 0 0 12px rgba(255,255,255,0.2)'
-                            : '0 4px 16px rgba(0,0,0,0.3)',
-                        }}
+                      />
+                      <div
+                        className={cn(
+                          'relative w-11 h-11 shrink-0 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg transition-transform duration-300',
+                          vibe.gradient,
+                          isSelected && 'scale-110',
+                        )}
                       >
-                        <Icon className="h-5 w-5 text-white drop-shadow-md" />
+                        <Icon className="h-5 w-5 text-white drop-shadow" />
                       </div>
-                      <span className={cn(
-                        'text-[10px] font-mono uppercase tracking-wider transition-colors',
-                        isSelected ? 'text-primary font-bold' : 'text-muted-foreground'
-                      )}>
-                        {vibe.label}
-                      </span>
+                      <div className="relative min-w-0 flex-1">
+                        <div className={cn('text-[15px] font-bold leading-tight transition-colors', isSelected ? 'text-foreground' : 'text-foreground/90')}>
+                          {vibe.label}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground truncate">{vibe.tagline}</div>
+                      </div>
+                      <AnimatePresence>
+                        {isSelected && (
+                          <motion.div
+                            initial={{ scale: 0, rotate: -90 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            exit={{ scale: 0 }}
+                            transition={SPRING}
+                            className="relative w-5 h-5 shrink-0 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-[0_0_12px_hsl(var(--primary)/0.6)]"
+                          >
+                            <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </motion.button>
                   );
                 })}
               </div>
 
-              {/* Neural input terminal */}
-              <div className="mt-3 vybe-forge-panel rounded-xl p-3.5">
-                <label className="text-[10px] font-mono uppercase tracking-[0.18em] text-primary/80 mb-2 flex items-center gap-1.5">
-                  <span className="vybe-forge-caret">// neural input</span>
-                  <span className="ml-auto text-muted-foreground/60">optional</span>
-                </label>
+              {/* Custom prompt */}
+              <motion.div
+                initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.72, duration: 0.5, ease: EASE_OUT_EXPO }}
+                className="mt-4 rounded-2xl border border-foreground/[0.07] bg-foreground/[0.03] backdrop-blur-md p-3.5"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/60">Or describe it</span>
+                  <span className="text-[10px] text-muted-foreground/60 tabular-nums">{customPrompt.length}/200</span>
+                </div>
                 <Textarea
                   value={customPrompt}
                   onChange={e => setCustomPrompt(e.target.value.slice(0, 200))}
-                  placeholder="describe your dream vybe..."
-                  className="min-h-[70px] resize-none bg-background/40 border-primary/20 focus-visible:border-primary/60 focus-visible:ring-primary/30 text-sm font-mono"
+                  placeholder="cherry cola sunset, y2k chrome, rainy tokyo at 2am…"
+                  className="min-h-[64px] resize-none bg-transparent border-0 p-0 focus-visible:ring-0 text-sm placeholder:text-muted-foreground/50"
                 />
-                <div className="text-[10px] font-mono text-muted-foreground/70 text-right mt-1 tabular-nums">
-                  {String(customPrompt.length).padStart(3, '0')} / 200
-                </div>
-              </div>
+              </motion.div>
             </div>
 
-            <div className="flex gap-2 pt-3">
+            <motion.div
+              initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5, duration: 0.5, ease: EASE_OUT_EXPO }}
+              className="flex gap-2 pt-3"
+            >
               {onSkip && (
                 <Button
                   variant="ghost"
                   onClick={onSkip}
-                  className="text-muted-foreground rounded-full h-11 px-5 font-mono text-xs uppercase tracking-wider"
+                  className="rounded-full h-12 px-5 text-muted-foreground font-medium"
                 >
                   Skip
                 </Button>
@@ -531,181 +655,173 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               <Button
                 onClick={() => setStep('style')}
                 disabled={!selectedVibe && !customPrompt.trim()}
-                className="flex-1 rounded-full h-11 font-mono text-xs uppercase tracking-[0.2em] bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[0_0_24px_-4px_hsl(var(--primary)/0.7)] border border-primary/40"
+                className="relative flex-1 rounded-full h-12 text-[15px] font-bold overflow-hidden bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] text-primary-foreground shadow-[0_8px_28px_-8px_hsl(var(--primary)/0.7)] disabled:opacity-40 animate-[gradient-x_4s_ease_infinite]"
               >
                 Continue
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
-            </div>
+            </motion.div>
           </motion.div>
         )}
 
-        {/* STEP 2 — STYLE (font + motion combined) */}
+        {/* ════ STEP 2 — STYLE ════ */}
         {step === 'style' && (
           <motion.div
             key="style"
             {...stepVariants}
-            className="relative z-10 h-full flex flex-col px-5 pt-20 pb-5 max-w-md mx-auto w-full"
+            className="relative z-10 h-full flex flex-col px-5 pb-5 max-w-md mx-auto w-full"
+            style={{ paddingTop: 'calc(max(var(--sat, 0px), 0.875rem) + 3.5rem)' }}
           >
-            <div className="flex flex-col items-center mb-5">
-              <div className="relative w-[88px] h-[88px] flex items-center justify-center mb-3">
-                {!reduceMotion && <div className="absolute inset-[-10px] vybe-forge-ring" />}
-                <motion.div
-                  /* layoutId removed for perf */
-                  className="vybe-forge-orb w-[78px] h-[78px] rounded-full flex items-center justify-center"
-                  transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
-                >
-                  <Sparkles className="h-5 w-5 text-primary-foreground drop-shadow-[0_0_8px_hsl(var(--primary))]" />
-                </motion.div>
-              </div>
-              <span className="vybe-forge-chip">[ 02 / CALIBRATION ]</span>
-              <h1 className="text-2xl sm:text-[28px] font-bold text-foreground tracking-tight mt-2">
-                Calibrate the system
-              </h1>
-              <p className="text-xs text-muted-foreground mt-1 font-mono tracking-wide">
-                // tune typography &amp; motion signature
-              </p>
+            <div className="text-center mb-5">
+              <AnimatedHeadline
+                words={['Make', 'it', 'yours']}
+                reduceMotion={reduceMotion}
+                className="text-[34px] leading-[1.05] font-bold tracking-tight text-foreground"
+              />
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4, duration: 0.5 }}
+                className="text-sm text-muted-foreground mt-2"
+              >
+                Typography and motion — both optional, both worth it.
+              </motion.p>
             </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain -mx-1 px-1 space-y-4">
-              <section className="vybe-forge-panel rounded-xl p-3.5">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shadow-[0_0_12px_hsl(var(--primary)/0.4)]">
-                    <Type className="h-3.5 w-3.5 text-primary" />
-                  </div>
-                  <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-foreground">Typography</h2>
-                </div>
+            <div className="flex-1 overflow-y-auto overscroll-contain -mx-1 px-1 space-y-3.5 pb-2">
+              <motion.section
+                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25, duration: 0.5, ease: EASE_OUT_EXPO }}
+                className="rounded-2xl border border-foreground/[0.07] bg-foreground/[0.03] backdrop-blur-md p-4"
+              >
                 <FontSelector selectedFont={selectedFont} onSelect={setSelectedFont} />
-              </section>
+              </motion.section>
 
-              <section className="vybe-forge-panel rounded-xl p-3.5">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-7 h-7 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center shadow-[0_0_12px_hsl(var(--accent)/0.4)]">
-                    <Zap className="h-3.5 w-3.5 text-accent" />
-                  </div>
-                  <h2 className="text-[10px] font-mono uppercase tracking-[0.2em] text-foreground">Motion Signature</h2>
-                </div>
+              <motion.section
+                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.38, duration: 0.5, ease: EASE_OUT_EXPO }}
+                className="rounded-2xl border border-foreground/[0.07] bg-foreground/[0.03] backdrop-blur-md p-4"
+              >
                 <AnimationSelector selectedAnimation={selectedAnimation} onSelect={setSelectedAnimation} />
-              </section>
+              </motion.section>
             </div>
 
             <div className="flex gap-2 pt-3">
               <Button
                 variant="ghost"
                 onClick={() => setStep('vibe')}
-                className="rounded-full h-11 px-5 text-muted-foreground font-mono text-xs uppercase tracking-wider"
+                className="rounded-full h-12 px-5 text-muted-foreground font-medium"
               >
                 <ArrowLeft className="mr-1.5 h-4 w-4" />
                 Back
               </Button>
               <Button
                 onClick={generateTheme}
-                className="flex-1 rounded-full h-11 font-mono text-xs uppercase tracking-[0.2em] bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[0_0_28px_-4px_hsl(var(--primary)/0.8)] border border-primary/40"
+                className="flex-1 rounded-full h-12 text-[15px] font-bold bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] text-primary-foreground shadow-[0_8px_28px_-8px_hsl(var(--primary)/0.7)] animate-[gradient-x_4s_ease_infinite]"
               >
                 <Sparkles className="mr-2 h-4 w-4" />
-                Forge VYBE
+                Generate my VYBE
               </Button>
             </div>
           </motion.div>
         )}
 
-        {/* STEP 3 — BUILDING */}
+        {/* ════ STEP 3 — BUILDING ════ */}
         {step === 'building' && (
-          <motion.div
-            key="building"
-            {...stepVariants}
-            className="relative z-10 h-full"
-          >
-            <VybeGenerationAnimation
-              isGenerating
-              buildPhase={buildPhase}
-              phases={BUILD_PHASES}
-            />
+          <motion.div key="building" {...stepVariants} className="relative z-10 h-full">
+            <VybeGenerationAnimation isGenerating buildPhase={buildPhase} phases={BUILD_PHASES} />
           </motion.div>
         )}
 
-        {/* STEP 4 — PREVIEW */}
+        {/* ════ STEP 4 — PREVIEW ════ */}
         {step === 'preview' && (
           <motion.div
             key="preview"
             {...stepVariants}
-            className="relative z-10 h-full flex flex-col px-5 pt-20 pb-5 max-w-md mx-auto w-full"
+            className="relative z-10 h-full flex flex-col px-5 pb-5 max-w-md mx-auto w-full"
+            style={{ paddingTop: 'calc(max(var(--sat, 0px), 0.875rem) + 3.25rem)' }}
           >
-            <div className="text-center mb-4 relative">
-              {/* Reveal flash */}
-              <div className="vybe-forge-flash absolute inset-0 pointer-events-none" />
-              <div className="relative w-[110px] h-[110px] mx-auto flex items-center justify-center mb-3">
-                {!reduceMotion && (
-                  <>
-                    <div className="absolute inset-[-12px] vybe-forge-ring" />
-                    <div className="absolute inset-[-22px] vybe-forge-ring-rev" />
-                  </>
-                )}
-                <motion.div
-                  /* layoutId removed for perf */
-                  className="vybe-forge-orb w-[100px] h-[100px] rounded-full flex items-center justify-center"
-                  transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
-                >
-                  <Check className="h-7 w-7 text-primary-foreground drop-shadow-[0_0_10px_hsl(var(--primary))]" strokeWidth={3} />
-                </motion.div>
-              </div>
-              <span className="vybe-forge-chip">[ 03 / DEPLOYED ]</span>
-              <h1 className="text-2xl font-bold text-foreground mt-2 tracking-tight">
-                {generatedTheme?.themeName || 'Your VYBE'}
-              </h1>
-              <p className="text-xs text-muted-foreground mt-1 font-mono tracking-wide">
-                // signal locked — preview live
-              </p>
+            <div className="text-center mb-4">
+              <motion.div
+                initial={reduceMotion ? false : { scale: 0, rotate: -120 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ delay: 0.1, type: 'spring', stiffness: 260, damping: 18 }}
+                className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-[0_0_36px_-6px_hsl(var(--primary)/0.8)] mb-3"
+              >
+                <Check className="h-7 w-7 text-primary-foreground" strokeWidth={3} />
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25, duration: 0.5, ease: EASE_OUT_EXPO }}
+              >
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Say hello to</span>
+                <h1 className="text-[30px] leading-tight font-bold tracking-tight text-foreground mt-0.5">
+                  {generatedTheme?.themeName || 'Your VYBE'}
+                </h1>
+              </motion.div>
             </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain space-y-3">
-              {/* Mock feed card */}
+            <div className="flex-1 overflow-y-auto overscroll-contain space-y-3 pb-2">
+              {/* Mock feed card in the new theme */}
               <motion.div
-                initial={{ opacity: 0, y: 16, rotateX: -6 }}
-                animate={showPreviewElements ? { opacity: 1, y: 0, rotateX: 0 } : {}}
-                transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
-                className="vybe-forge-panel rounded-2xl p-4"
-                style={{ boxShadow: '0 0 30px -10px hsl(var(--primary) / 0.4)' }}
+                initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.96 }}
+                animate={showPreviewElements ? { opacity: 1, y: 0, scale: 1 } : {}}
+                transition={{ duration: 0.55, ease: EASE_OUT_EXPO }}
+                className="rounded-2xl border border-border/60 bg-card p-4 shadow-[0_12px_40px_-16px_hsl(var(--primary)/0.45)]"
               >
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent shadow-[0_0_18px_hsl(var(--primary)/0.6)]" />
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent shadow-[0_0_16px_hsl(var(--primary)/0.5)]" />
                   <div className="flex-1">
-                    <div className="text-sm font-semibold text-foreground">Your Feed</div>
-                    <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">// preview · live</div>
+                    <div className="text-sm font-semibold text-foreground">Your feed, reimagined</div>
+                    <div className="text-[11px] text-muted-foreground">live preview</div>
                   </div>
+                  <div className="h-7 px-3 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center">Follow</div>
                 </div>
-                <div className="h-20 rounded-xl bg-gradient-to-br from-primary/30 to-accent/30 border border-primary/20" />
+                <div className="h-20 rounded-xl bg-gradient-to-br from-primary/25 via-accent/20 to-primary/10 border border-border/40" />
+                <div className="flex gap-3 mt-3">
+                  <div className="h-2 w-16 rounded-full bg-muted" />
+                  <div className="h-2 w-10 rounded-full bg-muted/70" />
+                  <div className="h-2 flex-1 rounded-full bg-muted/40" />
+                </div>
               </motion.div>
 
-              {/* Mock buttons */}
+              {/* Buttons */}
               <motion.div
-                initial={{ opacity: 0, y: 16 }}
+                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
                 animate={showPreviewElements ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.5, delay: 0.08, ease: EASE_OUT_EXPO }}
                 className="flex gap-2"
               >
-                <Button className="flex-1 font-semibold">Primary</Button>
-                <Button variant="outline" className="flex-1 font-semibold">Secondary</Button>
+                <Button className="flex-1 font-semibold rounded-xl">Primary</Button>
+                <Button variant="outline" className="flex-1 font-semibold rounded-xl">Secondary</Button>
               </motion.div>
 
-              {/* Color palette */}
+              {/* Palette swatches pop in */}
               <motion.div
-                initial={{ opacity: 0, y: 16 }}
+                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
                 animate={showPreviewElements ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.5, delay: 0.16, ease: EASE_OUT_EXPO }}
-                className="vybe-forge-panel rounded-2xl p-4"
+                className="rounded-2xl border border-border/60 bg-card p-4"
               >
-                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-2.5">// palette</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Your palette</div>
                 <div className="flex gap-2">
                   {[
                     { c: 'bg-primary', label: 'Primary' },
                     { c: 'bg-secondary', label: 'Secondary' },
                     { c: 'bg-accent', label: 'Accent' },
                     { c: 'bg-muted', label: 'Muted' },
-                  ].map(s => (
+                  ].map((s, i) => (
                     <div key={s.label} className="flex-1 flex flex-col items-center gap-1.5">
-                      <div className={cn('w-full h-10 rounded-xl shadow-sm ring-1 ring-foreground/10', s.c)} />
-                      <span className="text-[9px] font-mono uppercase text-muted-foreground tracking-wider">{s.label}</span>
+                      <motion.div
+                        initial={reduceMotion ? false : { scale: 0 }}
+                        animate={showPreviewElements ? { scale: 1 } : {}}
+                        transition={{ delay: 0.24 + i * 0.07, ...SPRING }}
+                        className={cn('w-full h-11 rounded-xl shadow-sm ring-1 ring-foreground/10', s.c)}
+                      />
+                      <span className="text-[9px] font-medium uppercase text-muted-foreground tracking-wider">{s.label}</span>
                     </div>
                   ))}
                 </div>
@@ -714,12 +830,12 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               {/* Font preview */}
               {generatedTheme?.fontFamily && (
                 <motion.div
-                  initial={{ opacity: 0, y: 16 }}
+                  initial={reduceMotion ? false : { opacity: 0, y: 20 }}
                   animate={showPreviewElements ? { opacity: 1, y: 0 } : {}}
-                  transition={{ duration: 0.5, delay: 0.24, ease: EASE_OUT_EXPO }}
-                  className="vybe-forge-panel rounded-2xl p-4 text-center"
+                  transition={{ duration: 0.5, delay: 0.3, ease: EASE_OUT_EXPO }}
+                  className="rounded-2xl border border-border/60 bg-card p-4 text-center"
                 >
-                  <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-1">// typography</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Typography</div>
                   <div
                     className="text-xl font-bold text-foreground"
                     style={{ fontFamily: `'${generatedTheme.fontDisplay || generatedTheme.fontFamily}', system-ui` }}
@@ -735,32 +851,30 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                 <Button
                   variant="outline"
                   onClick={handleTryAgain}
-                  className="flex-1 rounded-full h-11 font-mono text-[11px] uppercase tracking-[0.18em] border-primary/30"
+                  className="flex-1 rounded-full h-12 font-semibold border-border"
                 >
                   <RotateCcw className="mr-1.5 h-4 w-4" />
-                  Recalibrate
+                  Remix
                 </Button>
                 <Button
                   onClick={handleKeep}
                   disabled={saveTheme.isPending}
-                  className="flex-[2] rounded-full h-11 font-mono text-[11px] uppercase tracking-[0.2em] bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[0_0_28px_-4px_hsl(var(--primary)/0.8)] border border-primary/40"
+                  className="flex-[2] rounded-full h-12 text-[15px] font-bold bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] text-primary-foreground shadow-[0_8px_28px_-8px_hsl(var(--primary)/0.7)] animate-[gradient-x_4s_ease_infinite]"
                 >
                   <Check className="mr-1.5 h-4 w-4" />
-                  {saveTheme.isPending ? 'Deploying…' : 'Deploy VYBE'}
+                  {saveTheme.isPending ? 'Saving…' : 'Keep this VYBE'}
                 </Button>
               </div>
               <button
                 onClick={handleRevert}
-                className="w-full text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors py-1"
+                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5"
               >
-                // revert to previous theme
+                Revert to my previous theme
               </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      <VybeMiniIcon size={1} className="sr-only" />
     </div>
   );
 }

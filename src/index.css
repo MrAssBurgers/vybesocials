@@ -4250,6 +4250,12 @@ html[data-has-bg-image="true"] nav[aria-label="Bottom navigation"] .liquid-glass
 }
 @keyframes forge-caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 
+/* Animated gradient sweep for CTA buttons (used with bg-[length:200%_100%]) */
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
 .vybe-forge-grid {
   position: absolute;
   inset: -50% -50% 0 -50%;

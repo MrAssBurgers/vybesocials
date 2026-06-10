@@ -149,6 +149,80 @@ function getMoodFromPrompt(prompt: string): string {
   return "energetic"; // Default
 }
 
+// Curated fallback themes per mood — used when no AI key is configured or
+// the AI call fails, so theme generation never dead-ends.
+const CURATED_THEMES: Record<string, Omit<AdvancedThemeTokens, "fontFamily" | "fontDisplay">> = {
+  calm: {
+    themeName: "Ocean Drift", colorPrimary: "199 89% 56%", colorSecondary: "217 60% 18%", colorAccent: "174 72% 50%",
+    bgMain: "215 50% 6%", bgCard: "215 45% 10%", bgGradientFrom: "215 55% 5%", bgGradientMid: "205 50% 9%", bgGradientTo: "190 45% 7%",
+    textPrimary: "200 30% 96%", textSecondary: "205 20% 68%", borderColor: "210 40% 18%",
+    neonPink: "330 80% 65%", neonPurple: "260 75% 65%", neonCyan: "185 95% 55%",
+    borderRadius: "large", mode: "dark", animationSpeed: "slow", animationStyle: "smooth", backgroundEffect: "bubbles",
+    personality: "serene", mood: "calm",
+  },
+  energetic: {
+    themeName: "Voltage Rush", colorPrimary: "16 100% 57%", colorSecondary: "350 85% 22%", colorAccent: "45 100% 55%",
+    bgMain: "340 35% 6%", bgCard: "340 30% 10%", bgGradientFrom: "350 45% 5%", bgGradientMid: "20 50% 9%", bgGradientTo: "340 40% 6%",
+    textPrimary: "20 30% 97%", textSecondary: "20 15% 70%", borderColor: "350 35% 18%",
+    neonPink: "340 100% 60%", neonPurple: "280 90% 62%", neonCyan: "180 100% 50%",
+    borderRadius: "medium", mode: "dark", animationSpeed: "fast", animationStyle: "bouncy", backgroundEffect: "particles",
+    personality: "electric", mood: "energetic",
+  },
+  mysterious: {
+    themeName: "Violet Eclipse", colorPrimary: "270 85% 65%", colorSecondary: "260 45% 16%", colorAccent: "300 80% 60%",
+    bgMain: "262 50% 5%", bgCard: "262 45% 9%", bgGradientFrom: "265 55% 4%", bgGradientMid: "280 50% 8%", bgGradientTo: "250 45% 6%",
+    textPrimary: "270 25% 96%", textSecondary: "265 15% 66%", borderColor: "265 40% 17%",
+    neonPink: "320 90% 62%", neonPurple: "275 95% 66%", neonCyan: "200 90% 58%",
+    borderRadius: "large", mode: "dark", animationSpeed: "normal", animationStyle: "smooth", backgroundEffect: "stars",
+    personality: "enigmatic", mood: "mysterious",
+  },
+  natural: {
+    themeName: "Forest Pulse", colorPrimary: "152 65% 45%", colorSecondary: "150 35% 15%", colorAccent: "88 60% 52%",
+    bgMain: "160 35% 5%", bgCard: "158 30% 9%", bgGradientFrom: "162 40% 4%", bgGradientMid: "150 35% 8%", bgGradientTo: "140 30% 6%",
+    textPrimary: "140 25% 96%", textSecondary: "145 15% 66%", borderColor: "152 30% 16%",
+    neonPink: "330 70% 62%", neonPurple: "265 60% 62%", neonCyan: "170 85% 48%",
+    borderRadius: "large", mode: "dark", animationSpeed: "slow", animationStyle: "smooth", backgroundEffect: "fireflies",
+    personality: "grounded", mood: "natural",
+  },
+  romantic: {
+    themeName: "Blush Reverie", colorPrimary: "330 80% 66%", colorSecondary: "315 35% 90%", colorAccent: "265 70% 70%",
+    bgMain: "320 40% 97%", bgCard: "0 0% 100%", bgGradientFrom: "325 50% 98%", bgGradientMid: "300 45% 96%", bgGradientTo: "260 40% 97%",
+    textPrimary: "325 35% 12%", textSecondary: "320 15% 42%", borderColor: "320 30% 88%",
+    neonPink: "335 90% 62%", neonPurple: "275 80% 64%", neonCyan: "195 85% 55%",
+    borderRadius: "large", mode: "light", animationSpeed: "normal", animationStyle: "smooth", backgroundEffect: "aurora",
+    personality: "dreamy", mood: "romantic",
+  },
+  urban: {
+    themeName: "Neon District", colorPrimary: "180 100% 50%", colorSecondary: "280 60% 20%", colorAccent: "320 100% 60%",
+    bgMain: "240 30% 5%", bgCard: "240 25% 9%", bgGradientFrom: "245 35% 4%", bgGradientMid: "270 35% 8%", bgGradientTo: "220 30% 6%",
+    textPrimary: "200 30% 97%", textSecondary: "220 15% 68%", borderColor: "240 30% 17%",
+    neonPink: "320 100% 60%", neonPurple: "275 95% 64%", neonCyan: "182 100% 52%",
+    borderRadius: "small", mode: "dark", animationSpeed: "fast", animationStyle: "snappy", backgroundEffect: "geometric",
+    personality: "cyber", mood: "urban",
+  },
+  winter: {
+    themeName: "Frostlight", colorPrimary: "205 90% 62%", colorSecondary: "210 30% 88%", colorAccent: "175 70% 55%",
+    bgMain: "210 45% 97%", bgCard: "0 0% 100%", bgGradientFrom: "210 50% 98%", bgGradientMid: "200 45% 96%", bgGradientTo: "220 40% 97%",
+    textPrimary: "215 45% 12%", textSecondary: "212 20% 42%", borderColor: "210 35% 87%",
+    neonPink: "330 75% 64%", neonPurple: "260 70% 66%", neonCyan: "190 90% 52%",
+    borderRadius: "medium", mode: "light", animationSpeed: "slow", animationStyle: "smooth", backgroundEffect: "snow",
+    personality: "crisp", mood: "winter",
+  },
+  cosmic: {
+    themeName: "Stellar Drift", colorPrimary: "255 90% 67%", colorSecondary: "240 45% 16%", colorAccent: "190 95% 55%",
+    bgMain: "248 45% 5%", bgCard: "248 40% 9%", bgGradientFrom: "252 50% 4%", bgGradientMid: "265 45% 8%", bgGradientTo: "235 40% 6%",
+    textPrimary: "250 30% 97%", textSecondary: "248 15% 68%", borderColor: "250 35% 17%",
+    neonPink: "315 90% 64%", neonPurple: "262 95% 68%", neonCyan: "188 100% 56%",
+    borderRadius: "large", mode: "dark", animationSpeed: "normal", animationStyle: "smooth", backgroundEffect: "stars",
+    personality: "infinite", mood: "cosmic",
+  },
+};
+
+function buildCuratedTheme(mood: string): AdvancedThemeTokens {
+  const base = CURATED_THEMES[mood] || CURATED_THEMES.cosmic;
+  return { ...base } as AdvancedThemeTokens;
+}
+
 function getFontStyle(prompt: string): string {
   const lowerPrompt = prompt.toLowerCase();
   
@@ -194,10 +268,6 @@ serve(async (req) => {
     // Fall back to direct Gemini key if the gateway key isn't present.
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-
-    if (!LOVABLE_API_KEY && !GEMINI_API_KEY) {
-      throw new Error("No AI key configured (LOVABLE_API_KEY or GEMINI_API_KEY)");
-    }
 
     // Get mood from prompt first
     const mood = getMoodFromPrompt(prompt);
@@ -274,6 +344,27 @@ BACKGROUND EFFECTS:
 
 CREATE SOMETHING EXTRAORDINARY. Push creative boundaries while ALWAYS maintaining excellent readability.`;
 
+    // Attempt AI generation; fall back to curated theme on any failure
+    let theme: AdvancedThemeTokens | null = null;
+
+    if (LOVABLE_API_KEY || GEMINI_API_KEY) {
+      try {
+        theme = await generateWithAI();
+      } catch (aiError) {
+        console.error("AI generation failed, using curated fallback:", aiError);
+        theme = null;
+      }
+    } else {
+      console.warn("No AI key configured — using curated theme fallback");
+    }
+
+    if (!theme) {
+      theme = buildCuratedTheme(mood);
+      theme.animationSpeed = animSpeed as AdvancedThemeTokens["animationSpeed"];
+      theme.animationStyle = animStyle as AdvancedThemeTokens["animationStyle"];
+    }
+
+    async function generateWithAI(): Promise<AdvancedThemeTokens> {
     const useGateway = !!LOVABLE_API_KEY;
     const endpoint = useGateway
       ? "https://ai.gateway.lovable.dev/v1/chat/completions"
@@ -388,16 +479,6 @@ Be creative with the theme name - make it memorable and evocative.`
     if (!response.ok) {
       const errorText = await response.text();
       console.error("AI API error:", response.status, errorText);
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "AI is busy — try again in a moment." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Add credits in workspace usage." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       throw new Error(`AI API error: ${response.status}`);
     }
 
@@ -409,8 +490,9 @@ Be creative with the theme name - make it memorable and evocative.`
       throw new Error("No theme generated");
     }
 
-    const theme = JSON.parse(toolCall.function.arguments) as AdvancedThemeTokens;
-    
+    return JSON.parse(toolCall.function.arguments) as AdvancedThemeTokens;
+    }
+
     // Add font information
     if (includeFont) {
       theme.fontFamily = fonts.body;
