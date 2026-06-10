@@ -7,6 +7,8 @@
  * 3. Prefetch data for target routes
  */
 
+import { prefetchDMConversationsFromNav } from '@/lib/loadDMConversations';
+
 // Map of route paths to their lazy import functions
 const routeImports: Record<string, () => Promise<any>> = {
   '/home': () => import('@/pages/Home'),
@@ -64,6 +66,7 @@ export function preloadRoute(path: string): void {
     } else if (normalizedPath.startsWith('/messages/')) {
       import('@/pages/Messages').catch(() => {});
       preloadedRoutes.add(normalizedPath);
+      prefetchDMConversationsFromNav();
     } else if (normalizedPath.startsWith('/market/')) {
       import('@/pages/ListingDetail').catch(() => {});
       preloadedRoutes.add(normalizedPath);
@@ -74,6 +77,10 @@ export function preloadRoute(path: string): void {
   // Preload the component
   importFn().catch(() => {});
   preloadedRoutes.add(normalizedPath);
+
+  if (normalizedPath === '/messages' || normalizedPath.startsWith('/messages/')) {
+    prefetchDMConversationsFromNav();
+  }
 }
 
 /**
@@ -84,11 +91,11 @@ export function preloadCriticalRoutes(): void {
   // Delay slightly to not block initial render
   requestIdleCallback(() => {
     const criticalRoutes = [
+      '/messages',
       '/home',
       '/explore',
       '/clips',
       '/market',
-      '/messages',
       '/notifications',
       '/settings',
       '/events',

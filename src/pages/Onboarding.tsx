@@ -20,11 +20,101 @@ import { haptics } from '@/lib/haptics';
 import {
   clearSignupUsername,
   isGeneratedUsername,
+  isValidUsernameFormat,
   normalizeUsername,
   resolveSignupUsername,
 } from '@/lib/username';
 
 const EASE_OUT_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
+
+async function ensureProfileRow(userId: string): Promise<void> {
+  const { error } = await supabase.rpc('ensure_profile');
+  if (error) {
+    await supabase.rpc('claim_profile_by_email');
+  }
+
+  const { data: row } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!row?.id) {
+    throw new Error('Could not create your profile. Please try again.');
+  }
+}
+
+function buildSkipUsername(
+  userId: string,
+  usernameValid: boolean,
+  username: string,
+  signupUsername: string,
+  profileUsername?: string | null,
+): string {
+  let candidate = normalizeUsername(
+    usernameValid && username
+      ? username
+      : (signupUsername || profileUsername || username),
+  );
+
+  if (!candidate || isGeneratedUsername(candidate) || !isValidUsernameFormat(candidate)) {
+    candidate = normalizeUsername(`vybe_${userId.replace(/-/g, '').slice(0, 10)}`);
+  }
+
+  return candidate;
+}
+
+async function persistOnboardingSkip(
+  userId: string,
+  desiredUsername: string,
+): Promise<{ username: string; error: Error | null }> {
+  await ensureProfileRow(userId);
+
+  const { data: syncedUsername } = await supabase.rpc('sync_signup_username');
+  let finalUsername = desiredUsername;
+  if (
+    typeof syncedUsername === 'string' &&
+    syncedUsername &&
+    !isGeneratedUsername(syncedUsername) &&
+    isValidUsernameFormat(normalizeUsername(syncedUsername))
+  ) {
+    finalUsername = normalizeUsername(syncedUsername);
+  }
+
+  const runUpdate = (uname: string) =>
+    supabase
+      .from('profiles')
+      .update({ onboarding_completed: true, username: uname })
+      .eq('user_id', userId)
+      .select('username')
+      .maybeSingle();
+
+  let { data, error } = await runUpdate(finalUsername);
+
+  if (error?.code === '23505') {
+    finalUsername = normalizeUsername(
+      `vybe_${userId.replace(/-/g, '').slice(0, 8)}${Math.floor(Math.random() * 9000 + 1000)}`,
+    );
+    ({ data, error } = await runUpdate(finalUsername));
+  }
+
+  if (error) {
+    return { username: finalUsername, error: error as Error };
+  }
+
+  if (!data) {
+    return {
+      username: finalUsername,
+      error: new Error('Profile update did not apply. Please try again.'),
+    };
+  }
+
+  if (data.username) {
+    finalUsername = normalizeUsername(data.username);
+  }
+
+  return { username: finalUsername, error: null };
+}
 
 // Invite mode stage type - must match InviteRedeem state machine
 type InviteStage = 'landing' | 'complete-profile' | 'onboarding' | 'home';
@@ -47,7 +137,7 @@ interface OnboardingProps {
 export default function Onboarding({ onInviteNavigate, isInviteMode = false }: OnboardingProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   
   const signupUsername = resolveSignupUsername(user?.user_metadata);
   const needsUsername = isGeneratedUsername(profile?.username);
@@ -162,10 +252,11 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         ? profileData.displayName 
         : finalUsername || '';
 
+      await ensureProfileRow(user.id);
+
       const { error } = await supabase
         .from('profiles')
-        .upsert({
-          user_id: user.id,
+        .update({
           username: finalUsername?.toLowerCase(),
           first_name: profileData.firstName,
           last_name: profileData.lastName,
@@ -176,9 +267,8 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           interests: interests,
           date_of_birth: dateOfBirth?.toISOString().split('T')[0] || null,
           onboarding_completed: true,
-        }, {
-          onConflict: 'user_id',
-        });
+        })
+        .eq('user_id', user.id);
 
       if (error) {
         if (error.code === '23505' && error.message?.includes('profiles_username_key')) {
@@ -237,34 +327,29 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     haptics.tap();
     toast.info('You can finish your profile anytime in Settings.');
     try {
-      const finalUsername = normalizeUsername(signupUsername || profile?.username || username);
+      const desiredUsername = buildSkipUsername(
+        user.id,
+        usernameValid,
+        username,
+        signupUsername,
+        profile?.username,
+      );
 
-      if (!finalUsername || isGeneratedUsername(finalUsername)) {
-        toast.error('Please choose a username before skipping onboarding.');
-        return;
-      }
-
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({
-          user_id: user.id,
-          username: finalUsername,
-          onboarding_completed: true,
-        }, {
-          onConflict: 'user_id',
-        });
+      const { username: finalUsername, error } = await persistOnboardingSkip(user.id, desiredUsername);
 
       if (error) {
-        if (error.code === '23505' && error.message?.includes('profiles_username_key')) {
-          toast.error('Username conflict — please pick a custom username.');
-        } else {
-          console.error('Skip save error:', error);
-          toast.error('Could not save profile. Please try again.');
-        }
+        console.error('Skip save error:', error);
+        toast.error(
+          import.meta.env.DEV
+            ? `Could not save profile: ${error.message}`
+            : 'Could not save profile. Please try again.',
+        );
         return;
       }
 
       clearSignupUsername();
+      await refreshProfile();
+      window.dispatchEvent(new CustomEvent('onboarding-completed'));
 
       if (isInviteMode && onInviteNavigate) {
         onInviteNavigate('home');

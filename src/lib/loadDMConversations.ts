@@ -1,0 +1,197 @@
+import type { QueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import type { Conversation, Message } from '@/hooks/useMessages';
+
+export interface LoadedDMConversation extends Conversation {
+  _sortTime: string;
+  _hasUnread: boolean;
+}
+
+/**
+ * Fetch the DM conversation list (same shape as useDMConversations).
+ * Shared by the hook, app preloader, and route prefetch.
+ */
+export async function loadDMConversations(
+  profileId: string,
+  fallback?: LoadedDMConversation[],
+): Promise<LoadedDMConversation[]> {
+  const { data: membershipData, error: membershipError } = await supabase
+    .from('conversation_members')
+    .select('conversation_id, last_read_at, is_pinned, is_muted')
+    .eq('user_id', profileId);
+
+  if (membershipError) {
+    if (import.meta.env.DEV) console.error('[DM] membership query error:', membershipError);
+    if (fallback?.length) return fallback;
+    return [];
+  }
+  if (!membershipData?.length) return [];
+
+  const userConversationIds = membershipData.map((m) => m.conversation_id);
+  const membershipMap = new Map(membershipData.map((m) => [m.conversation_id, m]));
+
+  const [{ data: hiddenData }, { data: trashedData }] = await Promise.all([
+    supabase.from('hidden_conversations').select('conversation_id').eq('user_id', profileId),
+    supabase.from('trashed_conversations').select('conversation_id').eq('user_id', profileId),
+  ]);
+  const hiddenIds = new Set((hiddenData || []).map((h) => h.conversation_id));
+  const trashedIds = new Set((trashedData || []).map((t) => t.conversation_id));
+
+  const { data: conversationsRaw, error: convError } = await supabase
+    .from('conversations')
+    .select('*')
+    .in('id', userConversationIds)
+    .order('updated_at', { ascending: false });
+
+  if (convError) {
+    if (import.meta.env.DEV) console.error('[DM] conversations query error:', convError);
+    if (fallback?.length) return fallback;
+    return [];
+  }
+  if (!conversationsRaw?.length) return [];
+
+  const { data: allMembers, error: membersError } = await supabase
+    .from('conversation_members')
+    .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
+    .in('conversation_id', userConversationIds);
+
+  if (membersError && import.meta.env.DEV) {
+    console.error('[DM] all-members query error:', membersError);
+  }
+
+  const memberUserIds = Array.from(new Set((allMembers || []).map((m) => m.user_id)));
+  const { data: memberProfiles, error: profilesError } = memberUserIds.length
+    ? await supabase
+        .from('profiles')
+        .select('id, user_id, username, avatar_url, display_name')
+        .in('id', memberUserIds)
+    : { data: [], error: null };
+
+  if (profilesError && import.meta.env.DEV) {
+    console.error('[DM] member profiles query error:', profilesError);
+  }
+
+  const profileById = new Map((memberProfiles || []).map((p) => [p.id, p]));
+  const membersByConv = new Map<string, any[]>();
+  (allMembers || []).forEach((m) => {
+    const arr = membersByConv.get(m.conversation_id) || [];
+    arr.push({ ...m, profile: profileById.get(m.user_id) || null });
+    membersByConv.set(m.conversation_id, arr);
+  });
+
+  const conversationsData = conversationsRaw.map((c) => ({
+    ...c,
+    members: membersByConv.get(c.id) || [],
+  }));
+
+  const convIds = conversationsData.map((c) => c.id);
+  const { data: allMessages } = await supabase
+    .from('messages')
+    .select('id, conversation_id, sender_id, content, media_type, viewed_at, created_at')
+    .in('conversation_id', convIds)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: false })
+    .limit(Math.max(200, convIds.length * 3));
+
+  const lastMessageMap = new Map<string, Message>();
+  const unreadCountMap = new Map<string, number>();
+
+  (allMessages || []).forEach((msg) => {
+    if (!lastMessageMap.has(msg.conversation_id)) {
+      lastMessageMap.set(msg.conversation_id, msg as Message);
+    }
+    const membership = membershipMap.get(msg.conversation_id);
+    const lastReadAt = membership?.last_read_at || '1970-01-01';
+    if (msg.sender_id !== profileId && msg.created_at > lastReadAt) {
+      unreadCountMap.set(
+        msg.conversation_id,
+        (unreadCountMap.get(msg.conversation_id) || 0) + 1,
+      );
+    }
+  });
+
+  const seenOtherUserIds = new Set<string>();
+  const result: LoadedDMConversation[] = [];
+
+  conversationsData
+    .filter((conv) => !hiddenIds.has(conv.id) && !trashedIds.has(conv.id))
+    .forEach((conv) => {
+      if (!conv.is_group) {
+        const otherMember = conv.members?.find((m: any) => m.user_id !== profileId);
+        const otherUserId = otherMember?.user_id;
+        if (otherUserId) {
+          if (seenOtherUserIds.has(otherUserId)) return;
+          seenOtherUserIds.add(otherUserId);
+        }
+      }
+
+      const lastMessage = lastMessageMap.get(conv.id) || null;
+      const unreadCount = unreadCountMap.get(conv.id) || 0;
+
+      result.push({
+        ...conv,
+        last_message: lastMessage,
+        unread_count: unreadCount,
+        _sortTime: lastMessage?.created_at || conv.updated_at,
+        _hasUnread: unreadCount > 0,
+      });
+    });
+
+  result.sort((a, b) => {
+    const aIsPinned = a.members?.find((m) => m.user_id === profileId)?.is_pinned;
+    const bIsPinned = b.members?.find((m) => m.user_id === profileId)?.is_pinned;
+    if (aIsPinned && !bIsPinned) return -1;
+    if (!aIsPinned && bIsPinned) return 1;
+    if (aIsPinned && bIsPinned) {
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    }
+    if (a._hasUnread && !b._hasUnread) return -1;
+    if (!a._hasUnread && b._hasUnread) return 1;
+    return new Date(b._sortTime).getTime() - new Date(a._sortTime).getTime();
+  });
+
+  return result;
+}
+
+/** Warm the React Query cache if DMs are not already loaded. */
+export async function prefetchDMConversations(
+  queryClient: QueryClient,
+  profileId: string,
+): Promise<void> {
+  const cached = queryClient.getQueryData<LoadedDMConversation[]>(['dm-conversations', profileId]);
+  if (Array.isArray(cached) && cached.length > 0) return;
+
+  const result = await loadDMConversations(profileId, cached);
+  queryClient.setQueryData(['dm-conversations', profileId], result);
+  queryClient.setQueryData(['conversations', profileId], result);
+}
+
+/** Best-effort prefetch using the global query client (nav hover). */
+export function prefetchDMConversationsFromNav(): void {
+  const queryClient = (window as any).__REACT_QUERY_CLIENT__ as QueryClient | null | undefined;
+  if (!queryClient) return;
+
+  const entries = queryClient.getQueriesData<LoadedDMConversation[]>({
+    queryKey: ['dm-conversations'],
+  });
+  for (const [key, data] of entries) {
+    const profileId = key[1] as string | undefined;
+    if (!profileId) continue;
+    if (Array.isArray(data) && data.length > 0) return;
+    void prefetchDMConversations(queryClient, profileId);
+    return;
+  }
+
+  void (async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+    if (profile?.id) {
+      void prefetchDMConversations(queryClient, profile.id);
+    }
+  })();
+}

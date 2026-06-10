@@ -1,5 +1,4 @@
 import { isDespiaRuntime } from '@/lib/despiaBridge';
-import { isOfflineModePwa } from '@/lib/offlineStrategy';
 
 const PREVIEW_HOST_TOKENS = ['preview'];
 
@@ -14,6 +13,12 @@ export function isPreviewServiceWorkerDisabled() {
     hostname.endsWith('.lovableproject.com') ||
     params.has('__lovable_token')
   );
+}
+
+export function isLocalDevHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  const { hostname } = window.location;
+  return hostname === 'localhost' || hostname === '127.0.0.1';
 }
 
 /**
@@ -36,9 +41,9 @@ export function shouldRegisterServiceWorker(): boolean {
     return true;
   }
 
-  // Local Vite dev server (optional PWA testing).
+  // Local Vite dev — no service worker (avoids stale cache fighting HMR; prod uses SW on vybehub.app).
   if (import.meta.env.DEV && (hostname === 'localhost' || hostname === '127.0.0.1')) {
-    return isOfflineModePwa();
+    return false;
   }
 
   return false;

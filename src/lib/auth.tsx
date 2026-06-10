@@ -80,6 +80,7 @@ interface AuthContextType {
   resendVerification: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
+  refreshProfile: () => Promise<Profile | null | undefined>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -852,6 +853,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshProfile = async () => {
+    const uid = user?.id ?? (await supabase.auth.getSession()).data.session?.user?.id;
+    if (!uid) return null;
+    return fetchProfile(uid);
+  };
+
   // Show banned screen if user is banned
   if (banInfo) {
     return banInfo.is_meme_ban ? (
@@ -878,6 +885,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resendVerification,
       signOut,
       updateProfile,
+      refreshProfile,
     }}>
       {children}
     </AuthContext.Provider>

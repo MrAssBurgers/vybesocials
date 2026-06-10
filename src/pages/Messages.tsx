@@ -3,75 +3,37 @@ import { ConversationList } from '@/components/chat/ConversationList';
 import { ChatView } from '@/components/chat/ChatView';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useBreakpoint } from '@/hooks/usePlatform';
-import { useEffect, useState } from 'react';
+import { useLayoutEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Send, Sparkles } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
-import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-
-function MessagesLoadingSkeleton() {
-  return (
-    <AppLayout hideRightSidebar fullWidth noPadding>
-      <div className="dm-shell flex flex-1 min-h-0 w-full overflow-hidden">
-        <div className="dm-sidebar w-full md:w-80 lg:w-96 flex-shrink-0 p-3 space-y-3">
-          <Skeleton className="h-14 w-full rounded-2xl" />
-          <Skeleton className="h-10 w-full rounded-2xl" />
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <Skeleton variant="circular" className="h-12 w-12" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-3 w-48" />
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="hidden md:flex flex-1" />
-      </div>
-    </AppLayout>
-  );
-}
 
 export default function Messages() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isDesktop } = useBreakpoint();
-  const [mounted, setMounted] = useState(false);
   const isInChat = location.pathname !== '/messages';
   const isImmersive = isInChat && !isDesktop;
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    if (!isDesktop) {
-      document.documentElement.setAttribute('data-dm-active', 'true');
-      return () => {
-        document.documentElement.removeAttribute('data-dm-active');
-      };
-    }
-  }, [isDesktop, mounted]);
-
-  if (!mounted) {
-    return <MessagesLoadingSkeleton />;
-  }
+  useLayoutEffect(() => {
+    if (isDesktop) return;
+    document.documentElement.setAttribute('data-dm-active', 'true');
+    return () => {
+      document.documentElement.removeAttribute('data-dm-active');
+    };
+  }, [isDesktop]);
 
   return (
     <AppLayout hideRightSidebar fullWidth hideNav={isImmersive} noPadding>
       <div
-        className={cn(
-          'dm-shell flex h-full flex-1 min-h-0 w-full max-w-full overflow-hidden',
-          !isImmersive && 'pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]',
-        )}
+        className="dm-shell flex h-full flex-1 min-h-0 w-full max-w-full overflow-hidden"
         style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
       >
         {/* Conversation list */}
         <div
           className={cn(
-            'dm-sidebar w-full md:w-80 lg:w-96 flex-shrink-0 min-w-0 min-h-0',
+            'dm-sidebar h-full w-full md:w-80 lg:w-96 flex-shrink-0 min-w-0 min-h-0',
             isInChat ? 'hidden md:flex md:flex-col' : 'flex flex-col',
           )}
         >

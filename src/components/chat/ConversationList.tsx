@@ -51,6 +51,7 @@ import { MessageRequestsBadge } from './MessageRequestsList';
 import { usePendingRequestCount } from '@/hooks/useMessageRequests';
 import { DMsHeader } from './DMsHeader';
 import { cn } from '@/lib/utils';
+import { navVisibility } from '@/lib/navVisibility';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
@@ -110,6 +111,11 @@ export function ConversationList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [chatFilter, setChatFilter] = useState<'all' | 'unread' | 'groups' | 'streaks'>('all');
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
+  const [navPadVisible, setNavPadVisible] = useState(true);
+
+  useEffect(() => {
+    return navVisibility.subscribeEffective(setNavPadVisible);
+  }, []);
   
   // Use the new optimized DM conversations hook with auto-creation
   const { 
@@ -183,6 +189,8 @@ export function ConversationList() {
     [...(pinnedConversations || []), ...(unpinnedConversations || [])],
     [pinnedConversations, unpinnedConversations]
   );
+
+  const showListSkeleton = isLoading && allConversations.length === 0;
   
   // Get all conversation IDs for typing indicator subscription
   const conversationIds = useMemo(() => 
@@ -266,7 +274,7 @@ export function ConversationList() {
   }, [trashConversation]);
 
 
-  if (isLoading) {
+  if (showListSkeleton) {
     return (
       <div className="space-y-4 p-4">
         {(slowLoad || convError) && (
@@ -316,7 +324,12 @@ export function ConversationList() {
 
       {/* Conversation List */}
       <div
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroller"
+        className={cn(
+          'flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroller',
+          navPadVisible
+            ? 'pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))]'
+            : 'pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]',
+        )}
         style={{
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-y',
@@ -427,11 +440,6 @@ export function ConversationList() {
         {/* Recommended Friends - Snapchat Quick Add style */}
         {!searchQuery && chatFilter === 'all' && (
           <RecommendedFriendsSection />
-        )}
-
-        {/* Bottom padding */}
-        {!searchQuery && chatFilter === 'all' && (
-          <div className="pb-24" />
         )}
       </div>
 

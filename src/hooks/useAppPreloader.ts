@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { hasWarmOfflineCache } from '@/lib/offlineCacheProbe';
+import { prefetchDMConversations } from '@/lib/loadDMConversations';
 import { isPersistRestored, markPersistRestored, onPersistRestored } from '@/lib/persistRestoreGate';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
@@ -260,6 +261,8 @@ export function useAppPreloader() {
         updateStatus('feed');
 
         if (profileId) {
+          void prefetchDMConversations(queryClient, profileId);
+
           Promise.allSettled([
             supabase.rpc('get_posts_with_counts', {
               p_type: null,
@@ -311,76 +314,6 @@ export function useAppPreloader() {
           
           // Background social data fetch
           Promise.allSettled([
-            // Conversations
-            (async () => {
-              const { data: membershipData } = await supabase
-                .from('conversation_members')
-                .select('conversation_id, last_read_at, is_pinned, is_muted')
-                .eq('user_id', profileId);
-
-              if (!membershipData?.length) return [];
-
-              const convIds = membershipData.map(m => m.conversation_id);
-              const membershipMap = new Map(membershipData.map(m => [m.conversation_id, m]));
-
-              const [hiddenRes, trashedRes, convsRes, msgsRes] = await Promise.all([
-                supabase.from('hidden_conversations').select('conversation_id').eq('user_id', profileId),
-                supabase.from('trashed_conversations').select('conversation_id').eq('user_id', profileId),
-                supabase.from('conversations').select(`
-                  *,
-                  members:conversation_members(
-                    user_id, role, is_muted, is_pinned, last_read_at,
-                    profile:profiles(id, username, avatar_url, display_name)
-                  )
-                `).in('id', convIds).order('updated_at', { ascending: false }),
-                supabase.from('messages')
-                  .select('id, conversation_id, sender_id, content, media_type, viewed_at, created_at')
-                  .in('conversation_id', convIds)
-                  .eq('is_deleted', false)
-                  .order('created_at', { ascending: false })
-                  .limit(100),
-              ]);
-
-              const hiddenIds = new Set((hiddenRes.data || []).map(h => h.conversation_id));
-              const trashedIds = new Set((trashedRes.data || []).map(t => t.conversation_id));
-
-              const lastMessageMap = new Map<string, any>();
-              const unreadCountMap = new Map<string, number>();
-
-              (msgsRes.data || []).forEach(msg => {
-                if (!lastMessageMap.has(msg.conversation_id)) {
-                  lastMessageMap.set(msg.conversation_id, msg);
-                }
-                const membership = membershipMap.get(msg.conversation_id);
-                const lastReadAt = membership?.last_read_at || '1970-01-01';
-                if (msg.sender_id !== profileId && msg.created_at > lastReadAt) {
-                  unreadCountMap.set(msg.conversation_id, (unreadCountMap.get(msg.conversation_id) || 0) + 1);
-                }
-              });
-
-              const result = (convsRes.data || [])
-                .filter(conv => !hiddenIds.has(conv.id) && !trashedIds.has(conv.id))
-                .map(conv => ({
-                  ...conv,
-                  last_message: lastMessageMap.get(conv.id) || null,
-                  unread_count: unreadCountMap.get(conv.id) || 0,
-                  _sortTime: lastMessageMap.get(conv.id)?.created_at || conv.updated_at,
-                  _hasUnread: (unreadCountMap.get(conv.id) || 0) > 0,
-                }))
-                .sort((a: any, b: any) => {
-                  const aPin = a.members?.find((m: any) => m.user_id === profileId)?.is_pinned;
-                  const bPin = b.members?.find((m: any) => m.user_id === profileId)?.is_pinned;
-                  if (aPin && !bPin) return -1;
-                  if (!aPin && bPin) return 1;
-                  if (aPin && bPin) return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-                  if (a._hasUnread && !b._hasUnread) return -1;
-                  if (!a._hasUnread && b._hasUnread) return 1;
-                  return new Date(b._sortTime).getTime() - new Date(a._sortTime).getTime();
-                });
-              
-              queryClient.setQueryData(['dm-conversations', profileId], result);
-              queryClient.setQueryData(['conversations', profileId], result);
-            })(),
             // Notifications
             supabase
               .from('notifications')

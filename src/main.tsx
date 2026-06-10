@@ -7,7 +7,7 @@ import { initializeAdMob } from "./lib/admob";
 import { isDespiaRuntime } from "./lib/despiaBridge";
 import { syncNativeTrackingConsent } from "./lib/att";
 import { installAttResumeRecovery } from "./lib/attResumeRecovery";
-import { cleanupPreviewServiceWorkers, isPreviewServiceWorkerDisabled, registerVybeServiceWorker } from "./lib/serviceWorker";
+import { cleanupPreviewServiceWorkers, isLocalDevHost, isPreviewServiceWorkerDisabled, registerVybeServiceWorker } from "./lib/serviceWorker";
 import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
 import { installFlickerGuardCheck } from "./lib/flickerGuardCheck";
 import { installDespiaRealtimeTransport } from "./lib/installDespiaRealtimeTransport";
@@ -122,6 +122,13 @@ if ('serviceWorker' in navigator) {
       if (isPreviewServiceWorkerDisabled()) {
         await cleanupPreviewServiceWorkers();
         console.info('[VYBE] Service worker disabled for preview host');
+        return;
+      }
+
+      // Clear any stale SW/cache from prior sessions so local dev matches fresh prod loads.
+      if (import.meta.env.DEV && isLocalDevHost()) {
+        await cleanupPreviewServiceWorkers();
+        console.info('[VYBE] Service worker disabled for local dev');
         return;
       }
 

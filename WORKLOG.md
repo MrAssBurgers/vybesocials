@@ -5,7 +5,17 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Incoming call full-screen UX** — Snapchat-style overlay + native CallKit / Android full-screen intent. **Despia native rebuild + Lovable Backend deploy pending**
+- **Publish pending** — pushed to `main`; user action: **Lovable → Share → Publish** for `vybehub.app`
+- **Incoming call full-screen UX** — Despia native rebuild + Lovable Backend deploy pending
+
+## What Changed (instant DMs + onboarding — 2026-06-09)
+- **`loadDMConversations.ts`** — shared fetch + nav/app prefetch for conversation list cache
+- **`Messages.tsx`** — removed artificial mount skeleton delay
+- **`useDMConversations`** — show cached list immediately; don't block on friends load
+- **`ConversationList`** — skeleton only when no cached conversations
+- **`useAppPreloader` / `routePreloader`** — prefetch DMs right after profile + on Messages tab hover
+- **`Onboarding.tsx`** — Skip/Finish use `ensure_profile` + update (RLS-safe on production)
+- **Build:** `npm run build` pass
 
 ## What Changed (incoming calls — 2026-06-09)
 - **`GlobalCallOverlay`** — Snapchat-style full-screen incoming UI (portal → `document.body`, blurred caller wallpaper, slide-to-answer + Accept/Decline, locks scroll)

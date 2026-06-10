@@ -55,10 +55,7 @@ export function useAuthLandingLiquid(): boolean {
   );
 }
 
-/** Tap ripples + blob pull — off in stable mode and native store shell. */
+/** Tap ripples + blob pull — disabled (press scale / liquid touch removed). */
 export function useLiquidTouchActive(): boolean {
-  const showApp = useDefaultLiquidBackground();
-  const showAuth = useAuthLandingLiquid();
-  if (STABLE_APP_BACKGROUND || isNativePerfMode()) return false;
-  return showApp || showAuth;
+  return false;
 }
