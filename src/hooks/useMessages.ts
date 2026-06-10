@@ -29,6 +29,7 @@ export interface Message {
   saved_by_sender?: boolean | null;
   saved_by_recipient?: boolean | null;
   saved_at?: string | null;
+  viewed_at?: string | null;
   sender?: {
     id: string;
     username: string;
