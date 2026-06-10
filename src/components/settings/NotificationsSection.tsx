@@ -30,7 +30,7 @@ export function NotificationsSection() {
 
   const handleToggle = async (key: string, value: boolean) => {
     haptics.tap();
-    updatePref.mutate({ key, value });
+    updatePref.mutate({ key: key as never, value });
 
     if (!value && key === 'announcements_enabled' && profile?.id) {
       await supabase
