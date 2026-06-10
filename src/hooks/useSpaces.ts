@@ -105,6 +105,8 @@ export function useSpace(spaceId: string | undefined) {
       return { ...(data as any), host } as Space;
     },
     enabled: !!spaceId,
+    // Poll so listeners notice when the host ends the space
+    refetchInterval: 10_000,
   });
 }
 
@@ -166,12 +168,12 @@ export function useCreateSpace() {
 
       if (error) throw error;
 
-      // Auto-join as host
+      // Auto-join as host — muted until they actually unmute (mic starts off)
       await supabase.from('space_participants' as any).insert({
         space_id: (data as any).id,
         user_id: user.id,
         role: 'host',
-        is_muted: false,
+        is_muted: true,
       } as any);
 
       return data as unknown as Space;
@@ -290,7 +292,7 @@ export function useUpdateParticipantRole() {
     mutationFn: async ({ participantId, spaceId, role }: { participantId: string; spaceId: string; role: string }) => {
       const { error } = await supabase
         .from('space_participants' as any)
-        .update({ role } as any)
+        .update({ role, raised_hand: false } as any)
         .eq('id', participantId);
 
       if (error) throw error;

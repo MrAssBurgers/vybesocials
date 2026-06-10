@@ -58,6 +58,13 @@ export default function SpaceRoom() {
     void audio.connect(spaceId, role);
   }, [spaceId, myParticipation?.role, space?.status]);
 
+  // Host ended the space while we were in it — kill audio
+  useEffect(() => {
+    if (space?.status === 'ended') {
+      void audio.disconnect();
+    }
+  }, [space?.status]);
+
   const handleLeave = useCallback(async () => {
     if (!spaceId) return;
     triggerHaptic('medium');
