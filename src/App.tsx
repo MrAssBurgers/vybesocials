@@ -399,7 +399,7 @@ function AppWithPreloader() {
           <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
         </LocalErrorBoundary>
         <BriefPreFetchInit />
-        <LocationProvider>
+        
         {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
         <AppBackgroundProvider>
           <CustomThemeProvider>
