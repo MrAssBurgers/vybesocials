@@ -47,7 +47,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **`RootBottomNavMount`** — hide nav on all `/messages/*` sub-routes
 
 ## Publish log
-- **2026-06-10** — Pushed `3c02a095`: community voice via `livekit-token` (spaces-token 404 on prod), DM list flicker fixes. **Requires Lovable Backend deploy of `livekit-token` + LIVEKIT_* secrets** then Publish.
+- **2026-06-09** — Pushed `65e3bdb2` to `main`: stability pass, OneSignal notification routing, Snapchat-style incoming call overlay, native CallKit bridge. Build pass. **Lovable Publish pending** (user action). Backend: deploy `send-push-notification`, `auth-login-approval`, `auth-2fa-preauth`.
 - **2026-06-09** — Pushed `7f32cabf` to `main`: app-wide `subscribePostgresChannel` hardening, community voice ID fix, Vybe Map + friends polish, bottom nav immersion. Build + lint pass. **Lovable Publish pending** (user action).
 - **2026-06-09** — Pushed `4d295871` to `main`: Discord-style communities shell, LiveKit voice (`community-voice-token`, `useCommunityVoice`), theme equip persistence, home/DM polish. Build + lint pass. Edge fn deploy blocked (Supabase CLI 403 — needs login or Lovable deploy). **Lovable Publish pending.**
 - **2026-06-10** — Home iconic redesign: aurora hero card (spinning avatar ring, gradient greeting), spring feed tabs, quick-access cards, customize pill. DM convo: removed header/composer backdrop-blur seam — solid gradient fade header + opaque composer. Build + lint pass. **Lovable Publish pending.**
