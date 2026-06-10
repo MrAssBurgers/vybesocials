@@ -399,7 +399,7 @@ function AppWithPreloader() {
           <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
         </LocalErrorBoundary>
         <BriefPreFetchInit />
-        <LocationProvider>
+        
         {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
         <AppBackgroundProvider>
           <CustomThemeProvider>
@@ -412,6 +412,7 @@ function AppWithPreloader() {
                         <Toaster />
                         <Sonner />
                         <BrowserRouter>
+                        <LocationProvider>
                           <AppGlobalLiquidShell />
                           <VybeLiquidTouchShell />
                           <div
@@ -460,6 +461,7 @@ function AppWithPreloader() {
                           </Suspense>
                           {/* Touch ripple removed */}
                           </div>
+                        </LocationProvider>
                         </BrowserRouter>
                       </TooltipProvider>
                     </StreakProvider>
@@ -469,7 +471,6 @@ function AppWithPreloader() {
             </ThemeTransitionProvider>
           </CustomThemeProvider>
         </AppBackgroundProvider>
-        </LocationProvider>
       </AuthProvider>
     </>
   );
