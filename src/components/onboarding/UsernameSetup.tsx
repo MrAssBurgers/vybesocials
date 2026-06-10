@@ -104,9 +104,6 @@ export function UsernameSetup({ username, onChange, onValidChange }: UsernameSet
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           {isAvailable && <p className="text-sm text-primary">Username is available!</p>}
-          <p className="text-xs text-muted-foreground">
-            This will be your unique @handle on VYBE
-          </p>
         </div>
       </motion.div>
     </div>

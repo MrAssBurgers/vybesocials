@@ -6,7 +6,28 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## Current Focus
 - **Publish pending** — pushed to `main`; user action: **Lovable → Share → Publish** for `vybehub.app`
+- **Despia native rebuild** — after AdMob IDs saved in Despia dashboard (rewarded ads)
 - **Incoming call full-screen UX** — Despia native rebuild + Lovable Backend deploy pending
+
+## What Changed (splash / onboarding loading glitch — 2026-06-10)
+- **`SplashScreen`** — removed scale exit (fragmented V logo); faster fade; hides app shell during splash
+- **`splashSession.ts`** — sessionStorage flag so refresh on `/onboarding` skips replaying boot splash
+- **`useAppPreloader`** — instant ready on setup routes (`/onboarding`, `/auth`, etc.)
+- **`Onboarding`** — blocking "Saving…" overlay on Skip/Finish (no mystery reload)
+- **`UsernameSetup`** — removed duplicate subtitle line
+- **Build:** `npm run build` pass
+
+- **`despiaRewardedAds.ts`** — central `displayrewardedad://` bridge + `updateRewardedStatus` handler; documents Android AdMob IDs
+- **`main.tsx`** — registers rewarded callback at boot (before React)
+- **`useRewardedAd`** — uses Despia bridge only; `canUseDespiaRewardedAds` (no RC/age spinner block)
+- **`useAdEligibility`** — exports `canUseDespiaRewardedAds` for Wallet Watch & Earn
+- **`ADMOB_SETUP.md`** — rewritten for Despia dashboard (not Capacitor)
+- **Build:** `npm run build` pass
+
+## Next 3 Tasks
+1. User: confirm AdMob IDs in Despia dashboard match screenshot; rebuild native app
+2. Lovable Publish for web OTA (`vybehub.app`)
+3. Test Wallet → Watch ad on Despia Android build
 
 ## What Changed (instant DMs + onboarding — 2026-06-09)
 - **`loadDMConversations.ts`** — shared fetch + nav/app prefetch for conversation list cache
@@ -57,7 +78,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **`RootBottomNavMount`** — hide nav on all `/messages/*` sub-routes
 
 ## Publish log
-- **2026-06-09** — Pushed `65e3bdb2` to `main`: stability pass, OneSignal notification routing, Snapchat-style incoming call overlay, native CallKit bridge. Build pass. **Lovable Publish pending** (user action). Backend: deploy `send-push-notification`, `auth-login-approval`, `auth-2fa-preauth`.
+- **2026-06-10** — Pushed `9e2b3ef8` to `main`: onboarding skip RLS fix, instant DM prefetch/cache. Build pass. **Lovable Publish pending** — production still serving `index-BfmVdKUH.js` (pre-9e2b3ef8).
 - **2026-06-09** — Pushed `7f32cabf` to `main`: app-wide `subscribePostgresChannel` hardening, community voice ID fix, Vybe Map + friends polish, bottom nav immersion. Build + lint pass. **Lovable Publish pending** (user action).
 - **2026-06-09** — Pushed `4d295871` to `main`: Discord-style communities shell, LiveKit voice (`community-voice-token`, `useCommunityVoice`), theme equip persistence, home/DM polish. Build + lint pass. Edge fn deploy blocked (Supabase CLI 403 — needs login or Lovable deploy). **Lovable Publish pending.**
 - **2026-06-10** — Home iconic redesign: aurora hero card (spinning avatar ring, gradient greeting), spring feed tabs, quick-access cards, customize pill. DM convo: removed header/composer backdrop-blur seam — solid gradient fade header + opaque composer. Build + lint pass. **Lovable Publish pending.**

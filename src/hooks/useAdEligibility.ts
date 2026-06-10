@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { useRevenueCat } from '@/hooks/useRevenueCat';
 import { getTrackingConsent } from '@/components/app/TrackingConsentDialog';
-import { isNativeAppShell } from '@/lib/despiaBridge';
+import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 import { supabase } from '@/integrations/supabase/client';
 
 const PREMIUM_ENTITLEMENT_ID = 'Vybe Social Pro';
@@ -52,6 +52,9 @@ export function useAdEligibility() {
   const isLoading = rcLoading || ageLoading;
 
   const showNativeAds = onNative && !rcLoading && !isAdFreeSubscriber && !isUnder13;
+  /** Wallet Watch & Earn — Despia rewarded bridge; don't block on RC/age spinners. */
+  const canUseDespiaRewardedAds =
+    isDespiaRuntime() && !isAdFreeSubscriber && !isUnder13;
   const showWebAds =
     !onNative &&
     WEB_ADSENSE_ENABLED &&
@@ -62,6 +65,7 @@ export function useAdEligibility() {
 
   return {
     showNativeAds,
+    canUseDespiaRewardedAds,
     showWebAds,
     showAds: showNativeAds || showWebAds,
     personalizedAds,

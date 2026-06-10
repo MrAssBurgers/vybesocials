@@ -8,6 +8,7 @@ import { isPersistRestored, markPersistRestored, onPersistRestored } from '@/lib
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
+import { isSetupRoutePath } from '@/lib/splashSession';
 
 interface PreloadStatus {
   step: string;
@@ -99,6 +100,13 @@ export function useAppPreloader() {
     if (!restoreReady) return;
     if (hasStarted.current) return;
     hasStarted.current = true;
+
+    const path = typeof window !== 'undefined' ? window.location.pathname : '';
+    if (isSetupRoutePath(path)) {
+      console.log('[Preloader] Setup route fast path — instant ready');
+      setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+      return;
+    }
 
     // Warm cache or returning native user — skip network splash work.
     if (

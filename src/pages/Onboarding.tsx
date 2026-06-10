@@ -451,8 +451,18 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
-      className="h-screen bg-background flex flex-col overflow-hidden"
+      className="h-screen bg-background flex flex-col overflow-hidden relative"
     >
+      {loading && (
+        <div
+          className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-background/90 backdrop-blur-sm"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Saving…</p>
+        </div>
+      )}
       {/* GPU-friendly ambient background — opacity-only keyframes */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div

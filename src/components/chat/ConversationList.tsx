@@ -75,28 +75,26 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
     <button
       type="button"
       onClick={() => navigate('/VYBE-AI')}
-      className="dm-ai-row w-full flex items-center gap-3 text-left mb-0.5 box-border"
+      className="dm-ai-row w-full flex items-center gap-2.5 text-left box-border"
     >
       <div className="relative flex-shrink-0">
-        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary blur-md opacity-60 animate-pulse" />
-        <div className="relative h-12 w-12 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary shadow-lg shadow-primary/40">
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary blur-md opacity-50" />
+        <div className="relative h-10 w-10 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary shadow-md shadow-primary/30">
           <div className="h-full w-full rounded-full bg-gradient-to-br from-background via-card to-background flex items-center justify-center overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 via-transparent to-accent/20" />
-            <VybeMiniIcon size={24} showSparkles className="relative z-10 drop-shadow-[0_0_6px_hsl(var(--primary)/0.8)]" />
-            <div className="absolute -top-1 -right-1 w-8 h-8 bg-primary/30 rounded-full blur-xl" />
+            <VybeMiniIcon size={20} showSparkles className="relative z-10" />
           </div>
         </div>
-        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-background shadow-md shadow-green-500/50" />
+        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background" />
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-0.5 gap-2">
-          <span className="font-semibold text-sm flex items-center gap-1.5 min-w-0">
+      <div className="flex-1 min-w-0 py-0.5">
+        <div className="flex items-center justify-between mb-0 gap-2">
+          <span className="font-semibold text-xs flex items-center gap-1 min-w-0">
             <span className="truncate">{aiName}</span>
-            <VybeMiniIcon size={12} showSparkles className="flex-shrink-0" />
+            <VybeMiniIcon size={10} showSparkles className="flex-shrink-0" />
           </span>
-          <span className="text-[9px] font-semibold text-primary px-1.5 py-0.5 bg-primary/10 rounded-full flex-shrink-0">AI</span>
+          <span className="text-[8px] font-semibold text-primary px-1 py-0.5 bg-primary/10 rounded-full flex-shrink-0">AI</span>
         </div>
-        <p className="text-xs text-muted-foreground truncate">{lastAIMessage.slice(0, 50)}...</p>
+        <p className="text-[11px] text-muted-foreground truncate leading-tight">{lastAIMessage.slice(0, 50)}...</p>
       </div>
     </button>
   );
@@ -341,7 +339,7 @@ export function ConversationList() {
         <NotesRow />
 
         {/* AI Chat Row */}
-        <div className="px-3 pt-1 pb-1">
+        <div className="px-2 pb-0.5">
           <AutisyAIChatRow />
         </div>
 
@@ -366,7 +364,7 @@ export function ConversationList() {
         )}
 
         {/* Conversations */}
-        <div className="px-2 pb-4 space-y-0">
+        <div className="px-1.5 pb-3 space-y-0">
           {(filteredPinned.length > 0 || filteredUnpinned.length > 0) ? (
             <>
               {filteredPinned.map((conv) => (
@@ -566,7 +564,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
       <div className="relative flex-shrink-0">
         {conversation.is_group ? (
           <div className="relative">
-            <Avatar className="h-10 w-10 ring-2 ring-background shadow-md">
+            <Avatar className="h-9 w-9 ring-2 ring-background shadow-sm">
               {avatarUrl ? (
                 <AvatarImage src={avatarUrl} />
               ) : (
@@ -582,7 +580,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
         ) : (
           <button onClick={handleAvatarClick} className="block relative">
             <AvatarRing
-              size="lg"
+              size="md"
               variant={userStatus ? 'vibe' : 'default'}
               vibeColor={userStatus ? getVibeColor(userStatus.emoji) : undefined}
               vibeEmoji={userStatus?.emoji}
@@ -608,7 +606,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between mb-1 gap-2">
+        <div className="flex items-center justify-between mb-0 gap-2">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {!conversation.is_group && otherMember ? (
               <StyledUsername
@@ -988,7 +986,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
   if (isMobile && onTrash) {
     return (
       <>
-        <div className="relative mb-1.5">
+        <div className="relative mb-0.5">
           {/* Delete indicator - hidden at rest, slowly reveals behind frosted glass on swipe */}
           <motion.div 
             className="absolute inset-0 flex items-center justify-end pointer-events-none"
@@ -1023,7 +1021,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
           >
             <div 
               className={cn(
-                'group dm-convo-row w-full flex items-center gap-3 text-left cursor-pointer box-border',
+                'group dm-convo-row w-full flex items-center gap-2.5 text-left cursor-pointer box-border',
                 unreadCount > 0 && 'dm-convo-row--unread',
                 isPinned && 'dm-convo-row--pinned'
               )}
@@ -1062,7 +1060,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
     <>
       <div 
         className={cn(
-          'group relative dm-convo-row w-full flex items-center gap-3 text-left cursor-pointer box-border mb-0.5',
+          'group relative dm-convo-row w-full flex items-center gap-2.5 text-left cursor-pointer box-border',
           unreadCount > 0 && 'dm-convo-row--unread',
           isPinned && 'dm-convo-row--pinned'
         )}

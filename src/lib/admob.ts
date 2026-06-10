@@ -63,6 +63,7 @@ export async function showInterstitial(): Promise<void> {
  * to `null` because the reward shape can only be known via the callback.
  */
 export async function showRewarded(): Promise<{ amount: number; type: string } | null> {
-  safeDespia('displayrewardedad://');
-  return null;
+  const { requestDespiaRewardedAd } = await import('./despiaRewardedAds');
+  const granted = await requestDespiaRewardedAd();
+  return granted ? { amount: 1, type: 'reward' } : null;
 }

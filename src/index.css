@@ -85,6 +85,12 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   pointer-events: none !important;
 }
 
+/* Prevent onboarding/auth UI bleeding through during boot splash */
+body.splash-visible #app-shell {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 /* Splash screen animations — pure CSS, GPU-composited */
 .splash-draw-left,
 .splash-draw-right {
@@ -193,10 +199,18 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   box-shadow: inset -1px 0 0 hsl(var(--primary) / 0.06);
 }
 
+body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 0.38) 0%,
+    hsl(var(--background) / 0.28) 100%
+  );
+}
+
 .dm-header-aurora {
   position: absolute;
   inset: 0 0 auto 0;
-  height: 140px;
+  height: 96px;
   background: linear-gradient(
     125deg,
     hsl(var(--primary) / 0.12),
@@ -297,8 +311,8 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 /* AI assistant row */
 .dm-ai-row {
   position: relative;
-  border-radius: 1rem;
-  padding: 0.625rem 0.75rem;
+  border-radius: 0.75rem;
+  padding: 0.375rem 0.5rem;
   background: linear-gradient(
     135deg,
     hsl(var(--primary) / 0.1),
@@ -372,8 +386,9 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 /* Conversation card — screenshot-style layered panel */
 .dm-convo-row {
   position: relative;
-  border-radius: 0.875rem;
-  padding: 0.5rem 0.625rem;
+  border-radius: 0.75rem;
+  padding: 0.375rem 0.5rem;
+  margin-bottom: 0.125rem;
   background: linear-gradient(
     145deg,
     hsl(var(--foreground) / 0.06),
@@ -418,7 +433,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
 }
 .dm-convo-activity-dot {
   width: 7px;
@@ -611,6 +626,24 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
   box-shadow: 0 4px 16px hsl(var(--primary) / 0.35);
 }
+
+/* Challenges hub — segmented tab pill (grid-aligned, no flex blowout) */
+.challenges-hub-tabs {
+  background: hsl(var(--foreground) / 0.04);
+}
+.challenges-tab-pill-active {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  box-shadow: 0 4px 14px hsl(var(--primary) / 0.32);
+}
+.challenges-hub-tabs [role='tab'] {
+  overflow: hidden;
+}
+.challenges-hub-tabs [role='tab'][data-state='active'] {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
 .home-new-posts-btn {
   background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
   color: hsl(var(--primary-foreground));

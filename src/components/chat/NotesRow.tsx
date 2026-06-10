@@ -102,20 +102,20 @@ export const NotesRow = memo(function NotesRow() {
 
   return (
     <>
-      <div className="dm-notes-row relative z-0 px-3 pt-8 pb-3 overflow-x-auto no-scrollbar" style={{ overflowY: 'clip' }}>
-        <div className="flex gap-4 min-w-max" style={{ overflow: 'visible' }}>
+      <div className="dm-notes-row relative z-0 px-2 pt-3 pb-1 overflow-x-auto no-scrollbar" style={{ overflowY: 'clip' }}>
+        <div className="flex gap-2.5 min-w-max" style={{ overflow: 'visible' }}>
           {/* Current user's note */}
-          <button onClick={handleOpenEdit} className="flex flex-col items-center w-16 flex-shrink-0" style={{ overflow: 'visible' }}>
-            <div className="relative mb-1" style={{ overflow: 'visible' }}>
+          <button onClick={handleOpenEdit} className="flex flex-col items-center w-12 flex-shrink-0" style={{ overflow: 'visible' }}>
+            <div className="relative mb-0.5" style={{ overflow: 'visible' }}>
               {(myNote?.content || myNote?.gif_url) && renderNoteBubble(myNote?.content || '', myNote?.gif_url)}
-              <Avatar className="dm-note-avatar dm-note-avatar--mine h-14 w-14">
+              <Avatar className="dm-note-avatar dm-note-avatar--mine h-11 w-11">
                 <AvatarImage src={profile?.avatar_url || undefined} />
                 <AvatarFallback className="text-sm bg-muted">
                   {profile?.username?.[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </div>
-            <span className="text-[10px] text-muted-foreground mt-1 leading-none">
+            <span className="text-[9px] text-muted-foreground mt-0.5 leading-none truncate max-w-[3rem]">
               {myNote ? 'Your note' : 'Add note'}
             </span>
           </button>
@@ -125,19 +125,19 @@ export const NotesRow = memo(function NotesRow() {
             <button
               key={note.id}
               onClick={() => note.profile && navigate(`/u/${note.profile.username}`)}
-              className="flex flex-col items-center w-16 flex-shrink-0"
+              className="flex flex-col items-center w-12 flex-shrink-0"
               style={{ overflow: 'visible' }}
             >
-              <div className="relative mb-1" style={{ overflow: 'visible' }}>
+              <div className="relative mb-0.5" style={{ overflow: 'visible' }}>
                 {renderNoteBubble(note.content, note.gif_url)}
-                <Avatar className="dm-note-avatar dm-note-avatar--friend h-14 w-14">
+                <Avatar className="dm-note-avatar dm-note-avatar--friend h-11 w-11">
                   <AvatarImage src={note.profile?.avatar_url || undefined} />
                   <AvatarFallback className="text-sm">
                     {note.profile?.username?.[0]?.toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
               </div>
-              <span className="text-[10px] text-foreground truncate max-w-[60px] mt-1 leading-none">
+              <span className="text-[9px] text-foreground truncate max-w-[3rem] mt-0.5 leading-none">
                 {note.profile?.display_name || note.profile?.username}
               </span>
             </button>

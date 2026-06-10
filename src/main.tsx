@@ -17,6 +17,7 @@ import { repairSupabaseAuthStorage } from "./lib/supabaseStorageKey";
 import { installAuthSessionKeepAlive } from "./lib/authSessionKeepAlive";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { installDespiaNfcDispatcher } from "./lib/despiaNFCv2";
+import { installDespiaRewardedAdBridge } from "./lib/despiaRewardedAds";
 
 // Initialize Sentry as early as possible so we capture init-time errors.
 initSentry();
@@ -28,6 +29,9 @@ installAuthSessionKeepAlive();
 
 // Despia NFC: define window.onNFCEvent multiplexer before any nfc://read/write.
 installDespiaNfcDispatcher();
+
+// Despia rewarded ads: register updateRewardedStatus before Wallet can mount.
+installDespiaRewardedAdBridge();
 
 // Inside Despia, route Supabase Realtime WebSockets through the native bridge
 // so connections survive WebView reloads and backgrounding.

@@ -25,7 +25,7 @@ export default function Messages() {
   }, [isDesktop]);
 
   return (
-    <AppLayout hideRightSidebar fullWidth hideNav={isImmersive} noPadding>
+    <AppLayout hideRightSidebar fullWidth hideNav={!isDesktop} noPadding>
       <div
         className="dm-shell flex h-full flex-1 min-h-0 w-full max-w-full overflow-hidden"
         style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}

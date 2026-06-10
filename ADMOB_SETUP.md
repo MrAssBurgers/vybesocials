@@ -1,76 +1,57 @@
-# AdMob Setup Guide — Vybe Studios
+# AdMob Setup — VYBE (Despia Native)
 
-The `@capacitor-community/admob` plugin is installed and initialized in `src/main.tsx`.
-Test ads will work out of the box. Follow these steps to ship real ads.
+VYBE does **not** use `@capacitor-community/admob`. All native ads run through the
+**Despia bridge** (`despia-native`). AdMob App ID and unit IDs are configured in the
+**Despia project dashboard**, not in this repo.
 
-## 1. Create your AdMob account
-1. Sign up at https://apps.admob.com
-2. Click **Apps → Add App** → "Yes, my app is published" or "No" → choose **Android**
-3. Copy your **App ID** (looks like `ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY`)
-4. Create ad units (Banner, Interstitial, Rewarded) and copy each **Ad Unit ID**
+## Despia dashboard (required)
 
-## 2. Plug your IDs into the app
-Edit `src/lib/admob.ts`:
+1. Open your Despia project → **Monetization / AdMob**.
+2. Paste your AdMob IDs:
+
+| Field | Android value |
+|-------|----------------|
+| **App ID** | `ca-app-pub-9952523729646293~519155087` |
+| **Rewarded** | `ca-app-pub-9952523729646293/962472048` |
+
+3. Save and **rebuild the native app** in Despia (OTA web publish alone does not update AdMob config).
+
+Reference copy in code: `DESPIA_ADMOB_IDS` in `src/lib/despiaRewardedAds.ts`.
+
+## How ads are triggered in the web app
+
+| Ad type | Bridge URL | Used for |
+|---------|------------|----------|
+| Rewarded | `displayrewardedad://` | Token Wallet → Watch & Earn |
+| Interstitial | `displayinterstitialad://` | Feed / clips natural breaks |
+| Banner | `displaybannerad://` | Optional placements |
+| Hide banner | `hidebannerad://` | Cleanup |
+
+Rewarded completion callback:
+
 ```ts
-const USE_TEST_ADS = false; // ← flip to false
-
-export const AD_UNIT_IDS = {
-  banner:       'ca-app-pub-XXXX/XXXX',
-  interstitial: 'ca-app-pub-XXXX/XXXX',
-  rewarded:     'ca-app-pub-XXXX/XXXX',
-};
+window.updateRewardedStatus('true');  // user earned reward
+window.updateRewardedStatus('false'); // dismissed / no reward
 ```
 
-## 3. Add your AdMob App ID to AndroidManifest.xml
-After running `npx cap add android`, open `android/app/src/main/AndroidManifest.xml`
-and add this **inside `<application>`** (REQUIRED — app crashes without it):
+Implementation: `src/lib/despiaRewardedAds.ts`, `src/hooks/useRewardedAd.ts`, `src/lib/admob.ts`.
 
-```xml
-<meta-data
-    android:name="com.google.android.gms.ads.APPLICATION_ID"
-    android:value="ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY"/>
-```
+## Eligibility (who sees ads)
 
-While testing, you can use Google's sample App ID:
-`ca-app-pub-3940256099942544~3347511713`
+- **Premium (RevenueCat `Vybe Social Pro`)** — no ads.
+- **Under 13 (COPPA)** — no ads.
+- **ATT “Don’t Allow”** — ads still show (non-personalized).
 
-## 4. (iOS) Add to Info.plist
-After `npx cap add ios`, in `ios/App/App/Info.plist`:
-```xml
-<key>GADApplicationIdentifier</key>
-<string>ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY</string>
-<key>SKAdNetworkItems</key>
-<array>
-  <dict>
-    <key>SKAdNetworkIdentifier</key>
-    <string>cstr6suwn9.skadnetwork</string>
-  </dict>
-</array>
-```
+Use `useAdEligibility()` / `useShowAds()` in UI; do **not** use `usePremiumStatus().isPremium` for ad gates.
 
-## 5. Sync & build
-```bash
-npm run build
-npx cap sync android
-npx cap open android
-```
+## Verify Watch & Earn
 
-## 6. Show ads in your code
-```ts
-import { showBanner, showInterstitial, showRewarded } from '@/lib/admob';
+1. Open the app in a **Despia build** (not Safari / web preview).
+2. Go to **Wallet** → tap **Watch ad**.
+3. Complete the video; you should see `+25 VYBE Tokens` (or 2× with boost).
+4. If the button stays disabled on Despia, check RevenueCat premium status and DOB in profile.
 
-// Banner at bottom of screen
-await showBanner();
+## Docs
 
-// Full-screen ad at natural break
-await showInterstitial();
-
-// Rewarded video — returns reward info
-const reward = await showRewarded();
-if (reward) console.log(`Earned ${reward.amount} ${reward.type}`);
-```
-
-## Notes
-- Banner/interstitial/rewarded helpers are no-ops on web — safe to call anywhere.
-- Premium users should be skipped — wrap calls with `useShowAds()` from `src/hooks/useShowAds.ts`.
-- The plugin auto-handles GDPR consent on first launch in EEA.
+- [Despia rewarded ads](https://setup.despia.com/native-features/admob/rewarded-ads.md)
+- [Despia deployment](https://setup.despia.com/deployment/google-android/automatic.md)

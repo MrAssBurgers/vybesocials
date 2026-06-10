@@ -187,8 +187,7 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setIsBackgroundResolved(false);
-    setHasUserWallpaper(false);
+    // Keep prior hasUserWallpaper until fetch completes — avoids aurora/wallpaper flicker.
 
     // 1. Equipped profile themes are profile cosmetics — do not replace the app-shell aurora
     const equippedTheme = (profile as unknown as { equipped_profile_theme?: string | null })?.equipped_profile_theme;
@@ -235,7 +234,7 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
       setBackground(prev => ({ ...prev, imageUrl: null }));
       setIsBackgroundResolved(true);
     }
-  }, [profile, signAndApply]);
+  }, [profile?.id, signAndApply]);
 
   // Auto-load own background whenever auth/profile changes
   useEffect(() => {

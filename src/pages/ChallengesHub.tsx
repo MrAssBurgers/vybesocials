@@ -484,28 +484,46 @@ export default function ChallengesHubPage() {
         </motion.div>
 
         {/* Category Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-          <TabsList className="w-full h-12 p-1">
-            <TabsTrigger value="all" className="flex-1 gap-1">
-              <Target className="h-4 w-4" />
-              All
-            </TabsTrigger>
-            <TabsTrigger value="daily" className="flex-1 gap-1">
-              <Zap className="h-4 w-4" />
-              Daily
-            </TabsTrigger>
-            <TabsTrigger value="weekly" className="flex-1 gap-1">
-              <Clock className="h-4 w-4" />
-              Weekly
-            </TabsTrigger>
-            <TabsTrigger value="achievements" className="flex-1 gap-1">
-              <Trophy className="h-4 w-4" />
-              Permanent
-            </TabsTrigger>
-            <TabsTrigger value="ranks" className="flex-1 gap-1">
-              <Crown className="h-4 w-4" />
-              Ranks
-            </TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-5">
+          <TabsList
+            data-no-auto-contrast
+            className="challenges-hub-tabs relative grid w-full grid-cols-5 h-11 p-1 rounded-2xl border border-foreground/[0.08] bg-foreground/[0.04]"
+          >
+            {(
+              [
+                { value: 'all', label: 'All', icon: Target },
+                { value: 'daily', label: 'Daily', icon: Zap },
+                { value: 'weekly', label: 'Weekly', icon: Clock },
+                { value: 'achievements', label: 'Perm.', icon: Trophy },
+                { value: 'ranks', label: 'Ranks', icon: Crown },
+              ] as const
+            ).map(({ value, label, icon: Icon }) => {
+              const isActive = activeTab === value;
+              return (
+                <TabsTrigger
+                  key={value}
+                  value={value}
+                  className={cn(
+                    'relative z-10 flex flex-col items-center justify-center gap-0.5 rounded-xl h-full min-w-0 px-0.5 border-0 shadow-none',
+                    'bg-transparent hover:bg-foreground/[0.04]',
+                    'data-[state=active]:bg-transparent data-[state=active]:border-0 data-[state=active]:shadow-none',
+                    isActive ? 'text-primary-foreground' : 'text-muted-foreground',
+                  )}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="challenges-hub-tab-pill"
+                      className="absolute inset-0.5 rounded-xl challenges-tab-pill-active"
+                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    />
+                  )}
+                  <Icon className="relative z-10 h-3.5 w-3.5 shrink-0" />
+                  <span className="relative z-10 text-[10px] font-semibold leading-none truncate max-w-full">
+                    {label}
+                  </span>
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
         </Tabs>
 
@@ -545,23 +563,20 @@ export default function ChallengesHubPage() {
                         className={cn(
                           "p-4 relative overflow-hidden transition-colors",
                           challenge.is_completed 
-                            ? "border-green-500/30" 
+                            ? "border-green-500/35 bg-green-500/[0.04]" 
                             : "hover:border-primary/40"
                         )}
                       >
-                        <div className={cn(
-                          "flex items-start gap-4 transition-all",
-                          challenge.is_completed && challenge.is_claimed && "blur-[2px] opacity-50"
-                        )}>
+                        <div className="flex items-start gap-3">
                           {/* Icon */}
                           <div className={cn(
-                            "h-12 w-12 rounded-xl flex items-center justify-center shrink-0",
+                            "h-11 w-11 rounded-xl flex items-center justify-center shrink-0",
                             challenge.is_completed ? 'bg-green-500/20' : (config?.bgColor || 'bg-secondary')
                           )}>
                             {challenge.is_completed ? (
-                              <CheckCircle2 className="h-6 w-6 text-green-500" />
+                              <CheckCircle2 className="h-5 w-5 text-green-500" />
                             ) : (
-                              <Icon className={cn("h-6 w-6", config?.color)} />
+                              <Icon className={cn("h-5 w-5", config?.color)} />
                             )}
                           </div>
                           
@@ -599,18 +614,12 @@ export default function ChallengesHubPage() {
                           </div>
                         </div>
                         
-                        {/* Green completed overlay with centered text */}
+                        {/* Completed badge — corner, not full-card overlay */}
                         {challenge.is_completed && challenge.is_claimed && (
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="absolute inset-0 flex items-center justify-center bg-green-500/15 backdrop-blur-[1px] rounded-xl z-10"
-                          >
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/20 border border-green-500/30">
-                              <CheckCircle2 className="h-5 w-5 text-green-400" />
-                              <span className="font-bold text-green-400 text-sm tracking-wide">COMPLETED</span>
-                            </div>
-                          </motion.div>
+                          <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/15 border border-green-500/30 backdrop-blur-sm">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
+                            <span className="text-[10px] font-bold text-green-400 tracking-wide">Done</span>
+                          </div>
                         )}
                         
                         {/* Claim button for completed but unclaimed */}

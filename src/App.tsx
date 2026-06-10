@@ -88,6 +88,7 @@ import { markPersistRestored } from "@/lib/persistRestoreGate";
 import { SnapARProvider } from "@/components/camera/SnapARProvider";
 import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery";
 import { syncNativeTrackingConsent } from "@/lib/att";
+import { readSplashCompleted, markSplashCompleted } from "@/lib/splashSession";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -193,8 +194,15 @@ function ScrollRestoration() {
 // Lazy-load ban check
 const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
-// Track if initial load has completed (persists across navigations)
-let hasInitialLoadCompleted = false;
+// Track if initial load has completed (persists across navigations in this tab)
+let hasInitialLoadCompleted = readSplashCompleted();
+
+function completeInitialSplash(setShowSplash: (v: boolean) => void) {
+  setShowSplash(false);
+  hasInitialLoadCompleted = true;
+  markSplashCompleted();
+  ensureAppShellVisible();
+}
 
 // Background brief pre-fetcher (needs auth context)
 function BriefPreFetchInit() {
@@ -273,8 +281,7 @@ function AppWithPreloader() {
     const preloaderDone = preloadStatus.isComplete;
     const authDone = authResolved;
     if (preloaderDone && authDone) {
-      setShowSplash(false);
-      hasInitialLoadCompleted = true;
+      completeInitialSplash(setShowSplash);
     }
   }, [preloadStatus.isComplete, showSplash, authResolved, hasSession]);
 
@@ -283,9 +290,8 @@ function AppWithPreloader() {
     if (!showSplash) return;
     const absoluteMax = setTimeout(() => {
       syncNativeTrackingConsent();
-      setShowSplash(false);
-      hasInitialLoadCompleted = true;
-    }, isNativePerfMode() ? 2800 : 6500);
+      completeInitialSplash(setShowSplash);
+    }, isNativePerfMode() ? 2800 : 4500);
     return () => clearTimeout(absoluteMax);
   }, [showSplash]);
 
@@ -310,8 +316,7 @@ function AppWithPreloader() {
       const attempt = () => {
         if (!showSplashRef.current) return true;
         if (preloadCompleteRef.current && authResolvedRef.current) {
-          setShowSplash(false);
-          hasInitialLoadCompleted = true;
+          completeInitialSplash(setShowSplash);
           return true;
         }
         return false;
@@ -325,8 +330,7 @@ function AppWithPreloader() {
         if (attempt() || tries >= 45) {
           window.clearInterval(poll);
           if (showSplashRef.current && tries >= 45) {
-            setShowSplash(false);
-            hasInitialLoadCompleted = true;
+            completeInitialSplash(setShowSplash);
           }
         }
       }, 100);

@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Trash2, UsersRound, UserPlus, Sparkles } from 'lucide-react';
+import { Search, Trash2, UsersRound, UserPlus, Sparkles, Smile } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -54,9 +54,9 @@ export function DMsHeader({
       {/* Aurora wash behind header */}
       <div className="dm-header-aurora pointer-events-none" aria-hidden />
 
-      <div className="relative z-10 px-4 pt-[max(0.75rem,var(--sat,env(safe-area-inset-top)))] pb-3">
-        {/* Top bar */}
-        <div className="flex items-center justify-between gap-3 mb-4">
+      <div className="relative z-10 px-3 pt-[max(0.5rem,var(--sat,env(safe-area-inset-top)))] pb-2">
+        {/* Top bar — single row */}
+        <div className="flex items-center gap-2 mb-2">
           <button
             type="button"
             onClick={() => profile && navigate(`/u/${profile.username}`)}
@@ -71,72 +71,86 @@ export function DMsHeader({
                   : 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)))',
               }}
             />
-            <Avatar className="relative h-10 w-10 ring-2 ring-background/80 shadow-lg">
+            <Avatar className="relative h-8 w-8 ring-2 ring-background/80 shadow-md">
               <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-primary to-accent text-primary-foreground">
+              <AvatarFallback className="text-[10px] font-bold bg-gradient-to-br from-primary to-accent text-primary-foreground">
                 {profile?.username?.[0]?.toUpperCase()}
               </AvatarFallback>
             </Avatar>
           </button>
 
-          <div className="flex-1 flex flex-col items-center min-w-0">
-            <div className="flex items-center gap-1.5">
-              <VybeMiniIcon size={16} showSparkles className="text-primary shrink-0" />
-              <h1 className="dm-title text-xl font-black tracking-tight">
-                Messages
-              </h1>
-              {totalUnreadCount > 0 && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="dm-unread-orb text-[10px] font-bold tabular-nums"
-                >
-                  {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
-                </motion.span>
-              )}
-            </div>
-            <StatusPicker />
+          <div className="flex-1 flex items-center gap-1.5 min-w-0">
+            <VybeMiniIcon size={14} showSparkles className="text-primary shrink-0" />
+            <h1 className="dm-title text-lg font-black tracking-tight shrink-0">
+              Messages
+            </h1>
+            {totalUnreadCount > 0 && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="dm-unread-orb text-[9px] font-bold tabular-nums shrink-0"
+              >
+                {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+              </motion.span>
+            )}
+            <StatusPicker
+              trigger={
+                <Button variant="ghost" size="sm" className="rounded-full gap-1 text-[10px] h-6 px-2 min-w-0 max-w-[7.5rem]">
+                  {myStatus ? (
+                    <>
+                      <span className="shrink-0">{myStatus.emoji}</span>
+                      <span className="truncate">{myStatus.text}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Smile className="h-3 w-3 shrink-0" />
+                      <span className="truncate">Vibe</span>
+                    </>
+                  )}
+                </Button>
+              }
+            />
           </div>
 
-          <div className="flex items-center gap-0.5 flex-shrink-0">
+          <div className="flex items-center gap-0 flex-shrink-0">
             <TrashBin
               open={isTrashOpen}
               onOpenChange={onTrashOpenChange}
               trigger={
-                <Button size="icon" variant="ghost" className="dm-icon-btn h-9 w-9 rounded-full">
-                  <Trash2 className="h-4 w-4" />
+                <Button size="icon" variant="ghost" className="dm-icon-btn h-8 w-8 rounded-full">
+                  <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               }
             />
             <Button
               size="icon"
               variant="ghost"
-              className="dm-icon-btn h-9 w-9 rounded-full"
+              className="dm-icon-btn h-8 w-8 rounded-full"
               onClick={onCreateGroup}
             >
-              <UsersRound className="h-4 w-4" />
+              <UsersRound className="h-3.5 w-3.5" />
             </Button>
             <Button
               size="icon"
               variant="ghost"
-              className="dm-icon-btn dm-icon-btn--accent h-9 w-9 rounded-full"
+              className="dm-icon-btn dm-icon-btn--accent h-8 w-8 rounded-full"
               onClick={() => navigate('/messages/new')}
             >
-              <UserPlus className="h-4 w-4" />
+              <UserPlus className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
 
-        {/* Glass search */}
-        <div className="relative mb-3">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70 pointer-events-none" />
+        {/* Search */}
+        <div className="relative mb-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70 pointer-events-none" />
           <Input
-            placeholder="Search vibes & chats…"
+            placeholder="Search chats…"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="dm-search pl-10 h-10 rounded-2xl border-0 text-sm"
+            className="dm-search pl-9 h-9 rounded-xl border-0 text-sm"
           />
-          <Sparkles className="absolute right-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary/40 pointer-events-none" />
+          <Sparkles className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-primary/40 pointer-events-none" />
         </div>
 
         {/* Filter strip */}
@@ -161,7 +175,7 @@ function DMFilterStrip({
   }, [active]);
 
   return (
-    <div ref={stripRef} className="dm-filter-strip flex gap-1 p-1 rounded-2xl overflow-x-auto no-scrollbar">
+    <div ref={stripRef} className="dm-filter-strip flex gap-0.5 p-0.5 rounded-xl overflow-x-auto no-scrollbar">
       {FILTER_TABS.map((tab) => {
         const isActive = active === tab.key;
         return (
@@ -174,14 +188,14 @@ function DMFilterStrip({
               onChange(tab.key);
             }}
             className={cn(
-              'relative flex-shrink-0 px-4 py-2 rounded-xl text-xs font-semibold transition-colors z-[1]',
+              'relative flex-shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors z-[1]',
               isActive ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
             )}
           >
             {isActive && (
               <motion.div
                 layoutId="dm-filter-pill"
-                className="absolute inset-0 rounded-xl dm-filter-pill-active"
+                className="absolute inset-0 rounded-lg dm-filter-pill-active"
                 transition={{ type: 'spring', bounce: 0.2, duration: 0.45 }}
               />
             )}

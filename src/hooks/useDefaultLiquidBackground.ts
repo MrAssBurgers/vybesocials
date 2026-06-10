@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useAppBackground } from '@/components/layout/AppBackground';
 import { STABLE_APP_BACKGROUND } from '@/lib/appBackgroundMode';
-import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isAuthLiquidPath, isExcludedLiquidPath } from '@/lib/vybeLiquidPaths';
 
 /** Primary app surfaces where guests can browse without signing in */
@@ -15,14 +14,11 @@ function isGuestAppPath(pathname: string): boolean {
   );
 }
 
-function canUseDefaultLiquidExperience(
-  hasUserWallpaper: boolean,
-  isBackgroundResolved: boolean,
-): boolean {
+function canUseDefaultLiquidExperience(hasUserWallpaper: boolean): boolean {
   if (STABLE_APP_BACKGROUND || hasUserWallpaper) return false;
-  // Native uses mesh-only aurora (no blobs/touch) — don't wait on bg DB fetch.
-  if (isNativePerfMode()) return true;
-  return isBackgroundResolved;
+  // Always show aurora when there is no custom wallpaper — including while the
+  // background DB fetch is in flight. Hiding aurora during fetch caused black flashes.
+  return true;
 }
 
 /**
@@ -31,27 +27,27 @@ function canUseDefaultLiquidExperience(
  */
 export function useDefaultLiquidBackground(): boolean {
   const { user } = useAuth();
-  const { hasUserWallpaper, isBackgroundResolved } = useAppBackground();
+  const { hasUserWallpaper } = useAppBackground();
   const { pathname } = useLocation();
 
   return useMemo(() => {
-    if (!canUseDefaultLiquidExperience(hasUserWallpaper, isBackgroundResolved)) return false;
+    if (!canUseDefaultLiquidExperience(hasUserWallpaper)) return false;
     if (isExcludedLiquidPath(pathname)) return false;
     if (user) return true;
     return isGuestAppPath(pathname);
-  }, [user, hasUserWallpaper, isBackgroundResolved, pathname]);
+  }, [user, hasUserWallpaper, pathname]);
 }
 
 /** Inline aurora on auth Landing — off in stable mode. */
 export function useAuthLandingLiquid(): boolean {
-  const { hasUserWallpaper, isBackgroundResolved } = useAppBackground();
+  const { hasUserWallpaper } = useAppBackground();
   const { pathname } = useLocation();
 
   return useMemo(
     () =>
-      canUseDefaultLiquidExperience(hasUserWallpaper, isBackgroundResolved) &&
+      canUseDefaultLiquidExperience(hasUserWallpaper) &&
       isAuthLiquidPath(pathname),
-    [hasUserWallpaper, isBackgroundResolved, pathname],
+    [hasUserWallpaper, pathname],
   );
 }
 
