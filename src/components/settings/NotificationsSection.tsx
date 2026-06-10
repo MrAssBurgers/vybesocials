@@ -173,7 +173,7 @@ export function NotificationsSection() {
               key={key}
               title={label}
               description={desc}
-              checked={(prefs as Record<string, boolean | undefined>)?.[key] ?? true}
+              checked={(prefs as unknown as Record<string, boolean | undefined>)?.[key] ?? true}
               onCheckedChange={(v) => handleToggle(key, v)}
             />
           ))}
