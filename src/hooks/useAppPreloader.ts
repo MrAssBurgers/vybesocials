@@ -410,7 +410,8 @@ function warmUserCaches(
       .select('*')
       .eq('user_id', uid)
       .maybeSingle()
-      .then(({ data: prefsRow }) => {
+      .then(({ data }) => {
+        const prefsRow = data as any;
         if (prefsRow) {
           queryClient.setQueryData(['user-preferences', uid], {
             clips_muted: prefsRow.clips_muted ?? true,
@@ -424,9 +425,9 @@ function warmUserCaches(
           });
         }
       }),
-    supabase
+    (supabase as any)
       .rpc('ensure_user_level', { p_user_id: uid })
-      .then(({ data: levelRow }) => {
+      .then(({ data: levelRow }: { data: any }) => {
         if (levelRow) queryClient.setQueryData(['user-level', uid], levelRow);
       }),
     supabase
