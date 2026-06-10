@@ -1,16 +1,11 @@
-import type { Room } from '@/hooks/useCommunities';
-import type { Channel } from '@/hooks/useServers';
-
-type AnyChannel = Partial<Room> & Partial<Channel> & Record<string, unknown>;
-
-export function isVoiceChannel(channel: AnyChannel) {
-  return (channel as any).type === 'voice' || (channel as any).room_type === 'live';
+export function isVoiceChannel(channel: { type?: string; room_type?: string }) {
+  return channel.type === 'voice' || channel.room_type === 'live';
 }
 
-export function isTextChannel(channel: AnyChannel) {
-  return !isVoiceChannel(channel) && (channel as any).type !== 'announcement';
+export function isTextChannel(channel: { type?: string; room_type?: string }) {
+  return !isVoiceChannel(channel) && channel.type !== 'announcement';
 }
 
-export function isAnnouncementChannel(channel: AnyChannel) {
-  return (channel as any).type === 'announcement' || (channel as any).room_type === 'announcements';
+export function isAnnouncementChannel(channel: { type?: string; room_type?: string }) {
+  return channel.type === 'announcement' || channel.room_type === 'announcements';
 }
