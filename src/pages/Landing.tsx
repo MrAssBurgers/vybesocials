@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth, waitForAuthSession } from '@/lib/auth';
+import { getPostLoginPath } from '@/lib/authReturnPath';
 import { isLovablePreviewHost } from '@/lib/lovablePreview';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

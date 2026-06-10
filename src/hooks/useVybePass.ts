@@ -71,7 +71,7 @@ export function useUserLevel() {
       
       if (!data) {
         try {
-          await supabase.rpc('ensure_user_level', { p_user_id: authUserId });
+          await (supabase as any).rpc('ensure_user_level', { p_user_id: authUserId });
           const { data: retryData } = await supabase
             .from('user_levels')
             .select('*')

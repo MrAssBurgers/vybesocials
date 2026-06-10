@@ -98,7 +98,7 @@ export default function WatchPage() {
   useEffect(() => {
     if (!isPlaying || !id || hasCountedView.current) return;
     hasCountedView.current = true;
-    supabase.rpc('increment_view_count', { post_id_param: id }).catch(() => {});
+    void supabase.rpc('increment_view_count', { post_id_param: id }).then(() => {}, () => {});
   }, [isPlaying, id]);
 
   // Fetch like/bookmark status

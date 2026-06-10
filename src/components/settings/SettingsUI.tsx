@@ -1,7 +1,7 @@
-import { type ReactNode, type LucideIcon, type ComponentPropsWithoutRef } from 'react';
+import { type ReactNode, type ComponentPropsWithoutRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 
