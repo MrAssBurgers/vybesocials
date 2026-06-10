@@ -7,6 +7,8 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import { useNextLevelProgress } from '@/hooks/useVybePass';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { isRawId } from '@/lib/profileCache';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function GreetingWidget() {
   const { profile } = useAuth();
@@ -22,7 +24,33 @@ export function GreetingWidget() {
     return 'Good night';
   }, []);
 
-  if (!profile) return null;
+  if (!profile) {
+    return (
+      <div className="home-hero relative mx-3 mb-1 overflow-hidden rounded-3xl px-4 py-5">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-14 w-14 rounded-full shrink-0" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-28" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isRawId(profile.username)) {
+    return (
+      <div className="home-hero relative mx-3 mb-1 overflow-hidden rounded-3xl px-4 py-5">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-14 w-14 rounded-full shrink-0 animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-5 w-36 animate-pulse" />
+            <p className="text-xs text-muted-foreground">Loading your profile…</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="home-hero relative mx-3 mb-1 overflow-hidden rounded-3xl">

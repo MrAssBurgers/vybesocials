@@ -20,8 +20,16 @@ export function useActivityStats() {
       const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
-      // Run all queries in parallel - lightweight counts only
-      const [postsRes, levelUpsRes, badgesRes, chatsRes] = await Promise.all([
+      const empty: ActivityStats = {
+        recentPosts: 0,
+        activeLevelUps: 0,
+        badgesClaimed: 0,
+        activeChats: 0,
+      };
+
+      try {
+        // Run all queries in parallel - lightweight counts only
+        const [postsRes, levelUpsRes, badgesRes, chatsRes] = await Promise.all([
         // Posts in last 5 minutes
         supabase
           .from('posts')
@@ -52,9 +60,19 @@ export function useActivityStats() {
         badgesClaimed: badgesRes.count || 0,
         activeChats: chatsRes.count || 0,
       };
+      } catch {
+        return empty;
+      }
     },
     staleTime: 1000 * 60, // 60s
     refetchInterval: 1000 * 60, // auto-refresh every 60s
+    retry: false,
+    placeholderData: {
+      recentPosts: 0,
+      activeLevelUps: 0,
+      badgesClaimed: 0,
+      activeChats: 0,
+    },
   });
 }
 

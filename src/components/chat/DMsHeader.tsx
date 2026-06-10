@@ -1,13 +1,12 @@
 import { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Trash2, UsersRound, UserPlus, Sparkles, Smile } from 'lucide-react';
+import { Search, Trash2, UsersRound, UserPlus, Smile } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
-import { StatusPicker, getVibeColor } from '@/components/status/StatusPicker';
+import { StatusPicker } from '@/components/status/StatusPicker';
 import { useBatchUserStatuses } from '@/hooks/useUserStatus';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
@@ -47,72 +46,58 @@ export function DMsHeader({
   const { profile } = useAuth();
   const { data: statusMap = new Map() } = useBatchUserStatuses(profile?.user_id ? [profile.user_id] : []);
   const myStatus = profile?.user_id ? statusMap.get(profile.user_id) : undefined;
-  const vibeColor = myStatus ? getVibeColor(myStatus.emoji) : undefined;
 
   return (
     <header className="dm-header flex-shrink-0 relative">
       {/* Aurora wash behind header */}
       <div className="dm-header-aurora pointer-events-none" aria-hidden />
 
-      <div className="relative z-10 px-3 pt-[max(0.5rem,var(--sat,env(safe-area-inset-top)))] pb-2">
-        {/* Top bar — single row */}
-        <div className="flex items-center gap-2 mb-2">
+      <div className="relative z-10 px-4 pt-[max(0.5rem,var(--sat,env(safe-area-inset-top)))] pb-0">
+        {/* Top bar */}
+        <div className="flex items-center gap-2.5 mb-3">
           <button
             type="button"
             onClick={() => profile && navigate(`/u/${profile.username}`)}
-            className="relative flex-shrink-0 group"
+            className="relative flex-shrink-0"
             aria-label="Your profile"
           >
-            <div
-              className="absolute -inset-0.5 rounded-full opacity-60 blur-md transition-opacity group-active:opacity-100"
-              style={{
-                background: vibeColor
-                  ? `linear-gradient(135deg, ${vibeColor}, hsl(var(--accent)))`
-                  : 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)))',
-              }}
-            />
-            <Avatar className="relative h-8 w-8 ring-2 ring-background/80 shadow-md">
+            <Avatar className="h-9 w-9 ring-2 ring-primary/30 shadow-sm">
               <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="text-[10px] font-bold bg-gradient-to-br from-primary to-accent text-primary-foreground">
+              <AvatarFallback className="text-[11px] font-bold bg-gradient-to-br from-primary to-accent text-primary-foreground">
                 {profile?.username?.[0]?.toUpperCase()}
               </AvatarFallback>
             </Avatar>
           </button>
 
-          <div className="flex-1 flex items-center gap-1.5 min-w-0">
-            <VybeMiniIcon size={14} showSparkles className="text-primary shrink-0" />
-            <h1 className="dm-title text-lg font-black tracking-tight shrink-0">
-              Messages
-            </h1>
-            {totalUnreadCount > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="dm-unread-orb text-[9px] font-bold tabular-nums shrink-0"
-              >
-                {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
-              </motion.span>
-            )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-[1.125rem] font-bold tracking-tight text-foreground">
+                Chat
+              </h1>
+              {totalUnreadCount > 0 && (
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="dm-unread-orb text-[9px] font-bold tabular-nums shrink-0"
+                >
+                  {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                </motion.span>
+              )}
+            </div>
             <StatusPicker
               trigger={
-                <Button variant="ghost" size="sm" className="rounded-full gap-1 text-[10px] h-6 px-2 min-w-0 max-w-[7.5rem]">
+                <Button variant="ghost" size="sm" className="h-6 px-0 min-w-0 -ml-1 text-[11px] text-muted-foreground hover:text-foreground">
                   {myStatus ? (
-                    <>
-                      <span className="shrink-0">{myStatus.emoji}</span>
-                      <span className="truncate">{myStatus.text}</span>
-                    </>
+                    <span className="truncate">{myStatus.emoji} {myStatus.text}</span>
                   ) : (
-                    <>
-                      <Smile className="h-3 w-3 shrink-0" />
-                      <span className="truncate">Vibe</span>
-                    </>
+                    <span className="flex items-center gap-1"><Smile className="h-3 w-3" /> Set vibe</span>
                   )}
                 </Button>
               }
             />
           </div>
 
-          <div className="flex items-center gap-0 flex-shrink-0">
+          <div className="flex items-center gap-0.5 flex-shrink-0">
             <TrashBin
               open={isTrashOpen}
               onOpenChange={onTrashOpenChange}
@@ -142,15 +127,14 @@ export function DMsHeader({
         </div>
 
         {/* Search */}
-        <div className="relative mb-2">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70 pointer-events-none" />
+        <div className="relative mb-3">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60 pointer-events-none" />
           <Input
-            placeholder="Search chats…"
+            placeholder="Search"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="dm-search pl-9 h-9 rounded-xl border-0 text-sm"
+            className="dm-search pl-10 h-10 rounded-full border-0 text-sm"
           />
-          <Sparkles className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-primary/40 pointer-events-none" />
         </div>
 
         {/* Filter strip */}
@@ -175,7 +159,7 @@ function DMFilterStrip({
   }, [active]);
 
   return (
-    <div ref={stripRef} className="dm-filter-strip flex gap-0.5 p-0.5 rounded-xl overflow-x-auto no-scrollbar">
+    <div ref={stripRef} className="dm-filter-strip flex overflow-x-auto no-scrollbar -mx-4 px-4">
       {FILTER_TABS.map((tab) => {
         const isActive = active === tab.key;
         return (
@@ -188,21 +172,21 @@ function DMFilterStrip({
               onChange(tab.key);
             }}
             className={cn(
-              'relative flex-shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors z-[1]',
-              isActive ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+              'dm-filter-tab flex-shrink-0 flex-1 text-center',
+              isActive && 'dm-filter-tab--active',
             )}
           >
-            {isActive && (
-              <motion.div
-                layoutId="dm-filter-pill"
-                className="absolute inset-0 rounded-lg dm-filter-pill-active"
-                transition={{ type: 'spring', bounce: 0.2, duration: 0.45 }}
-              />
-            )}
-            <span className="relative z-[1] flex items-center gap-1">
+            <span className="relative z-[1] inline-flex items-center justify-center gap-1">
               {tab.key === 'streaks' && <span className="text-sm leading-none">🔥</span>}
               {tab.label}
             </span>
+            {isActive && (
+              <motion.div
+                layoutId="dm-filter-underline"
+                className="dm-filter-tab-underline"
+                transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
+              />
+            )}
           </button>
         );
       })}

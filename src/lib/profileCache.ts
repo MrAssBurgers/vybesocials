@@ -7,10 +7,12 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface CachedProfile {
   id: string;
+  user_id?: string;
   username: string;
   display_name: string | null;
   avatar_url: string | null;
   bio?: string;
+  onboarding_completed?: boolean;
 }
 
 // In-memory cache for instant lookups
@@ -61,12 +63,21 @@ export function getCachedCurrentProfile(): CachedProfile | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed.id !== 'string' || typeof parsed.username !== 'string') return null;
-    const profile = {
+    if (isRawId(parsed.username)) {
+      try {
+        localStorage.removeItem(CURRENT_PROFILE_KEY);
+      } catch { /* ignore */ }
+      return null;
+    }
+    const profile: CachedProfile = {
       id: parsed.id,
+      user_id: typeof parsed.user_id === 'string' ? parsed.user_id : undefined,
       username: parsed.username,
       display_name: typeof parsed.display_name === 'string' ? parsed.display_name : null,
       avatar_url: typeof parsed.avatar_url === 'string' ? parsed.avatar_url : null,
       bio: typeof parsed.bio === 'string' ? parsed.bio : '',
+      onboarding_completed:
+        typeof parsed.onboarding_completed === 'boolean' ? parsed.onboarding_completed : true,
     };
     setCachedProfile(profile);
     return profile;

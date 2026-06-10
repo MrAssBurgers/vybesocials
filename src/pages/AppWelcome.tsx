@@ -141,8 +141,9 @@ export default function AppWelcome() {
                       <img
                         src={s.image}
                         alt={s.title}
-                        loading="lazy"
-                        className="h-full w-full object-contain"
+                        loading={i < 2 ? 'eager' : 'lazy'}
+                        decoding="async"
+                        className="h-full w-full object-cover object-top"
                       />
                       {/* Subtle gloss */}
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-white/0 via-white/[0.04] to-white/0" />

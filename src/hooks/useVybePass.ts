@@ -52,28 +52,30 @@ export interface ChallengeReward {
 }
 
 export function useUserLevel() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const queryClient = useQueryClient();
+  const authUserId = profile?.user_id || user?.id;
 
   return useQuery({
-    queryKey: ['user-level', profile?.user_id],
+    queryKey: ['user-level', authUserId],
     queryFn: async () => {
-      if (!profile?.user_id) return null;
+      if (!authUserId) return null;
       
       const { data, error } = await supabase
         .from('user_levels')
         .select('*')
-        .eq('user_id', profile.user_id)
+        .eq('user_id', authUserId)
         .maybeSingle();
       
       if (error) throw error;
       
       if (!data) {
         try {
-          await supabase.rpc('ensure_user_level');
+          await supabase.rpc('ensure_user_level', { p_user_id: authUserId });
           const { data: retryData } = await supabase
             .from('user_levels')
             .select('*')
-            .eq('user_id', profile.user_id)
+            .eq('user_id', authUserId)
             .maybeSingle();
           if (retryData) {
             return {
@@ -93,8 +95,12 @@ export function useUserLevel() {
         unclaimed_rewards: (Array.isArray(data.unclaimed_rewards) ? data.unclaimed_rewards : []) as unknown as VybePassReward[],
       } as UserLevel;
     },
-    enabled: !!profile?.user_id,
+    enabled: !!authUserId,
     staleTime: 1000 * 60 * 2,
+    placeholderData: () =>
+      authUserId
+        ? queryClient.getQueryData<UserLevel>(['user-level', authUserId]) ?? undefined
+        : undefined,
   });
 }
 

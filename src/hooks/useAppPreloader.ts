@@ -9,6 +9,7 @@ import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloa
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isSetupRoutePath } from '@/lib/splashSession';
+import { getCachedCurrentProfile } from '@/lib/profileCache';
 
 interface PreloadStatus {
   step: string;
@@ -50,7 +51,7 @@ export function useAppPreloader() {
     const t = setTimeout(() => {
       markPersistRestored();
       setRestoreReady(true);
-    }, isNativePerfMode() ? 180 : 600);
+    }, isNativePerfMode() ? 120 : 250);
     return () => clearTimeout(t);
   }, [restoreReady]);
 
@@ -108,21 +109,25 @@ export function useAppPreloader() {
       return;
     }
 
-    // Warm cache or returning native user — skip network splash work.
+    // Returning user — skip splash network work; hydrate in background.
     if (
       hasWarmOfflineCache(queryClient) ||
-      (isNativePerfMode() && hasStoredSupabaseSession())
+      hasStoredSupabaseSession() ||
+      getCachedCurrentProfile()
     ) {
       console.log('[Preloader] Fast path — instant ready');
       setStatus({ step: 'Ready!', progress: 100, isComplete: true });
-      requestAnimationFrame(() => preloadCriticalRoutes());
+      requestAnimationFrame(() => {
+        preloadCriticalRoutes();
+        void warmLoggedInCaches(queryClient);
+      });
       return;
     }
 
     // Safety timeout — never block the UI on network.
     const safetyTimeout = setTimeout(() => {
-      animateTo(100, 'Ready!', true);
-    }, isNativePerfMode() ? 200 : 350);
+      setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+    }, isNativePerfMode() ? 120 : 180);
 
     const preload = async () => {
       const startTime = performance.now();
@@ -179,11 +184,8 @@ export function useAppPreloader() {
             }
           });
 
-          updateStatus('clips');
-          updateStatus('final');
-
           console.log(`[Preloader] Guest mode ready (non-blocking) - ${(performance.now() - startTime).toFixed(0)}ms`);
-          updateStatus('ready');
+          setStatus({ step: 'Ready!', progress: 100, isComplete: true });
           return;
         }
 
@@ -215,58 +217,10 @@ export function useAppPreloader() {
           queryClient.setQueryData(['profile', profileId], profileData);
         }
 
-        // Step 3b: Warm level + preferences so header/nav badges render instantly.
+        // Step 3b+: warm caches in background — never block splash exit.
         if (profileId && uid) {
-          updateStatus('profile', 0.5);
-          try {
-            await Promise.race([
-              Promise.allSettled([
-                supabase
-                  .from('user_preferences' as any)
-                  .select('*')
-                  .eq('user_id', uid)
-                  .maybeSingle()
-                  .then(({ data: prefsRow }) => {
-                    if (prefsRow) {
-                      queryClient.setQueryData(['user-preferences', uid], {
-                        clips_muted: prefsRow.clips_muted ?? true,
-                        explore_view_mode: prefsRow.explore_view_mode ?? 'clips',
-                        button_sound: prefsRow.button_sound ?? 'pop',
-                        dismissed_quick_add_ids: prefsRow.dismissed_quick_add_ids ?? [],
-                        unlocked_easter_eggs: prefsRow.unlocked_easter_eggs ?? [],
-                        intro_completed: prefsRow.intro_completed ?? false,
-                        referral_confirmed: prefsRow.referral_confirmed ?? false,
-                        extra: prefsRow.extra ?? {},
-                      });
-                    }
-                  }),
-                supabase
-                  .rpc('ensure_user_level', { p_user_id: uid })
-                  .then(({ data: levelRow }) => {
-                    if (levelRow) {
-                      queryClient.setQueryData(['user-level', uid], levelRow);
-                    }
-                  }),
-                supabase
-                  .from('dna_agent_settings')
-                  .select('*')
-                  .eq('user_id', uid)
-                  .maybeSingle()
-                  .then(({ data: dnaRow }) => {
-                    if (dnaRow) {
-                      queryClient.setQueryData(['dna-agent-settings', uid], dnaRow);
-                    }
-                  }),
-              ]),
-              new Promise((resolve) => setTimeout(resolve, isNativePerfMode() ? 350 : 500)),
-            ]);
-          } catch {
-            /* splash continues */
-          }
+          void warmUserCaches(queryClient, uid, profileId);
         }
-
-        // Step 4: Fire feed + clips in background — DON'T block splash on them.
-        updateStatus('feed');
 
         if (profileId) {
           void prefetchDMConversations(queryClient, profileId);
@@ -302,9 +256,7 @@ export function useAppPreloader() {
           });
         }
 
-        updateStatus('clips');
-        updateStatus('final');
-        updateStatus('ready');
+        setStatus({ step: 'Ready!', progress: 100, isComplete: true });
 
         console.log(`[Preloader] Splash ready (non-blocking) - ${(performance.now() - startTime).toFixed(0)}ms`);
 
@@ -396,7 +348,7 @@ export function useAppPreloader() {
 
       } catch (error) {
         console.error('[Preloader] Error:', error);
-        animateTo(100, 'Ready!', true);
+        setStatus({ step: 'Ready!', progress: 100, isComplete: true });
       } finally {
         clearTimeout(safetyTimeout);
       }
@@ -410,6 +362,84 @@ export function useAppPreloader() {
   }, [restoreReady, queryClient, updateStatus, animateTo]);
 
   return status;
+}
+
+/** Background hydrate for returning users on the fast path. */
+async function warmLoggedInCaches(queryClient: ReturnType<typeof useQueryClient>) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+    const uid = session.user.id;
+
+    const cached = getCachedCurrentProfile();
+    if (cached) {
+      queryClient.setQueryData(['profile', cached.id], {
+        id: cached.id,
+        user_id: uid,
+        username: cached.username,
+        display_name: cached.display_name,
+        avatar_url: cached.avatar_url,
+        bio: cached.bio || '',
+      });
+      void warmUserCaches(queryClient, uid, cached.id);
+      return;
+    }
+
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle();
+    if (profileData?.id) {
+      queryClient.setQueryData(['profile', profileData.id], profileData);
+      void warmUserCaches(queryClient, uid, profileData.id);
+    }
+  } catch {
+    /* non-blocking */
+  }
+}
+
+function warmUserCaches(
+  queryClient: ReturnType<typeof useQueryClient>,
+  uid: string,
+  profileId: string,
+) {
+  void Promise.allSettled([
+    supabase
+      .from('user_preferences' as any)
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle()
+      .then(({ data: prefsRow }) => {
+        if (prefsRow) {
+          queryClient.setQueryData(['user-preferences', uid], {
+            clips_muted: prefsRow.clips_muted ?? true,
+            explore_view_mode: prefsRow.explore_view_mode ?? 'clips',
+            button_sound: prefsRow.button_sound ?? 'pop',
+            dismissed_quick_add_ids: prefsRow.dismissed_quick_add_ids ?? [],
+            unlocked_easter_eggs: prefsRow.unlocked_easter_eggs ?? [],
+            intro_completed: prefsRow.intro_completed ?? false,
+            referral_confirmed: prefsRow.referral_confirmed ?? false,
+            extra: prefsRow.extra ?? {},
+          });
+        }
+      }),
+    supabase
+      .rpc('ensure_user_level', { p_user_id: uid })
+      .then(({ data: levelRow }) => {
+        if (levelRow) queryClient.setQueryData(['user-level', uid], levelRow);
+      }),
+    supabase
+      .from('dna_agent_settings')
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle()
+      .then(({ data: dnaRow }) => {
+        if (dnaRow) queryClient.setQueryData(['dna-agent-settings', uid], dnaRow);
+      }),
+  ]);
+
+  void prefetchDMConversations(queryClient, profileId);
 }
 
 // Helper function to process raw stories into grouped format

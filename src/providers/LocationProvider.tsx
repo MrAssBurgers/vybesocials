@@ -1,6 +1,8 @@
 import { createContext, useContext, ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useBackgroundLocation, LocationState } from '@/hooks/useBackgroundLocation';
+import { isMapRoute } from '@/lib/locationRoutes';
 
 const LocationContext = createContext<LocationState>({
   coords: null,
@@ -16,7 +18,9 @@ export function useLocationContext() {
 
 export function LocationProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
-  const location = useBackgroundLocation(profile?.id);
+  const { pathname } = useLocation();
+  const watchPosition = isMapRoute(pathname);
+  const location = useBackgroundLocation(profile?.id, { watchPosition });
 
   return (
     <LocationContext.Provider value={location}>

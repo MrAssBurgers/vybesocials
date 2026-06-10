@@ -315,6 +315,14 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
   const navCentralVisible = useNavVisibility();
   const [inputFocused, setInputFocused] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [bootGrace, setBootGrace] = useState(true);
+
+  useEffect(() => {
+    navVisibility.forceShow();
+    navVisibility.resetScrollHide();
+    const t = window.setTimeout(() => setBootGrace(false), 600);
+    return () => window.clearTimeout(t);
+  }, []);
 
   // Hide nav when an input/textarea/contenteditable is focused, or when soft keyboard opens
   useEffect(() => {
@@ -335,22 +343,31 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
     document.addEventListener('focusout', onFocusOut);
 
     const vv = (window as any).visualViewport as VisualViewport | undefined;
+    const keyboardReadyRef = { current: false };
     const onVVResize = () => {
-      if (!vv) return;
-      setKeyboardOpen(vv.height < window.innerHeight - 100);
+      if (!vv || !keyboardReadyRef.current) return;
+      setKeyboardOpen(vv.height < window.innerHeight - 120);
     };
+    const keyboardReadyTimer = window.setTimeout(() => {
+      keyboardReadyRef.current = true;
+      onVVResize();
+    }, 600);
     vv?.addEventListener('resize', onVVResize);
     onVVResize();
 
     return () => {
+      window.clearTimeout(keyboardReadyTimer);
       document.removeEventListener('focusin', onFocusIn);
       document.removeEventListener('focusout', onFocusOut);
       vv?.removeEventListener('resize', onVVResize);
     };
   }, []);
 
-  const isVisible = scrollVisible && navCentralVisible && !inputFocused && !keyboardOpen;
-  const onboardingComplete = profile?.onboarding_completed === true;
+  const isVisible =
+    bootGrace ||
+    (scrollVisible && navCentralVisible && !inputFocused && !keyboardOpen);
+  // Only hide nav when onboarding is explicitly incomplete — not while profile is loading.
+  const onboardingComplete = profile?.onboarding_completed !== false;
 
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isHubOpen, setIsHubOpen] = useState(false);

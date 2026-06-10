@@ -24,10 +24,45 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **`ADMOB_SETUP.md`** — rewritten for Despia dashboard (not Capacitor)
 - **Build:** `npm run build` pass
 
+## What Changed (debug scan — 2026-06-10)
+- **`npm run debug`** — full scan script (build/lint/CSS, edge fn refs, production probes)
+- **`AGENTS.md`** — "do a debug" protocol for future sessions
+- **Scan results:** frontend PASS; production missing RPCs `get_public_user_count`, `sync_signup_username`; `ensure_user_level` OK (auth required); `community-voice-token` edge fn not deployed (livekit-token fallback OK)
+- **Blocker:** apply `supabase/manual/PENDING_20260530.sql` on prod `agtcyxjxgkdyoxwxkjth`; Lovable Backend deploy for new edge functions
+- **Local:** 22 modified files uncommitted — not on vybehub.app until Publish
+
+## What Changed (location + welcome/marketing preview — 2026-06-10)
+- **Location** — no GPS prompt on app boot; only watches position on `/map`; Local feed asks when that tab is opened; onboarding permissions unchanged
+- **`AppWelcome`** — phone screenshots use `object-cover` + eager load
+- **`VybeHome`** — marketing device PNGs via `publicAsset()`; hero phones animate on mount (fixes Lovable preview `whileInView` miss)
+- **`AIVybeDesigner`** — live preview cards no longer stuck invisible when animation gate fails
+- **`useActivityStats`** — fail-soft on preview DB (home “Live” ticker always renders)
+- **Build:** `npm run build` pass
+
+## What Changed (home boot — missing nav + skeleton hang — 2026-06-10)
+- **`BottomNav`** — show nav while profile loads; only hide when `onboarding_completed === false` (was hiding on undefined)
+- **`profileCache` / `auth`** — persist `user_id` + `onboarding_completed`; hydrate cached profile on boot; backfill auth user id
+- **`useUserLevel`** — query with `user.id` fallback so XP/level load without waiting on full profile
+- **Splash CSS** — stop forcing nav `opacity: 0` during splash (was leaving nav invisible after fast dismiss)
+- **Build:** `npm run build` pass
+
+## What Changed (boot speed — 2026-06-10)
+- **`useAppPreloader`** — instant ready for any returning user (stored session or cached profile); shorter persist gate; no blocking level/prefs wait; skip progress animation on exit
+- **`App.tsx`** — shorter auth/splash caps (2s web max); optimistic session when token in storage
+- **`BottomNav`** — boot grace 2.8s → 600ms
+- **`auth.tsx`** — faster getSession safety timeout
+- **Build:** `npm run build` pass
+
+## What Changed (boot nav + profile hydration — 2026-06-10)
+- **Bottom nav** — sync mobile detection on first paint; boot grace period; force-show after splash; main-tab recovery
+- **Splash CSS** — removed `#app-shell visibility:hidden` (fixed black screen / missing nav)
+- **Auth** — profile from disk cache on boot; rejects `user_xxxx` placeholders; greeting/XP skeletons while loading
+- **Build:** `npm run build` pass
+
 ## Next 3 Tasks
-1. User: confirm AdMob IDs in Despia dashboard match screenshot; rebuild native app
-2. Lovable Publish for web OTA (`vybehub.app`)
-3. Test Wallet → Watch ad on Despia Android build
+1. User: Lovable Publish for web OTA (`vybehub.app`) after boot-speed fix
+2. User: confirm AdMob IDs in Despia dashboard; rebuild native app
+3. Test cold start on device — splash should dismiss in ~1s for returning users
 
 ## What Changed (instant DMs + onboarding — 2026-06-09)
 - **`loadDMConversations.ts`** — shared fetch + nav/app prefetch for conversation list cache

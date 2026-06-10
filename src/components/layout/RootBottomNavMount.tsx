@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { BottomNav } from "./BottomNav";
+import { isMobileOrTabletViewport } from '@/lib/mobileViewport';
 import { useIsMobileOrTablet } from "@/hooks/use-mobile";
 import { navVisibility } from "@/lib/navVisibility";
 
@@ -37,6 +38,21 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
       setImmersiveHidden(!visible);
     });
   }, []);
+
+  useEffect(() => {
+    const path = location.pathname;
+    const isMainTab =
+      path === '/home' ||
+      path === '/clips' ||
+      path === '/explore' ||
+      path === '/messages' ||
+      path.startsWith('/settings') ||
+      /^\/u\/[^/]+$/.test(path);
+    if (isMainTab) {
+      navVisibility.forceShow();
+      navVisibility.resetScrollHide();
+    }
+  }, [location.pathname]);
   
   // Hide nav inside any messages sub-route (conversation, new message, etc.)
   const isInMessagesSubRoute = location.pathname.startsWith('/messages/');
@@ -45,7 +61,13 @@ export const RootBottomNavMount = memo(function RootBottomNavMount() {
   const isHiddenRoute = HIDDEN_NAV_ROUTES.includes(location.pathname);
   const hideForMedia = isFullscreenMediaRoute(location.pathname);
   const hideForImmersiveRoute = isImmersiveRoute(location.pathname) && immersiveHidden;
-  
-  if (!isMobileOrTablet || isInMessagesSubRoute || isHiddenRoute || hideForMedia || hideForImmersiveRoute) return null;
+  const showNav =
+    (isMobileOrTablet || isMobileOrTabletViewport()) &&
+    !isInMessagesSubRoute &&
+    !isHiddenRoute &&
+    !hideForMedia &&
+    !hideForImmersiveRoute;
+
+  if (!showNav) return null;
   return <BottomNav />;
 });

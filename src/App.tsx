@@ -89,6 +89,7 @@ import { SnapARProvider } from "@/components/camera/SnapARProvider";
 import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery";
 import { syncNativeTrackingConsent } from "@/lib/att";
 import { readSplashCompleted, markSplashCompleted } from "@/lib/splashSession";
+import { navVisibility } from "@/lib/navVisibility";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -201,7 +202,10 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   setShowSplash(false);
   hasInitialLoadCompleted = true;
   markSplashCompleted();
+  document.body.classList.remove('splash-visible');
   ensureAppShellVisible();
+  navVisibility.forceShow();
+  navVisibility.resetScrollHide();
 }
 
 // Background brief pre-fetcher (needs auth context)
@@ -226,12 +230,14 @@ function useAuthResolved() {
   const [hasSession, setHasSession] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    const authTimeoutMs = isNativePerfMode() && hasStoredSupabaseSession() ? 1200 : 5500;
+    const authTimeoutMs = hasStoredSupabaseSession()
+      ? (isNativePerfMode() ? 700 : 1000)
+      : (isNativePerfMode() ? 1200 : 1800);
     const forceDone = setTimeout(() => {
       if (!cancelled) setResolved(true);
     }, authTimeoutMs);
 
-    if (isNativePerfMode() && hasStoredSupabaseSession()) {
+    if (hasStoredSupabaseSession()) {
       setHasSession(true);
       setWasLoggedIn(true);
     }
@@ -291,7 +297,7 @@ function AppWithPreloader() {
     const absoluteMax = setTimeout(() => {
       syncNativeTrackingConsent();
       completeInitialSplash(setShowSplash);
-    }, isNativePerfMode() ? 2800 : 4500);
+    }, isNativePerfMode() ? 1600 : 2000);
     return () => clearTimeout(absoluteMax);
   }, [showSplash]);
 
@@ -299,6 +305,8 @@ function AppWithPreloader() {
   useEffect(() => {
     if (showSplash) return;
     ensureAppShellVisible();
+    navVisibility.forceShow();
+    navVisibility.resetScrollHide();
   }, [showSplash]);
 
   const showSplashRef = useRef(showSplash);

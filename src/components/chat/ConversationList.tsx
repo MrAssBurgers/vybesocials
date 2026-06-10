@@ -75,26 +75,23 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
     <button
       type="button"
       onClick={() => navigate('/VYBE-AI')}
-      className="dm-ai-row w-full flex items-center gap-2.5 text-left box-border"
+      className="dm-ai-row w-full flex items-center gap-3 text-left box-border"
     >
       <div className="relative flex-shrink-0">
-        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary blur-md opacity-50" />
-        <div className="relative h-10 w-10 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary shadow-md shadow-primary/30">
-          <div className="h-full w-full rounded-full bg-gradient-to-br from-background via-card to-background flex items-center justify-center overflow-hidden relative">
-            <VybeMiniIcon size={20} showSparkles className="relative z-10" />
+        <div className="h-12 w-12 rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary">
+          <div className="h-full w-full rounded-full bg-background flex items-center justify-center">
+            <VybeMiniIcon size={22} showSparkles />
           </div>
         </div>
-        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background" />
       </div>
-      <div className="flex-1 min-w-0 py-0.5">
-        <div className="flex items-center justify-between mb-0 gap-2">
-          <span className="font-semibold text-xs flex items-center gap-1 min-w-0">
-            <span className="truncate">{aiName}</span>
-            <VybeMiniIcon size={10} showSparkles className="flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline justify-between gap-2 mb-0.5">
+          <span className="font-semibold text-[0.9375rem] truncate flex items-center gap-1">
+            {aiName}
+            <span className="text-[9px] font-bold text-primary px-1.5 py-0.5 rounded-full bg-primary/10">AI</span>
           </span>
-          <span className="text-[8px] font-semibold text-primary px-1 py-0.5 bg-primary/10 rounded-full flex-shrink-0">AI</span>
         </div>
-        <p className="text-[11px] text-muted-foreground truncate leading-tight">{lastAIMessage.slice(0, 50)}...</p>
+        <p className="dm-convo-preview truncate">{lastAIMessage.slice(0, 48)}…</p>
       </div>
     </button>
   );
@@ -339,9 +336,7 @@ export function ConversationList() {
         <NotesRow />
 
         {/* AI Chat Row */}
-        <div className="px-2 pb-0.5">
-          <AutisyAIChatRow />
-        </div>
+        <AutisyAIChatRow />
 
         {pendingRequestCount > 0 && (
           <div className="px-3 pb-2">
@@ -364,7 +359,7 @@ export function ConversationList() {
         )}
 
         {/* Conversations */}
-        <div className="px-1.5 pb-3 space-y-0">
+        <div className="pb-3">
           {(filteredPinned.length > 0 || filteredUnpinned.length > 0) ? (
             <>
               {filteredPinned.map((conv) => (
@@ -564,34 +559,34 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
       <div className="relative flex-shrink-0">
         {conversation.is_group ? (
           <div className="relative">
-            <Avatar className="h-9 w-9 ring-2 ring-background shadow-sm">
+            <Avatar className="h-12 w-12">
               {avatarUrl ? (
                 <AvatarImage src={avatarUrl} />
               ) : (
-                <AvatarFallback className="text-base bg-gradient-to-br from-primary to-primary/60 text-primary-foreground">
+                <AvatarFallback className="text-sm bg-gradient-to-br from-primary to-primary/60 text-primary-foreground">
                   <Users className="h-5 w-5" />
                 </AvatarFallback>
               )}
             </Avatar>
-            <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[9px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center border-2 border-background">
+            <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center border-2 border-background">
               {memberCount}
             </div>
           </div>
         ) : (
           <button onClick={handleAvatarClick} className="block relative">
             <AvatarRing
-              size="md"
+              size="lg"
               variant={userStatus ? 'vibe' : 'default'}
               vibeColor={userStatus ? getVibeColor(userStatus.emoji) : undefined}
               vibeEmoji={userStatus?.emoji}
             >
               <div className={`relative ${hasStory ? 'p-0.5' : ''} w-full h-full`}>
                 {hasStory && (
-                  <div className={`absolute inset-0 rounded-full ${storyGroup?.hasUnviewed ? 'bg-gradient-to-tr from-primary via-primary/80 to-primary/60' : 'bg-muted-foreground/30'}`} />
+                  <div className={`absolute inset-0 rounded-full ${storyGroup?.hasUnviewed ? 'bg-gradient-to-tr from-primary via-accent to-primary' : 'bg-muted-foreground/25'}`} />
                 )}
-                <Avatar className={`h-full w-full ring-2 ring-background shadow-md ${hasStory ? 'relative' : ''}`}>
+                <Avatar className={`h-full w-full ${hasStory ? 'relative' : ''}`}>
                   <AvatarImage src={avatarUrl || undefined} />
-                  <AvatarFallback className="text-base">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
+                  <AvatarFallback className="text-sm font-semibold">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
               </div>
             </AvatarRing>
@@ -606,7 +601,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-0 gap-2">
+        <div className="flex items-baseline justify-between gap-2 mb-0.5">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {!conversation.is_group && otherMember ? (
               <StyledUsername
@@ -620,9 +615,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
             )}
             {!conversation.is_group && userRole && <ModBadge role={userRole} />}
             {conversation.is_group && (
-              <span className="text-[9px] text-muted-foreground bg-foreground/[0.06] px-1.5 py-0.5 rounded-full flex-shrink-0 border border-foreground/[0.08]">
-                Group
-              </span>
+              <span className="text-[10px] text-muted-foreground flex-shrink-0">Group</span>
             )}
             {!conversation.is_group && otherMember && isOwner(otherMember.username || '') && <OwnerBadge />}
             {!conversation.is_group && otherMember && isOwnerWife(otherMember.id) && <OwnerWifeRingBadge />}
@@ -634,22 +627,19 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
               />
             )}
           </div>
-          <div className="flex flex-col items-end gap-1 flex-shrink-0">
-            {unreadCount > 0 && <span className="dm-convo-activity-dot" aria-label="Unread" />}
-            {formattedTime && (
-              <span className="text-[10px] text-muted-foreground/80 whitespace-nowrap tabular-nums">
-                {formattedTime}
-              </span>
-            )}
-          </div>
+          {formattedTime && (
+            <span className="dm-convo-time whitespace-nowrap flex-shrink-0">
+              {formattedTime}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <div className="flex items-center gap-1 min-w-0 flex-1">
             {isTyping ? (
               <div className="flex items-center gap-1.5 text-primary">
                 <TypingIndicator size="sm" />
-                <span className="text-xs font-medium">typing</span>
+                <span className="text-xs font-medium">typing…</span>
               </div>
             ) : lastMessage ? (
               <>
@@ -670,7 +660,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
                     <span className="dm-convo-status-icon">◼</span>
                   )
                 )}
-                <p className="text-xs text-foreground/75 truncate flex-1 min-w-0 font-medium">
+                <p className="dm-convo-preview truncate flex-1 min-w-0">
                   {lastMessage.sender_id === currentUserId
                     ? lastMessage.viewed_at
                       ? 'Opened'
@@ -682,44 +672,42 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
                     : lastMessage.media_type === 'video'
                     ? 'Video'
                     : lastMessage.media_type === 'audio'
-                    ? 'Voice'
+                    ? 'Voice note'
                     : lastMessage.media_type === 'gif'
                     ? 'GIF'
                     : lastMessage.content?.startsWith('e2ee:')
                     ? 'Chat'
-                    : (lastMessage.content?.slice(0, 30) || 'Media') + (lastMessage.content && lastMessage.content.length > 30 ? '...' : '')}
+                    : (lastMessage.content?.slice(0, 40) || 'Media') + (lastMessage.content && lastMessage.content.length > 40 ? '…' : '')}
                 </p>
               </>
             ) : (otherMember as any)?.user_id ? (
-              <NowPlayingInline authUserId={(otherMember as any).user_id} className="truncate" />
+              <NowPlayingInline authUserId={(otherMember as any).user_id} className="truncate dm-convo-preview" />
             ) : null}
             {!isTyping && !lastMessage && userStatus && !(otherMember as any)?.user_id && (
-              <p className="text-xs text-muted-foreground/70 truncate italic">
+              <p className="dm-convo-preview truncate italic">
                 {userStatus.emoji} {userStatus.text}
               </p>
             )}
             {!isTyping && !lastMessage && conversation.is_group && (
-              <p className="text-xs text-muted-foreground truncate">
-                Start chatting
-              </p>
+              <p className="dm-convo-preview truncate">Say hi 👋</p>
             )}
           </div>
 
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {unreadCount > 0 && <span className="dm-convo-activity-dot" aria-label="Unread" />}
             {lastMessage &&
               lastMessage.media_type === 'vybe' &&
               lastMessage.sender_id !== currentUserId &&
               !lastMessage.viewed_at && (
                 <span
-                  className="flex items-center justify-center h-5 w-5 rounded-full bg-red-500/15 ring-1 ring-red-500/40"
+                  className="flex items-center justify-center h-5 w-5 rounded-full bg-red-500/15"
                   aria-label="New Vybe Snap"
-                  title="New Vybe Snap"
                 >
                   <Camera className="h-3 w-3 text-red-500" />
                 </span>
               )}
-            {unreadCount > 0 && (
-              <span className="dm-unread-badge text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
+            {unreadCount > 1 && (
+              <span className="dm-unread-badge text-primary-foreground font-bold">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
@@ -1008,7 +996,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
           
           {/* Swipeable item - more generous drag for easier swiping */}
           <motion.div 
-            className="relative rounded-2xl overflow-hidden"
+            className="relative overflow-hidden"
             style={{ x }}
             drag="x"
             dragConstraints={{ left: -120, right: 0 }}
@@ -1021,7 +1009,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
           >
             <div 
               className={cn(
-                'group dm-convo-row w-full flex items-center gap-2.5 text-left cursor-pointer box-border',
+                'group dm-convo-row w-full flex items-center gap-3 text-left cursor-pointer box-border',
                 unreadCount > 0 && 'dm-convo-row--unread',
                 isPinned && 'dm-convo-row--pinned'
               )}
@@ -1060,7 +1048,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
     <>
       <div 
         className={cn(
-          'group relative dm-convo-row w-full flex items-center gap-2.5 text-left cursor-pointer box-border',
+          'group relative dm-convo-row w-full flex items-center gap-3 text-left cursor-pointer box-border',
           unreadCount > 0 && 'dm-convo-row--unread',
           isPinned && 'dm-convo-row--pinned'
         )}

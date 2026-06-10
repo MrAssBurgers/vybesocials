@@ -297,6 +297,21 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     return () => { document.body.style.overflow = prevOverflow; };
   }, []);
 
+  useEffect(() => {
+    if (step !== 'preview') {
+      setShowPreviewElements(false);
+      return;
+    }
+    if (reduceMotion) {
+      setShowPreviewElements(true);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      if (mountedRef.current) setShowPreviewElements(true);
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [step, reduceMotion]);
+
   // Build phase timer
   useEffect(() => {
     if (step !== 'building') return;
@@ -436,7 +451,6 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
 
       setGeneratedTheme(theme);
       setStep('preview');
-      setTimeout(() => mountedRef.current && setShowPreviewElements(true), 250);
     } catch (err: unknown) {
       console.error('[AIVybeDesigner] generation failed', err);
       if (mountedRef.current) {
@@ -788,7 +802,11 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               {/* Mock feed card in the new theme */}
               <motion.div
                 initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.96 }}
-                animate={showPreviewElements ? { opacity: 1, y: 0, scale: 1 } : {}}
+                animate={
+                  showPreviewElements || reduceMotion
+                    ? { opacity: 1, y: 0, scale: 1 }
+                    : { opacity: 0, y: 24, scale: 0.96 }
+                }
                 transition={{ duration: 0.55, ease: EASE_OUT_EXPO }}
                 className="rounded-2xl border border-border/60 bg-card p-4 shadow-[0_12px_40px_-16px_hsl(var(--primary)/0.45)]"
               >
@@ -811,7 +829,11 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               {/* Buttons */}
               <motion.div
                 initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-                animate={showPreviewElements ? { opacity: 1, y: 0 } : {}}
+                animate={
+                  showPreviewElements || reduceMotion
+                    ? { opacity: 1, y: 0 }
+                    : { opacity: 0, y: 20 }
+                }
                 transition={{ duration: 0.5, delay: 0.08, ease: EASE_OUT_EXPO }}
                 className="flex gap-2"
               >
@@ -822,7 +844,11 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               {/* Palette swatches pop in */}
               <motion.div
                 initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-                animate={showPreviewElements ? { opacity: 1, y: 0 } : {}}
+                animate={
+                  showPreviewElements || reduceMotion
+                    ? { opacity: 1, y: 0 }
+                    : { opacity: 0, y: 20 }
+                }
                 transition={{ duration: 0.5, delay: 0.16, ease: EASE_OUT_EXPO }}
                 className="rounded-2xl border border-border/60 bg-card p-4"
               >
@@ -837,7 +863,9 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                     <div key={s.label} className="flex-1 flex flex-col items-center gap-1.5">
                       <motion.div
                         initial={reduceMotion ? false : { scale: 0 }}
-                        animate={showPreviewElements ? { scale: 1 } : {}}
+                        animate={
+                          showPreviewElements || reduceMotion ? { scale: 1 } : { scale: 0 }
+                        }
                         transition={{ delay: 0.24 + i * 0.07, ...SPRING }}
                         className={cn('w-full h-11 rounded-xl shadow-sm ring-1 ring-foreground/10', s.c)}
                       />
@@ -851,7 +879,11 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               {generatedTheme?.fontFamily && (
                 <motion.div
                   initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-                  animate={showPreviewElements ? { opacity: 1, y: 0 } : {}}
+                  animate={
+                    showPreviewElements || reduceMotion
+                      ? { opacity: 1, y: 0 }
+                      : { opacity: 0, y: 20 }
+                  }
                   transition={{ duration: 0.5, delay: 0.3, ease: EASE_OUT_EXPO }}
                   className="rounded-2xl border border-border/60 bg-card p-4 text-center"
                 >

@@ -1,13 +1,23 @@
 import { motion } from 'framer-motion';
 import { Flame, Zap, ChevronRight } from 'lucide-react';
 import { useStreakCount } from '@/hooks/useLoginStreak';
-import { useNextLevelProgress } from '@/hooks/useVybePass';
+import { useNextLevelProgress, useUserLevel } from '@/hooks/useVybePass';
 import { useNavigate } from 'react-router-dom';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function XPStreakWidget() {
   const streakCount = useStreakCount();
+  const { data: userLevel, isLoading: levelLoading } = useUserLevel();
   const { currentLevel, progressPercent, xpToNextLevel } = useNextLevelProgress();
   const navigate = useNavigate();
+
+  if (levelLoading && !userLevel) {
+    return (
+      <div className="px-4 pb-2">
+        <Skeleton className="h-12 w-full rounded-xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 pb-2">

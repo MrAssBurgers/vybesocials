@@ -3,7 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
-import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache } from '@/lib/profileCache';
+import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, isRawId, type CachedProfile } from '@/lib/profileCache';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
@@ -85,6 +85,33 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function cachedProfileToProfile(cached: CachedProfile, userId = ''): Profile {
+  return {
+    id: cached.id,
+    user_id: cached.user_id || userId,
+    username: cached.username,
+    display_name: cached.display_name,
+    avatar_url: cached.avatar_url,
+    bio: cached.bio || '',
+    created_at: new Date().toISOString(),
+    onboarding_completed: cached.onboarding_completed ?? true,
+  };
+}
+
+function persistCurrentProfile(profileData: Profile) {
+  const payload = {
+    id: profileData.id,
+    user_id: profileData.user_id,
+    username: profileData.username,
+    display_name: profileData.display_name || null,
+    avatar_url: profileData.avatar_url,
+    bio: profileData.bio,
+    onboarding_completed: profileData.onboarding_completed ?? true,
+  };
+  setCachedProfile(payload);
+  setCachedCurrentProfile(payload);
+}
+
 /** Wait until Supabase has a session (post-signup / OAuth race). */
 export async function waitForAuthSession(timeoutMs = 8000): Promise<Session | null> {
   const initial = (await supabase.auth.getSession()).data.session;
@@ -116,7 +143,12 @@ export async function waitForAuthSession(timeoutMs = 8000): Promise<Session | nu
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(() => {
+    if (typeof window === 'undefined' || !hasStoredSupabaseSession()) return null;
+    const cached = getCachedCurrentProfile();
+    if (!cached || isRawId(cached.username)) return null;
+    return cachedProfileToProfile(cached);
+  });
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
@@ -125,6 +157,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const banSubscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   // Prevent double-triggering from onAuthStateChange + getSession running simultaneously
   const authInitializedRef = useRef(false);
+
+  // Backfill auth user id onto cached profile so level/prefs queries can run immediately.
+  useEffect(() => {
+    if (!user?.id) return;
+    setProfile((prev) => {
+      if (!prev || prev.user_id === user.id) return prev;
+      if (!prev.user_id) return { ...prev, user_id: user.id };
+      return prev;
+    });
+  }, [user?.id]);
 
   // Clear ban expiry timer
   const clearBanExpiryTimer = () => {
@@ -257,21 +299,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         setProfile(profileData);
-        // Cache profile for instant lookups elsewhere
-        setCachedProfile({
-          id: profileData.id,
-          username: profileData.username,
-          display_name: profileData.display_name || null,
-          avatar_url: profileData.avatar_url,
-          bio: profileData.bio,
-        });
-        setCachedCurrentProfile({
-          id: profileData.id,
-          username: profileData.username,
-          display_name: profileData.display_name || null,
-          avatar_url: profileData.avatar_url,
-          bio: profileData.bio,
-        });
+        persistCurrentProfile(profileData);
         // Check ban status and subscribe to realtime changes
         checkBanStatus(profileData.id);
         subscribeToBanChanges(profileData.id);
@@ -298,20 +326,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return fetchProfile(userId, retryCount + 1);
         }
         
-        // Create fallback profile state (don't block app)
-        const fallbackProfile = {
-          id: userId,
-          user_id: userId,
-          username: 'user_' + userId.substring(0, 8),
-          avatar_url: null,
-          bio: '',
-          created_at: new Date().toISOString(),
-          onboarding_completed: false,
-        };
-        setProfile(fallbackProfile as any);
-        setCachedCurrentProfile(fallbackProfile as any);
-        console.warn('[Auth] Using fallback profile, app may have limited functionality');
-        return fallbackProfile;
+        // Last resort — never cache or persist placeholder usernames.
+        const cached = getCachedCurrentProfile();
+        if (cached && !isRawId(cached.username)) {
+          setProfile((prev) => prev ?? cachedProfileToProfile(cached, userId));
+          window.setTimeout(() => {
+            void fetchProfile(userId, 0);
+          }, 2000);
+          return cached;
+        }
+
+        console.warn('[Auth] Profile unavailable — retrying in background');
+        window.setTimeout(() => {
+          void fetchProfile(userId, 0);
+        }, 1500);
+        return null;
       }
 
       // Fetch the newly created profile
@@ -335,21 +364,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         setProfile(profileData);
-        // Cache profile for instant lookups elsewhere
-        setCachedProfile({
-          id: profileData.id,
-          username: profileData.username,
-          display_name: profileData.display_name || null,
-          avatar_url: profileData.avatar_url,
-          bio: profileData.bio,
-        });
-        setCachedCurrentProfile({
-          id: profileData.id,
-          username: profileData.username,
-          display_name: profileData.display_name || null,
-          avatar_url: profileData.avatar_url,
-          bio: profileData.bio,
-        });
+        persistCurrentProfile(profileData);
         // Check ban status and subscribe to realtime changes
         checkBanStatus(profileData.id);
         subscribeToBanChanges(profileData.id);
@@ -422,18 +437,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Helper: check if there's a stored auth token (session might be refreshing)
     const hasStoredToken = () => hasStoredSupabaseSession();
 
-    const hydrateCachedProfile = () => {
+    const hydrateCachedProfile = (userId = '') => {
       const cachedProfile = getCachedCurrentProfile();
       if (!cachedProfile) return false;
-      setProfile((prev) => prev ?? ({
-        id: cachedProfile.id,
-        user_id: '',
-        username: cachedProfile.username,
-        display_name: cachedProfile.display_name,
-        avatar_url: cachedProfile.avatar_url,
-        bio: cachedProfile.bio || '',
-        created_at: new Date().toISOString(),
-      } as Profile));
+      setProfile((prev) => prev ?? cachedProfileToProfile(cachedProfile, userId));
       return true;
     };
 
@@ -448,7 +455,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authInitializedRef.current = true;
       setLoading(false);
       setIsInitialized(true);
-    }, 6000);
+    }, 3500);
 
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -668,7 +675,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (getSessionHandled) return;
         logEvent('auth', 'getSession timed out — continuing');
         void handleGetSession({ data: { session: null }, error: null });
-      }, 5000);
+      }, 2500);
 
       supabase.auth.getSession().then((result) => {
         window.clearTimeout(getSessionTimeout);
@@ -818,14 +825,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Update profile cache + invalidate queries optimistically too.
     void (async () => {
       try {
-        const { setCachedProfile } = await import('@/lib/profileCache');
-        setCachedProfile({
-          id: merged.id,
-          username: merged.username,
-          display_name: (merged as any).display_name ?? null,
-          avatar_url: merged.avatar_url ?? null,
-          bio: (merged as any).bio,
-        });
+        persistCurrentProfile(merged);
       } catch {}
       try {
         const qc = (window as any).__REACT_QUERY_CLIENT__;

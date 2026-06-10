@@ -1,5 +1,6 @@
 import * as React from "react";
 import { detectIsIPad } from '@/lib/deviceDetection';
+import { isMobileOrTabletViewport } from '@/lib/mobileViewport';
 
 const MOBILE_BREAKPOINT = 768;
 const TABLET_BREAKPOINT = 1024;
@@ -30,8 +31,10 @@ export function useIsMobile() {
  * Use this when you need bottom nav behavior (vs sidebar)
  */
 export function useIsMobileOrTablet() {
-  const [isMobileOrTablet, setIsMobileOrTablet] = React.useState<boolean>(false);
-  const [isIPad, setIsIPad] = React.useState<boolean>(false);
+  const [isMobileOrTablet, setIsMobileOrTablet] = React.useState(isMobileOrTabletViewport);
+  const [isIPad, setIsIPad] = React.useState(() =>
+    typeof window !== 'undefined' ? detectIsIPad() : false,
+  );
 
   React.useEffect(() => {
     const checkDevice = () => {

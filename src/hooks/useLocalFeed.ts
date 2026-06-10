@@ -31,8 +31,19 @@ function transformPost(row: any): Post {
   };
 }
 
-export function useUserLocation() {
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+export function useUserLocation(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? false;
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(() => {
+    try {
+      const cached = localStorage.getItem('vybe-user-location');
+      if (!cached) return null;
+      const parsed = JSON.parse(cached);
+      if (typeof parsed.lat === 'number' && typeof parsed.lng === 'number') {
+        return { lat: parsed.lat, lng: parsed.lng };
+      }
+    } catch { /* ignore */ }
+    return null;
+  });
   const [error, setError] = useState<string | null>(null);
   const [permissionState, setPermissionState] = useState<PermissionState | null>(null);
 
@@ -59,7 +70,8 @@ export function useUserLocation() {
   }, []);
 
   useEffect(() => {
-    // Check permission state
+    if (!enabled) return;
+
     if (navigator.permissions) {
       navigator.permissions.query({ name: 'geolocation' }).then((result) => {
         setPermissionState(result.state);
@@ -67,23 +79,8 @@ export function useUserLocation() {
       }).catch(() => {});
     }
 
-    // Check localStorage cache first
-    const cached = localStorage.getItem('vybe-user-location');
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        const age = Date.now() - (parsed.timestamp || 0);
-        if (age < 30 * 60 * 1000) {
-          setLocation({ lat: parsed.lat, lng: parsed.lng });
-          // Still request fresh location in background
-          requestLocation();
-          return;
-        }
-      } catch {}
-    }
-
     requestLocation();
-  }, [requestLocation]);
+  }, [enabled, requestLocation]);
 
   return { location, error, permissionState, requestLocation };
 }
@@ -94,8 +91,8 @@ export function useUserLocation() {
  */
 export function useLocalFeed(options?: { enabled?: boolean }) {
   const { profile } = useAuth();
-  const { location } = useUserLocation();
-  const enabled = options?.enabled !== false;
+  const feedEnabled = options?.enabled ?? false;
+  const { location } = useUserLocation({ enabled: feedEnabled });
 
   return useInfiniteQuery({
     queryKey: ['local-feed', profile?.id, location?.lat, location?.lng],
@@ -131,7 +128,7 @@ export function useLocalFeed(options?: { enabled?: boolean }) {
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
-    enabled,
+    enabled: feedEnabled,
     staleTime: STALE_TIME,
     gcTime: 1000 * 60 * 60 * 24 * 14, // 14 days — keep local feed cached for offline
     refetchOnMount: false,

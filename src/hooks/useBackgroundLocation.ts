@@ -21,7 +21,11 @@ export interface LocationState {
   setSharing: (v: boolean) => void;
 }
 
-export function useBackgroundLocation(userId?: string): LocationState {
+export function useBackgroundLocation(
+  userId?: string,
+  options?: { watchPosition?: boolean },
+): LocationState {
+  const watchPosition = options?.watchPosition ?? false;
   const [coords, setCoords] = useState<[number, number] | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [speed, setSpeed] = useState<number | null>(null);
@@ -57,12 +61,9 @@ export function useBackgroundLocation(userId?: string): LocationState {
       } as any, { onConflict: 'user_id' });
   }, [userId, sharing]);
 
-  // Always watch position (so the user can see their own dot on the map even
-  // before enabling sharing). Only `upsertLocation` gates writes by `sharing`.
-  // On desktops without GPS, `enableHighAccuracy: true` often times out — fall
-  // back to a coarser request automatically.
+  // Only watch GPS on map routes (or when caller explicitly opts in). Never prompt on app boot.
   useEffect(() => {
-    if (!('geolocation' in navigator)) return;
+    if (!watchPosition || !('geolocation' in navigator)) return;
     let watchId: number | undefined;
     let fallbackWatchId: number | undefined;
     let fellBack = false;
@@ -124,7 +125,7 @@ export function useBackgroundLocation(userId?: string): LocationState {
       if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
       if (fallbackWatchId !== undefined) navigator.geolocation.clearWatch(fallbackWatchId);
     };
-  }, [sharing, upsertLocation, setSharing]);
+  }, [watchPosition, sharing, upsertLocation, setSharing]);
 
   // Disable sharing in DB when toggled off
   useEffect(() => {

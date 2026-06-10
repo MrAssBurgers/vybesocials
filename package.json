@@ -10,6 +10,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "validate:css": "node scripts/validate-css.mjs",
+    "debug": "node scripts/debug-scan.mjs",
     "preview": "vite preview",
     "db:apply-pending": "node scripts/apply-pending-migrations.mjs",
     "ios:setup": "npm run build && npx cap add ios && npx cap sync ios",

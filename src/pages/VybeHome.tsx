@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import { usePublicUserCount } from '@/hooks/usePublicUserCount';
 import { useLandingTopCreators } from '@/hooks/useLandingTopCreators';
+import { publicAsset } from '@/lib/publicAsset';
 
 // On-brand avatars (replaces pravatar.cc)
 import avatarMaya from '@/assets/avatars/maya.jpg';
@@ -55,7 +56,7 @@ const RealPhone = memo(function RealPhone({
   return (
     <div className={cn('relative mx-auto', className)}>
       <img
-        src={src}
+        src={publicAsset(src)}
         alt={alt}
         width={280}
         height={600}
@@ -74,11 +75,23 @@ const SectionWrap = ({ children, className }: { children: React.ReactNode; class
   </section>
 );
 
-const FadeIn = ({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) => (
+const FadeIn = ({
+  children,
+  delay = 0,
+  className,
+  immediate = false,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  className?: string;
+  /** Above-the-fold hero content — animate on mount (Lovable preview iframes miss whileInView). */
+  immediate?: boolean;
+}) => (
   <motion.div
     initial={{ opacity: 0, y: 24 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: '-80px' }}
+    {...(immediate
+      ? { animate: { opacity: 1, y: 0 } }
+      : { whileInView: { opacity: 1, y: 0 }, viewport: { once: true, margin: '-80px' } })}
     transition={{ duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }}
     className={className}
   >
@@ -789,7 +802,7 @@ const VybeHome = memo(function VybeHome() {
             style={{background:'radial-gradient(circle, #06B6D4 0%, transparent 70%)'}} />
         </div>
         <div className="max-w-7xl mx-auto relative grid lg:grid-cols-2 gap-12 items-center">
-          <FadeIn>
+          <FadeIn immediate>
             <div className="inline-flex items-center gap-3 pl-1.5 pr-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/70 mb-6">
               <div className="flex -space-x-2">
                 {earlyMemberAvatars.map((a) => (
@@ -831,7 +844,7 @@ const VybeHome = memo(function VybeHome() {
           </FadeIn>
 
           {/* Hero phones — fixed-size centered stage */}
-          <FadeIn delay={0.1}>
+          <FadeIn delay={0.1} immediate>
             <div className="hidden lg:flex justify-center">
               <div className="relative w-[600px] h-[620px]">
                 <motion.div animate={{y:[0,-12,0]}} transition={{duration:6,repeat:Infinity,ease:'easeInOut'}}
@@ -879,7 +892,7 @@ const VybeHome = memo(function VybeHome() {
             title="An app that learns who you are."
             desc="Every reaction, share, and second of attention shapes your personal DNA. Your feed, friend suggestions, and even the UI itself evolve to match. Nobody else has this."
             bullets={['30-day evolving personality vector','Re-skins your feed automatically','Shareable DNA card you\'ll want to post']}
-            phone={<RealPhone src="/marketing/device/dna.png" alt="VYBE DNA personality screen" />}
+            phone={<RealPhone src="/marketing/device/dna.png" alt="VYBE DNA personality screen" priority />}
           />
         </FadeIn>
       </SectionWrap>
