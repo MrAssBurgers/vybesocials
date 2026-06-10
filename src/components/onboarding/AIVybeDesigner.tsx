@@ -530,7 +530,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             className="relative z-10 h-full flex flex-col px-5 pb-5 max-w-md mx-auto w-full"
             style={{ paddingTop: 'calc(max(var(--sat, 0px), 0.875rem) + 3.5rem)' }}
           >
-            <div className="text-center mb-5">
+            <div className="text-center mb-3.5">
               <motion.span
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -543,20 +543,20 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               <AnimatedHeadline
                 words={["What's", 'your', 'vybe?']}
                 reduceMotion={reduceMotion}
-                className="text-[34px] leading-[1.05] font-bold tracking-tight text-foreground mt-3"
+                className="text-[27px] leading-[1.05] font-bold tracking-tight text-foreground mt-2"
               />
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.45, duration: 0.5 }}
-                className="text-sm text-muted-foreground mt-2"
+                className="text-[13px] text-muted-foreground mt-1"
               >
                 Pick a mood and we'll design your whole app around it.
               </motion.p>
             </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain -mx-1 px-1 pb-2">
-              <div className="grid grid-cols-2 gap-2.5">
+            <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1 pb-1">
+              <div className="grid grid-cols-4 gap-1.5">
                 {PERSONALITY_VIBES.map((vibe, idx) => {
                   const Icon = vibe.icon;
                   const isSelected = selectedVibe === vibe.id;
@@ -564,13 +564,13 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                     <motion.button
                       key={vibe.id}
                       type="button"
-                      initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.92 }}
+                      initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.9 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ delay: 0.3 + idx * 0.05, ...SPRING }}
-                      whileTap={{ scale: 0.96 }}
+                      transition={{ delay: 0.26 + idx * 0.04, ...SPRING }}
+                      whileTap={{ scale: 0.94 }}
                       onClick={() => setSelectedVibe(isSelected ? null : vibe.id)}
                       className={cn(
-                        'relative flex items-center gap-3 p-3 rounded-2xl text-left overflow-hidden transition-colors duration-300 border backdrop-blur-md',
+                        'relative flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-2xl overflow-hidden transition-colors duration-300 border backdrop-blur-md',
                         isSelected
                           ? 'border-primary/60 bg-foreground/[0.07]'
                           : 'border-foreground/[0.07] bg-foreground/[0.03] hover:bg-foreground/[0.06]',
@@ -579,39 +579,36 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
                       {/* Glow wash inside the card when selected */}
                       <div
                         className={cn(
-                          'absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl bg-gradient-to-br transition-opacity duration-500',
+                          'absolute -top-4 inset-x-2 h-14 rounded-full blur-xl bg-gradient-to-br transition-opacity duration-500',
                           vibe.gradient,
                           isSelected ? 'opacity-40' : 'opacity-0',
                         )}
                       />
                       <div
                         className={cn(
-                          'relative w-11 h-11 shrink-0 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg transition-transform duration-300',
+                          'relative w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg transition-transform duration-300',
                           vibe.gradient,
                           isSelected && 'scale-110',
                         )}
                       >
-                        <Icon className="h-5 w-5 text-white drop-shadow" />
+                        <Icon className="h-[18px] w-[18px] text-white drop-shadow" />
+                        <AnimatePresence>
+                          {isSelected && (
+                            <motion.div
+                              initial={{ scale: 0, rotate: -90 }}
+                              animate={{ scale: 1, rotate: 0 }}
+                              exit={{ scale: 0 }}
+                              transition={SPRING}
+                              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-[0_0_10px_hsl(var(--primary)/0.7)] ring-2 ring-background"
+                            >
+                              <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3.5} />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
-                      <div className="relative min-w-0 flex-1">
-                        <div className={cn('text-[15px] font-bold leading-tight transition-colors', isSelected ? 'text-foreground' : 'text-foreground/90')}>
-                          {vibe.label}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground truncate">{vibe.tagline}</div>
-                      </div>
-                      <AnimatePresence>
-                        {isSelected && (
-                          <motion.div
-                            initial={{ scale: 0, rotate: -90 }}
-                            animate={{ scale: 1, rotate: 0 }}
-                            exit={{ scale: 0 }}
-                            transition={SPRING}
-                            className="relative w-5 h-5 shrink-0 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-[0_0_12px_hsl(var(--primary)/0.6)]"
-                          >
-                            <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                      <span className={cn('relative text-[11px] font-semibold leading-none transition-colors', isSelected ? 'text-foreground' : 'text-foreground/75')}>
+                        {vibe.label}
+                      </span>
                     </motion.button>
                   );
                 })}
@@ -621,18 +618,26 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
               <motion.div
                 initial={reduceMotion ? false : { opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.72, duration: 0.5, ease: EASE_OUT_EXPO }}
-                className="mt-4 rounded-2xl border border-foreground/[0.07] bg-foreground/[0.03] backdrop-blur-md p-3.5"
+                transition={{ delay: 0.62, duration: 0.5, ease: EASE_OUT_EXPO }}
+                className="mt-2.5 rounded-2xl border border-foreground/[0.07] bg-foreground/[0.03] backdrop-blur-md p-3"
               >
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/60">Or describe it</span>
                   <span className="text-[10px] text-muted-foreground/60 tabular-nums">{customPrompt.length}/200</span>
                 </div>
                 <Textarea
                   value={customPrompt}
-                  onChange={e => setCustomPrompt(e.target.value.slice(0, 200))}
+                  rows={1}
+                  onChange={e => {
+                    setCustomPrompt(e.target.value.slice(0, 200));
+                    // Auto-grow so the box is never internally scrollable —
+                    // keeps mouse-wheel scrolling working over the textarea
+                    const el = e.target as HTMLTextAreaElement;
+                    el.style.height = 'auto';
+                    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+                  }}
                   placeholder="cherry cola sunset, y2k chrome, rainy tokyo at 2am…"
-                  className="min-h-[64px] resize-none bg-transparent border-0 p-0 focus-visible:ring-0 text-sm placeholder:text-muted-foreground/50"
+                  className="min-h-[36px] h-[36px] resize-none overflow-hidden bg-transparent border-0 p-0 focus-visible:ring-0 text-sm placeholder:text-muted-foreground/50"
                 />
               </motion.div>
             </div>
@@ -672,17 +677,17 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             className="relative z-10 h-full flex flex-col px-5 pb-5 max-w-md mx-auto w-full"
             style={{ paddingTop: 'calc(max(var(--sat, 0px), 0.875rem) + 3.5rem)' }}
           >
-            <div className="text-center mb-5">
+            <div className="text-center mb-3.5">
               <AnimatedHeadline
                 words={['Make', 'it', 'yours']}
                 reduceMotion={reduceMotion}
-                className="text-[34px] leading-[1.05] font-bold tracking-tight text-foreground"
+                className="text-[27px] leading-[1.05] font-bold tracking-tight text-foreground"
               />
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4, duration: 0.5 }}
-                className="text-sm text-muted-foreground mt-2"
+                className="text-[13px] text-muted-foreground mt-1"
               >
                 Typography and motion — both optional, both worth it.
               </motion.p>
