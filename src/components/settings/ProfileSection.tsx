@@ -115,53 +115,65 @@ export function ProfileSection() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="liquid-glass-card overflow-hidden rounded-xl isolate relative"
+        className="liquid-glass-card overflow-hidden rounded-2xl isolate relative group"
       >
-        {/* Header with gradient - fully contained with clip-path */}
-        <div 
-          className="h-20 bg-gradient-to-r from-primary/30 via-primary/20 to-accent/30" 
-          style={{ 
-            borderTopLeftRadius: 'inherit', 
-            borderTopRightRadius: 'inherit',
-            clipPath: 'inset(0 round var(--radius, 0.75rem) var(--radius, 0.75rem) 0 0)'
-          }} 
-        />
-        
-        {/* Profile content */}
-        <div className="px-4 sm:px-6 pb-6 -mt-10">
-          <Link 
-            to={`/u/${profile?.username}`}
-            className="block group"
-          >
-            <div className="flex items-end gap-4">
-              <div className="relative">
-                <Avatar className="h-20 w-20 ring-4 ring-background shadow-xl">
+        {/* Soft aurora glows — no hard banner edge */}
+        <div aria-hidden className="absolute inset-0 pointer-events-none">
+          <div
+            className="absolute -top-16 -left-12 w-56 h-56 rounded-full blur-[70px] opacity-35 group-hover:opacity-50 transition-opacity duration-700"
+            style={{ background: 'hsl(var(--primary))' }}
+          />
+          <div
+            className="absolute -top-20 right-0 w-64 h-64 rounded-full blur-[80px] opacity-25 group-hover:opacity-40 transition-opacity duration-700"
+            style={{ background: 'hsl(var(--accent))' }}
+          />
+          {/* Hairline gradient on top edge */}
+          <div className="absolute top-0 inset-x-6 h-px bg-gradient-to-r from-transparent via-foreground/25 to-transparent" />
+        </div>
+
+        <Link to={`/u/${profile?.username}`} className="relative block px-4 sm:px-6 py-5">
+          <div className="flex items-center gap-4">
+            {/* Avatar with gradient ring */}
+            <div className="relative shrink-0">
+              <div className="rounded-full p-[2.5px] bg-gradient-to-br from-primary via-accent to-primary shadow-[0_8px_24px_-8px_hsl(var(--primary)/0.6)]">
+                <Avatar className="h-[72px] w-[72px] ring-[3px] ring-background">
                   <AvatarImage src={profile?.avatar_url || undefined} />
                   <AvatarFallback className="text-2xl bg-primary text-primary-foreground font-bold">
                     {profile?.username?.[0]?.toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
-                <div className="absolute -bottom-0.5 -right-0.5 z-20 bg-accent rounded-full p-[3px] border-2 border-background flex items-center justify-center shadow-[0_1px_4px_rgba(0,0,0,0.3)]">
-                  <Camera className="h-3 w-3 text-accent-foreground" strokeWidth={2.5} />
-                </div>
               </div>
-              <div className="flex-1 min-w-0 pb-1">
-                <div className="flex items-center gap-2">
-                  <StyledUsername
-                    userId={profile?.id || ''}
-                    username={profile?.username || 'username'}
-                    displayName={profile?.display_name}
-                    className="font-bold text-lg truncate"
-                    showAtSymbol={true}
-                    preferDisplayName={false}
-                  />
-                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
-                </div>
-                <p className="text-sm text-foreground/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">View your public profile</p>
+              <div className="absolute -bottom-0.5 -right-0.5 z-20 bg-accent rounded-full p-[4px] border-2 border-background flex items-center justify-center shadow-[0_2px_6px_rgba(0,0,0,0.35)]">
+                <Camera className="h-3 w-3 text-accent-foreground" strokeWidth={2.5} />
               </div>
             </div>
-          </Link>
-        </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <StyledUsername
+                  userId={profile?.id || ''}
+                  username={profile?.username || 'username'}
+                  displayName={profile?.display_name}
+                  className="font-bold text-lg truncate"
+                  showAtSymbol={true}
+                  preferDisplayName={false}
+                />
+              </div>
+              {profile?.display_name && (
+                <p className="text-[13px] font-medium text-foreground/85 truncate">{profile.display_name}</p>
+              )}
+              <p className="mt-0.5 text-xs text-muted-foreground flex items-center gap-1">
+                <Eye className="h-3 w-3" />
+                View your public profile
+              </p>
+            </div>
+
+            {/* Chevron pill */}
+            <div className="shrink-0 h-9 w-9 rounded-full bg-foreground/[0.05] border border-foreground/[0.08] flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:border-primary/40 group-hover:bg-primary/10 transition-all duration-300">
+              <ChevronRight className="h-4 w-4 group-hover:translate-x-[1px] transition-transform" />
+            </div>
+          </div>
+        </Link>
       </motion.div>
 
       {/* Edit Form */}
