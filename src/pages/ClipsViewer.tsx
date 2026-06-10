@@ -330,7 +330,7 @@ export default function ClipsViewer() {
         onClick={handleBack}
         className="fixed z-[60] w-11 h-11 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center border border-white/20 active:bg-black/70 transition-colors shadow-lg"
         style={{
-          top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
+          top: 'calc(var(--app-header-safe, env(safe-area-inset-top, 0px)) + 16px)',
           left: '16px',
         }}
       >
@@ -343,7 +343,7 @@ export default function ClipsViewer() {
           onClick={handleBack}
           className="fixed z-[60] flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm active:bg-black/60 transition-colors"
           style={{
-            top: 'calc(env(safe-area-inset-top, 0px) + 20px)',
+            top: 'calc(var(--app-header-safe, env(safe-area-inset-top, 0px)) + 20px)',
             left: '72px',
           }}
         >

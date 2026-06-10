@@ -65,7 +65,7 @@ export const ClipsFeedHeader = memo(function ClipsFeedHeader({
         !isDark && 'bg-background/90 border-b border-border/40',
         !isDark && !nativePerf && 'backdrop-blur-md',
       )}
-      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      style={{ paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 0px))' }}
     >
       <div className="relative flex items-center justify-between h-11 px-3 pointer-events-auto">
         <div className="flex items-center gap-1.5 w-10">

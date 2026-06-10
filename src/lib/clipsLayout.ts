@@ -2,9 +2,10 @@
 export const CLIPS_BOTTOM_UI_OFFSET =
   'calc(env(safe-area-inset-bottom, 0px) + 78px)';
 
-/** Top chrome (Following / For You tabs + safe area). */
+/** Top chrome (Following / For You tabs + safe area). Uses the JS-measured
+ * --app-header-safe var because raw env() reports 0 in some WebViews. */
 export const CLIPS_TOP_UI_OFFSET =
-  'calc(env(safe-area-inset-top, 0px) + 48px)';
+  'calc(var(--app-header-safe, env(safe-area-inset-top, 0px)) + 48px)';
 
 export type ClipsFeedTab = 'foryou' | 'following' | 'videos';
 

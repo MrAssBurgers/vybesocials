@@ -8,6 +8,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Lovable Publish** — Phase 1 (Messaging Polish) + Phase 2 (Content unification) pushed; publish + device verify pending
 
 ## Publish log
+- **2026-06-09** — Clips header safe area: `ClipsFeedHeader`/`ClipsViewer` now use measured `--app-header-safe` var (raw `env()` reported 0 in WebViews, header sat under the notch). **Lovable Publish pending.**
 - **2026-06-02** — Spaces live audio (LiveKit) + raise-hand/mute persistence; `spaces-token` edge function deployed. **Lovable Publish pending.**
 - **2026-06-02** — Phase 2 content unification (/shorts redirect, ranked Watch browse, ClipsViewer v2). **Lovable Publish pending.**
 - **2026-06-02** — Messaging Polish Phase 1 (snap drag parity, outbox/call resume, voice scrub). **Lovable Publish pending.**
