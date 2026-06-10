@@ -12,6 +12,7 @@ import {
   type Participant,
 } from 'livekit-client';
 import { supabase } from '@/integrations/supabase/client';
+import { parseEdgeInvokeResult } from '@/lib/edgeFunctionResponse';
 
 export type CommunityVoiceState = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -33,6 +34,49 @@ interface ActiveConnection {
   serverId: string;
   channelId: string;
   channelName: string;
+}
+
+/** Production has livekit-token; spaces-token may be missing on older deploys. */
+const VOICE_TOKEN_FUNCTIONS = ['livekit-token', 'spaces-token', 'community-voice-token'] as const;
+
+async function fetchCommunityVoiceToken(
+  serverId: string,
+  channelId: string,
+): Promise<VoiceTokenResponse> {
+  const body = { serverId, channelId };
+  let lastError = 'Could not join voice channel';
+
+  for (const fnName of VOICE_TOKEN_FUNCTIONS) {
+    const result = await supabase.functions.invoke<VoiceTokenResponse>(fnName, { body });
+    const { payload, errorCode, errorMessage } = await parseEdgeInvokeResult(result);
+
+    if (payload?.token && payload?.url) {
+      return payload;
+    }
+
+    const msg = errorCode || errorMessage || '';
+    const missingFn =
+      msg.includes('Failed to send a request') ||
+      msg.includes('Failed to fetch') ||
+      msg.toLowerCase().includes('not found');
+    const staleBackend =
+      msg.includes('conversationId required') ||
+      msg.includes('conversationId or (serverId');
+
+    if (missingFn || staleBackend) {
+      lastError = staleBackend
+        ? 'Voice backend needs an update — redeploy livekit-token in Lovable Backend'
+        : msg;
+      continue;
+    }
+
+    throw new Error(errorCode || msg || lastError);
+  }
+
+  if (lastError.includes('Failed to send a request')) {
+    throw new Error('Voice server unavailable — redeploy livekit-token in Lovable Backend');
+  }
+  throw new Error(lastError);
 }
 
 function participantMuted(p: Participant): boolean {
@@ -158,21 +202,7 @@ export function useCommunityVoice() {
       setError(null);
 
       try {
-        const { data, error: fnError } = await supabase.functions.invoke<VoiceTokenResponse>(
-          'spaces-token',
-          { body: { serverId, channelId } },
-        );
-        if (fnError || !data?.token) {
-          const ctx = (fnError as { context?: { json?: () => Promise<{ error?: string }> } })?.context;
-          let detail = fnError?.message;
-          if (ctx?.json) {
-            try {
-              const payload = await ctx.json();
-              if (payload?.error) detail = payload.error;
-            } catch { /* ignore */ }
-          }
-          throw new Error(detail || 'Could not join voice channel');
-        }
+        const data = await fetchCommunityVoiceToken(serverId, channelId);
 
         const room = new Room({ adaptiveStream: true, dynacast: true });
         let speakers = new Set<string>();

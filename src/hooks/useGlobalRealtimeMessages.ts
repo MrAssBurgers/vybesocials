@@ -90,7 +90,32 @@ function scheduleUnknownConvoRefetch(qc: ReturnType<typeof useQueryClient>, prof
     unknownConvoRefetchTimer = null;
     qc.invalidateQueries({ queryKey: ['dm-conversations', profileId] });
     qc.invalidateQueries({ queryKey: ['conversations', profileId] });
-  }, 100);
+  }, 800);
+}
+
+function isPresenceOnline(isOnline: boolean | undefined, lastSeenAt: string | undefined): boolean {
+  if (!isOnline) return false;
+  if (!lastSeenAt) return true;
+  return Date.now() - new Date(lastSeenAt).getTime() <= 90_000;
+}
+
+/** Patch batch presence maps in-place — never invalidate (that refetched the whole DM list). */
+function patchUsersPresenceCache(
+  qc: ReturnType<typeof useQueryClient>,
+  userId: string,
+  isOnline: boolean,
+  lastSeenAt: string,
+) {
+  const nextOnline = isPresenceOnline(isOnline, lastSeenAt);
+  qc.setQueriesData<Record<string, boolean>>(
+    { queryKey: ['users-presence'] },
+    (old) => {
+      if (!old || typeof old !== 'object') return old;
+      if (!(userId in old)) return old;
+      if (old[userId] === nextOnline) return old;
+      return { ...old, [userId]: nextOnline };
+    },
+  );
 }
 
 export function useGlobalRealtimeMessages() {
@@ -381,7 +406,12 @@ export function useGlobalRealtimeMessages() {
             is_online: row.is_online,
             last_seen_at: row.last_seen_at,
           });
-          queryClient.invalidateQueries({ queryKey: ['users-presence'], exact: false });
+          patchUsersPresenceCache(
+            queryClient,
+            row.user_id,
+            row.is_online,
+            row.last_seen_at,
+          );
         },
       },
     ]);

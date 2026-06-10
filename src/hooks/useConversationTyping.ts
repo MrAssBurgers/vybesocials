@@ -19,12 +19,20 @@ export function useConversationTyping(conversationIds: string[]) {
   const [typingMap, setTypingMap] = useState<Map<string, string[]>>(new Map());
 
   const TYPING_TIMEOUT = PRESENCE.TYPING_TIMEOUT_MS;
+  const trackedConvIdsRef = useRef<Set<string>>(new Set());
+  const convIdsKey = [...conversationIds].sort().join(',');
+
+  useEffect(() => {
+    trackedConvIdsRef.current = new Set(conversationIds);
+  }, [convIdsKey, conversationIds]);
 
   useEffect(() => {
     if (!profile?.id || !conversationIds.length) {
       setTypingMap(new Map());
       return;
     }
+
+    const tracked = trackedConvIdsRef;
 
     const channel = subscribePostgresChannel('conversation-typing-global', [
       {
@@ -36,7 +44,7 @@ export function useConversationTyping(conversationIds: string[]) {
           
           // Only process for conversations we care about
           const convId = data?.conversation_id || oldData?.conversation_id;
-          if (!convId || !conversationIds.includes(convId)) return;
+          if (!convId || !tracked.current.has(convId)) return;
           
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             // Someone started/updated typing
@@ -48,22 +56,24 @@ export function useConversationTyping(conversationIds: string[]) {
             
             if (isRecent) {
               setTypingMap(prev => {
+                const current = prev.get(convId) || [];
+                if (current.includes(data.user_id)) return prev;
                 const newMap = new Map(prev);
-                const current = newMap.get(convId) || [];
-                if (!current.includes(data.user_id)) {
-                  newMap.set(convId, [...current, data.user_id]);
-                }
+                newMap.set(convId, [...current, data.user_id]);
                 return newMap;
               });
               
               // Auto-remove after timeout
               setTimeout(() => {
                 setTypingMap(prev => {
+                  const current = prev.get(convId) || [];
+                  if (!current.includes(data.user_id)) return prev;
                   const newMap = new Map(prev);
-                  const current = newMap.get(convId) || [];
-                  newMap.set(convId, current.filter(id => id !== data.user_id));
-                  if (newMap.get(convId)?.length === 0) {
+                  const next = current.filter(id => id !== data.user_id);
+                  if (next.length === 0) {
                     newMap.delete(convId);
+                  } else {
+                    newMap.set(convId, next);
                   }
                   return newMap;
                 });
@@ -74,11 +84,14 @@ export function useConversationTyping(conversationIds: string[]) {
             const userId = oldData?.user_id;
             if (userId && convId) {
               setTypingMap(prev => {
+                const current = prev.get(convId) || [];
+                if (!current.includes(userId)) return prev;
                 const newMap = new Map(prev);
-                const current = newMap.get(convId) || [];
-                newMap.set(convId, current.filter(id => id !== userId));
-                if (newMap.get(convId)?.length === 0) {
+                const next = current.filter(id => id !== userId);
+                if (next.length === 0) {
                   newMap.delete(convId);
+                } else {
+                  newMap.set(convId, next);
                 }
                 return newMap;
               });
@@ -91,7 +104,7 @@ export function useConversationTyping(conversationIds: string[]) {
     return () => {
       removeRealtimeChannel(channel);
     };
-  }, [profile?.id, conversationIds.join(',')]); // Join for stable dependency
+  }, [profile?.id, convIdsKey]);
 
   // Check if a specific conversation has anyone typing
   const isTyping = useCallback((conversationId: string) => {

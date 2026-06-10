@@ -15,12 +15,15 @@ const corsHeaders = {
 };
 
 interface TokenRequest {
-  conversationId: string;
-  callType: "audio" | "video";
+  conversationId?: string;
+  callType?: "audio" | "video";
   receiverId?: string;        // Required when creating a new call
   isGroupCall?: boolean;
   participantIds?: string[];   // For group calls
   callId?: string;             // If joining an existing call
+  /** Community voice lounge — alternative to DM call flow */
+  serverId?: string;
+  channelId?: string;
 }
 
 Deno.serve(async (req) => {
@@ -99,10 +102,107 @@ Deno.serve(async (req) => {
 
     // Parse body
     const body: TokenRequest = await req.json();
-    const { conversationId, callType, receiverId, isGroupCall, participantIds, callId } = body;
+    const { conversationId, callType, receiverId, isGroupCall, participantIds, callId, serverId, channelId } = body;
+
+    // LiveKit config (shared by DM calls + community voice)
+    const livekitApiKey = Deno.env.get("LIVEKIT_API_KEY");
+    const livekitApiSecret = Deno.env.get("LIVEKIT_API_SECRET");
+    const livekitUrl = Deno.env.get("LIVEKIT_URL");
+
+    if (!livekitApiKey || !livekitApiSecret || !livekitUrl) {
+      console.error("LiveKit secrets not configured");
+      return new Response(JSON.stringify({ error: "Service not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Community voice channel (Discord-style persistent lounges) ──
+    if (serverId && channelId) {
+      if (typeof serverId !== "string" || typeof channelId !== "string") {
+        return new Response(JSON.stringify({ error: "Invalid serverId or channelId" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: serverMembership } = await supabase
+        .from("server_members")
+        .select("role")
+        .eq("server_id", serverId)
+        .eq("user_id", profileId)
+        .maybeSingle();
+
+      if (!serverMembership) {
+        return new Response(JSON.stringify({ error: "Not a member of this community" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: voiceChannel } = await supabase
+        .from("channels")
+        .select("id, type, server_id")
+        .eq("id", channelId)
+        .eq("server_id", serverId)
+        .maybeSingle();
+
+      if (!voiceChannel) {
+        return new Response(JSON.stringify({ error: "Channel not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (voiceChannel.type !== "voice") {
+        return new Response(JSON.stringify({ error: "Not a voice channel" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const roomName = `community-${serverId}-${channelId}`;
+
+      try {
+        const httpUrl = livekitUrl.replace(/^wss?:/, (m) => (m === "wss:" ? "https:" : "http:"));
+        const svc = new RoomServiceClient(httpUrl, livekitApiKey, livekitApiSecret);
+        await svc.createRoom({
+          name: roomName,
+          emptyTimeout: 300,
+          maxParticipants: 100,
+        });
+      } catch (e) {
+        console.log("createRoom skipped:", (e as Error)?.message);
+      }
+
+      const communityAt = new AccessToken(livekitApiKey, livekitApiSecret, {
+        identity: profileId,
+        name: displayName,
+        ttl: "4h",
+      });
+
+      communityAt.addGrant({
+        roomJoin: true,
+        room: roomName,
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+      });
+
+      return new Response(
+        JSON.stringify({
+          token: await communityAt.toJwt(),
+          url: livekitUrl,
+          roomName,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     if (!conversationId || typeof conversationId !== "string") {
-      return new Response(JSON.stringify({ error: "conversationId required" }), {
+      return new Response(JSON.stringify({ error: "conversationId or (serverId + channelId) required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -126,19 +226,6 @@ Deno.serve(async (req) => {
     if (!membership) {
       return new Response(JSON.stringify({ error: "Not a member of this conversation" }), {
         status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // LiveKit config
-    const livekitApiKey = Deno.env.get("LIVEKIT_API_KEY");
-    const livekitApiSecret = Deno.env.get("LIVEKIT_API_SECRET");
-    const livekitUrl = Deno.env.get("LIVEKIT_URL");
-
-    if (!livekitApiKey || !livekitApiSecret || !livekitUrl) {
-      console.error("LiveKit secrets not configured");
-      return new Response(JSON.stringify({ error: "Service not configured" }), {
-        status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

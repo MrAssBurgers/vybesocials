@@ -123,5 +123,11 @@ project_id = "agtcyxjxgkdyoxwxkjth"
     verify_jwt = false
   [functions.sitemap-dynamic]
     verify_jwt = false
+  [functions.livekit-token]
+    verify_jwt = true
+  [functions.spaces-token]
+    verify_jwt = true
+  [functions.community-voice-token]
+    verify_jwt = true
 
 

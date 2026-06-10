@@ -206,27 +206,18 @@ export function useInstantReadClear(conversationId: string | undefined) {
     
     hasMarkedReadRef.current = conversationId;
     
-    // Optimistically update UI immediately - update both query key formats
-    queryClient.setQueryData<any[]>(['conversations', profile.id], (old) => {
+    const markReadPatch = (old: any[] | undefined) => {
       if (!old) return old;
-      return old.map(conv => {
-        if (conv.id === conversationId) {
-          return { ...conv, unread_count: 0 };
-        }
-        return conv;
-      });
-    });
-    
-    // Also update the general conversations query
-    queryClient.setQueryData<any[]>(['conversations'], (old) => {
-      if (!old) return old;
-      return old.map(conv => {
-        if (conv.id === conversationId) {
-          return { ...conv, unread_count: 0 };
-        }
-        return conv;
-      });
-    });
+      return old.map((conv) =>
+        conv.id === conversationId
+          ? { ...conv, unread_count: 0, _hasUnread: false }
+          : conv,
+      );
+    };
+
+    queryClient.setQueryData<any[]>(['dm-conversations', profile.id], markReadPatch);
+    queryClient.setQueryData<any[]>(['conversations', profile.id], markReadPatch);
+    queryClient.setQueryData<any[]>(['conversations'], markReadPatch);
     
     // Update last_read_at in database
     const now = new Date().toISOString();
@@ -241,10 +232,7 @@ export function useInstantReadClear(conversationId: string | undefined) {
       return Math.max(0, (old || 1) - 1);
     });
     
-    // Force immediate invalidation to sync badge count everywhere (with profile.id for correct query key)
     queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
-    queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
-    queryClient.invalidateQueries({ queryKey: ['conversations'] });
   }, [conversationId, profile?.id, queryClient]);
 
   // Mark as read immediately when conversation opens

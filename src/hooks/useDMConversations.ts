@@ -200,10 +200,12 @@ export function useDMConversations(searchQuery: string = '') {
     enabled: !!profile?.id,
     // Treat persisted data as instantly displayable, then always revalidate
     // in the background on mount so the list is fresh without blocking paint.
-    staleTime: 30_000,
+    // Realtime + setQueryData patches keep the list fresh — avoid aggressive
+    // refetches that make the Messages tab visibly reload / flicker.
+    staleTime: 120_000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
-    refetchOnWindowFocus: true,
-    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
     // 'offlineFirst' so the hydrated cache shows even when the network is
@@ -368,10 +370,18 @@ export function useMarkConversationRead() {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, conversationId) => {
       if (!profile?.id) return;
-      queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
-      queryClient.invalidateQueries({ queryKey: ['conversations', profile.id] });
+      const patch = (old: DMConversation[] | undefined) => {
+        if (!old) return old;
+        return old.map((c) =>
+          c.id === conversationId
+            ? { ...c, unread_count: 0, _hasUnread: false }
+            : c,
+        );
+      };
+      queryClient.setQueryData(['dm-conversations', profile.id], patch);
+      queryClient.setQueryData(['conversations', profile.id], patch);
       queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
     },
   });
