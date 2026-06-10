@@ -28,6 +28,7 @@ import {
   useResetTheme, 
   useGenerateTheme,
   applyThemeTokens,
+  setThemePreviewLock,
   THEME_PRESETS,
   ThemeTokens,
 } from '@/hooks/useCustomTheme';
@@ -147,6 +148,13 @@ export function DesignYourVybe() {
 
   // Editable theme name
   const [isEditingName, setIsEditingName] = useState(false);
+
+  // While an unsaved theme preview is on screen, stop useApplyUserTheme from
+  // flickering the old saved theme back over it.
+  useEffect(() => {
+    setThemePreviewLock(showConfirmation);
+    return () => setThemePreviewLock(false);
+  }, [showConfirmation]);
 
   const generationRunIdRef = useRef(0);
   const GENERATION_TIMEOUT_MS = 30000;

@@ -29,7 +29,7 @@ import { LanguageSection } from '@/components/settings/LanguageSection';
 import { HelpSection } from '@/components/settings/HelpSection';
 import { ParentalControlsSection } from '@/components/settings/ParentalControlsSection';
 import { ScreenTimeSection } from '@/components/settings/ScreenTimeSection';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useBreakpoint } from '@/hooks/usePlatform';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountDangerZone } from '@/components/settings/AccountDangerZone';
 import {
@@ -68,7 +68,10 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const isMobile = useIsMobile();
+  // Match AppLayout's breakpoint: sidebar layout only on true desktop (lg+),
+  // otherwise the fixed mobile header overlays the scrollport and breaks sticky.
+  const { isDesktop } = useBreakpoint();
+  const isMobile = !isDesktop;
   const initialTab = searchParams.get('tab') as SettingsCategory | null;
   // Mobile starts at the grouped home list; desktop always shows a section.
   const [activeCategory, setActiveCategory] = useState<SettingsCategory | null>(initialTab);
@@ -291,8 +294,15 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
             </motion.div>
 
             <div className="flex gap-8 items-start">
-              {/* Sidebar */}
-              <aside className="w-60 flex-shrink-0 sticky top-24">
+              {/* Sidebar — stays pinned while the section content scrolls */}
+              <aside
+                className="w-60 flex-shrink-0 sticky self-start overflow-y-auto overscroll-contain pr-1"
+                style={{
+                  top: '0.75rem',
+                  maxHeight: 'calc(100dvh - 2rem)',
+                  scrollbarWidth: 'none',
+                }}
+              >
                 <SettingsSidebar
                   activeCategory={desktopCategory}
                   onCategoryChange={setActiveCategory}

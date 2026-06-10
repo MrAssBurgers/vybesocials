@@ -24,7 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { applyThemeTokens, useSaveTheme, ThemeTokens } from '@/hooks/useCustomTheme';
+import { applyThemeTokens, useSaveTheme, setThemePreviewLock, ThemeTokens } from '@/hooks/useCustomTheme';
 import { navVisibility } from '@/lib/navVisibility';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import {
@@ -266,6 +266,9 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   useEffect(() => {
     mountedRef.current = true;
     navVisibility.setInDesigner(true);
+    // While the designer is open, previewed tokens own the CSS variables —
+    // block useApplyUserTheme from flickering the old saved theme back in.
+    setThemePreviewLock(true);
 
     try {
       const styles = getComputedStyle(document.documentElement);
@@ -282,6 +285,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     return () => {
       mountedRef.current = false;
       navVisibility.setInDesigner(false);
+      setThemePreviewLock(false);
       try { abortRef.current?.abort(); } catch { /* noop */ }
     };
   }, []);

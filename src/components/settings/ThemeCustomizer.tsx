@@ -28,6 +28,7 @@ import {
   useResetTheme, 
   useGenerateTheme,
   applyThemeTokens,
+  setThemePreviewLock,
   THEME_PRESETS,
   ThemeTokens,
 } from '@/hooks/useCustomTheme';
@@ -112,6 +113,13 @@ export function ThemeCustomizer() {
       setBorderRadius(tokens.borderRadius || 'medium');
     }
   }, [userTheme]);
+
+  // While unsaved changes are previewed, stop useApplyUserTheme from
+  // flickering the old saved theme back over the live preview.
+  useEffect(() => {
+    setThemePreviewLock(hasChanges);
+    return () => setThemePreviewLock(false);
+  }, [hasChanges]);
 
   // Build current theme with all settings (background is managed by AppBackground, not here)
   const buildTheme = useCallback((): ThemeTokens => {

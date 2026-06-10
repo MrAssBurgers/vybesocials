@@ -220,6 +220,14 @@ export function useUserTheme() {
 let _isSavingTheme = false;
 export function isSavingTheme() { return _isSavingTheme; }
 
+// Preview lock — while a theme designer/preview is open, the previewed tokens
+// own the CSS variables. Without this, useApplyUserTheme's MutationObserver
+// (mode class changes) and query refetches re-apply the OLD saved theme over
+// the preview, causing a visible flicker back to the previous theme.
+let _themePreviewLock = false;
+export function setThemePreviewLock(locked: boolean) { _themePreviewLock = locked; }
+export function isThemePreviewLocked() { return _themePreviewLock; }
+
 export function useSaveTheme() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -734,7 +742,7 @@ export function useApplyUserTheme() {
 
   // Helper to get and apply the right theme for a given mode
   const applyForMode = useCallback((resolved: 'dark' | 'light') => {
-    if (_isApplyingTheme || _isSavingTheme) return;
+    if (_isApplyingTheme || _isSavingTheme || _themePreviewLock) return;
     _isApplyingTheme = true;
     
     try {
