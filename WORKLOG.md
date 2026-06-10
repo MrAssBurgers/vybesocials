@@ -5,7 +5,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Realtime hardening complete** — all `postgres_changes` subscriptions now use `subscribePostgresChannel`. **Lovable Publish pending**
+- **Community voice + DM list stability** — `livekit-token` community path, messages tab flicker fix. **Lovable Publish + Backend deploy pending**
 
 ## What Changed (realtime hardening — app-wide)
 - **`subscribePostgresChannel`** — migrated every remaining raw `.channel().on('postgres_changes')` across hooks, `callStore`, admin/auth components (~30 files)
@@ -20,6 +20,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **`RootBottomNavMount`** — hide nav on all `/messages/*` sub-routes
 
 ## Publish log
+- **2026-06-10** — Pushed `3c02a095`: community voice via `livekit-token` (spaces-token 404 on prod), DM list flicker fixes. **Requires Lovable Backend deploy of `livekit-token` + LIVEKIT_* secrets** then Publish.
 - **2026-06-09** — Pushed `7f32cabf` to `main`: app-wide `subscribePostgresChannel` hardening, community voice ID fix, Vybe Map + friends polish, bottom nav immersion. Build + lint pass. **Lovable Publish pending** (user action).
 - **2026-06-09** — Pushed `4d295871` to `main`: Discord-style communities shell, LiveKit voice (`community-voice-token`, `useCommunityVoice`), theme equip persistence, home/DM polish. Build + lint pass. Edge fn deploy blocked (Supabase CLI 403 — needs login or Lovable deploy). **Lovable Publish pending.**
 - **2026-06-10** — Home iconic redesign: aurora hero card (spinning avatar ring, gradient greeting), spring feed tabs, quick-access cards, customize pill. DM convo: removed header/composer backdrop-blur seam — solid gradient fade header + opaque composer. Build + lint pass. **Lovable Publish pending.**
@@ -271,11 +272,11 @@ Use this file as the Lovable -> Cursor handoff each session.
 - Custom wallpaper gate: `hasUserWallpaper` + `isBackgroundResolved` hide aurora/touch; `stripLiquidShellDocumentState()` on upload
 
 ## Current Status
-- Done: app-wide `subscribePostgresChannel` migration (~30 files); `npm run build` + `npm run lint`
-- **Your turn:** Lovable Publish → smoke DMs, communities voice, map realtime → Despia rebuild
+- Done: community voice → `livekit-token`, DM list flicker fixes; `npm run build` pass
+- **Your turn:** Lovable Backend deploy `livekit-token` + LIVEKIT secrets → Publish → test community voice
 
 ## Next 3 tasks
-1. Lovable Publish + smoke test (Home feed, DMs, community voice, Vybe Map — no Realtime console errors)
+1. Lovable Backend: deploy `livekit-token` with LIVEKIT_URL/KEY/SECRET → Publish → join community voice channel
 2. Investigate `user_backgrounds` statement timeout on preview DB (index/RLS if persists)
 3. Despia rebuild (>6061901) + App Store resubmit prep
 
