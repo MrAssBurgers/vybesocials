@@ -856,7 +856,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = async () => {
     const uid = user?.id ?? (await supabase.auth.getSession()).data.session?.user?.id;
     if (!uid) return null;
-    return fetchProfile(uid);
+    return (await fetchProfile(uid)) as Profile | null;
   };
 
   // Show banned screen if user is banned
