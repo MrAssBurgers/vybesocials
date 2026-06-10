@@ -155,7 +155,9 @@ export function HelpSection() {
         description="We're here for you! Use the Feedback Hub to reach out and we'll get back to you as soon as possible."
         delay={0.3}
         className="bg-gradient-to-br from-primary/[0.06] to-accent/[0.04] border-primary/15"
-      />
+      >
+        <div />
+      </SettingsSectionCard>
     </div>
   );
 }
