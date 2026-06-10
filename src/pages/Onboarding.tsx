@@ -70,7 +70,7 @@ async function persistOnboardingSkip(
 ): Promise<{ username: string; error: Error | null }> {
   await ensureProfileRow(userId);
 
-  const { data: syncedUsername } = await supabase.rpc('sync_signup_username');
+  const { data: syncedUsername } = await (supabase as any).rpc('sync_signup_username');
   let finalUsername = desiredUsername;
   if (
     typeof syncedUsername === 'string' &&
