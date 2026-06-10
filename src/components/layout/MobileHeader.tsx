@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bell, Target } from 'lucide-react';
+import { Bell, Flame, Target } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { useStreakCount } from '@/hooks/useLoginStreak';
@@ -65,13 +65,7 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
       className="fixed top-0 inset-x-0 z-50 pointer-events-none"
     >
       <div
-        className={cn(
-          'pointer-events-auto',
-          'border-b border-white/[0.06]',
-          nativePerf
-            ? 'bg-[hsl(var(--background))]'
-            : 'bg-[hsl(var(--background)/0.94)] backdrop-blur-xl backdrop-saturate-150',
-        )}
+        className="pointer-events-auto relative"
         style={{
           paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 48px))',
           paddingBottom: 'var(--app-header-tail, 0.5rem)',
@@ -79,6 +73,22 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
           paddingRight: 'max(1rem, calc(1rem + var(--app-header-safe-right, env(safe-area-inset-right, 0px))))',
         }}
       >
+        {/* Background layer extends below the toolbar and fades out so the
+            header blends into the page theme instead of a hard black edge */}
+        <div
+          aria-hidden
+          className={cn(
+            'absolute inset-x-0 top-0 -z-10 pointer-events-none',
+            nativePerf
+              ? 'bg-[hsl(var(--background))]'
+              : 'bg-[hsl(var(--background)/0.94)] backdrop-blur-xl backdrop-saturate-150',
+          )}
+          style={{
+            bottom: '-28px',
+            maskImage: 'linear-gradient(to bottom, black calc(100% - 28px), transparent)',
+            WebkitMaskImage: 'linear-gradient(to bottom, black calc(100% - 28px), transparent)',
+          }}
+        />
         <div
           className={cn('flex items-center gap-2.5', TOOLBAR_H)}
           style={{ marginTop: 'var(--app-header-gap, 0.5rem)' }}
@@ -131,7 +141,8 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
             >
               <Target className="h-[17px] w-[17px]" strokeWidth={1.75} />
               {streakCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-0.5 text-[8px] font-bold leading-none text-primary-foreground ring-[1.5px] ring-[hsl(var(--background))]">
+                <span className="absolute -top-1 -right-1 flex h-[15px] items-center gap-[1px] rounded-full bg-gradient-to-br from-orange-500 to-red-500 pl-0.5 pr-1 text-[8px] font-bold leading-none text-white ring-[1.5px] ring-[hsl(var(--background))]">
+                  <Flame className="h-2.5 w-2.5 fill-white text-white" strokeWidth={0} />
                   {streakCount > 99 ? '99+' : streakCount}
                 </span>
               )}

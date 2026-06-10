@@ -8,6 +8,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Lovable Publish** — Phase 1 (Messaging Polish) + Phase 2 (Content unification) pushed; publish + device verify pending
 
 ## Publish log
+- **2026-06-09** — Mobile header polish: background now fades into the page theme (28px gradient mask, no hard black edge); streak badge on Challenges icon is now a flame (orange→red gradient + count). **Lovable Publish pending.**
 - **2026-06-09** — App-wide safe-area pass: global `pt-safe`/`safe-area-*` utilities + all inline `env(safe-area-inset-top)` now use measured `--sat` var (env() = 0 in WebViews); added missing top safe areas to SpaceRoom, Community, Sounds, SoundDetail, Watch, camera editors, video preview, offline banner, toasts (sonner offset), pull-to-refresh, About/Contact, AdminDashboard. Headers keep themed bg so notch strip matches user theme. **Lovable Publish pending.**
 - **2026-06-09** — Clips header safe area: `ClipsFeedHeader`/`ClipsViewer` now use measured `--app-header-safe` var (raw `env()` reported 0 in WebViews, header sat under the notch). **Lovable Publish pending.**
 - **2026-06-02** — Spaces live audio (LiveKit) + raise-hand/mute persistence; `spaces-token` edge function deployed. **Lovable Publish pending.**
