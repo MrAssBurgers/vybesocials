@@ -60,7 +60,10 @@ export default function Messages() {
     <AppLayout hideRightSidebar fullWidth hideNav={isImmersive} noPadding>
       <div
         className={cn(
-          'flex flex-1 min-h-0 w-full max-w-full overflow-hidden bg-background',
+          // h-full (not just flex-1): the desktop noPadding wrapper is not a
+          // flex container, so flex-1 resolves to auto height and the list
+          // grows unscrollably inside overflow-hidden parents.
+          'flex h-full flex-1 min-h-0 w-full max-w-full overflow-hidden bg-background',
           !isImmersive && 'pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]',
         )}
         style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
