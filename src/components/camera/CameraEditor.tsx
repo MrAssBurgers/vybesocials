@@ -176,7 +176,10 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
     <div className="fixed inset-0 z-[200] bg-black flex flex-col">
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
 
-      <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
+      <div
+        className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent"
+        style={{ paddingTop: 'calc(var(--sat, 0px) + 1rem)' }}
+      >
         <Button variant="ghost" size="icon" onClick={onCancel} className="text-white">
           <X className="h-6 w-6" />
         </Button>

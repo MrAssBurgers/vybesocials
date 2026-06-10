@@ -58,7 +58,7 @@ export const StoryTemplatePicker = memo(function StoryTemplatePicker({ onSelect,
       className="fixed inset-0 z-50 bg-background flex flex-col"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
+      <div className="flex items-center justify-between px-4 pt-[max(0.75rem,var(--sat,0px))] pb-3">
         <button onClick={selected ? () => setSelected(null) : onClose} className="p-1">
           <ChevronLeft className="h-5 w-5" />
         </button>

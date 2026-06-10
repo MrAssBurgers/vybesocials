@@ -1154,7 +1154,7 @@ function FriendMapInner() {
 
 
         {/* ── Top bar (Snap Maps style) ───────────────── */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-4 pt-[env(safe-area-inset-top)]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-4 pt-[var(--sat,0px)]">
           <div className="mx-auto flex max-w-lg items-center gap-2 mt-2">
             {/* Back + user avatar */}
             <motion.button
@@ -1233,7 +1233,7 @@ function FriendMapInner() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               className="pointer-events-auto absolute right-4 z-[1001] rounded-2xl bg-black/80 backdrop-blur-2xl p-2 border border-white/10 shadow-2xl"
-              style={{ top: 'calc(max(env(safe-area-inset-top), 16px) + 120px)' }}
+              style={{ top: 'calc(max(var(--sat, 0px), 16px) + 120px)' }}
             >
               {Object.entries(MAP_TILES).map(([key, tile]) => (
                 <button

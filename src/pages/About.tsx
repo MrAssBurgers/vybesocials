@@ -65,7 +65,10 @@ export default function About() {
   return (
     <div className="page-scroll-fix bg-background">
       {/* Header */}
-      <header className="border-b border-border/50 sticky top-0 z-50 bg-background/80 backdrop-blur-xl">
+      <header
+        className="border-b border-border/50 sticky top-0 z-50 bg-background/80 backdrop-blur-xl"
+        style={{ paddingTop: 'var(--sat, 0px)' }}
+      >
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <VYBELogo size="sm" showText={false} />

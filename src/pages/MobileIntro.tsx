@@ -128,7 +128,7 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
       </AnimatePresence>
 
       {/* Skip */}
-      <div className="flex justify-end p-5 pt-[calc(env(safe-area-inset-top)+1rem)]">
+      <div className="flex justify-end p-5 pt-[calc(var(--sat,0px)+1rem)]">
         <button
           onClick={finish}
           className="text-sm text-muted-foreground/80 active:scale-95 transition-transform"

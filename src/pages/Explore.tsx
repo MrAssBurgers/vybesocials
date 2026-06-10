@@ -313,14 +313,14 @@ function FullscreenClipsViewer({
           variant="ghost"
           size="icon"
           className="fixed z-30 w-10 h-10 rounded-full bg-black/80 border border-border/20 text-foreground hover:bg-black/90 left-4"
-          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}
+          style={{ top: 'calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.5rem)' }}
           onClick={onClose}
         >
           <X className="w-5 h-5" />
         </Button>
 
         {/* Tab bar at top - pinned to very top with zero gap */}
-        <div className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-[env(safe-area-inset-top)]">
+        <div className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-[var(--sat,0px)]">
           <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}

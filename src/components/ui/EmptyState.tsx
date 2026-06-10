@@ -168,6 +168,7 @@ export function OfflineBanner() {
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: -50, opacity: 0 }}
       className="fixed top-0 left-0 right-0 z-50 bg-card/90 backdrop-blur-xl border-b border-border/50 text-foreground py-2 px-4 text-center text-sm font-medium flex items-center justify-center gap-2"
+      style={{ paddingTop: 'calc(var(--sat, 0px) + 0.5rem)' }}
     >
       <WifiOff className="h-4 w-4 text-muted-foreground" />
       You're offline. Some features may be limited.

@@ -26,7 +26,7 @@ export function PullToRefreshIndicator({
   return (
     <div
       className="fixed top-0 left-0 right-0 z-50 flex justify-center pointer-events-none"
-      style={{ paddingTop: `${Math.max(pullDistance - 20, 0)}px` }}
+      style={{ paddingTop: `calc(var(--sat, 0px) + ${Math.max(pullDistance - 20, 0)}px)` }}
     >
       <motion.div
         className="relative flex items-center justify-center"

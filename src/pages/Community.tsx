@@ -207,6 +207,7 @@ export default function Community() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25 }}
             className="flex items-center gap-2 px-3 py-2.5 border-b border-border/50 bg-background/95 backdrop-blur-sm"
+            style={{ paddingTop: 'calc(var(--sat, 0px) + 0.625rem)' }}
           >
             <Button
               variant="ghost"

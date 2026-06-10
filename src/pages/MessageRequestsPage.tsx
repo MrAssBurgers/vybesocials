@@ -9,7 +9,7 @@ export default function MessageRequestsPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-lg mx-auto px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-8">
+      <div className="max-w-lg mx-auto px-4 pt-[max(1rem,var(--sat,0px))] pb-8">
         <Button
           variant="ghost"
           className="mb-4 -ml-2"

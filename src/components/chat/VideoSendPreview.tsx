@@ -148,7 +148,10 @@ export function VideoSendPreview({
         className="fixed inset-0 z-[200] bg-black flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent absolute top-0 left-0 right-0 z-10">
+        <div
+          className="flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent absolute top-0 left-0 right-0 z-10"
+          style={{ paddingTop: 'calc(var(--sat, 0px) + 1rem)' }}
+        >
           <Button
             variant="ghost"
             size="icon"

@@ -1068,7 +1068,7 @@ export function GlobalCallOverlay() {
             backdropFilter: 'blur(40px) saturate(150%)',
             WebkitBackdropFilter: 'blur(40px) saturate(150%)',
             isolation: 'isolate',
-            paddingTop: 'env(safe-area-inset-top)',
+            paddingTop: 'var(--sat, env(safe-area-inset-top, 0px))',
             paddingBottom: 'env(safe-area-inset-bottom)',
           }}
         >
@@ -1281,7 +1281,7 @@ export function GlobalCallOverlay() {
           )}
 
           {/* Header */}
-          <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" style={{ paddingTop: 'env(safe-area-inset-top)' }} onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave} onTouchStart={showControlsTemporarily}>
+          <div className="absolute top-0 left-0 right-0 h-24 z-50 pointer-events-auto" style={{ paddingTop: 'var(--sat, env(safe-area-inset-top, 0px))' }} onMouseEnter={handleHeaderAreaEnter} onMouseLeave={handleHeaderAreaLeave} onTouchStart={showControlsTemporarily}>
             <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: showHeader ? 0 : -100, opacity: showHeader ? 1 : 0 }} transition={{ duration: 0.3, ease: "linear" }} className="pointer-events-auto">
               <div className="mx-3 sm:mx-4 mt-3 sm:mt-4 p-3 sm:p-4 rounded-[20px] backdrop-blur-2xl bg-black/40 border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
                 <div className="flex items-center justify-between gap-2">

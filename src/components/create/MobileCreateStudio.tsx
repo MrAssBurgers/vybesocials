@@ -636,7 +636,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           {isRecording && (
             <motion.div
               initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-              className="absolute top-16 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-destructive/80 px-4 py-2 rounded-full z-20"
+              className="absolute top-[calc(var(--sat,0px)+4rem)] left-1/2 -translate-x-1/2 flex items-center gap-2 bg-destructive/80 px-4 py-2 rounded-full z-20"
             >
               <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2.5 h-2.5 bg-white rounded-full" />
               <span className="text-white font-mono text-sm">
@@ -650,7 +650,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         {/* Sound Controls */}
         <AnimatePresence>
           {selectedSound && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="absolute top-20 left-4 right-4 z-20">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="absolute top-[calc(var(--sat,0px)+5rem)] left-4 right-4 z-20">
               <SoundControls sound={selectedSound} startTime={soundStartTime} onStartTimeChange={setSoundStartTime} onRemoveSound={() => setSelectedSound(null)} compact />
             </motion.div>
           )}
@@ -658,7 +658,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
 
         {/* Multi mode thumbnails */}
         {mode === 'multi' && capturedPreviews.length > 0 && (
-          <div className="absolute top-16 left-0 right-0 z-20 px-4">
+          <div className="absolute top-[calc(var(--sat,0px)+4rem)] left-0 right-0 z-20 px-4">
             <div className="flex gap-2 overflow-x-auto scrollbar-hide py-2">
               {capturedPreviews.map((p, i) => (
                 <div key={i} className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border-2 border-white/60">

@@ -100,7 +100,7 @@ export function ConnectionStatusBanner() {
           role="status"
           aria-live="polite"
           className="fixed inset-x-0 top-0 z-[100] flex justify-center pointer-events-none"
-          style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+          style={{ paddingTop: 'var(--sat, env(safe-area-inset-top, 0px))' }}
         >
           <div
             className={cn(

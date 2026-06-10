@@ -279,7 +279,10 @@ export default function WatchPage() {
                 "absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 transition-opacity",
                 showControls || !isPlaying || isMobileOrTablet ? "opacity-100" : "opacity-0"
               )}>
-                <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
+                <div
+                  className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between"
+                  style={{ paddingTop: 'calc(var(--sat, 0px) + 1rem)' }}
+                >
                   <Button
                     variant="ghost"
                     size="icon"

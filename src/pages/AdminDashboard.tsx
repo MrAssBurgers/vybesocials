@@ -234,7 +234,7 @@ export default function AdminDashboard() {
             >
               <div className="flex flex-col h-full">
                 {/* Header */}
-                <div className="p-4 border-b border-border/50">
+                <div className="p-4 border-b border-border/50" style={{ paddingTop: 'calc(var(--sat, 0px) + 1rem)' }}>
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
                       <Shield className="h-5 w-5 text-primary-foreground" />

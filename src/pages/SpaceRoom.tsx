@@ -145,7 +145,10 @@ export default function SpaceRoom() {
     <AppLayout hideNav noPadding>
       <div className="flex flex-col h-full bg-gradient-to-b from-background via-background to-card/30">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border/50">
+        <div
+          className="flex items-center justify-between p-4 border-b border-border/50"
+          style={{ paddingTop: 'calc(var(--sat, 0px) + 1rem)' }}
+        >
           <Button variant="ghost" size="icon" onClick={handleLeave}>
             <ArrowLeft className="h-5 w-5" />
           </Button>

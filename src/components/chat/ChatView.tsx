@@ -1313,7 +1313,7 @@ export function ChatView() {
       {/* Floating header — single unified pill spanning the top */}
       <header
         className="absolute top-0 left-0 right-0 px-2 sm:px-3 pb-2 flex items-center bg-transparent z-20 pointer-events-none"
-        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
+        style={{ paddingTop: 'calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.75rem)' }}
       >
         <div className="pointer-events-auto flex items-center gap-2 w-full min-w-0 pl-1.5 pr-1.5 py-1.5 rounded-full bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)] ring-1 ring-inset ring-white/[0.04]">
           <Button

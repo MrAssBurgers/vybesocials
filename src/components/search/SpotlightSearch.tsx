@@ -96,7 +96,7 @@ export function SpotlightSearch({ open, onClose }: SpotlightSearchProps) {
         className="fixed inset-0 z-50 bg-background"
       >
         {/* Header */}
-        <div className="flex items-center gap-2 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
+        <div className="flex items-center gap-2 px-3 pt-[max(0.75rem,var(--sat,0px))] pb-2">
           <button onClick={onClose} className="p-2 -ml-1">
             <ArrowLeft className="h-5 w-5 text-foreground" />
           </button>

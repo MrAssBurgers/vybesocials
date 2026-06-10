@@ -99,7 +99,10 @@ export default function SoundsPage() {
     <AppLayout hideNav>
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-lg border-b border-border/50">
+        <div
+          className="sticky top-0 z-50 bg-background/95 backdrop-blur-lg border-b border-border/50"
+          style={{ paddingTop: 'var(--sat, 0px)' }}
+        >
           <div className="max-w-screen-xl mx-auto px-4 py-4">
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="icon" onClick={goBack} className="shrink-0">

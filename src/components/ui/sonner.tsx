@@ -12,6 +12,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
       position="top-center"
       className="toaster group"
       style={{ zIndex: 99998 }}
+      offset={{ top: 'calc(var(--sat, 0px) + 12px)' }}
+      mobileOffset={{ top: 'calc(var(--sat, 0px) + 12px)' }}
       swipeDirections={["top"]}
       toastOptions={{
         classNames: {

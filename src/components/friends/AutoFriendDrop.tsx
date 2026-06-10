@@ -615,7 +615,7 @@ export function AutoFriendDrop() {
             style={{
               zIndex: 10081,
               bottom: 'env(safe-area-inset-bottom, 0px)',
-              maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 24px)',
+              maxHeight: 'calc(100dvh - var(--sat, env(safe-area-inset-top, 0px)) - 24px)',
             }}
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
