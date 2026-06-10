@@ -461,6 +461,7 @@ function AppWithPreloader() {
                           </Suspense>
                           {/* Touch ripple removed */}
                           </div>
+                        </LocationProvider>
                         </BrowserRouter>
                       </TooltipProvider>
                     </StreakProvider>
