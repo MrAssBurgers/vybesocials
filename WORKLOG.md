@@ -8,10 +8,17 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Lovable Publish** — Phase 1 (Messaging Polish) + Phase 2 (Content unification) pushed; publish + device verify pending
 
 ## Publish log
+- **2026-06-02** — Spaces live audio (LiveKit) + raise-hand/mute persistence; `spaces-token` edge function deployed. **Lovable Publish pending.**
 - **2026-06-02** — Phase 2 content unification (/shorts redirect, ranked Watch browse, ClipsViewer v2). **Lovable Publish pending.**
 - **2026-06-02** — Messaging Polish Phase 1 (snap drag parity, outbox/call resume, voice scrub). **Lovable Publish pending.**
 - **2026-06-09** — Vybe Snap text drag 1:1 finger tracking fix (local, publish pending)
 - **2026-06-09** — production perfection pass pushed. **Lovable Publish pending.**
+
+## What Changed (Spaces live audio — Phase 5 early)
+- **`spaces-token` edge function** — role-aware LiveKit tokens for `space-{id}` rooms (speakers publish, listeners subscribe-only); deployed to `hprmicwhlaaqfgshucec`
+- **`useSpaceAudio`** — LiveKit room connect, remote audio playback, active-speaker tracking, app-resume recovery; reconnects on listener→speaker promotion
+- **`SpaceRoom`** — real mic mute (LiveKit + DB), raise-hand persists (`role: requested` so host sees it), audio status pill + retry, speaking ring from live audio
+- **`useSpaces` fix** — host/participant profiles joined by `profiles.user_id` (was wrongly `profiles.id`, broke avatars/usernames)
 
 ## What Changed (Phase 2 — Content unification)
 - **`/shorts` → `/clips` redirect** — one canonical clips route; `/shorts/:postId` deep links redirect too

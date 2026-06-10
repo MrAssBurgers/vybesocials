@@ -63,14 +63,14 @@ export function useSpaces(status?: 'live' | 'scheduled') {
       const { data, error } = await query.limit(50);
       if (error) throw error;
       
-      // Fetch host profiles separately
+      // Fetch host profiles separately (host_id is the auth user id)
       const hostIds = [...new Set((data || []).map((s: any) => s.host_id))];
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, avatar_url, display_name')
-        .in('id', hostIds);
-      
-      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+        .select('id, user_id, username, avatar_url, display_name')
+        .in('user_id', hostIds);
+
+      const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
       
       return (data || []).map((s: any) => ({
         ...s,
@@ -95,12 +95,12 @@ export function useSpace(spaceId: string | undefined) {
 
       if (error) throw error;
       
-      // Fetch host profile
+      // Fetch host profile (host_id is the auth user id)
       const { data: host } = await supabase
         .from('profiles')
-        .select('id, username, avatar_url, display_name')
-        .eq('id', (data as any).host_id)
-        .single();
+        .select('id, user_id, username, avatar_url, display_name')
+        .eq('user_id', (data as any).host_id)
+        .maybeSingle();
 
       return { ...(data as any), host } as Space;
     },
@@ -123,14 +123,14 @@ export function useSpaceParticipants(spaceId: string | undefined) {
 
       if (error) throw error;
       
-      // Fetch participant profiles
+      // Fetch participant profiles (user_id is the auth user id)
       const userIds = [...new Set((data || []).map((p: any) => p.user_id))];
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, avatar_url, display_name')
-        .in('id', userIds);
-      
-      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+        .select('id, user_id, username, avatar_url, display_name')
+        .in('user_id', userIds);
+
+      const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
       
       return (data || []).map((p: any) => ({
         ...p,
@@ -236,6 +236,49 @@ export function useLeaveSpace() {
     onSuccess: (_, spaceId) => {
       queryClient.invalidateQueries({ queryKey: ['space-participants', spaceId] });
       queryClient.invalidateQueries({ queryKey: ['space', spaceId] });
+    },
+  });
+}
+
+/** Persist the speaker's mute state so other participants see it. */
+export function useSetSpaceMute() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ spaceId, isMuted }: { spaceId: string; isMuted: boolean }) => {
+      if (!user?.id) throw new Error('Not authenticated');
+      const { error } = await supabase
+        .from('space_participants' as any)
+        .update({ is_muted: isMuted } as any)
+        .eq('space_id', spaceId)
+        .eq('user_id', user.id);
+      if (error) throw error;
+    },
+    onSuccess: (_, { spaceId }) => {
+      queryClient.invalidateQueries({ queryKey: ['space-participants', spaceId] });
+    },
+  });
+}
+
+/** Raise/lower hand — flips role between listener and requested so the host sees it. */
+export function useRaiseHand() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ spaceId, raised }: { spaceId: string; raised: boolean }) => {
+      if (!user?.id) throw new Error('Not authenticated');
+      const { error } = await supabase
+        .from('space_participants' as any)
+        .update({ raised_hand: raised, role: raised ? 'requested' : 'listener' } as any)
+        .eq('space_id', spaceId)
+        .eq('user_id', user.id)
+        .in('role', ['listener', 'requested']);
+      if (error) throw error;
+    },
+    onSuccess: (_, { spaceId }) => {
+      queryClient.invalidateQueries({ queryKey: ['space-participants', spaceId] });
     },
   });
 }

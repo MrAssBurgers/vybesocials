@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { useSpace, useSpaceParticipants, useJoinSpace, useLeaveSpace, useEndSpace, useUpdateParticipantRole } from '@/hooks/useSpaces';
+import { useSpace, useSpaceParticipants, useJoinSpace, useLeaveSpace, useEndSpace, useUpdateParticipantRole, useSetSpaceMute, useRaiseHand } from '@/hooks/useSpaces';
+import { useSpaceAudio } from '@/hooks/useSpaceAudio';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Radio, Mic, MicOff, ArrowLeft, Users, Hand, X, LogOut, Crown, UserPlus } from 'lucide-react';
+import { Radio, Mic, MicOff, ArrowLeft, Users, Hand, X, LogOut, Crown, UserPlus, Loader2, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -22,14 +23,16 @@ export default function SpaceRoom() {
   const leaveSpace = useLeaveSpace();
   const endSpace = useEndSpace();
   const updateRole = useUpdateParticipantRole();
-  
-  const [isMuted, setIsMuted] = useState(true);
-  const [handRaised, setHandRaised] = useState(false);
+  const setSpaceMute = useSetSpaceMute();
+  const raiseHand = useRaiseHand();
+  const audio = useSpaceAudio();
 
   const myParticipation = participants.find(p => p.user_id === user?.id);
   const isHost = space?.host_id === user?.id;
   const isSpeaker = myParticipation?.role === 'speaker' || myParticipation?.role === 'host' || myParticipation?.role === 'co_host';
   const isInSpace = !!myParticipation;
+  const isMuted = !audio.micEnabled;
+  const handRaised = myParticipation?.role === 'requested' || !!myParticipation?.raised_hand;
 
   const speakers = participants.filter(p => ['host', 'co_host', 'speaker'].includes(p.role));
   const listeners = participants.filter(p => p.role === 'listener');
@@ -42,31 +45,55 @@ export default function SpaceRoom() {
     }
   }, [spaceId, user?.id, isInSpace, space?.status]);
 
+  // Connect LiveKit audio once participating; reconnects when role changes
+  // (e.g. promoted listener → speaker gets a publish-capable token).
+  const prevRoleRef = useRef<string | null>(null);
+  useEffect(() => {
+    const role = myParticipation?.role;
+    if (!spaceId || !role || space?.status !== 'live') return;
+    if (prevRoleRef.current && prevRoleRef.current !== role && ['speaker', 'co_host'].includes(role)) {
+      toast.success("You're a speaker now! Unmute to talk 🎙️");
+    }
+    prevRoleRef.current = role;
+    void audio.connect(spaceId, role);
+  }, [spaceId, myParticipation?.role, space?.status]);
+
   const handleLeave = useCallback(async () => {
     if (!spaceId) return;
     triggerHaptic('medium');
+    await audio.disconnect();
     await leaveSpace.mutateAsync(spaceId);
     navigate('/spaces');
-  }, [spaceId, leaveSpace, navigate]);
+  }, [spaceId, leaveSpace, navigate, audio]);
 
   const handleEnd = useCallback(async () => {
     if (!spaceId) return;
     triggerHaptic('heavy');
+    await audio.disconnect();
     await endSpace.mutateAsync(spaceId);
     toast.success('Space ended');
     navigate('/spaces');
-  }, [spaceId, endSpace, navigate]);
+  }, [spaceId, endSpace, navigate, audio]);
 
   const handleRaiseHand = useCallback(() => {
+    if (!spaceId) return;
     triggerHaptic('light');
-    setHandRaised(h => !h);
-    toast.info(handRaised ? 'Hand lowered' : 'Hand raised! The host will see your request.');
-  }, [handRaised]);
+    const next = !handRaised;
+    raiseHand.mutate({ spaceId, raised: next });
+    toast.info(next ? 'Hand raised! The host will see your request.' : 'Hand lowered');
+  }, [spaceId, handRaised, raiseHand]);
 
-  const handleToggleMute = useCallback(() => {
+  const handleToggleMute = useCallback(async () => {
+    if (!spaceId) return;
     triggerHaptic('light');
-    setIsMuted(m => !m);
-  }, []);
+    const nextEnabled = isMuted; // currently muted → enable mic
+    const ok = await audio.setMic(nextEnabled);
+    if (!ok) {
+      toast.error(nextEnabled ? 'Could not unmute — check mic permission' : 'Could not mute');
+      return;
+    }
+    setSpaceMute.mutate({ spaceId, isMuted: !nextEnabled });
+  }, [spaceId, isMuted, audio, setSpaceMute]);
 
   const handlePromoteToSpeaker = useCallback(async (participantId: string) => {
     if (!spaceId) return;
@@ -121,6 +148,22 @@ export default function SpaceRoom() {
               <Radio className="h-3 w-3 mr-1" /> LIVE
             </Badge>
             <h1 className="font-bold text-lg">{space.title}</h1>
+            <div className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground mt-0.5">
+              {audio.state === 'connecting' && (
+                <><Loader2 className="h-3 w-3 animate-spin" /> Connecting audio…</>
+              )}
+              {audio.state === 'connected' && (
+                <><Volume2 className="h-3 w-3 text-green-500" /> Live audio</>
+              )}
+              {audio.state === 'error' && (
+                <button
+                  className="text-destructive underline"
+                  onClick={() => myParticipation && spaceId && audio.connect(spaceId, myParticipation.role)}
+                >
+                  Audio failed — tap to retry
+                </button>
+              )}
+            </div>
           </div>
           
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -143,8 +186,8 @@ export default function SpaceRoom() {
                 className="flex flex-col items-center"
               >
                 <div className={cn(
-                  "relative rounded-full p-1",
-                  !speaker.is_muted && "ring-2 ring-primary animate-pulse"
+                  "relative rounded-full p-1 transition-all",
+                  audio.activeSpeakerIds.has(speaker.user_id) && "ring-2 ring-primary"
                 )}>
                   <Avatar className="h-16 w-16">
                     <AvatarImage src={speaker.profile?.avatar_url || undefined} />
