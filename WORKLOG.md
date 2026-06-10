@@ -5,9 +5,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Publish pending** — pushed to `main`; user action: **Lovable → Share → Publish** for `vybehub.app`
+- **Publish now** — commit `6e808306` pushed to `main`; user: **Lovable → Share → Publish** for `vybehub.app`
+- **Prod SQL** — run `supabase/manual/PENDING_20260530.sql` in Supabase SQL Editor on **`agtcyxjxgkdyoxwxkjth`** (MCP still linked to skeleton project — do NOT run there)
 - **Despia native rebuild** — after AdMob IDs saved in Despia dashboard (rewarded ads)
-- **Incoming call full-screen UX** — Despia native rebuild + Lovable Backend deploy pending
 
 ## What Changed (splash / onboarding loading glitch — 2026-06-10)
 - **`SplashScreen`** — removed scale exit (fragmented V logo); faster fade; hides app shell during splash
@@ -29,7 +29,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **`AGENTS.md`** — "do a debug" protocol for future sessions
 - **Scan results:** frontend PASS; production missing RPCs `get_public_user_count`, `sync_signup_username`; `ensure_user_level` OK (auth required); `community-voice-token` edge fn not deployed (livekit-token fallback OK)
 - **Blocker:** apply `supabase/manual/PENDING_20260530.sql` on prod `agtcyxjxgkdyoxwxkjth`; Lovable Backend deploy for new edge functions
-- **Local:** 22 modified files uncommitted — not on vybehub.app until Publish
+- **Git:** `6e808306` pushed — awaiting Lovable Publish
 
 ## What Changed (location + welcome/marketing preview — 2026-06-10)
 - **Location** — no GPS prompt on app boot; only watches position on `/map`; Local feed asks when that tab is opened; onboarding permissions unchanged
@@ -60,9 +60,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Build:** `npm run build` pass
 
 ## Next 3 Tasks
-1. User: Lovable Publish for web OTA (`vybehub.app`) after boot-speed fix
-2. User: confirm AdMob IDs in Despia dashboard; rebuild native app
-3. Test cold start on device — splash should dismiss in ~1s for returning users
+1. User: Lovable → Share → Publish (commit `6e808306`)
+2. User: paste `PENDING_20260530.sql` into prod SQL Editor (`agtcyxjxgkdyoxwxkjth`)
+3. Smoke test `vybehub.app` — cold start, bottom nav, no location on boot, `/welcome` images
 
 ## What Changed (instant DMs + onboarding — 2026-06-09)
 - **`loadDMConversations.ts`** — shared fetch + nav/app prefetch for conversation list cache
