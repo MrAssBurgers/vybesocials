@@ -33,6 +33,7 @@ Before ending a task:
 ## Deploy Safety
 - Follow `DEPLOY.md`.
 - **Web production (`vybehub.app`)** is published via **Lovable → Share → Publish**, not Vercel/Netlify CLI in this repo.
-- **Supabase** project ref: `hprmicwhlaaqfgshucec` (see `supabase/config.toml`).
+- **Supabase** production project ref: `agtcyxjxgkdyoxwxkjth` (Lovable-managed; see `supabase/config.toml` and `.env`).
+- WARNING: `hprmicwhlaaqfgshucec` ("VYBE-Social") is a separate, mostly-empty project — do NOT point the app at it or deploy there; it has only a skeleton schema and broke onboarding when `.env` was switched to it.
 - Never assume publish credentials are available; verify first.
 - If deployment cannot be completed, provide exact unblock steps (usually Lovable Publish or `npx supabase login`).
