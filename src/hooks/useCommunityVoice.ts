@@ -48,10 +48,11 @@ async function fetchCommunityVoiceToken(
 
   for (const fnName of VOICE_TOKEN_FUNCTIONS) {
     const result = await supabase.functions.invoke<VoiceTokenResponse>(fnName, { body });
-    const { payload, errorCode, errorMessage } = await parseEdgeInvokeResult(result);
+    const { payload, errorCode, errorMessage } = await parseEdgeInvokeResult(result as any);
+    const typed = payload as unknown as VoiceTokenResponse | undefined;
 
-    if (payload?.token && payload?.url) {
-      return payload;
+    if (typed?.token && typed?.url) {
+      return typed;
     }
 
     const msg = errorCode || errorMessage || '';
