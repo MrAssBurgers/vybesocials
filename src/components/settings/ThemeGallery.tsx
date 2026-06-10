@@ -19,7 +19,7 @@ import {
   useUpdateSharedTheme,
   SharedTheme,
 } from '@/hooks/useSharedThemes';
-import { applyThemeTokens } from '@/hooks/useCustomTheme';
+import { applyThemeTokens, setThemePreviewLock } from '@/hooks/useCustomTheme';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
@@ -281,6 +281,7 @@ export function ThemeGallery() {
     
     // Trigger global theme transition
     triggerTransition(primaryColor, accentColor, () => {
+      setThemePreviewLock(true);
       try {
         // Sync global theme mode so ThemeProvider doesn't fight the class change
         const targetMode = theme.theme_tokens?.mode === 'light' ? 'light' : 'dark';
@@ -293,6 +294,8 @@ export function ThemeGallery() {
         toast.success(`Theme "${theme.theme_name}" applied!`);
       } catch (error) {
         console.error('Error applying theme:', error);
+      } finally {
+        setTimeout(() => setThemePreviewLock(false), 400);
       }
     });
   }, [triggerTransition, setGlobalTheme]);

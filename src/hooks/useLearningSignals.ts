@@ -23,7 +23,7 @@ export function useLearningSignals() {
     (async () => {
       const since = new Date(Date.now() - 30 * 86400_000).toISOString();
       // fetch profile.id once for comments lookups (uses profile id)
-      const { data: prof } = await supabase.from('profiles').select('id').eq('id', user.id).maybeSingle();
+      const { data: prof } = await supabase.from('profiles').select('id').eq('user_id', user.id).maybeSingle();
       const profId = prof?.id || user.id;
 
       const [likesR, followsR, commentsR, sessionsR, dnaR, recentLikesR, recentFollowsR, recentCommentsR] = await Promise.all([

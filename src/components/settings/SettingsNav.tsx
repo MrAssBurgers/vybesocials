@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { useRef, useEffect } from 'react';
 import { 
   User, 
   Lock, 
@@ -218,5 +219,58 @@ export function SettingsSidebar({ activeCategory, onCategoryChange }: SettingsSi
         </div>
       ))}
     </nav>
+  );
+}
+
+/** Mobile detail — sticky horizontal category strip so groups stay visible while scrolling */
+export function SettingsCategoryStrip({
+  activeCategory,
+  onCategoryChange,
+}: SettingsSidebarProps) {
+  const { t } = useTranslation();
+  const groups = useSettingsGroups();
+  const stripRef = useRef<HTMLDivElement>(null);
+
+  // Keep the active pill scrolled into view when switching categories
+  useEffect(() => {
+    const el = stripRef.current?.querySelector('[data-active="true"]');
+    el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [activeCategory]);
+
+  return (
+    <div
+      className="sticky z-20 -mx-3 px-3 py-2 mb-4 backdrop-blur-xl bg-background/80 border-b border-foreground/[0.06]"
+      style={{ top: 0 }}
+    >
+      <div
+        ref={stripRef}
+        className="flex gap-2 overflow-x-auto scrollbar-hide pb-0.5"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        {groups.flatMap(g => g.items).map((id) => {
+          const meta = CATEGORY_META[id];
+          const isActive = activeCategory === id;
+          return (
+            <button
+              key={id}
+              data-active={isActive ? 'true' : undefined}
+              onClick={() => {
+                haptics.tap();
+                onCategoryChange(id);
+              }}
+              className={cn(
+                'flex items-center gap-2 px-3 py-2 rounded-full flex-shrink-0 transition-all duration-200',
+                isActive
+                  ? 'bg-primary text-primary-foreground shadow-md shadow-primary/25 pl-3 pr-4'
+                  : 'bg-muted/40 text-foreground/70 active:bg-muted/60'
+              )}
+            >
+              {!isActive && <CategoryTile category={id} size="sm" />}
+              <span className="text-xs font-semibold whitespace-nowrap">{t(meta.labelKey)}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

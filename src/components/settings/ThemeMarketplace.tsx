@@ -24,7 +24,7 @@ import {
   SharedTheme
 } from '@/hooks/useSharedThemes';
 import { useImportThemeCode } from '@/hooks/useUISettings';
-import { applyThemeTokens } from '@/hooks/useCustomTheme';
+import { applyThemeTokens, setThemePreviewLock } from '@/hooks/useCustomTheme';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
@@ -241,13 +241,18 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
       tokens.colorPrimary || '280 70% 50%',
       tokens.colorAccent || '330 80% 60%',
       () => {
-        const targetMode = tokens.mode === 'light' ? 'light' : 'dark';
-        setGlobalTheme(targetMode);
-        applyThemeTokens(tokens);
-        setActiveThemeId(theme.id);
-        localStorage.setItem('vybe-equipped-theme-id', theme.id);
-        localStorage.setItem('vybe-custom-theme', JSON.stringify(tokens));
-        toast.success(`Theme "${theme.theme_name}" applied!`);
+        setThemePreviewLock(true);
+        try {
+          const targetMode = tokens.mode === 'light' ? 'light' : 'dark';
+          setGlobalTheme(targetMode);
+          applyThemeTokens(tokens);
+          setActiveThemeId(theme.id);
+          localStorage.setItem('vybe-equipped-theme-id', theme.id);
+          localStorage.setItem('vybe-custom-theme', JSON.stringify(tokens));
+          toast.success(`Theme "${theme.theme_name}" applied!`);
+        } finally {
+          setTimeout(() => setThemePreviewLock(false), 400);
+        }
       }
     );
   }, [triggerTransition, setGlobalTheme]);

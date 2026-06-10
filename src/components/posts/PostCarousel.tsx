@@ -10,7 +10,7 @@ interface PostCarouselProps {
   onDoubleTap?: () => void;
 }
 
-function CarouselImage({ url }: { url: string }) {
+function CarouselImage({ url, eager = false }: { url: string; eager?: boolean }) {
   const signedUrl = useFastSignedUrl(url);
   const [hasError, setHasError] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -31,9 +31,9 @@ function CarouselImage({ url }: { url: string }) {
         )}
         onLoad={() => setLoaded(true)}
         onError={() => setHasError(true)}
-        loading="eager"
+        loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        fetchPriority="high"
+        fetchPriority={eager ? 'high' : 'auto'}
       />
     </div>
   );

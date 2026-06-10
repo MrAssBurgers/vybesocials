@@ -11,6 +11,7 @@ import { APP_VERSION } from '@/lib/constants';
 import {
   SettingsHomeList,
   SettingsSidebar,
+  SettingsCategoryStrip,
   CategoryTile,
   getCategoryMeta,
   SettingsCategory,
@@ -254,14 +255,14 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
                 transition={{ duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
               >
                 {/* Back bar */}
-                <div className="flex items-center gap-3 mb-5">
+                <div className="flex items-center gap-3 mb-3">
                   <button
                     onClick={() => {
                       haptics.tap();
                       setActiveCategory(null);
                     }}
                     aria-label="Back to settings"
-                    className="w-9 h-9 rounded-full liquid-glass-card flex items-center justify-center active:scale-95 transition-transform"
+                    className="w-9 h-9 rounded-full liquid-glass-card flex items-center justify-center active:scale-95 transition-transform shrink-0"
                   >
                     <ArrowLeft className="w-[18px] h-[18px]" />
                   </button>
@@ -270,6 +271,14 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
                     {activeCategory ? t(CATEGORY_TITLES[activeCategory]) : ''}
                   </h2>
                 </div>
+
+                {/* Sticky category strip — switch sections without going home */}
+                {activeCategory && (
+                  <SettingsCategoryStrip
+                    activeCategory={activeCategory}
+                    onCategoryChange={setActiveCategory}
+                  />
+                )}
 
                 <div className="min-h-[400px]">
                   {activeCategory && renderContent(activeCategory)}

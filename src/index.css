@@ -1496,6 +1496,15 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     border-radius: 0.875rem;
   }
 
+  /* Hide scrollbar on settings sidebar / category strip */
+  .settings-shell aside,
+  .settings-shell [class*="scrollbar-hide"] {
+    scrollbar-width: none;
+  }
+  .settings-shell aside::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Glass Input with color accent */
   .liquid-glass-input {
     background: linear-gradient(
