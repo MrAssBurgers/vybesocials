@@ -18,7 +18,7 @@ export function WelcomeHeader() {
   const [showBrief, setShowBrief] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const streakCount = useStreakCount();
-  const { currentLevel, progressPercent, xpToNextLevel, currentXP } = useNextLevelProgress();
+  const { currentLevel, progressPercent, xpToNextLevel, isReady: levelReady } = useNextLevelProgress();
   const navigate = useNavigate();
 
   // Legacy push deep-link (?openBrief=true) — redirect to dedicated /brief page
@@ -100,7 +100,9 @@ export function WelcomeHeader() {
                 <div className="flex items-center justify-between mb-0.5">
                   <div className="flex items-center gap-1.5">
                     <Zap className="h-3.5 w-3.5 text-primary" />
-                    <span className="text-xs font-semibold">Lv.{currentLevel}</span>
+                    <span className="text-xs font-semibold">
+                      {levelReady && currentLevel != null ? `Lv.${currentLevel}` : 'Lv.…'}
+                    </span>
                   </div>
                   <span className="text-[10px] text-muted-foreground">{xpToNextLevel} XP to next</span>
                 </div>

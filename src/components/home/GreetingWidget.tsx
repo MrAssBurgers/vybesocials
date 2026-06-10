@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 export function GreetingWidget() {
   const { profile } = useAuth();
   const signedAvatar = useFastSignedUrl(profile?.avatar_url ?? null);
-  const { currentLevel } = useNextLevelProgress();
+  const { currentLevel, isReady: levelReady } = useNextLevelProgress();
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -72,9 +72,11 @@ export function GreetingWidget() {
                 {profile.username?.[0]?.toUpperCase() ?? '?'}
               </AvatarFallback>
             </Avatar>
-            <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-background bg-gradient-to-br from-primary to-accent text-[10px] font-black text-primary-foreground shadow-md">
-              {currentLevel}
-            </div>
+            {levelReady && currentLevel != null && (
+              <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-background bg-gradient-to-br from-primary to-accent text-[10px] font-black text-primary-foreground shadow-md">
+                {currentLevel}
+              </div>
+            )}
           </div>
 
           <div className="min-w-0 flex-1 pt-0.5">

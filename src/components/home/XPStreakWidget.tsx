@@ -8,10 +8,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 export function XPStreakWidget() {
   const streakCount = useStreakCount();
   const { data: userLevel, isLoading: levelLoading } = useUserLevel();
-  const { currentLevel, progressPercent, xpToNextLevel } = useNextLevelProgress();
+  const { currentLevel, progressPercent, xpToNextLevel, isReady: levelReady } = useNextLevelProgress();
   const navigate = useNavigate();
 
-  if (levelLoading && !userLevel) {
+  if ((levelLoading && !userLevel) || !levelReady || currentLevel == null) {
     return (
       <div className="px-4 pb-2">
         <Skeleton className="h-12 w-full rounded-xl" />

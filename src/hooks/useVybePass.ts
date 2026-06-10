@@ -5,6 +5,7 @@ import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeC
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { navigationRef } from '@/lib/navigationRef';
+import { getCachedUserLevel, setCachedUserLevel } from '@/lib/userLevelCache';
 
 export interface UserLevel {
   id: string;
@@ -51,6 +52,21 @@ export interface ChallengeReward {
   };
 }
 
+function normalizeUserLevelRow(data: Record<string, unknown>, authUserId: string): UserLevel {
+  const level = {
+    ...data,
+    unclaimed_rewards: (Array.isArray(data.unclaimed_rewards)
+      ? data.unclaimed_rewards
+      : []) as unknown as VybePassReward[],
+  } as UserLevel;
+  setCachedUserLevel(authUserId, {
+    current_level: level.current_level,
+    total_xp: level.total_xp,
+    unclaimed_rewards: level.unclaimed_rewards,
+  });
+  return level;
+}
+
 export function useUserLevel() {
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
@@ -71,17 +87,14 @@ export function useUserLevel() {
       
       if (!data) {
         try {
-          await (supabase as any).rpc('ensure_user_level', { p_user_id: authUserId });
+          await supabase.rpc('ensure_user_level');
           const { data: retryData } = await supabase
             .from('user_levels')
             .select('*')
             .eq('user_id', authUserId)
             .maybeSingle();
           if (retryData) {
-            return {
-              ...retryData,
-              unclaimed_rewards: (Array.isArray(retryData.unclaimed_rewards) ? retryData.unclaimed_rewards : []) as unknown as VybePassReward[],
-            } as UserLevel;
+            return normalizeUserLevelRow(retryData, authUserId);
           }
           return null;
         } catch (e) {
@@ -90,17 +103,28 @@ export function useUserLevel() {
         }
       }
       
-      return {
-        ...data,
-        unclaimed_rewards: (Array.isArray(data.unclaimed_rewards) ? data.unclaimed_rewards : []) as unknown as VybePassReward[],
-      } as UserLevel;
+      return normalizeUserLevelRow(data, authUserId);
     },
     enabled: !!authUserId,
     staleTime: 1000 * 60 * 2,
-    placeholderData: () =>
-      authUserId
-        ? queryClient.getQueryData<UserLevel>(['user-level', authUserId]) ?? undefined
-        : undefined,
+    refetchOnMount: false,
+    networkMode: 'offlineFirst',
+    placeholderData: () => {
+      if (!authUserId) return undefined;
+      const cached = queryClient.getQueryData<UserLevel>(['user-level', authUserId]);
+      if (cached) return cached;
+      const disk = getCachedUserLevel(authUserId);
+      if (!disk) return undefined;
+      return {
+        id: disk.user_id,
+        user_id: disk.user_id,
+        total_xp: disk.total_xp,
+        current_level: disk.current_level,
+        unclaimed_rewards: (disk.unclaimed_rewards ?? []) as VybePassReward[],
+        created_at: '',
+        updated_at: '',
+      } as UserLevel;
+    },
   });
 }
 
@@ -301,16 +325,19 @@ export function useRealtimeChallengeProgress() {
 }
 
 export function useNextLevelProgress() {
-  const { data: userLevel } = useUserLevel();
-  const { data: tiers } = useVybePassTiers();
+  const { data: userLevel, isPending: levelPending } = useUserLevel();
+  const { data: tiers, isPending: tiersPending } = useVybePassTiers();
+  const isReady = !!userLevel && !!tiers;
 
-  if (!userLevel || !tiers) {
+  if (!isReady) {
     return {
-      currentXP: 0,
-      currentLevel: 1,
+      currentXP: userLevel?.total_xp ?? 0,
+      currentLevel: userLevel?.current_level ?? null,
       nextLevelXP: 100,
       progressPercent: 0,
       xpToNextLevel: 100,
+      isReady: false as const,
+      isLoading: levelPending || tiersPending,
     };
   }
 
@@ -330,6 +357,8 @@ export function useNextLevelProgress() {
     nextLevelXP,
     progressPercent,
     xpToNextLevel: nextLevelXP - userLevel.total_xp,
+    isReady: true as const,
+    isLoading: false,
   };
 }
 

@@ -27,7 +27,11 @@ export function useDMConversations(searchQuery: string = '') {
     queryFn: async () => {
       if (!profile?.id) return [];
       const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profile.id]);
-      return loadDMConversations(profile.id, prev);
+      const shell = await loadDMConversations(profile.id, prev, { skipPreviews: true });
+      if (shell.length > 0 && (!prev || prev.length === 0)) {
+        queryClient.setQueryData(['dm-conversations', profile.id], shell);
+      }
+      return loadDMConversations(profile.id, shell.length ? shell : prev);
     },
     enabled: !!profile?.id,
     // Treat persisted data as instantly displayable, then always revalidate
@@ -175,7 +179,7 @@ export function useDMConversations(searchQuery: string = '') {
     pinnedConversations,
     unpinnedConversations,
     totalUnreadCount,
-    isLoading: conversationsQuery.isPending && !conversationsQuery.data,
+    isLoading: conversationsQuery.isPending && !conversationsQuery.data?.length,
     isFetched: conversationsQuery.isFetched,
     isFetching: conversationsQuery.isFetching,
     error: conversationsQuery.error,

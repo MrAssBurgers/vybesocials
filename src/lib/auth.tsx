@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, isRawId, type CachedProfile } from '@/lib/profileCache';
+import { clearCachedUserLevel } from '@/lib/userLevelCache';
+import { prefetchDMConversationsFromNav } from '@/lib/loadDMConversations';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
@@ -110,6 +112,7 @@ function persistCurrentProfile(profileData: Profile) {
   };
   setCachedProfile(payload);
   setCachedCurrentProfile(payload);
+  requestAnimationFrame(() => prefetchDMConversationsFromNav());
 }
 
 /** Wait until Supabase has a session (post-signup / OAuth race). */
@@ -441,6 +444,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cachedProfile = getCachedCurrentProfile();
       if (!cachedProfile) return false;
       setProfile((prev) => prev ?? cachedProfileToProfile(cachedProfile, userId));
+      requestAnimationFrame(() => prefetchDMConversationsFromNav());
       return true;
     };
 
@@ -507,6 +511,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           logEvent('auth', 'Explicit sign out — clearing state');
           setProfile(null);
           clearCachedCurrentProfile();
+          clearCachedUserLevel();
           stopHeartbeat();
           setBanInfo(null);
           if (refreshTimerRef.current) {
@@ -776,6 +781,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     clearCachedCurrentProfile();
+    clearCachedUserLevel();
 
     // 2) Clear local Supabase session synchronously (no network round-trip).
     //    The global revoke happens in the background.

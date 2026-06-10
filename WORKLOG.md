@@ -5,9 +5,19 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Publish now** — commit `6e808306` pushed to `main`; user: **Lovable → Share → Publish** for `vybehub.app`
-- **Prod SQL** — run `supabase/manual/PENDING_20260530.sql` in Supabase SQL Editor on **`agtcyxjxgkdyoxwxkjth`** (MCP still linked to skeleton project — do NOT run there)
+- **Load perf fix** — level cache, DM fast shell, personalized feed warm (local; publish via Lovable)
+- **Prod SQL** — run `supabase/manual/PENDING_20260530.sql` on **`agtcyxjxgkdyoxwxkjth`**
 - **Despia native rebuild** — after AdMob IDs saved in Despia dashboard (rewarded ads)
+
+## What Changed (instant load — DMs, level, feed — 2026-06-10)
+- **`userLevelCache.ts`** — disk cache so home never flashes fake Lv.1
+- **`useVybePass`** — fixed `ensure_user_level()` call (no invalid param); offline-first placeholder
+- **`GreetingWidget` / `XPStreakWidget`** — hide level badge until real data; skeleton instead of Lv.1
+- **`loadDMConversations`** — two-phase load (list shell → previews); per-conv last message (not 200-row scan)
+- **`useAppPreloader`** — warm `personalized-feed-v2` + proper user_levels fetch on boot
+- **`auth`** — prefetch DMs when profile hydrates; clear level cache on sign-out
+- **Debug scan:** build PASS; prod still missing `get_public_user_count` / `sync_signup_username` RPCs
+- **Build:** `npm run build` pass
 
 ## What Changed (splash / onboarding loading glitch — 2026-06-10)
 - **`SplashScreen`** — removed scale exit (fragmented V logo); faster fade; hides app shell during splash
@@ -60,9 +70,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Build:** `npm run build` pass
 
 ## Next 3 Tasks
-1. User: Lovable → Share → Publish (commit `6e808306`)
+1. User: Lovable Publish after load-perf fixes
 2. User: paste `PENDING_20260530.sql` into prod SQL Editor (`agtcyxjxgkdyoxwxkjth`)
-3. Smoke test `vybehub.app` — cold start, bottom nav, no location on boot, `/welcome` images
+3. Device test — DMs list instant, level badge correct on cold start, feed posts not stuck on skeleton
 
 ## What Changed (instant DMs + onboarding — 2026-06-09)
 - **`loadDMConversations.ts`** — shared fetch + nav/app prefetch for conversation list cache
