@@ -412,6 +412,7 @@ function AppWithPreloader() {
                         <Toaster />
                         <Sonner />
                         <BrowserRouter>
+                        <LocationProvider>
                           <AppGlobalLiquidShell />
                           <VybeLiquidTouchShell />
                           <div
