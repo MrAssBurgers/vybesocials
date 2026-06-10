@@ -5,7 +5,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Load perf fix** — level cache, DM fast shell, personalized feed warm (local; publish via Lovable)
+- **Publish now** — commit `0d66fdd5` pushed to `main`; user: **Lovable → Share → Publish** for `vybehub.app`
 - **Prod SQL** — run `supabase/manual/PENDING_20260530.sql` on **`agtcyxjxgkdyoxwxkjth`**
 - **Despia native rebuild** — after AdMob IDs saved in Despia dashboard (rewarded ads)
 
@@ -39,7 +39,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **`AGENTS.md`** — "do a debug" protocol for future sessions
 - **Scan results:** frontend PASS; production missing RPCs `get_public_user_count`, `sync_signup_username`; `ensure_user_level` OK (auth required); `community-voice-token` edge fn not deployed (livekit-token fallback OK)
 - **Blocker:** apply `supabase/manual/PENDING_20260530.sql` on prod `agtcyxjxgkdyoxwxkjth`; Lovable Backend deploy for new edge functions
-- **Git:** `6e808306` pushed — awaiting Lovable Publish
+- **Git:** `0d66fdd5` pushed — awaiting Lovable Publish
 
 ## What Changed (location + welcome/marketing preview — 2026-06-10)
 - **Location** — no GPS prompt on app boot; only watches position on `/map`; Local feed asks when that tab is opened; onboarding permissions unchanged
@@ -70,7 +70,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Build:** `npm run build` pass
 
 ## Next 3 Tasks
-1. User: Lovable Publish after load-perf fixes
+1. User: Lovable → Share → Publish (commit `0d66fdd5`)
 2. User: paste `PENDING_20260530.sql` into prod SQL Editor (`agtcyxjxgkdyoxwxkjth`)
 3. Device test — DMs list instant, level badge correct on cold start, feed posts not stuck on skeleton
 
