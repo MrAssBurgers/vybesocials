@@ -72,12 +72,12 @@ function FirstPostCTA() {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl bg-gradient-to-br from-primary/10 via-accent/5 to-primary/10 border border-primary/20 p-5 text-center"
+      className="home-first-post-cta mx-2 p-5 text-center rounded-3xl"
     >
-      <div className="w-12 h-12 rounded-full bg-primary/15 flex items-center justify-center mx-auto mb-3">
+      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/25 to-accent/20 flex items-center justify-center mx-auto mb-3 ring-1 ring-primary/20">
         <PenSquare className="h-5 w-5 text-primary" />
       </div>
-      <h3 className="text-sm font-bold mb-1">Share your first VYBE ✨</h3>
+      <h3 className="home-hero-title text-base mb-1">Share your first VYBE</h3>
       <p className="text-xs text-muted-foreground mb-4 max-w-[200px] mx-auto">
         Post a photo, video, or thought to get started
       </p>
@@ -142,9 +142,8 @@ function QuickAccessCard({ icon, label, path, gradient, iconColor, widgetId }: {
     <button
       onClick={() => { if (!isEditing) { triggerHaptic('light'); navigate(path); } }}
       className={cn(
-        "flex items-center transition-all h-full w-full min-h-0",
-        "bg-gradient-to-br border border-white/[0.08] shadow-sm",
-        "hover:scale-[1.03] active:scale-[0.97]",
+        "flex items-center transition-all h-full w-full min-h-0 home-quick-card bg-gradient-to-br",
+        "hover:scale-[1.02] active:scale-[0.98]",
         gradient,
         isWide
           ? 'flex-row gap-3 px-4 py-3 rounded-2xl justify-start'
@@ -251,7 +250,7 @@ function FeedSection({
   );
 
   return (
-    <div className="pb-6" data-tutorial="feed-area">
+    <div className="pb-6 px-1" data-tutorial="feed-area">
       {user && showFriendLinkSpotlight && activeTab === 'foryou' && (
         <FriendLinkSpotlight
           onOpen={() => openFriendLink('tap')}
@@ -262,8 +261,8 @@ function FeedSection({
         />
       )}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="flex items-center gap-2 mb-5">
-          <TabsList data-no-auto-contrast className="relative flex-1 h-12 p-1 bg-card rounded-2xl border border-border/40 shadow-lg shadow-background/20">
+        <div className="flex items-center gap-2 mb-4 px-2">
+          <TabsList data-no-auto-contrast className="home-feed-tabs relative flex-1 h-11 p-1 rounded-2xl">
             {['foryou', 'local', 'global'].map((tab) => {
               const isActive = activeTab === tab;
               const icons: Record<string, typeof Sparkles> = { foryou: Sparkles, local: MapPin, global: Globe };
@@ -274,21 +273,19 @@ function FeedSection({
                   key={tab}
                   value={tab}
                   className={cn(
-                    "relative flex-1 rounded-xl transition-all duration-300 z-10 h-full",
-                    isActive
-                      ? "text-foreground font-semibold"
-                      : "text-muted-foreground hover:text-foreground/70"
+                    'relative flex-1 rounded-xl transition-colors duration-200 z-10 h-full text-xs font-semibold',
+                    isActive ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground/80'
                   )}
                 >
                   {isActive && (
                     <motion.div
-                      layoutId="feed-tab-capsule"
-                      className="absolute inset-0.5 rounded-xl bg-sidebar-accent border border-primary/30 shadow-[0_0_16px_hsl(var(--primary)/0.18)]"
-                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                      layoutId="home-feed-tab-pill"
+                      className="absolute inset-0.5 rounded-xl home-feed-tab-active"
+                      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                     />
                   )}
-                  <span className="relative z-10 flex items-center gap-1.5">
-                    <Icon className={cn("h-3.5 w-3.5 transition-colors", isActive && "text-primary drop-shadow-[0_0_6px_hsl(var(--primary)/0.5)]")} />
+                  <span className="relative z-10 flex items-center justify-center gap-1.5">
+                    <Icon className={cn('h-3.5 w-3.5', isActive && 'drop-shadow-sm')} />
                     {labels[tab]}
                   </span>
                 </TabsTrigger>
@@ -299,11 +296,12 @@ function FeedSection({
 
         {hasNewPosts && (
           <button
+            type="button"
             onClick={() => { clearNewPosts(); handleRefresh(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-            className="w-full mb-4 py-2.5 px-4 rounded-full bg-primary text-primary-foreground text-sm font-semibold shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-300"
+            className="home-new-posts-btn w-full mb-4 py-2.5 px-4 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-300"
           >
             <Sparkles className="h-4 w-4" />
-            New posts available — tap to see
+            New posts — tap to refresh
           </button>
         )}
 

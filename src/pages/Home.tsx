@@ -299,11 +299,11 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
       />
 
       <HomeEditModeProvider editing={customizerOpen} onEditingChange={setCustomizerOpen}>
-        <div 
-          className="max-w-xl mx-auto"
+        <div
+          className="home-shell max-w-xl mx-auto"
           data-tutorial="tutorial-welcome-center"
-          style={{ 
-            transform: pullDistance > 0 ? `translateY(${pullDistance * 0.5}px)` : undefined 
+          style={{
+            transform: pullDistance > 0 ? `translateY(${pullDistance * 0.5}px)` : undefined,
           }}
         >
           {/* Announcement Modal */}
@@ -316,25 +316,18 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
           {/* Customize Button - floating glassmorphic pill with shimmer */}
           {!customizerOpen && (
-            <div className="px-4 pt-2 pb-2 flex justify-center">
+            <div className="px-4 pt-1 pb-2 flex justify-center">
               <motion.button
+                type="button"
                 onClick={() => setCustomizerOpen(true)}
-                className="relative group rounded-full px-5 py-2.5 flex items-center gap-2.5 overflow-hidden border border-primary/20 bg-primary/5 backdrop-blur-xl shadow-[0_0_20px_hsl(var(--primary)/0.1)] hover:shadow-[0_0_30px_hsl(var(--primary)/0.2)] transition-shadow"
+                className="home-customize-btn group"
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
                 data-no-auto-contrast
               >
-                {/* Shimmer sweep */}
-                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-primary/10 to-transparent" />
-                {/* Gradient border glow */}
-                <div className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.15), hsl(var(--accent) / 0.15))' }} />
-                <div className="relative flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-                    <LayoutGrid className="h-3 w-3 text-primary" />
-                  </div>
-                  <span className="text-sm font-semibold text-primary">Customize Home</span>
-                </div>
+                <LayoutGrid className="h-3.5 w-3.5 text-primary" />
+                <span>Customize</span>
               </motion.button>
             </div>
           )}

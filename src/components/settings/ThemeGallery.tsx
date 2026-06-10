@@ -19,7 +19,7 @@ import {
   useUpdateSharedTheme,
   SharedTheme,
 } from '@/hooks/useSharedThemes';
-import { applyThemeTokens, setThemePreviewLock } from '@/hooks/useCustomTheme';
+import { equipTheme } from '@/hooks/useCustomTheme';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
@@ -279,23 +279,15 @@ export function ThemeGallery() {
     const primaryColor = theme.theme_tokens?.colorPrimary || '280 70% 50%';
     const accentColor = theme.theme_tokens?.colorAccent || '330 80% 60%';
     
-    // Trigger global theme transition
     triggerTransition(primaryColor, accentColor, () => {
-      setThemePreviewLock(true);
       try {
-        // Sync global theme mode so ThemeProvider doesn't fight the class change
         const targetMode = theme.theme_tokens?.mode === 'light' ? 'light' : 'dark';
         setGlobalTheme(targetMode);
-        
-        applyThemeTokens(theme.theme_tokens);
+        equipTheme(theme.theme_tokens, { themeId: theme.id });
         setActiveThemeId(theme.id);
-        localStorage.setItem('vybe-equipped-theme-id', theme.id);
-        localStorage.setItem('vybe-custom-theme', JSON.stringify(theme.theme_tokens));
-        toast.success(`Theme "${theme.theme_name}" applied!`);
+        toast.success(`Theme "${theme.theme_name}" equipped!`);
       } catch (error) {
         console.error('Error applying theme:', error);
-      } finally {
-        setTimeout(() => setThemePreviewLock(false), 400);
       }
     });
   }, [triggerTransition, setGlobalTheme]);

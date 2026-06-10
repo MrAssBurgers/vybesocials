@@ -598,34 +598,33 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
           </button>
         )}
         {isPinned && (
-          <div className="absolute -top-1 -right-1 bg-primary rounded-full p-[3px] border-2 border-background shadow-sm">
+          <div className="dm-convo-pin-badge">
             <Pin className="h-2.5 w-2.5 text-primary-foreground fill-primary-foreground" />
           </div>
         )}
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-0.5 gap-2">
-          <div className="flex items-center gap-1 min-w-0 flex-1">
+        <div className="flex items-start justify-between mb-1 gap-2">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {!conversation.is_group && otherMember ? (
               <StyledUsername
                 userId={otherMember.id}
                 username={otherMember.username || 'User'}
                 displayName={otherMember.display_name}
-                className="font-semibold text-sm truncate"
+                className="dm-convo-name truncate"
               />
             ) : (
-              <span className="font-semibold text-sm truncate">{displayName}</span>
+              <span className="dm-convo-name truncate">{displayName}</span>
             )}
             {!conversation.is_group && userRole && <ModBadge role={userRole} />}
             {conversation.is_group && (
-              <span className="text-[9px] text-muted-foreground bg-muted px-1 py-0.5 rounded-full flex-shrink-0">
+              <span className="text-[9px] text-muted-foreground bg-foreground/[0.06] px-1.5 py-0.5 rounded-full flex-shrink-0 border border-foreground/[0.08]">
                 Group
               </span>
             )}
             {!conversation.is_group && otherMember && isOwner(otherMember.username || '') && <OwnerBadge />}
             {!conversation.is_group && otherMember && isOwnerWife(otherMember.id) && <OwnerWifeRingBadge />}
-            {/* Streak indicator - Snapchat style */}
             {!conversation.is_group && streak && streak.streak_count > 0 && (
               <StreakIndicator 
                 count={streak.streak_count} 
@@ -634,17 +633,18 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
               />
             )}
           </div>
-          <div className="flex items-center gap-0.5 flex-shrink-0">
+          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+            {unreadCount > 0 && <span className="dm-convo-activity-dot" aria-label="Unread" />}
             {formattedTime && (
-              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+              <span className="text-[10px] text-muted-foreground/80 whitespace-nowrap tabular-nums">
                 {formattedTime}
               </span>
             )}
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-1">
-          <div className="flex items-center gap-1 min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {isTyping ? (
               <div className="flex items-center gap-1.5 text-primary">
                 <TypingIndicator size="sm" />
@@ -652,27 +652,24 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
               </div>
             ) : lastMessage ? (
               <>
-                {/* Snapchat-style status icons */}
                 {lastMessage.sender_id === currentUserId ? (
-                  // Sent messages: arrows
                   lastMessage.media_type === 'vybe' ? (
-                    <span className="flex-shrink-0 text-red-500">▶</span>
+                    <span className="dm-convo-status-icon text-red-400">▶</span>
                   ) : lastMessage.media_type === 'audio' ? (
-                    <span className="flex-shrink-0 text-purple-500">▶</span>
+                    <span className="dm-convo-status-icon text-purple-400">▶</span>
                   ) : (
-                    <span className="flex-shrink-0 text-primary">▶</span>
+                    <span className="dm-convo-status-icon">▶</span>
                   )
                 ) : (
-                  // Received messages: squares
                   lastMessage.media_type === 'vybe' ? (
-                    <span className="flex-shrink-0 text-red-500">◼</span>
+                    <span className="dm-convo-status-icon text-red-400">◼</span>
                   ) : lastMessage.media_type === 'audio' ? (
-                    <span className="flex-shrink-0 text-purple-500">◼</span>
+                    <span className="dm-convo-status-icon text-purple-400">◼</span>
                   ) : (
-                    <span className="flex-shrink-0 text-primary">◼</span>
+                    <span className="dm-convo-status-icon">◼</span>
                   )
                 )}
-                <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">
+                <p className="text-xs text-foreground/75 truncate flex-1 min-w-0 font-medium">
                   {lastMessage.sender_id === currentUserId
                     ? lastMessage.viewed_at
                       ? 'Opened'

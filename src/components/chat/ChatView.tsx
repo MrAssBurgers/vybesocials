@@ -1274,7 +1274,7 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-background relative overflow-hidden" style={{ touchAction: 'pan-y' }}>
+    <div className="flex flex-col h-full min-h-0 dm-chat-shell relative overflow-hidden" style={{ touchAction: 'pan-y' }}>
       {/* DM Image Safety Gate */}
       <AnimatePresence>
         {showImageSafetyGate && pendingSafetyImage && (
@@ -1310,12 +1310,12 @@ export function ChatView() {
       </AnimatePresence>
 
 
-      {/* Floating header — single unified pill spanning the top */}
+      {/* Floating header — clean, no backdrop blur */}
       <header
-        className="absolute top-0 left-0 right-0 px-2 sm:px-3 pb-2 flex items-center bg-transparent z-20 pointer-events-none"
-        style={{ paddingTop: 'calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.75rem)' }}
+        className="dm-chat-header absolute top-0 left-0 right-0 px-3 sm:px-4 pb-3 flex items-center z-20 pointer-events-none"
+        style={{ paddingTop: 'calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.5rem)' }}
       >
-        <div className="pointer-events-auto flex items-center gap-2 w-full min-w-0 pl-1.5 pr-1.5 py-1.5 rounded-full bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)] ring-1 ring-inset ring-white/[0.04]">
+        <div className="pointer-events-auto flex items-center gap-2.5 w-full min-w-0 py-1">
           <Button
             variant="ghost"
             size="icon"
@@ -1360,7 +1360,7 @@ export function ChatView() {
           </button>
 
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-sm sm:text-base truncate leading-tight flex items-center gap-1.5">
+            <h2 className="dm-chat-header-name text-sm sm:text-base truncate leading-tight flex items-center gap-1.5">
               {!isGroupChat && otherMember?.id ? (
                 <StyledUsername
                   userId={otherMember.id}
@@ -2034,7 +2034,7 @@ const MessageInputArea = memo(function MessageInputArea({
         />
       )}
       
-      <div className="px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-3xl bg-background/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 ring-1 ring-inset ring-white/[0.04] shadow-[0_8px_24px_-10px_rgba(0,0,0,0.6)]">
+      <div className="dm-composer px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-3xl">
       <input
         ref={fileInputRef}
         type="file"
@@ -2496,15 +2496,15 @@ const MessageBubble = memo(function MessageBubble({
         {/* Saved-state derived flags */}
         <div
           className={cn(
-            'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0 w-fit transition-shadow',
+            'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0 w-fit transition-all duration-200',
             isEmojiOnly 
               ? 'px-3 py-2'
               : isMediaMessage
                 ? 'p-1.5 sm:p-2'
                 : 'px-[14px] py-[10px] sm:px-4 sm:py-3',
             isOwn 
-              ? `${themeColor.bubble} ${themeColor.text} rounded-br-lg` 
-              : 'bg-muted/70 text-foreground rounded-bl-lg',
+              ? 'dm-bubble-sent rounded-br-md' 
+              : 'dm-bubble-received rounded-bl-md',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
             repliedMessage && 'rounded-t-[14px]',
@@ -2739,6 +2739,25 @@ const MessageBubble = memo(function MessageBubble({
           )}
         </div>
         </div>
+        )}
+
+        {/* Delivery + time meta */}
+        {!isSharedPost && !isSharedTheme && !isEmojiOnly && (
+          <div
+            className={cn(
+              'dm-bubble-meta flex items-center gap-1.5 mt-1 px-0.5',
+              isOwn ? 'justify-end' : 'justify-start'
+            )}
+          >
+            {isOwn && (
+              <span className="opacity-70">
+                {message.viewed_at ? 'Opened' : 'Delivered'}
+              </span>
+            )}
+            <span className="opacity-50 tabular-nums">
+              {format(new Date(message.created_at), 'h:mm a')}
+            </span>
+          </div>
         )}
 
         {isOwn && failed && onRetry && (

@@ -24,7 +24,7 @@ import {
   SharedTheme
 } from '@/hooks/useSharedThemes';
 import { useImportThemeCode } from '@/hooks/useUISettings';
-import { applyThemeTokens, setThemePreviewLock } from '@/hooks/useCustomTheme';
+import { equipTheme } from '@/hooks/useCustomTheme';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
@@ -241,17 +241,14 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
       tokens.colorPrimary || '280 70% 50%',
       tokens.colorAccent || '330 80% 60%',
       () => {
-        setThemePreviewLock(true);
         try {
           const targetMode = tokens.mode === 'light' ? 'light' : 'dark';
           setGlobalTheme(targetMode);
-          applyThemeTokens(tokens);
+          equipTheme(tokens, { themeId: theme.id });
           setActiveThemeId(theme.id);
-          localStorage.setItem('vybe-equipped-theme-id', theme.id);
-          localStorage.setItem('vybe-custom-theme', JSON.stringify(tokens));
-          toast.success(`Theme "${theme.theme_name}" applied!`);
-        } finally {
-          setTimeout(() => setThemePreviewLock(false), 400);
+          toast.success(`Theme "${theme.theme_name}" equipped!`);
+        } catch (error) {
+          console.error('Error applying theme:', error);
         }
       }
     );

@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { Sparkles } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { LiveActivityTicker } from './LiveActivityTicker';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import { useNextLevelProgress } from '@/hooks/useVybePass';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 
 export function GreetingWidget() {
   const { profile } = useAuth();
@@ -13,7 +15,7 @@ export function GreetingWidget() {
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
-    if (hour < 5) return 'Night owl vibes';
+    if (hour < 5) return 'Night owl mode';
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     if (hour < 21) return 'Good evening';
@@ -23,35 +25,47 @@ export function GreetingWidget() {
   if (!profile) return null;
 
   return (
-    <div className="px-3 py-4 overflow-hidden">
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="flex items-center gap-3"
-      >
-        {/* Avatar with level badge */}
-        <div className="relative flex-shrink-0">
-          <Avatar className="h-11 w-11 border-2 border-primary/30 shadow-[0_0_12px_hsl(var(--primary)/0.2)]">
-            <AvatarImage src={signedAvatar || undefined} />
-            <AvatarFallback className="bg-secondary text-secondary-foreground font-bold">
-              {profile.username?.[0]?.toUpperCase() ?? '?'}
-            </AvatarFallback>
-          </Avatar>
-          <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-background shadow-sm">
-            {currentLevel}
-          </div>
-        </div>
+    <div className="home-hero relative mx-3 mb-1 overflow-hidden rounded-3xl">
+      <div className="home-hero-aurora pointer-events-none" aria-hidden />
+      <div className="home-hero-grid pointer-events-none" aria-hidden />
 
-        <div className="min-w-0 flex-1">
-          <h1 className="text-lg sm:text-xl md:text-2xl tracking-tight truncate">
-            <span className="font-medium text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{greeting}, </span>
-            <span className="font-black text-primary drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]">@{profile.username}</span>
-          </h1>
-          {/* Gradient accent line */}
-          <div className="mt-1 h-[2px] w-full rounded-full seamless-gradient-strip opacity-60" />
-          <div className="mt-1">
-            <LiveActivityTicker />
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
+        className="relative z-10 px-4 py-5 sm:px-5 sm:py-6"
+      >
+        <div className="flex items-start gap-4">
+          <div className="relative flex-shrink-0">
+            <div className="home-hero-avatar-ring absolute -inset-1 rounded-full opacity-80" />
+            <Avatar className="relative h-14 w-14 sm:h-16 sm:w-16 ring-2 ring-background/80 shadow-lg">
+              <AvatarImage src={signedAvatar || undefined} />
+              <AvatarFallback className="bg-gradient-to-br from-primary/30 to-accent/30 font-bold text-lg">
+                {profile.username?.[0]?.toUpperCase() ?? '?'}
+              </AvatarFallback>
+            </Avatar>
+            <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-background bg-gradient-to-br from-primary to-accent text-[10px] font-black text-primary-foreground shadow-md">
+              {currentLevel}
+            </div>
+          </div>
+
+          <div className="min-w-0 flex-1 pt-0.5">
+            <div className="flex items-center gap-1.5 mb-1">
+              <VybeMiniIcon size={14} showSparkles className="text-primary shrink-0" />
+              <span className="home-hero-eyebrow">Your feed</span>
+            </div>
+            <h1 className="home-hero-title leading-tight">{greeting}</h1>
+            <p className="home-hero-handle truncate mt-0.5">@{profile.username}</p>
+            <div className="mt-2.5">
+              <LiveActivityTicker />
+            </div>
+          </div>
+
+          <div className="hidden sm:flex flex-col items-end gap-1 shrink-0 pt-1">
+            <Sparkles className="h-4 w-4 text-primary/60" />
+            <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+              Live
+            </span>
           </div>
         </div>
       </motion.div>

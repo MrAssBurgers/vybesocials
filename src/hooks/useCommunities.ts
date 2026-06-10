@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -162,7 +163,9 @@ export function useCommunityMembers(communityId: string | undefined) {
 
 // Fetch live activity for a community
 export function useLiveActivity(communityId: string | undefined) {
-  return useQuery({
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
     queryKey: ['live-activity', communityId],
     queryFn: async () => {
       if (!communityId) return [];
@@ -179,8 +182,34 @@ export function useLiveActivity(communityId: string | undefined) {
       return data || [];
     },
     enabled: !!communityId,
-    refetchInterval: 30000, // Refresh every 30s
+    refetchInterval: 15000,
   });
+
+  useEffect(() => {
+    if (!communityId) return;
+
+    const channel = supabase
+      .channel(`live-activity-${communityId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'live_activity',
+          filter: `community_id=eq.${communityId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['live-activity', communityId] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [communityId, queryClient]);
+
+  return query;
 }
 
 // Create a community

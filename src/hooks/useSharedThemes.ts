@@ -222,8 +222,8 @@ export function useEquipSharedTheme() {
     mutationFn: async (theme: { id: string; theme_tokens: ThemeTokens; theme_name: string }) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { applyThemeTokens } = await import('@/hooks/useCustomTheme');
-      applyThemeTokens(theme.theme_tokens);
+      const { equipTheme } = await import('@/hooks/useCustomTheme');
+      equipTheme(theme.theme_tokens, { themeId: theme.id, silent: true });
 
       await supabase.from('user_themes').upsert(
         {

@@ -216,9 +216,51 @@ export function useUserTheme() {
   });
 }
 
-// Flag to suppress useApplyUserTheme during save operations
-let _isSavingTheme = false;
-export function isSavingTheme() { return _isSavingTheme; }
+const EQUIPPED_THEME_KEY = 'vybe-equipped-theme';
+const EQUIPPED_THEME_ID_KEY = 'vybe-equipped-theme-id';
+/** @deprecated use EQUIPPED_THEME_KEY — kept for reads during migration */
+const LEGACY_EQUIPPED_KEY = 'vybe-custom-theme';
+
+/** Read the user's actively equipped theme tokens (localStorage is the live source). */
+export function getEquippedThemeTokens(): ThemeTokens | null {
+  try {
+    const raw =
+      localStorage.getItem(EQUIPPED_THEME_KEY) ||
+      localStorage.getItem(LEGACY_EQUIPPED_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ThemeTokens;
+    return parsed?.colorPrimary ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist + apply the equipped theme — single entry point for equip/save. */
+export function equipTheme(
+  tokens: ThemeTokens,
+  options?: { themeId?: string | null; silent?: boolean }
+) {
+  const json = JSON.stringify(tokens);
+  localStorage.setItem(EQUIPPED_THEME_KEY, json);
+  localStorage.setItem(LEGACY_EQUIPPED_KEY, json);
+  if (options?.themeId) {
+    localStorage.setItem(EQUIPPED_THEME_ID_KEY, options.themeId);
+  } else if (options?.themeId === null) {
+    localStorage.removeItem(EQUIPPED_THEME_ID_KEY);
+  }
+  _lastAppliedThemeHash = '';
+  const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+  applyThemeTokens(adaptThemeToMode(tokens, resolved));
+  if (!options?.silent) {
+    window.dispatchEvent(new CustomEvent('vybeThemeEquipped', { detail: tokens }));
+  }
+}
+
+let _lastAppliedThemeHash = '';
+function themeApplyHash(tokens: ThemeTokens, mode: 'dark' | 'light'): string {
+  return `${mode}:${tokens.colorPrimary}:${tokens.bgMain}:${tokens.colorAccent}:${tokens.themeName ?? ''}`;
+}
+
 
 // Preview lock — while a theme designer/preview is open, the previewed tokens
 // own the CSS variables. Without this, useApplyUserTheme's MutationObserver
@@ -227,6 +269,9 @@ export function isSavingTheme() { return _isSavingTheme; }
 let _themePreviewLock = false;
 export function setThemePreviewLock(locked: boolean) { _themePreviewLock = locked; }
 export function isThemePreviewLocked() { return _themePreviewLock; }
+
+let _isSavingTheme = false;
+export function isSavingTheme() { return _isSavingTheme; }
 
 export function useSaveTheme() {
   const { user } = useAuth();
@@ -270,11 +315,10 @@ export function useSaveTheme() {
       return { ...payload, silent };
     },
     onSuccess: (savedData) => {
-      // Clear any equipped community theme so the saved theme takes priority on refresh
-      localStorage.removeItem('vybe-custom-theme');
-      
-      // Optimistically set the query data to the saved theme BEFORE invalidating
-      // This prevents useApplyUserTheme from re-applying the old theme
+      const tokens = savedData.theme_tokens as ThemeTokens;
+      // Keep equipped tokens in localStorage so navigation/refetches can't swap themes
+      equipTheme(tokens, { themeId: null, silent: true });
+
       queryClient.setQueryData(['user-theme', user?.id], (old: any) => ({
         ...old,
         ...savedData,
@@ -283,7 +327,6 @@ export function useSaveTheme() {
       if (!(savedData as any).silent) {
         toast.success('Theme saved!');
       }
-      // Allow re-application after a delay to let the query settle
       setTimeout(() => { _isSavingTheme = false; }, 500);
     },
     onError: (error: any) => {
@@ -325,6 +368,10 @@ export function useResetTheme() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-theme'] });
+      localStorage.removeItem(EQUIPPED_THEME_KEY);
+      localStorage.removeItem(LEGACY_EQUIPPED_KEY);
+      localStorage.removeItem(EQUIPPED_THEME_ID_KEY);
+      _lastAppliedThemeHash = '';
       applyThemeTokens(THEME_PRESETS.classic);
       toast.success('Theme reset to default');
     },
@@ -740,42 +787,52 @@ let _isApplyingTheme = false;
 export function useApplyUserTheme() {
   const { data: userTheme } = useUserTheme();
 
-  // Helper to get and apply the right theme for a given mode
   const applyForMode = useCallback((resolved: 'dark' | 'light') => {
     if (_isApplyingTheme || _isSavingTheme || _themePreviewLock) return;
-    _isApplyingTheme = true;
-    
-    try {
-      // First check equipped community theme
-      const equippedThemeTokens = localStorage.getItem('vybe-custom-theme');
-      if (equippedThemeTokens) {
-        const tokens = JSON.parse(equippedThemeTokens) as ThemeTokens;
-        if (tokens?.colorPrimary) {
-          applyThemeTokens(adaptThemeToMode(tokens, resolved));
-          return;
-        }
-      }
 
-      // Fall back to user's saved theme
-      if (userTheme?.is_active && userTheme.theme_tokens) {
-        const tokens = userTheme.theme_tokens as unknown as ThemeTokens;
-        if (tokens?.colorPrimary) {
-          applyThemeTokens(adaptThemeToMode(tokens, resolved));
+    let tokens = getEquippedThemeTokens();
+
+    // Boot / new device: hydrate localStorage from DB once
+    if (!tokens && userTheme?.is_active && userTheme.theme_tokens) {
+      const dbTokens = userTheme.theme_tokens as unknown as ThemeTokens;
+      if (dbTokens?.colorPrimary) {
+        tokens = dbTokens;
+        try {
+          const json = JSON.stringify(dbTokens);
+          localStorage.setItem(EQUIPPED_THEME_KEY, json);
+          localStorage.setItem(LEGACY_EQUIPPED_KEY, json);
+        } catch {
+          /* ignore */
         }
       }
-    } catch {} finally {
-      // Allow next apply after a short delay
+    }
+
+    if (!tokens?.colorPrimary) return;
+
+    const hash = themeApplyHash(tokens, resolved);
+    if (hash === _lastAppliedThemeHash) return;
+
+    _isApplyingTheme = true;
+    _lastAppliedThemeHash = hash;
+    try {
+      applyThemeTokens(adaptThemeToMode(tokens, resolved));
+    } catch {
+      /* ignore */
+    } finally {
       setTimeout(() => { _isApplyingTheme = false; }, 50);
     }
   }, [userTheme]);
 
-  // Listen for mode changes from the ThemeProvider (dark/light/system toggle)
+  // Re-adapt equipped theme when light/dark mode changes — same tokens, no DB/localStorage swap
   useEffect(() => {
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
           const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-          requestAnimationFrame(() => applyForMode(resolved));
+          requestAnimationFrame(() => {
+            _lastAppliedThemeHash = '';
+            applyForMode(resolved);
+          });
           break;
         }
       }
@@ -788,6 +845,30 @@ export function useApplyUserTheme() {
     const resolvedMode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
     applyForMode(resolvedMode);
   }, [userTheme, applyForMode]);
+
+  // Re-apply when another tab or equipTheme updates storage
+  useEffect(() => {
+    const onEquipped = () => {
+      _lastAppliedThemeHash = '';
+      const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+      applyForMode(resolved);
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (
+        e.key === EQUIPPED_THEME_KEY ||
+        e.key === LEGACY_EQUIPPED_KEY ||
+        e.key === EQUIPPED_THEME_ID_KEY
+      ) {
+        onEquipped();
+      }
+    };
+    window.addEventListener('vybeThemeEquipped', onEquipped);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('vybeThemeEquipped', onEquipped);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [applyForMode]);
 }
 
 /**
