@@ -63,7 +63,7 @@ export function NotificationsSection() {
         className="liquid-glass-card p-4 sm:p-6"
       >
         <div className="flex items-start gap-4 mb-6">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/10 ring-1 ring-primary/20 shadow-[0_4px_16px_-6px_hsl(var(--primary)/0.4)] flex items-center justify-center flex-shrink-0">
             <Smartphone className="w-6 h-6 text-primary" />
           </div>
           <div>
@@ -174,7 +174,7 @@ export function NotificationsSection() {
         className="liquid-glass-card p-4 sm:p-6"
       >
         <div className="flex items-start gap-4 mb-6">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/10 ring-1 ring-primary/20 shadow-[0_4px_16px_-6px_hsl(var(--primary)/0.4)] flex items-center justify-center flex-shrink-0">
             <BellRing className="w-6 h-6 text-primary" />
           </div>
           <div>
@@ -219,7 +219,7 @@ export function NotificationsSection() {
         className="liquid-glass-card p-4 sm:p-6"
       >
         <div className="flex items-start gap-4 mb-4">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/10 ring-1 ring-primary/20 shadow-[0_4px_16px_-6px_hsl(var(--primary)/0.4)] flex items-center justify-center flex-shrink-0">
             <BellRing className="w-6 h-6 text-primary" />
           </div>
           <div>

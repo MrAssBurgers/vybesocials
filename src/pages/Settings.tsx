@@ -128,23 +128,41 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
 
   return (
     <AppLayout>
-      <div className="max-w-5xl mx-auto px-3 sm:px-6 py-3 sm:py-8 pb-24 sm:pb-8">
+      <div className="settings-shell max-w-5xl mx-auto px-3 sm:px-6 py-3 sm:py-8 pb-24 sm:pb-8 relative">
+        {/* Ambient aurora behind the header */}
+        <div aria-hidden className="absolute top-0 inset-x-0 h-48 pointer-events-none overflow-hidden -z-10">
+          <div className="absolute -top-20 left-[10%] w-64 h-64 rounded-full blur-[90px] opacity-25" style={{ background: 'hsl(var(--primary))' }} />
+          <div className="absolute -top-24 right-[15%] w-72 h-72 rounded-full blur-[100px] opacity-20" style={{ background: 'hsl(var(--accent))' }} />
+        </div>
+
         {/* Header — Premium glass identity */}
-        <div className="mb-4 sm:mb-6">
-          <div className="flex items-center gap-2.5 sm:gap-3 mb-2">
-            <div className="relative w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center flex-shrink-0">
-              {/* Rotating gradient ring */}
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary/30 via-accent/20 to-primary/30 animate-spin" style={{ animationDuration: '8s' }} />
-              <div className="absolute inset-[2px] rounded-[10px] bg-background" />
-              <Settings className="relative w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="mb-4 sm:mb-6"
+        >
+          <div className="flex items-center gap-3 sm:gap-3.5 mb-3">
+            <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center flex-shrink-0">
+              {/* Rotating conic gradient ring */}
+              <div
+                className="absolute inset-0 rounded-2xl animate-spin"
+                style={{
+                  animationDuration: '6s',
+                  background: 'conic-gradient(from 0deg, hsl(var(--primary)), hsl(var(--accent)), transparent 65%, hsl(var(--primary)))',
+                }}
+              />
+              <div className="absolute inset-[2px] rounded-[14px] bg-background" />
+              <div className="absolute inset-[2px] rounded-[14px] bg-gradient-to-br from-primary/15 to-accent/10" />
+              <Settings className="relative w-[18px] h-[18px] sm:w-[22px] sm:h-[22px] text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.5)]" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-2xl font-bold truncate gradient-text">{t('settings.title')}</h1>
+              <h1 className="text-xl sm:text-3xl font-bold truncate gradient-text tracking-tight">{t('settings.title')}</h1>
               <p className="text-xs sm:text-sm text-muted-foreground truncate">{t('settingsNav.manageAccount')}</p>
             </div>
           </div>
-          <div className="h-[2px] rounded-full bg-gradient-to-r from-primary/40 via-accent/30 to-transparent" />
-        </div>
+          <div className="h-px bg-gradient-to-r from-primary/50 via-accent/30 to-transparent" />
+        </motion.div>
 
         {/* Mobile: Dropdown category selector */}
         {isMobile && (
@@ -159,13 +177,11 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
         {/* Category selector for desktop (horizontal tabs style) */}
         {!isMobile && (
           <div className="mb-6">
-            <div className="liquid-glass-card p-2 overflow-hidden">
-              <div className="flex flex-wrap gap-2">
-                <SettingsNavVertical 
-                  activeCategory={activeCategory} 
-                  onCategoryChange={setActiveCategory} 
-                />
-              </div>
+            <div className="liquid-glass-card p-1.5 overflow-hidden">
+              <SettingsNavVertical 
+                activeCategory={activeCategory} 
+                onCategoryChange={setActiveCategory} 
+              />
             </div>
           </div>
         )}
@@ -177,9 +193,16 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
           <div className="flex-1 min-w-0">
             {/* Section title for desktop */}
             {!isMobile && (
-              <div className="mb-4">
+              <motion.div
+                key={`title-${activeCategory}`}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.2 }}
+                className="mb-4 flex items-center gap-2.5"
+              >
+                <div className="w-1 h-5 rounded-full bg-gradient-to-b from-primary to-accent" />
                 <h2 className="text-lg font-semibold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{getCategoryTitle()}</h2>
-              </div>
+              </motion.div>
             )}
 
             <motion.div 
@@ -256,13 +279,14 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
             )}
 
             {/* App Info */}
-            <div className="mt-6 pb-4">
-              <div className="text-center py-4 text-muted-foreground">
-                <div className="flex items-center justify-center gap-2 mb-1">
+            <div className="mt-8 pb-4">
+              <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent mb-5" />
+              <div className="text-center text-muted-foreground">
+                <div className="flex items-center justify-center gap-2 mb-1.5">
                   <VybeMiniIcon size={28} showSparkles />
-                  <span className="font-display font-black text-xl gradient-text">VYBE</span>
+                  <span className="font-display font-black text-xl gradient-text tracking-tight">VYBE</span>
                 </div>
-                <p className="text-xs">v{APP_VERSION}</p>
+                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">Version {APP_VERSION}</p>
               </div>
             </div>
           </div>

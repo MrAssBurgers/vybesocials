@@ -1458,6 +1458,44 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
     border: 1px solid hsl(var(--foreground) / 0.18);
   }
 
+  /* =============================================
+     SETTINGS SHELL — elevated, theme-aware card
+     treatment applied to every settings section
+     ============================================= */
+  .settings-shell .liquid-glass-card {
+    border-radius: 1.25rem;
+    border-color: hsl(var(--foreground) / 0.1);
+    transition:
+      box-shadow 0.35s ease,
+      border-color 0.35s ease,
+      transform 0.35s ease;
+  }
+
+  .settings-shell .liquid-glass-card:hover {
+    border-color: hsl(var(--primary) / 0.3);
+    box-shadow:
+      0 16px 50px hsl(var(--background) / 0.5),
+      0 8px 32px hsl(var(--primary) / 0.14),
+      inset 0 1px 0 hsl(var(--foreground) / 0.14);
+    transform: translateY(-2px);
+  }
+
+  /* Theme-tinted top hairline on settings cards */
+  .settings-shell .liquid-glass-card::before {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--primary) / 0.4) 35%,
+      hsl(var(--accent) / 0.4) 65%,
+      transparent 100%
+    );
+  }
+
+  /* Nested inner panels inside settings cards get softer corners */
+  .settings-shell .liquid-glass-card .rounded-xl {
+    border-radius: 0.875rem;
+  }
+
   /* Glass Input with color accent */
   .liquid-glass-input {
     background: linear-gradient(
