@@ -21,6 +21,7 @@ import type { Post } from '@/hooks/useInfinitePosts';
 import { Loader2 } from 'lucide-react';
 import { lazy, Suspense, useMemo } from 'react';
 import { useShowAds } from '@/hooks/useShowAds';
+import { scrollAppTo } from '@/lib/appScrollContainer';
 import { getAdInterval } from '@/components/ads/FeedAdCard';
 import { useDNAPreferences } from '@/hooks/useDNAPreferences';
 import { motion } from 'framer-motion';
@@ -317,7 +318,7 @@ function FeedSection({
         {hasNewPosts && (
           <button
             type="button"
-            onClick={() => { clearNewPosts(); handleRefresh(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            onClick={() => { clearNewPosts(); handleRefresh(); scrollAppTo(0, 'smooth'); }}
             className="home-new-posts-btn w-full mb-4 py-2.5 px-4 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-300"
           >
             <Sparkles className="h-4 w-4" />

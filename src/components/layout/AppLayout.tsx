@@ -15,7 +15,7 @@ import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
 import { Enable2FANudge } from '@/components/auth/Enable2FANudge';
 import { PhoneVerifyGate } from '@/components/auth/PhoneVerifyGate';
-import { navVisibility } from '@/lib/navVisibility';
+import { bindAppScrollHideContainer } from '@/lib/scrollHideSync';
 import { SelfNowPlayingPill } from '@/components/music/SelfNowPlayingPill';
 
 interface AppLayoutProps {
@@ -39,12 +39,11 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const hasStoredSession = hasStoredSupabaseSession();
   const { isDesktop } = useBreakpoint();
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [navEffectiveVisible, setNavEffectiveVisible] = useState(true);
   const nativePerf = isNativePerfMode();
   const { swipeBackHandlers, swipeProgress } = useSwipeBack(!nativePerf);
   const showLiquidBg = useDefaultLiquidBackground();
 
-  useEffect(() => navVisibility.subscribeEffective(setNavEffectiveVisible), []);
+  useEffect(() => bindAppScrollHideContainer(), []);
 
   usePresence();
   useScreenTimeTracker();
@@ -142,16 +141,11 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
               paddingBottom:
                 hideNav || noPadding
                   ? undefined
-                  : navEffectiveVisible
-                    ? 'calc(6rem + env(safe-area-inset-bottom))'
-                    : 'env(safe-area-inset-bottom)',
+                  : 'calc(6rem + env(safe-area-inset-bottom))',
               WebkitOverflowScrolling: 'touch',
               overscrollBehaviorY: 'contain',
               transform: !nativePerf && swipeProgress > 0 ? `translateX(${swipeProgress * 60}px)` : undefined,
-              transition:
-                swipeProgress === 0
-                  ? 'transform 0.2s ease-out, padding-bottom 0.3s ease'
-                  : 'padding-bottom 0.3s ease',
+              transition: swipeProgress === 0 ? 'transform 0.2s ease-out' : undefined,
             }}
           >
             {children}

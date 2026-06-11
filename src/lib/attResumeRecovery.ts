@@ -4,6 +4,7 @@
  */
 
 import { pollNativeTrackingConsent, syncNativeTrackingConsent } from '@/lib/att';
+import { scrollAppTo } from '@/lib/appScrollContainer';
 
 export const ATT_RESUME_EVENT = 'vybe:resume-recover';
 
@@ -24,7 +25,7 @@ function clearStuckDocumentState() {
     document.documentElement.style.overflow = '';
     if (top) {
       const y = Number.parseInt(top.replace('px', ''), 10);
-      if (!Number.isNaN(y)) window.scrollTo(0, -y);
+      if (!Number.isNaN(y)) scrollAppTo(-y, 'auto');
     }
   } else {
     document.documentElement.style.overflow = '';

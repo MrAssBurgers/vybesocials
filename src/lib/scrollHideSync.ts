@@ -1,7 +1,8 @@
 /**
  * Shared scroll-direction hide/show for bottom nav + floating FABs.
- * Single listener avoids FAB getting out of sync with nav.
  */
+
+import { getAppScrollContainer, getAppScrollTop } from '@/lib/appScrollContainer';
 
 type Listener = (visible: boolean) => void;
 
@@ -9,6 +10,7 @@ let scrollVisible = true;
 let lastScrollY = 0;
 let ticking = false;
 let cleanup: (() => void) | null = null;
+let boundContainer: HTMLElement | null = null;
 const listeners = new Set<Listener>();
 
 function notify() {
@@ -21,16 +23,11 @@ function notify() {
   });
 }
 
-function getScrollY(): number {
-  const container = document.querySelector('[data-app-scroll-container="true"]');
-  return container ? container.scrollTop : window.scrollY;
-}
-
 function handleScroll() {
   if (ticking) return;
   ticking = true;
   window.requestAnimationFrame(() => {
-    const currentScrollY = getScrollY();
+    const currentScrollY = getAppScrollTop();
     const scrollDiff = currentScrollY - lastScrollY;
 
     if (currentScrollY < 40) {
@@ -47,37 +44,47 @@ function handleScroll() {
 
 export function resetScrollHideVisible(): void {
   scrollVisible = true;
-  lastScrollY = getScrollY();
+  lastScrollY = getAppScrollTop();
   notify();
+}
+
+/** Bind scroll listener to the app main container (call once from AppLayout). */
+export function bindAppScrollHideContainer(): () => void {
+  const container = getAppScrollContainer();
+  if (!container || container === boundContainer) {
+    return () => {};
+  }
+
+  if (boundContainer) {
+    boundContainer.removeEventListener('scroll', handleScroll);
+  }
+
+  boundContainer = container;
+  boundContainer.addEventListener('scroll', handleScroll, { passive: true });
+  lastScrollY = getAppScrollTop();
+
+  if (!cleanup) {
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    cleanup = () => {
+      window.removeEventListener('scroll', handleScroll);
+      boundContainer?.removeEventListener('scroll', handleScroll);
+      boundContainer = null;
+      cleanup = null;
+    };
+  }
+
+  return () => {
+    if (boundContainer === container) {
+      container.removeEventListener('scroll', handleScroll);
+      boundContainer = null;
+    }
+  };
 }
 
 export function subscribeScrollHide(callback: Listener): () => void {
   listeners.add(callback);
   callback(scrollVisible);
-
-  if (!cleanup) {
-    window.addEventListener('scroll', handleScroll, { passive: true });
-
-    const bindContainer = () => {
-      const container = document.querySelector('[data-app-scroll-container="true"]');
-      if (container && !(container as HTMLElement & { __vybeScrollBound?: boolean }).__vybeScrollBound) {
-        container.addEventListener('scroll', handleScroll, { passive: true });
-        (container as HTMLElement & { __vybeScrollBound?: boolean }).__vybeScrollBound = true;
-      }
-    };
-
-    bindContainer();
-    const observer = new MutationObserver(bindContainer);
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    cleanup = () => {
-      window.removeEventListener('scroll', handleScroll);
-      observer.disconnect();
-      const el = document.querySelector('[data-app-scroll-container="true"]');
-      el?.removeEventListener('scroll', handleScroll);
-      cleanup = null;
-    };
-  }
+  bindAppScrollHideContainer();
 
   return () => {
     listeners.delete(callback);

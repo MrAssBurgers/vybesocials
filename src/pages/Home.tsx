@@ -14,18 +14,15 @@ import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { mergedFeedPending, shouldShowFeedRefreshing, shouldShowFeedSkeleton } from '@/lib/cacheFirstLoading';
 import { hasActiveReferral, isInviteEntryMode } from '@/lib/referral';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
-import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { GlobalEventBanner } from '@/components/events/GlobalEventBanner';
 import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMode';
 import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
 import { useGridLayout } from '@/hooks/useGridLayout';
-import SmartErrorBoundary from '@/components/error/SmartErrorBoundary';
+import { scrollAppTo } from '@/lib/appScrollContainer';
 
 // Lazy load heavy components that aren't needed for initial render
 const AnnouncementModal = lazy(() => import('@/components/announcements/AnnouncementModal').then(m => ({ default: m.AnnouncementModal })));
-const VYBECommandBar = lazy(() => import('@/components/ai/VYBECommandBar').then(m => ({ default: m.VYBECommandBar })));
 const WeeklyRecapModal = lazy(() => import('@/components/recap/WeeklyRecapModal').then(m => ({ default: m.WeeklyRecapModal })));
 
 // DNA preference scoring - boost/reduce based on tag matching
@@ -55,7 +52,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const { showAds } = useShowAds();
   const { hasNewPosts, clearNewPosts } = useNewPostsBanner();
   const [customizerOpen, setCustomizerOpen] = useState(false);
-  const [commandBarOpen, setCommandBarOpen] = useState(false);
   const { config: gridConfig } = useGridLayout();
   const isVisible = useCallback((id: string) => gridConfig.widgets.find(w => w.id === id)?.enabled ?? false, [gridConfig.widgets]);
   const { data: dnaPrefs } = useDNAPreferences();
@@ -226,10 +222,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     }
   }, [activeTab, queryClient, refetchForYou, refetchGlobal, refetchFollowing, refetchLocal, clearNewPosts]);
 
-  const { pullDistance, isRefreshing, threshold } = usePullToRefresh({
-    onRefresh: handleRefresh,
-  });
-
   // Infinite scroll observer - use refs for current values to avoid recreating callback
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreNodeRef = useRef<HTMLDivElement | null>(null);
@@ -335,21 +327,10 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
   return (
     <AppLayout>
-      {/* Lazy-loaded deferred components */}
-      {/* Pull to refresh indicator */}
-      <PullToRefreshIndicator 
-        pullDistance={pullDistance} 
-        isRefreshing={isRefreshing} 
-        threshold={threshold} 
-      />
-
       <HomeEditModeProvider editing={customizerOpen} onEditingChange={setCustomizerOpen}>
         <div
           className="home-shell max-w-xl mx-auto"
           data-tutorial="tutorial-welcome-center"
-          style={{
-            transform: pullDistance > 0 ? `translateY(${pullDistance * 0.5}px)` : undefined,
-          }}
         >
           {/* Announcement Modal */}
           <Suspense fallback={null}>
@@ -416,13 +397,6 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         </div>
       </HomeEditModeProvider>
 
-      {/* AI Command Bar */}
-      <SmartErrorBoundary fallback={null}>
-        <Suspense fallback={null}>
-          <VYBECommandBar />
-        </Suspense>
-      </SmartErrorBoundary>
-      
       {/* Weekly Recap */}
       <Suspense fallback={null}>
         <WeeklyRecapModal />
@@ -443,7 +417,7 @@ function WidgetAddFAB() {
     <>
       <motion.button
         onClick={() => {
-          window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+          scrollAppTo(0, 'smooth');
           setOpen(!open);
         }}
         className="fixed left-4 bottom-24 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 lg:left-64 lg:top-24 lg:bottom-auto"

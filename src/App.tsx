@@ -198,8 +198,11 @@ const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
 // Track if initial load has completed (persists across navigations in this tab)
 let hasInitialLoadCompleted = readSplashCompleted();
+let splashDismissed = false;
 
 function completeInitialSplash(setShowSplash: (v: boolean) => void) {
+  if (splashDismissed) return;
+  splashDismissed = true;
   setShowSplash(false);
   hasInitialLoadCompleted = true;
   markSplashCompleted();
@@ -377,11 +380,7 @@ function AppWithPreloader() {
 
   return (
     <>
-      <SplashScreen 
-        isVisible={showSplash} 
-        status={preloadStatus.step}
-        progress={preloadStatus.progress}
-      />
+      <SplashScreen isVisible={showSplash} />
       {welcomeBack && (
         <WelcomeBackSplash
           username={welcomeBack.username}

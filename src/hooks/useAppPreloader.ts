@@ -9,6 +9,7 @@ import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloa
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isSetupRoutePath } from '@/lib/splashSession';
+import { publishSplashProgress } from '@/lib/splashProgressBridge';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
 
 interface PreloadStatus {
@@ -60,6 +61,7 @@ export function useAppPreloader() {
     const start = currentProgress.current;
     const delta = target - start;
     if (delta <= 0 && !done) {
+      publishSplashProgress(target, label);
       setStatus({ step: label, progress: target, isComplete: done });
       return;
     }
@@ -73,16 +75,23 @@ export function useAppPreloader() {
       const eased = 1 - Math.pow(1 - t, 3);
       const value = Math.round(start + delta * eased);
       currentProgress.current = value;
+      publishSplashProgress(value, label);
       setStatus({ step: label, progress: value, isComplete: done && t >= 1 });
       if (t < 1) {
         animFrameRef.current = requestAnimationFrame(tick);
       } else {
         currentProgress.current = target;
+        publishSplashProgress(target, label);
         setStatus({ step: label, progress: target, isComplete: done });
       }
     };
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     animFrameRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  const finishPreload = useCallback((label = 'Ready!') => {
+    publishSplashProgress(100, label);
+    setStatus({ step: label, progress: 100, isComplete: true });
   }, []);
 
   const updateStatus = useCallback((stepKey: string, partialProgress?: number) => {
@@ -105,7 +114,7 @@ export function useAppPreloader() {
     const path = typeof window !== 'undefined' ? window.location.pathname : '';
     if (isSetupRoutePath(path)) {
       console.log('[Preloader] Setup route fast path — instant ready');
-      setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+      finishPreload('Ready!');
       return;
     }
 
@@ -116,7 +125,7 @@ export function useAppPreloader() {
       getCachedCurrentProfile()
     ) {
       console.log('[Preloader] Fast path — instant ready');
-      setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+      finishPreload('Ready!');
       requestAnimationFrame(() => {
         preloadCriticalRoutes();
         void warmHomeCaches(queryClient);
@@ -126,7 +135,7 @@ export function useAppPreloader() {
 
     // Safety timeout — never block the UI on network.
     const safetyTimeout = setTimeout(() => {
-      setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+      finishPreload('Ready!');
     }, isNativePerfMode() ? 120 : 180);
 
     const preload = async () => {
@@ -185,7 +194,7 @@ export function useAppPreloader() {
           });
 
           console.log(`[Preloader] Guest mode ready (non-blocking) - ${(performance.now() - startTime).toFixed(0)}ms`);
-          setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+          finishPreload('Ready!');
           return;
         }
 
@@ -254,7 +263,7 @@ export function useAppPreloader() {
           });
         }
 
-        setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+        finishPreload('Ready!');
 
         console.log(`[Preloader] Splash ready (non-blocking) - ${(performance.now() - startTime).toFixed(0)}ms`);
 
@@ -271,7 +280,7 @@ export function useAppPreloader() {
 
       } catch (error) {
         console.error('[Preloader] Error:', error);
-        setStatus({ step: 'Ready!', progress: 100, isComplete: true });
+        finishPreload('Ready!');
       } finally {
         clearTimeout(safetyTimeout);
       }
@@ -282,7 +291,7 @@ export function useAppPreloader() {
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [restoreReady, queryClient, updateStatus, animateTo]);
+  }, [restoreReady, queryClient, updateStatus, animateTo, finishPreload]);
 
   return status;
 }

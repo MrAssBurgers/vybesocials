@@ -2,50 +2,43 @@ import { memo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ensureAppShellVisible } from '@/lib/attResumeRecovery';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
+import { subscribeSplashProgress } from '@/lib/splashProgressBridge';
 
 interface SplashScreenProps {
   isVisible: boolean;
-  status?: string;
-  progress?: number;
 }
 
 /**
- * Boot splash — progress updates via DOM refs (no re-render per tick).
+ * Boot splash — progress updates via imperative bridge (no re-render per tick).
  * Keeps the app shell hidden until exit completes to avoid overlap glitches.
  */
-export const SplashScreen = memo(function SplashScreen({
-  isVisible,
-  status = 'Loading...',
-  progress = 0,
-}: SplashScreenProps) {
+export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScreenProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef<HTMLSpanElement>(null);
   const percentRef = useRef<HTMLSpanElement>(null);
   const reduceMotion = isNativePerfMode();
 
   useEffect(() => {
-    if (barRef.current) barRef.current.style.transform = `scaleX(${progress / 100})`;
-    if (percentRef.current) percentRef.current.textContent = `${Math.round(progress)}%`;
-  }, [progress]);
-
-  useEffect(() => {
-    if (statusRef.current) statusRef.current.textContent = status;
-  }, [status]);
+    return subscribeSplashProgress((progress, status) => {
+      if (barRef.current) barRef.current.style.transform = `scaleX(${progress / 100})`;
+      if (percentRef.current) percentRef.current.textContent = `${Math.round(progress)}%`;
+      if (statusRef.current) statusRef.current.textContent = status;
+    });
+  }, []);
 
   useEffect(() => {
     if (isVisible) {
       document.body.style.overflow = 'hidden';
       document.body.classList.add('splash-visible');
-    } else {
-      document.body.style.overflow = '';
-      document.body.classList.remove('splash-visible');
-      ensureAppShellVisible();
+      return () => {
+        document.body.style.overflow = '';
+        document.body.classList.remove('splash-visible');
+      };
     }
-    return () => {
-      document.body.style.overflow = '';
-      document.body.classList.remove('splash-visible');
-      ensureAppShellVisible();
-    };
+
+    document.body.style.overflow = '';
+    document.body.classList.remove('splash-visible');
+    ensureAppShellVisible();
   }, [isVisible]);
 
   return (
@@ -152,10 +145,10 @@ export const SplashScreen = memo(function SplashScreen({
             </div>
             <div className="flex items-center justify-between mt-2.5 px-0.5">
               <span ref={statusRef} className="text-[12px] text-muted-foreground/80 truncate max-w-[70%]">
-                {status}
+                Waking up...
               </span>
               <span ref={percentRef} className="text-[12px] tabular-nums text-foreground/80 font-medium">
-                {Math.round(progress)}%
+                0%
               </span>
             </div>
           </div>
