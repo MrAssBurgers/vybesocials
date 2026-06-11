@@ -22,6 +22,7 @@ import { navVisibility } from '@/lib/navVisibility';
 import { cn } from '@/lib/utils';
 import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
 import { isDespiaRuntime, isIOSUA } from '@/lib/despiaBridge';
+import { isFullyLoggedIn } from '@/lib/authReady';
 import { buildFriendDropUrl, type FriendLinkTarget, extractFriendTarget } from '@/lib/friendLinkNfc';
 import { scanFriendLinkOnce } from '@/lib/friendLinkNfc';
 import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
@@ -42,11 +43,12 @@ interface FoundUser {
 }
 
 export function AutoFriendDrop() {
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { isMobileOrTablet } = useIsMobileOrTablet();
   const showHomePill =
+    isFullyLoggedIn(user, profile, authLoading) &&
     isMobileOrTablet &&
     (location.pathname === '/home' || location.pathname === '/');
   const sendRequest = useSendFriendRequest();
@@ -416,7 +418,7 @@ export function AutoFriendDrop() {
   const handleBumpRef = useRef<() => void>(() => {});
 
   const { requestPermission: requestMotionPermission } = useSwingDetection({
-    enabled: !isActive && !!profile?.username,
+    enabled: showHomePill && !isActive,
     threshold: 6,
     swingWindow: 500,
     cooldown: 3000,
@@ -442,6 +444,7 @@ export function AutoFriendDrop() {
 
   useEffect(() => {
     const onOpen = (e: Event) => {
+      if (!isFullyLoggedIn(user, profile, authLoading)) return;
       void (async () => {
         await requestMotionPermission();
         const tab = (e as CustomEvent<{ tab?: ActiveTab }>).detail?.tab;
@@ -460,7 +463,7 @@ export function AutoFriendDrop() {
     };
     window.addEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
-  }, [profile?.username, user, friendDropSync, requestMotionPermission, startCamera]);
+  }, [profile?.username, user, authLoading, friendDropSync, requestMotionPermission, startCamera]);
 
   const handleAddFriend = useCallback(async () => {
     if (!foundUser || completingRef.current) return;
@@ -534,7 +537,7 @@ export function AutoFriendDrop() {
     activeTab === 'tap' &&
     (nativeFriendDrop.isActive || isActive);
 
-  if (!profile?.username) return null;
+  if (!isFullyLoggedIn(user, profile, authLoading)) return null;
 
   return (
     <>

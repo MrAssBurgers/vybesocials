@@ -472,6 +472,60 @@ function warmUserCaches(
 
   void prefetchDMConversations(queryClient, profileId);
   void warmPersonalizedFeed(queryClient, profileId);
+  void warmFollowingFeed(queryClient, profileId);
+}
+
+function mapRankedFeedRow(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    type: row.type,
+    media_url: row.media_url,
+    thumbnail_url: row.thumbnail_url,
+    caption: row.caption || '',
+    tags: row.tags || [],
+    created_at: row.created_at,
+    is_pinned: row.is_pinned,
+    view_count: row.view_count || 0,
+    author: {
+      id: row.author_id,
+      username: row.author_username,
+      avatar_url: row.author_avatar_url,
+    },
+    like_count: Number(row.like_count) || 0,
+    comment_count: Number(row.comment_count) || 0,
+    is_liked: row.is_liked || false,
+    is_bookmarked: row.is_bookmarked || false,
+    reaction_type: row.reaction_type || null,
+  };
+}
+
+function warmFollowingFeed(
+  queryClient: ReturnType<typeof useQueryClient>,
+  profileId: string,
+) {
+  const feedKey = ['infinite-following-posts', undefined, profileId, 0] as const;
+  if (queryClient.getQueryData(feedKey)) return;
+
+  void supabase
+    .rpc('get_following_posts_with_counts', {
+      p_user_id: profileId,
+      p_type: null,
+      p_offset: 0,
+      p_limit: 15,
+    })
+    .then(({ data, error }) => {
+      if (error || !data?.length) return;
+      const posts = (data as any[])
+        .map(mapRankedFeedRow)
+        .filter((p) => p.author?.id !== profileId);
+      if (posts.length === 0) return;
+      queryClient.setQueryData(feedKey, {
+        pages: [{ posts, nextPage: posts.length >= 15 ? 1 : null }],
+        pageParams: [0],
+      });
+      const urls = posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author?.avatar_url]).filter(Boolean);
+      batchSignUrls(urls).catch(() => {});
+    });
 }
 
 function warmPersonalizedFeed(
@@ -495,27 +549,7 @@ function warmPersonalizedFeed(
     } as any)
     .then(({ data, error }) => {
       if (error || !data?.length) return;
-      const posts = (data as any[]).map((row) => ({
-        id: row.id,
-        type: row.type,
-        media_url: row.media_url,
-        thumbnail_url: row.thumbnail_url,
-        caption: row.caption || '',
-        tags: row.tags || [],
-        created_at: row.created_at,
-        is_pinned: row.is_pinned,
-        view_count: row.view_count || 0,
-        author: {
-          id: row.author_id,
-          username: row.author_username,
-          avatar_url: row.author_avatar_url,
-        },
-        like_count: Number(row.like_count) || 0,
-        comment_count: Number(row.comment_count) || 0,
-        is_liked: row.is_liked || false,
-        is_bookmarked: row.is_bookmarked || false,
-        reaction_type: row.reaction_type || null,
-      }));
+      const posts = (data as any[]).map(mapRankedFeedRow);
       queryClient.setQueryData(feedKey, {
         pages: [{ posts, nextPage: posts.length >= 15 ? 1 : null }],
         pageParams: [0],

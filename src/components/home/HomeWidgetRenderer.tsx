@@ -28,6 +28,7 @@ import { CreatorAnalytics } from '@/components/analytics/CreatorAnalytics';
 import { BattlePassWidget } from '@/components/gamification/BattlePassWidget';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { isFullyLoggedIn } from '@/lib/authReady';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { useAheadMediaPreload } from '@/hooks/useAheadMediaPreload';
 import { FEED_PRELOAD_AHEAD } from '@/lib/performanceConfig';
@@ -92,7 +93,7 @@ function FirstPostCTA() {
 }
 
 /* ── Widgets that load eagerly (above fold) ── */
-const EAGER_WIDGETS = new Set(['greeting', 'ai_brief', 'stories', 'feed']);
+const EAGER_WIDGETS = new Set(['greeting', 'ai_brief', 'stories', 'xp_streak', 'feed']);
 
 interface Props {
   customizerOpen: boolean;
@@ -244,14 +245,15 @@ function FeedSection({
   localPosts, localLoading, localError, onRetryLocal, localFetching, isFetchingNextLocal,
   loadMoreRef,
 }: Props) {
-  const { user } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
+  const loggedIn = isFullyLoggedIn(user, profile, authLoading);
   const [showFriendLinkSpotlight, setShowFriendLinkSpotlight] = useState(
     () => !getFriendLinkSpotlightDismissed(),
   );
 
   return (
     <div className="pb-6 px-1" data-tutorial="feed-area">
-      {user && showFriendLinkSpotlight && activeTab === 'foryou' && (
+      {loggedIn && showFriendLinkSpotlight && activeTab === 'foryou' && (
         <FriendLinkSpotlight
           onOpen={() => openFriendLink('tap')}
           onDismiss={() => {
@@ -448,7 +450,7 @@ function InlinePostList({
   if (!isLoading && isOfflineNoCache) {
     return <FeedOfflineNoCache onRetry={onRetry} />;
   }
-  if (isLoading && posts.length === 0) return <PostSkeletonList count={2} />;
+  if (isLoading && posts.length === 0 && !isFetchingNext) return <PostSkeletonList count={2} />;
   if (isError && posts.length === 0) {
     return (
       <div className="rounded-2xl border border-border/40 bg-card/40 p-6 text-center space-y-3">

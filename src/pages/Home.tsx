@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Globe, Sparkles, LayoutGrid, Eye, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
-import { useInfinitePosts, useInfiniteFollowingPosts, usePersonalizedFeed } from '@/hooks/useInfinitePosts';
+import { useInfinitePosts, useInfiniteFollowingPosts, usePersonalizedFeed, usePrefetchPosts } from '@/hooks/useInfinitePosts';
 import { useLocalFeed } from '@/hooks/useLocalFeed';
 import type { Post } from '@/hooks/useInfinitePosts';
 import { useDNAPreferences } from '@/hooks/useDNAPreferences';
@@ -56,6 +56,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const { config: gridConfig } = useGridLayout();
   const isVisible = useCallback((id: string) => gridConfig.widgets.find(w => w.id === id)?.enabled ?? false, [gridConfig.widgets]);
   const { data: dnaPrefs } = useDNAPreferences();
+  usePrefetchPosts();
   
   // Only fetch feeds for the active tab to reduce concurrent DB load
   const isForYouTab = activeTab === 'foryou';
@@ -164,6 +165,11 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     globalData?.pages.flatMap(page => page.posts) || [], 
     [globalData]
   );
+
+  const forYouFeedLoading =
+    forYouPosts.length === 0 && (forYouLoading || followingLoading);
+  const globalFeedLoading = globalPosts.length === 0 && globalLoading;
+  const localFeedLoading = localPosts.length === 0 && localLoading;
 
   // Pull to refresh
   const handleRefresh = useCallback(async () => {
@@ -343,19 +349,19 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             clearNewPosts={clearNewPosts}
             handleRefresh={handleRefresh}
             forYouPosts={forYouPosts}
-            forYouLoading={forYouLoading && followingLoading}
+            forYouLoading={forYouFeedLoading}
             forYouError={forYouError}
             onRetryForYou={() => { refetchForYou(); refetchFollowing(); }}
             forYouFetching={forYouFetching || followingFetching}
             isFetchingNextForYou={isFetchingNextForYou || isFetchingNextFollowing}
             globalPosts={globalPosts}
-            globalLoading={globalLoading}
+            globalLoading={globalFeedLoading}
             globalError={globalError}
             onRetryGlobal={() => refetchGlobal()}
             globalFetching={globalFetching}
             isFetchingNextGlobal={isFetchingNextGlobal}
             localPosts={localPosts}
-            localLoading={localLoading}
+            localLoading={localFeedLoading}
             localError={localError}
             onRetryLocal={() => refetchLocal()}
             localFetching={localFetching}

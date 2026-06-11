@@ -224,18 +224,27 @@ export function useInfiniteFollowingPosts(
 }
 
 export function usePrefetchPosts() {
-  const { profile } = useAuth();
+  const { profile, user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const hasPrefetched = useRef(false);
 
   useEffect(() => {
-    if (!profile || hasPrefetched.current) return;
+    if (authLoading || !user || !profile?.id || hasPrefetched.current) return;
+
     const hasFeed = queryClient.getQueriesData({
       predicate: (q) => {
         const k = JSON.stringify(q.queryKey).toLowerCase();
-        return k.includes('infinite-posts') || k.includes('personalized-feed');
+        return (
+          k.includes('personalized-feed-v2') ||
+          k.includes('infinite-following-posts') ||
+          k.includes('infinite-posts')
+        );
       },
-    }).some(([, data]) => data != null);
+    }).some(([, data]) => {
+      if (!data || typeof data !== 'object') return false;
+      const pages = (data as { pages?: { posts?: unknown[] }[] }).pages;
+      return Array.isArray(pages) && pages.some((p) => Array.isArray(p?.posts) && p.posts.length > 0);
+    });
     if (hasFeed) {
       hasPrefetched.current = true;
       return;
@@ -243,34 +252,52 @@ export function usePrefetchPosts() {
     hasPrefetched.current = true;
 
     const prefetch = async () => {
-      const cached = queryClient.getQueryData(['infinite-posts', undefined, undefined, profile.id]);
-      if (cached) return;
+      const blockedLen = 0;
+      const personalizedKey = ['personalized-feed-v2', undefined, profile.id, blockedLen] as const;
+      const followingKey = ['infinite-following-posts', undefined, profile.id, blockedLen] as const;
 
-      const { data } = await supabase.rpc('get_posts_with_counts', {
-        p_type: null,
-        p_author_id: null,
-        p_user_id: profile.id,
-        p_offset: 0,
-        p_limit: INITIAL_PAGE_SIZE,
-      });
-      
-      const posts = (data || []).map(transformPost);
-      
-      // Pre-sign before caching
-      await presignPostMedia(posts);
-      preloadSignedMedia(posts);
-      
-      queryClient.setQueryData(
-        ['infinite-posts', undefined, undefined, profile.id],
-        {
-          pages: [{ posts, nextPage: posts.length >= INITIAL_PAGE_SIZE ? 1 : null, totalLoaded: posts.length }],
-          pageParams: [0],
+      if (!queryClient.getQueryData(personalizedKey)) {
+        const { data } = await supabase.rpc('get_ranked_feed_v2', {
+          p_user_id: profile.id,
+          p_content_type: null,
+          p_category: null,
+          p_lat: null,
+          p_lng: null,
+          p_radius_miles: null,
+          p_offset: 0,
+          p_limit: INITIAL_PAGE_SIZE,
+        } as any);
+        const posts = (data || []).map(transformPost);
+        if (posts.length > 0) {
+          presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
+          queryClient.setQueryData(personalizedKey, {
+            pages: [{ posts, nextPage: posts.length >= INITIAL_PAGE_SIZE ? 1 : null }],
+            pageParams: [0],
+          });
         }
-      );
+      }
+
+      if (!queryClient.getQueryData(followingKey)) {
+        const { data } = await supabase.rpc('get_following_posts_with_counts', {
+          p_user_id: profile.id,
+          p_type: null,
+          p_offset: 0,
+          p_limit: INITIAL_PAGE_SIZE,
+        });
+        let posts = (data || []).map(transformPost);
+        posts = posts.filter((p) => p.author?.id !== profile.id);
+        if (posts.length > 0) {
+          presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
+          queryClient.setQueryData(followingKey, {
+            pages: [{ posts, nextPage: posts.length >= INITIAL_PAGE_SIZE ? 1 : null }],
+            pageParams: [0],
+          });
+        }
+      }
     };
 
-    prefetch();
-  }, [profile, queryClient]);
+    void prefetch();
+  }, [authLoading, user, profile, queryClient]);
 }
 
 // Personalized "For You" feed — uses the v2 ranking algorithm:
