@@ -29,12 +29,22 @@ function getStoredSessionRefreshTimeoutMs(): number {
 }
 
 function isFatalRefreshError(message: string): boolean {
-  const msg = message.toLowerCase();
+  const msg = (message || '').toLowerCase();
   return (
     msg.includes('invalid refresh token') ||
     msg.includes('refresh token not found') ||
+    msg.includes('refresh_token_not_found') ||
     msg.includes('session not found') ||
-    (msg.includes('refresh') && msg.includes('invalid'))
+    msg.includes('session_not_found') ||
+    msg.includes('user from sub claim') ||
+    msg.includes('user not found') ||
+    msg.includes('already used') ||
+    msg.includes('revoked') ||
+    msg.includes('expired') ||
+    (msg.includes('refresh') && msg.includes('invalid')) ||
+    (msg.includes('refresh') && msg.includes('not found')) ||
+    msg.includes('bad_jwt') ||
+    msg.includes('jwt expired')
   );
 }
 
@@ -262,7 +272,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const { data, error } = await supabase.auth.refreshSession();
           if (error) {
             console.error('Token refresh failed:', error);
-            // Don't logout on refresh failure - let Supabase handle it
+            if (isFatalRefreshError(error.message)) {
+              // Refresh token is invalid/expired — clear session so the user
+              // can sign back in and reload data (instead of being stuck with
+              // a cached profile and 401s on every request).
+              try {
+                await supabase.auth.signOut({ scope: 'local' });
+              } catch { /* ignore */ }
+              setSession(null);
+              setUser(null);
+              setProfile(null);
+              clearProfileCache();
+            }
           } else if (data.session?.expires_at) {
             // Schedule next refresh
             scheduleTokenRefresh(data.session.expires_at);

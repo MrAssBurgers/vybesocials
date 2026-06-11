@@ -523,7 +523,7 @@ function warmFollowingFeed(
         pages: [{ posts, nextPage: posts.length >= 15 ? 1 : null }],
         pageParams: [0],
       });
-      const urls = posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author?.avatar_url]).filter(Boolean);
+      const urls = posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author?.avatar_url]).filter(Boolean) as string[];
       batchSignUrls(urls).catch(() => {});
     });
 }
@@ -554,7 +554,7 @@ function warmPersonalizedFeed(
         pages: [{ posts, nextPage: posts.length >= 15 ? 1 : null }],
         pageParams: [0],
       });
-      const urls = posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author?.avatar_url]).filter(Boolean);
+      const urls = posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author?.avatar_url]).filter(Boolean) as string[];
       batchSignUrls(urls).catch(() => {});
     });
 }
