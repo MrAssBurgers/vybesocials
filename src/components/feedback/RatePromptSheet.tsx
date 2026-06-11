@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { openRateApp, dismissRatePrompt, shouldShowRatePrompt, markRatePromptShown } from '@/lib/rateApp';
 import { haptics } from '@/lib/haptics';
+import { isLovablePreviewHost } from '@/lib/lovablePreview';
 
 const SESSION_COUNT_KEY = 'vybe_session_count';
 const LAST_SHOWN_LOCK_KEY = 'vybe_rate_prompt_last_shown_at';
@@ -30,7 +31,11 @@ export function RatePromptSheet() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    // Never cover the live preview/editor with an app-store prompt.
+    if (isLovablePreviewHost()) return;
     if (!profile?.id) return;
+    // The Play Store rating flow only makes sense inside the Android app shell.
+    if (!/android/i.test(navigator.userAgent || '')) return;
     if (!shouldShowRatePrompt()) return;
 
     // Throttle: never re-prompt within 24h even if user closed without choosing.
