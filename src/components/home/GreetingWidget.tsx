@@ -7,11 +7,28 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import { useNextLevelProgress } from '@/hooks/useVybePass';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
-import { isRawId } from '@/lib/profileCache';
+import { isRawId, getCachedCurrentProfile } from '@/lib/profileCache';
 import { Skeleton } from '@/components/ui/skeleton';
 
+function resolveGreetingProfile(live: ReturnType<typeof useAuth>['profile']) {
+  if (live && !isRawId(live.username)) return live;
+  const cached = getCachedCurrentProfile();
+  if (!cached || isRawId(cached.username)) return live;
+  return {
+    id: cached.id,
+    user_id: cached.user_id || live?.user_id || '',
+    username: cached.username,
+    display_name: cached.display_name,
+    avatar_url: cached.avatar_url,
+    bio: cached.bio || '',
+    created_at: live?.created_at || new Date().toISOString(),
+    onboarding_completed: cached.onboarding_completed ?? true,
+  } as NonNullable<typeof live>;
+}
+
 export function GreetingWidget() {
-  const { profile } = useAuth();
+  const { profile: liveProfile } = useAuth();
+  const profile = resolveGreetingProfile(liveProfile);
   const signedAvatar = useFastSignedUrl(profile?.avatar_url ?? null);
   const { currentLevel, isReady: levelReady } = useNextLevelProgress();
 

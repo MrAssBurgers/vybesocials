@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 import { batchSignUrls, getCachedSignedUrl, needsSigning } from '@/lib/signedUrlCache';
 import { useBlockedUserIds } from '@/hooks/useBlockedUsers';
 import { refetchFeedOnMount } from '@/lib/queryRefetchPolicy';
+import { getEffectiveProfileId } from '@/lib/profileCache';
 
 export interface Post {
   id: string;
@@ -215,18 +216,19 @@ export function useInfiniteFollowingPosts(
   const { profile } = useAuth();
   const blockedIds = useBlockedUserIds();
   const tabEnabled = options?.enabled !== false;
+  const profileId = getEffectiveProfileId(profile?.id);
 
   const query = useInfiniteQuery({
-    queryKey: ['infinite-following-posts', type, profile?.id, blockedIds.length],
+    queryKey: ['infinite-following-posts', type, profileId, blockedIds.length],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
-      if (!profile) return { posts: [], nextPage: null };
+      if (!profileId) return { posts: [], nextPage: null };
 
       const isFirstPage = pageParam === 0;
       const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       const offset = isFirstPage ? 0 : INITIAL_PAGE_SIZE + (pageParam - 1) * PAGE_SIZE;
 
       const { data, error } = await supabase.rpc('get_following_posts_with_counts', {
-        p_user_id: profile.id,
+        p_user_id: profileId,
         p_type: type || null,
         p_offset: offset,
         p_limit: limit,
@@ -239,7 +241,7 @@ export function useInfiniteFollowingPosts(
       // Hide your own posts and blocked users from the Following feed.
       const blocked = new Set(blockedIds);
       posts = posts.filter(
-        (p) => p.author?.id !== profile.id && !blocked.has(p.author?.id)
+        (p) => p.author?.id !== profileId && !blocked.has(p.author?.id)
       );
 
       // Non-blocking URL signing
@@ -253,7 +255,7 @@ export function useInfiniteFollowingPosts(
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
-    enabled: tabEnabled && !!profile,
+    enabled: tabEnabled && !!profileId,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
     refetchOnMount: refetchFeedOnMount,
@@ -272,9 +274,10 @@ export function usePrefetchPosts() {
   const { profile, user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const hasPrefetched = useRef(false);
+  const profileId = getEffectiveProfileId(profile?.id);
 
   useEffect(() => {
-    if (authLoading || !user || !profile?.id || hasPrefetched.current) return;
+    if (authLoading || !user || !profileId || hasPrefetched.current) return;
 
     const hasFeed = queryClient.getQueriesData({
       predicate: (q) => {
@@ -298,12 +301,12 @@ export function usePrefetchPosts() {
 
     const prefetch = async () => {
       const blockedLen = 0;
-      const personalizedKey = ['personalized-feed-v2', undefined, profile.id, blockedLen] as const;
-      const followingKey = ['infinite-following-posts', undefined, profile.id, blockedLen] as const;
+      const personalizedKey = ['personalized-feed-v2', undefined, profileId, blockedLen] as const;
+      const followingKey = ['infinite-following-posts', undefined, profileId, blockedLen] as const;
 
       if (!queryClient.getQueryData(personalizedKey)) {
         const { data } = await supabase.rpc('get_ranked_feed_v2', {
-          p_user_id: profile.id,
+          p_user_id: profileId,
           p_content_type: null,
           p_category: null,
           p_lat: null,
@@ -324,13 +327,13 @@ export function usePrefetchPosts() {
 
       if (!queryClient.getQueryData(followingKey)) {
         const { data } = await supabase.rpc('get_following_posts_with_counts', {
-          p_user_id: profile.id,
+          p_user_id: profileId,
           p_type: null,
           p_offset: 0,
           p_limit: INITIAL_PAGE_SIZE,
         });
         let posts = (data || []).map(transformPost);
-        posts = posts.filter((p) => p.author?.id !== profile.id);
+        posts = posts.filter((p) => p.author?.id !== profileId);
         if (posts.length > 0) {
           presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
           queryClient.setQueryData(followingKey, {
@@ -342,7 +345,7 @@ export function usePrefetchPosts() {
     };
 
     void prefetch();
-  }, [authLoading, user, profile, queryClient]);
+  }, [authLoading, user, profileId, queryClient]);
 }
 
 // Personalized "For You" feed — uses the v2 ranking algorithm:
@@ -360,17 +363,18 @@ export function usePersonalizedFeed(
   const { profile, user } = useAuth();
   const blockedIds = useBlockedUserIds();
   const tabEnabled = options?.enabled !== false;
-  const enabled = tabEnabled && (!user || !!profile?.id);
+  const profileId = getEffectiveProfileId(profile?.id);
+  const enabled = tabEnabled && (!user || !!profileId);
 
   return useInfiniteQuery({
-    queryKey: ['personalized-feed-v2', type, profile?.id, blockedIds.length],
+    queryKey: ['personalized-feed-v2', type, profileId, blockedIds.length],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       const limit = pageParam === 0 ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       const offset = pageParam === 0 ? 0 : INITIAL_PAGE_SIZE + (pageParam - 1) * PAGE_SIZE;
       const blocked = new Set(blockedIds);
 
       // Cold start (signed-out / no profile): fall back to trending
-      if (!profile?.id) {
+      if (!profileId) {
         const { data, error } = await supabase.rpc('get_trending_feed', {
           p_content_type: type || 'post',
           p_page: pageParam,
@@ -402,7 +406,7 @@ export function usePersonalizedFeed(
         return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
       }
 
-      const posts = await fetchPersonalizedPosts(profile.id, type, offset, limit, blocked);
+      const posts = await fetchPersonalizedPosts(profileId, type, offset, limit, blocked);
       presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
       return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };

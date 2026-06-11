@@ -110,6 +110,14 @@ function cachedProfileToProfile(cached: CachedProfile, userId = ''): Profile {
   };
 }
 
+/** Keep disk-cached profile visible when live fetch fails — never flash to skeleton. */
+function retainCachedProfile(userId = ''): boolean {
+  const cached = getCachedCurrentProfile();
+  if (!cached || isRawId(cached.username)) return false;
+  setProfile((prev) => prev ?? cachedProfileToProfile(cached, userId));
+  return true;
+}
+
 function persistCurrentProfile(profileData: Profile) {
   const payload = {
     id: profileData.id,
@@ -396,7 +404,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       console.error('[Auth] Could not fetch profile after ensure_profile');
-      setProfile(null);
+      retainCachedProfile(userId);
+      window.setTimeout(() => {
+        void fetchProfile(userId, 0);
+      }, 2000);
       return null;
     } catch (err) {
       console.error('[Auth] fetchProfile error:', err);
@@ -408,7 +419,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return fetchProfile(userId, retryCount + 1);
       }
       
-      setProfile(null);
+      retainCachedProfile(userId);
+      window.setTimeout(() => {
+        void fetchProfile(userId, 0);
+      }, 2000);
       return null;
     }
   };
@@ -520,7 +534,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (session.expires_at) {
             scheduleTokenRefresh(session.expires_at);
           }
-          
+
+          hydrateCachedProfile(session.user.id);
           setTimeout(() => {
             fetchProfile(session.user.id);
           }, 0);

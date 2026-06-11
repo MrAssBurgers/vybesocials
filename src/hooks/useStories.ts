@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { getEffectiveProfileId } from '@/lib/profileCache';
 
 export interface Story {
   id: string;
@@ -40,23 +41,24 @@ export interface StoryGroup {
 
 export function useStories() {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
 
   return useQuery({
-    queryKey: ['stories', profile?.id],
+    queryKey: ['stories', profileId],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       // Get friends using friend_requests table (accepted requests)
       const { data: asSender } = await supabase
         .from('friend_requests')
         .select('receiver_id')
-        .eq('sender_id', profile.id)
+        .eq('sender_id', profileId)
         .eq('status', 'accepted');
 
       const { data: asReceiver } = await supabase
         .from('friend_requests')
         .select('sender_id')
-        .eq('receiver_id', profile.id)
+        .eq('receiver_id', profileId)
         .eq('status', 'accepted');
 
       // Combine friend IDs
@@ -66,7 +68,7 @@ export function useStories() {
       ]);
 
       // Get non-expired stories - ONLY from friends and self
-      const allowedIds = [profile.id, ...Array.from(friendIds)];
+      const allowedIds = [profileId, ...Array.from(friendIds)];
       
       const { data, error } = await supabase
         .from('stories')
@@ -84,7 +86,7 @@ export function useStories() {
       const { data: views } = await supabase
         .from('story_views')
         .select('story_id')
-        .eq('viewer_id', profile.id);
+        .eq('viewer_id', profileId);
 
       const viewedIds = new Set(views?.map((v) => v.story_id) || []);
 
@@ -116,8 +118,8 @@ export function useStories() {
       const groups = Array.from(groupedMap.values());
       groups.sort((a, b) => {
         // Own stories first
-        if (a.user.id === profile.id) return -1;
-        if (b.user.id === profile.id) return 1;
+        if (a.user.id === profileId) return -1;
+        if (b.user.id === profileId) return 1;
         
         // Within friends, unviewed before viewed
         if (a.hasUnviewed && !b.hasUnviewed) return -1;
@@ -128,7 +130,7 @@ export function useStories() {
 
       return groups;
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
     staleTime: 2 * 60 * 1000, // 2 minute cache
     gcTime: 30 * 60 * 1000, // 30 min garbage collection
     refetchInterval: 2 * 60 * 1000, // Refetch every 2 min

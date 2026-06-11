@@ -56,6 +56,12 @@ export function setCachedCurrentProfile(profile: CachedProfile): void {
   }
 }
 
+/** Profile id from live auth state or disk cache — keeps feeds/DMs enabled during hydration. */
+export function getEffectiveProfileId(liveProfileId?: string | null): string | undefined {
+  if (liveProfileId) return liveProfileId;
+  return getCachedCurrentProfile()?.id;
+}
+
 /** Read the last signed-in profile from disk for offline-first boot. */
 export function getCachedCurrentProfile(): CachedProfile | null {
   try {

@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { useFriends } from '@/hooks/useFriends';
 import { loadDMConversations, type LoadedDMConversation } from '@/lib/loadDMConversations';
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
+import { getEffectiveProfileId } from '@/lib/profileCache';
 
 type DMConversation = LoadedDMConversation;
 
@@ -18,19 +19,20 @@ type DMConversation = LoadedDMConversation;
 export function useDMConversations(searchQuery: string = '') {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const profileId = getEffectiveProfileId(profile?.id);
   const { data: friends, isLoading: friendsLoading } = useFriends();
   const attemptedFriendIdsRef = useRef<Set<string>>(new Set());
 
   // Fetch all conversations with proper sorting
   const conversationsQuery = useQuery({
-    queryKey: ['dm-conversations', profile?.id],
+    queryKey: ['dm-conversations', profileId],
     // No polling - rely on realtime for updates (more stable)
     queryFn: async () => {
-      if (!profile?.id) return [];
-      const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profile.id]);
-      return loadDMConversations(profile.id, prev);
+      if (!profileId) return [];
+      const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profileId]);
+      return loadDMConversations(profileId, prev);
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
     // Treat persisted data as instantly displayable, then always revalidate
     // in the background on mount so the list is fresh without blocking paint.
     // Realtime + setQueryData patches keep the list fresh — avoid aggressive
@@ -54,10 +56,10 @@ export function useDMConversations(searchQuery: string = '') {
   // does NOT change every refetch (which was causing a render loop / flicker).
   const lastProcessedUpdateRef = useRef<number>(0);
   const ensureConversationsForFriends = useCallback(async () => {
-    if (!profile?.id || !friends?.length) return;
+    if (!profileId || !friends?.length) return;
 
     const conversations =
-      queryClient.getQueryData<DMConversation[]>(['dm-conversations', profile.id]) || [];
+      queryClient.getQueryData<DMConversation[]>(['dm-conversations', profileId]) || [];
 
     // Find friends without conversations
     const friendsWithConvos = new Set<string>();
@@ -65,7 +67,7 @@ export function useDMConversations(searchQuery: string = '') {
     conversations.forEach(conv => {
       if (!conv.is_group) {
         conv.members?.forEach(m => {
-          if (m.user_id !== profile.id && m.profile?.id) {
+          if (m.user_id !== profileId && m.profile?.id) {
             friendsWithConvos.add(m.profile.id);
           }
         });
@@ -104,9 +106,9 @@ export function useDMConversations(searchQuery: string = '') {
     }
 
     if (created) {
-      queryClient.invalidateQueries({ queryKey: ['dm-conversations', profile.id] });
+      queryClient.invalidateQueries({ queryKey: ['dm-conversations', profileId] });
     }
-  }, [profile?.id, friends, queryClient]);
+  }, [profileId, friends, queryClient]);
 
   // Run auto-creation once per data update; gated by dataUpdatedAt so
   // re-renders triggered by other state don't keep firing this effect.
@@ -138,13 +140,13 @@ export function useDMConversations(searchQuery: string = '') {
       }
 
       // For DMs, search by username and display name
-      const otherMember = conv.members?.find(m => m.user_id !== profile?.id);
+      const otherMember = conv.members?.find(m => m.user_id !== profileId);
       const username = otherMember?.profile?.username?.toLowerCase() || '';
       const displayName = otherMember?.profile?.display_name?.toLowerCase() || '';
       
       return username.includes(query) || displayName.includes(query);
     });
-  }, [conversationsQuery.data, searchQuery, profile?.id]);
+  }, [conversationsQuery.data, searchQuery, profileId]);
 
   // Split into pinned and unpinned
   const { pinnedConversations, unpinnedConversations } = useMemo(() => {
@@ -152,7 +154,7 @@ export function useDMConversations(searchQuery: string = '') {
     const unpinned: DMConversation[] = [];
 
     filteredConversations.forEach(conv => {
-      const isPinned = conv.members?.find(m => m.user_id === profile?.id)?.is_pinned;
+      const isPinned = conv.members?.find(m => m.user_id === profileId)?.is_pinned;
       if (isPinned) {
         pinned.push(conv);
       } else {
@@ -161,7 +163,7 @@ export function useDMConversations(searchQuery: string = '') {
     });
 
     return { pinnedConversations: pinned, unpinnedConversations: unpinned };
-  }, [filteredConversations, profile?.id]);
+  }, [filteredConversations, profileId]);
 
   // Calculate total unread count
   const totalUnreadCount = useMemo(() => {
@@ -176,7 +178,9 @@ export function useDMConversations(searchQuery: string = '') {
     pinnedConversations,
     unpinnedConversations,
     totalUnreadCount,
-    isLoading: conversationsQuery.isPending && !(conversationsQuery.data as DMConversation[] | undefined)?.length,
+    isLoading:
+      (conversationsQuery.isPending || conversationsQuery.isFetching) &&
+      !(conversationsQuery.data as DMConversation[] | undefined)?.length,
     isFetched: conversationsQuery.isFetched,
     isFetching: conversationsQuery.isFetching,
     error: conversationsQuery.error,

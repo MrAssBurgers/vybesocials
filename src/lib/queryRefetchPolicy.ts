@@ -7,23 +7,25 @@ export function infiniteQueryHasPosts(data: unknown): boolean {
 }
 
 /**
- * Refetch on mount when cache is empty; otherwise respect staleTime.
+ * Refetch on mount when cache is empty.
+ * Must return 'always' (not true) so TanStack Query refetches even when
+ * staleTime hasn't elapsed — otherwise empty persisted caches never reload.
  *
  * Typed as `any` for the query arg so it doesn't collapse the generic
  * inference of `useInfiniteQuery` to `unknown` (which would break
  * `lastPage.nextPage` / `page.posts` typing across every feed hook).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function refetchFeedOnMount(query: any): boolean {
-  return !infiniteQueryHasPosts(query?.state?.data);
+export function refetchFeedOnMount(query: any): boolean | 'always' {
+  return infiniteQueryHasPosts(query?.state?.data) ? false : 'always';
 }
 
 /** Refetch DM list on mount when empty or errored with no rows. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function refetchListOnMount(query: any): boolean {
+export function refetchListOnMount(query: any): boolean | 'always' {
   const data = query?.state?.data;
   const status = query?.state?.status;
-  if (status === 'error' && (!Array.isArray(data) || data.length === 0)) return true;
-  if (!Array.isArray(data) || data.length === 0) return true;
+  if (status === 'error' && (!Array.isArray(data) || data.length === 0)) return 'always';
+  if (!Array.isArray(data) || data.length === 0) return 'always';
   return false;
 }

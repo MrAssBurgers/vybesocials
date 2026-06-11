@@ -22,8 +22,7 @@ export async function loadDMConversations(
 
   if (membershipError) {
     console.warn('[DM] membership query error:', membershipError.message);
-    if (fallback?.length) return fallback;
-    throw membershipError;
+    return fallback?.length ? fallback : [];
   }
   if (!membershipData?.length) return [];
 
@@ -45,8 +44,7 @@ export async function loadDMConversations(
 
   if (convError) {
     console.warn('[DM] conversations query error:', convError.message);
-    if (fallback?.length) return fallback;
-    throw convError;
+    return fallback?.length ? fallback : [];
   }
   if (!conversationsRaw?.length) return [];
 

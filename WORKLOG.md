@@ -5,8 +5,16 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Publish now** — commit `f92be6c4` on `main`; user: **Lovable → Share → Publish** for `vybehub.app`
-- **After publish** — force-quit app once (cache buster `vybe-cache-v2` clears stuck empty feeds/DMs)
+- **Publish now** — loading fix (empty-cache refetch + profile hydration); user: **Lovable → Share → Publish** for `vybehub.app`
+- **After publish** — force-quit app once (cache buster `vybe-cache-v3` clears stuck empty feeds/DMs)
+
+## What Changed (posts/DMs not loading — 2026-06-09)
+- **`queryRefetchPolicy.ts`** — empty feed/DM caches return `refetchOnMount: 'always'` (boolean `true` was blocked by staleTime)
+- **`profileCache.ts`** — `getEffectiveProfileId()` so feeds/DMs run during auth hydration
+- **`useInfinitePosts` / `Home`** — use cached profile id; show skeleton while auth + no profile id
+- **`useDMConversations` / `loadDMConversations`** — cached profile id; fail-soft on errors; loading while refetching empty list
+- **`App.tsx`** — cache buster `vybe-cache-v3`
+- **Build:** `npm run build` pass
 
 ## What Changed (instant load — DMs, level, feed — 2026-06-10)
 - **`userLevelCache.ts`** — disk cache so home never flashes fake Lv.1
@@ -77,7 +85,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Git:** `0a291286` pushed — awaiting Lovable Publish
 
 ## Next 3 Tasks
-1. User: Lovable → Share → Publish (commit `0a291286`)
+1. User: Lovable → Share → Publish (loading fix — cache v3)
+2. Force-quit app once after publish; verify home posts + Messages list load
+3. Manual test cold start as `@mrassburgers` — For You, Global, DMs
 2. User: paste `PENDING_20260530.sql` into prod SQL Editor (`agtcyxjxgkdyoxwxkjth`)
 3. Device test — feed instant, no Friend Link for guests, DMs + level on cold start
 

@@ -11,6 +11,7 @@ import { useNewPostsBanner } from '@/hooks/usePostsRealtime';
 import { useShowAds } from '@/hooks/useShowAds';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/lib/auth';
+import { getEffectiveProfileId } from '@/lib/profileCache';
 import { hasActiveReferral, isInviteEntryMode } from '@/lib/referral';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
@@ -48,6 +49,7 @@ interface HomePageProps {
 export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const navigate = useNavigate();
   const { user, profile, loading: authLoading } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
   const [activeTab, setActiveTab] = useState('foryou');
   const { showAds } = useShowAds();
   const { hasNewPosts, clearNewPosts } = useNewPostsBanner();
@@ -84,7 +86,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextForYou,
     isFetchingNextPage: isFetchingNextForYou,
     refetch: refetchForYou,
-  } = usePersonalizedFeed(undefined, { enabled: isForYouTab && (!user || !!profile?.id) });
+  } = usePersonalizedFeed(undefined, { enabled: isForYouTab && (!user || !!profileId) });
 
   // Following feed — merged into For You only when that tab is active
   const {
@@ -95,7 +97,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextFollowing,
     isFetchingNextPage: isFetchingNextFollowing,
     refetch: refetchFollowing,
-  } = useInfiniteFollowingPosts(undefined, { enabled: isForYouTab && !!profile?.id });
+  } = useInfiniteFollowingPosts(undefined, { enabled: isForYouTab && !!profileId });
 
   const {
     data: globalData,
@@ -167,9 +169,38 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   );
 
   const forYouFeedLoading =
-    forYouPosts.length === 0 && (forYouLoading || followingLoading);
+    forYouPosts.length === 0 &&
+    (forYouLoading || followingLoading || (authLoading && !!user && !profileId));
   const globalFeedLoading = globalPosts.length === 0 && globalLoading;
   const localFeedLoading = localPosts.length === 0 && localLoading;
+
+  // If feed queries stall (empty cache / slow network), force a refetch once on mount.
+  const feedKickRef = useRef(false);
+  useEffect(() => {
+    if (!isForYouTab || feedKickRef.current || forYouPosts.length > 0) return;
+    feedKickRef.current = true;
+    void refetchForYou();
+    if (profileId) void refetchFollowing();
+  }, [isForYouTab, forYouPosts.length, profileId, refetchForYou, refetchFollowing]);
+
+  // Escape hatch: stop infinite skeleton if fetch hangs >8s.
+  useEffect(() => {
+    if (!isForYouTab || forYouPosts.length > 0) return;
+    if (!forYouLoading && !followingLoading) return;
+    const t = window.setTimeout(() => {
+      void refetchForYou();
+      if (profileId) void refetchFollowing();
+    }, 8000);
+    return () => window.clearTimeout(t);
+  }, [
+    isForYouTab,
+    forYouPosts.length,
+    forYouLoading,
+    followingLoading,
+    profileId,
+    refetchForYou,
+    refetchFollowing,
+  ]);
 
   // Pull to refresh
   const handleRefresh = useCallback(async () => {
