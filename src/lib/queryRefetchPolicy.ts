@@ -20,6 +20,14 @@ export function refetchFeedOnMount(query: any): boolean | 'always' {
   return infiniteQueryHasPosts(query?.state?.data) ? false : 'always';
 }
 
+/** Refetch on mount when cached array is empty (messages, lists, etc.). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function shouldRefetchWhenEmpty(query: any): boolean | 'always' {
+  const data = query?.state?.data;
+  if (!Array.isArray(data) || data.length === 0) return 'always';
+  return false;
+}
+
 /** Refetch DM list on mount when empty or errored with no rows. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function refetchListOnMount(query: any): boolean | 'always' {

@@ -5,8 +5,17 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Publish now** — Phase 0+1 cache-first home on `main`; user: **Lovable → Share → Publish** for `vybehub.app`
-- **After publish** — force-quit app once (cache buster `vybe-cache-v4`)
+- **Publish** — ads + DM speed + FAB scroll fixes; **Lovable → Share → Publish** for `vybehub.app`
+- **Despia** — confirm Native Advanced unit `5403238592` in dashboard; rebuild native shell
+
+## What Changed (ads, DMs, FAB — 2026-06-11)
+- **`despiaRewardedAds.ts`** — 45s timeout, dismiss recovery via visibility/focus, broader status parsing
+- **`nativeFeedAds.ts` + `FeedAdCard.tsx`** — in-feed Native Advanced (`5403238592`); removed interstitial-on-scroll
+- **`scrollHideSync.ts`** — shared scroll hide for BottomNav + floating FABs (fixes Designer FAB stuck)
+- **`useMessages` / `ChatView`** — slimmer fetch (50 msgs), offline-first, cache-first skeleton
+- **`useChatPrefetch` + `ConversationList`** — prefetch messages on touch before navigate
+- **`VYBECommandBar`** — CSS translate hide (no conflicting Framer `y` animation)
+- **Build:** `npm run build` pass
 
 ## What Changed (cache-first home Phase 0+1 — 2026-06-11)
 - **`warmHomeCaches.ts`** — single boot warm path: feeds, DMs, stories, notifications, user meta, avatar signing

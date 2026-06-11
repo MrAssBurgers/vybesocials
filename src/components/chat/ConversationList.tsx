@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { motion, useMotionValue, useTransform, PanInfo, AnimatePresence } from 'framer-motion';
 import { useCreateConversation, Conversation } from '@/hooks/useMessages';
 import { useDMConversations, useMarkConversationRead } from '@/hooks/useDMConversations';
+import { useChatPrefetch } from '@/hooks/useChatPrefetch';
 import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
 import { useOnlineFriends } from '@/hooks/useOnlineFriends';
 import { useAuth } from '@/lib/auth';
@@ -122,7 +123,8 @@ export function ConversationList() {
     totalUnreadCount,
     refetch: refetchConversations,
   } = useDMConversations(debouncedSearch);
-  
+  const { prefetchMessages } = useChatPrefetch();
+
   // Show a recoverable retry affordance if the skeleton lingers past 6s.
   const [slowLoad, setSlowLoad] = useState(false);
   useEffect(() => {
@@ -264,6 +266,10 @@ export function ConversationList() {
     navigate(`/messages/${convId}`);
   }, [navigate]);
 
+  const handleConversationWarm = useCallback((convId: string) => {
+    void prefetchMessages(convId);
+  }, [prefetchMessages]);
+
   const handleTrashConversation = useCallback((convId: string) => {
     trashConversation.mutate(convId);
   }, [trashConversation]);
@@ -374,6 +380,7 @@ export function ConversationList() {
                   statusMap={statusMap}
                   isTypingFn={checkTyping}
                   onClick={handleConversationClick}
+                  onWarm={handleConversationWarm}
                   onTrash={handleTrashConversation}
                   onOpenStory={openStoryForUser}
                 />
@@ -390,6 +397,7 @@ export function ConversationList() {
                   statusMap={statusMap}
                   isTypingFn={checkTyping}
                   onClick={handleConversationClick}
+                  onWarm={handleConversationWarm}
                   onTrash={handleTrashConversation}
                   onOpenStory={openStoryForUser}
                 />
@@ -732,6 +740,7 @@ interface ConversationRowProps {
   statusMap: Map<string, { emoji: string; text: string } | undefined>;
   isTypingFn: (id: string) => boolean;
   onClick: (id: string) => void;
+  onWarm?: (id: string) => void;
   onTrash: (id: string) => void;
   onOpenStory?: (userId: string) => void;
 }
@@ -746,6 +755,7 @@ const ConversationRow = memo(function ConversationRow({
   statusMap,
   isTypingFn,
   onClick,
+  onWarm,
   onTrash,
   onOpenStory,
 }: ConversationRowProps) {
@@ -756,11 +766,13 @@ const ConversationRow = memo(function ConversationRow({
   const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
   const streak = otherMemberId ? streakMap.get(otherMemberId) : undefined;
   const handleClick = useCallback(() => onClick(conv.id), [onClick, conv.id]);
+  const handleWarm = useCallback(() => onWarm?.(conv.id), [onWarm, conv.id]);
   const handleTrash = useCallback(() => onTrash(conv.id), [onTrash, conv.id]);
   return (
     <ConversationItem
       conversation={conv}
       onClick={handleClick}
+      onWarm={handleWarm}
       isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
       isTyping={isTypingFn(conv.id)}
       currentUserId={currentUserId}
@@ -778,6 +790,7 @@ const ConversationRow = memo(function ConversationRow({
 interface ConversationItemProps {
   conversation: Conversation; 
   onClick: () => void;
+  onWarm?: () => void;
   isOnline?: boolean;
   isTyping?: boolean;
   currentUserId?: string;
@@ -793,6 +806,7 @@ interface ConversationItemProps {
 const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(function ConversationItem({ 
   conversation, 
   onClick,
+  onWarm,
   isOnline,
   isTyping,
   currentUserId,
@@ -846,6 +860,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
   
   // Long press handlers with scroll/movement detection
   const handleTouchStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    onWarm?.();
     isLongPressRef.current = false;
     isDraggingRef.current = false;
     
@@ -863,7 +878,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
         setOptionsOpen(true);
       }
     }, 500);
-  }, []);
+  }, [onWarm]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent | React.MouseEvent) => {
     if (!touchStartPosRef.current) return;

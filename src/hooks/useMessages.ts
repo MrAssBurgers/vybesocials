@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
@@ -8,6 +8,8 @@ import { callSounds } from '@/lib/callSounds';
 // Push notifications for new messages are dispatched server-side by the
 // `on_message_insert_notify` trigger; no client-side helper needed here.
 import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
+import { getEffectiveProfileId } from '@/lib/profileCache';
+import { shouldRefetchWhenEmpty } from '@/lib/queryRefetchPolicy';
 
 export type ViewMode = 'view_once' | '24h' | 'permanent';
 
@@ -239,8 +241,42 @@ export function useConversations() {
   return query;
 }
 
+const MESSAGE_SELECT_SLIM = `
+  *,
+  sender:profiles!sender_id(id, username, avatar_url, display_name),
+  views:message_views(user_id, viewed_at),
+  reactions:message_reactions(user_id, emoji)
+`;
+
+function filterMessagesForViewer(messages: Message[], viewerId?: string): Message[] {
+  return messages.filter((msg) => {
+    if (msg.view_mode === 'view_once' && msg.media_type !== 'vybe' && msg.sender_id !== viewerId) {
+      const hasViewed = msg.views?.some((v) => v.user_id === viewerId);
+      if (hasViewed) return false;
+    }
+    if (msg.expires_at && new Date(msg.expires_at) < new Date()) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function mergePendingOptimisticMessages(
+  queryClient: QueryClient,
+  conversationId: string,
+  filtered: Message[],
+): Message[] {
+  const existing = queryClient.getQueryData<Message[]>(['messages', conversationId]) || [];
+  const serverIds = new Set(filtered.map((m) => m.id));
+  const pendingTemps = existing.filter(
+    (m) => typeof m.id === 'string' && m.id.startsWith('temp-') && !serverIds.has(m.id),
+  );
+  return [...filtered, ...pendingTemps];
+}
+
 export function useMessages(conversationId: string | undefined) {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
   const queryClient = useQueryClient();
 
   const query = useQuery({
@@ -248,61 +284,29 @@ export function useMessages(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId) return [];
 
-      // Hard cap: pull only the most recent 100 messages. For very active
-      // threads (e.g. VYBEOfficial) the un-bounded query was returning many
-      // thousands of rows with embedded views/reactions arrays, which made
-      // the response so large it timed out before the chat could render.
       const { data, error } = await supabase
         .from('messages')
-        .select(`
-          *,
-          sender:profiles!sender_id(id, username, avatar_url, display_name),
-          views:message_views(user_id, viewed_at, profile:profiles!user_id(id, username, avatar_url, display_name)),
-          reactions:message_reactions(user_id, emoji)
-        `)
+        .select(MESSAGE_SELECT_SLIM)
         .eq('conversation_id', conversationId)
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(50);
 
       if (error) throw error;
 
-      // We fetched newest-first for the LIMIT — flip back to chronological.
       if (data) data.reverse();
 
-      // Filter out expired view_once messages that have been viewed
-      // But keep vybe messages — they show as "Opened" after viewing, not hidden
-      const filtered = (data || []).filter((msg) => {
-        if (msg.view_mode === 'view_once' && msg.media_type !== 'vybe' && msg.sender_id !== profile?.id) {
-          const hasViewed = msg.views?.some((v: any) => v.user_id === profile?.id);
-          if (hasViewed) return false;
-        }
-        if (msg.expires_at && new Date(msg.expires_at) < new Date()) {
-          return false;
-        }
-        return true;
-      });
-
-      // CRITICAL: preserve any in-flight optimistic messages (temp-*) that the
-      // user just sent. Without this, a server refetch landing right after an
-      // optimistic insert would wipe the bubble from the UI and make it look
-      // like the message never sent.
-      const existing = queryClient.getQueryData<Message[]>(['messages', conversationId]) || [];
-      const serverIds = new Set(filtered.map((m: any) => m.id));
-      const pendingTemps = existing.filter(
-        (m: any) => typeof m.id === 'string' && m.id.startsWith('temp-') && !serverIds.has(m.id)
-      );
-
-      return [...(filtered as Message[]), ...pendingTemps];
+      const filtered = filterMessagesForViewer((data || []) as Message[], profileId);
+      return mergePendingOptimisticMessages(queryClient, conversationId, filtered);
     },
-    enabled: !!conversationId && !!profile?.id,
+    enabled: !!conversationId && !!profileId,
     staleTime: 30000,
-    gcTime: 1000 * 60 * 60 * 24 * 14, // 14d — keep past messages cached for offline
+    gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: (query) => shouldRefetchWhenEmpty(query),
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
-    networkMode: 'online',
+    networkMode: 'offlineFirst',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });

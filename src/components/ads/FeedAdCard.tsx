@@ -1,13 +1,13 @@
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Megaphone, Sparkles } from 'lucide-react';
 import { useDNAPreferences } from '@/hooks/useDNAPreferences';
 import { useAdEligibility } from '@/hooks/useAdEligibility';
 import { getAdFeedInterval } from '@/lib/adPreferences';
-import { showFeedInterstitial } from '@/lib/adDelivery';
+import { pushInlineFeedAd } from '@/lib/nativeFeedAds';
 import type { DNAContentPreferences } from '@/hooks/useDNAPreferences';
 
 export const AD_SLOTS = {
-  FEED_INLINE: 'native-interstitial',
+  FEED_INLINE: 'native-advanced',
   STORY_INTERSTITIAL: 'native-interstitial',
 } as const;
 
@@ -19,14 +19,14 @@ export function getAdInterval(index: number, dna?: DNAContentPreferences | null)
 }
 
 /**
- * Native feed ad slot — triggers Despia interstitial when scrolled into view.
- * Web falls back to hidden until AdSense is approved.
+ * In-feed native ad slot — renders an inline AdMob unit inside the scroll feed.
  */
 export const FeedAdCard = memo(function FeedAdCard() {
   const { showNativeAds, showWebAds, personalizedAds } = useAdEligibility();
   const { data: dnaPrefs } = useDNAPreferences();
-  const firedRef = useRef(false);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const slotRef = useRef<HTMLDivElement>(null);
+  const [adReady, setAdReady] = useState(false);
+  const loadAttempted = useRef(false);
 
   const topicHint = useMemo(() => {
     if (!personalizedAds || !dnaPrefs?.boost_topics?.length) return null;
@@ -34,17 +34,17 @@ export const FeedAdCard = memo(function FeedAdCard() {
   }, [dnaPrefs?.boost_topics, personalizedAds]);
 
   useEffect(() => {
-    if (!showNativeAds || firedRef.current) return;
-    const el = cardRef.current;
+    if (!showNativeAds || loadAttempted.current) return;
+    const el = slotRef.current;
     if (!el) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (!entry?.isIntersecting || entry.intersectionRatio < 0.45 || firedRef.current) return;
-        firedRef.current = true;
-        showFeedInterstitial();
+        if (!entry?.isIntersecting || entry.intersectionRatio < 0.2 || loadAttempted.current) return;
+        loadAttempted.current = true;
+        void pushInlineFeedAd(el).then((ok) => setAdReady(ok));
       },
-      { threshold: [0.45, 0.6] },
+      { rootMargin: '120px 0px', threshold: [0.2, 0.5] },
     );
 
     observer.observe(el);
@@ -54,13 +54,13 @@ export const FeedAdCard = memo(function FeedAdCard() {
   if (!showNativeAds && !showWebAds) return null;
 
   return (
-    <div
-      ref={cardRef}
-      className="relative rounded-2xl overflow-hidden border border-border/50 bg-card/50 backdrop-blur-sm my-2"
+    <article
+      className="relative rounded-2xl overflow-hidden border border-border/40 bg-card/60 backdrop-blur-md my-3 shadow-sm"
+      aria-label="Sponsored content"
     >
       <div className="flex items-center gap-1.5 px-4 pt-3 pb-1">
-        <Megaphone className="h-3 w-3 text-muted-foreground" />
-        <span className="text-[11px] text-muted-foreground font-medium tracking-wide uppercase">
+        <Megaphone className="h-3 w-3 text-muted-foreground/80" />
+        <span className="text-[10px] text-muted-foreground font-semibold tracking-widest uppercase">
           Sponsored
         </span>
         {topicHint && (
@@ -71,15 +71,25 @@ export const FeedAdCard = memo(function FeedAdCard() {
         )}
       </div>
 
-      <div className="px-4 pb-4 pt-2">
-        <div className="min-h-[120px] rounded-xl bg-gradient-to-br from-primary/10 via-accent/5 to-transparent flex items-center justify-center border border-border/30">
-          <p className="text-xs text-muted-foreground text-center px-4">
-            {showNativeAds
-              ? 'Tap through your feed — relevant ads appear at natural breaks'
-              : 'Sponsored content'}
-          </p>
+      <div className="px-3 pb-3 pt-1">
+        <div
+          ref={slotRef}
+          className="min-h-[140px] rounded-xl overflow-hidden bg-gradient-to-br from-muted/30 via-background/50 to-muted/20 border border-border/25"
+        >
+          {!adReady && (
+            <div className="flex flex-col items-center justify-center gap-2 min-h-[140px] px-4 py-6">
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <Sparkles className="h-4 w-4 text-primary/70" />
+              </div>
+              <p className="text-[11px] text-muted-foreground text-center leading-relaxed max-w-[220px]">
+                {showNativeAds
+                  ? 'Relevant picks while you scroll'
+                  : 'Sponsored placement'}
+              </p>
+            </div>
+          )}
         </div>
       </div>
-    </div>
+    </article>
   );
 });

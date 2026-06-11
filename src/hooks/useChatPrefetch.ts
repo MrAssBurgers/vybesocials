@@ -3,6 +3,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { getEffectiveProfileId } from '@/lib/profileCache';
+import type { Message } from '@/hooks/useMessages';
+
+const PREFETCH_SELECT = `
+  *,
+  sender:profiles!sender_id(id, username, avatar_url, display_name),
+  views:message_views(user_id, viewed_at),
+  reactions:message_reactions(user_id, emoji)
+`;
 
 /**
  * Prefetch chat data for instant notification → chat transitions.
@@ -10,39 +19,57 @@ import { useAuth } from '@/lib/auth';
  */
 export function useChatPrefetch() {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
   const queryClient = useQueryClient();
 
-  // Prefetch conversation by user ID (for DM notifications)
-  const prefetchConversation = useCallback(async (otherUserId: string) => {
-    if (!profile?.id || !otherUserId) return;
+  const prefetchMessages = useCallback(async (conversationId: string) => {
+    const cached = queryClient.getQueryData<Message[]>(['messages', conversationId]);
+    if (cached?.length) return;
 
-    // Check if already cached
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select(PREFETCH_SELECT)
+        .eq('conversation_id', conversationId)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+        .limit(40);
+
+      if (error) throw error;
+      if (data) {
+        queryClient.setQueryData<Message[]>(['messages', conversationId], data.reverse() as Message[]);
+      }
+    } catch (error) {
+      console.error('[ChatPrefetch] Messages error:', error);
+    }
+  }, [queryClient]);
+
+  const prefetchConversation = useCallback(async (otherUserId: string) => {
+    if (!profileId || !otherUserId) return;
+
     const cached = queryClient.getQueryData(['conversation-by-user', otherUserId]);
     if (cached) return;
 
     try {
-      // Find or create conversation with this user
       const { data: existingConv } = await supabase
         .from('conversation_members')
         .select(`
           conversation_id,
           conversations!inner(id, is_group, name)
         `)
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .limit(100);
 
       if (!existingConv) return;
 
-      // Find the DM with this specific user
       for (const member of existingConv) {
         const { data: otherMembers } = await supabase
           .from('conversation_members')
           .select('user_id')
           .eq('conversation_id', member.conversation_id)
-          .neq('user_id', profile.id);
+          .neq('user_id', profileId);
 
-        if (otherMembers?.some(m => m.user_id === otherUserId)) {
-          // Found the conversation - prefetch messages
+        if (otherMembers?.some((m) => m.user_id === otherUserId)) {
           await prefetchMessages(member.conversation_id);
           queryClient.setQueryData(['conversation-by-user', otherUserId], member.conversation_id);
           return;
@@ -51,32 +78,7 @@ export function useChatPrefetch() {
     } catch (error) {
       console.error('[ChatPrefetch] Error:', error);
     }
-  }, [profile?.id, queryClient]);
-
-  // Prefetch messages for a conversation
-  const prefetchMessages = useCallback(async (conversationId: string) => {
-    const cached = queryClient.getQueryData(['messages', conversationId]);
-    if (cached) return;
-
-    try {
-      const { data } = await supabase
-        .from('messages')
-        .select(`
-          id, content, created_at, sender_id,
-          media_url, media_type, is_deleted,
-          sender:profiles!messages_sender_id_fkey(id, username, display_name, avatar_url)
-        `)
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(30);
-
-      if (data) {
-        queryClient.setQueryData(['messages', conversationId], data.reverse());
-      }
-    } catch (error) {
-      console.error('[ChatPrefetch] Messages error:', error);
-    }
-  }, [queryClient]);
+  }, [profileId, queryClient, prefetchMessages]);
 
   return { prefetchConversation, prefetchMessages };
 }
@@ -86,20 +88,21 @@ export function useChatPrefetch() {
  */
 export function useNotificationChatPrefetch() {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
   const { prefetchConversation } = useChatPrefetch();
 
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profileId) return;
 
-    const channel = subscribePostgresChannel(`notification-prefetch:${profile.id}`, [
+    const channel = subscribePostgresChannel(`notification-prefetch:${profileId}`, [
       {
         event: 'INSERT',
         table: 'notifications',
-        filter: `user_id=eq.${profile.id}`,
+        filter: `user_id=eq.${profileId}`,
         callback: (payload) => {
           const type = payload.new?.type;
           const actorId = payload.new?.actor_id;
-          
+
           if (actorId && ['message', 'friend_accepted', 'friend_request'].includes(type)) {
             prefetchConversation(actorId);
           }
@@ -110,5 +113,5 @@ export function useNotificationChatPrefetch() {
     return () => {
       removeRealtimeChannel(channel);
     };
-  }, [profile?.id, prefetchConversation]);
+  }, [profileId, prefetchConversation]);
 }

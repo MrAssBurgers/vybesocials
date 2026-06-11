@@ -149,7 +149,7 @@ export function ChatView() {
   const bumpStreak = useInteractionStreakBump();
   
   const { data: conversations } = useConversations();
-  const { data: messages, isLoading } = useMessages(conversationId);
+  const { data: messages, isPending: messagesPending } = useMessages(conversationId);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
   
   // Batch preload all media URLs for instant rendering
@@ -1271,7 +1271,7 @@ export function ChatView() {
     }
   }, [settings.chat_wallpaper]);
 
-  if (isLoading) {
+  if (messagesPending && !messages?.length) {
     return (
       <div className="flex flex-col h-full">
         <div className="p-4 border-b border-border flex items-center gap-3">

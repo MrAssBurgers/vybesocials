@@ -3,6 +3,8 @@
  * Used to hide bottom nav when inside community chat, story viewer, or when input is focused.
  */
 
+import { resetScrollHideVisible } from '@/lib/scrollHideSync';
+
 type NavVisibilityListener = (visible: boolean) => void;
 type HeaderVisibilityListener = (visible: boolean) => void;
 
@@ -77,6 +79,7 @@ export const navVisibility = {
   /** Reset scroll-hide state so bottom nav cannot get stuck off-screen. */
   resetScrollHide() {
     if (typeof window !== 'undefined') {
+      resetScrollHideVisible();
       window.dispatchEvent(new CustomEvent('vybe:nav-scroll-reset'));
     }
   },

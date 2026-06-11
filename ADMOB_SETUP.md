@@ -11,8 +11,9 @@ VYBE does **not** use `@capacitor-community/admob`. All native ads run through t
 
 | Field | Android value |
 |-------|----------------|
-| **App ID** | `ca-app-pub-9952523729646293~519155087` |
+| **App ID** | `ca-app-pub-9952523729646293~5191550874` |
 | **Rewarded** | `ca-app-pub-9952523729646293/962472048` |
+| **Native Advanced (feed)** | `ca-app-pub-9952523729646293/5403238592` |
 
 3. Save and **rebuild the native app** in Despia (OTA web publish alone does not update AdMob config).
 
@@ -23,7 +24,8 @@ Reference copy in code: `DESPIA_ADMOB_IDS` in `src/lib/despiaRewardedAds.ts`.
 | Ad type | Bridge URL | Used for |
 |---------|------------|----------|
 | Rewarded | `displayrewardedad://` | Token Wallet → Watch & Earn |
-| Interstitial | `displayinterstitialad://` | Feed / clips natural breaks |
+| Interstitial | `displayinterstitialad://` | Clips / story breaks |
+| Native Advanced (inline) | `adsbygoogle` in WebView | Home feed scroll slots |
 | Banner | `displaybannerad://` | Optional placements |
 | Hide banner | `hidebannerad://` | Cleanup |
 

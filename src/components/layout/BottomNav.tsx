@@ -12,101 +12,26 @@ import { VYBEHub } from '@/components/hub/VYBEHub';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { useAuth } from '@/lib/auth';
 import { navVisibility } from '@/lib/navVisibility';
+import { resetScrollHideVisible, subscribeScrollHide } from '@/lib/scrollHideSync';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { T, TAP, MOTION_CONFIG } from '@/lib/motion';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useUserPreferences, useUpdatePreferences } from '@/hooks/useUserPreferences';
 
-// Singleton scroll direction detection to prevent duplicate listeners
-let scrollDirectionCleanup: (() => void) | null = null;
-let scrollVisibility = true;
-const scrollVisibilityListeners = new Set<(visible: boolean) => void>();
-
-function setupScrollDirectionListener() {
-  if (scrollDirectionCleanup) return;
-  
-  let lastScrollY = 0;
-  let ticking = false;
-
-  const handleScroll = (e?: Event) => {
-    if (ticking) return;
-    ticking = true;
-    window.requestAnimationFrame(() => {
-      const scrollContainer = document.querySelector('[data-app-scroll-container="true"]');
-      const currentScrollY = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
-      const scrollDiff = currentScrollY - lastScrollY;
-      
-      if (Math.abs(scrollDiff) > 10) {
-        scrollVisibility = !(scrollDiff > 0 && currentScrollY > 50);
-      }
-      
-      if (currentScrollY < 50) {
-        scrollVisibility = true;
-      }
-      
-      lastScrollY = currentScrollY;
-      ticking = false;
-      
-      scrollVisibilityListeners.forEach(fn => fn(scrollVisibility));
-    });
-  };
-
-  window.addEventListener('scroll', handleScroll, { passive: true });
-  
-  const observer = new MutationObserver(() => {
-    const container = document.querySelector('[data-app-scroll-container="true"]');
-    if (container && !(container as any).__scrollBound) {
-      container.addEventListener('scroll', handleScroll, { passive: true });
-      (container as any).__scrollBound = true;
-    }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-  
-  const container = document.querySelector('[data-app-scroll-container="true"]');
-  if (container) {
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    (container as any).__scrollBound = true;
-  }
-
-  scrollDirectionCleanup = () => {
-    window.removeEventListener('scroll', handleScroll);
-    observer.disconnect();
-    const el = document.querySelector('[data-app-scroll-container="true"]');
-    if (el) el.removeEventListener('scroll', handleScroll);
-    scrollDirectionCleanup = null;
-  };
-}
-
 function useScrollDirection() {
   const [isVisible, setIsVisible] = useState(true);
   const location = useLocation();
 
-  useEffect(() => {
-    setupScrollDirectionListener();
-    
-    scrollVisibilityListeners.add(setIsVisible);
-    setIsVisible(scrollVisibility);
-
-    return () => {
-      scrollVisibilityListeners.delete(setIsVisible);
-      if (scrollVisibilityListeners.size === 0 && scrollDirectionCleanup) {
-        scrollDirectionCleanup();
-      }
-    };
-  }, []);
+  useEffect(() => subscribeScrollHide(setIsVisible), []);
 
   // Never leave nav stuck hidden after route changes or tab switches.
   useEffect(() => {
-    scrollVisibility = true;
-    scrollVisibilityListeners.forEach((fn) => fn(true));
+    resetScrollHideVisible();
   }, [location.pathname]);
 
   useEffect(() => {
-    const onReset = () => {
-      scrollVisibility = true;
-      scrollVisibilityListeners.forEach((fn) => fn(true));
-    };
+    const onReset = () => resetScrollHideVisible();
     window.addEventListener('vybe:nav-scroll-reset', onReset);
     return () => window.removeEventListener('vybe:nav-scroll-reset', onReset);
   }, []);

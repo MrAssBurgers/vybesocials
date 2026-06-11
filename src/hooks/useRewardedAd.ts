@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
-import { requestDespiaRewardedAd } from '@/lib/despiaRewardedAds';
+import { REWARDED_AD_COMPLETE_EVENT, requestDespiaRewardedAd } from '@/lib/despiaRewardedAds';
 import { useEarnTokens } from '@/hooks/useVybeTokens';
 import { useHasBoost } from '@/hooks/useActiveBoosts';
 import { useAuth } from '@/lib/auth';
@@ -72,6 +72,13 @@ export function useRewardedAd() {
   const [now, setNow] = useState(Date.now());
   const [isLoading, setIsLoading] = useState(false);
 
+  // Safety net: clear loading if native bridge fires completion outside the await path.
+  useEffect(() => {
+    const onComplete = () => setIsLoading(false);
+    window.addEventListener(REWARDED_AD_COMPLETE_EVENT, onComplete);
+    return () => window.removeEventListener(REWARDED_AD_COMPLETE_EVENT, onComplete);
+  }, []);
+
   // Reload state when user changes
   useEffect(() => {
     if (user?.id) setState(loadState(user.id));
@@ -111,15 +118,14 @@ export function useRewardedAd() {
       let granted = false;
 
       if (isDespiaRuntime()) {
-        granted = await requestDespiaRewardedAd();
+        granted = await requestDespiaRewardedAd(45_000);
       } else {
-        // Web preview / non-Despia shell — no real ad available.
         toast.info('Rewarded ads are only available in the mobile app');
         return;
       }
 
       if (!granted) {
-        toast.info('Ad was not completed — no reward this time');
+        toast.info('Watch the full ad to earn tokens');
         return;
       }
 
