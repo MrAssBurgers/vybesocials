@@ -5,9 +5,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Publish now** — commit `0a291286` pushed to `main`; user: **Lovable → Share → Publish** for `vybehub.app`
-- **Prod SQL** — run `supabase/manual/PENDING_20260530.sql` on **`agtcyxjxgkdyoxwxkjth`**
-- **Despia native rebuild** — after AdMob IDs saved in Despia dashboard (rewarded ads)
+- **Publish now** — commit `f92be6c4` on `main`; user: **Lovable → Share → Publish** for `vybehub.app`
+- **After publish** — force-quit app once (cache buster `vybe-cache-v2` clears stuck empty feeds/DMs)
 
 ## What Changed (instant load — DMs, level, feed — 2026-06-10)
 - **`userLevelCache.ts`** — disk cache so home never flashes fake Lv.1
