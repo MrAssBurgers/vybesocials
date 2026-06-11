@@ -5,7 +5,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Publish now** — commit `0d66fdd5` pushed to `main`; user: **Lovable → Share → Publish** for `vybehub.app`
+- **Publish now** — commit `0a291286` pushed to `main`; user: **Lovable → Share → Publish** for `vybehub.app`
 - **Prod SQL** — run `supabase/manual/PENDING_20260530.sql` on **`agtcyxjxgkdyoxwxkjth`**
 - **Despia native rebuild** — after AdMob IDs saved in Despia dashboard (rewarded ads)
 
@@ -69,10 +69,18 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Auth** — profile from disk cache on boot; rejects `user_xxxx` placeholders; greeting/XP skeletons while loading
 - **Build:** `npm run build` pass
 
+## What Changed (instant feed + Friend Link gate — 2026-06-10)
+- **`authReady.ts`** — `isFullyLoggedIn()` helper (auth settled + real profile)
+- **Friend Link** — pill, spotlight, shake, and sheet only for logged-in users
+- **Home feed** — skeleton only when zero posts + loading; warm Following + For You on boot
+- **`usePrefetchPosts`** — caches `personalized-feed-v2` + `infinite-following-posts`
+- **Build:** `npm run build` pass
+- **Git:** `0a291286` pushed — awaiting Lovable Publish
+
 ## Next 3 Tasks
-1. User: Lovable → Share → Publish (commit `0d66fdd5`)
+1. User: Lovable → Share → Publish (commit `0a291286`)
 2. User: paste `PENDING_20260530.sql` into prod SQL Editor (`agtcyxjxgkdyoxwxkjth`)
-3. Device test — DMs list instant, level badge correct on cold start, feed posts not stuck on skeleton
+3. Device test — feed instant, no Friend Link for guests, DMs + level on cold start
 
 ## What Changed (instant DMs + onboarding — 2026-06-09)
 - **`loadDMConversations.ts`** — shared fetch + nav/app prefetch for conversation list cache
