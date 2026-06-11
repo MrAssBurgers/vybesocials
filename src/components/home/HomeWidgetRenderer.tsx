@@ -94,6 +94,20 @@ function FirstPostCTA() {
 
 /* ── Widgets that load eagerly (above fold) ── */
 const EAGER_WIDGETS = new Set(['greeting', 'ai_brief', 'stories', 'xp_streak', 'feed']);
+const RENDERABLE_WIDGETS = new Set([
+  'greeting',
+  'xp_streak',
+  'ai_brief',
+  'stories',
+  'weekly_rhythm',
+  'vybe_dna',
+  'wallet',
+  'shop',
+  'communities',
+  'creator_analytics',
+  'battle_pass',
+  'feed',
+]);
 
 interface Props {
   customizerOpen: boolean;
@@ -549,8 +563,8 @@ export function HomeWidgetRenderer(props: Props) {
 
   const widgets = isEditing ? localWidgets : config.widgets;
   const enabledIds = isEditing
-    ? orderedEnabledIds
-    : widgets.filter(w => w.enabled).sort((a, b) => a.order - b.order).map(w => w.id);
+    ? orderedEnabledIds.filter(id => RENDERABLE_WIDGETS.has(id))
+    : widgets.filter(w => w.enabled && RENDERABLE_WIDGETS.has(w.id)).sort((a, b) => a.order - b.order).map(w => w.id);
 
   if (isEditing) {
     return (
