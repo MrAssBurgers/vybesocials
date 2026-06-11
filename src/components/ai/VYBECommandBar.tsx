@@ -55,8 +55,6 @@ export function VYBECommandBar() {
   const generateTheme = useGenerateTheme();
   const { setTheme: setGlobalTheme } = useTheme();
 
-  if (hideInPreview) return null;
-
   // Focus input when sheet opens
   useEffect(() => {
     if (open) {
@@ -180,6 +178,8 @@ export function VYBECommandBar() {
     setCommand(example.replace(/🌙|⚡|🔥|✨/g, '').trim());
     inputRef.current?.focus();
   };
+
+  if (hideInPreview) return null;
 
   return (
     <>
