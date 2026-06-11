@@ -299,7 +299,7 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
         className={cn(
           'flex items-center gap-2.5 cursor-pointer min-w-0 w-full h-full transition-colors duration-150',
           variant === 'header'
-            ? 'px-3.5 rounded-full border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.06] active:scale-[0.99]'
+            ? 'px-3.5 rounded-full border border-foreground/[0.06] bg-transparent hover:bg-foreground/[0.04] active:scale-[0.99]'
             : 'px-3 py-2 rounded-full bg-secondary/50 hover:bg-secondary',
         )}
       >
@@ -315,7 +315,7 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
         )}>
           {variant === 'header' ? 'Search' : 'Search VYBE'}
         </span>
-        <kbd className="hidden md:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground ml-auto">
+        <kbd className="hidden md:inline-flex h-5 select-none items-center gap-1 rounded border border-foreground/[0.06] bg-transparent px-1.5 font-mono text-[10px] font-medium text-muted-foreground/80 ml-auto">
           <span className="text-xs">⌘</span>K
         </kbd>
       </div>

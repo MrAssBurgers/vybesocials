@@ -112,7 +112,7 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
             className={cn(
               'flex shrink-0 items-center gap-0.5 px-0.5',
               TOOLBAR_H,
-              'rounded-full border border-white/[0.08] bg-white/[0.04]',
+              'rounded-full border border-foreground/[0.06] bg-transparent',
             )}
             aria-label="Quick actions"
           >
@@ -132,7 +132,7 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
               )}
             </Link>
 
-            <span className="h-4 w-px bg-white/[0.08]" aria-hidden />
+            <span className="h-4 w-px bg-foreground/[0.08]" aria-hidden />
 
             <Link
               to="/challenges"
