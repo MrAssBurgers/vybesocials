@@ -6,6 +6,7 @@ import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, isRawId, type CachedProfile } from '@/lib/profileCache';
 import { clearCachedUserLevel } from '@/lib/userLevelCache';
 import { prefetchDMConversationsFromNav } from '@/lib/loadDMConversations';
+import { warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
@@ -130,7 +131,13 @@ function persistCurrentProfile(profileData: Profile) {
   };
   setCachedProfile(payload);
   setCachedCurrentProfile(payload);
-  requestAnimationFrame(() => prefetchDMConversationsFromNav());
+  requestAnimationFrame(() => {
+    prefetchDMConversationsFromNav();
+    const qc = (window as any).__REACT_QUERY_CLIENT__;
+    if (qc && profileData.id && profileData.user_id) {
+      warmHomeCachesForProfile(qc, profileData.user_id, profileData.id, profileData);
+    }
+  });
 }
 
 /** Wait until Supabase has a session (post-signup / OAuth race). */

@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
+import { batchSignUrls } from '@/lib/signedUrlCache';
 import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -31,6 +32,12 @@ export function GreetingWidget() {
   const profile = resolveGreetingProfile(liveProfile);
   const signedAvatar = useFastSignedUrl(profile?.avatar_url ?? null);
   const { currentLevel, isReady: levelReady } = useNextLevelProgress();
+
+  useEffect(() => {
+    if (profile?.avatar_url) {
+      batchSignUrls([profile.avatar_url]).catch(() => {});
+    }
+  }, [profile?.avatar_url]);
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();

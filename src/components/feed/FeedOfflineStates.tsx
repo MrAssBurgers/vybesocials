@@ -38,6 +38,23 @@ export function FeedOfflineNoCache({ onRetry, className }: OfflineNoCacheProps) 
   );
 }
 
+/** Slim banner while cached feed refreshes in the background. */
+export function FeedRefreshingBanner({ className }: { className?: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      className={cn(
+        'mb-3 flex items-center justify-center gap-2 rounded-xl border border-border/30 bg-muted/30 px-3 py-1.5 text-[11px] font-medium text-muted-foreground',
+        className,
+      )}
+    >
+      <RefreshCw className="h-3 w-3 shrink-0 animate-spin" />
+      <span>Updating feed…</span>
+    </motion.div>
+  );
+}
+
 /** Slim banner when viewing persisted/cached feed while offline. */
 export function FeedOfflineCachedBanner({ className }: { className?: string }) {
   return (

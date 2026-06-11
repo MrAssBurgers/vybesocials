@@ -5,8 +5,18 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
-- **Publish now** — loading fix (empty-cache refetch + profile hydration); user: **Lovable → Share → Publish** for `vybehub.app`
-- **After publish** — force-quit app once (cache buster `vybe-cache-v3` clears stuck empty feeds/DMs)
+- **Publish now** — Phase 0+1 cache-first home on `main`; user: **Lovable → Share → Publish** for `vybehub.app`
+- **After publish** — force-quit app once (cache buster `vybe-cache-v4`)
+
+## What Changed (cache-first home Phase 0+1 — 2026-06-11)
+- **`warmHomeCaches.ts`** — single boot warm path: feeds, DMs, stories, notifications, user meta, avatar signing
+- **`cacheFirstLoading.ts`** — skeleton only when zero posts + pending; `FeedRefreshingBanner` when cache visible
+- **`Home.tsx` / `HomeWidgetRenderer`** — `isPending`-based loading; no skeleton when cached posts exist
+- **`GreetingWidget`** — pre-sign cached avatar on mount
+- **`auth.tsx`** — `warmHomeCachesForProfile` when profile persists
+- **`useAppPreloader`** — delegates to `warmHomeCaches` (removed duplicate warm helpers)
+- **`App.tsx`** — cache buster `vybe-cache-v4`
+- **Build:** `npm run build` pass
 
 ## What Changed (posts/DMs not loading — 2026-06-09)
 - **`queryRefetchPolicy.ts`** — empty feed/DM caches return `refetchOnMount: 'always'` (boolean `true` was blocked by staleTime)

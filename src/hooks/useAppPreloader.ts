@@ -3,14 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { hasWarmOfflineCache } from '@/lib/offlineCacheProbe';
-import { prefetchDMConversations } from '@/lib/loadDMConversations';
+import { warmHomeCaches, warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
 import { isPersistRestored, markPersistRestored, onPersistRestored } from '@/lib/persistRestoreGate';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isSetupRoutePath } from '@/lib/splashSession';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
-import { setCachedUserLevel } from '@/lib/userLevelCache';
 
 interface PreloadStatus {
   step: string;
@@ -120,7 +119,7 @@ export function useAppPreloader() {
       setStatus({ step: 'Ready!', progress: 100, isComplete: true });
       requestAnimationFrame(() => {
         preloadCriticalRoutes();
-        void warmLoggedInCaches(queryClient);
+        void warmHomeCaches(queryClient);
       });
       return;
     }
@@ -220,12 +219,10 @@ export function useAppPreloader() {
 
         // Step 3b+: warm caches in background — never block splash exit.
         if (profileId && uid) {
-          void warmUserCaches(queryClient, uid, profileId);
+          warmHomeCachesForProfile(queryClient, uid, profileId, profileData);
         }
 
         if (profileId) {
-          void prefetchDMConversations(queryClient, profileId);
-
           Promise.allSettled([
             supabase.rpc('get_posts_with_counts', {
               p_type: null,
@@ -266,84 +263,9 @@ export function useAppPreloader() {
         // profileId is undefined and firing these queries with `undefined`
         // would produce a flood of `invalid input syntax for type uuid`
         // 400s on follows / friend_requests / notifications / conversation_members.
-        if (!profileId) {
-          console.warn('[Preloader] Skipping background social fetch — profile not resolved yet');
-          return;
-        }
         requestAnimationFrame(() => {
           preloadCriticalRoutes();
-          
-          // Background social data fetch
-          Promise.allSettled([
-            // Notifications
-            supabase
-              .from('notifications')
-              .select(`*, actor:profiles!notifications_actor_id_fkey(id, username, avatar_url)`)
-              .eq('user_id', profileId)
-              .order('created_at', { ascending: false })
-              .limit(15)
-              .then(({ data }) => {
-                if (data) queryClient.setQueryData(['notifications', profileId], data);
-              }),
-            // Friend requests
-            supabase
-              .from('friend_requests')
-              .select(`*, sender:profiles!friend_requests_sender_id_fkey(id, username, display_name, avatar_url)`)
-              .eq('receiver_id', profileId)
-              .eq('status', 'pending')
-              .order('created_at', { ascending: false })
-              .limit(10)
-              .then(({ data }) => {
-                if (data) queryClient.setQueryData(['friend-requests', profileId], data);
-              }),
-            // Stories
-            supabase
-              .from('stories')
-              .select(`*, author:profiles!stories_author_id_fkey(id, username, avatar_url)`)
-              .gt('expires_at', new Date().toISOString())
-              .order('created_at', { ascending: false })
-              .limit(30)
-              .then(({ data }) => {
-                if (data) {
-                  const storyGroups = processStoriesIntoGroups(data, profileId);
-                  queryClient.setQueryData(['stories', profileId], storyGroups);
-                  const storyUrls = data.flatMap((s: any) => [s.media_url, s.author?.avatar_url]).filter(Boolean);
-                  batchSignUrls(storyUrls).catch(() => {});
-                }
-              }),
-            // Own profile stats
-            (async () => {
-              const [followerCount, followingCount, postCount] = await Promise.all([
-                supabase.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', profileId),
-                supabase.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', profileId),
-                supabase.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', profileId),
-              ]);
-              queryClient.setQueryData(['profile-by-id', profileId, profileId], {
-                ...profileData,
-                follower_count: followerCount.count || 0,
-                following_count: followingCount.count || 0,
-                post_count: postCount.count || 0,
-                is_following: false,
-              });
-            })(),
-            // User's own posts
-            supabase.rpc('get_posts_with_counts', {
-              p_type: null,
-              p_author_id: profileId,
-              p_user_id: profileId,
-              p_offset: 0,
-              p_limit: 20,
-            }).then(({ data }) => {
-              if (data) {
-                const posts = data as any[];
-                queryClient.setQueryData(['user-posts', profileId], posts);
-                cacheFeedData(queryClient, posts, profileId, null);
-              }
-            }),
-          ]).then(() => {
-            console.log(`[Preloader] Background social data loaded - ${(performance.now() - startTime).toFixed(0)}ms total`);
-          });
-
+          void warmHomeCaches(queryClient);
           setTimeout(() => preloadSecondaryRoutes(), 3000);
         });
 
@@ -363,233 +285,6 @@ export function useAppPreloader() {
   }, [restoreReady, queryClient, updateStatus, animateTo]);
 
   return status;
-}
-
-/** Background hydrate for returning users on the fast path. */
-async function warmLoggedInCaches(queryClient: ReturnType<typeof useQueryClient>) {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return;
-    const uid = session.user.id;
-
-    const cached = getCachedCurrentProfile();
-    if (cached) {
-      queryClient.setQueryData(['profile', cached.id], {
-        id: cached.id,
-        user_id: uid,
-        username: cached.username,
-        display_name: cached.display_name,
-        avatar_url: cached.avatar_url,
-        bio: cached.bio || '',
-      });
-      void warmUserCaches(queryClient, uid, cached.id);
-      return;
-    }
-
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', uid)
-      .maybeSingle();
-    if (profileData?.id) {
-      queryClient.setQueryData(['profile', profileData.id], profileData);
-      void warmUserCaches(queryClient, uid, profileData.id);
-    }
-  } catch {
-    /* non-blocking */
-  }
-}
-
-function warmUserCaches(
-  queryClient: ReturnType<typeof useQueryClient>,
-  uid: string,
-  profileId: string,
-) {
-  void Promise.allSettled([
-    supabase
-      .from('user_preferences' as any)
-      .select('*')
-      .eq('user_id', uid)
-      .maybeSingle()
-      .then(({ data }) => {
-        const prefsRow = data as any;
-        if (prefsRow) {
-          queryClient.setQueryData(['user-preferences', uid], {
-            clips_muted: prefsRow.clips_muted ?? true,
-            explore_view_mode: prefsRow.explore_view_mode ?? 'clips',
-            button_sound: prefsRow.button_sound ?? 'pop',
-            dismissed_quick_add_ids: prefsRow.dismissed_quick_add_ids ?? [],
-            unlocked_easter_eggs: prefsRow.unlocked_easter_eggs ?? [],
-            intro_completed: prefsRow.intro_completed ?? false,
-            referral_confirmed: prefsRow.referral_confirmed ?? false,
-            extra: prefsRow.extra ?? {},
-          });
-        }
-      }),
-    supabase
-      .from('user_levels')
-      .select('*')
-      .eq('user_id', uid)
-      .maybeSingle()
-      .then(async ({ data: levelRow }) => {
-        if (levelRow) {
-          const normalized = {
-            ...levelRow,
-            unclaimed_rewards: Array.isArray(levelRow.unclaimed_rewards) ? levelRow.unclaimed_rewards : [],
-          };
-          queryClient.setQueryData(['user-level', uid], normalized);
-          setCachedUserLevel(uid, {
-            current_level: levelRow.current_level,
-            total_xp: levelRow.total_xp,
-            unclaimed_rewards: normalized.unclaimed_rewards,
-          });
-          return;
-        }
-        await supabase.rpc('ensure_user_level');
-        const { data: retryRow } = await supabase
-          .from('user_levels')
-          .select('*')
-          .eq('user_id', uid)
-          .maybeSingle();
-        if (retryRow) {
-          queryClient.setQueryData(['user-level', uid], retryRow);
-          setCachedUserLevel(uid, {
-            current_level: retryRow.current_level,
-            total_xp: retryRow.total_xp,
-            unclaimed_rewards: Array.isArray(retryRow.unclaimed_rewards) ? retryRow.unclaimed_rewards : [],
-          });
-        }
-      }),
-    supabase
-      .from('dna_agent_settings')
-      .select('*')
-      .eq('user_id', uid)
-      .maybeSingle()
-      .then(({ data: dnaRow }) => {
-        if (dnaRow) queryClient.setQueryData(['dna-agent-settings', uid], dnaRow);
-      }),
-  ]);
-
-  void prefetchDMConversations(queryClient, profileId);
-  void warmPersonalizedFeed(queryClient, profileId);
-  void warmFollowingFeed(queryClient, profileId);
-}
-
-function mapRankedFeedRow(row: Record<string, unknown>) {
-  return {
-    id: row.id,
-    type: row.type,
-    media_url: row.media_url,
-    thumbnail_url: row.thumbnail_url,
-    caption: row.caption || '',
-    tags: row.tags || [],
-    created_at: row.created_at,
-    is_pinned: row.is_pinned,
-    view_count: row.view_count || 0,
-    author: {
-      id: row.author_id,
-      username: row.author_username,
-      avatar_url: row.author_avatar_url,
-    },
-    like_count: Number(row.like_count) || 0,
-    comment_count: Number(row.comment_count) || 0,
-    is_liked: row.is_liked || false,
-    is_bookmarked: row.is_bookmarked || false,
-    reaction_type: row.reaction_type || null,
-  };
-}
-
-function warmFollowingFeed(
-  queryClient: ReturnType<typeof useQueryClient>,
-  profileId: string,
-) {
-  const feedKey = ['infinite-following-posts', undefined, profileId, 0] as const;
-  if (queryClient.getQueryData(feedKey)) return;
-
-  void supabase
-    .rpc('get_following_posts_with_counts', {
-      p_user_id: profileId,
-      p_type: null,
-      p_offset: 0,
-      p_limit: 15,
-    })
-    .then(({ data, error }) => {
-      if (error || !data?.length) return;
-      const posts = (data as any[])
-        .map(mapRankedFeedRow)
-        .filter((p) => p.author?.id !== profileId);
-      if (posts.length === 0) return;
-      queryClient.setQueryData(feedKey, {
-        pages: [{ posts, nextPage: posts.length >= 15 ? 1 : null }],
-        pageParams: [0],
-      });
-      const urls = posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author?.avatar_url]).filter(Boolean) as string[];
-      batchSignUrls(urls).catch(() => {});
-    });
-}
-
-function warmPersonalizedFeed(
-  queryClient: ReturnType<typeof useQueryClient>,
-  profileId: string,
-) {
-  const feedKey = ['personalized-feed-v2', undefined, profileId, 0] as const;
-  const existing = queryClient.getQueryData(feedKey);
-  if (existing) return;
-
-  void supabase
-    .rpc('get_ranked_feed_v2', {
-      p_user_id: profileId,
-      p_content_type: null,
-      p_category: null,
-      p_lat: null,
-      p_lng: null,
-      p_radius_miles: null,
-      p_offset: 0,
-      p_limit: 15,
-    } as any)
-    .then(({ data, error }) => {
-      if (error || !data?.length) return;
-      const posts = (data as any[]).map(mapRankedFeedRow);
-      queryClient.setQueryData(feedKey, {
-        pages: [{ posts, nextPage: posts.length >= 15 ? 1 : null }],
-        pageParams: [0],
-      });
-      const urls = posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author?.avatar_url]).filter(Boolean) as string[];
-      batchSignUrls(urls).catch(() => {});
-    });
-}
-
-// Helper function to process raw stories into grouped format
-function processStoriesIntoGroups(stories: any[], profileId: string) {
-  const groupedMap = new Map<string, any>();
-
-  for (const story of stories) {
-    const authorId = story.author_id || story.author?.id;
-    if (!groupedMap.has(authorId)) {
-      groupedMap.set(authorId, {
-        user: story.author || {
-          id: story.author_id,
-          username: story.author?.username || 'Unknown',
-          avatar_url: story.author?.avatar_url || null,
-          display_name: story.author?.display_name || null,
-        },
-        stories: [],
-        hasUnviewed: false,
-      });
-    }
-    const group = groupedMap.get(authorId)!;
-    group.stories.push(story);
-  }
-
-  // Sort: own stories first, then others
-  const groups = Array.from(groupedMap.values());
-  groups.sort((a, b) => {
-    if (a.user.id === profileId) return -1;
-    if (b.user.id === profileId) return 1;
-    return 0;
-  });
-
-  return groups;
 }
 
 // Helper function to cache feed data in the correct format

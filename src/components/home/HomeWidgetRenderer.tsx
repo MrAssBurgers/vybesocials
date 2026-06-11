@@ -36,6 +36,7 @@ import { useFeedOfflineState } from '@/hooks/useFeedOfflineState';
 import {
   FeedOfflineNoCache,
   FeedOfflineCachedBanner,
+  FeedRefreshingBanner,
   FriendLinkSpotlight,
   getFriendLinkSpotlightDismissed,
   dismissFriendLinkSpotlight,
@@ -120,18 +121,21 @@ interface Props {
   handleRefresh: () => Promise<void>;
   forYouPosts: Post[];
   forYouLoading: boolean;
+  forYouRefreshing?: boolean;
   forYouError?: boolean;
   onRetryForYou?: () => void;
   forYouFetching: boolean;
   isFetchingNextForYou: boolean;
   globalPosts: Post[];
   globalLoading: boolean;
+  globalRefreshing?: boolean;
   globalError?: boolean;
   onRetryGlobal?: () => void;
   globalFetching: boolean;
   isFetchingNextGlobal: boolean;
   localPosts: Post[];
   localLoading: boolean;
+  localRefreshing?: boolean;
   localError?: boolean;
   onRetryLocal?: () => void;
   localFetching: boolean;
@@ -254,9 +258,9 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
 /* ── Feed section as its own widget ── */
 function FeedSection({
   activeTab, setActiveTab, showAds, navigate, hasNewPosts, clearNewPosts, handleRefresh,
-  forYouPosts, forYouLoading, forYouError, onRetryForYou, forYouFetching, isFetchingNextForYou,
-  globalPosts, globalLoading, globalError, onRetryGlobal, globalFetching, isFetchingNextGlobal,
-  localPosts, localLoading, localError, onRetryLocal, localFetching, isFetchingNextLocal,
+  forYouPosts, forYouLoading, forYouRefreshing, forYouError, onRetryForYou, forYouFetching, isFetchingNextForYou,
+  globalPosts, globalLoading, globalRefreshing, globalError, onRetryGlobal, globalFetching, isFetchingNextGlobal,
+  localPosts, localLoading, localRefreshing, localError, onRetryLocal, localFetching, isFetchingNextLocal,
   loadMoreRef,
 }: Props) {
   const { user, profile, loading: authLoading } = useAuth();
@@ -328,6 +332,7 @@ function FeedSection({
           <InlinePostList
             posts={forYouPosts}
             isLoading={forYouLoading}
+            isRefreshing={forYouRefreshing}
             isError={forYouError}
             onRetry={onRetryForYou}
             isFetchingNext={isFetchingNextForYou}
@@ -343,6 +348,7 @@ function FeedSection({
           <InlinePostList
             posts={localPosts}
             isLoading={localLoading}
+            isRefreshing={localRefreshing}
             isError={localError}
             onRetry={onRetryLocal}
             isFetchingNext={isFetchingNextLocal}
@@ -358,6 +364,7 @@ function FeedSection({
           <InlinePostList
             posts={globalPosts}
             isLoading={globalLoading}
+            isRefreshing={globalRefreshing}
             isError={globalError}
             onRetry={onRetryGlobal}
             isFetchingNext={isFetchingNextGlobal}
@@ -374,10 +381,11 @@ function FeedSection({
 }
 
 function InlinePostList({
-  posts, isLoading, isError, onRetry, isFetchingNext, loadMoreRef, emptyIcon, emptyText, onExplore, showAds,
+  posts, isLoading, isRefreshing, isError, onRetry, isFetchingNext, loadMoreRef, emptyIcon, emptyText, onExplore, showAds,
 }: {
   posts: Post[];
   isLoading: boolean;
+  isRefreshing?: boolean;
   isError?: boolean;
   onRetry?: () => void;
   isFetchingNext: boolean;
@@ -516,6 +524,7 @@ function InlinePostList({
 
   return (
     <>
+      {isRefreshing && <FeedRefreshingBanner />}
       {showCachedBanner && <FeedOfflineCachedBanner />}
       {/* Post Nudge — re-engagement */}
       <PostNudgeWidget />

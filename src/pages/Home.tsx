@@ -12,6 +12,7 @@ import { useShowAds } from '@/hooks/useShowAds';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
+import { mergedFeedPending, shouldShowFeedRefreshing, shouldShowFeedSkeleton } from '@/lib/cacheFirstLoading';
 import { hasActiveReferral, isInviteEntryMode } from '@/lib/referral';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefresh';
@@ -79,7 +80,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   // Personalized feed — only while For You tab is active
   const {
     data: forYouData,
-    isLoading: forYouLoading,
+    isPending: forYouPending,
     isError: forYouError,
     isFetching: forYouFetching,
     fetchNextPage: fetchNextForYou,
@@ -91,7 +92,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   // Following feed — merged into For You only when that tab is active
   const {
     data: followingData,
-    isLoading: followingLoading,
+    isPending: followingPending,
     isFetching: followingFetching,
     fetchNextPage: fetchNextFollowing,
     hasNextPage: hasNextFollowing,
@@ -101,7 +102,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
   const {
     data: globalData,
-    isLoading: globalLoading,
+    isPending: globalPending,
     isError: globalError,
     isFetching: globalFetching,
     fetchNextPage: fetchNextGlobal,
@@ -112,7 +113,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
   const {
     data: localData,
-    isLoading: localLoading,
+    isPending: localPending,
     isError: localError,
     isFetching: localFetching,
     fetchNextPage: fetchNextLocal,
@@ -169,10 +170,17 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   );
 
   const forYouFeedLoading =
-    forYouPosts.length === 0 &&
-    (forYouLoading || followingLoading || (authLoading && !!user && !profileId));
-  const globalFeedLoading = globalPosts.length === 0 && globalLoading;
-  const localFeedLoading = localPosts.length === 0 && localLoading;
+    shouldShowFeedSkeleton(forYouPosts.length, mergedFeedPending(forYouPosts.length, [forYouPending, followingPending])) ||
+    (forYouPosts.length === 0 && authLoading && !!user && !profileId);
+  const forYouFeedRefreshing = shouldShowFeedRefreshing(
+    forYouPosts.length,
+    forYouFetching || followingFetching,
+    mergedFeedPending(forYouPosts.length, [forYouPending, followingPending]),
+  );
+  const globalFeedLoading = shouldShowFeedSkeleton(globalPosts.length, globalPending);
+  const globalFeedRefreshing = shouldShowFeedRefreshing(globalPosts.length, globalFetching, globalPending);
+  const localFeedLoading = shouldShowFeedSkeleton(localPosts.length, localPending);
+  const localFeedRefreshing = shouldShowFeedRefreshing(localPosts.length, localFetching, localPending);
 
   // If feed queries stall (empty cache / slow network), force a refetch once on mount.
   const feedKickRef = useRef(false);
@@ -186,7 +194,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   // Escape hatch: stop infinite skeleton if fetch hangs >8s.
   useEffect(() => {
     if (!isForYouTab || forYouPosts.length > 0) return;
-    if (!forYouLoading && !followingLoading) return;
+    if (!forYouPending && !followingPending) return;
     const t = window.setTimeout(() => {
       void refetchForYou();
       if (profileId) void refetchFollowing();
@@ -195,8 +203,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   }, [
     isForYouTab,
     forYouPosts.length,
-    forYouLoading,
-    followingLoading,
+    forYouPending,
+    followingPending,
     profileId,
     refetchForYou,
     refetchFollowing,
@@ -381,18 +389,21 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
             handleRefresh={handleRefresh}
             forYouPosts={forYouPosts}
             forYouLoading={forYouFeedLoading}
+            forYouRefreshing={forYouFeedRefreshing}
             forYouError={forYouError}
             onRetryForYou={() => { refetchForYou(); refetchFollowing(); }}
             forYouFetching={forYouFetching || followingFetching}
             isFetchingNextForYou={isFetchingNextForYou || isFetchingNextFollowing}
             globalPosts={globalPosts}
             globalLoading={globalFeedLoading}
+            globalRefreshing={globalFeedRefreshing}
             globalError={globalError}
             onRetryGlobal={() => refetchGlobal()}
             globalFetching={globalFetching}
             isFetchingNextGlobal={isFetchingNextGlobal}
             localPosts={localPosts}
             localLoading={localFeedLoading}
+            localRefreshing={localFeedRefreshing}
             localError={localError}
             onRetryLocal={() => refetchLocal()}
             localFetching={localFetching}
