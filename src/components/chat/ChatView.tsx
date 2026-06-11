@@ -149,7 +149,7 @@ export function ChatView() {
   const bumpStreak = useInteractionStreakBump();
   
   const { data: conversations } = useConversations();
-  const { data: messages, isPending: messagesPending } = useMessages(conversationId);
+  const { data: messages, isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages } = useMessages(conversationId);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
   
   // Batch preload all media URLs for instant rendering
@@ -1271,7 +1271,21 @@ export function ChatView() {
     }
   }, [settings.chat_wallpaper]);
 
-  if (messagesPending && !messages?.length) {
+  if (messagesError && !messages?.length) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load this conversation.</p>
+        <Button size="sm" variant="secondary" onClick={() => refetchMessages()}>
+          Try again
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => navigate('/messages')}>
+          Back to messages
+        </Button>
+      </div>
+    );
+  }
+
+  if (messagesLoading && !messages?.length) {
     return (
       <div className="flex flex-col h-full">
         <div className="p-4 border-b border-border flex items-center gap-3">

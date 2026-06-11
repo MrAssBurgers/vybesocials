@@ -299,7 +299,7 @@ export function useMessages(conversationId: string | undefined) {
       const filtered = filterMessagesForViewer((data || []) as Message[], profileId);
       return mergePendingOptimisticMessages(queryClient, conversationId, filtered);
     },
-    enabled: !!conversationId && !!profileId,
+    enabled: !!conversationId,
     staleTime: 30000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: false,

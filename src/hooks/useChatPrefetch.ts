@@ -24,7 +24,7 @@ export function useChatPrefetch() {
 
   const prefetchMessages = useCallback(async (conversationId: string) => {
     const cached = queryClient.getQueryData<Message[]>(['messages', conversationId]);
-    if (cached?.length) return;
+    if (cached && cached.length > 0) return;
 
     try {
       const { data, error } = await supabase

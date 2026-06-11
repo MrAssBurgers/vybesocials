@@ -263,8 +263,9 @@ export function ConversationList() {
   }, [unpinnedConversations, chatFilter, profile?.id, streakMap]);
 
   const handleConversationClick = useCallback((convId: string) => {
+    void prefetchMessages(convId);
     navigate(`/messages/${convId}`);
-  }, [navigate]);
+  }, [navigate, prefetchMessages]);
 
   const handleConversationWarm = useCallback((convId: string) => {
     void prefetchMessages(convId);
@@ -835,7 +836,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
   const deleteVisibility = useTransform(x, (v) => (v < -5 ? 'visible' : 'hidden') as 'visible' | 'hidden');
   
   const handleDragEnd = useCallback((event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    isDraggingRef.current = false;
+    const wasHorizontalSwipe = Math.abs(info.offset.x) > 12;
     if (info.offset.x < SWIPE_THRESHOLD && onTrash) {
       // Haptic feedback on delete
       if (navigator.vibrate) {
@@ -847,11 +848,25 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
         onTrash();
       }, 400);
     }
+    // Block the synthetic click after a horizontal swipe so we don't open the chat.
+    if (wasHorizontalSwipe) {
+      isDraggingRef.current = true;
+      window.setTimeout(() => {
+        isDraggingRef.current = false;
+      }, 350);
+    } else {
+      isDraggingRef.current = false;
+    }
   }, [onTrash]);
 
+  const handleDrag = useCallback((_: unknown, info: PanInfo) => {
+    if (Math.abs(info.offset.x) > 8) {
+      isDraggingRef.current = true;
+    }
+  }, []);
+
   const handleDragStart = useCallback(() => {
-    isDraggingRef.current = true;
-    // Cancel long press when dragging starts
+    // Don't set isDraggingRef here — a plain tap would block navigation.
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
@@ -913,9 +928,9 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
   }, []);
 
   const handleClick = useCallback(() => {
-    if (!isLongPressRef.current && !isDraggingRef.current) {
-      onClick();
-    }
+    if (isLongPressRef.current) return;
+    if (isDraggingRef.current) return;
+    onClick();
   }, [onClick]);
 
   // Cleanup on unmount
@@ -1018,6 +1033,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
             dragElastic={0.1}
             dragMomentum={false}
             onDragStart={handleDragStart}
+            onDrag={handleDrag}
             onDragEnd={handleDragEnd}
             animate={isDeleting ? { x: -400, opacity: 0, height: 0, marginBottom: 0 } : { x: 0 }}
             transition={isDeleting ? { duration: 0.35, ease: [0.4, 0, 0.2, 1] } : { type: 'spring', stiffness: 400, damping: 35 }}
