@@ -43,8 +43,7 @@ const EXAMPLE_COMMANDS = [
 ];
 
 export function VYBECommandBar() {
-  if (isLovablePreviewHost()) return null;
-
+  const hideInPreview = isLovablePreviewHost();
   const [open, setOpen] = useState(false);
   const [command, setCommand] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -55,6 +54,8 @@ export function VYBECommandBar() {
   const { layout, toggleWidget, reorderWidgets, applyLayout } = useHomeLayout();
   const generateTheme = useGenerateTheme();
   const { setTheme: setGlobalTheme } = useTheme();
+
+  if (hideInPreview) return null;
 
   // Focus input when sheet opens
   useEffect(() => {
