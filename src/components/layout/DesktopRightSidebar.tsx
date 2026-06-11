@@ -31,6 +31,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useLiveMusicPresence } from '@/hooks/useLiveMusicPresence';
 import { SelfNowPlayingPill } from '@/components/music/SelfNowPlayingPill';
+import { isLovablePreviewHost } from '@/lib/lovablePreview';
 
 // Online friend avatar with click-to-DM functionality - simplified for performance
 const OnlineFriendAvatar = memo(function OnlineFriendAvatar({ friend }: { friend: any }) {
@@ -106,6 +107,7 @@ export function DesktopRightSidebar() {
   const { data: friends, isLoading: friendsLoading } = useFriends();
   const { data: events, isLoading: eventsLoading } = useEvents({ upcoming: true });
   const { data: listings, isLoading: listingsLoading } = useListings();
+  const suppressPreviewLoaders = isLovablePreviewHost();
   const [isMuted, setIsMuted] = useState(false);
 
 
@@ -221,7 +223,7 @@ export function DesktopRightSidebar() {
                 {t('sidebar.online')} ({onlineFriends.length})
               </span>
             </div>
-            {friendsLoading ? (
+            {friendsLoading && !suppressPreviewLoaders ? (
               <div className="flex gap-2">
                 {[1, 2, 3].map(i => (
                   <div key={i} className="h-10 w-10 rounded-full bg-muted animate-pulse" />
@@ -259,7 +261,7 @@ export function DesktopRightSidebar() {
                 {t('sidebar.viewAll')}
               </Link>
             </div>
-            {conversationsLoading ? (
+            {conversationsLoading && !suppressPreviewLoaders ? (
               <div className="space-y-2">
                 {[1, 2].map(i => (
                   <div key={i} className="h-14 rounded-xl bg-muted animate-pulse" />
@@ -371,7 +373,7 @@ export function DesktopRightSidebar() {
                 {t('sidebar.browse')}
               </Link>
             </div>
-            {listingsLoading ? (
+            {listingsLoading && !suppressPreviewLoaders ? (
               <div className="space-y-2">
                 {[1, 2].map(i => (
                   <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />
