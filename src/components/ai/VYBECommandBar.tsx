@@ -17,6 +17,7 @@ import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
 import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
+import { isLovablePreviewHost } from '@/lib/lovablePreview';
 
 interface CommandAction {
   type: 'apply_theme' | 'generate_theme' | 'widget_toggle' | 'widget_reorder';
@@ -42,6 +43,7 @@ const EXAMPLE_COMMANDS = [
 ];
 
 export function VYBECommandBar() {
+  const hideInPreview = isLovablePreviewHost();
   const [open, setOpen] = useState(false);
   const [command, setCommand] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -176,6 +178,8 @@ export function VYBECommandBar() {
     setCommand(example.replace(/🌙|⚡|🔥|✨/g, '').trim());
     inputRef.current?.focus();
   };
+
+  if (hideInPreview) return null;
 
   return (
     <>

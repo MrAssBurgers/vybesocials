@@ -89,6 +89,7 @@ import { SnapARProvider } from "@/components/camera/SnapARProvider";
 import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery";
 import { syncNativeTrackingConsent } from "@/lib/att";
 import { readSplashCompleted, markSplashCompleted } from "@/lib/splashSession";
+import { isLovablePreviewHost } from "@/lib/lovablePreview";
 import { navVisibility } from "@/lib/navVisibility";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
@@ -414,7 +415,7 @@ function AppWithPreloader() {
                         <BrowserRouter>
                         <LocationProvider>
                           <AppGlobalLiquidShell />
-                          <VybeLiquidTouchShell />
+                          {!isLovablePreviewHost() && <VybeLiquidTouchShell />}
                           <div
                             id="app-shell"
                             data-app-shell

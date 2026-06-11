@@ -1,6 +1,7 @@
 import { memo, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { VybeLiquidBackground } from '@/components/effects/VybeLiquidBackground';
+import { isLovablePreviewHost } from '@/lib/lovablePreview';
 
 const AURORA_MOUNT_ID = 'vybe-aurora-mount';
 
@@ -15,6 +16,7 @@ interface AppShellLiquidLayerProps {
 export const AppShellLiquidLayer = memo(function AppShellLiquidLayer({
   show,
 }: AppShellLiquidLayerProps) {
+  const shouldShow = show && !isLovablePreviewHost();
   const [mount] = useState<HTMLElement | null>(() =>
     typeof document !== 'undefined'
       ? document.getElementById(AURORA_MOUNT_ID)
@@ -22,11 +24,11 @@ export const AppShellLiquidLayer = memo(function AppShellLiquidLayer({
   );
 
   useLayoutEffect(() => {
-    document.documentElement.classList.toggle('vybe-aurora-active', show);
+    document.documentElement.classList.toggle('vybe-aurora-active', shouldShow);
     return () => document.documentElement.classList.remove('vybe-aurora-active');
-  }, [show]);
+  }, [shouldShow]);
 
-  if (!show || !mount) return null;
+  if (!shouldShow || !mount) return null;
 
   return createPortal(
     <VybeLiquidBackground interactive backgroundOnly />,
