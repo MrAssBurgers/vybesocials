@@ -27,8 +27,6 @@ export const ALL_WIDGETS: WidgetDef[] = [
   { id: 'creator_analytics', label: 'Creator Analytics', icon: '📈', description: 'Your content performance stats', defaultCol: 2 },
   { id: 'battle_pass',   label: 'VYBE Pass',      icon: '⚔️', description: 'Daily quests and battle pass progress', defaultCol: 2 },
   { id: 'feed',           label: 'Feed',           icon: '📰', description: 'Posts from your community', defaultCol: 2 },
-  { id: 'trending',       label: 'Trending Tags',  icon: '🏷️', description: "What's blowing up on VYBE" },
-  { id: 'online_friends', label: 'Online Now',     icon: '👥', description: 'Friends currently online (mobile)' },
 ];
 
 const DEFAULT_ORDER = ['greeting', 'stories', 'xp_streak', 'ai_brief', 'vybe_dna', 'wallet', 'shop', 'communities'];
