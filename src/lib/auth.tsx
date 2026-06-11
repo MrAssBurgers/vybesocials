@@ -29,12 +29,22 @@ function getStoredSessionRefreshTimeoutMs(): number {
 }
 
 function isFatalRefreshError(message: string): boolean {
-  const msg = message.toLowerCase();
+  const msg = (message || '').toLowerCase();
   return (
     msg.includes('invalid refresh token') ||
     msg.includes('refresh token not found') ||
+    msg.includes('refresh_token_not_found') ||
     msg.includes('session not found') ||
-    (msg.includes('refresh') && msg.includes('invalid'))
+    msg.includes('session_not_found') ||
+    msg.includes('user from sub claim') ||
+    msg.includes('user not found') ||
+    msg.includes('already used') ||
+    msg.includes('revoked') ||
+    msg.includes('expired') ||
+    (msg.includes('refresh') && msg.includes('invalid')) ||
+    (msg.includes('refresh') && msg.includes('not found')) ||
+    msg.includes('bad_jwt') ||
+    msg.includes('jwt expired')
   );
 }
 
