@@ -424,7 +424,7 @@ export function DesktopRightSidebar() {
                 {t('sidebar.seeAll')}
               </Link>
             </div>
-            {eventsLoading ? (
+            {eventsLoading && !suppressPreviewLoaders ? (
               <div className="h-20 rounded-xl bg-muted animate-pulse" />
             ) : upcomingEvents.length > 0 ? (
               <div className="space-y-2">
