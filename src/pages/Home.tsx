@@ -84,7 +84,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextForYou,
     isFetchingNextPage: isFetchingNextForYou,
     refetch: refetchForYou,
-  } = usePersonalizedFeed(undefined, { enabled: isForYouTab });
+  } = usePersonalizedFeed(undefined, { enabled: isForYouTab && (!user || !!profile?.id) });
 
   // Following feed — merged into For You only when that tab is active
   const {
@@ -95,7 +95,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     hasNextPage: hasNextFollowing,
     isFetchingNextPage: isFetchingNextFollowing,
     refetch: refetchFollowing,
-  } = useInfiniteFollowingPosts(undefined, { enabled: isForYouTab });
+  } = useInfiniteFollowingPosts(undefined, { enabled: isForYouTab && !!profile?.id });
 
   const {
     data: globalData,

@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useFriends } from '@/hooks/useFriends';
 import { loadDMConversations, type LoadedDMConversation } from '@/lib/loadDMConversations';
+import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
 
 type DMConversation = LoadedDMConversation;
 
@@ -27,11 +28,7 @@ export function useDMConversations(searchQuery: string = '') {
     queryFn: async () => {
       if (!profile?.id) return [];
       const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profile.id]);
-      const shell = await loadDMConversations(profile.id, prev, { skipPreviews: true });
-      if (shell.length > 0 && (!prev || prev.length === 0)) {
-        queryClient.setQueryData(['dm-conversations', profile.id], shell);
-      }
-      return loadDMConversations(profile.id, shell.length ? shell : prev);
+      return loadDMConversations(profile.id, prev);
     },
     enabled: !!profile?.id,
     // Treat persisted data as instantly displayable, then always revalidate
@@ -41,7 +38,7 @@ export function useDMConversations(searchQuery: string = '') {
     staleTime: 120_000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: refetchListOnMount,
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
     // 'offlineFirst' so the hydrated cache shows even when the network is

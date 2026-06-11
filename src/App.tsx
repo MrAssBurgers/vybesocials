@@ -176,7 +176,7 @@ startReconnectManager(queryClient);
 startOutbox();
 
 // Build-hash based cache buster so deployments invalidate persisted cache.
-const PERSIST_BUSTER = (import.meta as any).env?.VITE_BUILD_ID || 'vybe-cache-v1';
+const PERSIST_BUSTER = (import.meta as any).env?.VITE_BUILD_ID || 'vybe-cache-v2';
 
 function ScrollRestoration() {
   const location = useLocation();

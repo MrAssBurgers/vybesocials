@@ -7,43 +7,6 @@ export interface LoadedDMConversation extends Conversation {
   _hasUnread: boolean;
 }
 
-const LAST_MESSAGE_CHUNK = 12;
-
-async function fetchLastMessagesByConversation(
-  conversationIds: string[],
-): Promise<Map<string, Message>> {
-  const lastMessageMap = new Map<string, Message>();
-  if (conversationIds.length === 0) return lastMessageMap;
-
-  for (let i = 0; i < conversationIds.length; i += LAST_MESSAGE_CHUNK) {
-    const chunk = conversationIds.slice(i, i + LAST_MESSAGE_CHUNK);
-    const rows = await Promise.all(
-      chunk.map(async (conversationId) => {
-        const { data, error } = await supabase
-          .from('messages')
-          .select('id, conversation_id, sender_id, content, media_type, viewed_at, created_at')
-          .eq('conversation_id', conversationId)
-          .eq('is_deleted', false)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (error || !data) return null;
-        return data as Message;
-      }),
-    );
-    rows.forEach((msg) => {
-      if (msg) lastMessageMap.set(msg.conversation_id, msg);
-    });
-  }
-
-  return lastMessageMap;
-}
-
-export interface LoadDMOptions {
-  /** Skip preview/unread enrichment — list shell only (instant paint). */
-  skipPreviews?: boolean;
-}
-
 /**
  * Fetch the DM conversation list (same shape as useDMConversations).
  * Shared by the hook, app preloader, and route prefetch.
@@ -51,7 +14,6 @@ export interface LoadDMOptions {
 export async function loadDMConversations(
   profileId: string,
   fallback?: LoadedDMConversation[],
-  options: LoadDMOptions = {},
 ): Promise<LoadedDMConversation[]> {
   const { data: membershipData, error: membershipError } = await supabase
     .from('conversation_members')
@@ -59,9 +21,9 @@ export async function loadDMConversations(
     .eq('user_id', profileId);
 
   if (membershipError) {
-    if (import.meta.env.DEV) console.error('[DM] membership query error:', membershipError);
+    console.warn('[DM] membership query error:', membershipError.message);
     if (fallback?.length) return fallback;
-    return [];
+    throw membershipError;
   }
   if (!membershipData?.length) return [];
 
@@ -82,9 +44,9 @@ export async function loadDMConversations(
     .order('updated_at', { ascending: false });
 
   if (convError) {
-    if (import.meta.env.DEV) console.error('[DM] conversations query error:', convError);
+    console.warn('[DM] conversations query error:', convError.message);
     if (fallback?.length) return fallback;
-    return [];
+    throw convError;
   }
   if (!conversationsRaw?.length) return [];
 
@@ -93,8 +55,8 @@ export async function loadDMConversations(
     .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
     .in('conversation_id', userConversationIds);
 
-  if (membersError && import.meta.env.DEV) {
-    console.error('[DM] all-members query error:', membersError);
+  if (membersError) {
+    console.warn('[DM] all-members query error:', membersError.message);
   }
 
   const memberUserIds = Array.from(new Set((allMembers || []).map((m) => m.user_id)));
@@ -105,8 +67,8 @@ export async function loadDMConversations(
         .in('id', memberUserIds)
     : { data: [], error: null };
 
-  if (profilesError && import.meta.env.DEV) {
-    console.error('[DM] member profiles query error:', profilesError);
+  if (profilesError) {
+    console.warn('[DM] member profiles query error:', profilesError.message);
   }
 
   const profileById = new Map((memberProfiles || []).map((p) => [p.id, p]));
@@ -123,20 +85,36 @@ export async function loadDMConversations(
   }));
 
   const convIds = conversationsData.map((c) => c.id);
+  const messageLimit = Math.min(Math.max(convIds.length * 3, 60), 250);
 
-  let lastMessageMap = new Map<string, Message>();
+  const { data: allMessages, error: messagesError } = await supabase
+    .from('messages')
+    .select('id, conversation_id, sender_id, content, media_type, viewed_at, created_at')
+    .in('conversation_id', convIds)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: false })
+    .limit(messageLimit);
+
+  if (messagesError) {
+    console.warn('[DM] messages query error:', messagesError.message);
+  }
+
+  const lastMessageMap = new Map<string, Message>();
   const unreadCountMap = new Map<string, number>();
 
-  if (!options.skipPreviews && convIds.length > 0) {
-    lastMessageMap = await fetchLastMessagesByConversation(convIds);
-    lastMessageMap.forEach((msg) => {
-      const membership = membershipMap.get(msg.conversation_id);
-      const lastReadAt = membership?.last_read_at || '1970-01-01';
-      if (msg.sender_id !== profileId && msg.created_at > lastReadAt) {
-        unreadCountMap.set(msg.conversation_id, 1);
-      }
-    });
-  }
+  (allMessages || []).forEach((msg) => {
+    if (!lastMessageMap.has(msg.conversation_id)) {
+      lastMessageMap.set(msg.conversation_id, msg as Message);
+    }
+    const membership = membershipMap.get(msg.conversation_id);
+    const lastReadAt = membership?.last_read_at || '1970-01-01';
+    if (msg.sender_id !== profileId && msg.created_at > lastReadAt) {
+      unreadCountMap.set(
+        msg.conversation_id,
+        (unreadCountMap.get(msg.conversation_id) || 0) + 1,
+      );
+    }
+  });
 
   const seenOtherUserIds = new Set<string>();
   const result: LoadedDMConversation[] = [];
@@ -189,15 +167,9 @@ export async function prefetchDMConversations(
   const cached = queryClient.getQueryData<LoadedDMConversation[]>(['dm-conversations', profileId]);
   if (Array.isArray(cached) && cached.length > 0) return;
 
-  const shell = await loadDMConversations(profileId, cached, { skipPreviews: true });
-  if (shell.length > 0) {
-    queryClient.setQueryData(['dm-conversations', profileId], shell);
-    queryClient.setQueryData(['conversations', profileId], shell);
-  }
-
-  const full = await loadDMConversations(profileId, shell.length ? shell : cached);
-  queryClient.setQueryData(['dm-conversations', profileId], full);
-  queryClient.setQueryData(['conversations', profileId], full);
+  const result = await loadDMConversations(profileId, cached);
+  queryClient.setQueryData(['dm-conversations', profileId], result);
+  queryClient.setQueryData(['conversations', profileId], result);
 }
 
 /** Best-effort prefetch using the global query client (nav hover). */

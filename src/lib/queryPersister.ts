@@ -63,7 +63,24 @@ const EPHEMERAL_KEY_FRAGMENTS = [
 ];
 
 // Keys whose persisted snapshot must be non-empty to be worth replaying.
-const NON_EMPTY_ONLY_FRAGMENTS = ['dm-conversations', 'conversations'];
+const NON_EMPTY_ONLY_FRAGMENTS = [
+  'dm-conversations',
+  'conversations',
+  'personalized-feed',
+  'infinite-following-posts',
+  'infinite-posts',
+  'local-feed',
+];
+
+function hasPersistableFeedPages(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false;
+  const pages = (data as { pages?: unknown[] }).pages;
+  if (!Array.isArray(pages) || pages.length === 0) return false;
+  return pages.some((page) => {
+    const posts = (page as { posts?: unknown[] })?.posts;
+    return Array.isArray(posts) && posts.length > 0;
+  });
+}
 
 export function shouldPersistQueryKey(queryKey: readonly unknown[], data?: unknown): boolean {
   try {
@@ -71,6 +88,9 @@ export function shouldPersistQueryKey(queryKey: readonly unknown[], data?: unkno
     if (EPHEMERAL_KEY_FRAGMENTS.some((f) => flat.includes(f))) return false;
     if (NON_EMPTY_ONLY_FRAGMENTS.some((f) => flat.includes(f))) {
       if (Array.isArray(data)) return data.length > 0;
+      if (flat.includes('feed') || flat.includes('infinite-posts') || flat.includes('following')) {
+        return hasPersistableFeedPages(data);
+      }
       if (data && typeof data === 'object') return Object.keys(data as object).length > 0;
       return data != null;
     }

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useState, useEffect, useCallback } from 'react';
 import type { Post } from '@/hooks/useInfinitePosts';
+import { refetchFeedOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
 
 const PAGE_SIZE = 15;
@@ -131,7 +132,7 @@ export function useLocalFeed(options?: { enabled?: boolean }) {
     enabled: feedEnabled,
     staleTime: STALE_TIME,
     gcTime: 1000 * 60 * 60 * 24 * 14, // 14 days — keep local feed cached for offline
-    refetchOnMount: false,
+    refetchOnMount: refetchFeedOnMount,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     placeholderData: (previousData) => previousData,

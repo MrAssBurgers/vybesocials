@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { useEffect, useRef } from 'react';
 import { batchSignUrls, getCachedSignedUrl, needsSigning } from '@/lib/signedUrlCache';
 import { useBlockedUserIds } from '@/hooks/useBlockedUsers';
+import { refetchFeedOnMount } from '@/lib/queryRefetchPolicy';
 
 export interface Post {
   id: string;
@@ -99,6 +100,50 @@ function preloadSignedMedia(posts: Post[]) {
   }
 }
 
+/** Primary ranked feed with safe fallback to the legacy posts RPC. */
+async function fetchPersonalizedPosts(
+  profileId: string,
+  type: 'short' | 'post' | 'video' | undefined,
+  offset: number,
+  limit: number,
+  blocked: Set<string>,
+): Promise<Post[]> {
+  const { data, error } = await supabase.rpc('get_ranked_feed_v2', {
+    p_user_id: profileId,
+    p_content_type: type ?? null,
+    p_category: null,
+    p_lat: null,
+    p_lng: null,
+    p_radius_miles: null,
+    p_offset: offset,
+    p_limit: limit,
+  } as any);
+
+  if (!error && data?.length) {
+    return (data as any[])
+      .map(transformPost)
+      .filter((p) => !blocked.has(p.author?.id));
+  }
+
+  if (error) {
+    console.warn('[Feed] get_ranked_feed_v2 failed, using fallback:', error.message);
+  }
+
+  const { data: fallback, error: fallbackError } = await supabase.rpc('get_posts_with_counts', {
+    p_type: type || null,
+    p_author_id: null,
+    p_user_id: profileId,
+    p_offset: offset,
+    p_limit: limit,
+  });
+
+  if (fallbackError) throw fallbackError;
+
+  return (fallback || [])
+    .map(transformPost)
+    .filter((p) => p.author?.id !== profileId && !blocked.has(p.author?.id));
+}
+
 export function useInfinitePosts(
   type?: 'short' | 'post' | 'video',
   authorId?: string,
@@ -151,7 +196,7 @@ export function useInfinitePosts(
     enabled,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
-    refetchOnMount: false, // Use cached data instantly, no re-fetch on mount
+    refetchOnMount: refetchFeedOnMount,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true, // Stream fresh content the moment we're back online
     placeholderData: (previousData) => previousData, // Show cached while fetching
@@ -211,7 +256,7 @@ export function useInfiniteFollowingPosts(
     enabled: tabEnabled && !!profile,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
-    refetchOnMount: false, // Use cached data instantly
+    refetchOnMount: refetchFeedOnMount,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     placeholderData: (previousData) => previousData,
@@ -312,9 +357,10 @@ export function usePersonalizedFeed(
   type?: 'short' | 'post' | 'video',
   options?: { enabled?: boolean },
 ) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const blockedIds = useBlockedUserIds();
-  const enabled = options?.enabled !== false;
+  const tabEnabled = options?.enabled !== false;
+  const enabled = tabEnabled && (!user || !!profile?.id);
 
   return useInfiniteQuery({
     queryKey: ['personalized-feed-v2', type, profile?.id, blockedIds.length],
@@ -356,23 +402,7 @@ export function usePersonalizedFeed(
         return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
       }
 
-      const { data, error } = await supabase.rpc('get_ranked_feed_v2', {
-        p_user_id: profile.id,
-        p_content_type: type ?? null,
-        p_category: null,
-        p_lat: null,
-        p_lng: null,
-        p_radius_miles: null,
-        p_offset: offset,
-        p_limit: limit,
-      } as any);
-
-      if (error) throw error;
-
-      let posts = (data || []).map(transformPost);
-      // RPC already excludes own posts and not_interested, but keep blocked filter as a safety net.
-      posts = posts.filter((p) => !blocked.has(p.author?.id));
-
+      const posts = await fetchPersonalizedPosts(profile.id, type, offset, limit, blocked);
       presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
       return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
@@ -382,7 +412,7 @@ export function usePersonalizedFeed(
     enabled,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
-    refetchOnMount: false,
+    refetchOnMount: refetchFeedOnMount,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     placeholderData: (previousData) => previousData,
