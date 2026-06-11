@@ -272,7 +272,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const { data, error } = await supabase.auth.refreshSession();
           if (error) {
             console.error('Token refresh failed:', error);
-            // Don't logout on refresh failure - let Supabase handle it
+            if (isFatalRefreshError(error.message)) {
+              // Refresh token is invalid/expired — clear session so the user
+              // can sign back in and reload data (instead of being stuck with
+              // a cached profile and 401s on every request).
+              try {
+                await supabase.auth.signOut({ scope: 'local' });
+              } catch { /* ignore */ }
+              setSession(null);
+              setUser(null);
+              setProfile(null);
+              clearProfileCache();
+            }
           } else if (data.session?.expires_at) {
             // Schedule next refresh
             scheduleTokenRefresh(data.session.expires_at);
