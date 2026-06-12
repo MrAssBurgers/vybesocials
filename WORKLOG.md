@@ -18,14 +18,24 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **`VYBECommandBar`** — remounted in `App.tsx`; generate-theme commands now apply the returned theme
 - **Build:** `npm run build` pass
 
+## What Changed (Friend Link tap animation — 2026-06-09)
+- **`FriendLinkTapAnimation.tsx`** + **`index.css`** — CSS-only phone tap loop (smooth on iPhone)
+- **`AutoFriendDrop.tsx`** — new animation; emerald LIVE badge when tap session active
+
+## Publish status (2026-06-09)
+- **Git:** `277614ca` pushed to `origin/main` (includes Friend Link, phone verify, themes, VYBE AI, DMs, tap animation)
+- **Web:** Click **Lovable → Share → Publish** → https://vybehub.app
+- **After publish:** force-quit iPhone app; hard-refresh browser
+- **Build:** `npm run build` pass
+
 ## Current Focus
-- **Publish** — phone verify + theme safety + VYBE AI; **Lovable → Share → Publish** for `vybehub.app`
+- **Publish** — Lovable → Share → Publish (git synced; waiting on Lovable publish)
 - **Despia** — confirm Native Advanced unit `5403238592` in dashboard; rebuild native shell
 
 ## Next 3 Tasks
 1. Lovable Publish + force-quit app on iPhone to bust cache
-2. Test Friend Link: Person A opens sheet → Person B scans QR (in-app + iPhone Camera)
-3. Commit DM list loading fix (`useDMConversations`, `ConversationList`) if not yet pushed
+2. Smoke test: Friend Link QR + phone tap, phone verify dismiss, VYBE AI theme generate
+3. Smoke test: DMs list loads and opens on tap
 
 ## What Changed (ads, DMs, FAB — 2026-06-11)
 - **`despiaRewardedAds.ts`** — 45s timeout, dismiss recovery via visibility/focus, broader status parsing
