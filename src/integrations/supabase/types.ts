@@ -9682,6 +9682,7 @@ export type Database = {
           media_type: string
           media_url: string
           poll_data: Json | null
+          thumbnail_url: string | null
           user_id: string | null
           view_count: number | null
         }
@@ -9698,6 +9699,7 @@ export type Database = {
           media_type?: string
           media_url: string
           poll_data?: Json | null
+          thumbnail_url?: string | null
           user_id?: string | null
           view_count?: number | null
         }
@@ -9714,6 +9716,7 @@ export type Database = {
           media_type?: string
           media_url?: string
           poll_data?: Json | null
+          thumbnail_url?: string | null
           user_id?: string | null
           view_count?: number | null
         }

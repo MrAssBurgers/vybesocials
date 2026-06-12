@@ -3,12 +3,12 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
-import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, isRawId, type CachedProfile } from '@/lib/profileCache';
+import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, setActiveAuthUserId, isRawId, type CachedProfile } from '@/lib/profileCache';
 import { clearCachedUserLevel } from '@/lib/userLevelCache';
 import { prefetchDMConversationsFromNav } from '@/lib/loadDMConversations';
 import { warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
 import { resetThemeToDefault } from '@/lib/themeReset';
-import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
+import { hasStoredSupabaseSession, getStoredAuthUserId } from '@/lib/supabaseStorageKey';
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
@@ -118,7 +118,11 @@ function retainCachedProfile(
 ): boolean {
   const cached = getCachedCurrentProfile();
   if (!cached || isRawId(cached.username)) return false;
-  setProfile((prev) => prev ?? cachedProfileToProfile(cached, userId));
+  if (userId && cached.user_id && cached.user_id !== userId) return false;
+  setProfile((prev) => {
+    if (prev?.user_id && userId && prev.user_id !== userId) return cachedProfileToProfile(cached, userId);
+    return prev ?? cachedProfileToProfile(cached, userId);
+  });
   return true;
 }
 
@@ -189,12 +193,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Prevent double-triggering from onAuthStateChange + getSession running simultaneously
   const authInitializedRef = useRef(false);
 
-  // Backfill auth user id onto cached profile so level/prefs queries can run immediately.
+  // Reject stale cached profile when auth user changes (wrong-user queries break RLS).
   useEffect(() => {
+    setActiveAuthUserId(user?.id ?? null);
     if (!user?.id) return;
     setProfile((prev) => {
-      if (!prev || prev.user_id === user.id) return prev;
+      if (!prev) return prev;
       if (!prev.user_id) return { ...prev, user_id: user.id };
+      if (prev.user_id !== user.id) return null;
       return prev;
     });
   }, [user?.id]);
@@ -486,15 +492,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const hasStoredToken = () => hasStoredSupabaseSession();
 
     const hydrateCachedProfile = (userId = '') => {
+      const resolvedUserId = userId || getStoredAuthUserId() || '';
+      if (resolvedUserId) setActiveAuthUserId(resolvedUserId);
       const cachedProfile = getCachedCurrentProfile();
       if (!cachedProfile) return false;
-      setProfile((prev) => prev ?? cachedProfileToProfile(cachedProfile, userId));
+      if (resolvedUserId && cachedProfile.user_id && cachedProfile.user_id !== resolvedUserId) {
+        clearCachedCurrentProfile();
+        return false;
+      }
+      setProfile((prev) => {
+        if (prev?.user_id && resolvedUserId && prev.user_id !== resolvedUserId) {
+          return cachedProfileToProfile(cachedProfile, resolvedUserId);
+        }
+        return prev ?? cachedProfileToProfile(cachedProfile, resolvedUserId);
+      });
       requestAnimationFrame(() => prefetchDMConversationsFromNav());
       return true;
     };
 
     if (hasStoredToken()) {
-      hydrateCachedProfile();
+      // Profile hydrate runs once auth user id is known (onAuthStateChange / getSession).
     }
 
     // Never block launch if getSession / refresh hangs (App Review 2.1a iPad).
@@ -539,6 +556,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           setWasLoggedIn(true);
+          setActiveAuthUserId(session.user.id);
           logEvent('auth', 'Session active, fetching profile', { userId: session.user.id });
           startHeartbeat();
           if (session.expires_at) {
@@ -553,6 +571,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           sessionStorage.removeItem('vybe-oauth-pending');
         } else if (event === 'SIGNED_OUT') {
           setWasLoggedIn(false);
+          setActiveAuthUserId(null);
           // Only clear state on explicit sign-out, not on ambiguous events
           logEvent('auth', 'Explicit sign out — clearing state');
           setProfile(null);
@@ -711,6 +730,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (session?.user) {
           setWasLoggedIn(true);
+          setActiveAuthUserId(session.user.id);
           if (session.expires_at) {
             scheduleTokenRefresh(session.expires_at);
           }

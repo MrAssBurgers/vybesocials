@@ -32,6 +32,23 @@ export function hasStoredSupabaseSession(): boolean {
   }
 }
 
+/** Read auth user id from persisted Supabase session (sync, before getSession resolves). */
+export function getStoredAuthUserId(): string | null {
+  try {
+    const key = getSupabaseAuthStorageKey();
+    const raw = localStorage.getItem(key) || localStorage.getItem(`${key}-vybe-backup`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      user?: { id?: string };
+      currentSession?: { user?: { id?: string } };
+    };
+    const userId = parsed?.user?.id ?? parsed?.currentSession?.user?.id;
+    return typeof userId === 'string' ? userId : null;
+  } catch {
+    return null;
+  }
+}
+
 /** One-time repair if Despia dropped the primary auth key but backup survived. */
 export function repairSupabaseAuthStorage(): void {
   try {

@@ -8,6 +8,7 @@ export interface Story {
   author_id: string;
   media_url: string;
   media_type: string;
+  thumbnail_url?: string | null;
   caption: string | null;
   is_close_friends_only: boolean;
   view_count: number;
@@ -143,6 +144,7 @@ export function useStories() {
 interface CreateStoryParams {
   mediaUrl: string;
   mediaType: string;
+  thumbnailUrl?: string;
   caption?: string;
   isCloseFriendsOnly?: boolean;
   aspectRatio?: number;
@@ -158,6 +160,7 @@ export function useCreateStory() {
     mutationFn: async ({
       mediaUrl,
       mediaType,
+      thumbnailUrl,
       caption,
       isCloseFriendsOnly,
       aspectRatio,
@@ -172,6 +175,7 @@ export function useCreateStory() {
           author_id: profile.id,
           media_url: mediaUrl,
           media_type: mediaType,
+          thumbnail_url: thumbnailUrl || null,
           caption,
           is_close_friends_only: isCloseFriendsOnly || false,
           aspect_ratio: aspectRatio || 0.5625,
@@ -201,6 +205,7 @@ export function useCreateStory() {
           author_id: profile.id,
           media_url: newStory.mediaUrl,
           media_type: newStory.mediaType,
+          thumbnail_url: newStory.thumbnailUrl || null,
           caption: newStory.caption || null,
           is_close_friends_only: newStory.isCloseFriendsOnly || false,
           view_count: 0,

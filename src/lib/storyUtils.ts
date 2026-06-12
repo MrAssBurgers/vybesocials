@@ -180,3 +180,98 @@ export function generateStoryFileName(userId: string, fileType: string): string 
   const random = Math.random().toString(36).substring(2, 8);
   return `${userId}/${timestamp}-${random}.${ext}`;
 }
+
+export function generateStoryThumbnailFileName(userId: string): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 8);
+  return `${userId}/${timestamp}-${random}-thumb.jpg`;
+}
+
+/** Auto-generate a poster thumbnail from story media. */
+export async function generateStoryThumbnail(
+  file: File,
+  isVideo: boolean,
+  seekTime = 0.5,
+): Promise<Blob> {
+  if (isVideo) {
+    return captureVideoFrame(file, seekTime);
+  }
+  return compressImage(file, 360, 0.82);
+}
+
+async function captureVideoFrame(file: File, seekTime: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    const url = URL.createObjectURL(file);
+
+    const cleanup = () => URL.revokeObjectURL(url);
+
+    video.onloadedmetadata = () => {
+      const target = Math.min(
+        Math.max(seekTime, 0),
+        Number.isFinite(video.duration) ? Math.max(video.duration - 0.05, 0) : seekTime,
+      );
+      video.currentTime = target;
+    };
+
+    video.onseeked = () => {
+      const maxWidth = 360;
+      let width = video.videoWidth;
+      let height = video.videoHeight;
+
+      if (!width || !height) {
+        cleanup();
+        reject(new Error('Invalid video dimensions'));
+        return;
+      }
+
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        cleanup();
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+
+      ctx.drawImage(video, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          cleanup();
+          if (blob) resolve(blob);
+          else reject(new Error('Failed to capture video frame'));
+        },
+        'image/jpeg',
+        0.82,
+      );
+    };
+
+    video.onerror = () => {
+      cleanup();
+      reject(new Error('Failed to load video for thumbnail'));
+    };
+
+    video.src = url;
+  });
+}
+
+/** Resolve the best poster URL for a story tile. */
+export function getStoryPosterUrl(story: {
+  thumbnail_url?: string | null;
+  media_url: string;
+  media_type: string;
+}): string | null {
+  if (story.thumbnail_url) return story.thumbnail_url;
+  if (story.media_type === 'image') return story.media_url;
+  return null;
+}

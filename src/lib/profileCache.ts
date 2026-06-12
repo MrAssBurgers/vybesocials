@@ -20,6 +20,47 @@ const profileCache = new Map<string, CachedProfile>();
 const pendingFetches = new Map<string, Promise<CachedProfile | null>>();
 const CURRENT_PROFILE_KEY = 'vybe-current-profile-v1';
 
+/** Auth user id from the live session — used to reject stale disk cache. */
+let activeAuthUserId: string | null = null;
+
+/** Called from AuthProvider whenever the signed-in auth user changes. */
+export function setActiveAuthUserId(userId: string | null): void {
+  activeAuthUserId = userId;
+  if (!userId) return;
+  const cached = getCachedCurrentProfileRaw();
+  if (cached?.user_id && cached.user_id !== userId) {
+    clearCachedCurrentProfile();
+  }
+}
+
+function getCachedCurrentProfileRaw(): CachedProfile | null {
+  try {
+    const raw = localStorage.getItem(CURRENT_PROFILE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.id !== 'string' || typeof parsed.username !== 'string') return null;
+    if (isRawId(parsed.username)) return null;
+    return {
+      id: parsed.id,
+      user_id: typeof parsed.user_id === 'string' ? parsed.user_id : undefined,
+      username: parsed.username,
+      display_name: typeof parsed.display_name === 'string' ? parsed.display_name : null,
+      avatar_url: typeof parsed.avatar_url === 'string' ? parsed.avatar_url : null,
+      bio: typeof parsed.bio === 'string' ? parsed.bio : '',
+      onboarding_completed:
+        typeof parsed.onboarding_completed === 'boolean' ? parsed.onboarding_completed : true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isCachedProfileForActiveUser(cached: CachedProfile): boolean {
+  if (!activeAuthUserId) return false;
+  if (!cached.user_id) return true;
+  return cached.user_id === activeAuthUserId;
+}
+
 // Cache TTL - 5 minutes
 const CACHE_TTL = 5 * 60 * 1000;
 const cacheTimestamps = new Map<string, number>();
@@ -59,37 +100,23 @@ export function setCachedCurrentProfile(profile: CachedProfile): void {
 /** Profile id from live auth state or disk cache — keeps feeds/DMs enabled during hydration. */
 export function getEffectiveProfileId(liveProfileId?: string | null): string | undefined {
   if (liveProfileId) return liveProfileId;
-  return getCachedCurrentProfile()?.id;
+  const cached = getCachedCurrentProfile();
+  return cached?.id;
 }
 
 /** Read the last signed-in profile from disk for offline-first boot. */
 export function getCachedCurrentProfile(): CachedProfile | null {
-  try {
-    const raw = localStorage.getItem(CURRENT_PROFILE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed.id !== 'string' || typeof parsed.username !== 'string') return null;
-    if (isRawId(parsed.username)) {
-      try {
-        localStorage.removeItem(CURRENT_PROFILE_KEY);
-      } catch { /* ignore */ }
-      return null;
-    }
-    const profile: CachedProfile = {
-      id: parsed.id,
-      user_id: typeof parsed.user_id === 'string' ? parsed.user_id : undefined,
-      username: parsed.username,
-      display_name: typeof parsed.display_name === 'string' ? parsed.display_name : null,
-      avatar_url: typeof parsed.avatar_url === 'string' ? parsed.avatar_url : null,
-      bio: typeof parsed.bio === 'string' ? parsed.bio : '',
-      onboarding_completed:
-        typeof parsed.onboarding_completed === 'boolean' ? parsed.onboarding_completed : true,
-    };
-    setCachedProfile(profile);
-    return profile;
-  } catch {
+  const profile = getCachedCurrentProfileRaw();
+  if (!profile) return null;
+  if (isRawId(profile.username)) {
+    try {
+      localStorage.removeItem(CURRENT_PROFILE_KEY);
+    } catch { /* ignore */ }
     return null;
   }
+  if (!isCachedProfileForActiveUser(profile)) return null;
+  setCachedProfile(profile);
+  return profile;
 }
 
 /**

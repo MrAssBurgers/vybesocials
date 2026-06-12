@@ -4,6 +4,25 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (Snapchat poster stories + smooth clip progress — 2026-06-09)
+- **`StoryPoster.tsx`** — rounded poster tiles (Snapchat-style) replace circular `StoryRing`
+- **`StoriesBar.tsx`** — shows story cover thumbnails with yellow unviewed border; avatar only on empty “add story” tile
+- **`StoryCreator.tsx`** — auto-generates cover on pick/capture; manual cover via frame scrub or upload
+- **`storyUtils.ts`** — `generateStoryThumbnail`, `getStoryPosterUrl`, thumbnail upload helpers
+- **`useStories.ts`** — `thumbnail_url` on create + optimistic UI
+- **`ClipVideoProgress.tsx`** — rAF + GPU `scaleX` progress (no janky width transitions); subtle 8-bar audio waveform when unmuted
+- **`MobileShortCard.tsx`** — passes `isMuted` to progress component
+- **Migration:** `20260609120000_story_thumbnail_url.sql` — `stories.thumbnail_url`
+- **Build:** `npm run build` pass
+
+## Current Focus
+- **Publish** — push story poster + clip progress changes + apply Supabase migration + Lovable Publish
+
+## Next 3 Tasks
+1. Apply `20260609120000_story_thumbnail_url.sql` on prod Supabase (`agtcyxjxgkdyoxwxkjth`)
+2. Lovable Publish + force-quit app on iPhone to bust cache
+3. Smoke test: create story (auto cover + manual cover), stories bar posters, clip progress + sound wave when unmuted
+
 ## What Changed (Friend Link QR + iPhone perf — 2026-06-09)
 - **`FriendDropLink.tsx`** — scan deep link uses `profile.id` (not auth `user.id`); fixed self-check vs owner profile
 - **`AddFriend.tsx`** — self-check compares profile id to URL id
@@ -28,8 +47,15 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **After publish:** force-quit iPhone app; hard-refresh browser
 - **Build:** `npm run build` pass
 
+## What Changed (stale profile cache fix — 2026-06-09)
+- **`profileCache.ts`** — `setActiveAuthUserId()` rejects disk cache from a different auth user; `getEffectiveProfileId()` no longer returns wrong-user ids
+- **`auth.tsx`** — clears mismatched profile on account switch; hydrates cache only after auth user id is known
+- **`supabaseStorageKey.ts`** — `getStoredAuthUserId()` for sync boot validation
+- **`AppLayout.tsx`** — resets stuck `inDesigner` / theme preview lock / scroll-hide on route change
+- **Build:** `npm run build` pass
+
 ## Current Focus
-- **Publish** — Lovable → Share → Publish (git synced; waiting on Lovable publish)
+- **Publish** — push stale-profile fix + Lovable Publish
 - **Despia** — confirm Native Advanced unit `5403238592` in dashboard; rebuild native shell
 
 ## Next 3 Tasks

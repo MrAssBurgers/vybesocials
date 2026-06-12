@@ -1,4 +1,5 @@
 import { ReactNode, forwardRef, memo, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { MobileHeader } from './MobileHeader';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
@@ -16,6 +17,8 @@ import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
 import { Enable2FANudge } from '@/components/auth/Enable2FANudge';
 import { PhoneVerifyGate } from '@/components/auth/PhoneVerifyGate';
 import { bindAppScrollHideContainer } from '@/lib/scrollHideSync';
+import { navVisibility } from '@/lib/navVisibility';
+import { setThemePreviewLock } from '@/hooks/useCustomTheme';
 import { SelfNowPlayingPill } from '@/components/music/SelfNowPlayingPill';
 
 interface AppLayoutProps {
@@ -36,6 +39,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   noPadding = false,
 }, ref) {
   const { loading } = useAuth();
+  const location = useLocation();
   const hasStoredSession = hasStoredSupabaseSession();
   const { isDesktop } = useBreakpoint();
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -44,6 +48,13 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const showLiquidBg = useDefaultLiquidBackground();
 
   useEffect(() => bindAppScrollHideContainer(), []);
+
+  // Recover from overlay flags if a sheet was killed mid-flight (WebView / force-quit).
+  useEffect(() => {
+    navVisibility.setInDesigner(false);
+    setThemePreviewLock(false);
+    navVisibility.resetScrollHide();
+  }, [location.pathname]);
 
   usePresence();
   useScreenTimeTracker();

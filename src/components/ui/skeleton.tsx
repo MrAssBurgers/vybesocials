@@ -103,7 +103,7 @@ function SkeletonMessage({ className, isOwn = false }: { className?: string; isO
 function SkeletonStory({ className }: { className?: string }) {
   return (
     <div className={cn("flex flex-col items-center gap-1", className)}>
-      <Skeleton variant="circular" className="h-16 w-16" />
+      <Skeleton className="h-[78px] w-[58px] rounded-[14px]" />
       <Skeleton className="h-3 w-12" />
     </div>
   );

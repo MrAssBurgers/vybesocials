@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, X, Camera as CameraIcon, Image as ImageIcon, Star, Send, Loader2, AlertCircle, RotateCcw, BarChart3 } from 'lucide-react';
+import { ArrowLeft, X, Camera as CameraIcon, Image as ImageIcon, Star, Send, Loader2, AlertCircle, RotateCcw, BarChart3, ImagePlus } from 'lucide-react';
 import { StoryPollEditor, PollData } from './StoryPollEditor';
 import { useCreateStory } from '@/hooks/useStories';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { validateStoryMedia, compressImage, generateStoryFileName } from '@/lib/storyUtils';
+import { validateStoryMedia, compressImage, generateStoryFileName, generateStoryThumbnail, generateStoryThumbnailFileName } from '@/lib/storyUtils';
 import { Camera } from '@/components/camera/Camera';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 
@@ -28,10 +28,17 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   const { profile } = useAuth();
   const createStory = useCreateStory();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const coverVideoRef = useRef<HTMLVideoElement>(null);
 
   const [mode, setMode] = useState<CreatorMode>('select');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [showCoverEditor, setShowCoverEditor] = useState(false);
+  const [coverSeekTime, setCoverSeekTime] = useState(0.5);
+  const [isGeneratingCover, setIsGeneratingCover] = useState(false);
   const [caption, setCaption] = useState('');
   const [isCloseFriendsOnly, setIsCloseFriendsOnly] = useState(false);
   const [uploadState, setUploadState] = useState<UploadState>('idle');
@@ -48,6 +55,10 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   const resetState = useCallback(() => {
     setSelectedFile(null);
     setPreview(null);
+    setThumbnailBlob(null);
+    setThumbnailPreview(null);
+    setShowCoverEditor(false);
+    setCoverSeekTime(0.5);
     setCaption('');
     setIsCloseFriendsOnly(false);
     setUploadState('idle');
@@ -55,6 +66,19 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     setErrorMessage(null);
     setMediaInfo(null);
     setMode('select');
+  }, []);
+
+  const applyAutoThumbnail = useCallback(async (file: File, isVideo: boolean) => {
+    setIsGeneratingCover(true);
+    try {
+      const thumb = await generateStoryThumbnail(file, isVideo, 0.5);
+      setThumbnailBlob(thumb);
+      setThumbnailPreview(URL.createObjectURL(thumb));
+    } catch (err) {
+      console.warn('Auto thumbnail failed:', err);
+    } finally {
+      setIsGeneratingCover(false);
+    }
   }, []);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,6 +107,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       setSelectedFile(file);
       setPreview(URL.createObjectURL(file));
       setUploadState('idle');
+      void applyAutoThumbnail(file, isVideo);
     } catch (err) {
       console.error('File validation error:', err);
       setErrorMessage('Failed to process media file');
@@ -138,6 +163,27 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
 
       setUploadProgress(70);
 
+      let thumbnailUrl: string | undefined;
+      if (thumbnailBlob) {
+        const thumbFileName = generateStoryThumbnailFileName(user.id);
+        const { error: thumbUploadError } = await supabase.storage
+          .from('stories')
+          .upload(thumbFileName, thumbnailBlob, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: 'image/jpeg',
+          });
+
+        if (thumbUploadError) {
+          console.warn('Thumbnail upload failed:', thumbUploadError);
+        } else {
+          const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
+            .from('stories')
+            .getPublicUrl(thumbFileName);
+          thumbnailUrl = thumbPublicUrl || undefined;
+        }
+      }
+
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('stories')
@@ -154,6 +200,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       await (createStory as any).mutateAsync({
         mediaUrl: publicUrl,
         mediaType: mediaInfo.isVideo ? 'video' : 'image',
+        thumbnailUrl,
         caption: caption.trim() || undefined,
         isCloseFriendsOnly,
         aspectRatio: mediaInfo.aspectRatio,
@@ -181,6 +228,37 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     setUploadState('idle');
     setErrorMessage(null);
     setUploadProgress(0);
+  };
+
+  const handleCoverImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    e.target.value = '';
+    try {
+      const thumb = await compressImage(file, 360, 0.82);
+      setThumbnailBlob(thumb);
+      setThumbnailPreview(URL.createObjectURL(thumb));
+      setShowCoverEditor(false);
+    } catch (err) {
+      console.error('Cover image failed:', err);
+      toast.error('Could not set cover image');
+    }
+  };
+
+  const handleApplyVideoFrame = async () => {
+    if (!selectedFile || !mediaInfo?.isVideo) return;
+    setIsGeneratingCover(true);
+    try {
+      const thumb = await generateStoryThumbnail(selectedFile, true, coverSeekTime);
+      setThumbnailBlob(thumb);
+      setThumbnailPreview(URL.createObjectURL(thumb));
+      setShowCoverEditor(false);
+    } catch (err) {
+      console.error('Video frame capture failed:', err);
+      toast.error('Could not capture frame');
+    } finally {
+      setIsGeneratingCover(false);
+    }
   };
 
   const isProcessing = uploadState !== 'idle' && uploadState !== 'error';
@@ -212,6 +290,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
           });
           setUploadState('idle');
           setMode('select');
+          void applyAutoThumbnail(media.file, isVideo);
         }}
       />
     );
@@ -256,6 +335,108 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
             ) : (
               <img src={preview} alt="Preview" className="w-full h-full object-cover" />
             )}
+
+            {/* Action buttons - only when not processing */}
+            {!isProcessing && uploadState !== 'error' && !showPollEditor && !showCoverEditor && (
+              <div className="absolute top-3 right-3 flex flex-wrap justify-end gap-2 max-w-[70%]">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowCoverEditor(true)}
+                  className="gap-1"
+                >
+                  {thumbnailPreview ? (
+                    <img src={thumbnailPreview} alt="" className="h-4 w-3 rounded-sm object-cover" />
+                  ) : (
+                    <ImagePlus className="h-3.5 w-3.5" />
+                  )}
+                  Cover
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowPollEditor(true)}
+                  className="gap-1"
+                >
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Poll
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Change
+                </Button>
+              </div>
+            )}
+            <AnimatePresence>
+              {showCoverEditor && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-20 flex flex-col items-center justify-end bg-black/70 p-4 gap-3"
+                >
+                  <div className="w-full max-w-xs rounded-2xl bg-black/80 border border-white/10 p-4 space-y-3">
+                    <p className="text-sm font-semibold text-white text-center">Story cover</p>
+                    {thumbnailPreview && (
+                      <img
+                        src={thumbnailPreview}
+                        alt="Cover preview"
+                        className="mx-auto h-24 w-[68px] rounded-xl object-cover border border-white/15"
+                      />
+                    )}
+                    {mediaInfo?.isVideo && preview && (
+                      <div className="space-y-2">
+                        <video
+                          ref={coverVideoRef}
+                          src={preview}
+                          className="hidden"
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
+                        <input
+                          type="range"
+                          min={0}
+                          max={Math.max((mediaInfo.duration || 10) - 0.1, 0)}
+                          step={0.1}
+                          value={coverSeekTime}
+                          onChange={(e) => setCoverSeekTime(Number(e.target.value))}
+                          className="w-full accent-primary"
+                        />
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="w-full"
+                          disabled={isGeneratingCover}
+                          onClick={handleApplyVideoFrame}
+                        >
+                          {isGeneratingCover ? 'Capturing...' : 'Use this frame'}
+                        </Button>
+                      </div>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full border-white/20 text-white hover:bg-white/10"
+                      onClick={() => coverInputRef.current?.click()}
+                    >
+                      Upload cover image
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full text-white/70"
+                      onClick={() => setShowCoverEditor(false)}
+                    >
+                      Done
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Re-take button — only when idle (no upload in flight) */}
             {uploadState === 'idle' && !isProcessing && (
@@ -342,28 +523,6 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
                 </div>
               )}
             </AnimatePresence>
-
-            {/* Action buttons - only when not processing */}
-            {!isProcessing && uploadState !== 'error' && !showPollEditor && (
-              <div className="absolute top-4 right-4 flex gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowPollEditor(true)}
-                  className="gap-1"
-                >
-                  <BarChart3 className="h-3.5 w-3.5" />
-                  Poll
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  Change
-                </Button>
-              </div>
-            )}
           </div>
         ) : uploadState === 'error' ? (
           <div className="flex flex-col items-center gap-4 p-8">
@@ -457,6 +616,13 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
         onChange={handleFileSelect}
         className="hidden"
         capture="environment"
+      />
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleCoverImageSelect}
+        className="hidden"
       />
       </motion.div>
     </FullscreenPortal>

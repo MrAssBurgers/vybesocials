@@ -432,8 +432,9 @@ export const MobileShortCard = memo(function MobileShortCard({
         {isVideo && (
           <ClipVideoProgress
             videoRef={videoRef}
-            isActive={isActive && isPlaying}
+            isActive={isActive}
             branded={immersiveFlow}
+            isMuted={isMuted}
           />
         )}
       </div>
