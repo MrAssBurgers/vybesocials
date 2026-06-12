@@ -429,7 +429,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return fetchProfile(userId, retryCount + 1);
       }
       
-      retainCachedProfile(userId);
+      retainCachedProfile(setProfile, userId);
       window.setTimeout(() => {
         void fetchProfile(userId, 0);
       }, 2000);
