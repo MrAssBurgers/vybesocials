@@ -112,7 +112,10 @@ function cachedProfileToProfile(cached: CachedProfile, userId = ''): Profile {
 }
 
 /** Keep disk-cached profile visible when live fetch fails — never flash to skeleton. */
-function retainCachedProfile(userId = ''): boolean {
+function retainCachedProfile(
+  setProfile: (updater: (prev: Profile | null) => Profile | null) => void,
+  userId = '',
+): boolean {
   const cached = getCachedCurrentProfile();
   if (!cached || isRawId(cached.username)) return false;
   setProfile((prev) => prev ?? cachedProfileToProfile(cached, userId));
@@ -135,7 +138,7 @@ function persistCurrentProfile(profileData: Profile) {
     prefetchDMConversationsFromNav();
     const qc = (window as any).__REACT_QUERY_CLIENT__;
     if (qc && profileData.id && profileData.user_id) {
-      warmHomeCachesForProfile(qc, profileData.user_id, profileData.id, profileData);
+      warmHomeCachesForProfile(qc, profileData.user_id, profileData.id, profileData as unknown as Record<string, unknown>);
     }
   });
 }
@@ -411,7 +414,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       console.error('[Auth] Could not fetch profile after ensure_profile');
-      retainCachedProfile(userId);
+      retainCachedProfile(setProfile, userId);
       window.setTimeout(() => {
         void fetchProfile(userId, 0);
       }, 2000);

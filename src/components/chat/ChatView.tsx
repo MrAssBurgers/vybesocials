@@ -1285,7 +1285,7 @@ export function ChatView() {
     );
   }
 
-  if (messagesLoading && !messages?.length) {
+  if (messagesLoading && !(messages && messages.length > 0)) {
     return (
       <div className="flex flex-col h-full">
         <div className="p-4 border-b border-border flex items-center gap-3">
