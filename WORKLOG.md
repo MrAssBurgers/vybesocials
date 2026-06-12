@@ -4,9 +4,28 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (Friend Link QR + iPhone perf — 2026-06-09)
+- **`FriendDropLink.tsx`** — scan deep link uses `profile.id` (not auth `user.id`); fixed self-check vs owner profile
+- **`AddFriend.tsx`** — self-check compares profile id to URL id
+- **`AutoFriendDrop.tsx`** — QR only after drop session created; profile id in NFC/scan paths; lighter jsQR loop + downscaled decode on native; skip backdrop-blur / infinite tap animations / `position:fixed` body lock on native
+- **`FriendDrop.tsx`** — same profile-id URL fixes for legacy component
+- **Build:** `npm run build` pass
+
+## What Changed (phone verify, theme safety, VYBE AI — 2026-06-09)
+- **`PhoneVerifyGate.tsx`** — centered modal; X dismisses for current session (`sessionStorage`); returns on next login session
+- **`useCustomTheme.ts`** — `sanitizeThemeTokens()` clamps AI palettes for contrast, visible borders, safe native perf
+- **`AIVybeDesigner.tsx`** — applies sanitized tokens before preview
+- **`VYBECommandBar`** — remounted in `App.tsx`; generate-theme commands now apply the returned theme
+- **Build:** `npm run build` pass
+
 ## Current Focus
-- **Publish** — ads + DM speed + FAB scroll fixes; **Lovable → Share → Publish** for `vybehub.app`
+- **Publish** — phone verify + theme safety + VYBE AI; **Lovable → Share → Publish** for `vybehub.app`
 - **Despia** — confirm Native Advanced unit `5403238592` in dashboard; rebuild native shell
+
+## Next 3 Tasks
+1. Lovable Publish + force-quit app on iPhone to bust cache
+2. Test Friend Link: Person A opens sheet → Person B scans QR (in-app + iPhone Camera)
+3. Commit DM list loading fix (`useDMConversations`, `ConversationList`) if not yet pushed
 
 ## What Changed (ads, DMs, FAB — 2026-06-11)
 - **`despiaRewardedAds.ts`** — 45s timeout, dismiss recovery via visibility/focus, broader status parsing

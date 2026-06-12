@@ -115,6 +115,7 @@ const TrackingConsentDialog = lazy(() => import("@/components/app/TrackingConsen
 const CookieConsentBanner = lazy(() => import("@/components/legal/CookieConsentBanner").then(m => ({ default: m.CookieConsentBanner })));
 const RatePromptSheet = lazy(() => import("@/components/feedback/RatePromptSheet").then(m => ({ default: m.RatePromptSheet })));
 const AutoFriendDrop = lazy(() => import("@/components/friends/AutoFriendDrop").then(m => ({ default: m.AutoFriendDrop })));
+const VYBECommandBar = lazy(() => import("@/components/ai/VYBECommandBar").then(m => ({ default: m.VYBECommandBar })));
 
 // Lazy-load deferred hooks via a wrapper component
 const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"));
@@ -451,6 +452,7 @@ function AppWithPreloader() {
                                         <RatePromptSheet />
                                         <ConnectionStatusBanner />
                                         <AutoFriendDrop />
+                                        <VYBECommandBar />
                                       </Suspense>
                                     </LocalErrorBoundary>
                                   </TutorialProvider>

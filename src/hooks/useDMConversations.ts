@@ -173,18 +173,26 @@ export function useDMConversations(searchQuery: string = '') {
     );
   }, [conversationsQuery.data]);
 
+  const listCount = conversationsQuery.data?.length ?? 0;
+  // Only skeleton on the true first fetch — not when query is disabled (no profile id)
+  // and not during background refetch of an empty list.
+  const isLoading =
+    !!profileId &&
+    listCount === 0 &&
+    !conversationsQuery.isFetched &&
+    conversationsQuery.fetchStatus === 'fetching';
+
   return {
     conversations: filteredConversations,
     pinnedConversations,
     unpinnedConversations,
     totalUnreadCount,
-    isLoading:
-      (conversationsQuery.isPending || conversationsQuery.isFetching) &&
-      !(conversationsQuery.data as DMConversation[] | undefined)?.length,
+    isLoading,
     isFetched: conversationsQuery.isFetched,
     isFetching: conversationsQuery.isFetching,
     error: conversationsQuery.error,
     refetch: conversationsQuery.refetch,
+    profileId,
   };
 }
 

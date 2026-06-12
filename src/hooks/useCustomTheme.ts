@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { usePremiumStatus } from './usePremiumStatus';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 
 // Free-tier cooldown for AI theme generation (Pro users skip this)
 const AI_THEME_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -419,7 +420,7 @@ export function useGenerateTheme() {
         localStorage.setItem(AI_THEME_COOLDOWN_KEY, String(Date.now()));
       }
 
-      return data.theme as ThemeTokens & { themeName: string };
+      return sanitizeThemeTokens(data.theme as ThemeTokens & { themeName: string });
     },
     onError: (error: any) => {
       console.error('Failed to generate theme:', error);
@@ -460,6 +461,90 @@ function adjustLightness(hsl: string, amount: number): string {
     // Return original if parsing fails
   }
   return hsl;
+}
+
+function parseHSLParts(hsl: string): { h: string; s: string; l: number } | null {
+  const parts = hsl.trim().split(/\s+/);
+  if (parts.length < 3) return null;
+  const l = parseFloat(parts[2].replace('%', ''));
+  if (Number.isNaN(l)) return null;
+  return { h: parts[0], s: parts[1], l };
+}
+
+function clampHSLLightness(hsl: string | undefined, min: number, max: number, fallback: string): string {
+  const value = safeHSL(hsl, fallback);
+  const parts = parseHSLParts(value);
+  if (!parts) return fallback;
+  const clamped = Math.max(min, Math.min(max, parts.l));
+  return `${parts.h} ${parts.s} ${clamped}%`;
+}
+
+const VALID_BG_EFFECTS = new Set<ThemeTokens['backgroundEffect']>([
+  'none', 'particles', 'stars', 'bubbles', 'aurora', 'rain', 'snow', 'fireflies', 'geometric',
+]);
+
+/**
+ * Clamp AI-generated palettes so text, borders, and surfaces stay readable on every device.
+ */
+export function sanitizeThemeTokens(tokens: ThemeTokens): ThemeTokens {
+  const mode: 'light' | 'dark' = tokens.mode === 'light' ? 'light' : 'dark';
+  const sanitized: ThemeTokens = { ...tokens, mode };
+
+  if (mode === 'dark') {
+    sanitized.bgMain = clampHSLLightness(tokens.bgMain, 2, 12, '240 10% 4%');
+    sanitized.bgCard = clampHSLLightness(tokens.bgCard, 4, 16, '240 10% 6%');
+    sanitized.textPrimary = clampHSLLightness(tokens.textPrimary, 88, 98, '0 0% 98%');
+    sanitized.textSecondary = clampHSLLightness(tokens.textSecondary, 52, 72, '240 5% 65%');
+    sanitized.borderColor = clampHSLLightness(tokens.borderColor, 14, 30, '240 10% 20%');
+    sanitized.glassBorder = clampHSLLightness(tokens.glassBorder, 16, 34, sanitized.borderColor);
+    sanitized.glassBg = clampHSLLightness(tokens.glassBg, 4, 18, sanitized.bgCard);
+    sanitized.inputBg = clampHSLLightness(tokens.inputBg, 6, 20, sanitized.bgCard);
+    sanitized.inputText = clampHSLLightness(tokens.inputText, 88, 98, sanitized.textPrimary);
+    sanitized.sidebarBg = clampHSLLightness(tokens.sidebarBg, 4, 16, sanitized.bgCard);
+    sanitized.navBg = clampHSLLightness(tokens.navBg, 4, 16, sanitized.bgCard);
+    sanitized.colorPrimary = clampHSLLightness(tokens.colorPrimary, 42, 72, '330 100% 60%');
+  } else {
+    sanitized.bgMain = clampHSLLightness(tokens.bgMain, 92, 100, '0 0% 98%');
+    sanitized.bgCard = clampHSLLightness(tokens.bgCard, 96, 100, '0 0% 100%');
+    sanitized.textPrimary = clampHSLLightness(tokens.textPrimary, 8, 22, '240 10% 12%');
+    sanitized.textSecondary = clampHSLLightness(tokens.textSecondary, 32, 48, '240 5% 45%');
+    sanitized.borderColor = clampHSLLightness(tokens.borderColor, 76, 90, '240 5% 85%');
+    sanitized.glassBorder = clampHSLLightness(tokens.glassBorder, 72, 90, sanitized.borderColor);
+    sanitized.glassBg = clampHSLLightness(tokens.glassBg, 90, 100, sanitized.bgCard);
+    sanitized.inputBg = clampHSLLightness(tokens.inputBg, 88, 98, '240 5% 94%');
+    sanitized.inputText = clampHSLLightness(tokens.inputText, 8, 22, sanitized.textPrimary);
+    sanitized.sidebarBg = clampHSLLightness(tokens.sidebarBg, 94, 100, sanitized.bgCard);
+    sanitized.navBg = clampHSLLightness(tokens.navBg, 94, 100, sanitized.bgCard);
+    sanitized.colorPrimary = clampHSLLightness(tokens.colorPrimary, 32, 58, '330 85% 50%');
+  }
+
+  sanitized.bgGradientFrom = clampHSLLightness(tokens.bgGradientFrom, mode === 'dark' ? 2 : 92, mode === 'dark' ? 14 : 100, sanitized.bgMain);
+  sanitized.bgGradientMid = clampHSLLightness(tokens.bgGradientMid, mode === 'dark' ? 4 : 94, mode === 'dark' ? 16 : 100, sanitized.bgCard);
+  sanitized.bgGradientTo = clampHSLLightness(tokens.bgGradientTo, mode === 'dark' ? 2 : 92, mode === 'dark' ? 14 : 100, sanitized.bgMain);
+  sanitized.colorSecondary = clampHSLLightness(tokens.colorSecondary, mode === 'dark' ? 10 : 78, mode === 'dark' ? 28 : 96, sanitized.bgCard);
+  sanitized.colorAccent = clampHSLLightness(tokens.colorAccent, mode === 'dark' ? 40 : 35, mode === 'dark' ? 72 : 62, sanitized.colorPrimary);
+
+  const primaryL = parseHSLParts(sanitized.colorPrimary)?.l ?? 50;
+  sanitized.buttonText = primaryL > 55 ? '0 0% 8%' : '0 0% 100%';
+
+  sanitized.borderRadius = ['small', 'medium', 'large'].includes(tokens.borderRadius)
+    ? tokens.borderRadius
+    : 'medium';
+
+  if (!VALID_BG_EFFECTS.has(tokens.backgroundEffect)) {
+    sanitized.backgroundEffect = 'none';
+  } else if (isNativePerfMode() && tokens.backgroundEffect && !['none', 'stars'].includes(tokens.backgroundEffect)) {
+    sanitized.backgroundEffect = 'none';
+  }
+
+  sanitized.backgroundBlur = Math.max(0, Math.min(12, tokens.backgroundBlur ?? 0));
+  sanitized.backgroundOpacity = Math.max(0, Math.min(70, tokens.backgroundOpacity ?? 40));
+
+  if (isNativePerfMode() && sanitized.animationSpeed === 'fast') {
+    sanitized.animationSpeed = 'normal';
+  }
+
+  return sanitized;
 }
 
 // Helper to invert HSL lightness for mode switching (dark<->light)
@@ -562,6 +647,8 @@ export function applyThemeTokens(tokens: ThemeTokens, options?: { preserveBackgr
     console.error('Invalid theme tokens provided');
     return;
   }
+
+  tokens = sanitizeThemeTokens(tokens);
 
   // ALWAYS preserve background by default - background image is a separate setting!
   const preserveBackground = options?.preserveBackground !== false;

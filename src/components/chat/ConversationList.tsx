@@ -8,6 +8,7 @@ import { useChatPrefetch } from '@/hooks/useChatPrefetch';
 import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
 import { useOnlineFriends } from '@/hooks/useOnlineFriends';
 import { useAuth } from '@/lib/auth';
+import { getEffectiveProfileId } from '@/lib/profileCache';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { useTrashedConversationIds, useTrashConversation } from '@/hooks/useTrashedConversations';
 import { useStories, StoryGroup } from '@/hooks/useStories';
@@ -22,7 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Pin, Check, Users, UserPlus, Trash2, X, UserCheck, Camera, Search } from 'lucide-react';
+import { MessageCircle, Pin, Check, Users, UserPlus, Trash2, X, UserCheck, Camera, Search, Loader2 } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 
 import { toast } from 'sonner';
@@ -103,7 +104,8 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
 export function ConversationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatFilter, setChatFilter] = useState<'all' | 'unread' | 'groups' | 'streaks'>('all');
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
@@ -122,6 +124,7 @@ export function ConversationList() {
     error: convError,
     totalUnreadCount,
     refetch: refetchConversations,
+    profileId: dmProfileId,
   } = useDMConversations(debouncedSearch);
   const { prefetchMessages } = useChatPrefetch();
 
@@ -187,7 +190,19 @@ export function ConversationList() {
     [pinnedConversations, unpinnedConversations]
   );
 
-  const showListSkeleton = isLoading && allConversations.length === 0;
+  // Escape hatch: refetch if list stays empty while profile is known.
+  useEffect(() => {
+    if (!dmProfileId || allConversations.length > 0) return;
+    if (!isLoading && isFetched) return;
+    const t = window.setTimeout(() => {
+      void refetchConversations();
+    }, 8000);
+    return () => window.clearTimeout(t);
+  }, [dmProfileId, isLoading, isFetched, allConversations.length, refetchConversations]);
+
+  const showListSkeleton =
+    (isLoading || (!dmProfileId && (authLoading || !profileId))) &&
+    allConversations.length === 0;
   
   // Get all conversation IDs for typing indicator subscription
   const conversationIds = useMemo(() => 
@@ -417,7 +432,12 @@ export function ConversationList() {
             <div className="flex flex-col items-center justify-center py-12 text-center px-4">
               <p className="text-sm text-muted-foreground">No {chatFilter} conversations</p>
             </div>
-          ) : !isFetched ? null : !acceptedRequests?.length ? (
+          ) : !isFetched ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" />
+              <p className="text-xs text-muted-foreground">Loading your chats…</p>
+            </div>
+          ) : !acceptedRequests?.length ? (
             <div className="dm-empty-state flex flex-col items-center justify-center py-12 text-center px-6 mx-1">
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-4 ring-2 ring-primary/20">
                 <MessageCircle className="h-7 w-7 text-primary" />

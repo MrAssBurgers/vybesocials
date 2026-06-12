@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { X, Check, Smartphone, QrCode, MessageCircle, Radio, Wifi, Loader2, ScanLine } from 'lucide-react';
+import { X, Check, QrCode, MessageCircle, Radio, Loader2, ScanLine } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -22,6 +22,7 @@ import { navVisibility } from '@/lib/navVisibility';
 import { cn } from '@/lib/utils';
 import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
 import { isDespiaRuntime, isIOSUA } from '@/lib/despiaBridge';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isFullyLoggedIn } from '@/lib/authReady';
 import { buildFriendDropUrl, type FriendLinkTarget, extractFriendTarget } from '@/lib/friendLinkNfc';
 import { scanFriendLinkOnce } from '@/lib/friendLinkNfc';
@@ -29,6 +30,7 @@ import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
 import { FRIEND_LINK_OPEN_EVENT } from '@/lib/friendLinkUi';
 import { NFCSwapAnimation } from '@/components/friends/NFCSwapAnimation';
 import { FriendLinkActivateHint, FriendLinkSheetTips } from '@/components/friends/FriendLinkActivateHint';
+import { FriendLinkTapAnimation } from '@/components/friends/FriendLinkTapAnimation';
 import { acquirePostCameraStream, stopStream } from '@/lib/postCameraStream';
 import { isCameraSafeMode } from '@/lib/cameraSafeMode';
 
@@ -51,6 +53,7 @@ export function AutoFriendDrop() {
     isFullyLoggedIn(user, profile, authLoading) &&
     isMobileOrTablet &&
     (location.pathname === '/home' || location.pathname === '/');
+  const reduceFriendLinkMotion = isNativePerfMode();
   const sendRequest = useSendFriendRequest();
   const createConversation = useCreateConversation();
   const controlVisible = useFloatingControlVisibility();
@@ -140,11 +143,7 @@ export function AutoFriendDrop() {
   });
 
   const primaryHex = getPrimaryHex();
-  const myProfileUrl = activeDropId
-    ? buildFriendDropUrl(activeDropId)
-    : profile?.username && user?.id
-      ? `https://vybehub.app/add-friend/${user.id}`
-      : '';
+  const myProfileUrl = activeDropId ? buildFriendDropUrl(activeDropId) : '';
 
   const nfcBroadcastUrl = myProfileUrl;
 
@@ -239,7 +238,7 @@ export function AutoFriendDrop() {
       await handleDropScan(target.id);
       return;
     }
-    if (target.id === user?.id) {
+    if (target.id === profile?.id) {
       exchangeLockRef.current = false;
       return;
     }
@@ -253,7 +252,7 @@ export function AutoFriendDrop() {
     }
     setFoundUser(peer);
     await handleAutoAdd(target.id);
-  }, [phase, user?.id, handleDropScan, handleAutoAdd, stopScanning]);
+  }, [phase, profile?.id, handleDropScan, handleAutoAdd, stopScanning]);
 
   const nativeFriendDrop = useNativeFriendDrop({
     enabled: isActive && activeTab === 'tap',
@@ -323,6 +322,8 @@ export function AutoFriendDrop() {
 
   const scanDimensionsRef = useRef({ width: 0, height: 0 });
   const scanFrameSkipRef = useRef(0);
+  const scanFrameMod = isNativePerfMode() ? 5 : 2;
+  const scanMaxWidth = isNativePerfMode() ? 360 : 640;
 
   const startScanLoop = useCallback(() => {
     const canvas = canvasRef.current;
@@ -337,8 +338,7 @@ export function AutoFriendDrop() {
         return;
       }
 
-      // Decode every other frame — halves CPU on iPad/iPhone without hurting scan speed.
-      scanFrameSkipRef.current = (scanFrameSkipRef.current + 1) % 2;
+      scanFrameSkipRef.current = (scanFrameSkipRef.current + 1) % scanFrameMod;
       if (scanFrameSkipRef.current !== 0) {
         animationFrameRef.current = requestAnimationFrame(scanFrame);
         return;
@@ -346,23 +346,26 @@ export function AutoFriendDrop() {
 
       const vw = videoRef.current.videoWidth;
       const vh = videoRef.current.videoHeight;
-      if (scanDimensionsRef.current.width !== vw || scanDimensionsRef.current.height !== vh) {
-        canvas.width = vw;
-        canvas.height = vh;
-        scanDimensionsRef.current = { width: vw, height: vh };
+      const scale = vw > scanMaxWidth ? scanMaxWidth / vw : 1;
+      const cw = Math.max(1, Math.round(vw * scale));
+      const ch = Math.max(1, Math.round(vh * scale));
+      if (scanDimensionsRef.current.width !== cw || scanDimensionsRef.current.height !== ch) {
+        canvas.width = cw;
+        canvas.height = ch;
+        scanDimensionsRef.current = { width: cw, height: ch };
       }
-      ctx.drawImage(videoRef.current, 0, 0, vw, vh);
-      const imageData = ctx.getImageData(0, 0, vw, vh);
+      ctx.drawImage(videoRef.current, 0, 0, cw, ch);
+      const imageData = ctx.getImageData(0, 0, cw, ch);
       const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
       if (code) {
         const target = extractFriendTarget(code.data || '');
         if (target?.type === 'drop') { await handleDropScan(target.id); return; }
-        if (target?.type === 'user' && target.id !== user?.id) { handleFoundUser(target.id); return; }
+        if (target?.type === 'user' && target.id !== profile?.id) { handleFoundUser(target.id); return; }
       }
       animationFrameRef.current = requestAnimationFrame(scanFrame);
     };
     scanFrame();
-  }, [user?.id, handleDropScan, handleFoundUser]);
+  }, [profile?.id, handleDropScan, handleFoundUser, scanFrameMod, scanMaxWidth]);
 
   startScanLoopRef.current = startScanLoop;
 
@@ -494,11 +497,14 @@ export function AutoFriendDrop() {
     const prevTop = document.body.style.top;
     const prevWidth = document.body.style.width;
     const prevHtmlOverflow = document.documentElement.style.overflow;
+    const useFixedLock = !isNativePerfMode();
     document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = '100%';
     document.documentElement.style.overflow = 'hidden';
+    if (useFixedLock) {
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+    }
     return () => {
       navVisibility.setInDesigner(false);
       document.body.style.overflow = prevOverflow;
@@ -506,7 +512,7 @@ export function AutoFriendDrop() {
       document.body.style.top = prevTop;
       document.body.style.width = prevWidth;
       document.documentElement.style.overflow = prevHtmlOverflow;
-      window.scrollTo(0, scrollY);
+      if (useFixedLock) window.scrollTo(0, scrollY);
     };
   }, [isActive]);
 
@@ -533,9 +539,10 @@ export function AutoFriendDrop() {
     };
   }, [isActive, activeTab, nativeFriendDrop]);
 
-  const tapLive =
+  const tapListening =
+    isActive &&
     activeTab === 'tap' &&
-    (nativeFriendDrop.isActive || isActive);
+    phase === 'activated';
 
   if (!isFullyLoggedIn(user, profile, authLoading)) return null;
 
@@ -602,7 +609,10 @@ export function AutoFriendDrop() {
       {isActive && (
         <>
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            className={cn(
+              'fixed inset-0 bg-black/70',
+              !reduceFriendLinkMotion && 'backdrop-blur-sm'
+            )}
             style={{ zIndex: 10080, touchAction: 'none', overscrollBehavior: 'contain' }}
             onClick={handleClose}
             onPointerDown={(e) => {
@@ -759,51 +769,33 @@ export function AutoFriendDrop() {
                       exit={{ opacity: 0, y: -8 }}
                       className="flex flex-col items-center gap-4 py-2"
                     >
-                      <div className="relative flex h-44 w-full items-center justify-center overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-accent/10">
-                        {[0, 1, 2].map((i) => (
-                          <motion.div
-                            key={i}
-                            className="absolute h-20 w-20 rounded-full border-2 border-primary/40"
-                            initial={false}
-                            animate={{ scale: [0.6, 2.2], opacity: [0.55, 0] }}
-                            transition={{ duration: 2.4, repeat: Infinity, delay: i * 0.75, ease: [0.22, 1, 0.36, 1] }}
-                          />
-                        ))}
-                        <div className="relative flex items-center justify-center gap-4">
-                          <motion.div animate={{ x: tapLive ? [0, 10, 0] : 0, rotate: -7 }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}>
-                            <div className="relative h-24 w-14 rounded-[18px] border border-primary/35 bg-card shadow-2xl shadow-primary/20">
-                              <div className="absolute left-1/2 top-1 h-3 w-5 -translate-x-1/2 rounded-b-lg bg-muted" />
-                              <div className="absolute inset-x-2 bottom-3 top-5 overflow-hidden rounded-xl bg-secondary">
-                                <Avatar className="h-full w-full rounded-xl">
-                                  <AvatarImage src={profile?.avatar_url || ''} className="h-full w-full object-cover" />
-                                  <AvatarFallback className="rounded-xl bg-gradient-to-br from-primary to-accent text-lg font-black text-primary-foreground">
-                                    {profile?.username?.[0]?.toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                              </div>
-                            </div>
-                          </motion.div>
-                          <motion.div className="flex flex-col items-center gap-1" animate={{ scale: tapLive ? [1, 1.12, 1] : 1 }} transition={{ duration: 1.2, repeat: Infinity }}>
-                            <Wifi className="h-5 w-5 text-primary" />
-                            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                          </motion.div>
-                          <motion.div animate={{ x: tapLive ? [0, -10, 0] : 0, rotate: 7 }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}>
-                            <div className="relative flex h-24 w-14 items-center justify-center rounded-[18px] border border-accent/35 bg-card shadow-2xl shadow-accent/20">
-                              <div className="absolute left-1/2 top-1 h-3 w-5 -translate-x-1/2 rounded-b-lg bg-muted" />
-                              <Smartphone className="h-8 w-8 text-accent" />
-                            </div>
-                          </motion.div>
-                        </div>
-                      </div>
+                      <FriendLinkTapAnimation
+                        active={tapListening}
+                        avatarUrl={profile?.avatar_url}
+                        username={profile?.username}
+                      />
 
                       <div className="text-center">
                         <div className="flex items-center justify-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                          <h3 className="text-base font-black text-foreground">Ready to tap</h3>
-                          <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">LIVE</span>
+                          {tapListening ? (
+                            <span className="relative flex h-2 w-2">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                            </span>
+                          ) : (
+                            <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
+                          )}
+                          <h3 className="text-base font-black text-foreground">
+                            {tapListening ? 'Ready to tap' : 'Starting tap…'}
+                          </h3>
+                          {tapListening && (
+                            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                              LIVE
+                            </span>
+                          )}
                         </div>
                         <p className="mx-auto mt-1 max-w-[280px] text-xs leading-relaxed text-muted-foreground">
-                          Hold phones together. Friend Link keeps scanning instantly and confirms the connection when a nearby phone is found.
+                          Hold phones back-to-back. Friend Link listens instantly and connects when a nearby phone is found.
                         </p>
                       </div>
 
@@ -842,7 +834,12 @@ export function AutoFriendDrop() {
                           {qrSvg ? (
                             <div className="h-full w-full [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: qrSvg }} />
                           ) : (
-                            <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                            <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
+                              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                              <span className="text-[10px] font-semibold text-muted-foreground">
+                                {friendDropSync.isCreating || !activeDropId ? 'Preparing your link…' : 'Loading QR…'}
+                              </span>
+                            </div>
                           )}
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="rounded-2xl bg-white p-1 shadow-lg">

@@ -56,8 +56,8 @@ export default function AddFriend() {
     }
   }, [authLoading, user, userId, navigate]);
 
-  // Don't allow adding yourself
-  const isSelf = user?.id === userId;
+  // Don't allow adding yourself (URL uses profile id, not auth user id)
+  const isSelf = profile?.id === userId;
 
   const handleAddFriend = async () => {
     if (!userId || isSelf) return;

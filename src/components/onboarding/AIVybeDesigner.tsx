@@ -24,7 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { applyThemeTokens, useSaveTheme, setThemePreviewLock, ThemeTokens } from '@/hooks/useCustomTheme';
+import { applyThemeTokens, useSaveTheme, setThemePreviewLock, ThemeTokens, sanitizeThemeTokens } from '@/hooks/useCustomTheme';
 import { navVisibility } from '@/lib/navVisibility';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import {
@@ -441,7 +441,8 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
 
       if (!mountedRef.current) return;
 
-      try { applyThemeTokens(theme); } catch (e) {
+      const safeTheme = sanitizeThemeTokens(theme);
+      try { applyThemeTokens(safeTheme); } catch (e) {
         console.error('applyThemeTokens failed', e);
         restoreSnapshot();
         toast.error("Couldn't apply that theme. Try another.");
@@ -449,7 +450,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         return;
       }
 
-      setGeneratedTheme(theme);
+      setGeneratedTheme({ ...safeTheme, themeName: safeTheme.themeName || theme.themeName || 'My VYBE' });
       setStep('preview');
     } catch (err: unknown) {
       console.error('[AIVybeDesigner] generation failed', err);

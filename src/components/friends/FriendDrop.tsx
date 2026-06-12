@@ -20,7 +20,7 @@ import { getPreloadedStream, requestCameraStream } from '@/hooks/useCameraPreloa
 import { LiquidBottomSheet } from '@/components/ui/glass/LiquidBottomSheet';
 import { NFCWriteSheet } from '@/components/social/NFCWriteSheet';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
-import { buildFriendDropUrl } from '@/lib/friendLinkNfc';
+import { buildFriendDropUrl, buildAddFriendUrl } from '@/lib/friendLinkNfc';
 import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
 import { NFCSwapAnimation } from '@/components/friends/NFCSwapAnimation';
 import { acquirePostCameraStream, stopStream } from '@/lib/postCameraStream';
@@ -262,10 +262,10 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const myProfileUrl = useMemo(() => (
     activeDropId
       ? buildFriendDropUrl(activeDropId)
-      : profile?.username && user?.id
-        ? `https://vybehub.app/add-friend/${user.id}`
+      : profile?.id
+        ? buildAddFriendUrl(profile.id)
         : ''
-  ), [activeDropId, profile?.username, user?.id]);
+  ), [activeDropId, profile?.id]);
 
   // Generate QR locally (instant, no network)
   useEffect(() => {
@@ -379,7 +379,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
           const dropMatch = url?.match(/\/friend-drop\/([a-zA-Z0-9-]+)/);
           if (dropMatch) { await handleDropScan(dropMatch[1]); return; }
           const userMatch = url?.match(/\/add-friend\/([a-zA-Z0-9-]+)/);
-          if (userMatch && userMatch[1] !== user?.id) { handleFoundUser(userMatch[1]); return; }
+          if (userMatch && userMatch[1] !== profile?.id) { handleFoundUser(userMatch[1]); return; }
         }
         animationFrameRef.current = requestAnimationFrame(scanFrame);
       };
@@ -389,7 +389,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
       toast.error('Could not access camera');
       setIsScanning(false);
     }
-  }, [user?.id, handleDropScan, handleFoundUser]);
+  }, [profile?.id, handleDropScan, handleFoundUser]);
 
   useFriendLinkNfcSession({
     enabled: isOpen && activeTab === 'tap' && !!myProfileUrl && !nativeFriendDrop.isAvailable,
@@ -397,9 +397,9 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
     onTarget: useCallback(
       (target) => {
         if (target.type === 'drop') void handleDropScan(target.id);
-        else if (target.id !== user?.id) void handleFoundUser(target.id);
+        else if (target.id !== profile?.id) void handleFoundUser(target.id);
       },
-      [handleDropScan, handleFoundUser, user?.id],
+      [handleDropScan, handleFoundUser, profile?.id],
     ),
   });
 
@@ -983,7 +983,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
         <NFCWriteSheet
           isOpen={showWriteSheet}
           onClose={() => setShowWriteSheet(false)}
-          value={`https://vybehub.app/add-friend/${user.id}`}
+          value={profile?.id ? buildAddFriendUrl(profile.id) : ''}
         />
       )}
     </>

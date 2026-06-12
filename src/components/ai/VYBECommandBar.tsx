@@ -87,8 +87,10 @@ export function VYBECommandBar() {
           if (action.prompt) {
             toast.loading('Generating your custom theme...');
             try {
-              await generateTheme.mutateAsync({ prompt: action.prompt });
+              const theme = await generateTheme.mutateAsync({ prompt: action.prompt });
               toast.dismiss();
+              setGlobalTheme(theme.mode === 'light' ? 'light' : 'dark');
+              applyThemeTokens(theme);
               toast.success('Custom theme generated! 🎨');
             } catch (e) {
               toast.dismiss();

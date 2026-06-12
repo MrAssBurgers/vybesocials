@@ -43,6 +43,7 @@ export default function FriendDropLink() {
       navigate('/auth', { replace: true });
       return;
     }
+    if (!profile?.id) return;
     if (startedRef.current) return;
     startedRef.current = true;
 
@@ -51,7 +52,7 @@ export default function FriendDropLink() {
         const { data: drop, error } = await supabase
           .from('friend_drops')
           .update({
-            to_user_id: user.id,
+            to_user_id: profile.id,
             status: 'scanned',
           })
           .eq('id', dropId)
@@ -65,24 +66,24 @@ export default function FriendDropLink() {
           return;
         }
 
-        const { data: profile, error: profileError } = await supabase
+        const { data: ownerProfile, error: profileError } = await supabase
           .from('profiles')
           .select('id, username, display_name, avatar_url')
           .eq('id', drop.from_user_id)
           .single();
 
-        if (profileError || !profile) {
+        if (profileError || !ownerProfile) {
           setPhase('error');
           return;
         }
 
-        if (profile.id === user.id) {
+        if (ownerProfile.id === profile.id) {
           toast.info("That's your own link");
           navigate('/home', { replace: true });
           return;
         }
 
-        setOwner(profile);
+        setOwner(ownerProfile);
         setShowSwap(true);
         setPhase('exchanging');
         haptics.success();
@@ -90,7 +91,7 @@ export default function FriendDropLink() {
         setPhase('error');
       }
     })();
-  }, [authLoading, user, dropId, navigate]);
+  }, [authLoading, user, profile?.id, dropId, navigate]);
 
   const completeRef = useRef(false);
 
