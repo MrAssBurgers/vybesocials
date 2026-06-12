@@ -645,6 +645,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               authInitializedRef.current = true;
               setSession(refreshed.session);
               setUser(refreshed.session.user);
+              setActiveAuthUserId(refreshed.session.user.id);
+              hydrateCachedProfile(refreshed.session.user.id);
               if (refreshed.session.expires_at) scheduleTokenRefresh(refreshed.session.expires_at);
               fetchProfile(refreshed.session.user.id);
               sessionStorage.removeItem('vybe-oauth-pending');
@@ -693,6 +695,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             authInitializedRef.current = true;
             setSession(data.session);
             setUser(data.session.user);
+            setActiveAuthUserId(data.session.user.id);
+            hydrateCachedProfile(data.session.user.id);
             if (data.session.expires_at) {
               scheduleTokenRefresh(data.session.expires_at);
             }
@@ -731,6 +735,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           setWasLoggedIn(true);
           setActiveAuthUserId(session.user.id);
+          hydrateCachedProfile(session.user.id);
           if (session.expires_at) {
             scheduleTokenRefresh(session.expires_at);
           }

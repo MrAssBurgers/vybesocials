@@ -201,8 +201,8 @@ export function ConversationList() {
   }, [dmProfileId, isLoading, isFetched, allConversations.length, refetchConversations]);
 
   const showListSkeleton =
-    (isLoading || (!dmProfileId && (authLoading || !profileId))) &&
-    allConversations.length === 0;
+    allConversations.length === 0 &&
+    (isLoading || (authLoading && !dmProfileId));
   
   // Get all conversation IDs for typing indicator subscription
   const conversationIds = useMemo(() => 

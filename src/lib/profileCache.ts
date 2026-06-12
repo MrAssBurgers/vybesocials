@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getStoredAuthUserId } from '@/lib/supabaseStorageKey';
 
 /**
  * Global Profile Cache - Instant identity lookups
@@ -56,9 +57,10 @@ function getCachedCurrentProfileRaw(): CachedProfile | null {
 }
 
 function isCachedProfileForActiveUser(cached: CachedProfile): boolean {
-  if (!activeAuthUserId) return false;
+  const authUserId = activeAuthUserId ?? getStoredAuthUserId();
+  if (!authUserId) return true;
   if (!cached.user_id) return true;
-  return cached.user_id === activeAuthUserId;
+  return cached.user_id === authUserId;
 }
 
 // Cache TTL - 5 minutes
