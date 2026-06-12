@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { getEffectiveProfileId } from '@/lib/profileCache';
 import { toast } from 'sonner';
 
 export interface FriendRequest {
@@ -265,9 +266,10 @@ export function useSendFriendRequest() {
 
   return useMutation({
     mutationFn: async (receiverId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      const profileId = getEffectiveProfileId(profile?.id);
+      if (!profileId) throw new Error('Profile still loading — try again in a moment');
 
-      if (receiverId === profile.id) {
+      if (receiverId === profileId) {
         throw new Error('Cannot send a friend request to yourself');
       }
 
@@ -275,14 +277,14 @@ export function useSendFriendRequest() {
         supabase
           .from('friend_requests')
           .select('id, status')
-          .eq('sender_id', profile.id)
+          .eq('sender_id', profileId)
           .eq('receiver_id', receiverId)
           .maybeSingle(),
         supabase
           .from('friend_requests')
           .select('id, status')
           .eq('sender_id', receiverId)
-          .eq('receiver_id', profile.id)
+          .eq('receiver_id', profileId)
           .maybeSingle(),
       ]);
 
@@ -298,7 +300,7 @@ export function useSendFriendRequest() {
         existingReceivedRequest?.status === 'pending' ||
         existingReceivedRequest?.status === 'accepted'
       ) {
-        const conversationCreated = await ensureDirectConversation(profile.id, receiverId);
+        const conversationCreated = await ensureDirectConversation(profileId, receiverId);
         return { alreadyExists: true, conversationCreated };
       }
 
@@ -311,13 +313,13 @@ export function useSendFriendRequest() {
         if (reviveError) throw reviveError;
       } else {
         const { error: insertError } = await supabase.from('friend_requests').insert({
-          sender_id: profile.id,
+          sender_id: profileId,
           receiver_id: receiverId,
         });
 
         if (insertError) {
           if (insertError.code === '23505') {
-            const conversationCreated = await ensureDirectConversation(profile.id, receiverId);
+            const conversationCreated = await ensureDirectConversation(profileId, receiverId);
             return { alreadyExists: true, conversationCreated };
           }
 
@@ -327,11 +329,11 @@ export function useSendFriendRequest() {
 
       await supabase.from('notifications').insert({
         user_id: receiverId,
-        actor_id: profile.id,
+        actor_id: profileId,
         type: 'friend_request',
       });
 
-      const conversationCreated = await ensureDirectConversation(profile.id, receiverId);
+      const conversationCreated = await ensureDirectConversation(profileId, receiverId);
 
       return { alreadyExists: false, conversationCreated };
     },
@@ -364,7 +366,8 @@ export function useRespondToFriendRequest() {
       requestId: string;
       action: 'accept' | 'decline';
     }) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      const profileId = getEffectiveProfileId(profile?.id);
+      if (!profileId) throw new Error('Profile still loading — try again in a moment');
 
       const { data: request, error: requestError } = await supabase
         .from('friend_requests')
@@ -387,7 +390,7 @@ export function useRespondToFriendRequest() {
       // Notify the sender about the decision
       await supabase.from('notifications').insert({
         user_id: request.sender_id,
-        actor_id: profile.id,
+        actor_id: profileId,
         type: action === 'accept' ? 'friend_accepted' : 'friend_declined',
       });
 
@@ -410,7 +413,8 @@ export function useCancelFriendRequest() {
 
   return useMutation({
     mutationFn: async (requestId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      const profileId = getEffectiveProfileId(profile?.id);
+      if (!profileId) throw new Error('Profile still loading — try again in a moment');
 
       const { error } = await supabase
         .from('friend_requests')
@@ -433,13 +437,14 @@ export function useUnfriend() {
 
   return useMutation({
     mutationFn: async (friendId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      const profileId = getEffectiveProfileId(profile?.id);
+      if (!profileId) throw new Error('Profile still loading — try again in a moment');
 
       // Delete friend request in either direction
       await supabase
         .from('friend_requests')
         .delete()
-        .or(`and(sender_id.eq.${profile.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${profile.id})`);
+        .or(`and(sender_id.eq.${profileId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${profileId})`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friend-requests'] });

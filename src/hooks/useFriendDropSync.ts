@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { getEffectiveProfileId } from '@/lib/profileCache';
 import { haptics } from '@/lib/haptics';
 
 export interface FriendDrop {
@@ -32,6 +33,7 @@ export function useFriendDropSync({
   onCompleted,
 }: UseFriendDropSyncOptions = {}) {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
   const [activeDrop, setActiveDrop] = useState<FriendDrop | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -44,7 +46,7 @@ export function useFriendDropSync({
 
   // Create a new drop session (called by QR owner)
   const createDrop = useCallback(async (): Promise<FriendDrop | null> => {
-    if (!profile?.id) return null;
+    if (!profileId) return null;
     
     setIsCreating(true);
     try {
@@ -52,14 +54,14 @@ export function useFriendDropSync({
       await supabase
         .from('friend_drops')
         .delete()
-        .eq('from_user_id', profile.id)
+        .eq('from_user_id', profileId)
         .eq('status', 'pending');
 
       // Create new drop
       const { data, error } = await supabase
         .from('friend_drops')
         .insert({
-          from_user_id: profile.id,
+          from_user_id: profileId,
           status: 'pending',
         })
         .select()
@@ -76,18 +78,18 @@ export function useFriendDropSync({
     } finally {
       setIsCreating(false);
     }
-  }, [profile?.id]);
+  }, [profileId]);
 
   // Scan a drop (called by QR scanner) - returns the scanned drop
   const scanDrop = useCallback(async (dropId: string): Promise<FriendDrop | null> => {
-    if (!profile?.id) return null;
+    if (!profileId) return null;
     
     try {
       console.log('[FriendDropSync] Scanning drop:', dropId);
       const { data, error } = await supabase
         .from('friend_drops')
         .update({
-          to_user_id: profile.id,
+          to_user_id: profileId,
           status: 'scanned',
         })
         .eq('id', dropId)
@@ -105,7 +107,7 @@ export function useFriendDropSync({
       console.error('[FriendDropSync] Error scanning drop:', error);
       return null;
     }
-  }, [profile?.id]);
+  }, [profileId]);
 
   // Confirm the drop (either party can confirm after scan)
   const confirmDrop = useCallback(async (dropId: string): Promise<boolean> => {
@@ -177,17 +179,17 @@ export function useFriendDropSync({
 
   // Subscribe to realtime updates for active drop
   useEffect(() => {
-    if (!enabled || !profile?.id) return;
+    if (!enabled || !profileId) return;
 
-    console.log('[FriendDropSync] Setting up realtime subscription for user:', profile.id);
+    console.log('[FriendDropSync] Setting up realtime subscription for user:', profileId);
     
     const channel = subscribePostgresChannel(
-      `friend-drops-${profile.id}`,
+      `friend-drops-${profileId}`,
       [
         {
           event: 'UPDATE',
           table: 'friend_drops',
-          filter: `from_user_id=eq.${profile.id}`,
+          filter: `from_user_id=eq.${profileId}`,
           callback: (payload) => {
             const drop = payload.new as FriendDrop;
             if (!drop) return;
@@ -212,7 +214,7 @@ export function useFriendDropSync({
         {
           event: 'UPDATE',
           table: 'friend_drops',
-          filter: `to_user_id=eq.${profile.id}`,
+          filter: `to_user_id=eq.${profileId}`,
           callback: (payload) => {
             const drop = payload.new as FriendDrop;
             if (!drop) return;
@@ -243,7 +245,7 @@ export function useFriendDropSync({
       removeRealtimeChannel(channel);
       channelRef.current = null;
     };
-  }, [enabled, profile?.id]);
+  }, [enabled, profileId]);
 
   return {
     activeDrop,

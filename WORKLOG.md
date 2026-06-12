@@ -4,6 +4,17 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (Friend Link add-friend fix — 2026-06-09)
+- **`useFriends.ts`** — `useSendFriendRequest` / respond / cancel / unfriend use `getEffectiveProfileId()` during auth hydration
+- **`useFriendDropSync.ts`** — create/scan/realtime use cached profile id
+- **`FriendDropLink.tsx`** — `useAuthProfileId()`; no infinite "Connecting…" spinner; scan uses profile id
+- **`AddFriend.tsx`** — profile-id self-check + Quick Add exclude id fix
+- **`AutoFriendDrop.tsx`** — create drop + QR/NFC self-checks use cached profile id
+- **Build:** `npm run build` pass
+
+## Current Focus
+- **Publish** — push Friend Link fix + Lovable Publish
+
 ## What Changed (loading audit + bug reports fix — 2026-06-09)
 - **`AdminBugReports.tsx`** — fixed infinite loading (use `isPending` + role gate); retry on error; correct `resolved_by` profile id
 - **`AdminErrorsSection.tsx`** — admin-gated fetch, proper loading/error/retry states

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useFriendshipStatus, useSendFriendRequest } from '@/hooks/useFriends';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -23,7 +24,8 @@ import { stashAuthReturnPath } from '@/lib/authReturnPath';
 export default function AddFriend() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const profileId = useAuthProfileId();
   const sendRequest = useSendFriendRequest();
 
   // Fetch the target user's profile
@@ -45,7 +47,7 @@ export default function AddFriend() {
 
   const { data: friendshipStatus, isLoading: statusLoading } = useFriendshipStatus(userId);
 
-  const isLoading = authLoading || userLoading || statusLoading;
+  const isLoading = authLoading || userLoading || (!!profileId && statusLoading);
 
   // If not authenticated, redirect to login with return URL
   useEffect(() => {
@@ -57,7 +59,7 @@ export default function AddFriend() {
   }, [authLoading, user, userId, navigate]);
 
   // Don't allow adding yourself (URL uses profile id, not auth user id)
-  const isSelf = profile?.id === userId;
+  const isSelf = !!profileId && profileId === userId;
 
   const handleAddFriend = async () => {
     if (!userId || isSelf) return;
@@ -69,7 +71,8 @@ export default function AddFriend() {
       navigate('/messages');
     } catch (error) {
       haptics.error();
-      toast.error('Failed to send friend request');
+      const msg = error instanceof Error ? error.message : '';
+      toast.error(msg.includes('loading') ? msg : 'Failed to send friend request');
     }
   };
 
@@ -209,7 +212,7 @@ export default function AddFriend() {
           transition={{ delay: 0.2 }}
           className="w-full"
         >
-          <QuickAddPanel currentUserId={user?.id} excludeId={userId} />
+          <QuickAddPanel currentProfileId={profileId} excludeId={userId} />
         </motion.div>
       </div>
     </div>
@@ -221,15 +224,15 @@ export default function AddFriend() {
  * recommendations directly inside the Add Friend page.
  */
 function QuickAddPanel({
-  currentUserId,
+  currentProfileId,
   excludeId,
 }: {
-  currentUserId?: string;
+  currentProfileId?: string;
   excludeId?: string;
 }) {
   const { suggestions, isLoading } = useQuickAddSuggestions(12);
   const sendRequest = useSendFriendRequest();
-  const filtered = suggestions.filter(s => s.id !== currentUserId && s.id !== excludeId);
+  const filtered = suggestions.filter(s => s.id !== currentProfileId && s.id !== excludeId);
 
   if (isLoading && filtered.length === 0) return null;
   if (!isLoading && filtered.length === 0) return null;

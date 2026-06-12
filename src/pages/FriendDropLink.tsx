@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Loader2, UserPlus, Check, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ export default function FriendDropLink() {
   const { dropId } = useParams<{ dropId: string }>();
   const navigate = useNavigate();
   const { user, profile, loading: authLoading } = useAuth();
+  const profileId = useAuthProfileId();
   const sendRequest = useSendFriendRequest();
   const [phase, setPhase] = useState<Phase>('loading');
   const [owner, setOwner] = useState<{
@@ -43,7 +45,11 @@ export default function FriendDropLink() {
       navigate('/auth', { replace: true });
       return;
     }
-    if (!profile?.id) return;
+    if (!profileId) {
+      if (!profile) return;
+      setPhase('error');
+      return;
+    }
     if (startedRef.current) return;
     startedRef.current = true;
 
@@ -52,7 +58,7 @@ export default function FriendDropLink() {
         const { data: drop, error } = await supabase
           .from('friend_drops')
           .update({
-            to_user_id: profile.id,
+            to_user_id: profileId,
             status: 'scanned',
           })
           .eq('id', dropId)
@@ -77,7 +83,7 @@ export default function FriendDropLink() {
           return;
         }
 
-        if (ownerProfile.id === profile.id) {
+        if (ownerProfile.id === profileId) {
           toast.info("That's your own link");
           navigate('/home', { replace: true });
           return;
@@ -91,7 +97,7 @@ export default function FriendDropLink() {
         setPhase('error');
       }
     })();
-  }, [authLoading, user, profile?.id, dropId, navigate]);
+  }, [authLoading, user, profile, profileId, dropId, navigate]);
 
   const completeRef = useRef(false);
 

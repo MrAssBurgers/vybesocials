@@ -6,6 +6,7 @@ import QRCode from 'qrcode';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 import { useFriendDropSync } from '@/hooks/useFriendDropSync';
 import { useCreateConversation } from '@/hooks/useMessages';
@@ -46,6 +47,7 @@ interface FoundUser {
 
 export function AutoFriendDrop() {
   const { user, profile, loading: authLoading } = useAuth();
+  const profileId = useAuthProfileId();
   const navigate = useNavigate();
   const location = useLocation();
   const { isMobileOrTablet } = useIsMobileOrTablet();
@@ -238,7 +240,7 @@ export function AutoFriendDrop() {
       await handleDropScan(target.id);
       return;
     }
-    if (target.id === profile?.id) {
+    if (target.id === profileId) {
       exchangeLockRef.current = false;
       return;
     }
@@ -252,7 +254,7 @@ export function AutoFriendDrop() {
     }
     setFoundUser(peer);
     await handleAutoAdd(target.id);
-  }, [phase, profile?.id, handleDropScan, handleAutoAdd, stopScanning]);
+  }, [phase, profileId, handleDropScan, handleAutoAdd, stopScanning]);
 
   const nativeFriendDrop = useNativeFriendDrop({
     enabled: isActive && activeTab === 'tap',
@@ -360,12 +362,12 @@ export function AutoFriendDrop() {
       if (code) {
         const target = extractFriendTarget(code.data || '');
         if (target?.type === 'drop') { await handleDropScan(target.id); return; }
-        if (target?.type === 'user' && target.id !== profile?.id) { handleFoundUser(target.id); return; }
+        if (target?.type === 'user' && target.id !== profileId) { handleFoundUser(target.id); return; }
       }
       animationFrameRef.current = requestAnimationFrame(scanFrame);
     };
     scanFrame();
-  }, [profile?.id, handleDropScan, handleFoundUser, scanFrameMod, scanMaxWidth]);
+  }, [profileId, handleDropScan, handleFoundUser, scanFrameMod, scanMaxWidth]);
 
   startScanLoopRef.current = startScanLoop;
 
@@ -429,7 +431,7 @@ export function AutoFriendDrop() {
   });
 
   const handleBump = useCallback(async () => {
-    if (!profile?.username || !user || isActive) return;
+    if (!profileId || !user || isActive) return;
     await requestMotionPermission();
     setIsActive(true);
     setActiveTab('tap');
@@ -437,7 +439,7 @@ export function AutoFriendDrop() {
     setPhase('activated');
     setTimeout(() => haptics.success(), 300);
     friendDropSync.createDrop().then((drop) => { if (drop) setActiveDropId(drop.id); });
-  }, [profile?.username, user, friendDropSync, requestMotionPermission, isActive]);
+  }, [profileId, user, friendDropSync, requestMotionPermission, isActive]);
 
   useEffect(() => {
     handleBumpRef.current = () => {
@@ -456,7 +458,7 @@ export function AutoFriendDrop() {
         setActiveTab(nextTab);
         setPhase('activated');
         haptics.impact();
-        if (profile?.username && user) {
+        if (profileId && user) {
           friendDropSync.createDrop().then((drop) => { if (drop) setActiveDropId(drop.id); });
         }
         if (nextTab === 'qr') {
@@ -466,7 +468,7 @@ export function AutoFriendDrop() {
     };
     window.addEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
-  }, [profile?.username, user, authLoading, friendDropSync, requestMotionPermission, startCamera]);
+  }, [profileId, user, authLoading, friendDropSync, requestMotionPermission, startCamera]);
 
   const handleAddFriend = useCallback(async () => {
     if (!foundUser || completingRef.current) return;
