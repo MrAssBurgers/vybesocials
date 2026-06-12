@@ -4,6 +4,19 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (loading audit + bug reports fix — 2026-06-09)
+- **`AdminBugReports.tsx`** — fixed infinite loading (use `isPending` + role gate); retry on error; correct `resolved_by` profile id
+- **`AdminErrorsSection.tsx`** — admin-gated fetch, proper loading/error/retry states
+- **`AdminDashboard.tsx`** — shared staff gate via `isStaffGateLoading`
+- **`useUserRole`** — uses cached profile id during auth hydration
+- **`useAuthProfileId`** — new hook for tab queries during boot
+- **`useNotifications` / `useFriends` / `useUnreadMessagesCount`** — queries enable from cached profile id
+- **`adminAccess.ts`** — shared admin/mod role helpers
+- **Build:** `npm run build` pass
+
+## Current Focus
+- **Publish** — push loading audit + Lovable Publish
+
 ## What Changed (DMs not loading fix — 2026-06-09)
 - **`profileCache.ts`** — validate disk cache with `getStoredAuthUserId()` when live auth user id isn't set yet (fixes infinite skeleton on Messages tab)
 - **`auth.tsx`** — hydrate cached profile + set auth user id on all getSession/refresh success paths

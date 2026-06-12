@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Bug, CheckCircle2, Clock, AlertTriangle, Trash2, MessageSquare, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
+import { Bug, CheckCircle2, Clock, AlertTriangle, Trash2, MessageSquare, ChevronDown, ChevronUp, ArrowLeft, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useUserRole } from '@/hooks/useModeration';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { isAdminRole, isStaffGateLoading } from '@/lib/adminAccess';
+import { Button } from '@/components/ui/button';
 
 type BugStatus = 'pending' | 'reviewing' | 'fixed' | 'wont_fix' | 'duplicate';
 type AdminBugReport = {
@@ -31,12 +34,19 @@ export default function AdminBugReports() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { authReady, user } = useAuth();
-  const { data: userRole, isLoading: roleLoading } = useUserRole();
+  const profileId = useAuthProfileId();
+  const { data: userRole, isLoading: roleLoading, isFetched: roleFetched } = useUserRole();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BugStatus | 'all'>('all');
-  const canViewBugs = userRole === 'admin' || userRole === 'owner';
+  const canViewBugs = isAdminRole(userRole);
 
-  const { data: bugs = [], isLoading, isError, error } = useQuery({
+  const {
+    data: bugs = [],
+    isPending: bugsPending,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['admin-bug-reports', filter],
     queryFn: async () => {
       let query = supabase
@@ -44,30 +54,38 @@ export default function AdminBugReports() {
         .select('*, reporter:profiles!bug_reports_reporter_id_fkey(username, display_name, avatar_url)')
         .order('created_at', { ascending: false })
         .limit(100);
-      
+
       if (filter !== 'all') {
         query = query.eq('status', filter);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const { data, error: queryError } = await query;
+      if (queryError) throw queryError;
       return (data || []) as AdminBugReport[];
     },
-    enabled: authReady && !!user && canViewBugs,
+    enabled: authReady && !!(user || profileId) && canViewBugs,
+    retry: 2,
   });
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status, notes }: { id: string; status: string; notes?: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
       const update: Record<string, unknown> = { status };
       if (status === 'fixed' || status === 'wont_fix') {
         update.resolved_at = new Date().toISOString();
-        update.resolved_by = user?.id;
+        if (authUser?.id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('user_id', authUser.id)
+            .maybeSingle();
+          update.resolved_by = profile?.id || null;
+        }
       }
       if (notes) update.admin_notes = notes;
 
-      const { error } = await supabase.from('bug_reports').update(update as never).eq('id', id);
-      if (error) throw error;
+      const { error: updateError } = await supabase.from('bug_reports').update(update as never).eq('id', id);
+      if (updateError) throw updateError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-bug-reports'] });
@@ -77,8 +95,8 @@ export default function AdminBugReports() {
 
   const deleteBug = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('bug_reports').delete().eq('id', id);
-      if (error) throw error;
+      const { error: deleteError } = await supabase.from('bug_reports').delete().eq('id', id);
+      if (deleteError) throw deleteError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-bug-reports'] });
@@ -87,6 +105,8 @@ export default function AdminBugReports() {
   });
 
   const pendingCount = bugs.filter((b) => b.status === 'pending').length;
+  const gateLoading = isStaffGateLoading(authReady, roleLoading, roleFetched);
+  const showBugLoading = canViewBugs && bugsPending;
 
   return (
     <div className="min-h-screen bg-background">
@@ -125,12 +145,18 @@ export default function AdminBugReports() {
 
       {/* Bug list */}
       <div className="p-4 space-y-3">
-        {!authReady || roleLoading || isLoading ? (
+        {gateLoading || showBugLoading ? (
           <div className="text-center text-muted-foreground py-12 text-sm">Loading bug reports...</div>
         ) : !canViewBugs ? (
           <div className="text-center text-muted-foreground py-12 text-sm">Admin access required.</div>
         ) : isError ? (
-          <div className="text-center text-destructive py-12 text-sm">Failed to load bug reports: {(error as Error).message}</div>
+          <div className="text-center py-12 space-y-3">
+            <p className="text-sm text-destructive">Failed to load bug reports: {(error as Error).message}</p>
+            <Button size="sm" variant="secondary" onClick={() => refetch()}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              Retry
+            </Button>
+          </div>
         ) : bugs.length === 0 ? (
           <div className="text-center py-12">
             <Bug className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />

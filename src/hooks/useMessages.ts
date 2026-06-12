@@ -69,17 +69,18 @@ export interface Conversation {
 // Hook to get total unread message count across all conversations
 export function useUnreadMessagesCount() {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
 
   return useQuery({
-    queryKey: ['unread-messages-count', profile?.id],
+    queryKey: ['unread-messages-count', profileId],
     queryFn: async () => {
-      if (!profile?.id) return 0;
+      if (!profileId) return 0;
 
       // Get conversations the user is part of
       const { data: memberships } = await supabase
         .from('conversation_members')
         .select('conversation_id, last_read_at')
-        .eq('user_id', profile.id);
+        .eq('user_id', profileId);
 
       if (!memberships?.length) return 0;
 
@@ -90,7 +91,7 @@ export function useUnreadMessagesCount() {
           .from('messages')
           .select('id', { count: 'exact', head: true })
           .eq('conversation_id', membership.conversation_id)
-          .neq('sender_id', profile.id)
+          .neq('sender_id', profileId)
           .gt('created_at', lastReadAt)
           .eq('is_deleted', false);
 
@@ -99,7 +100,7 @@ export function useUnreadMessagesCount() {
 
       return totalUnread;
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
     staleTime: 30000, // 30 seconds - faster updates for badge sync
     refetchInterval: 60000, // Check every minute
     refetchOnWindowFocus: true, // Ensure fresh count when user returns

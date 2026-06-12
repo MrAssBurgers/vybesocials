@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
 
 export interface FriendRequest {
@@ -27,17 +28,18 @@ export interface FriendRequest {
 
 export function useFriendRequests() {
   const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   // Real-time subscription for friend requests
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profileId) return;
 
-    const channel = subscribePostgresChannel(`friend-requests:${profile.id}`, [
+    const channel = subscribePostgresChannel(`friend-requests:${profileId}`, [
       {
         event: 'INSERT',
         table: 'friend_requests',
-        filter: `receiver_id=eq.${profile.id}`,
+        filter: `receiver_id=eq.${profileId}`,
         callback: async (payload) => {
           console.log('[FriendRequests] New incoming request:', payload.new);
           
@@ -58,7 +60,7 @@ export function useFriendRequests() {
       {
         event: 'UPDATE',
         table: 'friend_requests',
-        filter: `sender_id=eq.${profile.id}`,
+        filter: `sender_id=eq.${profileId}`,
         callback: (payload) => {
           console.log('[FriendRequests] Request updated (outgoing):', payload.new);
           const status = (payload.new as any).status;
@@ -74,12 +76,12 @@ export function useFriendRequests() {
     return () => {
       removeRealtimeChannel(channel);
     };
-  }, [profile?.id, queryClient]);
+  }, [profileId, queryClient]);
 
   return useQuery({
-    queryKey: ['friend-requests', profile?.id],
+    queryKey: ['friend-requests', profileId],
     queryFn: async () => {
-      if (!profile?.id) return { incoming: [], outgoing: [] };
+      if (!profileId) return { incoming: [], outgoing: [] };
 
       const { data: incoming, error: inError } = await supabase
         .from('friend_requests')
@@ -87,7 +89,7 @@ export function useFriendRequests() {
           *,
           sender:profiles!sender_id(id, user_id, username, avatar_url, display_name)
         `)
-        .eq('receiver_id', profile.id)
+        .eq('receiver_id', profileId)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
@@ -99,7 +101,7 @@ export function useFriendRequests() {
           *,
           receiver:profiles!receiver_id(id, user_id, username, avatar_url, display_name)
         `)
-        .eq('sender_id', profile.id)
+        .eq('sender_id', profileId)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
@@ -110,7 +112,7 @@ export function useFriendRequests() {
         outgoing: outgoing as FriendRequest[],
       };
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
     staleTime: 30000, // Reduced to 30 seconds with realtime
     refetchOnMount: true,
     refetchOnWindowFocus: true,
@@ -118,12 +120,12 @@ export function useFriendRequests() {
 }
 
 export function useFriends() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['friends', profile?.id],
+    queryKey: ['friends', profileId],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       // Get accepted friend requests where user is sender or receiver
       const { data: asSender, error: senderError } = await supabase
@@ -131,7 +133,7 @@ export function useFriends() {
         .select(`
           receiver:profiles!receiver_id(id, user_id, username, avatar_url, display_name)
         `)
-        .eq('sender_id', profile.id)
+        .eq('sender_id', profileId)
         .eq('status', 'accepted');
 
       if (senderError) throw senderError;
@@ -141,7 +143,7 @@ export function useFriends() {
         .select(`
           sender:profiles!sender_id(id, user_id, username, avatar_url, display_name)
         `)
-        .eq('receiver_id', profile.id)
+        .eq('receiver_id', profileId)
         .eq('status', 'accepted');
 
       if (receiverError) throw receiverError;
@@ -153,7 +155,7 @@ export function useFriends() {
 
       return friends;
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
     staleTime: 2 * 60 * 1000, // 2 minutes cache
     gcTime: 1000 * 60 * 60 * 24 * 14, // 14 days — keep friends available offline for DMs
     refetchOnMount: false,
@@ -167,12 +169,12 @@ export function useFriends() {
 }
 
 export function useFriendshipStatus(targetUserId: string | undefined) {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['friendship-status', profile?.id, targetUserId],
+    queryKey: ['friendship-status', profileId, targetUserId],
     queryFn: async () => {
-      if (!profile?.id || !targetUserId || profile.id === targetUserId) {
+      if (!profileId || !targetUserId || profileId === targetUserId) {
         return { status: 'none' as const, requestId: null };
       }
 
@@ -180,7 +182,7 @@ export function useFriendshipStatus(targetUserId: string | undefined) {
       const { data: sentRequest } = await supabase
         .from('friend_requests')
         .select('id, status')
-        .eq('sender_id', profile.id)
+        .eq('sender_id', profileId)
         .eq('receiver_id', targetUserId)
         .maybeSingle();
 
@@ -196,7 +198,7 @@ export function useFriendshipStatus(targetUserId: string | undefined) {
         .from('friend_requests')
         .select('id, status')
         .eq('sender_id', targetUserId)
-        .eq('receiver_id', profile.id)
+        .eq('receiver_id', profileId)
         .maybeSingle();
 
       if (receivedRequest) {
@@ -208,7 +210,7 @@ export function useFriendshipStatus(targetUserId: string | undefined) {
 
       return { status: 'none' as const, requestId: null };
     },
-    enabled: !!profile?.id && !!targetUserId,
+    enabled: !!profileId && !!targetUserId,
     staleTime: 60000, // 1 minute cache
     refetchOnMount: false,
     refetchOnWindowFocus: false,

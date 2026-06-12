@@ -10,6 +10,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { useUserRole, useReports, useContentFlags, useAllUserRoles } from '@/hooks/useModeration';
 import { useAllWarnings, useAllBans } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
+import { isModOrAdminRole, isStaffGateLoading } from '@/lib/adminAccess';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -61,7 +62,7 @@ const navItems: NavItem[] = [
 
 export default function AdminDashboard() {
   const { authReady, user } = useAuth();
-  const { data: userRole, isLoading: roleLoading } = useUserRole();
+  const { data: userRole, isLoading: roleLoading, isFetched: roleFetched } = useUserRole();
   const { data: reports = [] } = useReports();
   const { data: flags = [] } = useContentFlags();
   const { data: warnings = [] } = useAllWarnings();
@@ -129,9 +130,9 @@ export default function AdminDashboard() {
   });
 
   const isAdmin = userRole === 'admin' || userRole === 'owner';
-  const isModOrAdmin = userRole === 'admin' || userRole === 'owner' || userRole === 'moderator';
+  const isModOrAdmin = isModOrAdminRole(userRole);
 
-  if (!authReady || roleLoading) {
+  if (isStaffGateLoading(authReady, roleLoading, roleFetched)) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-screen">

@@ -6,6 +6,8 @@ import { AlertTriangle, Bug, RefreshCw, Trash2, CheckCircle2, Clock, ChevronDown
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useBugRecheck } from '@/contexts/BugRecheckContext';
+import { useUserRole } from '@/hooks/useModeration';
+import { isAdminRole } from '@/lib/adminAccess';
 
 
 type BugStatus = 'pending' | 'reviewing' | 'fixed' | 'wont_fix' | 'duplicate';
@@ -20,13 +22,15 @@ const STATUS_CONFIG: Record<BugStatus, { label: string; icon: typeof Bug; color:
 
 export function AdminErrorsSection() {
   const queryClient = useQueryClient();
+  const { data: userRole, isFetched: roleFetched } = useUserRole();
+  const canView = isAdminRole(userRole);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BugStatus | 'all'>('all');
   // Error monitor ONLY shows AI-verified bugs — no toggle, no noise.
   const verifiedOnly = true;
   const recheck = useBugRecheck();
 
-  const { data: bugs = [], isLoading, refetch } = useQuery({
+  const { data: bugs = [], isPending, isError, error, refetch } = useQuery({
     queryKey: ['admin-bug-reports-inline', filter, verifiedOnly],
     queryFn: async () => {
       let query = supabase
@@ -44,14 +48,16 @@ export function AdminErrorsSection() {
         if (filter === 'all') query = query.neq('status', 'fixed');
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const { data, error: queryError } = await query;
+      if (queryError) throw queryError;
       return data || [];
     },
+    enabled: roleFetched && canView,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: 'always',
     placeholderData: (prev) => prev,
+    retry: 2,
   });
 
   // Lazy fetch full payload (error_stack) only when a row is expanded.
@@ -144,8 +150,28 @@ export function AdminErrorsSection() {
 
   const pendingCount = bugs.filter((b: any) => b.status === 'pending').length;
 
-  if (isLoading) {
+  if (!roleFetched) {
     return <div className="p-4 text-muted-foreground text-sm">Loading bug reports...</div>;
+  }
+
+  if (!canView) {
+    return <div className="p-4 text-muted-foreground text-sm">Admin access required.</div>;
+  }
+
+  if (isPending && bugs.length === 0) {
+    return <div className="p-4 text-muted-foreground text-sm">Loading bug reports...</div>;
+  }
+
+  if (isError) {
+    return (
+      <div className="p-4 text-center space-y-3">
+        <p className="text-sm text-destructive">Failed to load bug reports: {(error as Error).message}</p>
+        <Button size="sm" variant="secondary" onClick={() => refetch()}>
+          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+          Retry
+        </Button>
+      </div>
+    );
   }
 
   return (

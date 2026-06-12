@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { getEffectiveProfileId } from '@/lib/profileCache';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
 export interface ContentFlag {
@@ -138,11 +139,12 @@ export function useUpdateReport() {
 
 export function useUserRole() {
   const { profile, user, authReady } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
 
   return useQuery({
-    queryKey: ['user-role', profile?.id, user?.id],
+    queryKey: ['user-role', profileId, user?.id],
     queryFn: async () => {
-      if (!profile?.id && !user?.id) return null;
+      if (!profileId && !user?.id) return null;
 
       // 1) Authoritative path: SECURITY DEFINER RPC bypasses any RLS edge cases
       try {
@@ -156,8 +158,8 @@ export function useUserRole() {
 
       // 2) Fallback: query both role tables directly (may be hidden by RLS)
       const [profileRoles, authRoles] = await Promise.all([
-        profile?.id
-          ? supabase.from('user_roles').select('role').eq('user_id', profile.id)
+        profileId
+          ? supabase.from('user_roles').select('role').eq('user_id', profileId)
           : Promise.resolve({ data: [], error: null }),
         user?.id
           ? supabase.from('user_roles_auth').select('role').eq('user_id', user.id)
@@ -175,11 +177,11 @@ export function useUserRole() {
       // 3) Badge-based fallback: anyone who has been awarded an Owner / Admin /
       //    Moderator badge gets the matching effective role so they immediately
       //    see the admin panel (covers users granted via badges only).
-      if (profile?.id) {
+      if (profileId) {
         const { data: badgeRows } = await supabase
           .from('user_badges')
           .select('badge_name, badge_type')
-          .eq('user_id', profile.id);
+          .eq('user_id', profileId);
         const names = (badgeRows || []).map((b: any) => String(b.badge_name || '').toLowerCase());
         if (names.includes('owner') || names.includes("owner's wife")) return 'owner';
         if (names.includes('admin')) return 'admin';
@@ -188,8 +190,9 @@ export function useUserRole() {
 
       return null;
     },
-    enabled: authReady && (!!profile?.id || !!user?.id),
+    enabled: authReady && (!!profileId || !!user?.id),
     staleTime: 60 * 1000,
+    retry: 2,
   });
 }
 

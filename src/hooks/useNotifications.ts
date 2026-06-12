@@ -2,7 +2,7 @@ import { useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
 
 // Check notification permission — never auto-request on web to avoid browser bell prompts
@@ -56,13 +56,13 @@ interface Notification {
 }
 
 export function useNotifications() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ['notifications', profile?.id],
+    queryKey: ['notifications', profileId],
     queryFn: async (): Promise<Notification[]> => {
-      if (!profile) return [];
+      if (!profileId) return [];
 
       // Use a simpler query structure for faster loading
       const { data, error } = await supabase
@@ -82,7 +82,7 @@ export function useNotifications() {
           subtype,
           meta
         `)
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .order('created_at', { ascending: false })
         .limit(30);
 
@@ -130,7 +130,7 @@ export function useNotifications() {
         },
       }));
     },
-    enabled: !!profile,
+    enabled: !!profileId,
     staleTime: 60000, // Cache for 1 minute
     gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
     refetchOnWindowFocus: false,
@@ -140,15 +140,15 @@ export function useNotifications() {
 
   // Subscribe to real-time notifications
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profileId) return;
 
-    const channel = subscribePostgresChannel(`notifications:${profile.id}`, [
+    const channel = subscribePostgresChannel(`notifications:${profileId}`, [
       {
         event: 'INSERT',
         table: 'notifications',
-        filter: `user_id=eq.${profile.id}`,
+        filter: `user_id=eq.${profileId}`,
         callback: async (payload) => {
-          if (payload.new.actor_id === profile.id) {
+          if (payload.new.actor_id === profileId) {
             return;
           }
 
@@ -191,23 +191,23 @@ export function useNotifications() {
     return () => {
       removeRealtimeChannel(channel);
     };
-  }, [profile?.id, queryClient]);
+  }, [profileId, queryClient]);
 
   return query;
 }
 
 export function useMarkNotificationsRead() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async () => {
-      if (!profile) return;
+      if (!profileId) return;
 
       await supabase
         .from('notifications')
         .update({ read: true })
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .eq('read', false);
     },
     onSuccess: () => {
@@ -218,22 +218,22 @@ export function useMarkNotificationsRead() {
 }
 
 export function useUnreadCount() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['unread-notifications', profile?.id],
+    queryKey: ['unread-notifications', profileId],
     queryFn: async () => {
-      if (!profile) return 0;
+      if (!profileId) return 0;
 
       const { count } = await supabase
         .from('notifications')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .eq('read', false);
 
       return count || 0;
     },
-    enabled: !!profile,
+    enabled: !!profileId,
     staleTime: 60000, // Cache for 1 minute
     gcTime: 1000 * 60 * 10,
     refetchInterval: 60000, // Poll every minute instead of 30s
@@ -243,22 +243,22 @@ export function useUnreadCount() {
 }
 
 export function usePendingFriendRequestCount() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['pending-friend-requests-count', profile?.id],
+    queryKey: ['pending-friend-requests-count', profileId],
     queryFn: async () => {
-      if (!profile) return 0;
+      if (!profileId) return 0;
 
       const { count } = await supabase
         .from('friend_requests')
         .select('id', { count: 'exact', head: true })
-        .eq('receiver_id', profile.id)
+        .eq('receiver_id', profileId)
         .eq('status', 'pending');
 
       return count || 0;
     },
-    enabled: !!profile,
+    enabled: !!profileId,
     staleTime: 30000,
     gcTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
