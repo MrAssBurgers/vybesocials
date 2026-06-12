@@ -4,6 +4,15 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (DMs not loading fix — 2026-06-09)
+- **`profileCache.ts`** — validate disk cache with `getStoredAuthUserId()` when live auth user id isn't set yet (fixes infinite skeleton on Messages tab)
+- **`auth.tsx`** — hydrate cached profile + set auth user id on all getSession/refresh success paths
+- **`ConversationList.tsx`** — skeleton only while auth loading or first fetch, not forever when profile id missing
+- **Build:** `npm run build` pass
+
+## Current Focus
+- **Publish** — push DMs fix + Lovable Publish
+
 ## What Changed (Snapchat poster stories + smooth clip progress — 2026-06-09)
 - **`StoryPoster.tsx`** — rounded poster tiles (Snapchat-style) replace circular `StoryRing`
 - **`StoriesBar.tsx`** — shows story cover thumbnails with yellow unviewed border; avatar only on empty “add story” tile
