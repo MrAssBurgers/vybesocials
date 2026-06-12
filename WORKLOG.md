@@ -15,13 +15,18 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Migration:** `20260609120000_story_thumbnail_url.sql` — `stories.thumbnail_url`
 - **Build:** `npm run build` pass
 
-## Current Focus
-- **Publish** — push story poster + clip progress changes + apply Supabase migration + Lovable Publish
+## Publish status (2026-06-09)
+- **Git:** `eb2d7d1c` pushed to `origin/main` (poster stories, clip progress, profile cache fix)
+- **Web:** Click **Lovable → Share → Publish** → https://vybehub.app
+- **DB:** Run on prod Supabase (`agtcyxjxgkdyoxwxkjth`) before/after publish:
+  ```sql
+  ALTER TABLE public.stories ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
+  ```
+- **After publish:** force-quit iPhone app; hard-refresh browser
+- **Build:** `npm run build` pass
 
-## Next 3 Tasks
-1. Apply `20260609120000_story_thumbnail_url.sql` on prod Supabase (`agtcyxjxgkdyoxwxkjth`)
-2. Lovable Publish + force-quit app on iPhone to bust cache
-3. Smoke test: create story (auto cover + manual cover), stories bar posters, clip progress + sound wave when unmuted
+## Current Focus
+- **You:** Lovable Publish + apply `thumbnail_url` migration in Supabase SQL editor
 
 ## What Changed (Friend Link QR + iPhone perf — 2026-06-09)
 - **`FriendDropLink.tsx`** — scan deep link uses `profile.id` (not auth `user.id`); fixed self-check vs owner profile
