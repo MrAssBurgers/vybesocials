@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 import { fetchWithTimeout } from '@/lib/withTimeout';
-import { useVybeAgent, isAgentUnavailableError, isAgentAuthError } from '@/lib/agent/useVybeAgent';
+import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError } from '@/lib/agent/useVybeAgent';
 import { formatAgentActionSummary } from '@/lib/agent/formatActionSummary';
 import { agentDebugLog } from '@/lib/agent/agentDebugLog';
 import { cn } from '@/lib/utils';
@@ -280,7 +280,9 @@ export default function AIChat() {
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     clearImage();
+    // Show typing indicator immediately — before agent/encode/network work
     setIsLoading(true);
+    setStreamingText('');
 
     let assistantContent = '';
     streamingContentRef.current = '';
@@ -298,8 +300,7 @@ export default function AIChat() {
       }, 'H0-env');
       // #endregion
 
-      // Text-only: unified agent (chat + navigate + theme + widgets)
-      let useChatFallback = false;
+      // Text-only: unified agent (chat + navigate + theme + widgets), then ai-chat fallback
       if (!imageBase64) {
         try {
           const agentResult = await sendAndExecute({
@@ -320,19 +321,12 @@ export default function AIChat() {
           // #region agent log
           agentDebugLog('AIChat:sendMessage', 'agent path failed', {
             message: agentErr instanceof Error ? agentErr.message : String(agentErr),
-            unavailable: isAgentUnavailableError(agentErr),
+            fallback: shouldFallbackToAiChat(agentErr),
             auth: isAgentAuthError(agentErr),
           }, 'H1-deploy');
           // #endregion
-          if (isAgentAuthError(agentErr)) {
-            toast.error(agentErr instanceof Error ? agentErr.message : 'Sign in required');
-            return;
-          }
-          if (!isAgentUnavailableError(agentErr)) {
-            throw agentErr;
-          }
-          useChatFallback = true;
-          toast.info('Agent mode unavailable — using chat', { duration: 2500 });
+          toast.info('Using chat mode', { duration: 2000 });
+          // Fall through to streaming ai-chat — never leave the user with silence
         }
       }
 
@@ -362,8 +356,18 @@ export default function AIChat() {
         } catch {
           // ignore parse errors
         }
-        if (response.status === 429) { toast.error('Too many requests. Wait a moment.'); return; }
-        if (response.status === 402) { toast.error('AI credits exhausted.'); return; }
+        if (response.status === 429) {
+          const rateMsg = 'Too many requests. Wait a moment.';
+          toast.error(rateMsg);
+          setMessages(prev => [...prev, { role: 'assistant', content: rateMsg, timestamp: new Date() }]);
+          return;
+        }
+        if (response.status === 402) {
+          const creditsMsg = 'AI credits exhausted.';
+          toast.error(creditsMsg);
+          setMessages(prev => [...prev, { role: 'assistant', content: creditsMsg, timestamp: new Date() }]);
+          return;
+        }
         throw new Error(errMsg);
       }
 

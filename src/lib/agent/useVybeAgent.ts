@@ -40,6 +40,25 @@ export function isAgentAuthError(err: unknown): boolean {
   return err instanceof AgentRequestError && err.status === 401;
 }
 
+/** Whether a failed agent request should fall back to streaming ai-chat instead of stopping */
+export function shouldFallbackToAiChat(err: unknown): boolean {
+  if (err instanceof AgentRequestError) {
+    // 401 after refresh, undeployed fn, AI misconfig, gateway errors — chat may still work
+    return (
+      err.status === 401 ||
+      err.status === 404 ||
+      err.status === 500 ||
+      err.status === 502 ||
+      err.status === 503
+    );
+  }
+  if (err instanceof Error) {
+    if (err.message === 'Not authenticated') return true;
+    return /fetch|network|timeout|Failed to fetch|abort/i.test(err.message);
+  }
+  return true;
+}
+
 async function parseAgentResponseBody(res: Response): Promise<{
   message?: string;
   actions?: unknown[];
