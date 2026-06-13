@@ -4,6 +4,7 @@
  * when repeated issues are detected. Also provides auto-recovery utilities.
  */
 import { toast } from 'sonner';
+import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
 
 interface ErrorRecord {
   key: string;
@@ -195,8 +196,7 @@ export function clearAppCache() {
 /** Force a Supabase session refresh */
 async function refreshAuth() {
   try {
-    const { supabase } = await import('@/integrations/supabase/client');
-    await supabase.auth.refreshSession();
+    await refreshSupabaseSession();
   } catch {
     // Silent fail — worst case user re-logs
   }

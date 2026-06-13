@@ -1,34 +1,37 @@
 import { supabase } from '@/integrations/supabase/client';
+import { isLovablePreviewHost } from '@/lib/lovablePreview';
+import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
 
 const REFRESH_INTERVAL_MS = 20 * 60 * 1000;
+const RESUME_DEBOUNCE_MS = 8000;
 
 let installed = false;
 let intervalId: ReturnType<typeof setInterval> | null = null;
+let lastResumeAt = 0;
 
-async function refreshIfNeeded() {
+async function refreshIfNeeded(force = false) {
   if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
   if (!hasStoredSupabaseSession()) return;
 
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.user) {
     setWasLoggedIn(true);
-    if (session.expires_at) {
+    if (!force && session.expires_at) {
       const expiresMs = session.expires_at * 1000;
-      if (expiresMs - Date.now() < 10 * 60 * 1000) {
-        await supabase.auth.refreshSession();
-      }
+      if (expiresMs - Date.now() >= 10 * 60 * 1000) return;
     }
-    return;
   }
 
-  await supabase.auth.refreshSession();
+  await refreshSupabaseSession();
 }
 
-/** Keeps Supabase sessions warm on native shells (iOS/Android WebView). */
+/** Keeps Supabase sessions warm on native shells (iOS/Android WebView). Skipped on Lovable preview. */
 export function installAuthSessionKeepAlive(): void {
   if (installed || typeof window === 'undefined') return;
+  if (isLovablePreviewHost()) return;
+
   installed = true;
 
   const tick = () => {
@@ -38,7 +41,13 @@ export function installAuthSessionKeepAlive(): void {
   tick();
   intervalId = setInterval(tick, REFRESH_INTERVAL_MS);
 
-  const onResume = () => tick();
+  const onResume = () => {
+    const now = Date.now();
+    if (now - lastResumeAt < RESUME_DEBOUNCE_MS) return;
+    lastResumeAt = now;
+    void refreshIfNeeded();
+  };
+
   document.addEventListener('visibilitychange', onResume);
   window.addEventListener('app-resumed', onResume);
   window.addEventListener('pageshow', (event) => {

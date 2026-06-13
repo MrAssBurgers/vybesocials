@@ -13,6 +13,9 @@ import { hasStoredSupabaseSession, getStoredAuthUserId } from '@/lib/supabaseSto
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { isLovablePreviewHost } from '@/lib/lovablePreview';
+import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
+import { clearFunctionAuthHeadersCache } from '@/lib/functionAuth';
 import { logEvent } from '@/lib/debugLogger';
 import {
   clearSignupUsername,
@@ -27,7 +30,15 @@ import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeC
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 function getStoredSessionRefreshTimeoutMs(): number {
+  if (isLovablePreviewHost()) return 12000;
   return isDespiaRuntime() ? 15000 : 8000;
+}
+
+function getAuthInitTimeouts() {
+  if (isLovablePreviewHost()) {
+    return { safetyMs: 8000, getSessionMs: 5000 };
+  }
+  return { safetyMs: 3500, getSessionMs: 2500 };
 }
 
 function isFatalRefreshError(message: string): boolean {
@@ -50,12 +61,7 @@ function isFatalRefreshError(message: string): boolean {
 }
 
 async function refreshStoredSession(timeoutMs = getStoredSessionRefreshTimeoutMs()) {
-  const refreshPromise = supabase.auth.refreshSession();
-  const timeoutPromise = new Promise<{ data: { session: null }; error: null }>((resolve) => {
-    setTimeout(() => resolve({ data: { session: null }, error: null }), timeoutMs);
-  });
-
-  return Promise.race([refreshPromise, timeoutPromise]) as ReturnType<typeof supabase.auth.refreshSession>;
+  return refreshSupabaseSession(timeoutMs);
 }
 
 interface Profile {
@@ -297,7 +303,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (delay > 0 && delay < 24 * 60 * 60 * 1000) { // Max 24 hours
       refreshTimerRef.current = setTimeout(async () => {
         try {
-          const { data, error } = await supabase.auth.refreshSession();
+          const { data, error } = await refreshSupabaseSession();
           if (error) {
             console.error('Token refresh failed:', error);
             if (isFatalRefreshError(error.message)) {
@@ -547,13 +553,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Never block launch if getSession / refresh hangs (App Review 2.1a iPad).
+    const { safetyMs, getSessionMs } = getAuthInitTimeouts();
     const authSafetyTimeout = window.setTimeout(() => {
       if (authInitializedRef.current) return;
       logEvent('auth', 'Auth init safety timeout — continuing');
       authInitializedRef.current = true;
       setLoading(false);
       setIsInitialized(true);
-    }, 3500);
+    }, safetyMs);
 
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -664,11 +671,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
+    let lastResumeRefreshAt = 0;
     const resumeRefresh = () => {
       if (document.visibilityState !== 'visible') return;
       if (!hasStoredSupabaseSession()) return;
+
+      const now = Date.now();
+      const debounceMs = isLovablePreviewHost() ? 5000 : 2000;
+      if (now - lastResumeRefreshAt < debounceMs) return;
+      lastResumeRefreshAt = now;
+
       void supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!session?.user) void supabase.auth.refreshSession();
+        if (session?.user && session.expires_at) {
+          const expiresMs = session.expires_at * 1000;
+          if (expiresMs - Date.now() > 5 * 60 * 1000) return;
+        }
+        if (!session?.user) void refreshSupabaseSession();
       });
     };
     document.addEventListener('visibilitychange', resumeRefresh);
@@ -815,7 +833,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (getSessionHandled) return;
         logEvent('auth', 'getSession timed out — continuing');
         void handleGetSession({ data: { session: null }, error: null });
-      }, 2500);
+      }, getSessionMs);
 
       supabase.auth.getSession().then((result) => {
         window.clearTimeout(getSessionTimeout);
@@ -911,6 +929,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     explicitSignOutRef.current = true;
+    clearFunctionAuthHeadersCache();
     setWasLoggedIn(false);
     // 1) Flip local auth state IMMEDIATELY so the UI navigates instantly.
     setProfile(null);

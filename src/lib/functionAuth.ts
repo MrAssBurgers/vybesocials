@@ -1,5 +1,6 @@
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { refreshSupabaseSession } from "@/lib/supabaseAuthRefresh";
 import {
   getCanonicalPublishableKey,
   getCanonicalSupabaseUrl,
@@ -69,7 +70,7 @@ export async function refreshAuthSessionWithTimeout(
   });
 
   try {
-    return await Promise.race([supabase.auth.refreshSession(), timeoutPromise]);
+    return await Promise.race([refreshSupabaseSession(), timeoutPromise]);
   } finally {
     if (timer !== undefined) window.clearTimeout(timer);
   }
