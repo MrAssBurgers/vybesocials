@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { navigationRef } from '@/lib/navigationRef';
+import { showMessageNotification } from '@/components/notifications/MessageNotificationToast';
 
 /**
  * VYBE v1.1 - Perfect Message Notifications
