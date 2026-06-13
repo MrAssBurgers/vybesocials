@@ -1,10 +1,8 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { X, Check, QrCode, MessageCircle, Radio, Loader2, ScanLine } from 'lucide-react';
+import { X, QrCode } from 'lucide-react';
 import QRCode from 'qrcode';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useSendFriendRequest } from '@/hooks/useFriends';
@@ -42,8 +40,9 @@ import {
   type FriendDropCompletedDetail,
 } from '@/lib/friendLinkEvents';
 import { NFCSwapAnimation } from '@/components/friends/NFCSwapAnimation';
-import { FriendLinkActivateHint, FriendLinkSheetTips } from '@/components/friends/FriendLinkActivateHint';
-import { FriendLinkTapAnimation } from '@/components/friends/FriendLinkTapAnimation';
+import { FriendLinkActivateHint } from '@/components/friends/FriendLinkActivateHint';
+import { FriendLinkSheetContent } from '@/components/friends/FriendLinkSheetContent';
+import { liquidBackdrop, liquidBouncySpring } from '@/motion/liquidConfig';
 import { acquirePostCameraStream, stopStream } from '@/lib/postCameraStream';
 import { isCameraSafeMode } from '@/lib/cameraSafeMode';
 
@@ -643,6 +642,18 @@ export function AutoFriendDrop() {
     activeTab === 'tap' &&
     phase === 'activated';
 
+  const handleFriendLinkTabChange = useCallback(
+    (tab: ActiveTab) => {
+      setActiveTab(tab);
+      if (tab === 'qr') {
+        startCamera();
+      } else if (tab === 'tap' && !nativeFriendDrop.isAvailable) {
+        void retryNfcScan();
+      }
+    },
+    [nativeFriendDrop.isAvailable, retryNfcScan, startCamera],
+  );
+
   if (!isFullyLoggedIn(user, profile, authLoading)) return null;
 
   return (
@@ -708,435 +719,97 @@ export function AutoFriendDrop() {
         </div>
       )}
 
-      {/* Bottom sheet — anchored above the bottom nav */}
-      {isActive && (
-        <>
-          <div
-            className={cn(
-              'friend-link-backdrop fixed inset-0 bg-black/90',
-              !reduceFriendLinkMotion && 'backdrop-blur-md'
-            )}
-            style={{ zIndex: 10080, touchAction: 'none', overscrollBehavior: 'contain' }}
-            onClick={handleClose}
-            onPointerDown={(e) => {
-              if (e.target === e.currentTarget) handleClose();
-            }}
-            aria-hidden
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Friend Link"
-            className="friend-link-sheet fixed inset-x-0 mx-auto w-full max-w-sm rounded-t-3xl sm:rounded-2xl border border-border shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300 pointer-events-auto bg-background"
-            style={{
-              zIndex: 10081,
-              bottom: 'env(safe-area-inset-bottom, 0px)',
-              maxHeight: 'calc(100dvh - var(--sat, env(safe-area-inset-top, 0px)) - 24px)',
-              backgroundColor: 'hsl(var(--background))',
-            }}
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
+      <AnimatePresence>
+        {isActive && (
+          <>
+            <motion.div
+              key="friend-link-backdrop"
+              {...liquidBackdrop}
+              className={cn(
+                'friend-link-backdrop fixed inset-0 liquid-modal-backdrop',
+                !reduceFriendLinkMotion && 'backdrop-blur-sm',
+              )}
+              style={{ zIndex: 10080, touchAction: 'none', overscrollBehavior: 'contain' }}
               onClick={handleClose}
-              className="mx-auto mt-2 mb-1 h-1 w-10 rounded-full bg-muted-foreground/30 shrink-0"
-              aria-label="Close Friend Link"
+              onPointerDown={(e) => {
+                if (e.target === e.currentTarget) handleClose();
+              }}
+              aria-hidden
             />
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 pt-1 pb-2 shrink-0 relative z-10">
-              <h2 className="text-base font-semibold text-foreground">Friend Link</h2>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleClose();
-                }}
-                className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center rounded-full hover:bg-muted/60 active:bg-muted transition-colors touch-manipulation"
-                aria-label="Close"
-              >
-                <X className="h-5 w-5 text-foreground" />
-              </button>
+            <div
+              className="fixed inset-x-0 z-[10081] flex justify-center pointer-events-none px-4"
+              style={{ bottom: 'calc(5.25rem + env(safe-area-inset-bottom, 0px))' }}
+            >
+            <motion.div
+              key="friend-link-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Friend Link"
+              initial={reduceFriendLinkMotion ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={reduceFriendLinkMotion ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.96 }}
+              transition={reduceFriendLinkMotion ? { duration: 0.1 } : liquidBouncySpring}
+              className="friend-link-sheet friend-link-poster pointer-events-auto flex w-full max-w-[24rem] flex-col overflow-hidden rounded-[28px] liquid-glass-depth"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <div className="friend-link-poster-aura pointer-events-none absolute inset-0 rounded-[28px]" aria-hidden />
+              <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+
+              <div className="relative grid shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-3 pb-2 pt-4">
+                <span aria-hidden />
+                <h2 className="text-center bg-gradient-to-r from-primary via-foreground to-accent bg-clip-text text-base font-bold tracking-tight text-transparent">
+                  Friend Link
+                </h2>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleClose();
+                  }}
+                  className="flex h-9 w-9 items-center justify-center justify-self-end rounded-full bg-foreground/5 text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary touch-manipulation active:scale-95"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="relative overflow-hidden px-4 pb-4 pt-0">
+                <FriendLinkSheetContent
+                  phase={phase}
+                  activeTab={activeTab}
+                  onTabChange={handleFriendLinkTabChange}
+                  onClose={handleClose}
+                  onAddFriend={handleAddFriend}
+                  onSelectPeer={(peer) => {
+                    setFoundUser({
+                      id: peer.userId,
+                      username: peer.username,
+                      display_name: peer.displayName,
+                      avatar_url: peer.avatarUrl,
+                    });
+                    setPhase('found');
+                  }}
+                  profile={profile}
+                  foundUser={foundUser}
+                  tapListening={tapListening}
+                  qrSvg={qrSvg}
+                  qrLoading={friendDropSync.isCreating || !activeDropId}
+                  nearbyPeers={nativeFriendDrop.nearbyPeers}
+                  videoRef={videoRef}
+                  canvasRef={canvasRef}
+                  cameraActive={cameraActive}
+                  cameraStarting={cameraStarting}
+                  cameraError={cameraError}
+                  onStartCamera={() => void startCamera()}
+                  reduceMotion={reduceFriendLinkMotion}
+                />
+              </div>
+            </motion.div>
             </div>
-
-            {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto overscroll-contain bg-background" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch', backgroundColor: 'hsl(var(--background))' }}>
-
-            {phase === 'activated' && <FriendLinkSheetTips />}
-
-            {/* Phases: found / exchanging / success override tabs */}
-            {phase === 'found' && foundUser && (
-              <div className="p-6 flex flex-col items-center gap-4 animate-in fade-in duration-200">
-                <Avatar className="h-24 w-24 ring-4 ring-primary/20">
-                  <AvatarImage src={foundUser.avatar_url || ''} />
-                  <AvatarFallback className="text-2xl font-bold bg-primary/10 text-primary">
-                    {foundUser.username?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="text-center">
-                  <h3 className="text-lg font-bold">{foundUser.display_name || foundUser.username}</h3>
-                  <p className="text-sm text-muted-foreground">@{foundUser.username}</p>
-                </div>
-                <div className="flex gap-3 w-full">
-                  <Button variant="outline" className="flex-1 rounded-full" onClick={handleClose}>Cancel</Button>
-                  <Button className="flex-1 rounded-full gap-1.5" onClick={handleAddFriend}>
-                    <Check className="h-4 w-4" /> Add Friend
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {phase === 'exchanging' && (
-              <div className="p-8 flex flex-col items-center gap-4 animate-in fade-in duration-200" style={{ minHeight: 260 }}>
-                <div className="relative flex items-center justify-center">
-                  <Avatar className="h-16 w-16 -mr-3 ring-2 ring-card z-10">
-                    <AvatarImage src={profile?.avatar_url || ''} />
-                    <AvatarFallback className="font-bold">{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <Avatar className="h-16 w-16 -ml-3 ring-2 ring-card">
-                    <AvatarImage src={foundUser?.avatar_url || ''} />
-                    <AvatarFallback className="font-bold">{foundUser?.username?.[0]?.toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-primary animate-pulse">Adding friend...</p>
-                  <p className="text-xs text-muted-foreground mt-1">{foundUser?.display_name || foundUser?.username}</p>
-                </div>
-              </div>
-            )}
-
-            {phase === 'success' && (
-              <div className="p-8 flex flex-col items-center gap-4 animate-in fade-in duration-200" style={{ minHeight: 260 }}>
-                <div className="relative flex items-center justify-center">
-                  <Avatar className="h-14 w-14 -mr-2 ring-2 ring-card z-10">
-                    <AvatarImage src={profile?.avatar_url || ''} />
-                    <AvatarFallback className="font-bold">{profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center -mx-1 z-20 ring-2 ring-card">
-                    <Check className="h-4 w-4 text-primary-foreground" strokeWidth={3} />
-                  </div>
-                  <Avatar className="h-14 w-14 -ml-2 ring-2 ring-card">
-                    <AvatarImage src={foundUser?.avatar_url || ''} />
-                    <AvatarFallback className="font-bold">{foundUser?.username?.[0]?.toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                </div>
-                <div className="text-center">
-                  <h3 className="text-base font-bold text-primary">Friend Added!</h3>
-                  <p className="text-xs text-muted-foreground mt-1">{foundUser?.display_name || foundUser?.username}</p>
-                  <div className="flex items-center justify-center gap-1.5 mt-3 text-muted-foreground">
-                    <MessageCircle className="h-3.5 w-3.5" />
-                    <span className="text-[11px]">Opening chat...</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Tap-first Friend Link — only show during activated phase */}
-            {phase === 'activated' && (
-              <div className="px-4 pb-4 space-y-4 overflow-hidden">
-                <div className="relative grid grid-cols-2 gap-1 rounded-full bg-secondary/60 p-1">
-                  {(['tap', 'qr'] as ActiveTab[]).map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => {
-                        setActiveTab(tab);
-                        // Trigger media APIs from the user gesture itself.
-                        if (tab === 'qr') {
-                          startCamera();
-                        } else if (tab === 'tap' && !nativeFriendDrop.isAvailable) {
-                          void retryNfcScan();
-                        }
-                      }}
-                      className={cn(
-                        'relative z-10 flex h-10 items-center justify-center gap-1.5 rounded-full text-xs font-bold transition-colors active:scale-[0.98]',
-                        activeTab === tab ? 'text-primary-foreground' : 'text-muted-foreground'
-                      )}
-                    >
-                      {tab === 'tap' ? <Radio className="h-3.5 w-3.5" /> : <QrCode className="h-3.5 w-3.5" />}
-                      {tab === 'tap' ? 'Phone Tap' : 'QR Scan'}
-                    </button>
-                  ))}
-                  <motion.div
-                    layout
-                    className="absolute bottom-1 top-1 w-[calc(50%-4px)] rounded-full bg-gradient-to-r from-primary to-accent shadow-lg shadow-primary/25"
-                    style={{ left: activeTab === 'tap' ? 4 : 'calc(50% + 0px)' }}
-                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                  />
-                </div>
-
-                <AnimatePresence mode="wait">
-                  {activeTab === 'tap' ? (
-                    <motion.div
-                      key="tap"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      className="flex flex-col items-center gap-4 py-2"
-                    >
-                      <FriendLinkTapAnimation
-                        active={tapListening}
-                        avatarUrl={profile?.avatar_url}
-                        username={profile?.username}
-                      />
-
-                      <div className="text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          {tapListening ? (
-                            <span className="relative flex h-2 w-2">
-                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                            </span>
-                          ) : (
-                            <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
-                          )}
-                          <h3 className="text-base font-black text-foreground">
-                            {tapListening ? 'Ready to tap' : 'Starting tap…'}
-                          </h3>
-                          {tapListening && (
-                            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                              LIVE
-                            </span>
-                          )}
-                        </div>
-                        <p className="mx-auto mt-1 max-w-[280px] text-xs leading-relaxed text-muted-foreground">
-                          Hold phones back-to-back. Friend Link listens instantly and connects when a nearby phone is found.
-                        </p>
-                      </div>
-
-                      {nativeFriendDrop.nearbyPeers.length > 0 && (
-                        <div className="w-full space-y-2">
-                          {nativeFriendDrop.nearbyPeers.map((peer) => (
-                            <button
-                              key={peer.peerId}
-                              className="flex w-full items-center gap-3 rounded-2xl border border-primary/20 bg-primary/10 p-3 text-left active:scale-[0.98]"
-                              onClick={() => {
-                                setFoundUser({ id: peer.userId, username: peer.username, display_name: peer.displayName, avatar_url: peer.avatarUrl });
-                                setPhase('found');
-                              }}
-                            >
-                              <Avatar className="h-10 w-10 shrink-0">
-                                <AvatarImage src={peer.avatarUrl || ''} className="object-cover" />
-                                <AvatarFallback className="font-bold">{peer.username[0]?.toUpperCase()}</AvatarFallback>
-                              </Avatar>
-                              <span className="min-w-0 flex-1 truncate text-sm font-bold">{peer.displayName || peer.username}</span>
-                              <Check className="h-4 w-4 text-primary" />
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="qr"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      className="grid gap-3"
-                    >
-                      <div className="rounded-[24px] bg-white p-4 shadow-2xl">
-                        <div className="relative mx-auto aspect-square w-full max-w-[180px] overflow-hidden rounded-2xl bg-white">
-                          {qrSvg ? (
-                            <div className="h-full w-full [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: qrSvg }} />
-                          ) : (
-                            <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
-                              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                              <span className="text-[10px] font-semibold text-muted-foreground">
-                                {friendDropSync.isCreating || !activeDropId ? 'Preparing your link…' : 'Loading QR…'}
-                              </span>
-                            </div>
-                          )}
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="rounded-2xl bg-white p-1 shadow-lg">
-                              <Avatar className="h-10 w-10 rounded-xl">
-                                <AvatarImage src={profile?.avatar_url || ''} className="rounded-xl object-cover" />
-                                <AvatarFallback className="rounded-xl bg-gradient-to-br from-primary to-accent font-black text-primary-foreground">
-                                  {profile?.username?.[0]?.toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                            </div>
-                          </div>
-                        </div>
-                        <p className="mt-2 text-center text-sm font-black text-card">@{profile?.username}</p>
-                      </div>
-
-                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[24px] border border-primary/20 bg-card">
-                        <video ref={videoRef} className={cn('h-full w-full object-cover', !cameraActive && 'opacity-0')} playsInline muted autoPlay />
-                        <canvas ref={canvasRef} className="hidden" />
-                        {cameraStarting && !cameraActive && !cameraError && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-secondary/70 px-4 text-center">
-                            <Loader2 className="h-7 w-7 animate-spin text-primary" />
-                            <span className="text-xs font-bold text-foreground">Opening camera…</span>
-                          </div>
-                        )}
-                        {!cameraStarting && !cameraActive && !cameraError && (
-                          <button
-                            type="button"
-                            onClick={() => startCamera()}
-                            className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-secondary/70 px-4 text-center active:scale-[0.99]"
-                          >
-                            <ScanLine className="h-7 w-7 text-primary" />
-                            <span className="text-xs font-bold text-foreground">Tap to open camera</span>
-                          </button>
-                        )}
-                        {cameraError && !cameraActive && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-secondary/60 px-4 text-center">
-                            <ScanLine className="h-7 w-7 text-primary" />
-                            <span className="text-xs font-bold text-destructive">{cameraError}</span>
-                            <button
-                              type="button"
-                              onClick={() => startCamera()}
-                              className="mt-1 rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-primary-foreground active:scale-95"
-                            >
-                              Try again
-                            </button>
-                          </div>
-                        )}
-                        <div className="pointer-events-none absolute inset-0 p-5">
-                          {[0, 1, 2, 3].map((i) => (
-                            <div
-                              key={i}
-                              className="absolute h-8 w-8 rounded-md"
-                              style={{
-                                top: i < 2 ? 18 : 'auto',
-                                bottom: i >= 2 ? 18 : 'auto',
-                                left: i % 2 === 0 ? 18 : 'auto',
-                                right: i % 2 === 1 ? 18 : 'auto',
-                                borderColor: 'hsl(var(--primary))',
-                                borderTopWidth: i < 2 ? 4 : 0,
-                                borderBottomWidth: i >= 2 ? 4 : 0,
-                                borderLeftWidth: i % 2 === 0 ? 4 : 0,
-                                borderRightWidth: i % 2 === 1 ? 4 : 0,
-                              }}
-                            />
-                          ))}
-                        </div>
-                        {cameraActive && (
-                          <>
-                            {/* Aurora radar wash */}
-                            <motion.div
-                              className="pointer-events-none absolute inset-0"
-                              style={{
-                                background:
-                                  'radial-gradient(90% 60% at 50% 50%, hsl(var(--primary)/0.14), transparent 68%)',
-                                mixBlendMode: 'screen',
-                              }}
-                              animate={{ opacity: [0.35, 0.7, 0.35], scale: [0.96, 1.02, 0.96] }}
-                              transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
-                            />
-
-                            {/* Orbiting scanner ring */}
-                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                              <motion.div
-                                className="relative h-[180px] w-[180px] rounded-full border border-primary/25"
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 7.5, repeat: Infinity, ease: 'linear' }}
-                              >
-                                <motion.div
-                                  className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_20px_hsl(var(--primary)/0.95)]"
-                                  animate={{ scale: [0.8, 1.18, 0.8], opacity: [0.55, 1, 0.55] }}
-                                  transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
-                                />
-                                <motion.div
-                                  className="absolute inset-0 rounded-full"
-                                  style={{
-                                    background:
-                                      'conic-gradient(from 0deg, transparent 0deg, hsl(var(--primary)/0.55) 36deg, transparent 84deg)',
-                                    mask: 'radial-gradient(circle, transparent 65%, black 69%, black 100%)',
-                                    WebkitMask:
-                                      'radial-gradient(circle, transparent 65%, black 69%, black 100%)',
-                                  }}
-                                  animate={{ rotate: -360, opacity: [0.45, 0.85, 0.45] }}
-                                  transition={{ duration: 5.2, repeat: Infinity, ease: 'linear' }}
-                                />
-                              </motion.div>
-                            </div>
-
-                            {/* Vertical sweep line */}
-                            <div className="pointer-events-none absolute inset-0 px-6 py-[22px]">
-                              <motion.div
-                                className="relative h-0.5 w-full bg-gradient-to-r from-transparent via-primary to-transparent"
-                                style={{ willChange: 'transform' }}
-                                animate={{ y: [0, 176, 0] }}
-                                transition={{ duration: 2.4, repeat: Infinity, ease: [0.32, 0, 0.24, 1] }}
-                              >
-                                <motion.div
-                                  className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/70 to-transparent blur-[2px]"
-                                  animate={{ opacity: [0.4, 0.95, 0.4] }}
-                                  transition={{ duration: 1.3, repeat: Infinity, ease: 'easeInOut' }}
-                                />
-                              </motion.div>
-                            </div>
-
-                            {/* Horizontal cross sweep */}
-                            <div className="pointer-events-none absolute inset-0 py-6 px-[22px]">
-                              <motion.div
-                                className="relative h-full w-0.5 bg-gradient-to-b from-transparent via-primary/90 to-transparent"
-                                style={{ willChange: 'transform' }}
-                                animate={{ x: [0, 230, 0] }}
-                                transition={{ duration: 3.1, repeat: Infinity, ease: [0.22, 1, 0.36, 1] }}
-                              />
-                            </div>
-
-                            {/* Data blips */}
-                            <div className="pointer-events-none absolute inset-0">
-                              {[0, 1, 2, 3, 4].map((i) => (
-                                <motion.div
-                                  key={i}
-                                  className="absolute h-1.5 w-1.5 rounded-full bg-primary/80"
-                                  style={{
-                                    left: `${18 + i * 17}%`,
-                                    top: `${22 + (i % 3) * 19}%`,
-                                  }}
-                                  animate={{
-                                    opacity: [0, 1, 0],
-                                    scale: [0.4, 1.25, 0.4],
-                                  }}
-                                  transition={{
-                                    duration: 1.6 + i * 0.22,
-                                    delay: i * 0.24,
-                                    repeat: Infinity,
-                                    ease: 'easeInOut',
-                                  }}
-                                />
-                              ))}
-                            </div>
-
-                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                              <motion.div
-                                className="absolute h-14 w-14 rounded-full border border-primary/55"
-                                animate={{ scale: [0.92, 1.12, 0.92], opacity: [0.7, 0.15, 0.7] }}
-                                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-                              />
-                              <motion.div
-                                className="absolute h-24 w-24 rounded-full border border-primary/25"
-                                animate={{ scale: [0.85, 1.2, 0.85], opacity: [0.1, 0.4, 0.1] }}
-                                transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
-                              />
-                              <motion.div
-                                className="h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_16px_hsl(var(--primary)/0.85)]"
-                                animate={{ scale: [0.85, 1.2, 0.85], opacity: [0.65, 1, 0.65] }}
-                                transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-                              />
-                            </div>
-
-                            <div className="absolute bottom-4 inset-x-0 flex justify-center">
-                              <span className="rounded-full bg-card/90 px-4 py-1.5 text-xs font-bold text-foreground backdrop-blur-sm">
-                                Locking onto friend&apos;s QR
-                              </span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
-            </div>
-
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </AnimatePresence>
     </>
   );
 }

@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Conversation, Message } from '@/hooks/useMessages';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
+import { withTimeout } from '@/lib/withTimeout';
 
 export interface LoadedDMConversation extends Conversation {
   _sortTime: string;
@@ -34,6 +35,23 @@ export async function loadDMConversations(
 ): Promise<LoadDMConversationsResult> {
   const stale = fallback?.length ? fallback : [];
 
+  try {
+    return await withTimeout(
+      loadDMConversationsOnce(profileId, stale),
+      20_000,
+      'Loading chats timed out',
+    );
+  } catch (err) {
+    console.warn('[DM] load failed:', err);
+    const error = err instanceof Error ? err : new Error(String(err));
+    return { data: stale, error, profileId };
+  }
+}
+
+async function loadDMConversationsOnce(
+  profileId: string,
+  stale: LoadedDMConversation[],
+): Promise<LoadDMConversationsResult> {
   try {
     const effectiveProfileId = (await resolveSessionProfileId(profileId)) ?? profileId;
 

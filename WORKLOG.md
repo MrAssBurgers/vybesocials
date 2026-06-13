@@ -4,6 +4,28 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (Friend Link sheet polish v2 — 2026-06-13)
+- **`AutoFriendDrop.tsx`** — unified handle + title header (no border); tighter padding; close pinned top-right; `reduceMotion` passed to content; maxHeight 68vh for no-scroll QR on iPhone
+- **`FriendLinkSheetContent.tsx`** — text-only Phone Tap / QR Scan tabs; smaller tap hero; 144px scanner; white QR tile only; removed neon scanner brackets; muted phase states
+- **`FriendLinkTapAnimation.tsx`** — neutral phone/wifi styling (no primary/accent glow)
+- **`index.css`** — compact `--sheet` tap sizing; subtle tab active state; softer scanner pulse + scan line
+- **Verify:** `npm run build` PASS
+- **You:** Lovable Publish → Friend Link on Home; QR + camera visible without scroll; tab switch clear
+
+## What Changed (Friend Link sheet redesign — 2026-06-13)
+- **`AutoFriendDrop.tsx`** — full-width liquid-glass bottom sheet (slide-up spring) anchored above bottom nav; drag handle + header; z-index 10080/10081 unchanged
+- **`FriendLinkSheetContent.tsx`** — Tap/Scan tabs with framer-motion crossfade; QR hero (white tile + full-width scanner); clean phase states
+- **`FriendLinkTapAnimation.tsx`** — softer scene styling; `--sheet` size variant
+- **`index.css`** — scanner pulse + scan line; `--sheet` tap sizing; tab glass styles
+- **Verify:** `npm run build` PASS
+- **You:** Lovable Publish → Friend Link on Home; confirm bottom sheet, QR scannable, camera visible without scroll
+
+## What Changed (Friend Link sheet UI polish — 2026-06-13)
+- **`AutoFriendDrop.tsx`** — centered modal (not bottom sheet); removed redundant in-sheet tips; fixed Phone Tap / QR Scan segmented control (no sliding glow bleed); centered title + decorative handle
+- **`FriendLinkTapAnimation.tsx`** — tighter scene sizing and border for tap illustration
+- **Verify:** `npm run build` PASS
+- **You:** Lovable Publish → open Friend Link on Home; confirm centered modal + clean tab switcher
+
 ## What Changed (onboarding once-only cache fix — 2026-06-13)
 - **Root cause:** Disk-cached profile kept stale `onboarding_completed: false` after DB was `true`; auth hydrated false before fetch, trapping users on `/onboarding` and blocking story publish
 - **`profileCache.ts`** — never persist `false` to disk; ignore legacy disk `false` on read; `stripStaleOnboardingFlagFromDisk()` on sign-in/hydrate

@@ -116,10 +116,11 @@ export function ConversationList() {
   }, []);
   
   // Use the new optimized DM conversations hook with auto-creation
-  const { 
-    pinnedConversations, 
-    unpinnedConversations, 
-    isLoading, 
+  const {
+    pinnedConversations,
+    unpinnedConversations,
+    isLoading,
+    isFetched,
     error: convError,
     fetchWarning,
     totalUnreadCount,
@@ -189,7 +190,8 @@ export function ConversationList() {
   const showListSkeleton =
     allConversations.length === 0 &&
     !profileMissing &&
-    isLoading;
+    isLoading &&
+    !isFetched;
 
   useEffect(() => {
     if (!isLoading) { setSlowLoad(false); return; }

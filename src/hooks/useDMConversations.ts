@@ -208,7 +208,8 @@ export function useDMConversations(searchQuery: string = '') {
   const querySettled = conversationsQuery.isFetched || conversationsQuery.isError;
   const resolvingProfile =
     !!user?.id && !profileId && (profileResolveQuery.isFetching || profileResolveQuery.isPending);
-  const isLoading = listCount === 0 && !querySettled && (resolvingProfile || !!profileId);
+  // Skeleton only until the first fetch settles — not while background refetches run.
+  const isLoading = resolvingProfile || (!!profileId && !querySettled);
 
   const softErrorKey = profileId ? (['dm-conversations-soft-error', profileId] as const) : null;
   const fetchWarning =

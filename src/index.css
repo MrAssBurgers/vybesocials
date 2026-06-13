@@ -6406,7 +6406,7 @@ body[data-kb-open="true"] .ai-chat-messages {
   height: 5.5rem;
   margin: -2.75rem 0 0 -2.75rem;
   border-radius: 9999px;
-  border: 1.5px solid hsl(var(--primary) / 0.35);
+  border: 1.5px solid hsl(var(--primary) / 0.3);
   pointer-events: none;
   opacity: 0;
 }
@@ -6419,7 +6419,7 @@ body[data-kb-open="true"] .ai-chat-messages {
   height: 4.5rem;
   margin: -2.25rem 0 0 -2.25rem;
   border-radius: 9999px;
-  background: radial-gradient(circle, hsl(var(--primary) / 0.28), transparent 70%);
+  background: radial-gradient(circle, hsl(var(--primary) / 0.12), transparent 70%);
   pointer-events: none;
   opacity: 0;
 }
@@ -6468,6 +6468,187 @@ body[data-kb-open="true"] .ai-chat-messages {
 }
 
 /* Friend Link sheet — always opaque (custom home backgrounds make bg-card translucent) */
+.friend-link-tap-scene--mini .friend-link-tap-phone {
+  width: 2.75rem;
+  height: 4.75rem;
+  border-radius: 0.875rem;
+}
+
+.friend-link-tap-scene--mini .friend-link-tap-screen {
+  inset: 0.35rem 0.3rem 0.45rem;
+  border-radius: 0.65rem;
+}
+
+.friend-link-tap-scene--mini .friend-link-tap-bridge {
+  width: 1.5rem;
+}
+
+.friend-link-tap-scene--mini .friend-link-tap-bridge svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.friend-link-tap-scene--mini .friend-link-tap-ring {
+  width: 4rem;
+  height: 4rem;
+  margin: -2rem 0 0 -2rem;
+}
+
+.friend-link-tap-scene--mini .friend-link-tap-phone--peer svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* Sheet-sized tap scene — compact but readable */
+.friend-link-tap-scene--sheet .friend-link-tap-phone {
+  width: 3rem;
+  height: 5.25rem;
+  border-radius: 1rem;
+}
+
+.friend-link-tap-scene--sheet .friend-link-tap-screen {
+  inset: 0.35rem 0.3rem 0.45rem;
+  border-radius: 0.65rem;
+}
+
+.friend-link-tap-scene--sheet .friend-link-tap-bridge {
+  width: 1.5rem;
+}
+
+.friend-link-tap-scene--sheet .friend-link-tap-bridge svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.friend-link-tap-scene--sheet .friend-link-tap-ring {
+  width: 3.75rem;
+  height: 3.75rem;
+  margin: -1.875rem 0 0 -1.875rem;
+}
+
+.friend-link-tap-scene--sheet .friend-link-tap-phone--peer svg {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+/* Friend Link — QR scanner */
+.friend-link-scanner {
+  height: 10.5rem;
+  contain: layout paint;
+}
+
+.friend-link-scanner--live {
+  box-shadow:
+    inset 0 0 0 1px hsl(var(--primary) / 0.25),
+    0 0 20px -6px hsl(var(--primary) / 0.25);
+  animation: friend-link-scanner-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes friend-link-scanner-pulse {
+  0%, 100% {
+    box-shadow:
+      inset 0 0 0 1px hsl(var(--primary) / 0.15),
+      0 0 16px -8px hsl(var(--primary) / 0.15);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 1px hsl(var(--accent) / 0.3),
+      0 0 24px -6px hsl(var(--accent) / 0.2);
+  }
+}
+
+.friend-link-scan-line {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  height: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--primary)),
+    hsl(var(--accent)),
+    transparent
+  );
+  animation: friend-link-scan-sweep 2.4s ease-in-out infinite;
+}
+
+@keyframes friend-link-scan-sweep {
+  0%, 100% { top: 18%; opacity: 0.35; }
+  50% { top: 78%; opacity: 0.95; }
+}
+
+.friend-link-tabs {
+  background: hsl(var(--secondary) / 0.25);
+  border: 1px solid hsl(var(--primary) / 0.12);
+}
+
+.friend-link-tab {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: hsl(var(--muted-foreground)) !important;
+  transition: all 0.2s ease;
+}
+
+.friend-link-tab[data-state='active'] {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary) / 0.22),
+    hsl(var(--accent) / 0.16)
+  ) !important;
+  color: hsl(var(--foreground)) !important;
+  box-shadow: 0 4px 14px -6px hsl(var(--primary) / 0.45) !important;
+}
+
+.friend-link-qr-tile {
+  line-height: 0;
+}
+
+/* Friend Link poster card */
+.friend-link-poster {
+  box-shadow:
+    0 28px 56px -16px rgb(0 0 0 / 0.55),
+    0 0 0 1px hsl(var(--primary) / 0.12),
+    0 0 48px -12px hsl(var(--primary) / 0.22);
+}
+
+.friend-link-poster-aura {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, hsl(var(--primary) / 0.14), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, hsl(var(--accent) / 0.1), transparent 50%);
+  animation: friend-link-poster-shimmer 6s ease-in-out infinite;
+}
+
+@keyframes friend-link-poster-shimmer {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .friend-link-scanner--live {
+    animation: none;
+  }
+
+  .friend-link-scan-line {
+    animation: none;
+    top: 50%;
+    opacity: 0.5;
+  }
+
+  .friend-link-poster-aura {
+    animation: none;
+  }
+}
+
+.native-perf-mode .friend-link-scanner--live {
+  animation: none;
+}
+
+.native-perf-mode .friend-link-scan-line {
+  display: none;
+}
+
 .friend-link-backdrop {
   background-color: rgb(0 0 0 / 0.9) !important;
 }

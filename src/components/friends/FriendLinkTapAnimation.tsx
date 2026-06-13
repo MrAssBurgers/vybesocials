@@ -26,7 +26,7 @@ export const FriendLinkTapAnimation = memo(function FriendLinkTapAnimation({
   return (
     <div
       className={cn(
-        'friend-link-tap-scene relative mx-auto flex h-44 w-full max-w-[320px] items-center justify-center overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/[0.08] via-card to-accent/[0.08]',
+        'friend-link-tap-scene relative mx-auto flex w-full max-w-[320px] items-center justify-center overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.06] via-card/50 to-accent/[0.06]',
         active && 'friend-link-tap-scene--live',
         className,
       )}
@@ -42,22 +42,22 @@ export const FriendLinkTapAnimation = memo(function FriendLinkTapAnimation({
           <div className="friend-link-tap-screen">
             <Avatar className="h-full w-full rounded-[14px]">
               <AvatarImage src={avatarUrl || undefined} className="object-cover" />
-              <AvatarFallback className="rounded-[14px] bg-gradient-to-br from-primary to-accent text-lg font-black text-primary-foreground">
+              <AvatarFallback className="rounded-[14px] bg-gradient-to-br from-primary to-accent text-base font-black text-primary-foreground">
                 {initial}
               </AvatarFallback>
             </Avatar>
           </div>
         </div>
 
-        <div className="friend-link-tap-bridge flex flex-col items-center gap-1">
-          <Wifi className="h-5 w-5 text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.55)]" strokeWidth={2.25} />
-          <span className="friend-link-tap-dot h-1.5 w-1.5 rounded-full bg-primary" />
+        <div className="friend-link-tap-bridge flex flex-col items-center gap-0.5">
+          <Wifi className="h-4 w-4 text-primary drop-shadow-[0_0_6px_hsl(var(--primary)/0.5)]" strokeWidth={2.25} />
+          <span className="friend-link-tap-dot h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_8px_hsl(var(--accent)/0.6)]" />
         </div>
 
         <div className="friend-link-tap-phone friend-link-tap-phone--peer">
           <span className="friend-link-tap-notch" />
-          <div className="friend-link-tap-screen flex items-center justify-center bg-secondary/80">
-            <Smartphone className="h-8 w-8 text-accent drop-shadow-[0_0_10px_hsl(var(--accent)/0.45)]" strokeWidth={1.75} />
+          <div className="friend-link-tap-screen flex items-center justify-center bg-gradient-to-br from-accent/10 to-primary/5">
+            <Smartphone className="h-7 w-7 text-accent drop-shadow-[0_0_8px_hsl(var(--accent)/0.4)]" strokeWidth={1.75} />
           </div>
         </div>
       </div>
