@@ -3,7 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
-import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, setActiveAuthUserId, isRawId, type CachedProfile } from '@/lib/profileCache';
+import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, setActiveAuthUserId, isRawId, stripStaleOnboardingFlagFromDisk, type CachedProfile } from '@/lib/profileCache';
 import { clearCachedUserLevel } from '@/lib/userLevelCache';
 import { prefetchDMConversationsFromNav } from '@/lib/loadDMConversations';
 import { warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
@@ -17,6 +17,7 @@ import { isLovablePreviewHost } from '@/lib/lovablePreview';
 import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
 import { clearFunctionAuthHeadersCache } from '@/lib/functionAuth';
 import { logEvent } from '@/lib/debugLogger';
+import { debugLog } from '@/lib/debugSessionLog';
 import {
   clearSignupUsername,
   isGeneratedUsername,
@@ -113,7 +114,8 @@ function cachedProfileToProfile(cached: CachedProfile, userId = ''): Profile {
     avatar_url: cached.avatar_url,
     bio: cached.bio || '',
     created_at: new Date().toISOString(),
-    onboarding_completed: cached.onboarding_completed ?? true,
+    // Only trust cached true; false/undefined requires a fresh DB fetch before redirect decisions.
+    onboarding_completed: cached.onboarding_completed === true ? true : undefined,
   };
 }
 
@@ -140,7 +142,7 @@ function persistCurrentProfile(profileData: Profile) {
     display_name: profileData.display_name || null,
     avatar_url: profileData.avatar_url,
     bio: profileData.bio,
-    onboarding_completed: profileData.onboarding_completed ?? true,
+    onboarding_completed: profileData.onboarding_completed === true ? true : profileData.onboarding_completed,
   };
   setCachedProfile(payload);
   setCachedCurrentProfile(payload);
@@ -358,6 +360,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setProfile(profileData);
         persistCurrentProfile(profileData);
+        // #region agent log
+        debugLog('auth.tsx:fetchProfile', 'profile loaded from db', {
+          onboardingCompleted: profileData.onboarding_completed ?? null,
+          profileId: profileData.id,
+        }, 'H8', 'verify');
+        // #endregion
         // Check ban status and subscribe to realtime changes
         checkBanStatus(profileData.id);
         subscribeToBanChanges(profileData.id);
@@ -530,6 +538,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const hasStoredToken = () => hasStoredSupabaseSession();
 
     const hydrateCachedProfile = (userId = '') => {
+      stripStaleOnboardingFlagFromDisk();
       const resolvedUserId = userId || getStoredAuthUserId() || '';
       if (resolvedUserId) setActiveAuthUserId(resolvedUserId);
       const cachedProfile = getCachedCurrentProfile();
@@ -566,6 +575,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         logEvent('auth', `onAuthStateChange: ${event}`, { hasSession: !!session });
+
+        if (event === 'SIGNED_IN' && session?.user) {
+          stripStaleOnboardingFlagFromDisk();
+          // #region agent log
+          debugLog('auth.tsx', 'signed in', { userId: session.user.id }, 'H0-env', 'verify');
+          // #endregion
+        } else if (event === 'SIGNED_OUT') {
+          // #region agent log
+          debugLog('auth.tsx', 'signed out', {}, 'H0-env', 'verify');
+          // #endregion
+        }
         
         // ── KEY FIX: Never finalize "no session" from INITIAL_SESSION ──
         // INITIAL_SESSION with null session happens when the stored token

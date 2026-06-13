@@ -58,7 +58,7 @@ type InviteFlowStage = 'loading' | 'landing' | 'onboarding' | 'home';
 
 export default function InviteRedeem() {
   const { identifier } = useParams<{ identifier: string }>();
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refreshProfile } = useAuth();
   const [inviteProcessed, setInviteProcessed] = useState(false);
   // CRITICAL: Start at 'landing' to always show intro first
   const [currentStage, setCurrentStage] = useState<InviteFlowStage>('loading');
@@ -188,22 +188,27 @@ export default function InviteRedeem() {
       setCurrentStage('landing');
       return;
     }
-    
-    // Authenticated but no profile or no username - go to onboarding
-    if (!profile || !profile.username) {
-      setCurrentStage('onboarding');
-      return;
-    }
-    
-    // Has profile but onboarding not complete
-    if (!profile.onboarding_completed) {
-      setCurrentStage('onboarding');
-      return;
-    }
-    
-    // Fully onboarded - show home (tutorial + invite popup will trigger there)
-    setCurrentStage('home');
-  }, [inviteProcessed, authLoading, user, profile, introCompleted]);
+
+    let cancelled = false;
+    void (async () => {
+      const fresh = await refreshProfile();
+      if (cancelled) return;
+
+      if (!fresh || !fresh.username) {
+        setCurrentStage('onboarding');
+        return;
+      }
+
+      if (fresh.onboarding_completed === false) {
+        setCurrentStage('onboarding');
+        return;
+      }
+
+      setCurrentStage('home');
+    })();
+
+    return () => { cancelled = true; };
+  }, [inviteProcessed, authLoading, user?.id, introCompleted, refreshProfile]);
   
   // Handle stage transitions (called by child components instead of navigate())
   const handleStageComplete = (nextStage: 'landing' | 'onboarding' | 'home') => {

@@ -3,20 +3,24 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, X, Camera as CameraIcon, Image as ImageIcon, Star, Send, Loader2, AlertCircle, RotateCcw, BarChart3, ImagePlus } from 'lucide-react';
 import { StoryPollEditor, PollData } from './StoryPollEditor';
 import { useCreateStory } from '@/hooks/useStories';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { useAuth } from '@/lib/auth';
 import { withTimeout } from '@/lib/withTimeout';
+import { publishStoryMedia } from '@/lib/publishStoryMedia';
+import { resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
+import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { validateStoryMedia, compressImage, generateStoryFileName, generateStoryThumbnail, generateStoryThumbnailFileName, inferStoryMediaKind, storyUploadContentType } from '@/lib/storyUtils';
+import { validateStoryMedia, compressImage, generateStoryThumbnail, inferStoryMediaKind } from '@/lib/storyUtils';
 import { Camera } from '@/components/camera/Camera';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 import { debugLog } from '@/lib/debugSessionLog';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface StoryCreatorProps {
   onClose: () => void;
@@ -50,8 +54,11 @@ type CreatorMode = 'select' | 'camera' | 'gallery';
 
 export function StoryCreator({ onClose }: StoryCreatorProps) {
   const { t } = useTranslation();
+  const { profile, user, loading: authLoading } = useAuth();
   const profileId = useAuthProfileId();
+  const effectiveProfileId = profile?.id ?? profileId;
   const createStory = useCreateStory();
+  const queryClient = useQueryClient();
   const coverInputRef = useRef<HTMLInputElement>(null);
   const coverVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -76,6 +83,16 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     isVideo: boolean;
   } | null>(null);
 
+  useEffect(() => {
+    // #region agent log
+    debugLog('StoryCreator.tsx', 'creator opened', {
+      effectiveProfileId: effectiveProfileId ?? null,
+      hasUser: !!user,
+      hasCachedProfile: !!profile?.id,
+    }, 'H1', 'verify');
+    // #endregion
+  }, [effectiveProfileId, user, profile?.id]);
+
   const resetState = useCallback(() => {
     setSelectedFile(null);
     setPreview(null);
@@ -90,22 +107,6 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     setErrorMessage(null);
     setMediaInfo(null);
     setMode('select');
-  }, []);
-
-  useEffect(() => {
-    // #region agent log
-    debugLog('StoryCreator.tsx:mount', 'story creator opened', {
-      host: typeof window !== 'undefined' ? window.location.host : 'ssr',
-      dev: import.meta.env.DEV,
-      fixVersion: 'nested-gallery+bake-v3',
-    }, 'H0-env');
-    // #endregion
-    if (import.meta.env.DEV) {
-      toast.info('Dev build: story overlay + gallery fixes active', {
-        duration: 2500,
-        id: 'dev-story-fix-banner',
-      });
-    }
   }, []);
 
   const applyAutoThumbnail = useCallback(async (file: File, isVideo: boolean) => {
@@ -149,13 +150,12 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       setUploadState('idle');
       void applyAutoThumbnail(file, isVideo);
 
-      debugLog('StoryCreator.tsx:processGalleryFile', 'gallery file accepted', {
-        name: file.name,
-        size: file.size,
-        type: file.type || '(empty)',
+      // #region agent log
+      debugLog('StoryCreator.tsx:processGalleryFile', 'media ready', {
         isVideo,
-        aspectRatio: validation.aspectRatio,
-      }, 'H3-gallery');
+        fileSize: file.size,
+      }, 'H4', 'verify');
+      // #endregion
       toast.success(isVideo ? 'Video selected' : 'Photo selected', { duration: 1500 });
     } catch (err) {
       console.error('File validation error:', err);
@@ -170,17 +170,41 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     const input = e.target;
     const file = input.files?.[0];
     input.value = '';
-    debugLog('StoryCreator.tsx:handleFileSelect', 'file input change', {
-      hasFile: !!file,
-      name: file?.name,
-    }, 'H3-gallery');
     if (!file) return;
     await processGalleryFile(file);
   };
 
   const handleSubmit = async () => {
-    if (!selectedFile || !profileId || !mediaInfo) {
-      if (!profileId) toast.error('Please wait — still loading your profile');
+    // #region agent log
+    debugLog('StoryCreator.tsx:handleSubmit', 'share clicked', {
+      hasFile: !!selectedFile,
+      hasMediaInfo: !!mediaInfo,
+      effectiveProfileId: effectiveProfileId ?? null,
+      uploadState,
+      canShare,
+    }, 'H1', 'verify');
+    // #endregion
+
+    if (!selectedFile || !mediaInfo) {
+      toast.error('Media is still loading. Wait a moment and try again.');
+      return;
+    }
+
+    if (authLoading) {
+      // #region agent log
+      debugLog('StoryCreator.tsx:handleSubmit', 'share blocked — auth still loading', {}, 'H0-loading', 'verify');
+      // #endregion
+      toast.error('Checking sign-in… try again in a moment.');
+      return;
+    }
+
+    if (!user) {
+      // #region agent log
+      debugLog('StoryCreator.tsx:handleSubmit', 'guest blocked from share', {
+        hasCachedProfile: !!profile?.id,
+      }, 'H0-guest', 'verify');
+      // #endregion
+      toast.error('Sign in to post stories.');
       return;
     }
 
@@ -189,115 +213,57 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     setErrorMessage(null);
 
     try {
-      let fileToUpload: File | Blob = selectedFile;
-
-      // Compress images (skip for videos)
-      if (!mediaInfo.isVideo) {
-        try {
-          const compressed = await compressImage(selectedFile);
-          fileToUpload = compressed;
-          setUploadProgress(30);
-        } catch (compressErr) {
-          console.warn('Image compression failed, using original:', compressErr);
-        }
-      }
+      await refreshSupabaseSession(8000);
+      const authorProfileId = await resolveStoryAuthorProfileId(effectiveProfileId);
+      // #region agent log
+      debugLog('StoryCreator.tsx:handleSubmit', 'profile resolved', { authorProfileId }, 'H1', 'verify');
+      // #endregion
 
       setUploadState('uploading');
-      setUploadProgress(40);
 
-      // Generate unique filename - use auth.uid() format (user_id, not profile.id)
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-      
-      const fileName = generateStoryFileName(user.id, mediaInfo.isVideo ? 'video' : 'image');
-      const mainContentType = storyUploadContentType(fileToUpload, mediaInfo.isVideo ? 'video' : 'image');
-
-      // Upload to stories bucket
-      const { error: uploadError } = await withTimeout(
-        supabase.storage
-          .from('stories')
-          .upload(fileName, fileToUpload, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: mainContentType,
-          }),
-        120000,
-        'Upload timed out. Check your connection and try again.',
-      );
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        const msg = uploadError.message || 'Upload failed';
-        if (/mime|content.?type|invalid file type/i.test(msg)) {
-          throw new Error('This file type is not supported for stories. Try JPG or MP4.');
-        }
-        if (/row-level security|policy|403|401|Unauthorized/i.test(msg)) {
-          throw new Error('Upload blocked by permissions. Sign out and back in, then try again.');
-        }
-        throw new Error(`Upload failed: ${msg}`);
-      }
-
-      setUploadProgress(70);
-
-      let thumbnailUrl: string | undefined;
-      if (thumbnailBlob) {
-        const thumbFileName = generateStoryThumbnailFileName(user.id);
-        const { error: thumbUploadError } = await withTimeout(
-          supabase.storage
-            .from('stories')
-            .upload(thumbFileName, thumbnailBlob, {
-              cacheControl: '3600',
-              upsert: false,
-              contentType: 'image/jpeg',
-            }),
-          60000,
-          'Cover upload timed out',
-        );
-
-        if (thumbUploadError) {
-          console.warn('Thumbnail upload failed:', thumbUploadError);
-        } else {
-          const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
-            .from('stories')
-            .getPublicUrl(thumbFileName);
-          thumbnailUrl = thumbPublicUrl || undefined;
-        }
-      }
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('stories')
-        .getPublicUrl(fileName);
-
-      if (!publicUrl) {
-        throw new Error('Failed to get public URL');
-      }
+      const { mediaUrl, thumbnailUrl } = await publishStoryMedia({
+        file: selectedFile,
+        isVideo: mediaInfo.isVideo,
+        thumbnailBlob,
+        onProgress: (p) => setUploadProgress(Math.max(40, p)),
+      });
 
       setUploadState('saving');
       setUploadProgress(85);
 
-      // Create story record
-      await (createStory as any).mutateAsync({
-        mediaUrl: publicUrl,
-        mediaType: mediaInfo.isVideo ? 'video' : 'image',
-        thumbnailUrl,
-        caption: caption.trim() || undefined,
-        isCloseFriendsOnly,
-        aspectRatio: mediaInfo.aspectRatio,
-        duration: mediaInfo.duration,
-        pollData: pollData || undefined,
-      });
+      await withTimeout(
+        createStory.mutateAsync({
+          mediaUrl,
+          mediaType: mediaInfo.isVideo ? 'video' : 'image',
+          thumbnailUrl,
+          caption: caption.trim() || undefined,
+          isCloseFriendsOnly,
+          aspectRatio: mediaInfo.aspectRatio,
+          duration: mediaInfo.duration,
+          pollData: pollData || undefined,
+        }),
+        60000,
+        'Saving story timed out. Please try again.',
+      );
+
+      // #region agent log
+      debugLog('StoryCreator.tsx:handleSubmit', 'story saved ok', { authorProfileId }, 'H3', 'verify');
+      // #endregion
 
       setUploadProgress(100);
+      setUploadState('idle');
       toast.success('Story posted!');
-      
-      // Small delay to show completion
+      void queryClient.invalidateQueries({ queryKey: ['stories'], refetchType: 'all' });
+
       setTimeout(() => {
         onClose();
       }, 300);
     } catch (error) {
       console.error('Failed to create story:', error);
       const message = error instanceof Error ? error.message : 'Failed to create story';
+      // #region agent log
+      debugLog('StoryCreator.tsx:handleSubmit', 'publish failed', { message }, 'H2', 'verify');
+      // #endregion
       setErrorMessage(message);
       setUploadState('error');
       toast.error(message);
@@ -342,6 +308,13 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   };
 
   const isProcessing = uploadState !== 'idle' && uploadState !== 'error';
+  const canShare = !!selectedFile && !!mediaInfo && !isProcessing;
+  const shareBlockedReason =
+    !selectedFile || !mediaInfo
+      ? 'Media still loading'
+      : isProcessing
+        ? getStatusText() || 'Upload in progress'
+        : null;
 
   const getStatusText = () => {
     switch (uploadState) {
@@ -352,6 +325,15 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       default: return '';
     }
   };
+
+  useEffect(() => {
+    if (isProcessing) {
+      document.body.setAttribute('data-story-upload-active', 'true');
+    } else {
+      document.body.removeAttribute('data-story-upload-active');
+    }
+    return () => document.body.removeAttribute('data-story-upload-active');
+  }, [isProcessing]);
 
   // Show camera view when camera mode is selected
   if (mode === 'camera') {
@@ -372,10 +354,6 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
           setUploadState('idle');
           setErrorMessage(null);
           setMode('select');
-          debugLog('StoryCreator.tsx:onCapture', 'camera capture received', {
-            fileBytes: media.file.size,
-            type: media.type,
-          }, 'H2-bake');
           void applyAutoThumbnail(media.file, isVideo);
         }}
       />
@@ -680,8 +658,9 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
             />
           </div>
 
-          {/* Submit button */}
+          {/* Submit button — only disable during active upload, not while profile hydrates */}
           <Button
+            type="button"
             onClick={handleSubmit}
             disabled={isProcessing}
             className="w-full gradient-animated text-white font-semibold h-12"
@@ -698,6 +677,9 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
               </>
             )}
           </Button>
+          {shareBlockedReason && !isProcessing && (
+            <p className="text-xs text-center text-white/50">{shareBlockedReason}</p>
+          )}
         </div>
       )}
 

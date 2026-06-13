@@ -9,6 +9,7 @@ import { triggerHaptic } from "@/lib/haptics";
 import { playSound } from "@/lib/sounds";
 import { useIsMobileOrTablet } from "@/hooks/use-mobile";
 import { useUserRole } from "@/hooks/useModeration";
+import { useAuth } from "@/lib/auth";
 import { Camera as CameraComponent } from "@/components/camera";
 import { CameraMountBoundary } from "@/components/camera/CameraMountBoundary";
 
@@ -42,6 +43,7 @@ const containerVariants = {
 
 export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { isMobileOrTablet } = useIsMobileOrTablet();
   const [view, setView] = useState<View>("create");
   const [showCamera, setShowCamera] = useState(false);
@@ -73,6 +75,11 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
         navigate("/upload");
         return;
       case "camera":
+        if (!user) {
+          close();
+          navigate("/?mode=login");
+          return;
+        }
         close();
         setShowCamera(true);
         return;
@@ -85,7 +92,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
         setView("utilities");
         return;
     }
-  }, [close, navigate]);
+  }, [close, navigate, user]);
 
   const createItems = useMemo(() => [
     { id: "post", icon: Image, label: "Post", subtitle: "Share media", gradient: "from-primary via-accent to-primary" },

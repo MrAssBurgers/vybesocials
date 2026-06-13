@@ -48,8 +48,8 @@ function getCachedCurrentProfileRaw(): CachedProfile | null {
       display_name: typeof parsed.display_name === 'string' ? parsed.display_name : null,
       avatar_url: typeof parsed.avatar_url === 'string' ? parsed.avatar_url : null,
       bio: typeof parsed.bio === 'string' ? parsed.bio : '',
-      onboarding_completed:
-        typeof parsed.onboarding_completed === 'boolean' ? parsed.onboarding_completed : true,
+      // Only trust `true` from disk — stale `false` is ignored until DB confirms.
+      onboarding_completed: parsed.onboarding_completed === true ? true : undefined,
     };
   } catch {
     return null;
@@ -94,7 +94,26 @@ export function setCachedProfile(profile: CachedProfile): void {
 export function setCachedCurrentProfile(profile: CachedProfile): void {
   setCachedProfile(profile);
   try {
-    localStorage.setItem(CURRENT_PROFILE_KEY, JSON.stringify(profile));
+    const diskPayload = { ...profile };
+    // Never persist unconfirmed incomplete — prevents stale false trapping users on /onboarding.
+    if (diskPayload.onboarding_completed !== true) {
+      delete diskPayload.onboarding_completed;
+    }
+    localStorage.setItem(CURRENT_PROFILE_KEY, JSON.stringify(diskPayload));
+  } catch {
+    // ignore storage failures
+  }
+}
+
+/** Remove legacy disk `onboarding_completed: false` before hydrating auth state. */
+export function stripStaleOnboardingFlagFromDisk(): void {
+  try {
+    const raw = localStorage.getItem(CURRENT_PROFILE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as { onboarding_completed?: boolean };
+    if (parsed?.onboarding_completed !== false) return;
+    delete parsed.onboarding_completed;
+    localStorage.setItem(CURRENT_PROFILE_KEY, JSON.stringify(parsed));
   } catch {
     // ignore storage failures
   }

@@ -75,6 +75,31 @@ const page = await context.newPage();
 
 await page.goto(APP_URL, { waitUntil: 'networkidle', timeout: 45000 });
 
+const sessionProbe = await page.evaluate(() => {
+  const keys = Object.keys(localStorage).filter((k) => k.includes('auth-token'));
+  const hasToken = keys.some((k) => {
+    try {
+      const raw = localStorage.getItem(k);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      return !!(parsed?.access_token || parsed?.currentSession?.access_token);
+    } catch {
+      return false;
+    }
+  });
+  return { hasToken, authKeys: keys.length, href: location.href };
+});
+
+await postIngest({
+  sessionId: SESSION,
+  location: 'debug-story-smoke.mjs:session',
+  message: 'auth session probe',
+  data: sessionProbe,
+  hypothesisId: 'H0-guest',
+  timestamp: Date.now(),
+  runId: 'automated',
+});
+
 const ingestOk = await browserIngest(page);
 const bakeResult = await canvasBakeSmoke(page);
 

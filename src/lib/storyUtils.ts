@@ -236,6 +236,19 @@ async function captureVideoFrame(file: File, seekTime: number): Promise<Blob> {
     video.playsInline = true;
     video.preload = 'auto';
     const url = URL.createObjectURL(file);
+    let settled = false;
+
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn();
+    };
+
+    const timer = setTimeout(() => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Cover preview timed out — you can still share without waiting'));
+    }, 15000);
 
     const cleanup = () => URL.revokeObjectURL(url);
 
@@ -253,8 +266,10 @@ async function captureVideoFrame(file: File, seekTime: number): Promise<Blob> {
       let height = video.videoHeight;
 
       if (!width || !height) {
-        cleanup();
-        reject(new Error('Invalid video dimensions'));
+        finish(() => {
+          cleanup();
+          reject(new Error('Invalid video dimensions'));
+        });
         return;
       }
 
@@ -269,17 +284,21 @@ async function captureVideoFrame(file: File, seekTime: number): Promise<Blob> {
 
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        cleanup();
-        reject(new Error('Failed to get canvas context'));
+        finish(() => {
+          cleanup();
+          reject(new Error('Failed to get canvas context'));
+        });
         return;
       }
 
       ctx.drawImage(video, 0, 0, width, height);
       canvas.toBlob(
         (blob) => {
-          cleanup();
-          if (blob) resolve(blob);
-          else reject(new Error('Failed to capture video frame'));
+          finish(() => {
+            cleanup();
+            if (blob) resolve(blob);
+            else reject(new Error('Failed to capture video frame'));
+          });
         },
         'image/jpeg',
         0.82,
@@ -287,8 +306,10 @@ async function captureVideoFrame(file: File, seekTime: number): Promise<Blob> {
     };
 
     video.onerror = () => {
-      cleanup();
-      reject(new Error('Failed to load video for thumbnail'));
+      finish(() => {
+        cleanup();
+        reject(new Error('Failed to load video for thumbnail'));
+      });
     };
 
     video.src = url;

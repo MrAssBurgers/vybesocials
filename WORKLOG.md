@@ -4,6 +4,44 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (onboarding once-only cache fix — 2026-06-13)
+- **Root cause:** Disk-cached profile kept stale `onboarding_completed: false` after DB was `true`; auth hydrated false before fetch, trapping users on `/onboarding` and blocking story publish
+- **`profileCache.ts`** — never persist `false` to disk; ignore legacy disk `false` on read; `stripStaleOnboardingFlagFromDisk()` on sign-in/hydrate
+- **`auth.tsx`** — only trust cached `onboarding_completed: true`; strip stale disk flag on SIGNED_IN + hydrate
+- **`InviteRedeem.tsx`** — stage machine uses `refreshProfile()` (fresh DB) instead of stale auth context
+- **`GreetingWidget.tsx`** — align cache read with trust-only-true rule
+- **Verify:** `npm run build` PASS
+- **You:** Lovable Publish → sign in as onboarded user; confirm no `/onboarding` bounce; post story from Home
+
+## Current Focus
+- **You:** Lovable Publish → smoke test onboarding once-only + story publish
+
+## Next 3 Tasks
+1. Lovable Publish → sign in as completed user; should land on Home, never `/onboarding`
+2. New signup → complete onboarding (full + skip paths); should stay on Home after
+3. Post story from Home stories bar after publish
+
+- **Root cause:** Share stayed disabled until profile ID loaded; story insert used stale/missing author id; stories bar query did not refetch after publish
+- **`StoryCreator.tsx`** — Share enabled when media ready; `resolveStoryAuthorProfileId()` on submit; refetch stories after success
+- **`useStories.ts`** — resolve author at insert time; fix cache for first story; use `useAuthProfileId` for query key; force refetch after publish
+- **`publishStoryMedia.ts`** — shared storage upload helper
+- **Verify:** `npm run build` PASS
+- **You:** Lovable Publish → post a story from Home stories bar
+
+## What Changed (onboarding loop fix — 2026-06-12)
+- **Root cause:** `handleFinish` / `handleDesignerComplete` saved `onboarding_completed: true` to DB but never called `refreshProfile()` — auth context stayed stale (`onboarding_completed: false`) so Home/Landing redirected back to `/onboarding`
+- **`Onboarding.tsx`** — `await refreshProfile()` after successful save and before navigating home; profile update now uses `.select().maybeSingle()` and throws if zero rows updated
+- **Verify:** `npm run build` PASS
+- **You:** Lovable Publish → complete onboarding end-to-end; should land on Home without bounce-back
+
+## Current Focus
+- **You:** Lovable Publish → smoke test onboarding + VYBE AI
+
+## Next 3 Tasks
+1. Lovable Publish → complete onboarding (full path + skip path)
+2. Confirm no redirect loop to `/onboarding` after AI designer step
+3. Smoke test VYBE AI + auth persistence on vybehub.app
+
 ## What Changed (VYBE AI timeout + legacy URL fix — 2026-06-13)
 - **Root cause:** prod bundle still baked `eabvbt` Supabase URL → edge calls hit wrong project / 401 JWT mismatch; text chat tried `vybe-agent` first (25–60s) before `ai-chat`, doubling latency; `AbortError` surfaced as generic timeout instead of session/refresh errors
 - **`canonicalSupabase.ts`** — runtime + build canonicalize legacy refs → `hprmicwhlaaqfgshucec` URL + anon key

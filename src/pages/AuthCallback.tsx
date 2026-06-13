@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
+import { debugLog } from '@/lib/debugSessionLog';
 
 /**
  * OAuth callback page. After the Lovable Cloud OAuth broker redirects here
@@ -9,7 +10,7 @@ import { useAuth } from '@/lib/auth';
  * `user` to appear, then redirect to /home (or /onboarding for new users).
  */
 export default function AuthCallback() {
-  const { user, authReady, profile, loading } = useAuth();
+  const { user, authReady, profile, loading, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [timedOut, setTimedOut] = useState(false);
   const profileCheckTimer = useRef<NodeJS.Timeout | null>(null);
@@ -69,24 +70,38 @@ export default function AuthCallback() {
   }, [user, profile, loading]);
 
   useEffect(() => {
-    // Clean up the OAuth pending flag no matter what
     if (user || timedOut) {
       sessionStorage.removeItem('vybe-oauth-pending');
     }
 
-    if (user && profileSettled) {
-      if (!profile || profile.onboarding_completed === false || !profile.username) {
+    if (timedOut && !user) {
+      navigate('/auth', { replace: true });
+      return;
+    }
+
+    if (!user || !profileSettled) return;
+
+    let cancelled = false;
+    void (async () => {
+      const fresh = await refreshProfile();
+      if (cancelled) return;
+
+      // #region agent log
+      debugLog('AuthCallback.tsx', 'oauth redirect check', {
+        onboardingCompleted: fresh?.onboarding_completed ?? null,
+        hasUsername: !!fresh?.username,
+      }, 'H8', 'verify');
+      // #endregion
+
+      if (!fresh || fresh.onboarding_completed === false || !fresh.username) {
         navigate('/onboarding', { replace: true });
       } else {
         navigate('/home', { replace: true });
       }
-      return;
-    }
+    })();
 
-    if (timedOut) {
-      navigate('/auth', { replace: true });
-    }
-  }, [user, profile, profileSettled, timedOut, navigate]);
+    return () => { cancelled = true; };
+  }, [user, profileSettled, timedOut, navigate, refreshProfile]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">

@@ -1,7 +1,9 @@
 import { useState, memo, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { useStories, useCreateStory } from '@/hooks/useStories';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -9,10 +11,11 @@ import { StoryViewer } from './StoryViewer';
 import { StoryCreator } from './StoryCreator';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import { batchSignUrls } from '@/lib/signedUrlCache';
-import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
+import { useIsGuest } from '@/components/auth/GuestAuthPrompt';
 import { StoryPoster } from './StoryPoster';
 import { computeStoryPosterDimensions, getStoryPosterUrl } from '@/lib/storyUtils';
 import { cn } from '@/lib/utils';
+import { debugLog } from '@/lib/debugSessionLog';
 
 interface StoriesBarProps {
   colSpan?: 1 | 2;
@@ -24,13 +27,14 @@ export const StoriesBar = memo(function StoriesBar({
   rowSpan = 1,
 }: StoriesBarProps) {
   const { t } = useTranslation();
-  const { profile } = useAuth();
+  const navigate = useNavigate();
+  const { user, profile, loading: authLoading } = useAuth();
   const { isGuest } = useIsGuest();
+  const canCreateStory = !authLoading && !!user;
   const { data: storyGroups } = useStories();
   const createStory = useCreateStory();
   const [selectedGroupIndex, setSelectedGroupIndex] = useState<number | null>(null);
   const [showCreator, setShowCreator] = useState(false);
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [posterSize, setPosterSize] = useState(() =>
     computeStoryPosterDimensions(colSpan, rowSpan),
@@ -74,6 +78,17 @@ export const StoriesBar = memo(function StoriesBar({
   const isTall = rowSpan === 2;
   const avatarSize = Math.max(36, Math.round(posterSize.width * 0.42));
 
+  const promptStorySignIn = () => {
+    // #region agent log
+    debugLog('StoriesBar.tsx', 'guest blocked from story creator', {
+      hasCachedProfile: !!profile?.id,
+      authLoading,
+    }, 'H0-guest', 'verify');
+    // #endregion
+    toast.error('Sign in to post stories');
+    navigate('/?mode=login');
+  };
+
   return (
     <>
       <div
@@ -98,8 +113,9 @@ export const StoriesBar = memo(function StoriesBar({
           isUploading={createStory.isPending || ownStoryUploading}
           showAddButton
           onClick={() => {
-            if (isGuest) {
-              setShowAuthPrompt(true);
+            if (authLoading) return;
+            if (!canCreateStory) {
+              promptStorySignIn();
             } else if (ownStoryGroup) {
               setSelectedGroupIndex(0);
             } else {
@@ -107,8 +123,9 @@ export const StoriesBar = memo(function StoriesBar({
             }
           }}
           onAddClick={() => {
-            if (isGuest) {
-              setShowAuthPrompt(true);
+            if (authLoading) return;
+            if (!canCreateStory) {
+              promptStorySignIn();
             } else {
               setShowCreator(true);
             }
@@ -147,13 +164,6 @@ export const StoriesBar = memo(function StoriesBar({
       <AnimatePresence>
         {showCreator && <StoryCreator onClose={() => setShowCreator(false)} />}
       </AnimatePresence>
-
-      <GuestAuthPrompt
-        variant="modal"
-        action="share stories"
-        open={showAuthPrompt}
-        onClose={() => setShowAuthPrompt(false)}
-      />
     </>
   );
 });

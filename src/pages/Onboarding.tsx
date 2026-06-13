@@ -12,6 +12,7 @@ import { AgeSetup } from '@/components/onboarding/AgeSetup';
 import { AIVybeDesigner } from '@/components/onboarding/AIVybeDesigner';
 import { LegalAcceptance } from '@/components/onboarding/LegalAcceptance';
 import { useAuth } from '@/lib/auth';
+import { debugLog } from '@/lib/debugSessionLog';
 import { supabase } from '@/integrations/supabase/client';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
@@ -167,6 +168,25 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const [userAge, setUserAge] = useState<number | undefined>(undefined);
   const [legalAccepted, setLegalAccepted] = useState(false);
 
+  // Stale disk cache can show onboarding_completed=false while DB is true — re-fetch before trapping user here.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void (async () => {
+      const fresh = await refreshProfile();
+      if (cancelled || !fresh) return;
+      if (fresh.onboarding_completed !== false) {
+        // #region agent log
+        debugLog('Onboarding.tsx', 'already completed — redirect home', {
+          onboardingCompleted: fresh.onboarding_completed,
+        }, 'H8', 'verify');
+        // #endregion
+        navigate('/home', { replace: true });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, refreshProfile, navigate]);
+
   // Pre-fill username from signup metadata when profile got a generated placeholder.
   useEffect(() => {
     if (!signupUsername || username) return;
@@ -254,7 +274,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
 
       await ensureProfileRow(user.id);
 
-      const { error } = await supabase
+      const { data: updatedRow, error } = await supabase
         .from('profiles')
         .update({
           username: finalUsername?.toLowerCase(),
@@ -268,7 +288,9 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           date_of_birth: dateOfBirth?.toISOString().split('T')[0] || null,
           onboarding_completed: true,
         })
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .select('id, onboarding_completed, username')
+        .maybeSingle();
 
       if (error) {
         if (error.code === '23505' && error.message?.includes('profiles_username_key')) {
@@ -279,6 +301,10 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         throw error;
       }
 
+      if (!updatedRow) {
+        throw new Error('Profile update did not apply. Please try again.');
+      }
+
       if (legalAccepted) {
         await supabase.from('legal_acceptances').upsert([
           { user_id: user.id, document_type: 'tos', document_version: '2.0' },
@@ -287,6 +313,8 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       }
 
       clearSignupUsername();
+
+      await refreshProfile();
 
       setLoading(false);
       haptics.success();
@@ -299,7 +327,8 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     }
   };
 
-  const handleDesignerComplete = () => {
+  const handleDesignerComplete = async () => {
+    await refreshProfile();
     console.log('[Onboarding] Completed, dispatching event');
     window.dispatchEvent(new CustomEvent('onboarding-completed'));
     toast.success('Welcome to VYBE! 🎉');

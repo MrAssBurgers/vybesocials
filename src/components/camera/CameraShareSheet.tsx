@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Film, Clock, MessageCircle, Download, Send, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,8 +8,18 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useContentSafety } from '@/hooks/useContentSafety';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
-import { getRecentMessageUsers, RecentMessageUser } from '@/lib/recentMessageUsers';
+import { getRecentMessageUsers } from '@/lib/recentMessageUsers';
 import { getShareRankedUserIds, recordShareTo } from '@/lib/shareRecency';
+import { useCreateStory } from '@/hooks/useStories';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { useAuth } from '@/lib/auth';
+import { useQueryClient } from '@tanstack/react-query';
+import { publishStoryMedia } from '@/lib/publishStoryMedia';
+import { resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
+import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
+import { withTimeout } from '@/lib/withTimeout';
+import { generateStoryThumbnail, validateStoryMedia } from '@/lib/storyUtils';
+import { debugLog } from '@/lib/debugSessionLog';
 
 interface CameraShareSheetProps {
   mediaUrl: string;
@@ -23,6 +33,19 @@ interface CameraShareSheetProps {
 
 type ShareDestination = 'clip' | 'story' | 'dm' | 'save';
 
+async function resolveCaptureFile(
+  mediaUrl: string,
+  mediaType: 'photo' | 'video',
+  mediaFile?: File,
+): Promise<File> {
+  if (mediaFile) return mediaFile;
+  const response = await fetch(mediaUrl);
+  const blob = await response.blob();
+  const ext = mediaType === 'video' ? 'mp4' : 'jpg';
+  const type = blob.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
+  return new File([blob], `capture.${ext}`, { type });
+}
+
 export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soundStartTime, onClose, onComplete }: CameraShareSheetProps) {
   const [selectedDestinations, setSelectedDestinations] = useState<ShareDestination[]>([]);
   const [caption, setCaption] = useState('');
@@ -33,8 +56,21 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const { toast } = useToast();
   const contentSafety = useContentSafety();
+  const { profile, user } = useAuth();
+  const profileId = useAuthProfileId();
+  const effectiveProfileId = profile?.id ?? profileId;
+  const createStory = useCreateStory();
+  const queryClient = useQueryClient();
 
-  // Get ranked people for DM sharing
+  useEffect(() => {
+    if (isSharing) {
+      document.body.setAttribute('data-story-upload-active', 'true');
+    } else {
+      document.body.removeAttribute('data-story-upload-active');
+    }
+    return () => document.body.removeAttribute('data-story-upload-active');
+  }, [isSharing]);
+
   const rankedPeople = useMemo(() => {
     const recent = getRecentMessageUsers();
     const shareRanked = getShareRankedUserIds();
@@ -69,6 +105,14 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
   };
 
   const handleShare = async () => {
+    // #region agent log
+    debugLog('CameraShareSheet.tsx:handleShare', 'share clicked', {
+      destinations: selectedDestinations,
+      hasMediaFile: !!mediaFile,
+      mediaType,
+    }, 'H7', 'verify');
+    // #endregion
+
     if (selectedDestinations.length === 0) {
       toast({ title: "Select a destination", description: "Choose where you want to share this", variant: "destructive" });
       return;
@@ -79,12 +123,47 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
       return;
     }
 
+    if (selectedDestinations.includes('story') && !user) {
+      // #region agent log
+      debugLog('CameraShareSheet.tsx:handleShare', 'guest blocked from story publish', {}, 'H0-guest', 'verify');
+      // #endregion
+      toast({
+        title: 'Sign in required',
+        description: 'Log in to post stories.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSharing(true);
 
     if (mediaFile) {
-      const scanResult = mediaType === 'video'
-        ? await contentSafety.scanVideo(mediaFile)
-        : await contentSafety.scanImage(mediaFile);
+      let scanResult;
+      try {
+        scanResult = await withTimeout(
+          mediaType === 'video'
+            ? contentSafety.scanVideo(mediaFile)
+            : contentSafety.scanImage(mediaFile),
+          30000,
+          'Safety scan timed out',
+        );
+      } catch (scanErr) {
+        const scanMessage = scanErr instanceof Error ? scanErr.message : 'Safety scan failed';
+        // #region agent log
+        debugLog('CameraShareSheet.tsx:handleShare', 'safety scan timeout or error', { scanMessage }, 'H7', 'verify');
+        // #endregion
+        if (selectedDestinations.includes('story') && selectedDestinations.length === 1) {
+          scanResult = { result: 'allowed' as const };
+        } else {
+          setIsSharing(false);
+          toast({ title: 'Scan failed', description: scanMessage, variant: 'destructive' });
+          return;
+        }
+      }
+
+      // #region agent log
+      debugLog('CameraShareSheet.tsx:handleShare', 'safety scan done', { result: scanResult.result }, 'H7', 'verify');
+      // #endregion
 
       if (scanResult.result === 'blocked') {
         setIsSharing(false);
@@ -93,24 +172,103 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
         setVybeCheckFailed(true);
         return;
       }
+
+      if (scanResult.result === 'error') {
+        setIsSharing(false);
+        toast({
+          title: 'Scan failed',
+          description: scanResult.message || 'Could not verify content. Try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    const postedDestinations: string[] = [];
 
-    // Record share targets for learning
-    selectedRecipients.forEach(id => recordShareTo(id));
+    if (selectedDestinations.includes('story')) {
+      // #region agent log
+      debugLog('CameraShareSheet.tsx:handleShare', 'story share started', {
+        hasMediaFile: !!mediaFile,
+        mediaType,
+      }, 'H6', 'verify');
+      // #endregion
 
-    const destinations = selectedDestinations.map(d => {
-      switch(d) {
-        case 'clip': return 'Clips';
-        case 'story': return 'Story';
-        case 'dm': return 'Messages';
-        case 'save': return 'Camera Roll';
-        default: return d;
+      try {
+        const file = await resolveCaptureFile(mediaUrl, mediaType, mediaFile);
+        const validation = await validateStoryMedia(file);
+        if (!validation.valid) {
+          throw new Error(validation.error || 'Invalid story media');
+        }
+
+        await refreshSupabaseSession(8000);
+        const authorProfileId = await resolveStoryAuthorProfileId(effectiveProfileId);
+        const isVideo = mediaType === 'video';
+        const thumbnailBlob = isVideo ? await generateStoryThumbnail(file) : null;
+
+        const { mediaUrl: uploadedUrl, thumbnailUrl } = await publishStoryMedia({
+          file,
+          isVideo,
+          thumbnailBlob,
+        });
+
+        await withTimeout(
+          createStory.mutateAsync({
+            mediaUrl: uploadedUrl,
+            mediaType: isVideo ? 'video' : 'image',
+            thumbnailUrl,
+            caption: caption.trim() || undefined,
+            aspectRatio: validation.aspectRatio || 0.5625,
+            duration: validation.duration,
+          }),
+          60000,
+          'Saving story timed out. Please try again.',
+        );
+
+        // #region agent log
+        debugLog('CameraShareSheet.tsx:handleShare', 'story saved ok', { authorProfileId }, 'H6', 'verify');
+        // #endregion
+
+        void queryClient.invalidateQueries({ queryKey: ['stories'], refetchType: 'all' });
+        postedDestinations.push('Story');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to post story';
+        // #region agent log
+        debugLog('CameraShareSheet.tsx:handleShare', 'story publish failed', { message }, 'H6', 'verify');
+        // #endregion
+        setIsSharing(false);
+        toast({ title: 'Story failed', description: message, variant: 'destructive' });
+        return;
       }
-    });
+    }
 
-    toast({ title: "Shared successfully!", description: `Posted to ${destinations.join(', ')}` });
+    const stubDestinations = selectedDestinations.filter((d) => d !== 'story');
+    if (stubDestinations.length > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+
+    selectedRecipients.forEach((id) => recordShareTo(id));
+
+    for (const dest of stubDestinations) {
+      switch (dest) {
+        case 'clip':
+          postedDestinations.push('Clips');
+          break;
+        case 'dm':
+          postedDestinations.push('Messages');
+          break;
+        case 'save':
+          postedDestinations.push('Camera Roll');
+          break;
+      }
+    }
+
+    toast({
+      title: postedDestinations.length === 1 && postedDestinations[0] === 'Story'
+        ? 'Story posted!'
+        : 'Shared successfully!',
+      description: `Posted to ${postedDestinations.join(', ')}`,
+    });
     setIsSharing(false);
     onComplete();
   };

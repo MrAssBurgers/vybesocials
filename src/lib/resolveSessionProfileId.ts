@@ -65,3 +65,22 @@ export function resetSessionProfileMemo(): void {
   memoProfileId = null;
   inflight = null;
 }
+
+/** Resolve profile id for story publish — creates profile row if missing. */
+export async function resolveStoryAuthorProfileId(
+  liveProfileId?: string | null,
+): Promise<string> {
+  let id = getEffectiveProfileId(liveProfileId) ?? (await resolveSessionProfileId(liveProfileId));
+  if (id) return id;
+
+  const { error } = await supabase.rpc('ensure_profile');
+  if (error) {
+    await supabase.rpc('claim_profile_by_email');
+  }
+
+  id = await resolveSessionProfileId(liveProfileId);
+  if (!id) {
+    throw new Error('Could not load your profile. Sign out and back in, then try again.');
+  }
+  return id;
+}

@@ -23,7 +23,7 @@ function resolveGreetingProfile(live: ReturnType<typeof useAuth>['profile']) {
     avatar_url: cached.avatar_url,
     bio: cached.bio || '',
     created_at: live?.created_at || new Date().toISOString(),
-    onboarding_completed: cached.onboarding_completed ?? true,
+    onboarding_completed: cached.onboarding_completed === true ? true : undefined,
   } as NonNullable<typeof live>;
 }
 

@@ -3,6 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
+import { resolveSessionProfileId, resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
+import { debugLog } from '@/lib/debugSessionLog';
+
+function storiesQueryProfileId(liveProfileId?: string | null, resolvedProfileId?: string) {
+  return getEffectiveProfileId(liveProfileId ?? resolvedProfileId);
+}
 
 export interface Story {
   id: string;
@@ -43,7 +49,8 @@ export interface StoryGroup {
 
 export function useStories() {
   const { profile } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const resolvedProfileId = useAuthProfileId();
+  const profileId = storiesQueryProfileId(profile?.id, resolvedProfileId);
 
   return useQuery({
     queryKey: ['stories', profileId],
@@ -170,42 +177,79 @@ export function useCreateStory() {
       duration,
       pollData,
     }: CreateStoryParams) => {
-      if (!storiesProfileId) throw new Error('Not authenticated');
+      const authorId = await resolveStoryAuthorProfileId(profileId ?? profile?.id);
 
-      const { data, error } = await (supabase
-        .from('stories') as any)
-        .insert({
-          author_id: storiesProfileId,
-          media_url: mediaUrl,
-          media_type: mediaType,
-          thumbnail_url: thumbnailUrl || null,
-          caption,
-          is_close_friends_only: isCloseFriendsOnly || false,
-          aspect_ratio: aspectRatio || 0.5625,
-          duration: duration,
-          poll_data: pollData || null,
-        })
+      const payload = {
+        author_id: authorId,
+        media_url: mediaUrl,
+        media_type: mediaType,
+        thumbnail_url: thumbnailUrl || null,
+        caption,
+        is_close_friends_only: isCloseFriendsOnly || false,
+        aspect_ratio: aspectRatio || 0.5625,
+        duration: duration,
+        poll_data: pollData || null,
+      };
+
+      let { data, error } = await (supabase.from('stories') as any)
+        .insert(payload)
         .select(`
           *,
           author:profiles!author_id(id, username, avatar_url, display_name)
         `)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        // #region agent log
+        debugLog('useStories.ts:createStory', 'insert failed', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          authorId,
+        }, 'H3', 'verify');
+        // #endregion
+        throw error;
+      }
+
+      if (!data) {
+        const { data: latest, error: fetchError } = await (supabase.from('stories') as any)
+          .select(`
+            *,
+            author:profiles!author_id(id, username, avatar_url, display_name)
+          `)
+          .eq('author_id', authorId)
+          .eq('media_url', mediaUrl)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (fetchError) throw fetchError;
+        if (!latest) {
+          throw new Error('Story may have saved but could not be confirmed. Refresh Home and check your story ring.');
+        }
+        data = latest;
+      }
+
+      // #region agent log
+      debugLog('useStories.ts:createStory', 'insert ok', { storyId: data.id, authorId }, 'H3', 'verify');
+      // #endregion
+
       return data;
     },
     onMutate: async (newStory) => {
-      // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['stories'] });
 
-      // Snapshot the previous value
-      const previousStories = queryClient.getQueryData<StoryGroup[]>(['stories', storiesProfileId]);
+      const authorId =
+        storiesProfileId ?? (await resolveSessionProfileId(profileId ?? profile?.id));
+      const previousStories = authorId
+        ? queryClient.getQueryData<StoryGroup[]>(['stories', authorId])
+        : undefined;
 
-      // Optimistically update to the new value
-      if (storiesProfileId) {
+      if (authorId) {
         const optimisticStory: Story = {
           id: `optimistic-${Date.now()}`,
-          author_id: storiesProfileId,
+          author_id: authorId,
           media_url: newStory.mediaUrl,
           media_type: newStory.mediaType,
           thumbnail_url: newStory.thumbnailUrl || null,
@@ -217,7 +261,7 @@ export function useCreateStory() {
           aspect_ratio: newStory.aspectRatio,
           duration: newStory.duration,
           author: {
-            id: storiesProfileId,
+            id: authorId,
             username: profile?.username || 'You',
             avatar_url: profile?.avatar_url || null,
             display_name: profile?.display_name || null,
@@ -227,7 +271,7 @@ export function useCreateStory() {
           isUploading: true,
         };
 
-        queryClient.setQueryData<StoryGroup[]>(['stories', storiesProfileId], (old) => {
+        queryClient.setQueryData<StoryGroup[]>(['stories', authorId], (old) => {
           if (!old) {
             return [{
               user: optimisticStory.author!,
@@ -236,10 +280,10 @@ export function useCreateStory() {
             }];
           }
 
-          const existingOwnGroup = old.find(g => g.user.id === storiesProfileId);
+          const existingOwnGroup = old.find(g => g.user.id === authorId);
           if (existingOwnGroup) {
             return old.map(g => 
-              g.user.id === storiesProfileId 
+              g.user.id === authorId 
                 ? { ...g, stories: [optimisticStory, ...g.stories.filter(s => !s.isOptimistic)] }
                 : g
             );
@@ -253,21 +297,49 @@ export function useCreateStory() {
         });
       }
 
-      return { previousStories };
+      return { previousStories, authorId };
     },
     onSuccess: (data) => {
-      if (!storiesProfileId) return;
-      queryClient.setQueryData<StoryGroup[]>(['stories', storiesProfileId], (old) => {
-        if (!old) return old;
+      const authorId = data.author_id;
+      if (!authorId) return;
+      queryClient.setQueryData<StoryGroup[]>(['stories', authorId], (old) => {
+        const story = {
+          ...data,
+          has_viewed: true,
+          isOptimistic: false,
+          isUploading: false,
+        } as Story;
+
+        if (!old || old.length === 0) {
+          return [{
+            user: (story.author as StoryGroup['user']) ?? {
+              id: authorId,
+              username: profile?.username || 'You',
+              avatar_url: profile?.avatar_url || null,
+              display_name: profile?.display_name || null,
+            },
+            stories: [story],
+            hasUnviewed: false,
+          }];
+        }
+
+        const hasOwnGroup = old.some((g) => g.user.id === authorId);
+        if (!hasOwnGroup) {
+          return [{
+            user: (story.author as StoryGroup['user']) ?? {
+              id: authorId,
+              username: profile?.username || 'You',
+              avatar_url: profile?.avatar_url || null,
+              display_name: profile?.display_name || null,
+            },
+            stories: [story],
+            hasUnviewed: false,
+          }, ...old];
+        }
+
         return old.map((group) => {
-          if (group.user.id !== storiesProfileId) return group;
+          if (group.user.id !== authorId) return group;
           const withoutOptimistic = group.stories.filter((s) => !s.isOptimistic && !s.isUploading);
-          const story = {
-            ...data,
-            has_viewed: true,
-            isOptimistic: false,
-            isUploading: false,
-          };
           return {
             ...group,
             stories: [story, ...withoutOptimistic.filter((s) => s.id !== story.id)],
@@ -276,14 +348,17 @@ export function useCreateStory() {
       });
     },
     onError: (err, newStory, context) => {
-      // Rollback on error
-      if (context?.previousStories) {
-        queryClient.setQueryData(['stories', storiesProfileId], context.previousStories);
+      const cacheKey = context?.authorId ?? storiesProfileId;
+      if (context?.previousStories && cacheKey) {
+        queryClient.setQueryData(['stories', cacheKey], context.previousStories);
       }
     },
-    onSettled: () => {
-      // Refetch after error or success
-      queryClient.invalidateQueries({ queryKey: ['stories'] });
+    onSettled: (_data, _error, _vars, context) => {
+      const cacheKey = context?.authorId ?? storiesProfileId;
+      void queryClient.invalidateQueries({ queryKey: ['stories'], refetchType: 'all' });
+      if (cacheKey) {
+        void queryClient.refetchQueries({ queryKey: ['stories', cacheKey] });
+      }
     },
   });
 }

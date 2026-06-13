@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth, waitForAuthSession } from '@/lib/auth';
+import { debugLog } from '@/lib/debugSessionLog';
 import { getPostLoginPath } from '@/lib/authReturnPath';
 import { isLovablePreviewHost } from '@/lib/lovablePreview';
 import { Button } from '@/components/ui/button';
@@ -110,7 +111,7 @@ interface LandingProps {
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
-  const { user, profile: authProfile, signIn, signUp, resendVerification, authReady } = useAuth();
+  const { user, profile: authProfile, signIn, signUp, resendVerification, authReady, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { triggerTransition } = useThemeTransition();
@@ -262,15 +263,31 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     // Suppress auto-redirect while a 2FA / approval gate decision is in flight
     // (otherwise on mobile the SIGNED_IN listener races the gate and bypasses it).
     if (gatePending || loginGate) return;
-    if (authProfile?.onboarding_completed === false) {
-      navigate('/onboarding', { replace: true });
-      return;
-    }
-    if (authProfile?.username) {
-      const returnPath = getPostLoginPath('/home');
-      navigate(returnPath, { replace: true });
-    }
-  }, [user, authProfile, navigate, isInviteRoute, isInviteMode, authReady, gatePending, loginGate]);
+
+    let cancelled = false;
+    void (async () => {
+      const fresh = await refreshProfile();
+      if (cancelled) return;
+
+      // #region agent log
+      debugLog('Landing.tsx', 'post-login redirect check', {
+        onboardingCompleted: fresh?.onboarding_completed ?? null,
+        hasUsername: !!fresh?.username,
+      }, 'H8', 'verify');
+      // #endregion
+
+      if (fresh?.onboarding_completed === false) {
+        navigate('/onboarding', { replace: true });
+        return;
+      }
+      if (fresh?.username) {
+        const returnPath = getPostLoginPath('/home');
+        navigate(returnPath, { replace: true });
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [user?.id, authReady, navigate, isInviteRoute, isInviteMode, gatePending, loginGate, refreshProfile]);
 
   // Prevent the "login flash": if auth is still resolving, show a loader instead of a blank screen.
   if (!isInviteMode && !authReady) {

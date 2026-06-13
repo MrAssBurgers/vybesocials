@@ -20,6 +20,7 @@ import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMod
 import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
 import { useGridLayout } from '@/hooks/useGridLayout';
 import { scrollAppTo } from '@/lib/appScrollContainer';
+import { debugLog } from '@/lib/debugSessionLog';
 
 // Lazy load heavy components that aren't needed for initial render
 const AnnouncementModal = lazy(() => import('@/components/announcements/AnnouncementModal').then(m => ({ default: m.AnnouncementModal })));
@@ -46,7 +47,7 @@ interface HomePageProps {
 
 export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const navigate = useNavigate();
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const profileId = getEffectiveProfileId(profile?.id);
   const [activeTab, setActiveTab] = useState('foryou');
   const { showAds } = useShowAds();
@@ -294,36 +295,39 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     }
   }, []);
 
-  // Only redirect authenticated users to onboarding if they EXPLICITLY haven't completed it
-  // Guest users can browse freely
+  // Only redirect authenticated users to onboarding if DB says incomplete (not stale disk cache).
   useEffect(() => {
-    // Wait for auth to fully load
-    if (authLoading) return;
-    
-    // If in invite mode (rendered from InviteRedeem), never redirect
-    if (isInviteMode) {
-      console.log('[Home] In invite mode - skipping all redirects');
-      return;
-    }
-    
-    // Guest users can browse - no redirect needed
-    if (!user) {
-      return;
-    }
+    if (authLoading || !user || isInviteMode) return;
 
-    // CRITICAL: Only redirect if we have a profile AND it explicitly says onboarding is not completed
-    // If profile is null/undefined (still loading or missing), do NOT redirect - let auth handle it
-    // This prevents the loop where refreshing the page triggers onboarding before profile loads
-    if (profile && profile.onboarding_completed === false) {
-      // Don't redirect during active referral flow or invite mode
+    let cancelled = false;
+    void (async () => {
+      const fresh = await refreshProfile();
+      if (cancelled || !fresh) return;
+
+      if (fresh.onboarding_completed !== false) return;
+
       if (hasActiveReferral() || isInviteEntryMode()) {
         console.log('[Home] Skipping profile redirect - active referral/invite in progress');
         return;
       }
+      if (document.body.hasAttribute('data-story-upload-active')) {
+        // #region agent log
+        debugLog('Home.tsx', 'deferred onboarding redirect — story upload active', {}, 'H8', 'verify');
+        // #endregion
+        return;
+      }
+      // #region agent log
+      debugLog('Home.tsx', 'redirecting to onboarding', {
+        profileId: fresh.id,
+        onboardingCompleted: fresh.onboarding_completed,
+      }, 'H8', 'verify');
+      // #endregion
       console.log('[Home] Profile explicitly has onboarding_completed=false, redirecting...');
       navigate('/onboarding');
-    }
-  }, [authLoading, user, profile, navigate, isInviteMode]);
+    })();
+
+    return () => { cancelled = true; };
+  }, [authLoading, user?.id, navigate, isInviteMode, refreshProfile]);
 
   return (
     <AppLayout>
