@@ -13,7 +13,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Build:** `npm run build` pass
 
 ## Publish status (2026-06-12)
-- **Git:** pending push
+- **Git:** `936396ae` pushed to `origin/main`
 - **Web:** Lovable → Share → Publish → https://vybehub.app
 
 ## What Changed (DMs load + poster stories resize — 2026-06-12)
