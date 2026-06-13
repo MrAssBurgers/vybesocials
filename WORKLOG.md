@@ -13,8 +13,14 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Verify:** `npm run build` PASS
 - **You:** Lovable Publish → sign in as onboarded user; confirm no `/onboarding` bounce; post story from Home
 
+## What Changed (publish prep — 2026-06-13)
+- **Git:** pushed `a7d0eaea` to `main` (onboarding once-only + story publish + profile audit migration)
+- **Supabase:** applied `fix_profile_audit_change_type` on `hprmicwhlaaqfgshucec` via MCP
+- **Build:** `npm run build` PASS
+- **You:** Lovable → Share → Publish (see DEPLOY.md) — agents cannot click Publish
+
 ## Current Focus
-- **You:** Lovable Publish → smoke test onboarding once-only + story publish
+- **You:** Lovable Publish → smoke test onboarding once-only + story publish on vybehub.app
 
 ## Next 3 Tasks
 1. Lovable Publish → sign in as completed user; should land on Home, never `/onboarding`

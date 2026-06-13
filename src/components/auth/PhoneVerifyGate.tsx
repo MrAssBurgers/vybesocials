@@ -65,9 +65,7 @@ export function PhoneVerifyGate() {
         if (!next) handleDismiss();
       }}
     >
-      <DialogContent
-        className="max-w-md !fixed !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !inset-auto !m-0 w-[min(92vw,28rem)]"
-      >
+      <DialogContent className="max-w-md w-[min(92vw,28rem)]">
         <DialogHeader>
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
             <ShieldCheck className="h-6 w-6 text-primary" />
