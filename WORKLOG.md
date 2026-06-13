@@ -12,7 +12,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Build:** `npm run build` pass
 
 ## Publish status (2026-06-12 — DMs loading)
-- **Git:** uncommitted locally — commit + push, then Lovable Publish
+- **Git:** `e96cae1c` pushed to `origin/main`
+- **Web:** Lovable → Share → Publish → https://vybehub.app
 
 ## What Changed (DMs blank list P0/P1 fix — 2026-06-12)
 - **`ConversationList.tsx`** — `AcceptedFriendChatRow` uses `acceptedBy` (was broken `sender` field); never render blank `: null` empty state; Retry button on fetch error; 8s refetch even after empty success
