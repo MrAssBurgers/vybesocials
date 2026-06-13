@@ -4,6 +4,17 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (ChatView conversation load fix — 2026-06-12)
+- **`useConversationDetail`** — new hook reads `dm-conversations` cache or fetches members/profiles for ChatView
+- **`ChatView.tsx`** — uses conversation detail hook + `useAuthProfileId()` (was empty "Chat" / offline header)
+- **`useMessages.ts`** — resolve viewer profile from session; `networkMode: 'always'`
+- **`useDMConversations.ts`** — sync `conversations` cache alongside `dm-conversations`
+- **Build:** `npm run build` pass
+
+## Publish status (2026-06-12 — ChatView)
+- **Git:** pending push
+- **Web:** Lovable → Share → Publish → https://vybehub.app
+
 ## What Changed (DMs perpetual skeleton fix — 2026-06-12)
 - **`ConversationList.tsx`** — skeleton only on first fetch (`!isFetched`), not background refetch; removed mount refetch loop
 - **`queryRefetchPolicy.ts`** — empty DM list no longer uses `refetchOnMount: 'always'` (was re-skeletoning forever)

@@ -275,7 +275,7 @@ function mergePendingOptimisticMessages(
 }
 
 export function useMessages(conversationId: string | undefined) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const profileId = getEffectiveProfileId(profile?.id);
   const queryClient = useQueryClient();
 
@@ -283,6 +283,16 @@ export function useMessages(conversationId: string | undefined) {
     queryKey: ['messages', conversationId],
     queryFn: async () => {
       if (!conversationId) return [];
+
+      let viewerId = profileId;
+      if (user?.id) {
+        const { data: me } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (me?.id) viewerId = me.id;
+      }
 
       const { data, error } = await supabase
         .from('messages')
@@ -296,7 +306,7 @@ export function useMessages(conversationId: string | undefined) {
 
       if (data) data.reverse();
 
-      const filtered = filterMessagesForViewer((data || []) as Message[], profileId);
+      const filtered = filterMessagesForViewer((data || []) as Message[], viewerId);
       return mergePendingOptimisticMessages(queryClient, conversationId, filtered);
     },
     enabled: !!conversationId,
@@ -306,7 +316,7 @@ export function useMessages(conversationId: string | undefined) {
     refetchOnMount: (query) => shouldRefetchWhenEmpty(query),
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
-    networkMode: 'offlineFirst',
+    networkMode: 'always',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });

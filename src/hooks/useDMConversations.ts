@@ -60,6 +60,7 @@ export function useDMConversations(searchQuery: string = '') {
       if (!profileId) return [];
       const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profileId]);
       const result = await loadDMConversations(profileId, prev);
+      queryClient.setQueryData(['conversations', profileId], result);
 
       // If session profile id differs from query key, migrate cache to the correct key.
       if (user?.id) {
@@ -68,16 +69,18 @@ export function useDMConversations(searchQuery: string = '') {
           .select('id, user_id, username, avatar_url, display_name')
           .eq('user_id', user.id)
           .maybeSingle();
-        if (me?.id && me.id !== profileId) {
-          setCachedCurrentProfile({
-            id: me.id,
-            user_id: me.user_id,
-            username: me.username,
-            display_name: me.display_name,
-            avatar_url: me.avatar_url,
-          });
-          queryClient.setQueryData(['dm-conversations', me.id], result);
+        if (me?.id) {
           queryClient.setQueryData(['conversations', me.id], result);
+          if (me.id !== profileId) {
+            setCachedCurrentProfile({
+              id: me.id,
+              user_id: me.user_id,
+              username: me.username,
+              display_name: me.display_name,
+              avatar_url: me.avatar_url,
+            });
+            queryClient.setQueryData(['dm-conversations', me.id], result);
+          }
         }
       }
 
@@ -247,6 +250,97 @@ export function useDMConversations(searchQuery: string = '') {
     refetch: conversationsQuery.refetch,
     profileId,
   };
+}
+
+/**
+ * Load a single conversation for ChatView — reads dm-conversations cache first,
+ * then fetches members + profiles if the list cache missed it.
+ */
+export function useConversationDetail(conversationId: string | undefined) {
+  const { profile, user } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
+  const queryClient = useQueryClient();
+
+  return useQuery({
+    queryKey: ['conversation-detail', profileId, conversationId],
+    queryFn: async (): Promise<DMConversation | null> => {
+      if (!conversationId) return null;
+
+      let effectiveProfileId = profileId;
+      if (user?.id) {
+        const { data: me } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (me?.id) effectiveProfileId = me.id;
+      }
+      if (!effectiveProfileId) return null;
+
+      const cached =
+        queryClient.getQueryData<DMConversation[]>(['dm-conversations', effectiveProfileId])?.find(
+          (c) => c.id === conversationId,
+        ) ??
+        queryClient.getQueryData<DMConversation[]>(['conversations', effectiveProfileId])?.find(
+          (c) => c.id === conversationId,
+        );
+      if (cached?.members?.length) return cached;
+
+      const { data: conv, error: convError } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('id', conversationId)
+        .maybeSingle();
+
+      if (convError) throw convError;
+      if (!conv) return null;
+
+      const { data: allMembers, error: membersError } = await supabase
+        .from('conversation_members')
+        .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
+        .eq('conversation_id', conversationId);
+
+      if (membersError) throw membersError;
+
+      const memberUserIds = Array.from(new Set((allMembers || []).map((m) => m.user_id)));
+      const { data: memberProfiles } = memberUserIds.length
+        ? await supabase
+            .from('profiles')
+            .select('id, user_id, username, avatar_url, display_name')
+            .in('id', memberUserIds)
+        : { data: [] as { id: string; user_id: string; username: string; avatar_url: string | null; display_name: string | null }[] };
+
+      const profileById = new Map((memberProfiles || []).map((p) => [p.id, p]));
+      const members = (allMembers || []).map((m) => ({
+        ...m,
+        profile: profileById.get(m.user_id) || null,
+      }));
+
+      return {
+        ...conv,
+        members,
+        last_message: cached?.last_message ?? null,
+        unread_count: cached?.unread_count ?? 0,
+        _sortTime: cached?._sortTime ?? conv.updated_at,
+        _hasUnread: cached?._hasUnread ?? false,
+      } as DMConversation;
+    },
+    enabled: !!conversationId && !!profileId,
+    staleTime: 120_000,
+    placeholderData: () => {
+      if (!conversationId || !profileId) return undefined;
+      return (
+        queryClient.getQueryData<DMConversation[]>(['dm-conversations', profileId])?.find(
+          (c) => c.id === conversationId,
+        ) ??
+        queryClient.getQueryData<DMConversation[]>(['conversations', profileId])?.find(
+          (c) => c.id === conversationId,
+        )
+      );
+    },
+    networkMode: 'always',
+    retry: 2,
+  });
 }
 
 /**

@@ -11,8 +11,9 @@ import {
   useToggleSavedMessage,
   ViewMode,
   Message,
-  useConversations
 } from '@/hooks/useMessages';
+import { useConversationDetail } from '@/hooks/useDMConversations';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useInstantSend } from '@/hooks/useInstantSend';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { setCurrentConversationId } from '@/hooks/useGlobalRealtimeMessages';
@@ -145,10 +146,11 @@ export function ChatView() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
   const bumpStreak = useInteractionStreakBump();
   
-  const { data: conversations } = useConversations();
+  const { data: conversation, isLoading: conversationLoading } = useConversationDetail(conversationId);
   const { data: messages, isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages } = useMessages(conversationId);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
   
@@ -323,15 +325,10 @@ export function ChatView() {
   const messageNotifsClearedForConversationRef = useRef<string | null>(null);
   
 
-  const conversation = useMemo(() => 
-    conversations?.find((c) => c.id === conversationId),
-    [conversations, conversationId]
-  );
-  
   const isGroupChat = conversation?.is_group || false;
   const otherMembers = useMemo(() => 
-    conversation?.members?.filter((m) => m.user_id !== profile?.id) || [],
-    [conversation?.members, profile?.id]
+    conversation?.members?.filter((m) => m.user_id !== profileId) || [],
+    [conversation?.members, profileId]
   );
   const otherMember = otherMembers[0]?.profile;
   const displayName = conversation?.is_group
@@ -352,7 +349,7 @@ export function ChatView() {
 
   // Clear message notifications + clear the unread badge when opening a conversation
   useEffect(() => {
-    if (!profile?.id || !conversationId) return;
+    if (!profileId || !conversationId) return;
 
     // Update last_read_at for unread badge
     if (lastReadSyncedForConversationRef.current !== conversationId) {
@@ -362,7 +359,7 @@ export function ChatView() {
         .from('conversation_members')
         .update({ last_read_at: new Date().toISOString() })
         .eq('conversation_id', conversationId)
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .then(({ error }) => {
           if (error) {
             console.error('Failed to set last_read_at:', error);
@@ -371,7 +368,7 @@ export function ChatView() {
           // Patch list caches in-place — invalidating refetches the whole DM list
           // and causes visible flicker while reading a thread.
           const convUnread =
-            queryClient.getQueryData<any[]>(['dm-conversations', profile.id])
+            queryClient.getQueryData<any[]>(['dm-conversations', profileId])
               ?.find((c) => c.id === conversationId)?.unread_count ?? 0;
           const patchLists = (old: any[] | undefined) => {
             if (!old) return old;
@@ -381,10 +378,10 @@ export function ChatView() {
                 : c,
             );
           };
-          queryClient.setQueryData(['dm-conversations', profile.id], patchLists);
-          queryClient.setQueryData(['conversations', profile.id], patchLists);
+          queryClient.setQueryData(['dm-conversations', profileId], patchLists);
+          queryClient.setQueryData(['conversations', profileId], patchLists);
           queryClient.setQueryData<number>(
-            ['unread-messages-count', profile.id],
+            ['unread-messages-count', profileId],
             (prev) => (typeof prev === 'number' ? Math.max(0, prev - convUnread) : 0),
           );
         });
@@ -401,7 +398,7 @@ export function ChatView() {
       supabase
         .from('notifications')
         .update({ read: true })
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .eq('type', 'message')
         .eq('read', false)
         .in('actor_id', otherMemberIds)
@@ -410,7 +407,7 @@ export function ChatView() {
           queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
         });
     }
-  }, [conversationId, profile?.id, queryClient, otherMembers]);
+  }, [conversationId, profileId, queryClient, otherMembers]);
 
   // Auto-mark messages as read (EXCEPT VYBEs which require explicit tap-to-view)
   useEffect(() => {
@@ -1228,7 +1225,7 @@ export function ChatView() {
   const messageItems = useMemo(() => {
     if (!messages) return [];
     return messages.map((message, index) => {
-      const isOwn = message.sender_id === profile?.id;
+      const isOwn = message.sender_id === profileId;
       const prevMessage = index > 0 ? messages[index - 1] : null;
       const showAvatar = !isOwn && (
         index === 0 || 
@@ -1248,7 +1245,7 @@ export function ChatView() {
 
       return { message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly };
     });
-  }, [messages, profile?.id]);
+  }, [messages, profileId]);
 
   // Navigate to profile when avatar clicked, or open group info for group chats
   const handleAvatarClick = useCallback(() => {
@@ -1294,6 +1291,24 @@ export function ChatView() {
         </div>
         <div className="flex-1 p-4 space-y-4">
           {[...Array(5)].map((_, i) => (
+            <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+              <Skeleton className="h-12 w-48 rounded-2xl" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (conversationLoading && !conversation) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="p-4 border-b border-border flex items-center gap-3">
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <Skeleton className="h-5 w-32" />
+        </div>
+        <div className="flex-1 p-4 space-y-4">
+          {[...Array(3)].map((_, i) => (
             <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
               <Skeleton className="h-12 w-48 rounded-2xl" />
             </div>
