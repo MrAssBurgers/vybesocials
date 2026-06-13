@@ -4,6 +4,28 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Debug scan (2026-06-13 — post stability polish `c999a15b`)
+- **Command:** `npm run debug` (build, lint, CSS, edge-fn refs, prod RPC/edge probes)
+- **Frontend:** build PASS · lint PASS (3 pre-existing warnings in `queryRefetchPolicy.ts`) · CSS PASS · `tsc --noEmit` PASS
+- **Edge fn refs:** 88 client refs → all 120 local functions OK
+- **Production RPCs (`agtcyxjxgkdyoxwxkjth`):** `get_public_user_count` MISSING · `sync_signup_username` MISSING · `ensure_user_level` HTTP 400 (auth required — OK)
+- **Production edge samples:** `livekit-token`, `generate-advanced-theme`, `ai-catch-up`, `share-preview` deployed; `community-voice-token` **404 NOT DEPLOYED** (fallback: `livekit-token` / `spaces-token`)
+- **Code regression review (`dfbdd341` → `c999a15b`):** no TS/lint errors in changed files; no broken imports; `useAuthProfileId` consistent on user-facing hooks; feed hooks use `getEffectiveProfileId` (sync cache — intentional)
+- **Git:** `main` @ `c999a15b`, clean vs `origin/main` (untracked `.tmp-recording/` only)
+- **In-repo fixes:** none required
+- **Unblock (prod backend):**
+  1. Paste `supabase/manual/PENDING_20260530.sql` into prod SQL Editor (`agtcyxjxgkdyoxwxkjth`)
+  2. Lovable Backend deploy for `community-voice-token` (or `supabase functions deploy community-voice-token`)
+  3. Lovable → Share → Publish → https://vybehub.app
+
+## Current Focus
+- **You:** Lovable Publish + prod SQL + community-voice-token deploy
+
+## Next 3 Tasks
+1. Lovable Publish + force-quit app on iPhone to bust cache
+2. Smoke test: Home feed, Search, Profile, Market, Communities, Messages list + open chat
+3. Apply `PENDING_20260530.sql` on prod; deploy `community-voice-token`; smoke test community voice
+
 ## What Changed (social app polish pass — 2026-06-12)
 - **Profile hydration** — migrated user-facing hooks to `useAuthProfileId()` / auth-user fallback: `useSavedPosts`, `useBlockedUsers`, `useBanStatus`, `useCommunities`, `useServers`, `useChallenges`, `useMarketplace`, `useSharedThemes`, `useStreaks` (map helpers), `useSounds`, `useVybePass` unclaimed rewards, `useRankedFeed`, `useInfinitePosts`, `useLocalFeed`
 - **networkMode: 'always'** — first-load critical queries: blocked users, saved posts, communities/servers lists, marketplace browse, challenges, feeds (personalized/following/local/ranked), search hooks, public communities
