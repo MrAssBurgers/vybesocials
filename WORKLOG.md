@@ -15,7 +15,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Build:** `npm run build` pass
 
 ## Publish status (2026-06-12 — admin + Messages loading)
-- **Git:** pending commit + push
+- **Git:** `dfbdd341` pushed to `origin/main`
 - **Web:** Lovable → Share → Publish → https://vybehub.app
 
 ## Current Focus
