@@ -5,6 +5,37 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Current Focus
+- **Push triggers fixed** on `hprmicwhlaaqfgshucec` — DB now calls correct URL + vault service role; edge auth accepts JWT; **device must re-link OneSignal**
+
+## Next 3 Tasks
+1. On phone: Settings → Notifications → toggle push **off then on** → Allow when prompted → tap **Send me a test push**
+2. Confirm `push_tokens` row appears for your profile (`53e0076d-5163-46f5-b711-a58a03393744`)
+3. Commit + push migration `20260613130000` + edge function auth fix when ready
+
+## What Changed (push trigger fix — 2026-06-13)
+- **DB migration** `20260613130000_fix_push_trigger_supabase_url.sql` — `get_supabase_project_url()`, `get_push_service_role_key()`, fixed `fire_push_notification`, `notify_push_on_notification`, `notify_message_recipients`, `notify_push_on_call` (was `agtcyxjxgkdyoxwxkjth`)
+- **Vault** — `service_role_key` updated to `hprmicwhlaaqfgshucec` JWT (was legacy project ref)
+- **Edge** — `send-push-notification` accepts service-role JWT by project ref (DB triggers no longer 401)
+- **Secrets** — `ONESIGNAL_APP_ID` + `ONESIGNAL_REST_API_KEY` set to Despia app `85bcf4b4-…`
+- **Verified** — `net._http_response` id 7 → HTTP 200 from edge; delivery blocked until OneSignal user exists (external_id not linked yet)
+
+## Current Focus (prior)
+- **Published** @ `34f54756` — prod verified 2026-06-13
+
+## Publish verification (2026-06-13)
+- **https://vybehub.app** — HTTP 200, fresh Lovable deployment
+- **Supabase in HTML** — preconnect to `hprmicwhlaaqfgshucec.supabase.co` (correct project)
+- **Lazy chunks** — `Settings-CU-cdOVG.js` (test push UI), `edgeFunctionResponse-QBY6ra2O.js` (`pushDeliveryErrorMessage`, OTP errors), `usePushNotifications-CHph0EPO.js`
+- **SW** — `vybe-v9` / cache buster `vybe-cache-v5`
+
+## What Changed (publish prep — 2026-06-13)
+- **OTP paste/autofill** — `LoginGateModal`, `PhoneNumberCard`, `EmailVerification` use `InputOTP` + `one-time-code` autofill (fixes SMS paste filling only first digit)
+- **Push test honesty** — `NotificationsSection` parses edge response; `usePushNotifications` waits for Despia OneSignal link; `pushDeliveryErrorMessage()` helper
+- **DB migration** — `20260613120000_push_tokens_update_policy.sql` (UPDATE RLS for upsert; apply on `hprmicwhlaaqfgshucec` if not yet)
+- **Git:** `main` @ `34f54756` pushed to origin
+- **Verify:** `npm run build` PASS · lint PASS (3 pre-existing warnings)
+
+## Current Focus (prior)
 - **You:** Lovable Publish — user-reported bug fix batch (below)
 
 ## Next 3 Tasks

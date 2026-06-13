@@ -52,6 +52,36 @@ async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, ex
   return subs.filter(isActivePushSubscription).map((sub) => String(sub.id));
 }
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const padded = part + "=".repeat((4 - (part.length % 4)) % 4);
+    return JSON.parse(atob(padded.replace(/-/g, "+").replace(/_/g, "/")));
+  } catch {
+    return null;
+  }
+}
+
+function projectRefFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname.split(".")[0] ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** DB triggers use vault JWT; edge runtime may inject a different service key format. */
+function isServiceRoleBearer(bearer: string, supabaseUrl: string, configuredKey: string): boolean {
+  if (!bearer) return false;
+  if (bearer === configuredKey) return true;
+  const payload = decodeJwtPayload(bearer);
+  if (!payload) return false;
+  return payload.role === "service_role"
+    && payload.iss === "supabase"
+    && payload.ref === projectRefFromUrl(supabaseUrl);
+}
+
 /** push_tokens + OneSignal external_id use profiles.id — accept auth uid too. */
 async function resolvePushTargetProfileId(
   supabase: ReturnType<typeof createClient>,
@@ -82,7 +112,7 @@ Deno.serve(async (req) => {
     //      caller's profile.id (so users can only push to themselves).
     const authHeader = req.headers.get("Authorization") || "";
     const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    const isServiceRole = !!bearer && bearer === supabaseServiceKey;
+    const isServiceRole = isServiceRoleBearer(bearer, supabaseUrl, supabaseServiceKey);
 
     let callerAuthUserId: string | null = null;
     if (!isServiceRole) {
