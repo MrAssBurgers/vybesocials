@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { getEdgeFunctionUrl, getFunctionAuthHeaders } from '@/lib/functionAuth';
 import { fetchWithTimeout } from '@/lib/withTimeout';
 import { useHomeLayout, ALL_WIDGETS } from '@/hooks/useHomeLayout';
 import { useAgentActions } from '@/lib/agent/useAgentActions';
@@ -108,7 +108,7 @@ export function useVybeAgent() {
 
       const headers = await getFunctionAuthHeaders();
       const res = await fetchWithTimeout(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/vybe-agent`,
+        getEdgeFunctionUrl('vybe-agent'),
         {
           method: 'POST',
           headers,

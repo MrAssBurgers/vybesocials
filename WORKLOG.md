@@ -4,15 +4,33 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (AI chat timeout fix — 2026-06-13)
+- **Root cause:** prod bundle still baked `eabvbt` Supabase URL; `vybe-agent` fails → ai-chat fallback hit **404 on hprmic** (fn not deployed) or wrong legacy project
+- **Deployed edge on `hprmicwhlaaqfgshucec`:** `ai-chat` (streaming fallback now live)
+- **`vite.config.ts`** — build fallback defaults → canonical `hprmicwhlaaqfgshucec` (was `agtcyx`)
+- **`functionAuth.ts`** — `getEdgeFunctionUrl()` + `isLegacySupabaseProject()` for consistent fn URLs
+- **`AIChat.tsx`** — actionable errors (404/auth/timeout/legacy), 120s fetch + 180s stream budget, no silent fallback when agent error is non-recoverable
+- **`useVybeAgent.ts`** — uses `getEdgeFunctionUrl('vybe-agent')`
+- **Verify:** `npm run build` PASS
+- **You:** Lovable Publish so vybehub.app bundle stops using legacy `eabvbt` URL
+
+## Current Focus
+- **You:** Lovable Publish (fixes baked Supabase URL) + smoke test VYBE AI text chat
+
+## Next 3 Tasks
+1. Lovable Publish → open VYBE AI, send text — should reply (agent or chat fallback)
+2. Confirm prod bundle uses `hprmicwhlaaqfgshucec` in JS (not `eabvbt`)
+3. Smoke test agent actions (navigate, theme) after publish
+
 ## What Changed (full scan + edge deploy — 2026-06-13)
 - **`npm run debug`:** build/lint/CSS PASS; RPCs OK on hprmic; all client edge refs exist locally
 - **Deployed edge on `hprmicwhlaaqfgshucec`:** `giphy-search`, `ai-catch-up`, `community-voice-token` (GIF picker, AI brief, community voice)
 - **Prior same session:** `livekit-token`, `share-preview` deployed
 - **DB verified:** `notification_preferences` Snapchat columns present on prod
 - **Debug scan:** expanded edge probe list (push, OneSignal link, spaces-token)
-- **Still needs Lovable Publish:** all uncommitted client changes (see git status)
+- **Still needs Lovable Publish:** client AI chat URL fix + error handling (see git status)
 
-## Current Focus
+## Current Focus (prior)
 - **You:** Deploy `vybe-agent` edge fn + Lovable Publish (unified AI agent Phase 1)
 
 ## What Changed (VYBE AI agent Phase 1 — 2026-06-13)

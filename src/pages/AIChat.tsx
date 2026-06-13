@@ -19,7 +19,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { getEdgeFunctionUrl, getFunctionAuthHeaders, isLegacySupabaseProject } from '@/lib/functionAuth';
 import { fetchWithTimeout } from '@/lib/withTimeout';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError } from '@/lib/agent/useVybeAgent';
 import { formatAgentActionSummary } from '@/lib/agent/formatActionSummary';
@@ -64,6 +64,33 @@ const QUICK_PROMPTS = [
   '🎯 How to grow my audience?',
   '🧬 What does my DNA say?',
 ];
+
+const AI_CHAT_FETCH_MS = 120_000;
+const AI_CHAT_STREAM_MS = 180_000;
+
+function formatAiChatError(error: unknown, httpStatus?: number): string {
+  if (httpStatus === 404) {
+    return 'AI chat is not available on this server yet. Pull to refresh the app or try again in a minute.';
+  }
+  if (httpStatus === 401) {
+    return 'Session expired — sign out and back in, then try again.';
+  }
+  if (error instanceof Error) {
+    if (error.name === 'AbortError') {
+      return 'AI took too long to respond. Check your connection and try again.';
+    }
+    if (error.message === 'Not authenticated') {
+      return 'Sign in to use VYBE AI.';
+    }
+    if (error.message && error.message !== 'Failed to get response') {
+      return error.message;
+    }
+  }
+  if (isLegacySupabaseProject()) {
+    return 'App backend is updating — close and reopen VYBE, or pull to refresh, then try again.';
+  }
+  return 'Something went wrong. Try again in a moment.';
+}
 
 // Resize image to max dimension and return base64
 async function imageToBase64(file: File, maxSize = 1024): Promise<{ base64: string; mimeType: string }> {
@@ -323,10 +350,22 @@ export default function AIChat() {
             message: agentErr instanceof Error ? agentErr.message : String(agentErr),
             fallback: shouldFallbackToAiChat(agentErr),
             auth: isAgentAuthError(agentErr),
+            legacyProject: isLegacySupabaseProject(),
           }, 'H1-deploy');
           // #endregion
-          toast.info('Using chat mode', { duration: 2000 });
-          // Fall through to streaming ai-chat — never leave the user with silence
+          if (isAgentAuthError(agentErr)) {
+            toast.info('Session issue — trying chat mode', { duration: 2500 });
+          } else if (isLegacySupabaseProject()) {
+            toast.info('Updating connection — using chat mode', { duration: 2500 });
+          } else {
+            toast.info('Using chat mode', { duration: 2000 });
+          }
+          if (!shouldFallbackToAiChat(agentErr)) {
+            const msg = formatAiChatError(agentErr);
+            setMessages(prev => [...prev, { role: 'assistant', content: msg, timestamp: new Date() }]);
+            return;
+          }
+          // Fall through to streaming ai-chat
         }
       }
 
@@ -343,16 +382,16 @@ export default function AIChat() {
       };
 
       const response = await fetchWithTimeout(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`,
+        getEdgeFunctionUrl('ai-chat'),
         { method: 'POST', headers, body: JSON.stringify(body) },
-        90000,
+        AI_CHAT_FETCH_MS,
       );
 
       if (!response.ok) {
         let errMsg = 'Failed to get response';
         try {
           const errData = await response.json();
-          errMsg = errData.error || errMsg;
+          errMsg = errData.error || errData.message || errMsg;
         } catch {
           // ignore parse errors
         }
@@ -368,7 +407,9 @@ export default function AIChat() {
           setMessages(prev => [...prev, { role: 'assistant', content: creditsMsg, timestamp: new Date() }]);
           return;
         }
-        throw new Error(errMsg);
+        const userMsg = formatAiChatError(new Error(errMsg), response.status);
+        setMessages(prev => [...prev, { role: 'assistant', content: userMsg, timestamp: new Date() }]);
+        return;
       }
 
       const contentType = response.headers.get('content-type') || '';
@@ -393,7 +434,11 @@ export default function AIChat() {
 
       let buffer = '';
       let streamDone = false;
+      const streamDeadline = Date.now() + AI_CHAT_STREAM_MS;
       while (!streamDone) {
+        if (Date.now() > streamDeadline) {
+          throw new DOMException('Stream read timed out', 'AbortError');
+        }
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
@@ -446,10 +491,8 @@ export default function AIChat() {
       streamingContentRef.current = '';
     } catch (error) {
       console.error('AI chat error:', error);
-      const msg = error instanceof Error
-        ? (error.name === 'AbortError' ? 'Request timed out. Try again.' : error.message)
-        : 'Something went wrong';
-      setMessages(prev => [...prev, { role: 'assistant', content: `Oops — ${msg}`, timestamp: new Date() }]);
+      const msg = formatAiChatError(error);
+      setMessages(prev => [...prev, { role: 'assistant', content: msg, timestamp: new Date() }]);
       setStreamingText('');
       streamingContentRef.current = '';
     } finally {
