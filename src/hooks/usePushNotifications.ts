@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled, registerVybeServiceWorker } from '@/lib/serviceWorker';
-import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
+import { ensureDespiaOneSignalLinked, linkOneSignalUser, persistDespiaPushToken } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 
 // VAPID public key — fetched from the server (`get-vapid-key` edge function)
@@ -45,6 +45,43 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
+}
+
+type OneSignalDeferredWindow = Window & {
+  OneSignalDeferred?: Array<(api: Record<string, unknown>) => Promise<void>>;
+};
+
+async function subscribeViaOneSignalWeb(profileId: string): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  const w = window as OneSignalDeferredWindow;
+  if (!Array.isArray(w.OneSignalDeferred)) return false;
+
+  return new Promise((resolve) => {
+    w.OneSignalDeferred!.push(async (OneSignal) => {
+      try {
+        const login = OneSignal.login as ((id: string) => Promise<void>) | undefined;
+        const requestPermission = (OneSignal.Notifications as { requestPermission?: () => Promise<void> } | undefined)?.requestPermission;
+        await login?.(profileId);
+        await requestPermission?.();
+        const pushSubscription = (OneSignal.User as { PushSubscription?: { id?: string; optedIn?: boolean } } | undefined)?.PushSubscription;
+        const subscriptionId = typeof pushSubscription?.id === 'string' ? pushSubscription.id : '';
+        const optedIn = pushSubscription?.optedIn === true || !!subscriptionId;
+        if (optedIn) {
+          const { error } = await supabase.from('push_tokens').upsert({
+            user_id: profileId,
+            platform: 'web',
+            token: subscriptionId || `onesignal:${profileId}`,
+          }, { onConflict: 'user_id,platform' });
+          if (error) throw error;
+          await linkOneSignalUser(profileId, subscriptionId || undefined);
+        }
+        resolve(optedIn);
+      } catch (error) {
+        console.warn('[Push] OneSignal web subscribe failed', error);
+        resolve(false);
+      }
+    });
+  });
 }
 
 const PUSH_INTENT_KEY = 'vybe.push.intent';
@@ -213,6 +250,12 @@ export function usePushNotifications() {
       return false;
     }
 
+    if (link.playerId) {
+      await linkOneSignalUser(profile.id, link.playerId);
+    } else {
+      await linkOneSignalUser(profile.id);
+    }
+
     if (!link.playerId) {
       toast.message('Push enabled — finishing device setup…', {
         description: 'If test push fails, toggle off and on once more.',
@@ -240,6 +283,15 @@ export function usePushNotifications() {
         const ok = await subscribeDespia();
         return ok;
       }
+
+      const oneSignalOk = await subscribeViaOneSignalWeb(profile.id);
+      if (oneSignalOk) {
+        writeIntent(profile.id, true);
+        setIsSubscribed(true);
+        toast.success('Push notifications enabled!');
+        return true;
+      }
+
       // Request notification permission
       const permissionResult = await Notification.requestPermission();
       setPermission(permissionResult);

@@ -86,6 +86,18 @@ export async function persistDespiaPushToken(profileId: string, playerId = ''): 
   if (error) throw error;
 }
 
+export async function linkOneSignalUser(profileId: string, subscriptionId?: string): Promise<boolean> {
+  const { data, error } = await supabase.functions.invoke('link-onesignal-user', {
+    body: { profileId, subscriptionId: subscriptionId || undefined },
+  });
+  if (error) {
+    console.warn('[OneSignal] link-onesignal-user invoke failed', error);
+    return false;
+  }
+  const payload = data as { success?: boolean } | null;
+  return payload?.success === true;
+}
+
 export async function fetchDespiaOneSignalPlayerId(waitMs = 0): Promise<string> {
   if (!isDespiaRuntime()) return '';
 
@@ -184,7 +196,8 @@ export async function ensureDespiaOneSignalLinked(
           playerId: currentPlayerId || null,
         });
         if (currentPlayerId && options.persistToken !== false) {
-          persistDespiaPushToken(externalId, currentPlayerId).catch(() => {});
+          await persistDespiaPushToken(externalId, currentPlayerId).catch(() => {});
+          await linkOneSignalUser(externalId, currentPlayerId).catch(() => {});
           break;
         }
       } catch (err) {
@@ -200,9 +213,17 @@ export async function ensureDespiaOneSignalLinked(
   console.log(`${tag} immediate fetch playerId =`, playerId || '(empty — retry loop will keep trying)');
 
   if (options.persistToken !== false) {
-    persistDespiaPushToken(externalId, playerId).catch((err) => {
-      console.warn(`${tag} push token marker save failed`, err);
-    });
+    try {
+      await persistDespiaPushToken(externalId, playerId);
+    } catch (err) {
+      console.warn(`${tag} push token save failed`, err);
+    }
+  }
+
+  if (playerId) {
+    await linkOneSignalUser(externalId, playerId);
+  } else {
+    void linkOneSignalUser(externalId);
   }
 
   if (!playerId) {

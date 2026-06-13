@@ -52,6 +52,17 @@ async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, ex
   return subs.filter(isActivePushSubscription).map((sub) => String(sub.id));
 }
 
+function subscriptionIdsFromPushTokens(rows: Array<{ token: string }> | null | undefined): string[] {
+  return (rows || [])
+    .map((row) => row.token)
+    .filter((token): token is string =>
+      typeof token === "string" &&
+      token.length >= 8 &&
+      !token.startsWith("despia:") &&
+      !token.startsWith("{")
+    );
+}
+
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const part = token.split(".")[1];
@@ -225,13 +236,70 @@ Deno.serve(async (req) => {
     let onesignalDelivered = false;
     if (onesignalAppId && onesignalRestKey) {
       try {
-        const subscriptionIds = await lookupOneSignalSubscriptionIds(onesignalAppId, onesignalRestKey, targetProfileId);
-        const imageUrl = typeof data?.image_url === "string" ? data.image_url : undefined;
+        let subscriptionIds = await lookupOneSignalSubscriptionIds(onesignalAppId, onesignalRestKey, targetProfileId);
+        const { data: tokenRows } = await supabase
+          .from("push_tokens")
+          .select("token")
+          .eq("user_id", targetProfileId);
         if (subscriptionIds.length === 0) {
-          console.warn("[push] No actively subscribed OneSignal subscriptions", targetProfileId);
-          onesignalResult = { status: 0, ok: false, subscriptionIds: 0, recipients: 0, errors: ["No actively subscribed OneSignal subscriptions"] };
+          subscriptionIds = subscriptionIdsFromPushTokens(tokenRows as Array<{ token: string }> | null);
+        }
+        const imageUrl = typeof data?.image_url === "string" ? data.image_url : undefined;
+        const notificationBase = {
+          app_id: onesignalAppId,
+          target_channel: "push",
+          headings: { en: title },
+          contents: { en: body },
+          big_picture: imageUrl,
+          ios_attachments: imageUrl ? { id1: imageUrl } : undefined,
+          chrome_web_image: imageUrl,
+          url: routePath,
+          web_url: routePath,
+          data: mergedData,
+          ios_sound: isCall ? "ringtone.caf" : "default",
+          ios_interruption_level: isCall ? "time_sensitive" : undefined,
+          android_visibility: 1,
+          mutable_content: true,
+          content_available: true,
+          priority: 10,
+          ttl: isCall ? 45 : 86400,
+          collapse_id: tag || undefined,
+        };
+        const callChannelId = Deno.env.get("ONESIGNAL_CALL_CHANNEL_ID");
+        const callExtras = {
+          ...(callChannelId ? { android_channel_id: callChannelId } : {}),
+          ...(isCall ? {
+            buttons: [
+              { id: "accept", text: "Answer", icon: "ic_menu_call" },
+              { id: "decline", text: "Decline", icon: "ic_menu_close_clear_cancel" },
+            ],
+          } : {}),
+        };
+
+        if (subscriptionIds.length === 0) {
+          console.warn("[push] No subscription ids — trying external_id alias", targetProfileId);
+          const res = await fetchJsonWithTimeout("https://api.onesignal.com/notifications", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Key ${onesignalRestKey}`,
+            },
+            body: JSON.stringify({
+              ...notificationBase,
+              ...callExtras,
+              include_aliases: { external_id: [targetProfileId] },
+            }),
+          }, 4_000);
+          const json = await res.json().catch(() => null);
+          onesignalDelivered = res.ok && !json?.errors && (json?.recipients ?? 0) > 0;
+          onesignalResult = {
+            status: res.status,
+            ok: res.ok,
+            mode: "external_id",
+            recipients: json?.recipients ?? 0,
+            errors: json?.errors ?? (onesignalDelivered ? undefined : ["No actively subscribed OneSignal subscriptions"]),
+          };
         } else {
-          const callChannelId = Deno.env.get("ONESIGNAL_CALL_CHANNEL_ID");
           const res = await fetchJsonWithTimeout("https://api.onesignal.com/notifications", {
           method: "POST",
           headers: {
@@ -239,37 +307,14 @@ Deno.serve(async (req) => {
             Authorization: `Key ${onesignalRestKey}`,
           },
           body: JSON.stringify({
-            app_id: onesignalAppId,
+            ...notificationBase,
+            ...callExtras,
             include_subscription_ids: subscriptionIds,
-            target_channel: "push",
-            headings: { en: title },
-            contents: { en: body },
-            big_picture: imageUrl,
-            ios_attachments: imageUrl ? { id1: imageUrl } : undefined,
-            chrome_web_image: imageUrl,
-            url: routePath,
-            web_url: routePath,
-            data: mergedData,
-            ios_sound: isCall ? "ringtone.caf" : "default",
-            ios_interruption_level: isCall ? "time_sensitive" : undefined,
-            android_visibility: 1,
-            mutable_content: true,
-            content_available: true,
-            priority: 10,
-            ttl: isCall ? 45 : 86400,
-            collapse_id: tag || undefined,
-            ...(callChannelId ? { android_channel_id: callChannelId } : {}),
-            ...(isCall ? {
-              buttons: [
-                { id: "accept", text: "Answer", icon: "ic_menu_call" },
-                { id: "decline", text: "Decline", icon: "ic_menu_close_clear_cancel" },
-              ],
-            } : {}),
           }),
           }, 4_000);
           const json = await res.json().catch(() => null);
           onesignalDelivered = res.ok && !json?.errors && (json?.recipients ?? 0) > 0;
-          onesignalResult = { status: res.status, ok: res.ok, subscriptionIds: subscriptionIds.length, recipients: json?.recipients ?? 0, errors: json?.errors };
+          onesignalResult = { status: res.status, ok: res.ok, mode: "subscription_ids", subscriptionIds: subscriptionIds.length, recipients: json?.recipients ?? 0, errors: json?.errors };
           if (!res.ok) {
             console.warn("[push] OneSignal non-OK", res.status, JSON.stringify(json).slice(0, 200));
           }

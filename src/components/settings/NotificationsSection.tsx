@@ -90,7 +90,7 @@ export function NotificationsSection() {
                           toast.message('Linking this device to push…');
                           const link = await ensureDespiaOneSignalLinked(profile.id, {
                             requestPermission: true,
-                            waitForPlayerIdMs: 8_000,
+                            waitForPlayerIdMs: 12_000,
                             persistToken: true,
                             trigger: 'test-push',
                           });
@@ -98,6 +98,15 @@ export function NotificationsSection() {
                             toast.error('Notifications are blocked. Enable them in iOS Settings → VYBE → Notifications.');
                             return;
                           }
+                          if (link.playerId) {
+                            await linkOneSignalUser(profile.id, link.playerId);
+                          } else {
+                            await linkOneSignalUser(profile.id);
+                            toast.message('Still linking device… wait a few seconds and try again.');
+                            return;
+                          }
+                        } else {
+                          await linkOneSignalUser(profile.id);
                         }
 
                         const result = await supabase.functions.invoke('send-push-notification', {
