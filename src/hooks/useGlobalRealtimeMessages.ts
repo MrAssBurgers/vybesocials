@@ -121,7 +121,7 @@ function patchUsersPresenceCache(
 
 export function useGlobalRealtimeMessages() {
   const { profile } = useAuth();
-  const profileId = getEffectiveProfileId(profileId);
+  const profileId = getEffectiveProfileId(profile?.id);
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
