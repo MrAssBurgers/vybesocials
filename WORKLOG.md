@@ -4,6 +4,13 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (login direct auth — 2026-06-13)
+- **`Landing.tsx`** — bypass `auth-2fa-preauth` on vybehub.app; direct `signInWithPassword` only (preauth edge still stale on prod)
+- **`loginEmail.ts`** + **`auth.tsx`** — trim/lowercase email before auth
+- **`public/sw.js`** — bump to v10 so cached old login bundle clears after publish
+- **Verify:** `npm run build` PASS
+- **You:** Lovable Publish → hard refresh vybehub.app → sign in (or Forgot password / Google if OAuth account)
+
 ## What Changed (production login fix — 2026-06-13)
 - **Root cause:** Client auth targeted `hprmicwhlaaqfgshucec` (~1 auth user) while live accounts are on `agtcyxjxgkdyoxwxkjth` (31+ users). Canonical rewrite `agtcyx→hprmic` made correct passwords return `invalid_credentials`. Secondary: `auth-2fa-preauth` forced email codes on every login (ignored `email_2fa_enabled`); `email_failed` blocked sign-in with no fallback.
 - **`canonicalSupabase.ts`** — live auth project is `agtcyx`; redirect baked `hprmic`/`eabvbt` env to agtcyx URL + anon key

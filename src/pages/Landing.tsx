@@ -25,6 +25,7 @@ import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 import { LoginGateModal } from '@/components/auth/LoginGateModal';
 import { FounderCounter } from '@/components/growth/FounderCounter';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
+import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { VybeLiquidBackground } from '@/components/effects/VybeLiquidBackground';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
@@ -322,38 +323,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     };
 
     try {
-      let gateOpened = false;
-
       if (isLogin) {
-        if (isLovablePreviewHost()) {
-          setGatePending(false);
-          const { error } = await signIn(formData.email, formData.password);
-          if (error) {
-            const msg = (error.message || '').toLowerCase();
-            if (msg.includes('invalid') || msg.includes('credential')) {
-              throw new Error('Invalid email or password');
-            }
-            throw error;
-          }
-          const session = await waitForAuthSession(5000);
-          if (!session?.user) {
-            throw new Error(
-              'Signed in but the session did not stick. Open the preview in a new browser tab and try again.',
-            );
-          }
-          sessionStorage.removeItem('vybe-session-only');
-          toast.success('Welcome back! ✨');
-          if (session.user && !session.user.email_confirmed_at) {
-            toast.info('Verify your email to unlock all features on preview.');
-          }
-          navTo('home', '/home');
-          return;
-        }
-
-        // Big-platform 2FA: validate password server-side BEFORE any session
-        // lands on the device. The session tokens (if any) are returned only
-        // after the second factor passes, so cancelling the gate is naturally
-        // safe — there's nothing to sign out of.
         setGatePending(true);
 
         const createHandledLoginError = (message: string) => {
@@ -362,143 +332,34 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           return err;
         };
 
-        // Race the edge call against a 12s timeout so a cold-start never
-        // leaves the form spinning forever.
-        let pre: any = null;
-        let preErr: any = null;
-        try {
-          const result = await Promise.race([
-            supabase.functions.invoke('auth-2fa-preauth', {
-              body: { email: formData.email, password: formData.password },
-            }),
-            new Promise<{ data: null; error: Error }>((resolve) =>
-              setTimeout(() => resolve({ data: null, error: new Error('timeout') }), 15000),
-            ),
-          ]);
-          pre = (result as any).data;
-          preErr = (result as any).error;
-          // supabase.functions.invoke returns FunctionsHttpError for non-2xx
-          // with data=null. Parse the response body so we can read structured
-          // error codes like 'invalid_credentials' without logging a runtime error.
-          if (!pre && preErr && typeof (preErr as any).context?.json === 'function') {
-            try {
-              pre = await (preErr as any).context.json();
-            } catch {
-              try {
-                const txt = await (preErr as any).context.text?.();
-                if (txt) pre = JSON.parse(txt);
-              } catch { /* ignore */ }
-            }
-          }
-        } catch (e) {
-          preErr = e;
-        }
+        const email = normalizeLoginEmail(formData.email);
+        const { error } = await signIn(email, formData.password);
+        setGatePending(false);
 
-        const code = (pre as any)?.error;
-
-        // Hard reject only on confirmed bad credentials.
-        if (code === 'invalid_credentials') {
-          setGatePending(false);
-          throw createHandledLoginError('Invalid email or password');
-        }
-        // email_failed → fall back to direct sign-in so email outages never block login.
-        if (code === 'email_failed') {
-          const { error: directErr } = await supabase.auth.signInWithPassword({
-            email: formData.email,
-            password: formData.password,
-          });
-          setGatePending(false);
-          if (directErr) {
-            const msg = (directErr.message || '').toLowerCase();
-            if (msg.includes('invalid') || msg.includes('credential')) {
-              throw createHandledLoginError('Invalid email or password');
-            }
+        if (error) {
+          const msg = (error.message || '').toLowerCase();
+          if (msg.includes('invalid') || msg.includes('credential')) {
             throw createHandledLoginError(
-              "We couldn't send your verification code. Please try again in a moment.",
+              'Invalid email or password. Use Google or Apple if you signed up that way, or tap Forgot password.',
             );
           }
-          sessionStorage.removeItem('vybe-session-only');
-          toast.success('Welcome back! ✨');
-          navTo('home', '/home');
-          return;
+          throw error;
         }
 
-        // Any other failure (network, 5xx, timeout, cold-start) → fall back to
-        // direct password sign-in so users are never locked out by an outage.
-        if (preErr || !pre || (pre as any)?.error) {
-          const { error: directErr } = await supabase.auth.signInWithPassword({
-            email: formData.email,
-            password: formData.password,
-          });
-          setGatePending(false);
-          if (directErr) {
-            const msg = (directErr.message || '').toLowerCase();
-            if (msg.includes('invalid') || msg.includes('credential')) {
-              throw createHandledLoginError('Invalid email or password');
-            }
-            throw createHandledLoginError("Couldn't sign you in. Please try again.");
-          }
-          sessionStorage.removeItem('vybe-session-only');
-          toast.success('Welcome back! ✨');
-          navTo('home', '/home');
-          return;
+        const session = await waitForAuthSession(5000);
+        if (!session?.user) {
+          throw createHandledLoginError(
+            isLovablePreviewHost()
+              ? 'Signed in but the session did not stick. Open the preview in a new browser tab and try again.'
+              : 'Signed in but the session did not stick. Close the app fully and try again.',
+          );
         }
 
         sessionStorage.removeItem('vybe-session-only');
-
-        const stage = (pre as any)?.stage as 'code' | 'approval' | 'none' | undefined;
-
-        if (stage === 'code') {
-          if (isLovablePreviewHost()) {
-            const { error: directErr } = await supabase.auth.signInWithPassword({
-              email: formData.email,
-              password: formData.password,
-            });
-            setGatePending(false);
-            if (directErr) {
-              throw createHandledLoginError('Invalid email or password');
-            }
-            toast.success('Welcome back! ✨');
-            navTo('home', '/home');
-            return;
-          }
-          setLoginGate({
-            mode: 'code',
-            email: formData.email,
-            challengeId: (pre as any).challengeId,
-            expiresAt: (pre as any).expiresAt,
-          });
-          gateOpened = true;
-          return;
-        }
-        if (stage === 'approval') {
-          setLoginGate({
-            mode: 'approval',
-            email: formData.email,
-            challengeId: (pre as any).challengeId,
-            expiresAt: (pre as any).expiresAt,
-            approvalDevice: (pre as any).device,
-            approvalLocation: (pre as any).location,
-          });
-          gateOpened = true;
-          return;
-        }
-
-        // No second factor — apply the returned session and proceed.
-        const session = (pre as any)?.session;
-        if (session?.access_token && session?.refresh_token) {
-          await supabase.auth.setSession({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token,
-          });
-        } else {
-          // Defensive fallback if preauth ever returns without tokens.
-          const { error } = await signIn(formData.email, formData.password);
-          if (error) { setGatePending(false); throw createHandledLoginError(error.message || "Couldn't sign you in. Please try again."); }
-        }
-
-        setGatePending(false);
         toast.success('Welcome back! ✨');
+        if (session.user && !session.user.email_confirmed_at) {
+          toast.info('Verify your email to unlock all features.');
+        }
         navTo('home', '/home');
       } else {
         if (!formData.username.trim()) {
@@ -554,7 +415,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       }
     } finally {
       setLoading(false);
-      if (!gateOpened) setGatePending(false);
+      setGatePending(false);
     }
   };
 
