@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils';
 import { sendShareToUser, type SharePostType } from '@/lib/sendShareToUser';
 import { getQuickShareTargets, type QuickShareTarget } from '@/lib/quickShareTargets';
 import { useQueryClient } from '@tanstack/react-query';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 
 const HOLD_MS = 280;
 const MOVE_CANCEL_PX = 10;
@@ -179,8 +180,7 @@ export const HoldToShare = memo(function HoldToShare({
           mediaUrl,
         }).then((ok) => {
           if (ok) {
-            queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            invalidateConversationCaches(queryClient);
             const name = recipient?.display_name || recipient?.username || 'friend';
             toast.success(`Sent to ${name}`);
           } else {

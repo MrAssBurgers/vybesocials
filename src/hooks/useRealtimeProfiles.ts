@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 
 /**
  * Subscribes to real-time profile changes and updates cached profile data.
@@ -40,7 +41,7 @@ export function useRealtimeProfiles() {
             debounceRef.current = setTimeout(() => {
               queryClient.invalidateQueries({ queryKey: ['posts'] });
               queryClient.invalidateQueries({ queryKey: ['comments'] });
-              queryClient.invalidateQueries({ queryKey: ['conversations'] });
+              invalidateConversationCaches(queryClient);
               queryClient.invalidateQueries({ queryKey: ['friends'] });
               queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
               queryClient.invalidateQueries({ queryKey: ['followers'] });

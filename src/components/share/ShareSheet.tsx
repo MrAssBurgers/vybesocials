@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { navVisibility } from '@/lib/navVisibility';
 import { useQueryClient } from '@tanstack/react-query';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { triggerHaptic } from '@/lib/haptics';
 import { buildPostShareUrl } from '@/lib/shareLinks';
 
@@ -171,8 +172,7 @@ export const ShareSheet = memo(function ShareSheet({
       }
 
       // Invalidate DM queries to refresh the list instantly
-      queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
 
       // Mark as sent after animation completes
       setTimeout(() => {

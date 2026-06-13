@@ -4,6 +4,37 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (Messages cluster hardening — 2026-06-09)
+- **`invalidateConversationCaches.ts`** — central helper to sync `dm-conversations` + `conversations` caches
+- **`useMessageRequests.ts` / `useTrashedConversations.ts` / `useHiddenConversations.ts`** — `useAuthProfileId()` during hydration; dual-cache invalidation
+- **`DesktopRightSidebar.tsx`** — uses `useDMConversations` (was duplicate `useConversations` fetch)
+- **`ChatView.tsx`** — send/read/view guards use cached `profileId` (not live `profile?.id`)
+- **`useTabNotificationBadge.ts` / `useQuickAddSuggestions.ts`** — cached profile id for badges + Quick Add
+- **`NewMessage.tsx`** — search loading only on first fetch (not background refetch)
+- **Invalidation audit** — group chat, share, friends, profile updates, etc. now invalidate both list caches
+- **Build:** `npm run build` pass
+
+## Publish status (2026-06-09 — Messages cluster)
+- **Git:** uncommitted locally — commit + push, then Lovable → Share → Publish → https://vybehub.app
+
+## Current Focus
+- **You:** Lovable Publish after push (one click — agent cannot trigger this)
+
+## What Changed (Messages stabilization — 2026-06-09)
+- **`resolveSessionProfileId.ts`** — single deduped session profile lookup for DMs/messages/chat
+- **`loadDMConversations.ts`** — fail-soft loader returns `{ data, error, profileId }`; `syncDmListCaches()` write-through
+- **`useDMConversations.ts`** — uses resolver + fail-soft fetch; `offlineFirst`; soft-error banner when stale list shown; simplified `isLoading`
+- **`ConversationList.tsx`** — shell always visible; skeleton only on true first load; inline stale-list Retry banner; removed 8s refetch loop
+- **`profileCache.ts`** — allow legacy disk cache missing `user_id` (instant boot)
+- **`useMessages.ts` / `useConversationDetail`** — `resolveSessionProfileId`; `offlineFirst` for cached threads
+- **Build:** `npm run build` pass
+
+## Publish status (2026-06-09 — Messages stabilize)
+- **Git:** uncommitted locally — commit + push, then Lovable → Share → Publish → https://vybehub.app
+
+## Current Focus
+- **You:** Lovable Publish after push (one click — agent cannot trigger this)
+
 ## What Changed (ChatView conversation load fix — 2026-06-12)
 - **`useConversationDetail`** — new hook reads `dm-conversations` cache or fetches members/profiles for ChatView
 - **`ChatView.tsx`** — uses conversation detail hook + `useAuthProfileId()` (was empty "Chat" / offline header)

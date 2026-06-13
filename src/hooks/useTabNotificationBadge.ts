@@ -2,11 +2,11 @@ import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 /**
  * Discord/Snapchat-style Tab Notification Badge
- * 
+ *
  * Updates the browser tab title to show unread counts.
  * Uses a SINGLE realtime channel instead of 3 separate ones.
  */
@@ -14,19 +14,18 @@ import { useAuth } from '@/lib/auth';
 const ORIGINAL_TITLE = 'VYBE';
 const MAX_DISPLAY_COUNT = 99;
 
-// Get total unread messages count
 function useUnreadMessagesCount() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['unread-messages-count', profile?.id],
+    queryKey: ['unread-messages-count', profileId],
     queryFn: async () => {
-      if (!profile?.id) return 0;
+      if (!profileId) return 0;
 
       const { data: memberships } = await supabase
         .from('conversation_members')
         .select('conversation_id, last_read_at')
-        .eq('user_id', profile.id);
+        .eq('user_id', profileId);
 
       if (!memberships || memberships.length === 0) return 0;
 
@@ -37,7 +36,7 @@ function useUnreadMessagesCount() {
           .from('messages')
           .select('id', { count: 'exact', head: true })
           .eq('conversation_id', membership.conversation_id)
-          .neq('sender_id', profile.id)
+          .neq('sender_id', profileId)
           .is('deleted_at', null);
 
         if (membership.last_read_at) {
@@ -50,7 +49,7 @@ function useUnreadMessagesCount() {
 
       return totalUnread;
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
     staleTime: 30000,
     gcTime: 1000 * 60 * 5,
     refetchInterval: 60000,
@@ -58,24 +57,23 @@ function useUnreadMessagesCount() {
   });
 }
 
-// Get unread notifications count  
 function useUnreadNotificationsCount() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['unread-notifications-count', profile?.id],
+    queryKey: ['unread-notifications-count', profileId],
     queryFn: async () => {
-      if (!profile?.id) return 0;
+      if (!profileId) return 0;
 
       const { count } = await supabase
         .from('notifications')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .eq('read', false);
 
       return count || 0;
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
     staleTime: 30000,
     gcTime: 1000 * 60 * 5,
     refetchInterval: 60000,
@@ -84,7 +82,7 @@ function useUnreadNotificationsCount() {
 }
 
 export function useTabNotificationBadge() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   const { data: unreadNotifications = 0 } = useUnreadNotificationsCount();
@@ -93,7 +91,6 @@ export function useTabNotificationBadge() {
 
   const totalUnread = unreadMessages + unreadNotifications;
 
-  // Update document title based on unread count
   useEffect(() => {
     if (flashIntervalRef.current) {
       clearInterval(flashIntervalRef.current);
@@ -101,17 +98,17 @@ export function useTabNotificationBadge() {
     }
 
     if (totalUnread > 0) {
-      const displayCount = totalUnread > MAX_DISPLAY_COUNT 
-        ? `${MAX_DISPLAY_COUNT}+` 
+      const displayCount = totalUnread > MAX_DISPLAY_COUNT
+        ? `${MAX_DISPLAY_COUNT}+`
         : totalUnread.toString();
-      
+
       document.title = `(${displayCount}) ${ORIGINAL_TITLE}`;
 
       if (totalUnread > previousCountRef.current && previousCountRef.current > 0) {
         let isFlashing = true;
         flashIntervalRef.current = setInterval(() => {
-          document.title = isFlashing 
-            ? `💬 ${ORIGINAL_TITLE}` 
+          document.title = isFlashing
+            ? `💬 ${ORIGINAL_TITLE}`
             : `(${displayCount}) ${ORIGINAL_TITLE}`;
           isFlashing = !isFlashing;
         }, 500);
@@ -122,8 +119,8 @@ export function useTabNotificationBadge() {
             flashIntervalRef.current = null;
           }
           if (totalUnread > 0) {
-            const currentCount = totalUnread > MAX_DISPLAY_COUNT 
-              ? `${MAX_DISPLAY_COUNT}+` 
+            const currentCount = totalUnread > MAX_DISPLAY_COUNT
+              ? `${MAX_DISPLAY_COUNT}+`
               : totalUnread.toString();
             document.title = `(${currentCount}) ${ORIGINAL_TITLE}`;
           }
@@ -142,16 +139,15 @@ export function useTabNotificationBadge() {
     };
   }, [totalUnread]);
 
-  // SINGLE consolidated realtime channel for all badge updates
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profileId) return;
 
     const channel = subscribePostgresChannel('tab-badge-consolidated', [
       {
         event: 'INSERT',
         table: 'messages',
         callback: (payload) => {
-          if (payload.new.sender_id !== profile.id) {
+          if (payload.new.sender_id !== profileId) {
             queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
           }
         },
@@ -159,7 +155,7 @@ export function useTabNotificationBadge() {
       {
         event: 'INSERT',
         table: 'notifications',
-        filter: `user_id=eq.${profile.id}`,
+        filter: `user_id=eq.${profileId}`,
         callback: () => {
           queryClient.invalidateQueries({ queryKey: ['unread-notifications-count'] });
         },
@@ -167,7 +163,7 @@ export function useTabNotificationBadge() {
       {
         event: 'UPDATE',
         table: 'conversation_members',
-        filter: `user_id=eq.${profile.id}`,
+        filter: `user_id=eq.${profileId}`,
         callback: () => {
           queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
         },
@@ -175,7 +171,7 @@ export function useTabNotificationBadge() {
       {
         event: 'UPDATE',
         table: 'notifications',
-        filter: `user_id=eq.${profile.id}`,
+        filter: `user_id=eq.${profileId}`,
         callback: () => {
           queryClient.invalidateQueries({ queryKey: ['unread-notifications-count'] });
         },
@@ -185,9 +181,8 @@ export function useTabNotificationBadge() {
     return () => {
       removeRealtimeChannel(channel);
     };
-  }, [profile?.id, queryClient]);
+  }, [profileId, queryClient]);
 
-  // Reset title on page unload
   useEffect(() => {
     const handleUnload = () => {
       document.title = ORIGINAL_TITLE;

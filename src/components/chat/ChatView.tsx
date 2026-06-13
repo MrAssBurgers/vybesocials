@@ -223,12 +223,12 @@ export function ChatView() {
 
   // Compute the latest time the other user read any of our messages
   const lastReadAt = useMemo(() => {
-    if (!messages || !profile?.id) return null;
+    if (!messages || !profileId) return null;
     let latest: string | null = null;
     for (const msg of messages) {
-      if (msg.sender_id === profile.id && msg.views) {
+      if (msg.sender_id === profileId && msg.views) {
         for (const view of msg.views) {
-          if (view.user_id !== profile.id && view.viewed_at) {
+          if (view.user_id !== profileId && view.viewed_at) {
             if (!latest || view.viewed_at > latest) {
               latest = view.viewed_at;
             }
@@ -237,7 +237,7 @@ export function ChatView() {
       }
     }
     return latest;
-  }, [messages, profile?.id]);
+  }, [messages, profileId]);
 
   // Live input value lives in a ref so keystrokes don't re-render the
   // 2700-line ChatView tree. Parent state only flips when the empty/
@@ -411,16 +411,16 @@ export function ChatView() {
 
   // Auto-mark messages as read (EXCEPT VYBEs which require explicit tap-to-view)
   useEffect(() => {
-    if (!messages || !profile?.id || !conversationId) return;
+    if (!messages || !profileId || !conversationId) return;
 
     const unreadMessages = messages.filter((msg) => {
-      if (msg.sender_id === profile.id) return false;
+      if (msg.sender_id === profileId) return false;
       if (hasMarkedReadRef.current.has(msg.id)) return false;
       
       // Skip VYBE messages - they require explicit tap-to-view
       if (msg.media_type === 'vybe') return false;
       
-      const hasMyView = msg.views?.some((v) => v.user_id === profile.id);
+      const hasMyView = msg.views?.some((v) => v.user_id === profileId);
       return !hasMyView;
     });
 
@@ -430,7 +430,7 @@ export function ChatView() {
       hasMarkedReadRef.current.add(msg.id);
       markViewed.mutate(msg.id);
     });
-  }, [messages, profile?.id, conversationId, markViewed]);
+  }, [messages, profileId, conversationId, markViewed]);
 
   // Save scroll position on unmount so returning from clips preserves position
   useEffect(() => {
@@ -682,7 +682,7 @@ export function ChatView() {
 
   // Send media message helper - uses instant send for optimistic UI
   const sendMediaMessage = useCallback(async (mediaUrl: string, mediaType: string) => {
-    if (!conversationId || !profile?.id) return;
+    if (!conversationId || !profileId) return;
 
     try {
       await sendMedia(mediaUrl, mediaType, viewMode, replyingTo?.id);
@@ -691,7 +691,7 @@ export function ChatView() {
       console.error('Failed to send media:', error);
       throw error;
     }
-  }, [conversationId, profile?.id, viewMode, replyingTo?.id, sendMedia]);
+  }, [conversationId, profileId, viewMode, replyingTo?.id, sendMedia]);
 
   // Compress image before upload for better mobile performance
   const compressImage = useCallback(async (file: File): Promise<Blob> => {
@@ -730,7 +730,7 @@ export function ChatView() {
 
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !conversationId || !profile?.id) return;
+    if (!file || !conversationId || !profileId) return;
 
     // Prevent double uploads
     if (uploadingRef.current) return;
@@ -753,11 +753,11 @@ export function ChatView() {
     const previewUrl = URL.createObjectURL(file);
     setPendingSafetyImage({ url: previewUrl, file });
     setShowImageSafetyGate(true);
-  }, [conversationId, profile?.id]);
+  }, [conversationId, profileId]);
 
   // Process image after safety check passes
   const processApprovedImage = useCallback(async (file: File, previewUrl: string) => {
-    if (!conversationId || !profile?.id) return;
+    if (!conversationId || !profileId) return;
     
     uploadingRef.current = true;
     setPendingImage({ url: previewUrl, file });
@@ -803,10 +803,10 @@ export function ChatView() {
       setIsUploadingMedia(false);
       uploadingRef.current = false;
     }
-  }, [conversationId, profile?.id, compressImage, sendMediaMessage]);
+  }, [conversationId, profileId, compressImage, sendMediaMessage]);
 
   const handleVoiceRecordingComplete = useCallback(async (blob: Blob) => {
-    if (!conversationId || !profile?.id) return;
+    if (!conversationId || !profileId) return;
 
     setIsUploadingMedia(true);
 
@@ -838,11 +838,11 @@ export function ChatView() {
     } finally {
       setIsUploadingMedia(false);
     }
-  }, [conversationId, profile?.id, profile?.user_id]);
+  }, [conversationId, profileId, profile?.user_id]);
 
   // Handle direct file selection (from Toybox) - now goes through safety gate
   const handleDirectImageSelect = useCallback(async (file: File) => {
-    if (!file || !conversationId || !profile?.id) return;
+    if (!file || !conversationId || !profileId) return;
     if (uploadingRef.current) return;
 
     if (!file.type.startsWith('image/')) {
@@ -859,13 +859,13 @@ export function ChatView() {
     const previewUrl = URL.createObjectURL(file);
     setPendingSafetyImage({ url: previewUrl, file });
     setShowImageSafetyGate(true);
-  }, [conversationId, profile?.id]);
+  }, [conversationId, profileId]);
 
   // Handle vybe camera send - uploads base64 image or blob video and sends as vybe
   // Uses optimistic UI - message appears immediately as "sending" then updates to "sent"
   // Phase-based error handling for better debugging
   const handleVybeSend = useCallback(async (mediaDataUrl: string, isVideo: boolean = false) => {
-    if (!conversationId || !profile?.id) return;
+    if (!conversationId || !profileId) return;
     
     // Guard: ensure profile.user_id (auth ID) exists for storage RLS
     if (!profile.user_id) {
@@ -889,7 +889,7 @@ export function ChatView() {
       const optimisticMessage: Message = {
         id: tempId,
         conversation_id: conversationId,
-        sender_id: profile.id,
+        sender_id: profileId,
         content: null,
         media_url: mediaDataUrl, // Show preview immediately
         media_type: 'vybe',
@@ -900,7 +900,7 @@ export function ChatView() {
         reply_to_id: replyingTo?.id || null,
         created_at: new Date().toISOString(),
         sender: {
-          id: profile.id,
+          id: profileId,
           username: profile.username || '',
           avatar_url: profile.avatar_url || null,
           display_name: (profile as any).display_name || profile.username || null,
@@ -1096,7 +1096,7 @@ export function ChatView() {
         .from('messages')
         .insert({
           conversation_id: conversationId,
-          sender_id: profile.id,
+          sender_id: profileId,
           content: null,
           media_url: mediaUrl,
           media_type: 'vybe',
@@ -1169,7 +1169,7 @@ export function ChatView() {
     processedVideo: { blob: Blob; thumbnail: string; duration: number },
     caption: string
   ) => {
-    if (!conversationId || !profile?.id) return;
+    if (!conversationId || !profileId) return;
     
     try {
       // Create a File from the processed blob
@@ -1191,7 +1191,7 @@ export function ChatView() {
       console.error('Failed to send video:', error);
       toast.error('Failed to send video');
     }
-  }, [conversationId, profile?.id, viewMode, replyingTo?.id, sendVideo]);
+  }, [conversationId, profileId, viewMode, replyingTo?.id, sendVideo]);
 
   const handleReply = useCallback((msg: Message) => {
     setReplyingTo(msg);
@@ -1677,7 +1677,7 @@ export function ChatView() {
                     onToggleReactions={() => setActiveReactionMessageId(
                       activeReactionMessageId === message.id ? null : message.id
                     )}
-                    profileId={profile?.id}
+                    profileId={profileId}
                     isEmojiOnly={isEmojiOnly}
                     onNavigateToPost={(postId) => navigate(`/clips/${postId}`, { state: { from: 'messages', conversationId } })}
                     onScrollToMessage={scrollToMessage}
@@ -1969,7 +1969,7 @@ export function ChatView() {
           conversationId={conversationId}
           recipientId={otherMember.id}
           businessId={userBusiness.id}
-          senderId={profile.id}
+          senderId={profileId}
         />
       )}
     </div>

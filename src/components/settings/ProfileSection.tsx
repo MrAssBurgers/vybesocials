@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { haptics } from '@/lib/haptics';
 // Badge settings moved to Profile Locker tab
 import { StyledUsername } from '@/components/ui/StyledUsername';
@@ -95,7 +96,7 @@ export function ProfileSection() {
         queryClient.invalidateQueries({ queryKey: ['posts'] });
         queryClient.invalidateQueries({ queryKey: ['comments'] });
         queryClient.invalidateQueries({ queryKey: ['messages'] });
-        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        invalidateConversationCaches(queryClient);
       })();
     } catch (error: any) {
       haptics.error();

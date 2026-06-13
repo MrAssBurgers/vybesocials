@@ -1,29 +1,27 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 
 export function useHiddenConversations() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['hidden-conversations', profile?.id],
+    queryKey: ['hidden-conversations', profileId],
     queryFn: async () => {
-      if (!profile?.id) return new Set<string>();
+      if (!profileId) return new Set<string>();
 
       const { data, error } = await supabase
         .from('hidden_conversations')
         .select('conversation_id')
-        .eq('user_id', profile.id);
+        .eq('user_id', profileId);
 
       if (error) throw error;
       return new Set(data?.map(h => h.conversation_id) || []);
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
     staleTime: 30000,
-    // Persisted query cache can deserialize a Set into a plain object/array,
-    // stripping `.has()` and causing runtime errors on the Messages page.
-    // Always re-normalize to a real Set at the consumer boundary.
     select: (data: unknown): Set<string> => {
       if (data instanceof Set) return data as Set<string>;
       if (Array.isArray(data)) return new Set<string>(data.filter((v): v is string => typeof v === 'string'));
@@ -38,24 +36,24 @@ export function useHiddenConversations() {
 }
 
 export function useHideConversation() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (conversationId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!profileId) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('hidden_conversations')
         .insert({
-          user_id: profile.id,
+          user_id: profileId,
           conversation_id: conversationId,
         });
 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient, profileId);
       queryClient.invalidateQueries({ queryKey: ['hidden-conversations'] });
       toast.success('Chat deleted');
     },
@@ -67,23 +65,23 @@ export function useHideConversation() {
 }
 
 export function useUnhideConversation() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (conversationId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!profileId) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('hidden_conversations')
         .delete()
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .eq('conversation_id', conversationId);
 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient, profileId);
       queryClient.invalidateQueries({ queryKey: ['hidden-conversations'] });
     },
   });

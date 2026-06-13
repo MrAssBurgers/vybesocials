@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useSuggestedFriends } from '@/hooks/useFriendsOfFriends';
 import { useFriends } from '@/hooks/useFriends';
 import { useHiddenFromDiscovery } from '@/hooks/useOutgoingRequests';
@@ -20,7 +20,7 @@ export interface QuickAddUser {
  * Always returns results even if user has no friends yet.
  */
 export function useQuickAddSuggestions(limit = 8) {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const { data: mutualSuggestions, isLoading: loadingMutual } = useSuggestedFriends();
   const { data: friends } = useFriends();
   const { data: hiddenIdsRaw } = useHiddenFromDiscovery();
@@ -41,9 +41,9 @@ export function useQuickAddSuggestions(limit = 8) {
 
   // Fallback: interest-based / general users — ALWAYS fetched so Quick Add never empty
   const { data: generalUsers, isLoading: loadingGeneral } = useQuery({
-    queryKey: ['quick-add-general', profile?.id, friends?.length ?? 0],
+    queryKey: ['quick-add-general', profileId, friends?.length ?? 0],
     queryFn: async (): Promise<QuickAddUser[]> => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       const friendIds = friends?.map(f => f.id) || [];
 
@@ -51,7 +51,7 @@ export function useQuickAddSuggestions(limit = 8) {
       const { data: myProfile } = await supabase
         .from('profiles')
         .select('interests, date_of_birth')
-        .eq('id', profile.id)
+        .eq('id', profileId)
         .maybeSingle();
       const myInterests = new Set<string>(
         (myProfile?.interests || []).map((i: string) => i.toLowerCase())
@@ -81,7 +81,7 @@ export function useQuickAddSuggestions(limit = 8) {
       let query = supabase
         .from('profiles' as any)
         .select('id, username, display_name, avatar_url, interests, date_of_birth')
-        .neq('id', profile.id)
+        .neq('id', profileId)
         .not('username', 'is', null)
         .order('created_at', { ascending: false })
         .limit(120) as any;
@@ -119,7 +119,7 @@ export function useQuickAddSuggestions(limit = 8) {
         .slice(0, 30)
         .map(({ _score, ...rest }: any) => rest);
     },
-    enabled: !!profile?.id && hiddenIds !== undefined,
+    enabled: !!profileId && hiddenIds !== undefined,
     staleTime: 60000,
     gcTime: 300000,
   });

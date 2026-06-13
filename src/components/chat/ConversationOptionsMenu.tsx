@@ -23,6 +23,7 @@ import { useTrashConversation } from '@/hooks/useTrashedConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 
 interface ConversationOptionsMenuProps {
   conversationId: string;
@@ -68,7 +69,7 @@ export function ConversationOptionsMenu({
 
       if (error) throw error;
 
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
       toast.success(isMuted ? 'Notifications enabled' : 'Notifications muted');
     } catch (error) {
       console.error('Failed to toggle mute:', error);

@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 
 interface GroupChatSettingsProps {
   conversationId: string;
@@ -36,7 +37,7 @@ export function GroupChatSettings({ conversationId, conversation, members, onClo
     } else {
       triggerHaptic('medium');
       toast.success('Group name updated');
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
       setEditing(false);
     }
   }, [groupName, conversationId, queryClient]);
@@ -53,7 +54,7 @@ export function GroupChatSettings({ conversationId, conversation, members, onClo
     } else {
       triggerHaptic('medium');
       toast.success('Member removed');
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
     }
   }, [isCreator, conversationId, queryClient]);
 

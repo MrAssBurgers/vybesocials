@@ -5,6 +5,7 @@ import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeC
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { toast } from 'sonner';
 
 export interface FriendRequest {
@@ -340,7 +341,7 @@ export function useSendFriendRequest() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
       queryClient.invalidateQueries({ queryKey: ['friendship-status'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
 
       if (result?.alreadyExists) return;
 

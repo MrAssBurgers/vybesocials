@@ -21,7 +21,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { StyledUsername } from '@/components/ui/StyledUsername';
-import { useConversations, useCreateConversation } from '@/hooks/useMessages';
+import { useCreateConversation } from '@/hooks/useMessages';
+import { useDMConversations } from '@/hooks/useDMConversations';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useFriends } from '@/hooks/useFriends';
 import { useEvents } from '@/hooks/useEvents';
 import { useListings } from '@/hooks/useMarketplace';
@@ -103,7 +105,12 @@ export function DesktopRightSidebar() {
     await signOut();
     navigate('/');
   };
-  const { data: conversations, isLoading: conversationsLoading } = useConversations();
+  const profileId = useAuthProfileId();
+  const { pinnedConversations, unpinnedConversations, isLoading: conversationsLoading } = useDMConversations('');
+  const conversations = useMemo(
+    () => [...(pinnedConversations || []), ...(unpinnedConversations || [])],
+    [pinnedConversations, unpinnedConversations],
+  );
   const { data: friends, isLoading: friendsLoading } = useFriends();
   const { data: events, isLoading: eventsLoading } = useEvents({ upcoming: true });
   const { data: listings, isLoading: listingsLoading } = useListings();
@@ -139,7 +146,7 @@ export function DesktopRightSidebar() {
   const recentChats = useMemo(() => {
     if (!conversations) return [];
     return conversations.slice(0, 3).map(conv => {
-      const otherMember = conv.members?.find(m => m.user_id !== profile?.id)?.profile;
+      const otherMember = conv.members?.find(m => m.user_id !== profileId)?.profile;
       return {
         id: conv.id,
         name: conv.is_group ? conv.name : otherMember?.display_name || otherMember?.username,
@@ -151,7 +158,7 @@ export function DesktopRightSidebar() {
         isGroup: conv.is_group,
       };
     });
-  }, [conversations, profile?.id, checkTyping]);
+  }, [conversations, profileId, checkTyping]);
 
   // Get upcoming events (filter for future events) - memoized
   const upcomingEvents = useMemo(() => {

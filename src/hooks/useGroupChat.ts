@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 
 export type GroupRole = 'owner' | 'admin' | 'member';
 
@@ -92,7 +93,7 @@ export function useCreateGroup() {
       return { id: data.id, name: data.name };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
       toast.success('Group created!');
     },
     onError: (error: Error) => {
@@ -193,7 +194,7 @@ export function useLeaveGroup() {
         .eq('user_id', profile.id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
       toast.success('Left group');
     },
     onError: () => {
@@ -261,7 +262,7 @@ export function useUpdateGroupSettings() {
       if (error) throw error;
     },
     onSuccess: (_, { conversationId }) => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
       queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] });
       toast.success('Group updated');
     },

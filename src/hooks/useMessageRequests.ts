@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 export interface MessageRequest {
   id: string;
@@ -19,12 +19,12 @@ export interface MessageRequest {
 }
 
 export function useMessageRequests() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['message-requests', profile?.id],
+    queryKey: ['message-requests', profileId],
     queryFn: async () => {
-      if (!profile) return [];
+      if (!profileId) return [];
 
       const { data, error } = await supabase
         .from('message_requests')
@@ -37,41 +37,41 @@ export function useMessageRequests() {
             is_verified
           )
         `)
-        .eq('receiver_id', profile.id)
+        .eq('receiver_id', profileId)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data as MessageRequest[];
     },
-    enabled: !!profile,
+    enabled: !!profileId,
   });
 }
 
 export function usePendingRequestCount() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['message-request-count', profile?.id],
+    queryKey: ['message-request-count', profileId],
     queryFn: async () => {
-      if (!profile) return 0;
+      if (!profileId) return 0;
 
       const { count, error } = await supabase
         .from('message_requests')
         .select('id', { count: 'exact', head: true })
-        .eq('receiver_id', profile.id)
+        .eq('receiver_id', profileId)
         .eq('status', 'pending');
 
       if (error) throw error;
       return count || 0;
     },
-    enabled: !!profile,
+    enabled: !!profileId,
   });
 }
 
 export function useSendMessageRequest() {
   const queryClient = useQueryClient();
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useMutation({
     mutationFn: async ({
@@ -81,12 +81,12 @@ export function useSendMessageRequest() {
       receiverId: string;
       messagePreview?: string;
     }) => {
-      if (!profile) throw new Error('Not authenticated');
+      if (!profileId) throw new Error('Not authenticated');
 
       const { data, error } = await supabase
         .from('message_requests')
         .insert({
-          sender_id: profile.id,
+          sender_id: profileId,
           receiver_id: receiverId,
           message_preview: messagePreview || null,
         })
@@ -133,48 +133,45 @@ export function useRespondToMessageRequest() {
   });
 }
 
-// Check if user can DM without a request
 export function useCanSendDM(receiverId: string) {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['can-send-dm', profile?.id, receiverId],
+    queryKey: ['can-send-dm', profileId, receiverId],
     queryFn: async () => {
-      if (!profile || !receiverId) return false;
-      if (profile.id === receiverId) return true;
+      if (!profileId || !receiverId) return false;
+      if (profileId === receiverId) return true;
 
-      const { data, error } = await supabase
-        .rpc('can_send_dm', {
-          sender_id: profile.id,
-          receiver_id: receiverId,
-        });
+      const { data, error } = await supabase.rpc('can_send_dm', {
+        sender_id: profileId,
+        receiver_id: receiverId,
+      });
 
       if (error) throw error;
       return data as boolean;
     },
-    enabled: !!profile && !!receiverId,
+    enabled: !!profileId && !!receiverId,
   });
 }
 
-// Check if there's a pending request
 export function useExistingRequest(receiverId: string) {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['existing-request', profile?.id, receiverId],
+    queryKey: ['existing-request', profileId, receiverId],
     queryFn: async () => {
-      if (!profile || !receiverId) return null;
+      if (!profileId || !receiverId) return null;
 
       const { data, error } = await supabase
         .from('message_requests')
         .select('*')
-        .eq('sender_id', profile.id)
+        .eq('sender_id', profileId)
         .eq('receiver_id', receiverId)
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
       return data as MessageRequest | null;
     },
-    enabled: !!profile && !!receiverId,
+    enabled: !!profileId && !!receiverId,
   });
 }

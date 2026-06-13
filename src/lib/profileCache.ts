@@ -59,8 +59,8 @@ function getCachedCurrentProfileRaw(): CachedProfile | null {
 function isCachedProfileForActiveUser(cached: CachedProfile): boolean {
   const authUserId = activeAuthUserId ?? getStoredAuthUserId();
   if (!authUserId) return true;
-  // Reject legacy disk cache entries missing user_id — they can point at the wrong profile.
-  if (!cached.user_id) return false;
+  // Legacy entries may lack user_id — allow for instant boot; DMs self-heal via session lookup.
+  if (!cached.user_id) return true;
   return cached.user_id === authUserId;
 }
 

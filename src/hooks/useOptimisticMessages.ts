@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { ViewMode } from './useMessages';
 import { enqueue as outboxEnqueue, onOutboxChange, flush as outboxFlush } from '@/lib/dmOutbox';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 
 export type MessageStatus = 'sending' | 'sent' | 'failed';
 
@@ -73,7 +74,7 @@ export function useOptimisticMessages(conversationId: string | undefined) {
       // Remove optimistic message on success
       setOptimisticMessages((prev) => prev.filter((m) => m.tempId !== tempId));
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
     },
     onError: (error, variables) => {
       const msg = (error as Error)?.message || '';
@@ -120,7 +121,7 @@ export function useOptimisticMessages(conversationId: string | undefined) {
       setOptimisticMessages((prev) => prev);
       if (conversationId) {
         queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        invalidateConversationCaches(queryClient);
       }
     });
     return off;

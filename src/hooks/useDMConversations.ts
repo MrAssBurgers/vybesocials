@@ -6,9 +6,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { useFriends } from '@/hooks/useFriends';
-import { loadDMConversations, type LoadedDMConversation } from '@/lib/loadDMConversations';
+import {
+  loadDMConversations,
+  syncDmListCaches,
+  type LoadedDMConversation,
+} from '@/lib/loadDMConversations';
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
-import { getEffectiveProfileId, setCachedCurrentProfile } from '@/lib/profileCache';
+import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 
 type DMConversation = LoadedDMConversation;
 
@@ -19,36 +23,18 @@ type DMConversation = LoadedDMConversation;
 export function useDMConversations(searchQuery: string = '') {
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
-  const liveOrCachedProfileId = getEffectiveProfileId(profile?.id);
+  const cachedProfileId = syncSessionProfileId(profile?.id);
 
-  // When auth session exists but profile state hasn't hydrated yet, resolve profile.id
-  // so the DM query doesn't stay disabled (which leaves isFetched false forever).
-  const profileBootstrapQuery = useQuery({
-    queryKey: ['dm-profile-bootstrap', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, user_id, username, avatar_url, display_name')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (error || !data?.id) return null;
-      setCachedCurrentProfile({
-        id: data.id,
-        user_id: data.user_id,
-        username: data.username,
-        display_name: data.display_name,
-        avatar_url: data.avatar_url,
-      });
-      return data.id;
-    },
-    enabled: !!user?.id && !liveOrCachedProfileId,
+  const profileResolveQuery = useQuery({
+    queryKey: ['session-profile-id', user?.id],
+    queryFn: () => resolveSessionProfileId(profile?.id),
+    enabled: !!user?.id && !cachedProfileId,
     staleTime: 60_000,
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
 
-  const profileId = liveOrCachedProfileId ?? profileBootstrapQuery.data ?? undefined;
+  const profileId = cachedProfileId ?? profileResolveQuery.data ?? undefined;
   const { data: friends, isLoading: friendsLoading } = useFriends();
   const attemptedFriendIdsRef = useRef<Set<string>>(new Set());
 
@@ -59,32 +45,22 @@ export function useDMConversations(searchQuery: string = '') {
     queryFn: async () => {
       if (!profileId) return [];
       const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profileId]);
-      const result = await loadDMConversations(profileId, prev);
-      queryClient.setQueryData(['conversations', profileId], result);
+      const { data, error, profileId: resolvedId } = await loadDMConversations(profileId, prev);
 
-      // If session profile id differs from query key, migrate cache to the correct key.
-      if (user?.id) {
-        const { data: me } = await supabase
-          .from('profiles')
-          .select('id, user_id, username, avatar_url, display_name')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (me?.id) {
-          queryClient.setQueryData(['conversations', me.id], result);
-          if (me.id !== profileId) {
-            setCachedCurrentProfile({
-              id: me.id,
-              user_id: me.user_id,
-              username: me.username,
-              display_name: me.display_name,
-              avatar_url: me.avatar_url,
-            });
-            queryClient.setQueryData(['dm-conversations', me.id], result);
-          }
-        }
+      syncDmListCaches(queryClient, resolvedId, data);
+      if (resolvedId !== profileId) {
+        syncDmListCaches(queryClient, profileId, data);
       }
 
-      return result;
+      const softErrorKey = ['dm-conversations-soft-error', resolvedId] as const;
+      if (error && data.length > 0) {
+        queryClient.setQueryData(softErrorKey, error.message);
+      } else {
+        queryClient.removeQueries({ queryKey: softErrorKey });
+      }
+
+      if (error && data.length === 0) throw error;
+      return data;
     },
     enabled: !!profileId,
     // Treat persisted data as instantly displayable, then always revalidate
@@ -97,9 +73,8 @@ export function useDMConversations(searchQuery: string = '') {
     refetchOnMount: refetchListOnMount,
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
-    // DM list must reach network on first load — offlineFirst can pause forever
-    // with isFetched=false when connectivity is flaky (shows perpetual spinner).
-    networkMode: 'always',
+    // Show persisted cache immediately; revalidate in background when online.
+    networkMode: 'offlineFirst',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
@@ -228,15 +203,13 @@ export function useDMConversations(searchQuery: string = '') {
 
   const listCount = conversationsQuery.data?.length ?? 0;
   const querySettled = conversationsQuery.isFetched || conversationsQuery.isError;
-  // Block UI until the first fetch completes or errors — covers isPending without isFetching.
-  const isLoading =
-    listCount === 0 &&
-    !querySettled &&
-    (
-      !!profileId ||
-      profileBootstrapQuery.isFetching ||
-      profileBootstrapQuery.isPending
-    );
+  const resolvingProfile =
+    !!user?.id && !profileId && (profileResolveQuery.isFetching || profileResolveQuery.isPending);
+  const isLoading = listCount === 0 && !querySettled && (resolvingProfile || !!profileId);
+
+  const softErrorKey = profileId ? (['dm-conversations-soft-error', profileId] as const) : null;
+  const fetchWarning =
+    (softErrorKey ? queryClient.getQueryData<string>(softErrorKey) : null) ?? null;
 
   return {
     conversations: filteredConversations,
@@ -247,6 +220,7 @@ export function useDMConversations(searchQuery: string = '') {
     isFetched: conversationsQuery.isFetched,
     isFetching: conversationsQuery.isFetching,
     error: conversationsQuery.error,
+    fetchWarning,
     refetch: conversationsQuery.refetch,
     profileId,
   };
@@ -257,8 +231,8 @@ export function useDMConversations(searchQuery: string = '') {
  * then fetches members + profiles if the list cache missed it.
  */
 export function useConversationDetail(conversationId: string | undefined) {
-  const { profile, user } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const { profile } = useAuth();
+  const profileId = syncSessionProfileId(profile?.id);
   const queryClient = useQueryClient();
 
   return useQuery({
@@ -266,15 +240,7 @@ export function useConversationDetail(conversationId: string | undefined) {
     queryFn: async (): Promise<DMConversation | null> => {
       if (!conversationId) return null;
 
-      let effectiveProfileId = profileId;
-      if (user?.id) {
-        const { data: me } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (me?.id) effectiveProfileId = me.id;
-      }
+      const effectiveProfileId = (await resolveSessionProfileId(profile?.id)) ?? profileId;
       if (!effectiveProfileId) return null;
 
       const cached =
@@ -338,7 +304,7 @@ export function useConversationDetail(conversationId: string | undefined) {
         )
       );
     },
-    networkMode: 'always',
+    networkMode: 'offlineFirst',
     retry: 2,
   });
 }
@@ -348,7 +314,7 @@ export function useConversationDetail(conversationId: string | undefined) {
  */
 export function useMarkConversationRead() {
   const { profile } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const profileId = syncSessionProfileId(profile?.id);
   const queryClient = useQueryClient();
 
   return useMutation({

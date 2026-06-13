@@ -120,9 +120,8 @@ export function ConversationList() {
     pinnedConversations, 
     unpinnedConversations, 
     isLoading, 
-    isFetched,
-    isFetching,
     error: convError,
+    fetchWarning,
     totalUnreadCount,
     refetch: refetchConversations,
     profileId: dmProfileId,
@@ -186,32 +185,17 @@ export function ConversationList() {
     [pinnedConversations, unpinnedConversations]
   );
 
-  // Escape hatch: one retry if first fetch never settles.
-  const emptyRefetchAttemptedRef = useRef(false);
-  useEffect(() => {
-    if (!dmProfileId || allConversations.length > 0 || isFetched || convError) return;
-    if (emptyRefetchAttemptedRef.current) return;
-    const t = window.setTimeout(() => {
-      emptyRefetchAttemptedRef.current = true;
-      void refetchConversations();
-    }, 8000);
-    return () => window.clearTimeout(t);
-  }, [dmProfileId, allConversations.length, isFetched, convError, refetchConversations]);
-
   const profileMissing = !authLoading && !!user && !dmProfileId;
-  const initialLoadPending = !isFetched && !convError;
-
   const showListSkeleton =
     allConversations.length === 0 &&
     !profileMissing &&
-    initialLoadPending &&
-    (isLoading || isFetching || (authLoading && !dmProfileId));
+    isLoading;
 
   useEffect(() => {
-    if (!isLoading && !isFetching && !initialLoadPending) { setSlowLoad(false); return; }
+    if (!isLoading) { setSlowLoad(false); return; }
     const t = setTimeout(() => setSlowLoad(true), 6000);
     return () => clearTimeout(t);
-  }, [isLoading, isFetching, initialLoadPending]);
+  }, [isLoading]);
 
   // Get all conversation IDs for typing indicator subscription
   const conversationIds = useMemo(() => 
@@ -365,6 +349,16 @@ export function ConversationList() {
 
         {/* Conversations */}
         <div className="pb-3">
+          {(fetchWarning || (convError && allConversations.length > 0)) && (
+            <div className="mx-3 mb-2 rounded-xl border border-border/40 bg-card/40 p-3 flex items-center justify-between gap-3">
+              <div className="text-xs text-muted-foreground">
+                Couldn&apos;t refresh chats. Showing saved list.
+              </div>
+              <Button size="sm" variant="secondary" className="h-7 px-3 text-xs" onClick={() => refetchConversations()}>
+                Retry
+              </Button>
+            </div>
+          )}
           {profileMissing ? (
             <div className="flex flex-col items-center justify-center py-12 text-center px-6 mx-1">
               <p className="text-sm text-muted-foreground mb-4 max-w-[260px]">

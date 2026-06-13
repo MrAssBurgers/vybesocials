@@ -388,8 +388,8 @@ export default function NewMessage() {
     staleTime: 30000,
   });
 
-  const showLoading = isLoading || isFetching;
   const safeResults = results || [];
+  const showLoading = isLoading && safeResults.length === 0;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!safeResults.length) return;

@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { Message } from './useMessages';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 
 /**
  * Unsend message for everyone (soft delete via UPDATE - no new row insertion)
@@ -50,7 +50,7 @@ export function useUnsendForEveryone() {
         return old.filter((m) => m.id !== messageId);
       });
 
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
       toast.success('Message unsent');
     },
     onError: (error: any) => {

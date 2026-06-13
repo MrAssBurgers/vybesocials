@@ -17,7 +17,8 @@ import { useTrashConversation } from '@/hooks/useTrashedConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
- import { useAuth } from '@/lib/auth';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
+import { useAuth } from '@/lib/auth';
 
 interface ConversationOptionsSheetProps {
   open: boolean;
@@ -73,8 +74,7 @@ export function ConversationOptionsSheet({
       if (error) throw error;
       if (data && !(data as any).success) throw new Error((data as any).error);
       
-      queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
       toast.success('Chat cleared');
       setShowClearConfirm(false);
@@ -103,8 +103,7 @@ export function ConversationOptionsSheet({
 
       if (error) throw error;
 
-       queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+       invalidateConversationCaches(queryClient);
       toast.success(isMuted ? 'Notifications enabled' : 'Notifications muted');
       onOpenChange(false);
     } catch (error) {
@@ -131,8 +130,7 @@ export function ConversationOptionsSheet({
 
       if (error) throw error;
 
-       queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+       invalidateConversationCaches(queryClient);
       toast.success(isPinned ? 'Unpinned' : 'Pinned to top');
       onOpenChange(false);
     } catch (error) {

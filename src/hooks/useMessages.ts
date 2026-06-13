@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
+import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
@@ -275,7 +277,7 @@ function mergePendingOptimisticMessages(
 }
 
 export function useMessages(conversationId: string | undefined) {
-  const { profile, user } = useAuth();
+  const { profile } = useAuth();
   const profileId = getEffectiveProfileId(profile?.id);
   const queryClient = useQueryClient();
 
@@ -284,15 +286,7 @@ export function useMessages(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId) return [];
 
-      let viewerId = profileId;
-      if (user?.id) {
-        const { data: me } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (me?.id) viewerId = me.id;
-      }
+      const viewerId = (await resolveSessionProfileId(profile?.id)) ?? profileId;
 
       const { data, error } = await supabase
         .from('messages')
@@ -316,7 +310,7 @@ export function useMessages(conversationId: string | undefined) {
     refetchOnMount: (query) => shouldRefetchWhenEmpty(query),
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
-    networkMode: 'always',
+    networkMode: 'offlineFirst',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
@@ -417,7 +411,7 @@ export function useSendMessage() {
     },
     onSuccess: async (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['messages', variables.conversationId] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
 
       if ((data as { _queued?: boolean })?._queued) {
         toast.info('Message queued — will send when you\'re back online', { duration: 3500 });
@@ -470,7 +464,7 @@ export function useUnsendMessage() {
     },
     onSuccess: (conversationId) => {
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
       toast.success('Message unsent');
     },
     onError: (error: any) => {
@@ -646,7 +640,7 @@ export function useCreateConversation() {
       return conversation;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
     },
     onError: (error: any) => {
       console.error('Failed to create conversation:', error);
@@ -990,7 +984,7 @@ export function useMarkConversationRead() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
       queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
     },
   });
@@ -1044,7 +1038,7 @@ export function useMarkConversationReadByUser() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      invalidateConversationCaches(queryClient);
       queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
     },
   });
