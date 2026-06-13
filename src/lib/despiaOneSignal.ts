@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { despiaCall, isDespiaRuntime } from '@/lib/despiaBridge';
+import { despiaCall, isDespiaRuntime, isAndroidUA } from '@/lib/despiaBridge';
 
 const PLAYER_ID_KEYS = [
   'oneSignalPlayerId',
@@ -129,16 +129,21 @@ const LINK_SCHEMES = (externalId: string) => [
   `onesignallogin://?external_id=${encodeURIComponent(externalId)}`,
 ];
 
+async function registerDespiaPush(): Promise<void> {
+  for (const url of ['registerpush://', 'registerPush://', 'requestpushpermission://']) {
+    await despiaCall(url, [], isAndroidUA() ? 2_500 : 1_500);
+  }
+}
+
 async function bindDespiaOneSignalUser(externalId: string): Promise<void> {
+  await registerDespiaPush();
   for (const url of LINK_SCHEMES(externalId)) {
-    await despiaCall(url, [], 900);
+    await despiaCall(url, [], isAndroidUA() ? 1_200 : 900);
   }
 }
 
 async function requestDespiaPushPermission(): Promise<boolean | null> {
-  for (const url of ['registerpush://', 'registerPush://', 'requestpushpermission://']) {
-    await despiaCall(url, [], 1_500);
-  }
+  await registerDespiaPush();
   return checkNativePushPermission();
 }
 
@@ -209,7 +214,9 @@ export async function ensureDespiaOneSignalLinked(
   window.setTimeout(() => void bindDespiaOneSignalUser(externalId), 2_500);
   window.setTimeout(() => void bindDespiaOneSignalUser(externalId), 6_000);
 
-  const playerId = await fetchDespiaOneSignalPlayerId(options.waitForPlayerIdMs ?? 2_500);
+  const playerId = await fetchDespiaOneSignalPlayerId(
+    options.waitForPlayerIdMs ?? (isAndroidUA() ? 15_000 : 2_500),
+  );
   console.log(`${tag} immediate fetch playerId =`, playerId || '(empty — retry loop will keep trying)');
 
   if (options.persistToken !== false) {

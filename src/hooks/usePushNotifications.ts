@@ -4,7 +4,8 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled, registerVybeServiceWorker } from '@/lib/serviceWorker';
 import { ensureDespiaOneSignalLinked, linkOneSignalUser, persistDespiaPushToken } from '@/lib/despiaOneSignal';
-import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { isDespiaRuntime, openAppSettings } from '@/lib/despiaBridge';
+import { pushBlockedSettingsMessage } from '@/lib/pushSettingsCopy';
 
 // VAPID public key — fetched from the server (`get-vapid-key` edge function)
 // so the browser subscribes with the SAME key the server signs pushes with.
@@ -246,7 +247,12 @@ export function usePushNotifications() {
     });
 
     if (link.permission === false) {
-      toast.error('Notifications are blocked. Enable them in Settings → VYBE → Notifications.');
+      toast.error(pushBlockedSettingsMessage(), {
+        action: {
+          label: 'Open settings',
+          onClick: () => { void openAppSettings(); },
+        },
+      });
       return false;
     }
 

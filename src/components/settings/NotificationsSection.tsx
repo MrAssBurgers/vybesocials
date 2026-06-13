@@ -3,8 +3,9 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
-import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { ensureDespiaOneSignalLinked, linkOneSignalUser } from '@/lib/despiaOneSignal';
+import { isDespiaRuntime, openAppSettings } from '@/lib/despiaBridge';
+import { pushBlockedSettingsMessage, pushNotLinkedHint } from '@/lib/pushSettingsCopy';
 import { parseEdgeInvokeResult, pushDeliveryErrorMessage } from '@/lib/edgeFunctionResponse';
 import { haptics } from '@/lib/haptics';
 import { useNotificationPreferences, useUpdateNotificationPreference } from '@/hooks/useNotificationPreferences';
@@ -95,7 +96,12 @@ export function NotificationsSection() {
                             trigger: 'test-push',
                           });
                           if (link.permission === false) {
-                            toast.error('Notifications are blocked. Enable them in iOS Settings → VYBE → Notifications.');
+                            toast.error(pushBlockedSettingsMessage(), {
+                              action: isDespiaRuntime() ? {
+                                label: 'Open settings',
+                                onClick: () => { void openAppSettings(); },
+                              } : undefined,
+                            });
                             return;
                           }
                           if (link.playerId) {
@@ -120,7 +126,9 @@ export function NotificationsSection() {
                         const { payload, errorMessage } = await parseEdgeInvokeResult(result);
                         const deliveryError = pushDeliveryErrorMessage(payload);
                         if (deliveryError) {
-                          toast.error(deliveryError);
+                          toast.error(deliveryError, {
+                            description: deliveryError.includes('not linked') ? pushNotLinkedHint() : undefined,
+                          });
                           return;
                         }
                         if (result.error && !payload?.success) {
