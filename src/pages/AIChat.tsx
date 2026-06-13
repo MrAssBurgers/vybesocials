@@ -353,13 +353,6 @@ export default function AIChat() {
             legacyProject: isLegacySupabaseProject(),
           }, 'H1-deploy');
           // #endregion
-          if (isAgentAuthError(agentErr)) {
-            toast.info('Session issue — trying chat mode', { duration: 2500 });
-          } else if (isLegacySupabaseProject()) {
-            toast.info('Updating connection — using chat mode', { duration: 2500 });
-          } else {
-            toast.info('Using chat mode', { duration: 2000 });
-          }
           if (!shouldFallbackToAiChat(agentErr)) {
             const msg = formatAiChatError(agentErr);
             setMessages(prev => [...prev, { role: 'assistant', content: msg, timestamp: new Date() }]);
