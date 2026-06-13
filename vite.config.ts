@@ -39,12 +39,24 @@ function previewSupabaseClientShimPlugin() {
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  // Canonical prod ref — must match DEPLOY.md / index.html preconnect (hprmicwhlaaqfgshucec).
-  const projectId = env.VITE_SUPABASE_PROJECT_ID || "hprmicwhlaaqfgshucec";
-  const supabaseUrl = env.VITE_SUPABASE_URL || `https://${projectId}.supabase.co`;
-  const publishableKey =
-    env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  const LEGACY_REFS = ["eabvbtkxdbttjpdpbmuw", "agtcyxjxgkdyoxwxkjth"];
+  const CANONICAL_ID = "hprmicwhlaaqfgshucec";
+  const CANONICAL_URL = `https://${CANONICAL_ID}.supabase.co`;
+  const CANONICAL_KEY =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwcm1pY3dobGFhcWZnc2h1Y2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDkwODgsImV4cCI6MjA4NDYyNTA4OH0.Lk72yBKNj3sRjf5E5DQ8TLBfXB2tbjTpAAb075hbMa4";
+
+  let projectId = env.VITE_SUPABASE_PROJECT_ID || CANONICAL_ID;
+  let supabaseUrl = env.VITE_SUPABASE_URL || `https://${projectId}.supabase.co`;
+  let publishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || CANONICAL_KEY;
+
+  const bakedLegacy = LEGACY_REFS.some(
+    (ref) => projectId === ref || supabaseUrl.includes(ref),
+  );
+  if (bakedLegacy) {
+    projectId = CANONICAL_ID;
+    supabaseUrl = CANONICAL_URL;
+    publishableKey = CANONICAL_KEY;
+  }
   const offlineMode = env.VITE_OFFLINE_MODE || "pwa";
   const useDespiaLocal = offlineMode === "despia-local";
 

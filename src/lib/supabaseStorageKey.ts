@@ -1,3 +1,9 @@
+import {
+  CANONICAL_SUPABASE_PROJECT_ID,
+  getCanonicalProjectRef,
+  KNOWN_LEGACY_SUPABASE_REFS,
+} from '@/lib/canonicalSupabase';
+
 /**
  * Derive Supabase localStorage keys from env so auth session detection
  * survives project ref changes without hardcoding.
@@ -6,25 +12,18 @@
 const BACKUP_SUFFIX = '-vybe-backup';
 
 /** Prior Supabase refs that may still have sessions in localStorage after migration. */
-export const KNOWN_LEGACY_SUPABASE_REFS = [
-  'eabvbtkxdbttjpdpbmuw',
-  'agtcyxjxgkdyoxwxkjth',
-] as const;
+export { KNOWN_LEGACY_SUPABASE_REFS };
 
-function parseEnv(value: string | undefined): string {
-  if (!value) return '';
-  return value.trim().replace(/^["']|["']$/g, '');
+function readRawSession(key: string): string | null {
+  try {
+    return localStorage.getItem(key) || localStorage.getItem(`${key}${BACKUP_SUFFIX}`);
+  } catch {
+    return null;
+  }
 }
 
 export function getSupabaseProjectRef(): string {
-  const url = parseEnv(import.meta.env.VITE_SUPABASE_URL as string | undefined);
-  const fromUrl = url.match(/https:\/\/([^.]+)\.supabase\.co/i)?.[1];
-  if (fromUrl) return fromUrl;
-
-  const projectId = parseEnv(import.meta.env.VITE_SUPABASE_PROJECT_ID as string | undefined);
-  if (projectId) return projectId;
-
-  return 'hprmicwhlaaqfgshucec';
+  return getCanonicalProjectRef();
 }
 
 export function getSupabaseAuthStorageKey(): string {
@@ -33,14 +32,6 @@ export function getSupabaseAuthStorageKey(): string {
 
 function authStorageKeyForRef(projectRef: string): string {
   return `sb-${projectRef}-auth-token`;
-}
-
-function readRawSession(key: string): string | null {
-  try {
-    return localStorage.getItem(key) || localStorage.getItem(`${key}${BACKUP_SUFFIX}`);
-  } catch {
-    return null;
-  }
 }
 
 function getAccessTokenFromSessionRaw(raw: string): string | null {
@@ -81,7 +72,7 @@ export function getSessionProjectRefFromRaw(raw: string): string | null {
 export function sessionMatchesCurrentProject(raw: string): boolean {
   const sessionRef = getSessionProjectRefFromRaw(raw);
   if (!sessionRef) return true;
-  return sessionRef === getSupabaseProjectRef();
+  return sessionRef === getSupabaseProjectRef() || sessionRef === CANONICAL_SUPABASE_PROJECT_ID;
 }
 
 function writeSessionPair(key: string, value: string): void {
@@ -120,8 +111,11 @@ export function migrateLegacySupabaseAuthStorage(): boolean {
     for (const ref of KNOWN_LEGACY_SUPABASE_REFS) {
       if (ref === getSupabaseProjectRef()) continue;
       const legacyKey = authStorageKeyForRef(ref);
-      const legacyRaw = readValidSessionForKey(legacyKey);
+      const legacyRaw = readRawSession(legacyKey);
       if (!legacyRaw) continue;
+
+      const sessionRef = getSessionProjectRefFromRaw(legacyRaw);
+      if (sessionRef && sessionRef !== CANONICAL_SUPABASE_PROJECT_ID) continue;
 
       writeSessionPair(canonicalKey, legacyRaw);
       return true;

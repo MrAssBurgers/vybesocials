@@ -4,6 +4,25 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (VYBE AI timeout + legacy URL fix — 2026-06-13)
+- **Root cause:** prod bundle still baked `eabvbt` Supabase URL → edge calls hit wrong project / 401 JWT mismatch; text chat tried `vybe-agent` first (25–60s) before `ai-chat`, doubling latency; `AbortError` surfaced as generic timeout instead of session/refresh errors
+- **`canonicalSupabase.ts`** — runtime + build canonicalize legacy refs → `hprmicwhlaaqfgshucec` URL + anon key
+- **`functionAuth.ts`** — canonical edge URLs; auth header cache (30s); `AuthRefreshTimeoutError` + clearer `formatAiChatError`
+- **`runtime-client.ts` + `vite.config.ts`** — Supabase client + build define use canonical hprmic even when Lovable injects `eabvbt`
+- **`aiChatRouting.ts`** — skip `vybe-agent` for greetings/first short message; skip agent 30m after 401
+- **`AIChat.tsx`** — direct `ai-chat` for "yo"/"hi"; stream idle bailout (35s)
+- **`useVybeAgent.ts`** — agent fetch timeout 25s; record auth failures
+- **Verify:** `npm run build` PASS (legacy env build → only `hprmic` URLs in bundle)
+- **You:** Lovable Publish → `/VYBE-AI` send "yo"; sign out/in once if session-expired message
+
+## Current Focus
+- **You:** Lovable Publish → smoke test VYBE AI text chat + auth persistence
+
+## Next 3 Tasks
+1. Lovable Publish → `/VYBE-AI` send “yo” — should reply via ai-chat in ~2–5s
+2. Sign out/in once if you see session-expired message (legacy JWT not portable to hprmic)
+3. Smoke test agent actions (navigate, theme) after publish
+
 ## What Changed (VYBE AI no-response fix — 2026-06-13)
 - **Root cause:** prod edge logs show paired `401 Invalid token` on `vybe-agent` then `ai-chat`; client fell back to ai-chat on agent 401 and called `getFunctionAuthHeaders()` again — `refreshSession()` had no timeout and could hang indefinitely (typing dots forever, no bubble)
 - **`functionAuth.ts`** — `refreshAuthSessionWithTimeout()` (8s cap); shared `formatAiChatError()` with AgentRequestError status support

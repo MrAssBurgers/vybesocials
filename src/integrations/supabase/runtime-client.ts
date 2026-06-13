@@ -1,9 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { supabaseAuthStorage } from '@/lib/supabaseAuthStorage';
+import {
+  getCanonicalPublishableKey,
+  getCanonicalSupabaseUrl,
+} from '@/lib/canonicalSupabase';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+const SUPABASE_URL = getCanonicalSupabaseUrl();
+const SUPABASE_PUBLISHABLE_KEY = getCanonicalPublishableKey();
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {

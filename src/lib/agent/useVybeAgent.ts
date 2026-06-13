@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
+import { recordAgentAuthFailure } from '@/lib/agent/aiChatRouting';
 import { getEdgeFunctionUrl, getFunctionAuthHeaders, refreshAuthSessionWithTimeout } from '@/lib/functionAuth';
 import { fetchWithTimeout } from '@/lib/withTimeout';
 import { useHomeLayout, ALL_WIDGETS } from '@/hooks/useHomeLayout';
@@ -120,17 +121,22 @@ export function useVybeAgent() {
             context: buildContext(),
           }),
         },
-        60000,
+        25_000,
       );
 
       if (res.status === 401 && !retriedAfterRefresh) {
         // #region agent log
         agentDebugLog('useVybeAgent:postVybeAgent', '401 — refreshing session', {}, 'H5-auth');
         // #endregion
-        const { data: refreshed, error } = await refreshAuthSessionWithTimeout();
-        if (!error && refreshed.session?.access_token) {
-          return postVybeAgent(options, true);
+        try {
+          const { data: refreshed, error } = await refreshAuthSessionWithTimeout();
+          if (!error && refreshed.session?.access_token) {
+            return postVybeAgent(options, true);
+          }
+        } catch {
+          recordAgentAuthFailure();
         }
+        recordAgentAuthFailure();
       }
 
       return res;

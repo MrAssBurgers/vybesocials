@@ -22,6 +22,7 @@ import {
 import { getEdgeFunctionUrl, getFunctionAuthHeaders, isLegacySupabaseProject, formatAiChatError } from '@/lib/functionAuth';
 import { fetchWithTimeout } from '@/lib/withTimeout';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError } from '@/lib/agent/useVybeAgent';
+import { shouldPreferAiChatDirect, shouldSkipAgentDueToAuth, clearAgentAuthFailure } from '@/lib/agent/aiChatRouting';
 import { formatAgentActionSummary } from '@/lib/agent/formatActionSummary';
 import { agentDebugLog } from '@/lib/agent/agentDebugLog';
 import { cn } from '@/lib/utils';
@@ -65,8 +66,9 @@ const QUICK_PROMPTS = [
   '🧬 What does my DNA say?',
 ];
 
-const AI_CHAT_FETCH_MS = 120_000;
-const AI_CHAT_STREAM_MS = 180_000;
+const AI_CHAT_FETCH_MS = 90_000;
+const AI_CHAT_STREAM_MS = 120_000;
+const AI_CHAT_STREAM_IDLE_MS = 35_000;
 
 // Resize image to max dimension and return base64
 async function imageToBase64(file: File, maxSize = 1024): Promise<{ base64: string; mimeType: string }> {
@@ -308,8 +310,14 @@ export default function AIChat() {
       }, 'H0-env');
       // #endregion
 
+      const priorUserCount = messages.filter((m) => m.role === 'user').length;
+      const useAgentPath =
+        !imageBase64 &&
+        !shouldPreferAiChatDirect(msgText, priorUserCount) &&
+        !shouldSkipAgentDueToAuth();
+
       // Text-only: unified agent (chat + navigate + theme + widgets), then ai-chat fallback
-      if (!imageBase64) {
+      if (useAgentPath) {
         try {
           const agentResult = await sendAndExecute({
             messages: chatHistory,
@@ -318,6 +326,7 @@ export default function AIChat() {
             feedDNA,
             location: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, city: userLocation.city } : null,
           });
+          clearAgentAuthFailure();
           const summary = agentResult.batch ? formatAgentActionSummary(agentResult.batch) : '';
           appendAssistantReply((agentResult.message.trim() || 'Done!') + summary);
           return;
@@ -408,13 +417,18 @@ export default function AIChat() {
 
       let buffer = '';
       let streamDone = false;
+      let lastChunkAt = Date.now();
       const streamDeadline = Date.now() + AI_CHAT_STREAM_MS;
       while (!streamDone) {
         if (Date.now() > streamDeadline) {
           throw new DOMException('Stream read timed out', 'AbortError');
         }
+        if (!assistantContent && Date.now() - lastChunkAt > AI_CHAT_STREAM_IDLE_MS) {
+          throw new DOMException('Stream read timed out waiting for first chunk', 'AbortError');
+        }
         const { done, value } = await reader.read();
         if (done) break;
+        lastChunkAt = Date.now();
         buffer += decoder.decode(value, { stream: true });
 
         let newlineIndex: number;
@@ -431,6 +445,7 @@ export default function AIChat() {
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
               assistantContent += content;
+              lastChunkAt = Date.now();
               streamingContentRef.current = assistantContent;
               setStreamingText(assistantContent);
             }
@@ -449,6 +464,7 @@ export default function AIChat() {
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
               assistantContent += content;
+              lastChunkAt = Date.now();
               streamingContentRef.current = assistantContent;
               setStreamingText(assistantContent);
             }
