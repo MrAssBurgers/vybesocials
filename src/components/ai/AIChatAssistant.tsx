@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
-import { getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { getEdgeFunctionUrl, getFunctionAuthHeaders } from '@/lib/functionAuth';
 
 type Message = {
   role: 'user' | 'assistant';

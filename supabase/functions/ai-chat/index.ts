@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { validateAuth } from "../_shared/auth.ts";
 import { rateLimitOrNull } from "../_shared/rateLimit.ts";
+import { resolveChatGateway } from "../_shared/aiGateway.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,8 +31,12 @@ serve(async (req) => {
       });
     }
 
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+    const gateway = resolveChatGateway();
+    if (!gateway) {
+      return new Response(JSON.stringify({ error: "AI not configured — add LOVABLE_API_KEY or GEMINI_API_KEY" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -40,7 +45,7 @@ serve(async (req) => {
     // Fetch user context
     const [{ data: dna }, { data: profile }, { data: prefs }] = await Promise.all([
       supabase.from("vybe_dna").select("personality_vector").eq("user_id", auth.userId).maybeSingle(),
-      supabase.from("profiles").select("display_name, onboarding_interests, interests").eq("id", auth.userId).maybeSingle(),
+      supabase.from("profiles").select("display_name, onboarding_interests, interests").eq("user_id", auth.userId).maybeSingle(),
       supabase.from("dna_content_preferences").select("*").eq("user_id", auth.userId).maybeSingle(),
     ]);
 
@@ -104,14 +109,14 @@ RULES:
       }
     }
 
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+    const response = await fetch(gateway.url, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
+        Authorization: `Bearer ${gateway.apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gemini-2.5-flash",
+        model: gateway.model,
         messages: finalMessages,
         stream: true,
       }),
@@ -137,7 +142,7 @@ RULES:
     if (feedDNA && sanitizedMessages.length > 0) {
       const userMessages = sanitizedMessages.filter((m: any) => m.role === 'user');
       if (userMessages.length > 0) {
-        extractAndFeedDNA(supabase, auth.userId, userMessages, GEMINI_API_KEY).catch(
+        extractAndFeedDNA(supabase, auth.userId, userMessages, gateway.apiKey, gateway.url, gateway.model).catch(
           (e) => console.error("DNA feed error:", e)
         );
       }
@@ -158,16 +163,18 @@ RULES:
 async function extractAndFeedDNA(
   supabase: any, userId: string,
   userMessages: Array<{ role: string; content: string }>,
-  apiKey: string
+  apiKey: string,
+  gatewayUrl: string,
+  model: string,
 ) {
   const combinedText = userMessages.map(m => m.content).join("\n");
   if (combinedText.length < 20) return;
 
-  const extractResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+  const extractResponse = await fetch(gatewayUrl, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "gemini-2.5-flash",
+      model,
       messages: [
         { role: "system", content: `Extract user interests from their messages. Return ONLY a JSON object with:
 - "interests": array of keywords (max 5)
@@ -203,9 +210,9 @@ Only include clear signals.` },
   const extracted = JSON.parse(toolCall.function.arguments);
   
   if (extracted.interests?.length > 0) {
-    const { data: currentProfile } = await supabase.from("profiles").select("interests").eq("id", userId).maybeSingle();
+    const { data: currentProfile } = await supabase.from("profiles").select("interests").eq("user_id", userId).maybeSingle();
     const merged = [...new Set([...(currentProfile?.interests || []), ...extracted.interests])].slice(0, 30);
-    await supabase.from("profiles").update({ interests: merged }).eq("id", userId);
+    await supabase.from("profiles").update({ interests: merged }).eq("user_id", userId);
   }
 
   if (extracted.boost_topics?.length > 0 || extracted.reduce_topics?.length > 0) {

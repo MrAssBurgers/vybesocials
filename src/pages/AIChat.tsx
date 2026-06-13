@@ -21,8 +21,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { getEdgeFunctionUrl, getFunctionAuthHeaders, isLegacySupabaseProject, formatAiChatError } from '@/lib/functionAuth';
 import { fetchWithTimeout } from '@/lib/withTimeout';
-import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError } from '@/lib/agent/useVybeAgent';
-import { shouldPreferAiChatDirect, shouldSkipAgentDueToAuth, clearAgentAuthFailure } from '@/lib/agent/aiChatRouting';
+import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError, isAgentUnavailableError } from '@/lib/agent/useVybeAgent';
+import { shouldSkipAgentDueToAuth, clearAgentAuthFailure } from '@/lib/agent/aiChatRouting';
+import { parseLocalAgentPlan } from '@/lib/agent/localAgentCommands';
 import { formatAgentActionSummary } from '@/lib/agent/formatActionSummary';
 import { agentDebugLog } from '@/lib/agent/agentDebugLog';
 import { cn } from '@/lib/utils';
@@ -102,7 +103,7 @@ async function imageToBase64(file: File, maxSize = 1024): Promise<{ base64: stri
 
 export default function AIChat() {
   const navigate = useNavigate();
-  const { sendAndExecute } = useVybeAgent();
+  const { sendAndExecute, executePlan } = useVybeAgent();
   const streamingContentRef = useRef('');
   
   const [aiName, setAiName] = useState(() => loadSetting(AI_NAME_KEY, 'VYBE-AI'));
@@ -310,13 +311,9 @@ export default function AIChat() {
       }, 'H0-env');
       // #endregion
 
-      const priorUserCount = messages.filter((m) => m.role === 'user').length;
-      const useAgentPath =
-        !imageBase64 &&
-        !shouldPreferAiChatDirect(msgText, priorUserCount) &&
-        !shouldSkipAgentDueToAuth();
+      const useAgentPath = !imageBase64 && !shouldSkipAgentDueToAuth();
 
-      // Text-only: unified agent (chat + navigate + theme + widgets), then ai-chat fallback
+      // Text-only: unified agent (chat + navigate + theme + widgets), then local/offline commands, then ai-chat
       if (useAgentPath) {
         try {
           const agentResult = await sendAndExecute({
@@ -341,6 +338,13 @@ export default function AIChat() {
           // #endregion
           if (!shouldFallbackToAiChat(agentErr)) {
             appendAssistantReply(formatAiChatError(agentErr));
+            return;
+          }
+          const localPlan = parseLocalAgentPlan(msgText);
+          if (localPlan) {
+            const batch = await executePlan(localPlan);
+            const summary = formatAgentActionSummary(batch);
+            appendAssistantReply((localPlan.message.trim() || 'Done!') + summary);
             return;
           }
           // Fall through to streaming ai-chat
@@ -483,7 +487,7 @@ export default function AIChat() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation, selectedImage, imagePreview, clearImage, sendAndExecute]);
+  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation, selectedImage, imagePreview, clearImage, sendAndExecute, executePlan]);
 
   const clearChat = useCallback(() => {
     setMessages([{ role: 'assistant', content: `Fresh start! I'm ${aiName}, ready when you are ✨`, timestamp: new Date() }]);
@@ -518,7 +522,7 @@ export default function AIChat() {
     try {
       const headers = await getFunctionAuthHeaders();
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-humanize`,
+        getEdgeFunctionUrl('ai-humanize'),
         { method: 'POST', headers, body: JSON.stringify({ text, tone: humanizerTone }) }
       );
       if (!response.ok) {
@@ -583,7 +587,7 @@ export default function AIChat() {
     try {
       const headers = await getFunctionAuthHeaders();
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-detect-text`,
+        getEdgeFunctionUrl('ai-detect-text'),
         { method: 'POST', headers, body: JSON.stringify({ text }) }
       );
       if (!response.ok) {

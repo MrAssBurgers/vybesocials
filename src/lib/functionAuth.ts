@@ -34,6 +34,12 @@ export function formatAiChatError(error: unknown, httpStatus?: number): string {
   if (status === 404) {
     return "AI chat is not available on this server yet. Pull to refresh the app or try again in a minute.";
   }
+  if (status === 500) {
+    const msg = error instanceof Error ? error.message : '';
+    if (/not configured|LOVABLE_API_KEY|GEMINI_API_KEY/i.test(msg)) {
+      return "VYBE AI isn't configured on the server yet. Try again after the next app publish.";
+    }
+  }
   if (status === 401) {
     return "Session expired — sign out and back in, then try again.";
   }

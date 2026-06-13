@@ -4,6 +4,14 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (VYBE AI talk + agent — 2026-06-13)
+- **`ai-chat` edge fn** — use `LOVABLE_API_KEY` (Lovable gateway) when `GEMINI_API_KEY` missing; fix profile lookup via `user_id`
+- **`vybe-agent`** — fix profile lookup via `user_id`
+- **`AIChat.tsx`** — always try agent path; local fallback for "open messages" / theme when `vybe-agent` not deployed; canonical edge URLs
+- **`localAgentCommands.ts`** — offline navigate/theme commands
+- **Verify:** `npm run build` PASS
+- **You:** Lovable Backend deploy on **agtcyx**: `ai-chat`, `vybe-agent` → Lovable Publish → sign in → open /VYBE-AI and send a message
+
 ## What Changed (login direct auth — 2026-06-13)
 - **`Landing.tsx`** — bypass `auth-2fa-preauth` on vybehub.app; direct `signInWithPassword` only (preauth edge still stale on prod)
 - **`loginEmail.ts`** + **`auth.tsx`** — trim/lowercase email before auth

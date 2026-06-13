@@ -66,7 +66,7 @@ serve(async (req) => {
 
     const [{ data: dna }, { data: profile }, { data: prefs }] = await Promise.all([
       supabase.from("vybe_dna").select("personality_vector").eq("user_id", auth.userId).maybeSingle(),
-      supabase.from("profiles").select("display_name, onboarding_interests, interests").eq("id", auth.userId).maybeSingle(),
+      supabase.from("profiles").select("display_name, onboarding_interests, interests").eq("user_id", auth.userId).maybeSingle(),
       supabase.from("dna_content_preferences").select("*").eq("user_id", auth.userId).maybeSingle(),
     ]);
 
