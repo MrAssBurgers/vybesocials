@@ -76,7 +76,7 @@ export async function refreshAuthSessionWithTimeout(
   }
 }
 
-/** Supabase project URL — canonical hprmic when build still baked a legacy ref. */
+/** Supabase project URL — live auth project (agtcyx) when build baked hprmic/eabvbt. */
 export function getSupabaseProjectUrl(): string {
   return getCanonicalSupabaseUrl();
 }

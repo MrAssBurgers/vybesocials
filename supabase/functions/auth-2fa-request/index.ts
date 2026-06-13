@@ -52,12 +52,12 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from('user_2fa_settings')
-      .select('login_approvals_enabled')
+      .select('email_2fa_enabled, login_approvals_enabled')
       .eq('user_id', userId)
       .maybeSingle();
 
-    // Match auth-2fa-preauth: resend login codes whenever approval flow is off.
-    if (settings?.login_approvals_enabled) {
+    // Match auth-2fa-preauth: only resend when email 2FA is explicitly enabled.
+    if (!settings?.email_2fa_enabled || settings?.login_approvals_enabled) {
       return jsonResponse({ ok: true, requires2fa: false });
     }
 

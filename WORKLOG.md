@@ -4,6 +4,25 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (production login fix — 2026-06-13)
+- **Root cause:** Client auth targeted `hprmicwhlaaqfgshucec` (~1 auth user) while live accounts are on `agtcyxjxgkdyoxwxkjth` (31+ users). Canonical rewrite `agtcyx→hprmic` made correct passwords return `invalid_credentials`. Secondary: `auth-2fa-preauth` forced email codes on every login (ignored `email_2fa_enabled`); `email_failed` blocked sign-in with no fallback.
+- **`canonicalSupabase.ts`** — live auth project is `agtcyx`; redirect baked `hprmic`/`eabvbt` env to agtcyx URL + anon key
+- **`vite.config.ts`** — build define mirrors agtcyx auth redirect (stop rewriting agtcyx→hprmic)
+- **`client.ts`** — uses `getCanonicalSupabaseUrl()` / `getCanonicalPublishableKey()` (same as runtime-client)
+- **`auth-2fa-preauth` + `auth-2fa-request`** — email 2FA only when user opted in (`email_2fa_enabled`)
+- **`Landing.tsx`** — `gateOpened` flag fixes stale `gatePending` clear; `email_failed` falls back to `signInWithPassword`
+- **`index.html`** — preconnect/dns-prefetch to agtcyx Supabase
+- **Verify:** `npm run build` PASS · dist bundle contains only `agtcyxjxgkdyoxwxkjth.supabase.co`
+- **You:** Lovable Backend deploy `auth-2fa-preauth` + `auth-2fa-request` on **agtcyx** → Lovable Publish → sign in on vybehub.app with a known agtcyx account
+
+## Current Focus
+- **You:** Lovable Publish → smoke test login on vybehub.app (email/password for existing user)
+
+## Next 3 Tasks
+1. Lovable Backend deploy `auth-2fa-preauth` + `auth-2fa-request` to **agtcyx** (2FA gate logic fix)
+2. Lovable Publish → sign in with existing account; should reach Home (not `invalid_credentials`)
+3. Plan auth-user migration agtcyx → hprmic before moving edge-only features (vybe-agent) to hprmic-only
+
 ## What Changed (Friend Link sheet polish v2 — 2026-06-13)
 - **`AutoFriendDrop.tsx`** — unified handle + title header (no border); tighter padding; close pinned top-right; `reduceMotion` passed to content; maxHeight 68vh for no-scroll QR on iPhone
 - **`FriendLinkSheetContent.tsx`** — text-only Phone Tap / QR Scan tabs; smaller tap hero; 144px scanner; white QR tile only; removed neon scanner brackets; muted phase states

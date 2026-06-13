@@ -1,7 +1,8 @@
 # DEPLOY — VYBE (`vybehub.app`)
 
 Production web hosting is **Lovable Cloud** with custom domain **`vybehub.app`**.  
-Backend is **Supabase** project **`hprmicwhlaaqfgshucec`**.
+Backend is **Supabase** project **`agtcyxjxgkdyoxwxkjth`** (live users + auth).  
+`hprmicwhlaaqfgshucec` is a separate sandbox — do not use for vybehub.app login.
 
 | Environment | URL |
 |-------------|-----|

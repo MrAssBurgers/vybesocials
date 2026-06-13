@@ -322,6 +322,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     };
 
     try {
+      let gateOpened = false;
+
       if (isLogin) {
         if (isLovablePreviewHost()) {
           setGatePending(false);
@@ -399,13 +401,26 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           setGatePending(false);
           throw createHandledLoginError('Invalid email or password');
         }
-        // email_failed → tell the user clearly; do NOT silently bypass the
-        // verification step (the whole point is to require the code).
+        // email_failed → fall back to direct sign-in so email outages never block login.
         if (code === 'email_failed') {
+          const { error: directErr } = await supabase.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password,
+          });
           setGatePending(false);
-          throw createHandledLoginError(
-            "We couldn't send your verification code. Please try again in a moment.",
-          );
+          if (directErr) {
+            const msg = (directErr.message || '').toLowerCase();
+            if (msg.includes('invalid') || msg.includes('credential')) {
+              throw createHandledLoginError('Invalid email or password');
+            }
+            throw createHandledLoginError(
+              "We couldn't send your verification code. Please try again in a moment.",
+            );
+          }
+          sessionStorage.removeItem('vybe-session-only');
+          toast.success('Welcome back! ✨');
+          navTo('home', '/home');
+          return;
         }
 
         // Any other failure (network, 5xx, timeout, cold-start) → fall back to
@@ -453,6 +468,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             challengeId: (pre as any).challengeId,
             expiresAt: (pre as any).expiresAt,
           });
+          gateOpened = true;
           return;
         }
         if (stage === 'approval') {
@@ -464,6 +480,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             approvalDevice: (pre as any).device,
             approvalLocation: (pre as any).location,
           });
+          gateOpened = true;
           return;
         }
 
@@ -537,7 +554,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       }
     } finally {
       setLoading(false);
-      if (!loginGate) setGatePending(false);
+      if (!gateOpened) setGatePending(false);
     }
   };
 

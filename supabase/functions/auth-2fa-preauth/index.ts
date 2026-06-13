@@ -81,11 +81,10 @@ Deno.serve(async (req) => {
     const device = parseUserAgent(ua);
     const geo = await geolocateIp(ip);
 
-    // Login approval still respects the user's explicit setting and takes
-    // precedence over email 2FA when enabled. Otherwise, email 2FA is now
-    // REQUIRED on every live login — every user gets a verification code
-    // emailed before the session lands on the device.
-    const wantsEmail2fa = !settings?.login_approvals_enabled;
+    // Login approval takes precedence. Email 2FA only when the user opted in
+    // (Settings → Security). Forcing codes on every login blocked sign-in when
+    // email delivery failed and looked like "wrong password" after preauth.
+    const wantsEmail2fa = !!settings?.email_2fa_enabled && !settings?.login_approvals_enabled;
 
     if (wantsEmail2fa) {
       // Invalidate previous pending email_2fa challenges
