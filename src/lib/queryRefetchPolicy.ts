@@ -28,12 +28,16 @@ export function shouldRefetchWhenEmpty(query: any): boolean | 'always' {
   return false;
 }
 
-/** Refetch DM list on mount when empty or errored with no rows. */
+/** Refetch DM list on mount when never fetched or errored; respect staleTime for empty lists. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function refetchListOnMount(query: any): boolean | 'always' {
   const data = query?.state?.data;
   const status = query?.state?.status;
   if (status === 'error' && (!Array.isArray(data) || data.length === 0)) return 'always';
-  if (!Array.isArray(data) || data.length === 0) return 'always';
+  if (status === 'pending') return 'always';
+  if (!Array.isArray(data)) return 'always';
+  // Empty but successfully fetched — use normal stale refetch (not 'always'),
+  // otherwise every Messages visit re-skeletons while background refetch runs.
+  if (data.length === 0) return true;
   return false;
 }

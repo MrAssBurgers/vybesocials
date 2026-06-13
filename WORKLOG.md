@@ -4,6 +4,17 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (DMs perpetual skeleton fix — 2026-06-12)
+- **`ConversationList.tsx`** — skeleton only on first fetch (`!isFetched`), not background refetch; removed mount refetch loop
+- **`queryRefetchPolicy.ts`** — empty DM list no longer uses `refetchOnMount: 'always'` (was re-skeletoning forever)
+- **`loadDMConversations.ts`** — resolve profile id from auth session; members fetch non-fatal
+- **`useDMConversations.ts`** — migrate query cache when session profile id differs from stale key
+- **Build:** `npm run build` pass
+
+## Publish status (2026-06-12 — DMs skeleton)
+- **Git:** pending push
+- **Web:** Lovable → Share → Publish → https://vybehub.app
+
 ## What Changed (DMs loading spinner fix — 2026-06-12)
 - **`useDMConversations.ts`** — bootstrap profile id from auth user when profile state missing; `networkMode: 'always'` (was pausing forever offlineFirst); clearer isLoading gate
 - **`ConversationList.tsx`** — removed orphan `!isFetched` spinner; skeleton covers all pending states; profile-missing Retry UI

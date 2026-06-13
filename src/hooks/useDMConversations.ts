@@ -59,7 +59,29 @@ export function useDMConversations(searchQuery: string = '') {
     queryFn: async () => {
       if (!profileId) return [];
       const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profileId]);
-      return loadDMConversations(profileId, prev);
+      const result = await loadDMConversations(profileId, prev);
+
+      // If session profile id differs from query key, migrate cache to the correct key.
+      if (user?.id) {
+        const { data: me } = await supabase
+          .from('profiles')
+          .select('id, user_id, username, avatar_url, display_name')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (me?.id && me.id !== profileId) {
+          setCachedCurrentProfile({
+            id: me.id,
+            user_id: me.user_id,
+            username: me.username,
+            display_name: me.display_name,
+            avatar_url: me.avatar_url,
+          });
+          queryClient.setQueryData(['dm-conversations', me.id], result);
+          queryClient.setQueryData(['conversations', me.id], result);
+        }
+      }
+
+      return result;
     },
     enabled: !!profileId,
     // Treat persisted data as instantly displayable, then always revalidate

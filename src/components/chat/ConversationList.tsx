@@ -186,35 +186,33 @@ export function ConversationList() {
     [pinnedConversations, unpinnedConversations]
   );
 
-  // Escape hatch: refetch if list stays empty (including silent empty success).
+  // Escape hatch: one retry if first fetch never settles.
+  const emptyRefetchAttemptedRef = useRef(false);
   useEffect(() => {
-    if (!dmProfileId || allConversations.length > 0) return;
+    if (!dmProfileId || allConversations.length > 0 || isFetched || convError) return;
+    if (emptyRefetchAttemptedRef.current) return;
     const t = window.setTimeout(() => {
+      emptyRefetchAttemptedRef.current = true;
       void refetchConversations();
     }, 8000);
     return () => window.clearTimeout(t);
-  }, [dmProfileId, allConversations.length, refetchConversations]);
+  }, [dmProfileId, allConversations.length, isFetched, convError, refetchConversations]);
 
   const profileMissing = !authLoading && !!user && !dmProfileId;
-  const chatsPending = !!dmProfileId && !isFetched && !convError;
+  const initialLoadPending = !isFetched && !convError;
 
   const showListSkeleton =
     allConversations.length === 0 &&
     !profileMissing &&
-    (isLoading || isFetching || chatsPending || (authLoading && !dmProfileId));
+    initialLoadPending &&
+    (isLoading || isFetching || (authLoading && !dmProfileId));
 
   useEffect(() => {
-    if (!isLoading && !isFetching && !chatsPending) { setSlowLoad(false); return; }
+    if (!isLoading && !isFetching && !initialLoadPending) { setSlowLoad(false); return; }
     const t = setTimeout(() => setSlowLoad(true), 6000);
     return () => clearTimeout(t);
-  }, [isLoading, isFetching, chatsPending]);
+  }, [isLoading, isFetching, initialLoadPending]);
 
-  // Refetch once profile id is ready and list is still empty.
-  useEffect(() => {
-    if (!dmProfileId || allConversations.length > 0) return;
-    void refetchConversations();
-  }, [dmProfileId, allConversations.length, refetchConversations]);
-  
   // Get all conversation IDs for typing indicator subscription
   const conversationIds = useMemo(() => 
     allConversations.map(c => c.id),
@@ -381,7 +379,7 @@ export function ConversationList() {
               {(slowLoad || convError) && (
                 <div className="rounded-xl border border-border/40 bg-card/40 p-3 flex items-center justify-between gap-3">
                   <div className="text-xs text-muted-foreground">
-                    {convError ? "Couldn't load messages." : 'Loading your chats…'}
+                    {convError ? "Couldn't load messages." : slowLoad ? 'Still loading your chats…' : 'Loading your chats…'}
                   </div>
                   <Button size="sm" variant="secondary" className="h-7 px-3 text-xs" onClick={() => refetchConversations()}>
                     Retry

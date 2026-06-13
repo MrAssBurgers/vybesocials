@@ -15,10 +15,26 @@ export async function loadDMConversations(
   profileId: string,
   fallback?: LoadedDMConversation[],
 ): Promise<LoadedDMConversation[]> {
+  // Self-heal: always use the signed-in user's profile id, not a stale disk cache id.
+  let effectiveProfileId = profileId;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const { data: me } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      if (me?.id) effectiveProfileId = me.id;
+    }
+  } catch {
+    // keep caller-provided id
+  }
+
   const { data: membershipData, error: membershipError } = await supabase
     .from('conversation_members')
     .select('conversation_id, last_read_at, is_pinned, is_muted')
-    .eq('user_id', profileId);
+    .eq('user_id', effectiveProfileId);
 
   if (membershipError) {
     console.warn('[DM] membership query error:', membershipError.message);
@@ -30,8 +46,8 @@ export async function loadDMConversations(
   const membershipMap = new Map(membershipData.map((m) => [m.conversation_id, m]));
 
   const [{ data: hiddenData }, { data: trashedData }] = await Promise.all([
-    supabase.from('hidden_conversations').select('conversation_id').eq('user_id', profileId),
-    supabase.from('trashed_conversations').select('conversation_id').eq('user_id', profileId),
+    supabase.from('hidden_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
+    supabase.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
   ]);
   const hiddenIds = new Set((hiddenData || []).map((h) => h.conversation_id));
   const trashedIds = new Set((trashedData || []).map((t) => t.conversation_id));
@@ -55,7 +71,7 @@ export async function loadDMConversations(
 
   if (membersError) {
     console.warn('[DM] all-members query error:', membersError.message);
-    throw membersError;
+    // Non-fatal — still render conversations without member enrichment.
   }
 
   const memberUserIds = Array.from(new Set((allMembers || []).map((m) => m.user_id)));
@@ -107,7 +123,7 @@ export async function loadDMConversations(
     }
     const membership = membershipMap.get(msg.conversation_id);
     const lastReadAt = membership?.last_read_at || '1970-01-01';
-    if (msg.sender_id !== profileId && msg.created_at > lastReadAt) {
+    if (msg.sender_id !== effectiveProfileId && msg.created_at > lastReadAt) {
       unreadCountMap.set(
         msg.conversation_id,
         (unreadCountMap.get(msg.conversation_id) || 0) + 1,
@@ -122,7 +138,7 @@ export async function loadDMConversations(
     .filter((conv) => !hiddenIds.has(conv.id) && !trashedIds.has(conv.id))
     .forEach((conv) => {
       if (!conv.is_group) {
-        const otherMember = conv.members?.find((m: any) => m.user_id !== profileId);
+        const otherMember = conv.members?.find((m: any) => m.user_id !== effectiveProfileId);
         const otherUserId = otherMember?.user_id;
         if (otherUserId) {
           if (seenOtherUserIds.has(otherUserId)) return;
@@ -143,8 +159,8 @@ export async function loadDMConversations(
     });
 
   result.sort((a, b) => {
-    const aIsPinned = a.members?.find((m) => m.user_id === profileId)?.is_pinned;
-    const bIsPinned = b.members?.find((m) => m.user_id === profileId)?.is_pinned;
+    const aIsPinned = a.members?.find((m) => m.user_id === effectiveProfileId)?.is_pinned;
+    const bIsPinned = b.members?.find((m) => m.user_id === effectiveProfileId)?.is_pinned;
     if (aIsPinned && !bIsPinned) return -1;
     if (!aIsPinned && bIsPinned) return 1;
     if (aIsPinned && bIsPinned) {
