@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
 
 export type ServerRole = 'owner' | 'admin' | 'moderator' | 'member';
@@ -69,12 +70,12 @@ export interface ChannelMessage {
 
 // Fetch user's servers
 export function useMyServers() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['my-servers', profile?.id],
+    queryKey: ['my-servers', profileId],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       const { data, error } = await supabase
         .from('server_members')
@@ -83,7 +84,7 @@ export function useMyServers() {
           role,
           servers:server_id (*)
         `)
-        .eq('user_id', profile.id);
+        .eq('user_id', profileId);
 
       if (error) throw error;
       return (data || []).map((d: any) => ({
@@ -91,7 +92,8 @@ export function useMyServers() {
         myRole: d.role,
       })) as (Server & { myRole: ServerRole })[];
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
+    networkMode: 'always',
   });
 }
 
@@ -478,24 +480,24 @@ export function useRemoveServerMember() {
 
 // Get my role in a server
 export function useMyServerRole(serverId: string | undefined) {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['my-server-role', serverId, profile?.id],
+    queryKey: ['my-server-role', serverId, profileId],
     queryFn: async () => {
-      if (!serverId || !profile?.id) return null;
+      if (!serverId || !profileId) return null;
 
       const { data, error } = await supabase
         .from('server_members')
         .select('role')
         .eq('server_id', serverId)
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .single();
 
       if (error) return null;
       return data?.role as ServerRole | null;
     },
-    enabled: !!serverId && !!profile?.id,
+    enabled: !!serverId && !!profileId,
   });
 }
 

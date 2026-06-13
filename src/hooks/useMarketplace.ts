@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 export interface Listing {
   id: string;
@@ -88,6 +89,8 @@ export function useListings(filters?: ListingsFilters) {
       if (error) throw error;
       return data as Listing[];
     },
+    networkMode: 'always',
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -117,23 +120,24 @@ export function useListing(id: string) {
 }
 
 export function useMyListings() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   
   return useQuery({
-    queryKey: ['my-listings', profile?.id],
+    queryKey: ['my-listings', profileId],
     queryFn: async () => {
-      if (!profile) return [];
+      if (!profileId) return [];
       
       const { data, error } = await supabase
         .from('listings')
         .select('*')
-        .eq('seller_id', profile.id)
+        .eq('seller_id', profileId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data as Listing[];
     },
-    enabled: !!profile,
+    enabled: !!profileId,
+    networkMode: 'always',
   });
 }
 
@@ -216,12 +220,12 @@ export function useDeleteListing() {
 }
 
 export function useListingFavorites() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['listing-favorites', profile?.id],
+    queryKey: ['listing-favorites', profileId],
     queryFn: async () => {
-      if (!profile) return [];
+      if (!profileId) return [];
 
       const { data, error } = await supabase
         .from('listing_favorites')
@@ -237,12 +241,13 @@ export function useListingFavorites() {
             )
           )
         `)
-        .eq('user_id', profile.id);
+        .eq('user_id', profileId);
 
       if (error) throw error;
       return data.map(d => d.listing) as Listing[];
     },
-    enabled: !!profile,
+    enabled: !!profileId,
+    networkMode: 'always',
   });
 }
 

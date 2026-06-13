@@ -182,7 +182,7 @@ export default function Community() {
 
                 <TabsContent value="my" className="mt-5">
                   <AnimatePresence mode="wait">
-                    {communitiesLoading ? (
+                    {communitiesLoading && communities.length === 0 ? (
                       <CommunityGridSkeleton />
                     ) : communities.length === 0 ? (
                       <EmptyState
@@ -222,7 +222,7 @@ export default function Community() {
                   </div>
 
                   <AnimatePresence mode="wait">
-                    {publicLoading ? (
+                    {publicLoading && filteredPublicCommunities.length === 0 ? (
                       <CommunityGridSkeleton />
                     ) : filteredPublicCommunities.length === 0 ? (
                       <EmptyState

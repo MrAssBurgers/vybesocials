@@ -41,7 +41,9 @@ function useSearchPeople(query: string) {
       return data || [];
     },
     enabled: query.length >= 2,
+    networkMode: 'always',
     staleTime: 1000 * 60 * 5,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -60,7 +62,9 @@ function useSearchPosts(query: string) {
       return data || [];
     },
     enabled: query.length >= 2,
+    networkMode: 'always',
     staleTime: 1000 * 60 * 5,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -93,7 +97,9 @@ function useSearchHashtags(query: string) {
         .slice(0, 20);
     },
     enabled: query.length >= 2,
+    networkMode: 'always',
     staleTime: 1000 * 60 * 5,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -108,7 +114,9 @@ function useTrendingPeople() {
       if (error) throw error;
       return data || [];
     },
+    networkMode: 'always',
     staleTime: 1000 * 60 * 30,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -122,9 +130,9 @@ export default function SearchPage() {
   const [contactsOpen, setContactsOpen] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
 
-  const { data: people, isLoading: loadingPeople } = useSearchPeople(debouncedQuery);
-  const { data: posts, isLoading: loadingPosts } = useSearchPosts(debouncedQuery);
-  const { data: hashtags, isLoading: loadingHashtags } = useSearchHashtags(debouncedQuery);
+  const { data: people, isPending: loadingPeople, isError: peopleError, refetch: refetchPeople } = useSearchPeople(debouncedQuery);
+  const { data: posts, isPending: loadingPosts, isError: postsError, refetch: refetchPosts } = useSearchPosts(debouncedQuery);
+  const { data: hashtags, isPending: loadingHashtags, isError: hashtagsError, refetch: refetchHashtags } = useSearchHashtags(debouncedQuery);
   const { data: trendingPeople } = useTrendingPeople();
 
   useEffect(() => {
@@ -248,7 +256,12 @@ export default function SearchPage() {
             <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {activeTab === 'people' && (
                 <div className="space-y-1">
-                  {loadingPeople ? <SearchSkeleton /> : people && people.length > 0 ? (
+                  {peopleError ? (
+                    <div className="py-12 text-center space-y-3">
+                      <p className="text-sm text-muted-foreground">Couldn&apos;t load people</p>
+                      <Button variant="outline" size="sm" onClick={() => refetchPeople()}>Retry</Button>
+                    </div>
+                  ) : loadingPeople && !people ? <SearchSkeleton /> : people && people.length > 0 ? (
                     people.map((person, idx) => <PersonRow key={person.id} person={person} index={idx} />)
                   ) : (
                     <EmptyResults query={debouncedQuery} type="people" />
@@ -258,7 +271,12 @@ export default function SearchPage() {
 
               {activeTab === 'posts' && (
                 <div className="space-y-2">
-                  {loadingPosts ? <SearchSkeleton /> : posts && posts.length > 0 ? (
+                  {postsError ? (
+                    <div className="py-12 text-center space-y-3">
+                      <p className="text-sm text-muted-foreground">Couldn&apos;t load posts</p>
+                      <Button variant="outline" size="sm" onClick={() => refetchPosts()}>Retry</Button>
+                    </div>
+                  ) : loadingPosts && !posts ? <SearchSkeleton /> : posts && posts.length > 0 ? (
                     posts.map((post: any, idx: number) => <PostRow key={post.id} post={post} index={idx} />)
                   ) : (
                     <EmptyResults query={debouncedQuery} type="posts" />
@@ -268,7 +286,12 @@ export default function SearchPage() {
 
               {activeTab === 'hashtags' && (
                 <div className="space-y-1">
-                  {loadingHashtags ? <SearchSkeleton /> : hashtags && hashtags.length > 0 ? (
+                  {hashtagsError ? (
+                    <div className="py-12 text-center space-y-3">
+                      <p className="text-sm text-muted-foreground">Couldn&apos;t load hashtags</p>
+                      <Button variant="outline" size="sm" onClick={() => refetchHashtags()}>Retry</Button>
+                    </div>
+                  ) : loadingHashtags && !hashtags ? <SearchSkeleton /> : hashtags && hashtags.length > 0 ? (
                     hashtags.map((tag, idx) => <HashtagRow key={tag.tag} tag={tag} index={idx} />)
                   ) : (
                     <EmptyResults query={debouncedQuery} type="hashtags" />

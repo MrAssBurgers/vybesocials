@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
 
 export type CommunityRole = 'owner' | 'moderator' | 'member';
@@ -52,12 +53,12 @@ export interface CommunityMember {
 
 // Fetch user's communities
 export function useMyCommunities() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['my-communities', profile?.id],
+    queryKey: ['my-communities', profileId],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       const { data, error } = await supabase
         .from('server_members')
@@ -69,7 +70,7 @@ export function useMyCommunities() {
             owner_id, invite_code, is_public, member_count, active_now_count, created_at
           )
         `)
-        .eq('user_id', profile.id);
+        .eq('user_id', profileId);
 
       if (error) throw error;
       
@@ -78,7 +79,8 @@ export function useMyCommunities() {
         myRole: d.role === 'admin' ? 'moderator' : d.role,
       })) as (Community & { myRole: CommunityRole })[];
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
+    networkMode: 'always',
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -386,30 +388,32 @@ export function usePublicCommunities(search?: string) {
       return (data || []) as Community[];
     },
     staleTime: 1000 * 60 * 2,
+    networkMode: 'always',
+    placeholderData: (prev) => prev,
   });
 }
 
 // Get my role in a community
 export function useMyCommunityRole(communityId: string | undefined) {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['my-community-role', communityId, profile?.id],
+    queryKey: ['my-community-role', communityId, profileId],
     queryFn: async () => {
-      if (!communityId || !profile?.id) return null;
+      if (!communityId || !profileId) return null;
 
       const { data, error } = await supabase
         .from('server_members')
         .select('role')
         .eq('server_id', communityId)
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .single();
 
       if (error) return null;
       const role = data?.role;
       return (role === 'admin' ? 'moderator' : role) as CommunityRole | null;
     },
-    enabled: !!communityId && !!profile?.id,
+    enabled: !!communityId && !!profileId,
     staleTime: 1000 * 60 * 5,
   });
 }

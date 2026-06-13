@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
 import { ThemeTokens } from './useCustomTheme';
 
@@ -68,12 +69,12 @@ export function usePublicThemes(searchQuery?: string) {
 
 // Fetch user's saved themes
 export function useSavedThemes() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['saved-themes', profile?.id],
+    queryKey: ['saved-themes', profileId],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       const { data, error } = await supabase
         .from('saved_themes')
@@ -85,13 +86,14 @@ export function useSavedThemes() {
             creator:profiles!shared_themes_creator_id_fkey(display_name, avatar_url, username)
           )
         `)
-        .eq('user_id', profile.id) // Use profile ID
+        .eq('user_id', profileId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return (data?.map(d => ({ ...d.shared_theme, saved_id: d.id })) || []) as unknown as (SharedTheme & { saved_id: string })[];
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
+    networkMode: 'always',
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     placeholderData: (prev) => prev,
@@ -101,23 +103,24 @@ export function useSavedThemes() {
 
 // Fetch user's own shared themes
 export function useMySharedThemes() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['my-shared-themes', profile?.id],
+    queryKey: ['my-shared-themes', profileId],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       const { data, error } = await supabase
         .from('shared_themes')
         .select('*')
-        .eq('creator_id', profile.id) // Use profile ID
+        .eq('creator_id', profileId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return (data || []) as unknown as SharedTheme[];
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
+    networkMode: 'always',
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     placeholderData: (prev) => prev,
@@ -455,22 +458,23 @@ export function useUnlikeTheme() {
 
 // Check if user has liked themes
 export function useUserThemeLikes() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['theme-likes', profile?.id],
+    queryKey: ['theme-likes', profileId],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       const { data, error } = await supabase
         .from('theme_likes')
         .select('shared_theme_id')
-        .eq('user_id', profile.id); // Use profile ID
+        .eq('user_id', profileId);
 
       if (error) throw error;
       return data.map(d => d.shared_theme_id);
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
+    networkMode: 'always',
     staleTime: 60000,
   });
 }

@@ -1,6 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { getEffectiveProfileId } from '@/lib/profileCache';
 import { useState, useEffect, useCallback } from 'react';
 import type { Post } from '@/hooks/useInfinitePosts';
 import { refetchFeedOnMount } from '@/lib/queryRefetchPolicy';
@@ -92,11 +93,12 @@ export function useUserLocation(options?: { enabled?: boolean }) {
  */
 export function useLocalFeed(options?: { enabled?: boolean }) {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
   const feedEnabled = options?.enabled ?? false;
   const { location } = useUserLocation({ enabled: feedEnabled });
 
   return useInfiniteQuery({
-    queryKey: ['local-feed', profile?.id, location?.lat, location?.lng],
+    queryKey: ['local-feed', profileId, location?.lat, location?.lng],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       const offset = pageParam * PAGE_SIZE;
 
@@ -106,7 +108,7 @@ export function useLocalFeed(options?: { enabled?: boolean }) {
           p_lat: location.lat,
           p_lng: location.lng,
           p_radius_miles: RADIUS_MILES,
-          p_user_id: profile?.id || null,
+          p_user_id: profileId || null,
           p_offset: offset,
           p_limit: PAGE_SIZE,
         } as any);
@@ -114,7 +116,7 @@ export function useLocalFeed(options?: { enabled?: boolean }) {
         if (error) {
           console.error('[LocalFeed] get_local_posts error, falling back:', error);
           // Fall back to generic feed
-          return fetchFallbackFeed(offset, profile?.id);
+          return fetchFallbackFeed(offset, profileId);
         }
 
         const posts = (data || []).map(transformPost);
@@ -125,7 +127,7 @@ export function useLocalFeed(options?: { enabled?: boolean }) {
       }
 
       // No location available, fall back to generic feed
-      return fetchFallbackFeed(offset, profile?.id);
+      return fetchFallbackFeed(offset, profileId);
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
@@ -136,7 +138,7 @@ export function useLocalFeed(options?: { enabled?: boolean }) {
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     placeholderData: (previousData) => previousData,
-    networkMode: 'offlineFirst',
+    networkMode: 'always',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });

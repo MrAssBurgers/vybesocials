@@ -59,35 +59,35 @@ export function useStreaks() {
 
 export function useStreakWithUser(otherUserId: string | undefined) {
   const { data: streaks } = useStreaks();
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useMemo(() => {
-    if (!streaks || !profile?.id || !otherUserId) return null;
+    if (!streaks || !profileId || !otherUserId) return null;
 
     return streaks.find(
       (s) =>
-        (s.user1_id === profile.id && s.user2_id === otherUserId) ||
-        (s.user2_id === profile.id && s.user1_id === otherUserId)
+        (s.user1_id === profileId && s.user2_id === otherUserId) ||
+        (s.user2_id === profileId && s.user1_id === otherUserId)
     );
-  }, [streaks, profile?.id, otherUserId]);
+  }, [streaks, profileId, otherUserId]);
 }
 
 export function useStreakMap() {
   const { data: streaks } = useStreaks();
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useMemo(() => {
     const map = new Map<string, Streak>();
-    if (!streaks || !profile?.id) return map;
+    if (!streaks || !profileId) return map;
 
     streaks.forEach((streak) => {
       const otherUserId =
-        streak.user1_id === profile.id ? streak.user2_id : streak.user1_id;
+        streak.user1_id === profileId ? streak.user2_id : streak.user1_id;
       map.set(otherUserId, streak);
     });
 
     return map;
-  }, [streaks, profile?.id]);
+  }, [streaks, profileId]);
 }
 
 export function isStreakExpiringSoon(expiresAt: string): boolean {

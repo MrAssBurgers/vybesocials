@@ -4,6 +4,25 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (social app polish pass — 2026-06-12)
+- **Profile hydration** — migrated user-facing hooks to `useAuthProfileId()` / auth-user fallback: `useSavedPosts`, `useBlockedUsers`, `useBanStatus`, `useCommunities`, `useServers`, `useChallenges`, `useMarketplace`, `useSharedThemes`, `useStreaks` (map helpers), `useSounds`, `useVybePass` unclaimed rewards, `useRankedFeed`, `useInfinitePosts`, `useLocalFeed`
+- **networkMode: 'always'** — first-load critical queries: blocked users, saved posts, communities/servers lists, marketplace browse, challenges, feeds (personalized/following/local/ranked), search hooks, public communities
+- **Loading UX** — cache-first skeleton gates on Market, Search, Community, Profile; Retry on error for Search, Market, Profile
+- **ChatView** — voice upload uses `user?.id` fallback when `profile.user_id` not hydrated yet
+- **Build:** `npm run build` pass · **Lint:** pass (3 pre-existing warnings in `queryRefetchPolicy.ts`)
+
+## Publish status (2026-06-12 — social app polish)
+- **Git:** pending push to `origin/main`
+- **Web:** Lovable → Share → Publish → https://vybehub.app
+
+## Current Focus
+- **You:** Lovable Publish after push (one click — agent cannot trigger this)
+
+## Next 3 Tasks
+1. Lovable Publish + force-quit app on iPhone to bust cache
+2. Smoke test: Home feed first load, Explore/Search, Profile, Market browse
+3. Smoke test: Communities tab, Challenges hub, saved posts on profile
+
 ## What Changed (app stability audit — 2026-06-12)
 - **Auth hydration** — `useAuthProfileId()` on Friends discovery (`useOutgoingRequests`, `useDismissedProfiles`), streaks, announcements, accepted-friend rows, NewMessage search, `useConversations` / `useMessages`
 - **networkMode: 'always'** — chat messages (empty-cache hang fix), notifications, friend requests, message requests, discovery hidden-set queries

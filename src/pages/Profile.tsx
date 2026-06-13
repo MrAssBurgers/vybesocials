@@ -45,7 +45,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const { profile: currentProfile } = useAuth();
   const resolvedUsername = username || usernameOrId || currentProfile?.username;
-  const { data: profile, isLoading } = useProfileByUsername(resolvedUsername!);
+  const { data: profile, isPending: profilePending, isError: profileError, refetch: refetchProfile } = useProfileByUsername(resolvedUsername!);
   const { data: posts } = usePosts(undefined, profile?.id);
   const { data: savedPosts } = useSavedPosts();
   const follow = useFollow();
@@ -171,13 +171,24 @@ export default function ProfilePage() {
     view_count: post.view_count || 0,
   }));
 
-  if (isLoading) {
+  if (profilePending && !profile) {
     return (
       <AppLayout>
         <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
           <Skeleton className="h-44 w-full rounded-3xl" />
           <Skeleton className="h-20 w-full rounded-2xl" />
           <Skeleton className="h-32 w-full rounded-2xl" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center h-96 space-y-4">
+          <p className="text-muted-foreground">Couldn&apos;t load this profile</p>
+          <Button variant="outline" onClick={() => refetchProfile()}>Retry</Button>
         </div>
       </AppLayout>
     );

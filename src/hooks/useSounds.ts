@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 export interface Sound {
   sound_id: string;
@@ -88,12 +89,13 @@ export function useNewSounds() {
 
 // Get user's saved sounds
 export function useSavedSounds() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const authUserId = profile?.user_id || user?.id;
   
   return useQuery({
-    queryKey: ['sounds', 'saved', profile?.user_id],
+    queryKey: ['sounds', 'saved', authUserId],
     queryFn: async () => {
-      if (!profile?.user_id) return [];
+      if (!authUserId) return [];
       
       const { data, error } = await supabase
         .from('user_saved_sounds')
@@ -103,12 +105,13 @@ export function useSavedSounds() {
             uploader_profile:profiles!uploader_id(id, display_name, avatar_url)
           )
         `)
-        .eq('user_id', profile.user_id);
+        .eq('user_id', authUserId);
       
       if (error) throw error;
       return data.map(item => item.sound) as Sound[];
     },
-    enabled: !!profile?.user_id,
+    enabled: !!authUserId,
+    networkMode: 'always',
   });
 }
 
@@ -155,10 +158,10 @@ export function useSoundStats(soundId: string) {
 
 // Get posts using a specific sound
 export function usePostsWithSound(soundId: string) {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['posts', 'sound', soundId, profile?.id],
+    queryKey: ['posts', 'sound', soundId, profileId],
     queryFn: async () => {
       const { data: posts, error } = await supabase
         .from('posts')
@@ -184,11 +187,11 @@ export function usePostsWithSound(soundId: string) {
       let userLikes: string[] = [];
       let userBookmarks: string[] = [];
 
-      if (profile) {
+      if (profileId) {
         const postIds = posts.map((p) => p.id);
         const [likesResult, bookmarksResult] = await Promise.all([
-          supabase.from('likes').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
-          supabase.from('bookmarks').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
+          supabase.from('likes').select('post_id').eq('user_id', profileId).in('post_id', postIds),
+          supabase.from('bookmarks').select('post_id').eq('user_id', profileId).in('post_id', postIds),
         ]);
         userLikes = likesResult.data?.map((l) => l.post_id) || [];
         userBookmarks = bookmarksResult.data?.map((b) => b.post_id) || [];
@@ -234,24 +237,25 @@ export function usePostsWithSound(soundId: string) {
 
 // Whether the current user has saved a sound
 export function useIsSoundSaved(soundId: string | undefined) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const authUserId = profile?.user_id || user?.id;
 
   return useQuery({
-    queryKey: ['sound-saved', profile?.user_id, soundId],
+    queryKey: ['sound-saved', authUserId, soundId],
     queryFn: async () => {
-      if (!profile?.user_id || !soundId) return false;
+      if (!authUserId || !soundId) return false;
 
       const { data, error } = await supabase
         .from('user_saved_sounds')
         .select('id')
-        .eq('user_id', profile.user_id)
+        .eq('user_id', authUserId)
         .eq('sound_id', soundId)
         .maybeSingle();
 
       if (error) throw error;
       return !!data;
     },
-    enabled: !!profile?.user_id && !!soundId,
+    enabled: !!authUserId && !!soundId,
   });
 }
 

@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useBlockedUserIds } from '@/hooks/useBlockedUsers';
 import type { Post } from '@/hooks/useInfinitePosts';
 
@@ -52,13 +53,13 @@ export interface RankedFeedOptions {
 }
 
 export function useRankedFeed(opts: RankedFeedOptions = {}) {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const blockedIds = useBlockedUserIds();
 
   return useInfiniteQuery({
     queryKey: [
       'ranked-feed-v2',
-      profile?.id,
+      profileId,
       opts.contentType ?? null,
       opts.category ?? null,
       opts.lat ?? null,
@@ -66,11 +67,12 @@ export function useRankedFeed(opts: RankedFeedOptions = {}) {
       opts.radiusMiles ?? null,
       blockedIds.length,
     ],
-    enabled: !!profile?.id,
+    enabled: !!profileId,
+    networkMode: 'always',
     queryFn: async ({ pageParam = 0 }) => {
       const offset = (pageParam as number) * PAGE_SIZE;
       const { data, error } = await supabase.rpc('get_ranked_feed_v2', {
-        p_user_id: profile!.id,
+        p_user_id: profileId!,
         p_content_type: opts.contentType ?? null,
         p_category: opts.category ?? null,
         p_lat: opts.lat ?? null,
@@ -93,7 +95,6 @@ export function useRankedFeed(opts: RankedFeedOptions = {}) {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
-    networkMode: 'offlineFirst',
     placeholderData: (prev) => prev,
     retry: 2,
   });

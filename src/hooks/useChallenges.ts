@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 /**
  * Maps challenge requirement_type to the route where users can complete it
@@ -151,6 +152,7 @@ export function useChallenges() {
       return [...(achievements || []), ...finalDailies, ...finalWeeklies] as Challenge[];
     },
     staleTime: 1000 * 60 * 5,
+    networkMode: 'always',
     // Refetch when window regains focus (handles day/week boundaries)
     refetchOnWindowFocus: true,
   });
@@ -160,12 +162,12 @@ export function useChallenges() {
  * Fetch user's challenge progress
  */
 export function useUserChallengeProgress() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['challenge-progress', profile?.id],
+    queryKey: ['challenge-progress', profileId],
     queryFn: async () => {
-      if (!profile) return [];
+      if (!profileId) return [];
       
       const { data, error } = await supabase
         .from('challenge_progress')
@@ -173,7 +175,7 @@ export function useUserChallengeProgress() {
           *,
           challenge:challenges(*)
         `)
-        .eq('user_id', profile.id);
+        .eq('user_id', profileId);
       
       if (error) throw error;
       
@@ -182,7 +184,8 @@ export function useUserChallengeProgress() {
         challenge: cp.challenge as Challenge,
       })) as ChallengeProgress[];
     },
-    enabled: !!profile,
+    enabled: !!profileId,
+    networkMode: 'always',
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -193,21 +196,23 @@ export function useUserChallengeProgress() {
 export function useChallengesWithProgress() {
   const { data: challenges, isLoading: challengesLoading } = useChallenges();
   const { data: progress } = useUserChallengeProgress();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const authUserId = profile?.user_id || user?.id;
 
   // Fetch claimed rewards to know which completed challenges have been claimed
   const { data: claimedRewards } = useQuery({
-    queryKey: ['claimed-rewards', profile?.user_id],
+    queryKey: ['claimed-rewards', authUserId],
     queryFn: async () => {
-      if (!profile?.user_id) return [];
+      if (!authUserId) return [];
       const { data, error } = await supabase
         .from('challenge_rewards')
         .select('challenge_id, is_claimed')
-        .eq('user_id', profile.user_id);
+        .eq('user_id', authUserId);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!profile?.user_id,
+    enabled: !!authUserId,
+    networkMode: 'always',
     staleTime: 1000 * 60 * 2,
   });
 

@@ -1,29 +1,30 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 /**
  * Returns the set of profile IDs the current user has blocked.
  * Used to client-filter feeds since several feed RPCs don't accept a viewer ID.
  */
 export function useBlockedUserIds() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   const { data } = useQuery({
-    queryKey: ['blocked-user-ids', profile?.id],
+    queryKey: ['blocked-user-ids', profileId],
     queryFn: async (): Promise<string[]> => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
       const { data, error } = await supabase
         .from('blocked_users')
         .select('blocked_id')
-        .eq('blocker_id', profile.id);
+        .eq('blocker_id', profileId);
       if (error) {
         console.warn('[useBlockedUserIds] failed', error);
         return [];
       }
       return (data || []).map((r: any) => r.blocked_id).filter(Boolean);
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
+    networkMode: 'always',
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });

@@ -145,12 +145,13 @@ export function useVybePassTiers() {
 }
 
 export function useUnclaimedRewards() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const authUserId = profile?.user_id || user?.id;
 
   return useQuery({
-    queryKey: ['unclaimed-rewards', profile?.user_id],
+    queryKey: ['unclaimed-rewards', authUserId],
     queryFn: async () => {
-      if (!profile?.user_id) return [];
+      if (!authUserId) return [];
       
       const { data, error } = await supabase
         .from('challenge_rewards')
@@ -158,14 +159,15 @@ export function useUnclaimedRewards() {
           *,
           challenge:challenges(title, description)
         `)
-        .eq('user_id', profile.user_id)
+        .eq('user_id', authUserId)
         .eq('is_claimed', false)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
       return data as ChallengeReward[];
     },
-    enabled: !!profile?.user_id,
+    enabled: !!authUserId,
+    networkMode: 'always',
     staleTime: 1000 * 30,
   });
 }

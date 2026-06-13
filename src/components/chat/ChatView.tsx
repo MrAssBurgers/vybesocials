@@ -145,8 +145,9 @@ export function ChatView() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const profileId = useAuthProfileId();
+  const authUserId = profile?.user_id ?? user?.id;
   const queryClient = useQueryClient();
   const bumpStreak = useInteractionStreakBump();
   
@@ -811,14 +812,14 @@ export function ChatView() {
     setIsUploadingMedia(true);
 
     try {
-      // Guard: ensure profile.user_id (auth ID) exists for storage RLS
-      if (!profile.user_id) {
+      // Guard: ensure auth user id exists for storage RLS
+      if (!authUserId) {
         toast.error('Account not ready yet, please refresh and try again');
         setIsUploadingMedia(false);
         return;
       }
       
-      const fileName = `${profile.user_id}/${Date.now()}.webm`;
+      const fileName = `${authUserId}/${Date.now()}.webm`;
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
@@ -838,7 +839,7 @@ export function ChatView() {
     } finally {
       setIsUploadingMedia(false);
     }
-  }, [conversationId, profileId, profile?.user_id]);
+  }, [conversationId, profileId, authUserId]);
 
   // Handle direct file selection (from Toybox) - now goes through safety gate
   const handleDirectImageSelect = useCallback(async (file: File) => {

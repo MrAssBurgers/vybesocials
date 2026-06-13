@@ -1,20 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 export function useSavedPosts() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['saved-posts', profile?.id],
+    queryKey: ['saved-posts', profileId],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       // First get bookmarked post IDs
       const { data: bookmarks, error: bookmarksError } = await supabase
         .from('bookmarks')
         .select('post_id')
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .order('created_at', { ascending: false });
 
       if (bookmarksError) throw bookmarksError;
@@ -56,6 +56,7 @@ export function useSavedPosts() {
         return aIndex - bIndex;
       });
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
+    networkMode: 'always',
   });
 }

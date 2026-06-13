@@ -290,7 +290,7 @@ export default function MarketPage() {
     maxPrice: priceRange[1] < 10000 ? priceRange[1] : undefined,
   }), [search, category, condition, priceRange]);
 
-  const { data: listings, isLoading } = useListings(filters);
+  const { data: listings, isPending: listingsPending, isError: listingsError, refetch: refetchListings } = useListings(filters);
   const { data: favorites } = useListingFavorites();
   const toggleFavorite = useToggleFavorite();
   
@@ -515,7 +515,12 @@ export default function MarketPage() {
         </div>
 
         {/* Listings Grid */}
-        {isLoading ? (
+        {listingsError ? (
+          <div className="py-16 text-center space-y-4">
+            <p className="text-muted-foreground">Couldn&apos;t load listings</p>
+            <Button variant="outline" onClick={() => refetchListings()}>Retry</Button>
+          </div>
+        ) : listingsPending && !listings ? (
           <motion.div 
             className={cn(
               viewMode === 'grid' 

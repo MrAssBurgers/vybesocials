@@ -154,9 +154,10 @@ export function useInfinitePosts(
   const blockedIds = useBlockedUserIds();
   const isProfileView = !!authorId;
   const enabled = options?.enabled !== false;
+  const profileId = getEffectiveProfileId(profile?.id);
 
   const query = useInfiniteQuery({
-    queryKey: ['infinite-posts', type, authorId, profile?.id, blockedIds.length],
+    queryKey: ['infinite-posts', type, authorId, profileId, blockedIds.length],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null; totalLoaded: number }> => {
       const isFirstPage = pageParam === 0;
       const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
@@ -165,7 +166,7 @@ export function useInfinitePosts(
       const { data, error } = await supabase.rpc('get_posts_with_counts', {
         p_type: type || null,
         p_author_id: authorId || null,
-        p_user_id: profile?.id || null,
+        p_user_id: profileId || null,
         p_offset: offset,
         p_limit: limit,
       });
@@ -175,10 +176,10 @@ export function useInfinitePosts(
       let posts = (data || []).map(transformPost);
 
       // For non-profile (feed) views: hide your own posts and posts from blocked users.
-      if (!isProfileView && profile?.id) {
+      if (!isProfileView && profileId) {
         const blocked = new Set(blockedIds);
         posts = posts.filter(
-          (p) => p.author?.id !== profile.id && !blocked.has(p.author?.id)
+          (p) => p.author?.id !== profileId && !blocked.has(p.author?.id)
         );
       }
 
@@ -200,8 +201,8 @@ export function useInfinitePosts(
     refetchOnMount: refetchFeedOnMount,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true, // Stream fresh content the moment we're back online
-    placeholderData: (previousData) => previousData, // Show cached while fetching
-    networkMode: 'offlineFirst', // Serve cache on slow/no internet instead of hanging
+    placeholderData: (previousData) => previousData,
+    networkMode: 'always',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
@@ -262,7 +263,7 @@ export function useInfiniteFollowingPosts(
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     placeholderData: (previousData) => previousData,
-    networkMode: 'offlineFirst',
+    networkMode: 'always',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
@@ -420,9 +421,8 @@ export function usePersonalizedFeed(
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     placeholderData: (previousData) => previousData,
-    networkMode: 'offlineFirst',
+    networkMode: 'always',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 }
-
