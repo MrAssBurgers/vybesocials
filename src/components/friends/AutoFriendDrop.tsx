@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, memo } from 'react';
+import { useState, useCallback, useRef, useEffect, memo, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { X, QrCode } from 'lucide-react';
@@ -23,7 +23,7 @@ import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibili
 import { isDespiaRuntime, isIOSUA } from '@/lib/despiaBridge';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isFullyLoggedIn } from '@/lib/authReady';
-import { buildFriendDropUrl, type FriendLinkTarget, extractFriendTarget } from '@/lib/friendLinkNfc';
+import { buildFriendDropUrl, buildAddFriendUrl, type FriendLinkTarget, extractFriendTarget } from '@/lib/friendLinkNfc';
 import { scanFriendLinkOnce } from '@/lib/friendLinkNfc';
 import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
 import { FRIEND_LINK_OPEN_EVENT } from '@/lib/friendLinkUi';
@@ -191,22 +191,62 @@ export function AutoFriendDrop() {
   });
 
   const primaryHex = getPrimaryHex();
-  const myProfileUrl = activeDropId ? buildFriendDropUrl(activeDropId) : '';
+  const myProfileUrl = useMemo(
+    () =>
+      activeDropId
+        ? buildFriendDropUrl(activeDropId)
+        : profileId
+          ? buildAddFriendUrl(profileId)
+          : '',
+    [activeDropId, profileId],
+  );
 
-  const nfcBroadcastUrl = myProfileUrl;
+  const nfcBroadcastUrl = activeDropId ? buildFriendDropUrl(activeDropId) : myProfileUrl;
 
   useEffect(() => {
-    if (!myProfileUrl) { setQrSvg(''); return; }
+    if (!myProfileUrl) {
+      setQrSvg('');
+      return;
+    }
     let cancelled = false;
-    QRCode.toString(myProfileUrl, {
-      type: 'svg',
-      errorCorrectionLevel: 'H',
-      margin: 1,
-      width: 280,
-      color: { dark: primaryHex, light: '#00000000' },
-    }).then((svg) => { if (!cancelled) setQrSvg(svg); }).catch(() => { if (!cancelled) setQrSvg(''); });
-    return () => { cancelled = true; };
+    const dark = `#${primaryHex.replace(/^#/, '')}`;
+    const renderQr = (color: string) =>
+      QRCode.toString(myProfileUrl, {
+        type: 'svg',
+        errorCorrectionLevel: 'H',
+        margin: 1,
+        width: 280,
+        color: { dark: color, light: '#00000000' },
+      });
+
+    renderQr(dark)
+      .then((svg) => {
+        if (!cancelled) setQrSvg(svg);
+      })
+      .catch(() =>
+        renderQr('#000000')
+          .then((svg) => {
+            if (!cancelled) setQrSvg(svg);
+          })
+          .catch(() => {
+            if (!cancelled) setQrSvg('');
+          }),
+      );
+
+    return () => {
+      cancelled = true;
+    };
   }, [myProfileUrl, primaryHex]);
+
+  const ensureFriendDrop = useCallback(async () => {
+    if (!profileId || activeDropId || friendDropSync.isCreating) return;
+    const drop = await friendDropSync.createDrop();
+    if (drop) {
+      setActiveDropId(drop.id);
+    } else {
+      toast.error('Live sync unavailable — QR still works to add friends');
+    }
+  }, [profileId, activeDropId, friendDropSync]);
 
   const stopScanning = useCallback(() => {
     if (animationFrameRef.current) { cancelAnimationFrame(animationFrameRef.current); animationFrameRef.current = null; }
@@ -489,8 +529,13 @@ export function AutoFriendDrop() {
     haptics.impact();
     setPhase('activated');
     setTimeout(() => haptics.success(), 300);
-    friendDropSync.createDrop().then((drop) => { if (drop) setActiveDropId(drop.id); });
-  }, [profileId, user, friendDropSync, requestMotionPermission, isActive]);
+    void ensureFriendDrop();
+  }, [profileId, user, friendDropSync, requestMotionPermission, isActive, ensureFriendDrop]);
+
+  useEffect(() => {
+    if (!isActive || phase !== 'activated' || !profileId) return;
+    void ensureFriendDrop();
+  }, [isActive, phase, profileId, ensureFriendDrop]);
 
   useEffect(() => {
     handleBumpRef.current = () => {
@@ -510,7 +555,7 @@ export function AutoFriendDrop() {
         setPhase('activated');
         haptics.impact();
         if (profileId && user) {
-          friendDropSync.createDrop().then((drop) => { if (drop) setActiveDropId(drop.id); });
+          void ensureFriendDrop();
         }
         if (nextTab === 'qr') {
           void startCamera();
@@ -519,7 +564,7 @@ export function AutoFriendDrop() {
     };
     window.addEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
-  }, [profileId, user, authLoading, friendDropSync, requestMotionPermission, startCamera]);
+  }, [profileId, user, authLoading, ensureFriendDrop, requestMotionPermission, startCamera]);
 
   const handleAddFriend = useCallback(async () => {
     if (!foundUser || completingRef.current) return;
@@ -794,7 +839,7 @@ export function AutoFriendDrop() {
                   foundUser={foundUser}
                   tapListening={tapListening}
                   qrSvg={qrSvg}
-                  qrLoading={friendDropSync.isCreating || !activeDropId}
+                  qrLoading={!profileId || (!qrSvg && friendDropSync.isCreating)}
                   nearbyPeers={nativeFriendDrop.nearbyPeers}
                   videoRef={videoRef}
                   canvasRef={canvasRef}
