@@ -12,7 +12,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Build:** `npm run build` pass
 
 ## Publish status (2026-06-12 — ChatView)
-- **Git:** pending push
+- **Git:** `5cee531e` pushed to `origin/main`
 - **Web:** Lovable → Share → Publish → https://vybehub.app
 
 ## What Changed (DMs perpetual skeleton fix — 2026-06-12)
