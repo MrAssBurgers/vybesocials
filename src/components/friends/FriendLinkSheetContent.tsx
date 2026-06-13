@@ -306,16 +306,30 @@ export function FriendLinkSheetContent({
           ) : (
             <motion.div key="qr" {...motionProps} className="flex flex-col items-center gap-3">
               <div className="friend-link-qr-tile relative rounded-2xl bg-white p-2.5 shadow-[0_8px_28px_-8px_hsl(var(--primary)/0.45)] ring-2 ring-primary/20">
-                {qrSvg ? (
-                  <div
-                    className="h-[6.25rem] w-[6.25rem] [&>svg]:h-full [&>svg]:w-full"
-                    dangerouslySetInnerHTML={{ __html: qrSvg }}
-                  />
-                ) : (
-                  <div className="flex h-[6.25rem] w-[6.25rem] items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  </div>
-                )}
+                <div className="relative h-[6.25rem] w-[6.25rem]">
+                  {qrSvg ? (
+                    <>
+                      <div
+                        className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
+                        dangerouslySetInnerHTML={{ __html: qrSvg }}
+                      />
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <div className="rounded-xl bg-white p-0.5 shadow-[0_2px_12px_rgba(0,0,0,0.12)] ring-2 ring-white">
+                          <Avatar className="h-10 w-10 rounded-[10px]">
+                            <AvatarImage src={profile?.avatar_url || ''} className="rounded-[10px] object-cover" />
+                            <AvatarFallback className="rounded-[10px] bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground">
+                              {profile?.username?.[0]?.toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    </div>
+                  )}
+                </div>
               </div>
               <p className="w-full truncate text-center text-sm text-muted-foreground">
                 @{profile?.username}
