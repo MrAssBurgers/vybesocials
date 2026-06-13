@@ -3,6 +3,9 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { ensureDespiaOneSignalLinked } from '@/lib/despiaOneSignal';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { parseEdgeInvokeResult, pushDeliveryErrorMessage } from '@/lib/edgeFunctionResponse';
 import { haptics } from '@/lib/haptics';
 import { useNotificationPreferences, useUpdateNotificationPreference } from '@/hooks/useNotificationPreferences';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -83,7 +86,21 @@ export function NotificationsSection() {
                     onClick={async () => {
                       haptics.tap();
                       try {
-                        const { error } = await supabase.functions.invoke('send-push-notification', {
+                        if (isDespiaRuntime()) {
+                          toast.message('Linking this device to push…');
+                          const link = await ensureDespiaOneSignalLinked(profile.id, {
+                            requestPermission: true,
+                            waitForPlayerIdMs: 8_000,
+                            persistToken: true,
+                            trigger: 'test-push',
+                          });
+                          if (link.permission === false) {
+                            toast.error('Notifications are blocked. Enable them in iOS Settings → VYBE → Notifications.');
+                            return;
+                          }
+                        }
+
+                        const result = await supabase.functions.invoke('send-push-notification', {
                           body: {
                             userId: profile.id,
                             title: 'VYBE test push 🚀',
@@ -91,7 +108,15 @@ export function NotificationsSection() {
                             tag: 'test-push',
                           },
                         });
-                        if (error) throw error;
+                        const { payload, errorMessage } = await parseEdgeInvokeResult(result);
+                        const deliveryError = pushDeliveryErrorMessage(payload);
+                        if (deliveryError) {
+                          toast.error(deliveryError);
+                          return;
+                        }
+                        if (result.error && !payload?.success) {
+                          throw new Error(errorMessage || result.error.message);
+                        }
                         toast.success('Test push sent — check your lock screen!');
                       } catch (e: unknown) {
                         const msg = e instanceof Error ? e.message : 'Could not send test push';

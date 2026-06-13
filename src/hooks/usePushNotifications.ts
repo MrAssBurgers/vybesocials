@@ -181,23 +181,45 @@ export function usePushNotifications() {
     setPermission('granted');
 
     try {
-      await supabase.from('push_tokens').upsert({
+      const { error: tokenError } = await supabase.from('push_tokens').upsert({
         user_id: profile.id,
         token: `despia:${profile.id}`,
         platform: 'despia',
       }, { onConflict: 'user_id,platform' });
+      if (tokenError) {
+        console.error('[Push] token upsert failed', tokenError);
+        writeIntent(profile.id, false);
+        setIsSubscribed(false);
+        toast.error('Could not register this device for push. Try again.');
+        return false;
+      }
     } catch (err) {
-      console.warn('[Push] placeholder token insert failed', err);
+      console.error('[Push] placeholder token insert failed', err);
+      writeIntent(profile.id, false);
+      setIsSubscribed(false);
+      toast.error('Could not register this device for push. Try again.');
+      return false;
     }
 
-    // Kick off real OneSignal linking in the background — never blocks the toggle.
-    ensureDespiaOneSignalLinked(profile.id, {
+    const link = await ensureDespiaOneSignalLinked(profile.id, {
       requestPermission: true,
-      waitForPlayerIdMs: 6_000,
+      waitForPlayerIdMs: 8_000,
       persistToken: true,
-    }).catch((err) => console.warn('[Push] background despia link failed', err));
+      trigger: 'permission-grant',
+    });
 
-    toast.success('Push notifications enabled!');
+    if (link.permission === false) {
+      toast.error('Notifications are blocked. Enable them in Settings → VYBE → Notifications.');
+      return false;
+    }
+
+    if (!link.playerId) {
+      toast.message('Push enabled — finishing device setup…', {
+        description: 'If test push fails, toggle off and on once more.',
+      });
+    } else {
+      toast.success('Push notifications enabled!');
+    }
     return true;
   };
 

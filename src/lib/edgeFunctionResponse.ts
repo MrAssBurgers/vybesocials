@@ -51,6 +51,29 @@ export function gateVerifyErrorMessage(code?: string): string {
   }
 }
 
+export function pushDeliveryErrorMessage(payload: Record<string, unknown> | null | undefined): string {
+  if (!payload || payload.success === true) return '';
+
+  const err = typeof payload.error === 'string' ? payload.error : '';
+  const onesignal = payload.onesignal as Record<string, unknown> | null | undefined;
+  const osErrors = onesignal?.errors;
+
+  if (err === 'No push tokens found') {
+    return 'This device is not registered for push yet. Turn notifications off and on again, then tap Allow when prompted.';
+  }
+  if (err === 'VAPID keys not configured for web push') {
+    return 'Web push is not configured on the server yet.';
+  }
+  if (Array.isArray(osErrors) && osErrors.some((e) => String(e).includes('No actively subscribed'))) {
+    return 'Notifications are not linked on this device yet. Toggle push off/on after allowing permission in Settings.';
+  }
+  if (typeof onesignal === 'object' && onesignal && onesignal.ok === false && !err) {
+    return 'OneSignal could not deliver to this device. Re-enable push notifications and try again.';
+  }
+
+  return err || 'Push was not delivered to any device.';
+}
+
 export function phoneVerifyErrorMessage(code?: string): string {
   switch (code) {
     case 'wrong_code':

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { Loader2, Mail, ShieldCheck, Smartphone, ShieldAlert, KeyRound } from 'lucide-react';
+import { REGEXP_ONLY_DIGITS } from 'input-otp';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
@@ -44,7 +46,7 @@ export function LoginGateModal({
 }: Props) {
   const [currentMode, setCurrentMode] = useState<Mode>(mode);
   const [currentEmail, setCurrentEmail] = useState(email);
-  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -54,12 +56,9 @@ export function LoginGateModal({
   const [optionBusy, setOptionBusy] = useState<null | 'email' | 'sms'>(null);
   const [approvalChallengeId, setApprovalChallengeId] = useState(challengeId);
 
-  const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const pollTimerRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
   const submittedRef = useRef(false);
-
-  const code = digits.join('');
 
   // ── Expiry countdown ─────────────────────────────────────
   useEffect(() => {
@@ -88,14 +87,6 @@ export function LoginGateModal({
     const t = window.setTimeout(() => setResendCooldown(c => c - 1), 1000);
     return () => window.clearTimeout(t);
   }, [resendCooldown]);
-
-  // Auto-focus first cell when the modal opens
-  useEffect(() => {
-    if (open && (currentMode === 'code' || currentMode === 'sms')) {
-      const t = window.setTimeout(() => inputsRef.current[0]?.focus(), 80);
-      return () => window.clearTimeout(t);
-    }
-  }, [open, currentMode]);
 
   // ── Approval realtime + polling fallback ─────────────────
   useEffect(() => {
@@ -207,8 +198,7 @@ export function LoginGateModal({
 
       if (errorCode || !payload?.ok) {
         toast.error(gateVerifyErrorMessage(errorCode));
-        setDigits(['', '', '', '', '', '']);
-        inputsRef.current[0]?.focus();
+        setCode('');
         submittedRef.current = false;
         return;
       }
@@ -236,53 +226,6 @@ export function LoginGateModal({
     }
   }, [code, currentMode, verifyCode]);
 
-  const handleDigit = (i: number, raw: string) => {
-    const v = raw.replace(/\D/g, '');
-    if (!v) {
-      // Backspace clearing
-      const next = [...digits];
-      next[i] = '';
-      setDigits(next);
-      return;
-    }
-    // Pasting full code into one cell — distribute
-    if (v.length > 1) {
-      const next = [...digits];
-      const chars = v.slice(0, 6 - i).split('');
-      chars.forEach((c, j) => { next[i + j] = c; });
-      setDigits(next);
-      const last = Math.min(i + chars.length, 5);
-      inputsRef.current[last]?.focus();
-      return;
-    }
-    const next = [...digits];
-    next[i] = v;
-    setDigits(next);
-    if (i < 5) inputsRef.current[i + 1]?.focus();
-  };
-
-  const handleKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !digits[i] && i > 0) {
-      inputsRef.current[i - 1]?.focus();
-      const next = [...digits];
-      next[i - 1] = '';
-      setDigits(next);
-    } else if (e.key === 'ArrowLeft' && i > 0) {
-      inputsRef.current[i - 1]?.focus();
-    } else if (e.key === 'ArrowRight' && i < 5) {
-      inputsRef.current[i + 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (pasted.length === 6) {
-      e.preventDefault();
-      setDigits(pasted.split(''));
-      inputsRef.current[5]?.focus();
-    }
-  };
-
   const resendCode = async () => {
     if (resendCooldown > 0 || busy) return;
     try {
@@ -302,8 +245,7 @@ export function LoginGateModal({
       if ((data as any)?.expiresAt) setActiveExpiresAt((data as any).expiresAt);
       toast.success('New code sent');
       setResendCooldown(30);
-      setDigits(['', '', '', '', '', '']);
-      inputsRef.current[0]?.focus();
+      setCode('');
       submittedRef.current = false;
     } finally {
       setBusy(false);
@@ -346,7 +288,7 @@ export function LoginGateModal({
       setActiveChallengeId(payload.challengeId);
       setActiveExpiresAt(payload.expiresAt);
       if (payload.email) setCurrentEmail(payload.email);
-      setDigits(['', '', '', '', '', '']);
+      setCode('');
       submittedRef.current = false;
       setCurrentMode('code');
       toast.success(`Code sent to ${payload.email || currentEmail}`);
@@ -380,7 +322,7 @@ export function LoginGateModal({
       setActiveChallengeId(payload.challengeId);
       setActiveExpiresAt(payload.expiresAt);
       setPhoneMasked(payload.phoneMasked ?? null);
-      setDigits(['', '', '', '', '', '']);
+      setCode('');
       submittedRef.current = false;
       setCurrentMode('sms');
       toast.success(`Code texted to ${payload.phoneMasked || 'your phone'}`);
@@ -445,23 +387,25 @@ export function LoginGateModal({
 
         {(currentMode === 'code' || currentMode === 'sms') ? (
           <div className="space-y-4">
-            <div className="flex gap-2 justify-center pt-2" onPaste={handlePaste}>
-              {digits.map((d, i) => (
-                <input
-                  key={i}
-                  ref={(el) => (inputsRef.current[i] = el)}
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete={i === 0 ? 'one-time-code' : 'off'}
-                  maxLength={1}
-                  value={d}
-                  disabled={busy}
-                  onChange={(e) => handleDigit(i, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(i, e)}
-                  onFocus={(e) => e.currentTarget.select()}
-                  className="w-11 h-14 text-center text-xl font-semibold rounded-xl bg-muted border border-border focus:border-primary focus:ring-2 focus:ring-primary/30 outline-none transition-colors disabled:opacity-50"
-                />
-              ))}
+            <div className="flex justify-center pt-2">
+              <InputOTP
+                maxLength={6}
+                pattern={REGEXP_ONLY_DIGITS}
+                value={code}
+                onChange={setCode}
+                disabled={busy}
+                autoFocus
+              >
+                <InputOTPGroup className="gap-2">
+                  {[0, 1, 2, 3, 4, 5].map((i) => (
+                    <InputOTPSlot
+                      key={i}
+                      index={i}
+                      className="w-11 h-14 text-xl font-semibold rounded-xl bg-muted border-border"
+                    />
+                  ))}
+                </InputOTPGroup>
+              </InputOTP>
             </div>
 
             {busy && (

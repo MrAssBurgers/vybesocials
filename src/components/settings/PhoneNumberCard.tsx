@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { REGEXP_ONLY_DIGITS } from 'input-otp';
 import { Phone, CheckCircle2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -153,7 +154,7 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
       {stage === 'code' && (
         <div className="space-y-2">
           <div className="text-xs text-muted-foreground">Enter the 6-digit code we texted you.</div>
-          <InputOTP maxLength={6} value={code} onChange={setCode}>
+          <InputOTP maxLength={6} pattern={REGEXP_ONLY_DIGITS} value={code} onChange={setCode}>
             <InputOTPGroup>
               {[0,1,2,3,4,5].map(i => <InputOTPSlot key={i} index={i} />)}
             </InputOTPGroup>

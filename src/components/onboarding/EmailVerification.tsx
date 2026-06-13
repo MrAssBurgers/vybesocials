@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 
 const RESEND_COOLDOWN_SECONDS = 30;
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { REGEXP_ONLY_DIGITS } from 'input-otp';
 import { useAuth } from '@/lib/auth';
 
 interface EmailVerificationProps {
@@ -208,6 +209,7 @@ export function EmailVerification({ onVerified }: EmailVerificationProps) {
               <div className="flex flex-col items-center gap-3">
                 <InputOTP
                   maxLength={6}
+                  pattern={REGEXP_ONLY_DIGITS}
                   value={code}
                   onChange={setCode}
                 >
