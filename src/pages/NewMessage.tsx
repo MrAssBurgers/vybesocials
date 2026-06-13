@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useAuth } from "@/lib/auth";
+import { useAuthProfileId } from "@/hooks/useAuthProfileId";
 import { RecentMessageUser } from "@/lib/recentMessageUsers";
 import { useFriendshipStatus, useSendFriendRequest, useFriends, useRespondToFriendRequest, useFriendRequests } from "@/hooks/useFriends";
 import { useSuggestedFriends } from "@/hooks/useFriendsOfFriends";
@@ -353,7 +353,7 @@ function ResultRow({
 
 export default function NewMessage() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   const [query, setQuery] = useState("");
   const debounced = useDebouncedValue(query.trim(), 250);
@@ -364,13 +364,13 @@ export default function NewMessage() {
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   const { data: results, isLoading, isFetching } = useQuery({
-    queryKey: ["add-friend-user-search", debounced, profile?.id],
+    queryKey: ["add-friend-user-search", debounced, profileId],
     queryFn: async () => {
-      if (!debounced || !profile?.id) return [] as RecentMessageUser[];
+      if (!debounced || !profileId) return [] as RecentMessageUser[];
       const { data, error } = await supabase
         .from("profiles")
         .select("id, username, avatar_url, display_name")
-        .neq("id", profile.id)
+        .neq("id", profileId)
         .or(`username.ilike.%${debounced}%,display_name.ilike.%${debounced}%`)
         .order("username", { ascending: true })
         .limit(25);
@@ -384,8 +384,9 @@ export default function NewMessage() {
       });
       return sortedData as RecentMessageUser[];
     },
-    enabled: debounced.length > 0,
+    enabled: debounced.length > 0 && !!profileId,
     staleTime: 30000,
+    networkMode: 'always',
   });
 
   const safeResults = results || [];

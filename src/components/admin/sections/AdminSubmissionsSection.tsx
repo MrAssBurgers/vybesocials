@@ -9,6 +9,8 @@ import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { isStaffQueryEnabled } from '@/lib/adminAccess';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -100,7 +102,9 @@ async function sendAcceptanceDM(adminProfileId: string, targetUserId: string, ty
 
 // ─── Mod Applications Tab ───
 function ModApplicationsTab() {
-  const { profile } = useAuth();
+  const { user, authReady } = useAuth();
+  const profileId = useAuthProfileId();
+  const staffQueriesEnabled = isStaffQueryEnabled(authReady, user, profileId);
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({});
@@ -118,6 +122,9 @@ function ModApplicationsTab() {
       if (error) throw error;
       return (data || []) as unknown as ModApplication[];
     },
+    enabled: staffQueriesEnabled,
+    networkMode: 'always',
+    placeholderData: (prev) => prev,
   });
 
   const reviewMutation = useMutation({
@@ -127,7 +134,7 @@ function ModApplicationsTab() {
         .update({
           status,
           admin_notes: notes || null,
-          reviewed_by: profile?.id || null,
+          reviewed_by: profileId || null,
           reviewed_at: new Date().toISOString(),
         })
         .eq('id', id);
@@ -140,11 +147,11 @@ function ModApplicationsTab() {
         await supabase
           .from('user_roles')
           .upsert({ user_id: app.user_id, role: 'moderator' }, { onConflict: 'user_id,role' });
-        if (profile?.id) {
-          await sendAcceptanceDM(profile.id, app.user_id, 'moderator');
+        if (profileId) {
+          await sendAcceptanceDM(profileId, app.user_id, 'moderator');
         }
-      } else if (status === 'rejected' && profile?.id) {
-        await sendRejectionDM(profile.id, app.user_id, 'moderator', notes || '');
+      } else if (status === 'rejected' && profileId) {
+        await sendRejectionDM(profileId, app.user_id, 'moderator', notes || '');
       }
     },
     onSuccess: (_, vars) => {
@@ -171,7 +178,7 @@ function ModApplicationsTab() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isLoading && applications.length === 0 ? (
         <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>
       ) : applications.length === 0 ? (
         <GlassCard className="p-8 text-center">
@@ -196,7 +203,9 @@ function ModApplicationsTab() {
 
 // ─── Creator Applications Tab ───
 function CreatorApplicationsTab() {
-  const { profile } = useAuth();
+  const { user, authReady } = useAuth();
+  const profileId = useAuthProfileId();
+  const staffQueriesEnabled = isStaffQueryEnabled(authReady, user, profileId);
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({});
@@ -215,6 +224,9 @@ function CreatorApplicationsTab() {
       if (error) throw error;
       return (data || []) as unknown as CreatorApplication[];
     },
+    enabled: staffQueriesEnabled,
+    networkMode: 'always',
+    placeholderData: (prev) => prev,
   });
 
   const reviewMutation = useMutation({
@@ -231,8 +243,8 @@ function CreatorApplicationsTab() {
         if (error) throw error;
 
         // Send acceptance DM with monetization info
-        if (profile?.id) {
-          await sendAcceptanceDM(profile.id, userId, 'creator');
+        if (profileId) {
+          await sendAcceptanceDM(profileId, userId, 'creator');
         }
       } else {
         // Delete the creator profile so they can reapply
@@ -242,8 +254,8 @@ function CreatorApplicationsTab() {
           .eq('id', id);
         if (error) throw error;
 
-        if (profile?.id) {
-          await sendRejectionDM(profile.id, userId, 'creator', notes || '');
+        if (profileId) {
+          await sendRejectionDM(profileId, userId, 'creator', notes || '');
         }
       }
     },
@@ -271,7 +283,7 @@ function CreatorApplicationsTab() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isLoading && applications.length === 0 ? (
         <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>
       ) : applications.length === 0 ? (
         <GlassCard className="p-8 text-center">

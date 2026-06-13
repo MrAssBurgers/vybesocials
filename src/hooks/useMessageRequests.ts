@@ -45,6 +45,7 @@ export function useMessageRequests() {
       return data as MessageRequest[];
     },
     enabled: !!profileId,
+    networkMode: 'always',
   });
 }
 
@@ -66,6 +67,7 @@ export function usePendingRequestCount() {
       return count || 0;
     },
     enabled: !!profileId,
+    networkMode: 'always',
   });
 }
 

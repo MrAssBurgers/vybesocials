@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
 import { toast } from 'sonner';
 import { isOwner } from '@/components/ui/OwnerBadge';
@@ -62,7 +63,8 @@ export function useUserBans(userId?: string) {
 
 // Fetch all warnings (for admin)
 export function useAllWarnings() {
-  const { user, authReady, profile } = useAuth();
+  const { user, authReady } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
     queryKey: ['all-warnings'],
@@ -79,14 +81,15 @@ export function useAllWarnings() {
       if (error) throw error;
       return data;
     },
-    enabled: isStaffQueryEnabled(authReady, user, profile?.id),
+    enabled: isStaffQueryEnabled(authReady, user, profileId),
     networkMode: 'always',
   });
 }
 
 // Fetch all bans (for admin)
 export function useAllBans() {
-  const { user, authReady, profile } = useAuth();
+  const { user, authReady } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
     queryKey: ['all-bans'],
@@ -105,7 +108,7 @@ export function useAllBans() {
       if (error) throw error;
       return data;
     },
-    enabled: isStaffQueryEnabled(authReady, user, profile?.id),
+    enabled: isStaffQueryEnabled(authReady, user, profileId),
     networkMode: 'always',
   });
 }

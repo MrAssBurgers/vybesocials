@@ -118,6 +118,7 @@ export function useFriendRequests() {
     staleTime: 30000, // Reduced to 30 seconds with realtime
     refetchOnMount: true,
     refetchOnWindowFocus: true,
+    networkMode: 'always',
   });
 }
 

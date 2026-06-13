@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
@@ -21,8 +22,9 @@ import { format, subMinutes, subHours, startOfDay } from 'date-fns';
 
 export function AdminLiveAnalytics() {
   const queryClient = useQueryClient();
-  const { user, authReady, profile } = useAuth();
-  const staffQueriesEnabled = isStaffQueryEnabled(authReady, user, profile?.id);
+  const { user, authReady } = useAuth();
+  const profileId = useAuthProfileId();
+  const staffQueriesEnabled = isStaffQueryEnabled(authReady, user, profileId);
   const [refreshKey, setRefreshKey] = useState(0);
   const [liveCount, setLiveCount] = useState(0);
   const [activityTab, setActivityTab] = useState<'all' | 'messages' | 'content' | 'social'>('all');

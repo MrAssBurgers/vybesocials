@@ -136,6 +136,7 @@ export function useNotifications() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     refetchOnReconnect: false,
+    networkMode: 'always',
   });
 
   // Subscribe to real-time notifications

@@ -1,23 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 /**
  * Hook to manage permanently dismissed/hidden profiles
  * Profiles that are dismissed will never appear in discovery, suggestions, or search
  */
 export function useDismissedProfiles() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['dismissed-profiles', profile?.id],
+    queryKey: ['dismissed-profiles', profileId],
     queryFn: async () => {
-      if (!profile?.id) return new Set<string>();
+      if (!profileId) return new Set<string>();
 
       const { data, error } = await supabase
         .from('dismissed_profiles')
         .select('dismissed_user_id')
-        .eq('user_id', profile.id);
+        .eq('user_id', profileId);
 
       if (error) {
         console.error('[useDismissedProfiles] Error:', error);
@@ -26,8 +26,9 @@ export function useDismissedProfiles() {
 
       return new Set(data.map(d => d.dismissed_user_id));
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
     staleTime: 1000 * 60 * 5, // 5 minutes
+    networkMode: 'always',
   });
 }
 
@@ -35,17 +36,17 @@ export function useDismissedProfiles() {
  * Hook to dismiss a profile permanently
  */
 export function useDismissProfile() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (dismissedUserId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!profileId) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('dismissed_profiles')
         .insert({
-          user_id: profile.id,
+          user_id: profileId,
           dismissed_user_id: dismissedUserId,
         });
 
@@ -67,17 +68,17 @@ export function useDismissProfile() {
  * Hook to undismiss a profile
  */
 export function useUndismissProfile() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (dismissedUserId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!profileId) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('dismissed_profiles')
         .delete()
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .eq('dismissed_user_id', dismissedUserId);
 
       if (error) throw error;
@@ -96,12 +97,12 @@ export function useUndismissProfile() {
  * Hook to get list of dismissed profiles with full profile data
  */
 export function useDismissedProfilesList() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['dismissed-profiles-list', profile?.id],
+    queryKey: ['dismissed-profiles-list', profileId],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       const { data, error } = await supabase
         .from('dismissed_profiles')
@@ -117,7 +118,7 @@ export function useDismissedProfilesList() {
             last_name
           )
         `)
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -127,6 +128,7 @@ export function useDismissedProfilesList() {
 
       return data;
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
+    networkMode: 'always',
   });
 }

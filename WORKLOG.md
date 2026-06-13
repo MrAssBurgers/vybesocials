@@ -4,6 +4,25 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (app stability audit — 2026-06-12)
+- **Auth hydration** — `useAuthProfileId()` on Friends discovery (`useOutgoingRequests`, `useDismissedProfiles`), streaks, announcements, accepted-friend rows, NewMessage search, `useConversations` / `useMessages`
+- **networkMode: 'always'** — chat messages (empty-cache hang fix), notifications, friend requests, message requests, discovery hidden-set queries
+- **Admin staff gates** — `isStaffQueryEnabled` now uses cached profile id via `useAuthProfileId` in dashboard, moderation hooks, Live Analytics, Appeals, Announcements, Submissions; section loading only when cache empty
+- **useModeration.ts** — removed duplicate import; `useUserRole` uses `useAuthProfileId`
+- **Build:** `npm run build` pass · **Lint:** pass (3 pre-existing warnings in `queryRefetchPolicy.ts`)
+
+## Publish status (2026-06-12 — stability audit)
+- **Git:** pending push to `origin/main`
+- **Web:** Lovable → Share → Publish → https://vybehub.app
+
+## Current Focus
+- **You:** Lovable Publish after push (one click — agent cannot trigger this)
+
+## Next 3 Tasks
+1. Lovable Publish + force-quit app on iPhone to bust cache
+2. Smoke test: Messages list + open chat; Notifications tab; Add Friends search
+3. Smoke test: Admin panel sections (Live Analytics, Reports, Error Monitor, Submissions)
+
 ## What Changed (admin + Messages loading fix — 2026-06-12)
 - **`adminAccess.ts`** — `hasStaffIdentity` / `isStaffQueryEnabled` for cached-profile boot (auth ready without live `user`)
 - **`AdminDashboard.tsx`** — staff gate uses cached profile id; dashboard queries `networkMode: 'always'`

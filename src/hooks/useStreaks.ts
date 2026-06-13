@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 export interface Streak {
   id: string;
@@ -26,12 +26,12 @@ export interface Streak {
 }
 
 export function useStreaks() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   const query = useQuery({
-    queryKey: ['streaks', profile?.id],
+    queryKey: ['streaks', profileId],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       const { data, error } = await supabase
         .from('streaks')
@@ -40,14 +40,15 @@ export function useStreaks() {
           user1:profiles!user1_id(id, username, avatar_url, display_name),
           user2:profiles!user2_id(id, username, avatar_url, display_name)
         `)
-        .or(`user1_id.eq.${profile.id},user2_id.eq.${profile.id}`)
+        .or(`user1_id.eq.${profileId},user2_id.eq.${profileId}`)
         .gt('expires_at', new Date().toISOString())
         .order('streak_count', { ascending: false });
 
       if (error) throw error;
       return (data || []) as Streak[];
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
+    networkMode: 'always',
     staleTime: 30000,
     refetchInterval: 60000,
     refetchOnWindowFocus: true,

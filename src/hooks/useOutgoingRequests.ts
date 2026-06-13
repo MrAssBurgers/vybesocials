@@ -1,23 +1,23 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 /**
  * Hook to get all user IDs that have pending outgoing friend requests
  * These users should be hidden from discovery (Snapchat-style)
  */
 export function useOutgoingRequestUserIds() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['outgoing-request-ids', profile?.id],
+    queryKey: ['outgoing-request-ids', profileId],
     queryFn: async () => {
-      if (!profile?.id) return new Set<string>();
+      if (!profileId) return new Set<string>();
 
       const { data, error } = await supabase
         .from('friend_requests')
         .select('receiver_id')
-        .eq('sender_id', profile.id)
+        .eq('sender_id', profileId)
         .eq('status', 'pending');
 
       if (error) {
@@ -27,8 +27,9 @@ export function useOutgoingRequestUserIds() {
 
       return new Set(data.map(d => d.receiver_id));
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
     staleTime: 1000 * 30, // 30 seconds
+    networkMode: 'always',
   });
 }
 
@@ -37,12 +38,12 @@ export function useOutgoingRequestUserIds() {
  * Includes: outgoing requests, dismissed profiles, blocked users, existing friends
  */
 export function useHiddenFromDiscovery() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['hidden-from-discovery', profile?.id],
+    queryKey: ['hidden-from-discovery', profileId],
     queryFn: async () => {
-      if (!profile?.id) return new Set<string>();
+      if (!profileId) return new Set<string>();
 
       // Fetch all in parallel for performance
       const [
@@ -55,27 +56,27 @@ export function useHiddenFromDiscovery() {
         supabase
           .from('friend_requests')
           .select('receiver_id')
-          .eq('sender_id', profile.id)
+          .eq('sender_id', profileId)
           .eq('status', 'pending'),
         
         // Dismissed profiles
         supabase
           .from('dismissed_profiles')
           .select('dismissed_user_id')
-          .eq('user_id', profile.id),
+          .eq('user_id', profileId),
         
         // Blocked users (both directions)
         supabase
           .from('blocked_users')
           .select('blocked_id, blocker_id')
-          .or(`blocker_id.eq.${profile.id},blocked_id.eq.${profile.id}`),
+          .or(`blocker_id.eq.${profileId},blocked_id.eq.${profileId}`),
         
         // Existing friends (accepted requests)
         supabase
           .from('friend_requests')
           .select('sender_id, receiver_id')
           .eq('status', 'accepted')
-          .or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`)
+          .or(`sender_id.eq.${profileId},receiver_id.eq.${profileId}`)
       ]);
 
       const hiddenIds = new Set<string>();
@@ -88,7 +89,7 @@ export function useHiddenFromDiscovery() {
 
       // Add blocked users
       blockedResult.data?.forEach(d => {
-        if (d.blocker_id === profile.id) {
+        if (d.blocker_id === profileId) {
           hiddenIds.add(d.blocked_id);
         } else {
           hiddenIds.add(d.blocker_id);
@@ -97,7 +98,7 @@ export function useHiddenFromDiscovery() {
 
       // Add existing friends
       friendsResult.data?.forEach(d => {
-        if (d.sender_id === profile.id) {
+        if (d.sender_id === profileId) {
           hiddenIds.add(d.receiver_id);
         } else {
           hiddenIds.add(d.sender_id);
@@ -106,7 +107,8 @@ export function useHiddenFromDiscovery() {
 
       return hiddenIds;
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
+    networkMode: 'always',
     staleTime: 1000 * 30,
     // Defensive: query persister can deserialize a Set into a plain object/array,
     // stripping `.has()`. Always re-normalize to a real Set at the consumer boundary.

@@ -64,7 +64,7 @@ const navItems: NavItem[] = [
 export default function AdminDashboard() {
   const { authReady, user, profile } = useAuth();
   const profileId = useAuthProfileId();
-  const staffQueriesEnabled = isStaffQueryEnabled(authReady, user, profile?.id);
+  const staffQueriesEnabled = isStaffQueryEnabled(authReady, user, profileId);
   const { data: userRole, isLoading: roleLoading, isFetched: roleFetched } = useUserRole();
   const { data: reports = [] } = useReports();
   const { data: flags = [] } = useContentFlags();

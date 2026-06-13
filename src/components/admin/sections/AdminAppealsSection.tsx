@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { isStaffQueryEnabled } from '@/lib/adminAccess';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -12,7 +14,9 @@ import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 
 export function AdminAppealsSection() {
-  const { profile } = useAuth();
+  const { user, authReady } = useAuth();
+  const profileId = useAuthProfileId();
+  const staffQueriesEnabled = isStaffQueryEnabled(authReady, user, profileId);
   const queryClient = useQueryClient();
 
   const { data: appeals = [], isLoading } = useQuery({
@@ -25,22 +29,25 @@ export function AdminAppealsSection() {
       if (error) throw error;
       return data || [];
     },
+    enabled: staffQueriesEnabled,
+    networkMode: 'always',
+    placeholderData: (prev) => prev,
   });
 
   const updateAppeal = useMutation({
     mutationFn: async ({ id, status, userId }: { id: string; status: 'approved' | 'rejected'; userId?: string }) => {
       const { error } = await supabase
         .from('content_appeals')
-        .update({ status, reviewed_at: new Date().toISOString(), reviewed_by: profile?.id })
+        .update({ status, reviewed_at: new Date().toISOString(), reviewed_by: profileId })
         .eq('id', id);
       if (error) throw error;
 
       // On approval, send notification to the user so they can resume posting
-      if (status === 'approved' && userId && profile?.id) {
+      if (status === 'approved' && userId && profileId) {
         await supabase.from('notifications').insert({
           user_id: userId,
           type: 'appeal_approved' as any,
-          actor_id: profile.id,
+          actor_id: profileId,
           reason: `Your appeal has been approved! You can now re-post your content.`,
         });
       }
@@ -66,7 +73,7 @@ export function AdminAppealsSection() {
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        {isLoading ? (
+        {isLoading && appeals.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">Loading...</div>
         ) : appeals.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">No appeals</div>

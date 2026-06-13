@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 export interface Announcement {
   id: string;
@@ -19,10 +20,10 @@ export interface Announcement {
 }
 
 export function useAnnouncements() {
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   
   return useQuery({
-    queryKey: ['announcements', profile?.id],
+    queryKey: ['announcements', profileId],
     queryFn: async () => {
       const { data: announcements, error } = await supabase
         .from('announcements')
@@ -38,13 +39,14 @@ export function useAnnouncements() {
       const { data: dismissed } = await supabase
         .from('dismissed_announcements')
         .select('announcement_id')
-        .eq('user_id', profile?.id || '');
+        .eq('user_id', profileId || '');
       
       const dismissedIds = new Set(dismissed?.map(d => d.announcement_id) || []);
       
       return (announcements || []).filter(a => !dismissedIds.has(a.id)) as Announcement[];
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
+    networkMode: 'always',
   });
 }
 

@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
-import { getEffectiveProfileId } from '@/lib/profileCache';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 interface AcceptedFriendRequest {
   id: string;
@@ -24,8 +23,7 @@ interface AcceptedFriendRequest {
 // - The sender hasn't been notified yet (notified_at IS NULL)
 // This shows "X accepted your friend request!" notifications
 export function useAcceptedFriendRequests() {
-  const { profile } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const profileId = useAuthProfileId();
 
   return useQuery({
     queryKey: ['accepted-friend-requests', profileId],
@@ -65,8 +63,7 @@ export function useAcceptedFriendRequests() {
 
 // Dismiss an accepted friend request - marks it as notified in the database permanently
 export function useDismissAcceptedRequest() {
-  const { profile } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -96,8 +93,7 @@ export function useDismissAcceptedRequest() {
 
 // Hook to mark a request as notified when it's displayed (auto-dismiss after viewing)
 export function useMarkRequestAsNotified() {
-  const { profile } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   return useMutation({

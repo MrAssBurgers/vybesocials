@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { isStaffQueryEnabled } from '@/lib/adminAccess';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +14,9 @@ import { CreateAnnouncementDialog } from '@/components/announcements/CreateAnnou
 import { EditAnnouncementDialog } from '@/components/announcements/EditAnnouncementDialog';
 
 export function AdminAnnouncementsSection() {
+  const { user, authReady } = useAuth();
+  const profileId = useAuthProfileId();
+  const staffQueriesEnabled = isStaffQueryEnabled(authReady, user, profileId);
   const queryClient = useQueryClient();
 
   const { data: announcements = [], isLoading } = useQuery({
@@ -23,6 +29,9 @@ export function AdminAnnouncementsSection() {
       if (error) throw error;
       return data || [];
     },
+    enabled: staffQueriesEnabled,
+    networkMode: 'always',
+    placeholderData: (prev) => prev,
   });
 
   const deleteAnnouncement = useMutation({
@@ -66,7 +75,7 @@ export function AdminAnnouncementsSection() {
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        {isLoading ? (
+        {isLoading && announcements.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">Loading...</div>
         ) : announcements.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">No announcements</div>

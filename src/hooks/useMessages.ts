@@ -108,8 +108,7 @@ export function useUnreadMessagesCount() {
 }
 
 export function useConversations() {
-  const { profile } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   const query = useQuery({
@@ -277,8 +276,7 @@ function mergePendingOptimisticMessages(
 }
 
 export function useMessages(conversationId: string | undefined) {
-  const { profile } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   const query = useQuery({
@@ -286,7 +284,7 @@ export function useMessages(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId) return [];
 
-      const viewerId = (await resolveSessionProfileId(profile?.id)) ?? profileId;
+      const viewerId = (await resolveSessionProfileId(profileId)) ?? profileId;
 
       const { data, error } = await supabase
         .from('messages')
@@ -310,7 +308,8 @@ export function useMessages(conversationId: string | undefined) {
     refetchOnMount: (query) => shouldRefetchWhenEmpty(query),
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
-    networkMode: 'offlineFirst',
+    // Must reach network on first open — global offlineFirst can pause forever with empty cache.
+    networkMode: 'always',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });

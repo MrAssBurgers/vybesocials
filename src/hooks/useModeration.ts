@@ -1,8 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
-import { useAuth } from '@/lib/auth';
-import { getEffectiveProfileId } from '@/lib/profileCache';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
@@ -36,7 +35,8 @@ export interface Report {
 }
 
 export function useContentFlags() {
-  const { user, authReady, profile } = useAuth();
+  const { user, authReady } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
     queryKey: ['content-flags'],
@@ -49,13 +49,14 @@ export function useContentFlags() {
       if (error) throw error;
       return data as ContentFlag[];
     },
-    enabled: isStaffQueryEnabled(authReady, user, profile?.id),
+    enabled: isStaffQueryEnabled(authReady, user, profileId),
     networkMode: 'always',
   });
 }
 
 export function useReports() {
-  const { user, authReady, profile } = useAuth();
+  const { user, authReady } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
     queryKey: ['admin-reports'],
@@ -73,7 +74,7 @@ export function useReports() {
       if (error) throw error;
       return data as Report[];
     },
-    enabled: isStaffQueryEnabled(authReady, user, profile?.id),
+    enabled: isStaffQueryEnabled(authReady, user, profileId),
     networkMode: 'always',
   });
 }
@@ -142,8 +143,8 @@ export function useUpdateReport() {
 }
 
 export function useUserRole() {
-  const { profile, user, authReady } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const { user, authReady } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
     queryKey: ['user-role', profileId, user?.id],
