@@ -10,7 +10,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Build:** `npm run build` pass
 
 ## Publish status (2026-06-12 — DMs P0/P1)
-- **Git:** pending push
+- **Git:** `cc379c37` pushed to `origin/main`
 - **Web:** Lovable → Share → Publish → https://vybehub.app
 
 ## What Changed (DMs + bug reports + Friend Link opacity — 2026-06-12)
