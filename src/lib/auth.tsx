@@ -32,21 +32,20 @@ function getStoredSessionRefreshTimeoutMs(): number {
 
 function isFatalRefreshError(message: string): boolean {
   const msg = (message || '').toLowerCase();
+  // Only treat refresh-token/session revocation as fatal — not generic "expired"
+  // (access JWT expiry is normal and refreshSession should recover).
   return (
     msg.includes('invalid refresh token') ||
     msg.includes('refresh token not found') ||
     msg.includes('refresh_token_not_found') ||
+    msg.includes('refresh token has been revoked') ||
     msg.includes('session not found') ||
     msg.includes('session_not_found') ||
     msg.includes('user from sub claim') ||
     msg.includes('user not found') ||
-    msg.includes('already used') ||
-    msg.includes('revoked') ||
-    msg.includes('expired') ||
+    (msg.includes('refresh') && msg.includes('already been used')) ||
     (msg.includes('refresh') && msg.includes('invalid')) ||
-    (msg.includes('refresh') && msg.includes('not found')) ||
-    msg.includes('bad_jwt') ||
-    msg.includes('jwt expired')
+    (msg.includes('refresh') && msg.includes('not found'))
   );
 }
 
@@ -193,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const banSubscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   // Prevent double-triggering from onAuthStateChange + getSession running simultaneously
   const authInitializedRef = useRef(false);
+  const explicitSignOutRef = useRef(false);
 
   // Reject stale cached profile when auth user changes (wrong-user queries break RLS).
   useEffect(() => {
@@ -600,11 +600,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           sessionStorage.removeItem('vybe-oauth-pending');
         } else if (event === 'SIGNED_OUT') {
+          if (!explicitSignOutRef.current && hasStoredSupabaseSession()) {
+            logEvent('auth', 'SIGNED_OUT with stored token — attempting recovery');
+            const { data: recovered, error: recoverError } = await refreshStoredSession(
+              getStoredSessionRefreshTimeoutMs() + 4000,
+            );
+            if (recovered.session?.user) {
+              logEvent('auth', 'Recovered session after unexpected SIGNED_OUT', {
+                userId: recovered.session.user.id,
+              });
+              setWasLoggedIn(true);
+              setSession(recovered.session);
+              setUser(recovered.session.user);
+              setActiveAuthUserId(recovered.session.user.id);
+              hydrateCachedProfile(recovered.session.user.id);
+              if (recovered.session.expires_at) {
+                scheduleTokenRefresh(recovered.session.expires_at);
+              }
+              bootstrapSessionData(recovered.session.user.id, 'TOKEN_REFRESHED');
+              setLoading(false);
+              setIsInitialized(true);
+              authInitializedRef.current = true;
+              return;
+            }
+            if (!recoverError || !isFatalRefreshError(recoverError.message)) {
+              logEvent('auth', 'Keeping stored token after SIGNED_OUT (transient refresh failure)');
+              hydrateCachedProfile();
+              setLoading(false);
+              setIsInitialized(true);
+              authInitializedRef.current = true;
+              return;
+            }
+          }
+
+          explicitSignOutRef.current = false;
           setWasLoggedIn(false);
           setActiveAuthUserId(null);
           resetSessionProfileMemo();
-          // Only clear state on explicit sign-out, not on ambiguous events
-          logEvent('auth', 'Explicit sign out — clearing state');
+          logEvent('auth', 'Sign out — clearing state');
           setProfile(null);
           clearCachedCurrentProfile();
           clearCachedUserLevel();
@@ -877,6 +910,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    explicitSignOutRef.current = true;
     setWasLoggedIn(false);
     // 1) Flip local auth state IMMEDIATELY so the UI navigates instantly.
     setProfile(null);
