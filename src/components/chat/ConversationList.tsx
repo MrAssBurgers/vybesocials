@@ -8,7 +8,7 @@ import { useChatPrefetch } from '@/hooks/useChatPrefetch';
 import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
 import { useOnlineFriends } from '@/hooks/useOnlineFriends';
 import { useAuth } from '@/lib/auth';
-import { getEffectiveProfileId } from '@/lib/profileCache';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { useTrashedConversationIds, useTrashConversation } from '@/hooks/useTrashedConversations';
 import { useStories, StoryGroup } from '@/hooks/useStories';
@@ -105,7 +105,7 @@ export function ConversationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { profile, loading: authLoading } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const profileId = useAuthProfileId();
   const [searchQuery, setSearchQuery] = useState('');
   const [chatFilter, setChatFilter] = useState<'all' | 'unread' | 'groups' | 'streaks'>('all');
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
@@ -121,6 +121,7 @@ export function ConversationList() {
     unpinnedConversations, 
     isLoading, 
     isFetched,
+    isFetching,
     error: convError,
     totalUnreadCount,
     refetch: refetchConversations,
@@ -202,7 +203,7 @@ export function ConversationList() {
 
   const showListSkeleton =
     allConversations.length === 0 &&
-    (isLoading || (authLoading && !dmProfileId));
+    (isLoading || isFetching || (authLoading && !dmProfileId));
   
   // Get all conversation IDs for typing indicator subscription
   const conversationIds = useMemo(() => 
@@ -214,17 +215,17 @@ export function ConversationList() {
   const { isTyping: checkTyping } = useConversationTyping(conversationIds);
   
   const otherMemberIds = useMemo(() => {
-    if (!allConversations.length || !profile?.id) return [];
+    if (!allConversations.length || !profileId) return [];
     const ids = new Set<string>();
     allConversations.forEach((conv) => {
       conv.members?.forEach((m) => {
-        if (m.user_id !== profile.id && m.profile?.id) {
+        if (m.user_id !== profileId && m.profile?.id) {
           ids.add(m.profile.id);
         }
       });
     });
     return Array.from(ids);
-  }, [allConversations, profile?.id]);
+  }, [allConversations, profileId]);
 
   const { data: onlineStatus = {} } = useUsersOnlineStatus(otherMemberIds);
   const { data: usersRoles = {} } = useUsersRoles(otherMemberIds);
@@ -238,7 +239,7 @@ export function ConversationList() {
 
 
   const handleQuickAddSelect = useCallback(async (userId: string) => {
-    if (!profile?.id) {
+    if (!profileId) {
       toast.error("Please wait, loading your profile...");
       return;
     }
@@ -248,7 +249,7 @@ export function ConversationList() {
     } catch (error: any) {
       toast.error(error?.message || 'Failed to start conversation');
     }
-  }, [profile?.id, createConversation, navigate]);
+  }, [profileId, createConversation, navigate]);
 
   // Filter conversations based on selected tab
   const filteredPinned = useMemo(() => {
@@ -257,12 +258,12 @@ export function ConversationList() {
       if (chatFilter === 'unread') return (conv.unread_count || 0) > 0;
       if (chatFilter === 'groups') return conv.is_group;
       if (chatFilter === 'streaks') {
-        const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
+        const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profileId)?.profile?.id : undefined;
         return otherMemberId ? (streakMap.get(otherMemberId)?.streak_count || 0) > 0 : false;
       }
       return true;
     });
-  }, [pinnedConversations, chatFilter, profile?.id, streakMap]);
+  }, [pinnedConversations, chatFilter, profileId, streakMap]);
 
   const filteredUnpinned = useMemo(() => {
     if (!unpinnedConversations) return [];
@@ -270,12 +271,12 @@ export function ConversationList() {
       if (chatFilter === 'unread') return (conv.unread_count || 0) > 0;
       if (chatFilter === 'groups') return conv.is_group;
       if (chatFilter === 'streaks') {
-        const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profile?.id)?.profile?.id : undefined;
+        const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profileId)?.profile?.id : undefined;
         return otherMemberId ? (streakMap.get(otherMemberId)?.streak_count || 0) > 0 : false;
       }
       return true;
     });
-  }, [unpinnedConversations, chatFilter, profile?.id, streakMap]);
+  }, [unpinnedConversations, chatFilter, profileId, streakMap]);
 
   const handleConversationClick = useCallback((convId: string) => {
     void prefetchMessages(convId);
@@ -290,32 +291,6 @@ export function ConversationList() {
     trashConversation.mutate(convId);
   }, [trashConversation]);
 
-
-  if (showListSkeleton) {
-    return (
-      <div className="space-y-4 p-4">
-        {(slowLoad || convError) && (
-          <div className="rounded-xl border border-border/40 bg-card/40 p-3 flex items-center justify-between gap-3">
-            <div className="text-xs text-muted-foreground">
-              {convError ? "Couldn't load messages." : 'Taking longer than usual…'}
-            </div>
-            <Button size="sm" variant="secondary" className="h-7 px-3 text-xs" onClick={() => refetchConversations()}>
-              Retry
-            </Button>
-          </div>
-        )}
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <Skeleton className="h-12 w-12 rounded-full" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-48" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 overflow-hidden">
@@ -382,13 +357,35 @@ export function ConversationList() {
 
         {/* Conversations */}
         <div className="pb-3">
-          {(filteredPinned.length > 0 || filteredUnpinned.length > 0) ? (
+          {showListSkeleton ? (
+            <div className="space-y-3 px-3 pt-2">
+              {(slowLoad || convError) && (
+                <div className="rounded-xl border border-border/40 bg-card/40 p-3 flex items-center justify-between gap-3">
+                  <div className="text-xs text-muted-foreground">
+                    {convError ? "Couldn't load messages." : 'Loading your chats…'}
+                  </div>
+                  <Button size="sm" variant="secondary" className="h-7 px-3 text-xs" onClick={() => refetchConversations()}>
+                    Retry
+                  </Button>
+                </div>
+              )}
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-48" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (filteredPinned.length > 0 || filteredUnpinned.length > 0) ? (
             <>
               {filteredPinned.map((conv) => (
                 <ConversationRow
                   key={conv.id}
                   conv={conv}
-                  currentUserId={profile?.id}
+                  currentUserId={profileId}
                   userStoryMap={userStoryMap}
                   streakMap={streakMap}
                   onlineStatus={onlineStatus}
@@ -405,7 +402,7 @@ export function ConversationList() {
                 <ConversationRow
                   key={conv.id}
                   conv={conv}
-                  currentUserId={profile?.id}
+                  currentUserId={profileId}
                   userStoryMap={userStoryMap}
                   streakMap={streakMap}
                   onlineStatus={onlineStatus}

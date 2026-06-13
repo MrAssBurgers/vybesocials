@@ -4,6 +4,23 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (DMs load + poster stories resize — 2026-06-12)
+- **`ConversationList.tsx`** — no full-page skeleton; header/AI row always visible; inline list loading; `useAuthProfileId()` throughout
+- **`useDMConversations.ts`** — clearer loading state; `useMarkConversationRead` uses cached profile id
+- **`useMessages.ts` / `useGlobalRealtimeMessages.ts`** — conversation cache keys aligned on `getEffectiveProfileId()`
+- **`selfHealingMonitor.ts` / `GlobalErrorHandler.tsx`** — removed "VYBE AI is fixing this…" toast spam; silent heuristics only
+- **`StoriesBar.tsx` / `StoryPoster.tsx` / `storyUtils.ts`** — bigger default posters (84×112); scale with home grid colSpan/rowSpan + ResizeObserver
+- **`HomeWidgetRenderer.tsx`** — passes widget size into StoriesBar for resize-in-edit-mode
+- **Build:** `npm run build` pass
+
+## Publish status (2026-06-12 — DMs + poster stories)
+- **Git:** pending push (DMs load fix, silent self-heal, resizable poster stories)
+- **Web:** Click **Lovable → Share → Publish** → https://vybehub.app
+- **After publish:** force-quit iPhone app; hard-refresh browser
+
+## Current Focus
+- **You:** Lovable Publish (one click — agent cannot trigger this)
+
 ## What Changed (Friend Link add-friend fix — 2026-06-09)
 - **`useFriends.ts`** — `useSendFriendRequest` / respond / cancel / unfriend use `getEffectiveProfileId()` during auth hydration
 - **`useFriendDropSync.ts`** — create/scan/realtime use cached profile id

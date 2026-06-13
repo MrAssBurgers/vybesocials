@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 interface StoryPosterProps {
   width?: number;
   height?: number;
+  borderRadius?: number;
   hasUnviewed: boolean;
   hasStory: boolean;
   isUploading?: boolean;
@@ -13,9 +14,9 @@ interface StoryPosterProps {
   children?: React.ReactNode;
 }
 
-const POSTER_WIDTH = 58;
-const POSTER_HEIGHT = 78;
-const POSTER_RADIUS = 14;
+const POSTER_WIDTH = 84;
+const POSTER_HEIGHT = 112;
+const POSTER_RADIUS = 18;
 
 /**
  * Snapchat-style rounded poster tile for stories (not circular rings).
@@ -23,6 +24,7 @@ const POSTER_RADIUS = 14;
 export const StoryPoster = memo(function StoryPoster({
   width = POSTER_WIDTH,
   height = POSTER_HEIGHT,
+  borderRadius = POSTER_RADIUS,
   hasUnviewed,
   hasStory,
   isUploading,
@@ -30,7 +32,6 @@ export const StoryPoster = memo(function StoryPoster({
   fallbackInitial,
   children,
 }: StoryPosterProps) {
-  const borderRadius = POSTER_RADIUS;
 
   if (isUploading) {
     return (
@@ -109,5 +110,5 @@ export const StoryPoster = memo(function StoryPoster({
 });
 
 export function getStoryPosterDimensions() {
-  return { width: POSTER_WIDTH, height: POSTER_HEIGHT };
+  return { width: POSTER_WIDTH, height: POSTER_HEIGHT, borderRadius: POSTER_RADIUS };
 }

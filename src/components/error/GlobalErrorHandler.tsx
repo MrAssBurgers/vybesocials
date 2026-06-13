@@ -26,9 +26,27 @@ export function GlobalErrorHandler() {
       }
     };
 
+    const shouldIgnoreForSelfHeal = (msg: string) => {
+      const m = msg.toLowerCase();
+      return (
+        m.includes('resizeobserver')
+        || m.includes('loading chunk')
+        || m.includes('failed to fetch')
+        || m.includes('networkerror')
+        || m.includes('channel error')
+        || m.includes('channel_error')
+        || m.includes('globalrt')
+        || m.includes('presence')
+        || m.includes('realtime')
+        || m.includes('abort')
+        || m.includes('not authenticated')
+        || m.includes('profile still loading')
+      );
+    };
+
     // Track all errors for pattern detection
     const handleAllErrors = (event: ErrorEvent) => {
-      if (event.message) {
+      if (event.message && !shouldIgnoreForSelfHeal(event.message)) {
         trackError(event.message);
       }
     };
@@ -37,7 +55,7 @@ export function GlobalErrorHandler() {
     const handleRejection = (event: PromiseRejectionEvent) => {
       if (event.reason?.isAuthGuard) return;
       const msg = event.reason?.message || event.reason?.toString() || '';
-      if (msg === 'Not authenticated') return;
+      if (shouldIgnoreForSelfHeal(msg)) return;
       if (msg) trackError(msg);
     };
 

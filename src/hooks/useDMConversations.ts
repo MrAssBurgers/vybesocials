@@ -174,13 +174,11 @@ export function useDMConversations(searchQuery: string = '') {
   }, [conversationsQuery.data]);
 
   const listCount = conversationsQuery.data?.length ?? 0;
-  // Only skeleton on the true first fetch — not when query is disabled (no profile id)
-  // and not during background refetch of an empty list.
   const isLoading =
     !!profileId &&
     listCount === 0 &&
-    !conversationsQuery.isFetched &&
-    conversationsQuery.fetchStatus === 'fetching';
+    (conversationsQuery.isFetching || conversationsQuery.isPending) &&
+    !conversationsQuery.isError;
 
   return {
     conversations: filteredConversations,
@@ -201,22 +199,23 @@ export function useDMConversations(searchQuery: string = '') {
  */
 export function useMarkConversationRead() {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (conversationId: string) => {
-      if (!profile?.id) return;
+      if (!profileId) return;
 
       const { error } = await supabase
         .from('conversation_members')
         .update({ last_read_at: new Date().toISOString() })
         .eq('conversation_id', conversationId)
-        .eq('user_id', profile.id);
+        .eq('user_id', profileId);
 
       if (error) throw error;
     },
     onSuccess: (_data, conversationId) => {
-      if (!profile?.id) return;
+      if (!profileId) return;
       let clearedCount = 0;
       const patch = (old: DMConversation[] | undefined) => {
         if (!old) return old;
@@ -228,9 +227,9 @@ export function useMarkConversationRead() {
           return c;
         });
       };
-      queryClient.setQueryData(['dm-conversations', profile.id], patch);
-      queryClient.setQueryData(['conversations', profile.id], patch);
-      queryClient.setQueryData<number>(['unread-messages-count', profile.id], (prev) =>
+      queryClient.setQueryData(['dm-conversations', profileId], patch);
+      queryClient.setQueryData(['conversations', profileId], patch);
+      queryClient.setQueryData<number>(['unread-messages-count', profileId], (prev) =>
         typeof prev === 'number' ? Math.max(0, prev - clearedCount) : 0,
       );
     },

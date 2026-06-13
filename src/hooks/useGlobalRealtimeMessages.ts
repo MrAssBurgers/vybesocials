@@ -12,6 +12,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { getEffectiveProfileId } from '@/lib/profileCache';
 import { callSounds } from '@/lib/callSounds';
 import { removeChannelByTopic, removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 
@@ -120,15 +121,15 @@ function patchUsersPresenceCache(
 
 export function useGlobalRealtimeMessages() {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profileId);
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const setupGenerationRef = useRef(0);
 
   const setupChannel = useCallback(async () => {
-    if (!profile?.id) return;
+    if (!profileId) return;
     const generation = ++setupGenerationRef.current;
-    const profileId = profile.id;
     const channelName = `global-messages:${profileId}`;
 
     removeRealtimeChannel(channelRef.current);
@@ -157,7 +158,7 @@ export function useGlobalRealtimeMessages() {
           try {
           const newMessage = payload.new as any;
           const conversationId = newMessage.conversation_id;
-          const isFromCurrentUser = newMessage.sender_id === profile.id;
+          const isFromCurrentUser = newMessage.sender_id === profileId;
           const isViewingConvo = currentConversationId === conversationId;
           
           // Deduplication check
@@ -187,8 +188,8 @@ export function useGlobalRealtimeMessages() {
           if (!isFromCurrentUser) {
             // Try to get sender from cached conversation members first
             let sender: any = null;
-            const cachedConvos = queryClient.getQueryData<any[]>(['dm-conversations', profile.id]) || 
-                                 queryClient.getQueryData<any[]>(['conversations', profile.id]);
+            const cachedConvos = queryClient.getQueryData<any[]>(['dm-conversations', profileId]) || 
+                                 queryClient.getQueryData<any[]>(['conversations', profileId]);
             
             if (cachedConvos) {
               const cachedConvo = cachedConvos.find(c => c.id === conversationId);
@@ -266,8 +267,8 @@ export function useGlobalRealtimeMessages() {
               return conv;
             }).sort((a, b) => {
               // Pinned first
-              const aIsPinned = a.members?.find((m: any) => m.user_id === profile.id)?.is_pinned;
-              const bIsPinned = b.members?.find((m: any) => m.user_id === profile.id)?.is_pinned;
+              const aIsPinned = a.members?.find((m: any) => m.user_id === profileId)?.is_pinned;
+              const bIsPinned = b.members?.find((m: any) => m.user_id === profileId)?.is_pinned;
               if (aIsPinned && !bIsPinned) return -1;
               if (!aIsPinned && bIsPinned) return 1;
               
@@ -283,15 +284,15 @@ export function useGlobalRealtimeMessages() {
           };
 
           // Update ALL conversation query caches
-          queryClient.setQueryData<any[]>(['conversations', profile.id], updateConversations);
-          queryClient.setQueryData<any[]>(['dm-conversations', profile.id], updateConversations);
+          queryClient.setQueryData<any[]>(['conversations', profileId], updateConversations);
+          queryClient.setQueryData<any[]>(['dm-conversations', profileId], updateConversations);
 
           // Only invalidate when the conversation is genuinely new to the cache.
           // The setQueryData patch above already handles known conversations
           // — invalidating in that case causes a full refetch and visible flicker.
-          const cached = queryClient.getQueryData<any[]>(['dm-conversations', profile.id]);
+          const cached = queryClient.getQueryData<any[]>(['dm-conversations', profileId]);
           if (cached && !cached.some(c => c.id === conversationId)) {
-            scheduleUnknownConvoRefetch(queryClient, profile.id);
+            scheduleUnknownConvoRefetch(queryClient, profileId);
           }
           } catch (err) {
             if (import.meta.env.DEV) console.warn('[GlobalRT] INSERT handler failed', err);
@@ -324,7 +325,7 @@ export function useGlobalRealtimeMessages() {
 
           // Also update conversation list to reflect unsent last message
           if (updatedMessage.is_deleted) {
-            scheduleUnknownConvoRefetch(queryClient, profile.id);
+            scheduleUnknownConvoRefetch(queryClient, profileId);
           }
         },
       },
@@ -344,13 +345,13 @@ export function useGlobalRealtimeMessages() {
           });
 
           // Update conversation list (debounced + scoped)
-          scheduleUnknownConvoRefetch(queryClient, profile.id);
+          scheduleUnknownConvoRefetch(queryClient, profileId);
         },
       },
     ], (status) => {
         if (import.meta.env.DEV) console.log('[GlobalRT] Subscription status:', status);
         if (status === 'SUBSCRIBED') {
-          if (import.meta.env.DEV) console.log('[GlobalRT] ✅ Global realtime connected for user:', profile.id);
+          if (import.meta.env.DEV) console.log('[GlobalRT] ✅ Global realtime connected for user:', profileId);
           retryCount = 0;
         }
         if (status === 'CHANNEL_ERROR') {
@@ -383,19 +384,19 @@ export function useGlobalRealtimeMessages() {
     }
 
     channelRef.current = channel;
-  }, [profile?.id, queryClient]);
+  }, [profileId, queryClient]);
 
   // Global presence channel — patches ['user-presence', id] and
   // ['users-presence', ...] caches as soon as anyone toggles online/offline,
   // so the DM list reflects status in near-realtime instead of waiting 20s.
   const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profileId) return;
     removeRealtimeChannel(presenceChannelRef.current);
     presenceChannelRef.current = null;
-    removeChannelByTopic(`global-presence:${profile.id}`);
+    removeChannelByTopic(`global-presence:${profileId}`);
 
-    const ch = subscribePostgresChannel(`global-presence:${profile.id}`, [
+    const ch = subscribePostgresChannel(`global-presence:${profileId}`, [
       {
         event: '*',
         table: 'user_presence',
@@ -422,7 +423,7 @@ export function useGlobalRealtimeMessages() {
         presenceChannelRef.current = null;
       } catch { /* never throw from cleanup */ }
     };
-  }, [profile?.id, queryClient]);
+  }, [profileId, queryClient]);
 
   // Broadcast listener for instant delivery on the currently viewed conversation
   const broadcastChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -433,7 +434,7 @@ export function useGlobalRealtimeMessages() {
   }, []);
 
   useEffect(() => {
-    if (!profile?.id || !activeConvoId) {
+    if (!profileId || !activeConvoId) {
       removeRealtimeChannel(broadcastChannelRef.current);
       broadcastChannelRef.current = null;
       return;
@@ -446,7 +447,7 @@ export function useGlobalRealtimeMessages() {
       .channel(`dm-broadcast:${convoId}`)
       .on('broadcast', { event: 'new-message' }, (payload: any) => {
         const msg = payload.payload?.message;
-        if (!msg || msg.sender_id === profile.id) return; // skip own messages
+        if (!msg || msg.sender_id === profileId) return; // skip own messages
         if (isMessageProcessed(msg.id)) return;
         markMessageProcessed(msg.id);
 
@@ -472,7 +473,7 @@ export function useGlobalRealtimeMessages() {
       } catch { /* noop */ }
       broadcastChannelRef.current = null;
     };
-  }, [profile?.id, queryClient, activeConvoId]);
+  }, [profileId, queryClient, activeConvoId]);
 
   useEffect(() => {
     setupChannel();
@@ -489,12 +490,12 @@ export function useGlobalRealtimeMessages() {
           removeRealtimeChannel(channelRef.current);
           channelRef.current = null;
         }
-        if (profile?.id) {
-          removeChannelByTopic(`global-messages:${profile.id}`);
+        if (profileId) {
+          removeChannelByTopic(`global-messages:${profileId}`);
         }
         removeRealtimeChannel(broadcastChannelRef.current);
         broadcastChannelRef.current = null;
       } catch { /* never throw from cleanup */ }
     };
-  }, [setupChannel, profile?.id]);
+  }, [setupChannel, profileId]);
 }

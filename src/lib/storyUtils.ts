@@ -275,3 +275,21 @@ export function getStoryPosterUrl(story: {
   if (story.media_type === 'image') return story.media_url;
   return null;
 }
+
+/** Scale poster tiles to home grid widget size (colSpan × rowSpan). */
+export function computeStoryPosterDimensions(
+  colSpan: 1 | 2 = 2,
+  rowSpan: 1 | 2 = 1,
+  containerWidth?: number,
+): { width: number; height: number; borderRadius: number } {
+  const aspect = 112 / 84;
+  let width = colSpan === 2 ? 92 : 76;
+  if (rowSpan === 2) width += 12;
+  if (containerWidth && colSpan === 2) {
+    const inner = Math.max(0, containerWidth - 32);
+    width = Math.min(108, Math.max(80, Math.round(inner / 3.8)));
+  }
+  const height = Math.round(width * aspect * (rowSpan === 2 ? 1.12 : 1));
+  const borderRadius = Math.max(14, Math.round(width * 0.2));
+  return { width, height, borderRadius };
+}

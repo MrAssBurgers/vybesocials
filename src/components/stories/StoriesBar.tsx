@@ -1,4 +1,4 @@
-import { useState, memo, useEffect } from 'react';
+import { useState, memo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
@@ -11,9 +11,18 @@ import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { StoryPoster } from './StoryPoster';
-import { getStoryPosterUrl } from '@/lib/storyUtils';
+import { computeStoryPosterDimensions, getStoryPosterUrl } from '@/lib/storyUtils';
+import { cn } from '@/lib/utils';
 
-export const StoriesBar = memo(function StoriesBar() {
+interface StoriesBarProps {
+  colSpan?: 1 | 2;
+  rowSpan?: 1 | 2;
+}
+
+export const StoriesBar = memo(function StoriesBar({
+  colSpan = 2,
+  rowSpan = 1,
+}: StoriesBarProps) {
   const { t } = useTranslation();
   const { profile } = useAuth();
   const { isGuest } = useIsGuest();
@@ -21,6 +30,25 @@ export const StoriesBar = memo(function StoriesBar() {
   const [selectedGroupIndex, setSelectedGroupIndex] = useState<number | null>(null);
   const [showCreator, setShowCreator] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [posterSize, setPosterSize] = useState(() =>
+    computeStoryPosterDimensions(colSpan, rowSpan),
+  );
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) {
+      setPosterSize(computeStoryPosterDimensions(colSpan, rowSpan));
+      return;
+    }
+    const update = () => {
+      setPosterSize(computeStoryPosterDimensions(colSpan, rowSpan, el.clientWidth));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [colSpan, rowSpan]);
 
   useEffect(() => {
     if (!storyGroups || storyGroups.length === 0) return;
@@ -41,10 +69,23 @@ export const StoriesBar = memo(function StoriesBar() {
     ? getStoryPosterUrl(ownStoryGroup.stories[0])
     : null;
 
+  const isTall = rowSpan === 2;
+  const avatarSize = Math.max(36, Math.round(posterSize.width * 0.42));
+
   return (
     <>
-      <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide" data-tutorial="stories">
+      <div
+        ref={containerRef}
+        className={cn(
+          'flex gap-3 px-3 py-3 overflow-x-auto scrollbar-hide w-full min-w-0',
+          colSpan === 2 ? 'justify-start' : 'justify-center',
+          isTall && 'items-stretch min-h-[220px]',
+        )}
+        data-tutorial="stories"
+      >
         <StoryTile
+          posterSize={posterSize}
+          avatarSize={avatarSize}
           posterUrl={ownPosterUrl}
           avatarUrl={isGuest ? undefined : ownStoryGroup?.user.avatar_url ?? profile?.avatar_url}
           username={isGuest ? 'Guest' : ownStoryGroup?.user.username ?? profile?.username}
@@ -76,6 +117,8 @@ export const StoriesBar = memo(function StoriesBar() {
           return (
             <StoryTile
               key={group.user.id}
+              posterSize={posterSize}
+              avatarSize={avatarSize}
               posterUrl={posterUrl}
               avatarUrl={group.user.avatar_url}
               username={group.user.username}
@@ -113,6 +156,8 @@ export const StoriesBar = memo(function StoriesBar() {
 });
 
 interface StoryTileProps {
+  posterSize: { width: number; height: number; borderRadius: number };
+  avatarSize: number;
   posterUrl?: string | null;
   avatarUrl?: string | null;
   username?: string;
@@ -127,6 +172,8 @@ interface StoryTileProps {
 }
 
 const StoryTile = memo(function StoryTile({
+  posterSize,
+  avatarSize,
   posterUrl,
   avatarUrl,
   username,
@@ -154,10 +201,14 @@ const StoryTile = memo(function StoryTile({
     <motion.button
       onClick={onClick}
       whileTap={{ scale: 0.94 }}
-      className="flex flex-col items-center gap-1.5 flex-shrink-0 transition-transform"
+      className="flex flex-col items-center gap-2 flex-shrink-0 transition-transform"
+      style={{ width: posterSize.width + 6 }}
     >
       <div className="relative">
         <StoryPoster
+          width={posterSize.width}
+          height={posterSize.height}
+          borderRadius={posterSize.borderRadius}
           hasUnviewed={!!hasUnviewed}
           hasStory={!!hasStory}
           isUploading={isUploading}
@@ -166,7 +217,10 @@ const StoryTile = memo(function StoryTile({
         >
           {!hasStory && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <Avatar className="h-10 w-10 border border-background/80">
+              <Avatar
+                className="border border-background/80"
+                style={{ width: avatarSize, height: avatarSize }}
+              >
                 <AvatarImage src={signedAvatarUrl || avatarUrl || undefined} className="object-cover" />
                 <AvatarFallback className="bg-muted text-muted-foreground text-sm">
                   {username?.charAt(0).toUpperCase()}
@@ -181,11 +235,14 @@ const StoryTile = memo(function StoryTile({
             onClick={handleAddClick}
             className="absolute -bottom-0.5 -right-0.5 z-20 bg-accent rounded-full p-[3px] border-2 border-background cursor-pointer active:scale-95 transition-transform shadow-[0_1px_4px_rgba(0,0,0,0.3)]"
           >
-            <Plus className="h-3 w-3 text-accent-foreground" strokeWidth={3} />
+            <Plus className="h-3.5 w-3.5 text-accent-foreground" strokeWidth={3} />
           </div>
         )}
       </div>
-      <span className="text-[11px] font-semibold text-foreground truncate w-[58px] text-center leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+      <span
+        className="text-[11px] font-semibold text-foreground truncate text-center leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
+        style={{ width: posterSize.width + 4 }}
+      >
         {isUploading ? 'Posting...' : label || displayName || username}
       </span>
     </motion.button>

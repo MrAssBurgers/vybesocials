@@ -190,6 +190,13 @@ function QuickAccessCard({ icon, label, path, gradient, iconColor, widgetId }: {
 
 /* ── Map widget IDs to actual components ── */
 function WidgetContent({ id, props }: { id: string; props: Props }) {
+  const { isEditing, localWidgets } = useEditMode();
+  const { config } = useGridLayout();
+  const widgets = isEditing ? localWidgets : config.widgets;
+  const widget = widgets.find((w) => w.id === id);
+  const colSpan = widget?.colSpan ?? 2;
+  const rowSpan = widget?.rowSpan ?? 1;
+
   switch (id) {
     case 'greeting':
       return <GreetingWidget />;
@@ -198,7 +205,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'ai_brief':
       return <DailyBriefWidget />;
     case 'stories':
-      return <StoriesBar />;
+      return <StoriesBar colSpan={colSpan} rowSpan={rowSpan} />;
     case 'weekly_rhythm':
       return <WeeklyRhythmBanner />;
     case 'vybe_dna':

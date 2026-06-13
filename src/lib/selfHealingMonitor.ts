@@ -66,18 +66,15 @@ export function trackError(message: string): void {
 }
 
 function notifyPatternDetected(record: ErrorRecord) {
-  const toastId = toast.loading("VYBE AI is fixing this…", {
-    description: 'Analyzing a repeated issue and applying the safest patch.',
-    duration: 8000,
-  });
+  // Silent recovery — no loading toast (users reported it as spam on Messages).
+  const toastId = null;
 
-  // Try built-in heuristic first (instant). Anything else → ask the AI agent.
   const heuristic = pickHeuristic(record.key);
   if (heuristic) {
-    executeFix(heuristic, record, toastId);
+    executeFix(heuristic, record, toastId, undefined, true);
     return;
   }
-  void requestAiFix(record, toastId);
+  // Skip client-side ai-auto-fix calls; heuristics only.
 }
 
 type FixAction = 'clear_cache' | 'refresh_auth' | 'refetch_queries' | 'prune_storage' | 'reload' | 'none';
@@ -121,8 +118,9 @@ async function requestAiFix(record: ErrorRecord, toastId: string | number) {
 function executeFix(
   action: FixAction,
   _record: ErrorRecord,
-  toastId: string | number,
+  toastId: string | number | null,
   fix?: { user_message: string; rationale: string; confidence: number },
+  silent = false,
 ) {
   const label = fix?.user_message || defaultLabelFor(action);
   const desc = fix?.rationale || defaultDescFor(action);
@@ -146,20 +144,24 @@ function executeFix(
       break;
     case 'none':
     default:
-      toast.dismiss(toastId);
-      toast.message('We noticed something off', { description: desc, duration: 5000 });
+      if (toastId != null) toast.dismiss(toastId);
+      if (!silent) {
+        toast.message('We noticed something off', { description: desc, duration: 5000 });
+      }
       return;
   }
 
-  toast.dismiss(toastId);
-  toast.success(label, {
-    description: desc,
-    duration: 5000,
-    action: action !== 'reload' ? {
-      label: 'Refresh',
-      onClick: () => { clearAppCache(); window.location.reload(); },
-    } : undefined,
-  });
+  if (toastId != null) toast.dismiss(toastId);
+  if (!silent) {
+    toast.success(label, {
+      description: desc,
+      duration: 5000,
+      action: action !== 'reload' ? {
+        label: 'Refresh',
+        onClick: () => { clearAppCache(); window.location.reload(); },
+      } : undefined,
+    });
+  }
 }
 
 function defaultLabelFor(action: FixAction): string {

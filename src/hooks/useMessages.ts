@@ -3,13 +3,11 @@ import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tansta
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { getEffectiveProfileId } from '@/lib/profileCache';
+import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
-// Push notifications for new messages are dispatched server-side by the
-// `on_message_insert_notify` trigger; no client-side helper needed here.
 import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
-import { getEffectiveProfileId } from '@/lib/profileCache';
-import { shouldRefetchWhenEmpty } from '@/lib/queryRefetchPolicy';
 
 export type ViewMode = 'view_once' | '24h' | 'permanent';
 
@@ -109,19 +107,20 @@ export function useUnreadMessagesCount() {
 
 export function useConversations() {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ['conversations', profile?.id],
+    queryKey: ['conversations', profileId],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       // Fetch hidden conversations and conversations in parallel
       // First get the conversation IDs the user is a member of
       const { data: membershipData, error: membershipError } = await supabase
         .from('conversation_members')
         .select('conversation_id')
-        .eq('user_id', profile.id);
+        .eq('user_id', profileId);
       
       if (membershipError) throw membershipError;
       if (!membershipData?.length) return [];
@@ -132,7 +131,7 @@ export function useConversations() {
         supabase
           .from('hidden_conversations')
           .select('conversation_id')
-          .eq('user_id', profile.id),
+          .eq('user_id', profileId),
         supabase
           .from('conversations')
           .select(`
@@ -178,7 +177,7 @@ export function useConversations() {
       // Check if any hidden conversations have new messages - unhide them
       const hiddenConvsWithNewMessages = conversationsResult.data.filter(c => {
         if (!hiddenIds.has(c.id)) return false;
-        const memberRecord = c.members?.find((m: any) => m.user_id === profile.id);
+        const memberRecord = c.members?.find((m: any) => m.user_id === profileId);
         const hiddenAt = hiddenResult.data?.find(h => h.conversation_id === c.id);
         // If there's a message after the conversation was hidden, show it
         const lastMsg = (allMessages || []).find(msg => msg.conversation_id === c.id);
@@ -186,7 +185,7 @@ export function useConversations() {
           // Note: We'd need hidden_at timestamp to properly check this
           // For now, we show if there's any unread message
           const lastReadAt = memberRecord?.last_read_at || '1970-01-01';
-          return lastMsg.sender_id !== profile.id && lastMsg.created_at > lastReadAt;
+          return lastMsg.sender_id !== profileId && lastMsg.created_at > lastReadAt;
         }
         return false;
       });
@@ -196,13 +195,13 @@ export function useConversations() {
 
       // Build final result with unread counts
       const result = finalConversations.map(conv => {
-        const memberRecord = conv.members?.find((m: any) => m.user_id === profile.id);
+        const memberRecord = conv.members?.find((m: any) => m.user_id === profileId);
         const lastReadAt = memberRecord?.last_read_at || '1970-01-01';
         
         // Count unread from cached messages
         const unreadCount = (allMessages || []).filter(
           msg => msg.conversation_id === conv.id && 
-                 msg.sender_id !== profile.id && 
+                 msg.sender_id !== profileId && 
                  msg.created_at > lastReadAt
         ).length;
 
@@ -226,11 +225,11 @@ export function useConversations() {
 
       return result as Conversation[];
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
     staleTime: 60000, // 1 minute cache
     gcTime: 1000 * 60 * 60 * 24, // 24h — keep conversations cached for offline
     refetchOnWindowFocus: true, // Refetch when user returns to app
-    refetchOnMount: false,
+    refetchOnMount: refetchListOnMount,
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
     networkMode: 'online',
