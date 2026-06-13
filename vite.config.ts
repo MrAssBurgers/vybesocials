@@ -53,6 +53,12 @@ export default defineConfig(({ mode }) => {
       port: 8080,
       strictPort: false,
       open: false,
+      proxy: {
+        "/ingest": {
+          target: "http://127.0.0.1:7261",
+          changeOrigin: true,
+        },
+      },
     },
     define: {
       'import.meta.env.VITE_SUPABASE_PROJECT_ID': JSON.stringify(projectId),

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { X, ChevronUp, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -9,21 +9,18 @@ interface GalleryDrawerProps {
   onClose: () => void;
   onSelect: (files: File[]) => void;
   multiple?: boolean;
+  /** Use when opened above fullscreen overlays (e.g. StoryCreator z-6000) */
+  layerZIndex?: number;
 }
 
-export function GalleryDrawer({ open, onClose, onSelect, multiple = false }: GalleryDrawerProps) {
+export function GalleryDrawer({ open, onClose, onSelect, multiple = false, layerZIndex = 210 }: GalleryDrawerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [recentPhotos, setRecentPhotos] = useState<string[]>([]);
   const y = useMotionValue(0);
   const opacity = useTransform(y, [0, 300], [1, 0]);
 
-  // Trigger file picker immediately on open
-  useEffect(() => {
-    if (open) {
-      // Small delay so the drawer animation starts first
-      setTimeout(() => fileInputRef.current?.click(), 200);
-    }
-  }, [open]);
+  // Do NOT auto-click the file input on open — delayed programmatic clicks
+  // break iOS/Despia user-gesture rules. User taps "Choose from Gallery" instead.
 
   const handleDragEnd = useCallback((_: any, info: PanInfo) => {
     if (info.velocity.y > 300 || info.offset.y > 150) {
@@ -61,7 +58,8 @@ export function GalleryDrawer({ open, onClose, onSelect, multiple = false }: Gal
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className="fixed inset-0 z-[210] bg-black/60"
+              className="fixed inset-0 bg-black/60"
+              style={{ zIndex: layerZIndex }}
             />
             {/* Drawer */}
             <motion.div
@@ -73,8 +71,8 @@ export function GalleryDrawer({ open, onClose, onSelect, multiple = false }: Gal
               dragConstraints={{ top: 0 }}
               dragElastic={0.3}
               onDragEnd={handleDragEnd}
-              style={{ y, opacity }}
-              className="fixed bottom-0 left-0 right-0 z-[211] rounded-t-3xl overflow-hidden"
+              style={{ y, opacity, zIndex: layerZIndex + 1 }}
+              className="fixed bottom-0 left-0 right-0 rounded-t-3xl overflow-hidden"
               
             >
               <div className="bg-card border-t border-border rounded-t-3xl">

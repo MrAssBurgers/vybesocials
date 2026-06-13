@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
-const PROD_REF = 'agtcyxjxgkdyoxwxkjth';
+const PROD_REF = 'hprmicwhlaaqfgshucec';
 const PROD_URL = `https://${PROD_REF}.supabase.co`;
 
 function run(cmd, args, opts = {}) {
@@ -105,12 +105,15 @@ async function main() {
   section('Production — sample edge functions (anon POST)');
   const samples = [
     'livekit-token',
-    'generate-advanced-theme',
-    'ai-catch-up',
     'share-preview',
-    'auth-2fa-preauth',
-    'community-voice-token',
     'giphy-search',
+    'ai-catch-up',
+    'community-voice-token',
+    'send-push-notification',
+    'link-onesignal-user',
+    'spaces-token',
+    'generate-advanced-theme',
+    'auth-2fa-preauth',
   ];
   for (const fn of samples) {
     const { status } = await probe(`${PROD_URL}/functions/v1/${fn}`, {
@@ -131,8 +134,8 @@ async function main() {
 
   section('Reminders');
   console.log('- Web deploy: Lovable → Share → Publish (vybehub.app)');
-  console.log('- Supabase prod ref: agtcyxjxgkdyoxwxkjth (NOT hprmicwhlaaqfgshucec)');
-  console.log('- Pending SQL: supabase/manual/PENDING_20260530.sql if RPCs missing');
+  console.log('- Supabase prod ref: hprmicwhlaaqfgshucec (vybehub.app — see DEPLOY.md)');
+  console.log('- Legacy ref agtcyxjxgkdyoxwxkjth — do not deploy there unless migrating back');
   console.log('- Edge functions: Lovable Backend deploy or supabase functions deploy');
 }
 

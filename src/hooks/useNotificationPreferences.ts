@@ -11,6 +11,11 @@ export interface NotificationPreferences {
   follows_enabled: boolean;
   mentions_enabled: boolean;
   dms_enabled: boolean;
+  calls_enabled: boolean;
+  friend_requests_enabled: boolean;
+  streaks_enabled: boolean;
+  stories_enabled: boolean;
+  show_message_preview: boolean;
   marketplace_enabled: boolean;
   events_enabled: boolean;
   system_enabled: boolean;
@@ -33,6 +38,11 @@ const DEFAULTS = (userId: string): NotificationPreferences => ({
   follows_enabled: true,
   mentions_enabled: true,
   dms_enabled: true,
+  calls_enabled: true,
+  friend_requests_enabled: true,
+  streaks_enabled: true,
+  stories_enabled: true,
+  show_message_preview: true,
   marketplace_enabled: true,
   events_enabled: true,
   system_enabled: true,

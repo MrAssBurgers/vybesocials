@@ -24,6 +24,7 @@ import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
 import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
+import { AgentActionBusProvider } from "@/lib/agent/actionBus/AgentActionBusProvider";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import { useContrastAutoGuard } from "@/hooks/useContrastAutoGuard";
 import { isNativePerfMode } from "@/lib/nativePerfMode";
@@ -105,6 +106,7 @@ const NotificationActionRouter = lazy(() => import("@/components/notifications/N
 const EnablePushPrompt = lazy(() => import("@/components/notifications/EnablePushPrompt").then(m => ({ default: m.EnablePushPrompt })));
 const SmartPingBridge = lazy(() => import("@/components/notifications/SmartPingBridge").then(m => ({ default: m.SmartPingBridge })));
 const TabNotificationBadge = lazy(() => import("@/components/notifications/TabNotificationBadge").then(m => ({ default: m.TabNotificationBadge })));
+const AppIconBadgeMount = lazy(() => import("@/components/notifications/AppIconBadgeMount").then(m => ({ default: m.AppIconBadgeMount })));
 const TutorialProvider = lazy(() => import("@/components/tutorial/TutorialProvider").then(m => ({ default: m.TutorialProvider })));
 const WarningPopup = lazy(() => import("@/components/moderation/WarningPopup").then(m => ({ default: m.WarningPopup })));
 const InvitePopup = lazy(() => import("@/components/invite/InvitePopup").then(m => ({ default: m.InvitePopup })));
@@ -414,6 +416,7 @@ function AppWithPreloader() {
                         <Toaster />
                         <Sonner />
                         <BrowserRouter>
+                        <AgentActionBusProvider>
                         <LocationProvider>
                           <AppGlobalLiquidShell />
                           {!isLovablePreviewHost() && <VybeLiquidTouchShell />}
@@ -441,6 +444,7 @@ function AppWithPreloader() {
                                         <EnablePushPrompt />
                                         <SmartPingBridge />
                                         <TabNotificationBadge />
+                                        <AppIconBadgeMount />
                                         <GlobalCallOverlay />
                                         <NativeIncomingCallBridge />
                                         <WarningPopup />
@@ -464,6 +468,7 @@ function AppWithPreloader() {
                           {/* Touch ripple removed */}
                           </div>
                         </LocationProvider>
+                        </AgentActionBusProvider>
                         </BrowserRouter>
                       </TooltipProvider>
                     </StreakProvider>

@@ -6,7 +6,6 @@ import {
   Download, 
   Check, 
   Send,
-  PenLine
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -222,10 +221,7 @@ export const ShareSheet = memo(function ShareSheet({
     }
   }, [shareUrl, caption, handleCopyLink, onClose]);
 
-  // Share to story
-  const handleShareToStory = useCallback(() => {
-    toast.info('Coming soon!');
-  }, []);
+  // Share to story — hidden until repost-to-story ships
 
   // Download
   const handleDownload = useCallback(async () => {
@@ -333,12 +329,6 @@ export const ShareSheet = memo(function ShareSheet({
             {/* Actions row */}
             <div className="px-5 py-5">
               <div className="flex justify-around gap-2">
-                <ActionButton
-                  icon={PenLine}
-                  label="Story"
-                  onClick={handleShareToStory}
-                  delay={0}
-                />
                 <ActionButton
                   icon={linkCopied ? Check : Link2}
                   label={linkCopied ? "Copied" : "Link"}

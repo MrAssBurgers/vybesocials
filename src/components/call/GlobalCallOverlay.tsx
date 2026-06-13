@@ -32,6 +32,7 @@ import { useCallStore, CallData, CallMode } from '@/lib/callStore';
 import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeLiveKitCallToken } from '@/lib/livekitCallToken';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
@@ -600,14 +601,11 @@ export function GlobalCallOverlay() {
         } else {
           // Fetch token if not present (e.g. remote-initiated switch)
           try {
-            const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
-              body: {
-                conversationId: state.call!.conversationId,
-                callType: state.call!.callType,
-                callId: state.call!.id,
-              },
+            const tokenData = await invokeLiveKitCallToken({
+              conversationId: state.call!.conversationId,
+              callType: state.call!.callType,
+              callId: state.call!.id,
             });
-            if (tokenError || !tokenData?.token) throw new Error('Failed to get token');
             
             const updatedCall = {
               ...state.call!,

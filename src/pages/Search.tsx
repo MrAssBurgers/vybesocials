@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, Users, Hash, Newspaper, Music, X, TrendingUp, Sparkles, Contact } from 'lucide-react';
+import { Search as SearchIcon, Users, Hash, Newspaper, X, TrendingUp, Sparkles, Contact } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -18,13 +18,12 @@ import { Button } from '@/components/ui/button';
 
 const ContactDiscovery = lazy(() => import('@/components/onboarding/ContactDiscovery').then(m => ({ default: m.ContactDiscovery })));
 
-type SearchTab = 'people' | 'posts' | 'hashtags' | 'sounds';
+type SearchTab = 'people' | 'posts' | 'hashtags';
 
 const TABS: { id: SearchTab; label: string; icon: React.ElementType }[] = [
   { id: 'people', label: 'People', icon: Users },
   { id: 'posts', label: 'Posts', icon: Newspaper },
   { id: 'hashtags', label: 'Hashtags', icon: Hash },
-  { id: 'sounds', label: 'Sounds', icon: Music },
 ];
 
 function useSearchPeople(query: string) {
@@ -299,15 +298,6 @@ export default function SearchPage() {
                 </div>
               )}
 
-              {activeTab === 'sounds' && (
-                <div className="py-12 text-center">
-                  <div className="relative inline-block mb-3">
-                    <div className="absolute -inset-4 rounded-full bg-purple-500/5 animate-pulse" />
-                    <Music className="h-10 w-10 text-muted-foreground/50 relative z-10" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">Sound search coming soon</p>
-                </div>
-              )}
             </motion.div>
           )}
         </AnimatePresence>

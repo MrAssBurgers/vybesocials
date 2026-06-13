@@ -4,13 +4,85 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (full scan + edge deploy — 2026-06-13)
+- **`npm run debug`:** build/lint/CSS PASS; RPCs OK on hprmic; all client edge refs exist locally
+- **Deployed edge on `hprmicwhlaaqfgshucec`:** `giphy-search`, `ai-catch-up`, `community-voice-token` (GIF picker, AI brief, community voice)
+- **Prior same session:** `livekit-token`, `share-preview` deployed
+- **DB verified:** `notification_preferences` Snapchat columns present on prod
+- **Debug scan:** expanded edge probe list (push, OneSignal link, spaces-token)
+- **Still needs Lovable Publish:** all uncommitted client changes (see git status)
+
 ## Current Focus
-- **Push triggers fixed** on `hprmicwhlaaqfgshucec` — DB now calls correct URL + vault service role; edge auth accepts JWT; **device must re-link OneSignal**
+- **You:** Deploy `vybe-agent` edge fn + Lovable Publish (unified AI agent Phase 1)
+
+## What Changed (VYBE AI agent Phase 1 — 2026-06-13)
+- **`supabase/functions/vybe-agent`** — merged chat + commander + `navigate` tool
+- **`supabase/functions/_shared/agentToolSchema.ts`** — canonical OpenAI tool JSON (`vybe_agent_act`)
+- **`src/lib/agent/`** — zod schema, risk tiers, **AgentActionBus** + handler registry
+- **`AgentActionBusProvider`** in `App.tsx`; handlers: navigate, theme, widgets
+- **`AIChat.tsx`** — text → vybe-agent → bus; images → `ai-chat` stream
+- **`VYBECommandBar`** — FAB → `/VYBE-AI`
+- **Docs:** `src/lib/agent/README.md`
+- **Verify:** `npm run build` PASS
+
+## Current Focus (prior)
+- **You:** Lovable → Share → Publish (calls, share links, story bake, UI cleanup)
 
 ## Next 3 Tasks
-1. On phone: Settings → Notifications → toggle push **off then on** → Allow when prompted → tap **Send me a test push**
-2. Confirm `push_tokens` row appears for your profile (`53e0076d-5163-46f5-b711-a58a03393744`)
-3. Commit + push migration `20260613130000` + edge function auth fix when ready
+1. Lovable Publish → smoke test 1:1/group call (livekit-token now deployed on hprmic)
+2. Share a post → link opens vybehub.app / OG preview works
+3. Story camera text + gallery pick end-to-end
+
+## What Changed (prod fixes + UX — 2026-06-13)
+- **Deployed edge on `hprmicwhlaaqfgshucec`:** `livekit-token`, `share-preview` (calls + share OG previews unblocked)
+- **`src/lib/livekitCallToken.ts`** — centralized call token invoke + clear deploy error
+- **`callStore.tsx` / `GlobalCallOverlay.tsx`** — use `invokeLiveKitCallToken`
+- **`shareLinks.ts`** — share-preview when project ref set; vybehub.app fallback
+- **UI cleanup:** removed fake Lenses button (`Camera.tsx`), Share-to-story stub (`ShareSheet.tsx`), Sounds search tab stub (`Search.tsx`)
+- **Ops:** `AGENTS.md`, `scripts/debug-scan.mjs`, `supabase/config.toml`, `.env.example` → canonical prod ref `hprmicwhlaaqfgshucec`
+- **Verify:** `npm run build` PASS
+
+## What Changed (story creator fix — 2026-06-13)
+- **`src/lib/bakeCameraEdits.ts`** — bakes CameraEditor text, stickers, image overlays, and draw paths onto photos (no filter re-apply); video best-effort via `flattenVideo`
+- **`Camera.tsx`** — `onSave` async bakes edits before `onCapture` / share; loading state on Continue; revokes stale blob URLs
+- **`CameraEditor.tsx`** — passes editor display size for object-contain coord mapping; disabled Continue while saving
+- **`StoryCreator.tsx`** — validating spinner on select screen; file input reset in `finally` (incl. early returns)
+- **Verify:** `npm run build` PASS
+
+## What Changed (Snapchat deploy — 2026-06-13 live)
+- **Applied on `hprmicwhlaaqfgshucec`:** prefs columns, quiet hours, `should_send_push`, Snapchat DM/social/call triggers, story like/view triggers, push_tokens RLS, stories bucket MIME
+- **Deployed edge:** `send-push-notification` @ hprmicwhlaaqfgshucec
+- **Optional:** OneSignal dashboard DM/Social Android channel IDs → edge secrets
+
+## What Changed (Snapchat-style notifications — 2026-06-13 code)
+- **DB** `20260613160000_snapchat_style_notifications.sql` — prefs (`show_message_preview`, `calls_enabled`, etc.), `is_in_quiet_hours` / `should_send_push`, Snapchat DM/social/call triggers, story like/view notifications, `fire_push_notification` `p_data`
+- **Edge** `send-push-notification` — OneSignal thread/grouping, sender avatar, DM/social channel IDs
+- **SW** `public/sw.js` — Snapchat-style DM/social/story display + collapse tags
+- **Client** — `useAppIconBadge`, `appIconBadge.ts`, settings toggles, `AppIconBadgeMount` in `App.tsx`
+- **Verify:** `npm run build` PASS
+
+## Current Focus (prior)
+- **You:** Lovable → Share → Publish (login instant-load fix + prior push/story commits)
+
+## Next 3 Tasks
+1. Lovable Publish → log in fresh: feed/DMs/notifications should load immediately (no app-switch needed)
+2. Android: post story + push toggle test
+3. Confirm `push_tokens` row after push re-enable
+
+## What Changed (login instant load — 2026-06-13)
+- **`src/lib/auth.tsx`** — `bootstrapSessionData()` on sign-in: resolve profile id → warm home caches → refetch active queries (same repaint path as app resume/focus)
+- Clears `resolveSessionProfileId` memo on sign-out / user change
+- **Verify:** `npm run build` PASS
+
+## What Changed (publish prep — 2026-06-13 Android)
+- **`b2b93cc8`** — story upload: contentType, Android MIME inference, gallery `capture` removed, bucket 3gp/heic, story RLS
+- **`af7465d5`** — Android push: linkOneSignalUser import fix, platform settings copy, longer Despia waits
+- **`92510eed`** — push linking edge fn + push_tokens RLS
+- **Already live on Supabase:** push triggers, story bucket MIME, story RLS migrations
+- **Verify:** `npm run build` PASS
+
+## Current Focus (prior)
+- **You:** Lovable → Share → Publish (git pushed @ `fcbb04bb`)
 
 ## What Changed (push trigger fix — 2026-06-13)
 - **DB migration** `20260613130000_fix_push_trigger_supabase_url.sql` — `get_supabase_project_url()`, `get_push_service_role_key()`, fixed `fire_push_notification`, `notify_push_on_notification`, `notify_message_recipients`, `notify_push_on_call` (was `agtcyxjxgkdyoxwxkjth`)

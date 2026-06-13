@@ -1,3 +1,7 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "onesignal": {
+      "url": "https://server.smithery.ai/onesignal/onesignal"
+    }
+  }
 }

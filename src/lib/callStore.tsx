@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
 import { useSyncCustomSounds } from '@/hooks/useCustomSounds';
 import { warmCallMedia, clearWarmCallMedia } from '@/lib/callMediaWarmup';
+import { invokeLiveKitCallToken } from '@/lib/livekitCallToken';
 import { dismissNativeIncomingCall, presentNativeIncomingCall } from '@/lib/nativeIncomingCall';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
@@ -468,16 +469,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         let livekitUrl = '';
         let resolvedRoom = callRow.room_name || snap.roomName;
         if (mode === 'persistent') {
-          const { data: tokenData, error: tokenErr } = await supabase.functions.invoke('livekit-token', {
-            body: {
-              conversationId: snap.conversationId,
-              callType: snap.callType,
-              callId: snap.callId,
-            },
+          const tokenData = await invokeLiveKitCallToken({
+            conversationId: snap.conversationId,
+            callType: snap.callType,
+            callId: snap.callId,
           });
-          if (tokenErr || !tokenData?.token) {
-            throw new Error(tokenErr?.message || 'Failed to fetch token');
-          }
           token = tokenData.token;
           livekitUrl = tokenData.url;
           resolvedRoom = tokenData.roomName || resolvedRoom;
@@ -659,17 +655,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
       if (initialMode === 'persistent') {
         setState((prev) => ({ ...prev, connectStage: 'fetching-token' }));
-        const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
-          body: {
-            conversationId: params.conversationId,
-            callType: params.callType,
-            callId: callSession.id,
-          },
+        const tokenData = await invokeLiveKitCallToken({
+          conversationId: params.conversationId,
+          callType: params.callType,
+          callId: callSession.id,
         });
-
-        if (tokenError || !tokenData?.token) {
-          throw new Error(tokenError?.message || tokenData?.error || 'Failed to start group call');
-        }
         livekitUrl = tokenData.url;
         token = tokenData.token;
         resolvedRoomName = tokenData.roomName || roomName;
@@ -797,17 +787,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         if (s) setState((prev) => (prev.phase === 'joining' ? { ...prev, connectStage: 'fetching-token' } : prev));
       });
       try {
-        const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
-          body: {
-            conversationId: call.conversationId,
-            callType: call.callType,
-            callId: call.id,
-          },
+        const tokenData = await invokeLiveKitCallToken({
+          conversationId: call.conversationId,
+          callType: call.callType,
+          callId: call.id,
         });
-
-        if (tokenError || !tokenData?.token) {
-          throw new Error(tokenError?.message || tokenData?.error || 'Failed to get token');
-        }
 
         setState(prev => prev.call?.id === call.id
           ? { ...prev, call: { ...prev.call, token: tokenData.token, livekitUrl: tokenData.url, roomName: tokenData.roomName }, connectStage: 'connecting-media' }
@@ -877,17 +861,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     setLingeringCall(null);
 
     try {
-      const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
-        body: {
-          conversationId: lingeringCall.conversationId,
-          callType: lingeringCall.callType,
-          callId: lingeringCall.id,
-        },
+      const tokenData = await invokeLiveKitCallToken({
+        conversationId: lingeringCall.conversationId,
+        callType: lingeringCall.callType,
+        callId: lingeringCall.id,
       });
-
-      if (tokenError || !tokenData?.token) {
-        throw new Error(tokenError?.message || tokenData?.error || 'Failed to rejoin');
-      }
 
       const callData: CallData = {
         ...lingeringCall,
@@ -925,17 +903,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     // If switching to persistent, get LiveKit token
     if (mode === 'persistent') {
       try {
-        const { data: tokenData, error: tokenError } = await supabase.functions.invoke('livekit-token', {
-          body: {
-            conversationId: currentCall.conversationId,
-            callType: currentCall.callType,
-            callId: currentCall.id,
-          },
+        const tokenData = await invokeLiveKitCallToken({
+          conversationId: currentCall.conversationId,
+          callType: currentCall.callType,
+          callId: currentCall.id,
         });
-
-        if (tokenError || !tokenData?.token) {
-          throw new Error(tokenError?.message || tokenData?.error || 'Failed to get LiveKit token');
-        }
 
         setState(prev => ({
           ...prev,

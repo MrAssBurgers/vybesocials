@@ -1,4 +1,4 @@
-project_id = "agtcyxjxgkdyoxwxkjth"
+project_id = "hprmicwhlaaqfgshucec"
 
 [functions]
   [functions.admin-ai-builder]
@@ -104,6 +104,8 @@ project_id = "agtcyxjxgkdyoxwxkjth"
   [functions.validate-stripe-config]
     verify_jwt = false
   [functions.vybe-commander]
+    verify_jwt = false
+  [functions.vybe-agent]
     verify_jwt = false
   [functions.send-transactional-email]
     verify_jwt = true

@@ -1,18 +1,29 @@
 /**
- * Build shareable, crawler-friendly URLs that render link previews
- * (OG/Twitter cards) for any client (iMessage, Slack, Discord, X,
- * LinkedIn, WhatsApp). Humans get instantly redirected to the in-app route.
+ * Shareable URLs for posts and profiles.
  *
- * Routes through the public `share-preview` edge function because Vite SPAs
- * cannot serve per-page OG meta to non-JS crawlers.
+ * Prefers share-preview edge (OG cards for iMessage/Slack) when project ref is set.
+ * Falls back to vybehub.app deep links if env is missing.
  */
-const PROJECT_REF = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-const BASE = `https://${PROJECT_REF}.supabase.co/functions/v1/share-preview`;
+const APP_ORIGIN = 'https://vybehub.app';
+const PROJECT_REF = import.meta.env.VITE_SUPABASE_PROJECT_ID as string | undefined;
+
+function sharePreviewBase(): string | null {
+  if (!PROJECT_REF) return null;
+  return `https://${PROJECT_REF}.supabase.co/functions/v1/share-preview`;
+}
 
 export function buildPostShareUrl(postId: string): string {
-  return `${BASE}?type=post&id=${encodeURIComponent(postId)}`;
+  const preview = sharePreviewBase();
+  if (preview) {
+    return `${preview}?type=post&id=${encodeURIComponent(postId)}`;
+  }
+  return `${APP_ORIGIN}/p/${encodeURIComponent(postId)}`;
 }
 
 export function buildProfileShareUrl(username: string): string {
-  return `${BASE}?type=profile&username=${encodeURIComponent(username)}`;
+  const preview = sharePreviewBase();
+  if (preview) {
+    return `${preview}?type=profile&username=${encodeURIComponent(username)}`;
+  }
+  return `${APP_ORIGIN}/u/${encodeURIComponent(username)}`;
 }

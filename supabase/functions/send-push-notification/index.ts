@@ -244,12 +244,27 @@ Deno.serve(async (req) => {
         if (subscriptionIds.length === 0) {
           subscriptionIds = subscriptionIdsFromPushTokens(tokenRows as Array<{ token: string }> | null);
         }
-        const imageUrl = typeof data?.image_url === "string" ? data.image_url : undefined;
+        const isDm = type === "dm" || type === "group_message";
+        const senderAvatar =
+          typeof data?.senderAvatar === "string"
+            ? data.senderAvatar
+            : typeof data?.image_url === "string"
+              ? data.image_url
+              : undefined;
+        const imageUrl = senderAvatar;
+        const conversationId =
+          typeof data?.conversationId === "string" ? data.conversationId : undefined;
+        const unreadCount =
+          typeof data?.unreadCount === "number" ? data.unreadCount : 0;
+        const dmChannelId = Deno.env.get("ONESIGNAL_DM_CHANNEL_ID");
+        const socialChannelId = Deno.env.get("ONESIGNAL_SOCIAL_CHANNEL_ID");
         const notificationBase = {
           app_id: onesignalAppId,
           target_channel: "push",
           headings: { en: title },
           contents: { en: body },
+          subtitle: isDm && typeof data?.preview === "string" ? { en: data.preview as string } : undefined,
+          large_icon: imageUrl,
           big_picture: imageUrl,
           ios_attachments: imageUrl ? { id1: imageUrl } : undefined,
           chrome_web_image: imageUrl,
@@ -264,10 +279,21 @@ Deno.serve(async (req) => {
           priority: 10,
           ttl: isCall ? 45 : 86400,
           collapse_id: tag || undefined,
+          thread_id: isDm && conversationId ? conversationId : undefined,
+          android_group: isDm ? "vybe_chats" : undefined,
+          summary_arg: isDm && unreadCount > 1 && typeof data?.senderName === "string"
+            ? (data.senderName as string)
+            : undefined,
+          summary_arg_count: isDm && unreadCount > 1 ? unreadCount : undefined,
         };
         const callChannelId = Deno.env.get("ONESIGNAL_CALL_CHANNEL_ID");
+        const channelExtras = isCall
+          ? { ...(callChannelId ? { android_channel_id: callChannelId } : {}) }
+          : isDm
+            ? { ...(dmChannelId ? { android_channel_id: dmChannelId } : {}) }
+            : { ...(socialChannelId ? { android_channel_id: socialChannelId } : {}) };
         const callExtras = {
-          ...(callChannelId ? { android_channel_id: callChannelId } : {}),
+          ...channelExtras,
           ...(isCall ? {
             buttons: [
               { id: "accept", text: "Answer", icon: "ic_menu_call" },
@@ -357,15 +383,19 @@ Deno.serve(async (req) => {
 
     // Build push payload
     const dataAny = mergedData as Record<string, unknown>;
+    const avatarIcon =
+      (dataAny.senderAvatar as string | undefined) ||
+      (dataAny.image_url as string | undefined);
     const pushPayload = JSON.stringify({
       title,
       body,
       url: routePath,
       tag: tag || "vybe-notification",
       type: type || "general",
-      icon: "/icons/icon-192x192.png",
+      icon: avatarIcon || "/icons/icon-192x192.png",
       badge: "/icons/icon-96x96.png",
-      image: (dataAny.image_url as string | undefined) || undefined,
+      image: avatarIcon,
+      preview: (dataAny.preview as string | undefined) || body,
       ...dataAny,
     });
 

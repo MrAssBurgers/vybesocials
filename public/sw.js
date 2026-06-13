@@ -262,8 +262,8 @@ self.addEventListener('push', (event) => {
   // Determine notification type and customize
   const notificationType = data.type || 'general';
   let title = data.title || 'VYBE';
-  let body = data.body || 'You have a new notification';
-  let icon = data.icon || APP_ICON;
+  let body = data.body || data.preview || 'You have a new notification';
+  let icon = data.senderAvatar || data.icon || APP_ICON;
   let badge = BADGE_ICON;
   let tag = data.tag || `vybe-${notificationType}-${Date.now()}`;
   let actions = [];
@@ -276,14 +276,13 @@ self.addEventListener('push', (event) => {
   switch (notificationType) {
     case 'call':
     case 'incoming_call':
-      // Incoming call - high priority
-      title = `📞 ${data.callerName || 'Someone'} is calling`;
-      body = data.callType === 'video' ? 'Video call' : 'Audio call';
+      title = data.callerName || data.title || 'Someone';
+      body = data.body || (data.callType === 'video' ? 'Video call' : 'Audio call');
+      icon = data.senderAvatar || data.image_url || APP_ICON;
       tag = `vybe-call-${data.callId || Date.now()}`;
       requireInteraction = true;
       vibrate = isIOS() ? [] : [300, 100, 300, 100, 300, 100, 300];
       
-      // Action buttons (not supported on iOS Safari)
       if (!isIOS()) {
         actions = [
           { action: 'accept', title: '✓ Answer', icon: APP_ICON },
@@ -294,9 +293,9 @@ self.addEventListener('push', (event) => {
       
     case 'message':
     case 'dm':
-      // Direct message
-      title = data.senderName || 'New message';
-      body = data.preview || data.body || 'Sent you a message';
+      title = data.senderName || data.title || 'New message';
+      body = data.preview || data.body || 'New Chat';
+      icon = data.senderAvatar || data.image_url || APP_ICON;
       tag = `vybe-dm-${data.conversationId || Date.now()}`;
       vibrate = isIOS() ? [] : [100, 50, 100];
       
@@ -309,17 +308,36 @@ self.addEventListener('push', (event) => {
       break;
       
     case 'group_message':
-      // Group chat message
-      title = data.groupName || 'Group message';
-      body = data.senderName ? `${data.senderName}: ${data.preview || 'New message'}` : (data.preview || 'New message');
-      tag = `vybe-group-${data.conversationId || Date.now()}`;
+      title = data.groupName || data.title || 'Group message';
+      body = data.senderName
+        ? `${data.senderName}: ${data.preview || data.body || 'New message'}`
+        : (data.preview || data.body || 'New message');
+      icon = data.senderAvatar || data.image_url || APP_ICON;
+      tag = `vybe-dm-${data.conversationId || Date.now()}`;
       vibrate = isIOS() ? [] : [100, 30, 100];
+      break;
+
+    case 'story_like':
+      title = data.senderName || data.actorName || data.title || 'Someone';
+      body = data.body || 'liked your story';
+      icon = data.senderAvatar || data.image_url || APP_ICON;
+      tag = `vybe-story-like-${data.actorId || Date.now()}`;
+      vibrate = isIOS() ? [] : [80, 40, 80];
+      break;
+
+    case 'story_view':
+      title = data.senderName || data.actorName || data.title || 'Someone';
+      body = data.body || 'viewed your story';
+      icon = data.senderAvatar || data.image_url || APP_ICON;
+      tag = `vybe-story-view-${data.actorId || Date.now()}`;
+      vibrate = isIOS() ? [] : [60, 30, 60];
       break;
       
     case 'friend_request':
-      title = '👋 New friend request';
-      body = `${data.senderName || 'Someone'} wants to be your friend`;
-      tag = 'vybe-friend-request';
+      title = data.senderName || data.actorName || data.title || 'Someone';
+      body = data.body || 'added you';
+      icon = data.senderAvatar || data.image_url || APP_ICON;
+      tag = `vybe-friend-${data.actorId || 'request'}`;
       vibrate = isIOS() ? [] : [100, 50, 100, 50, 100];
       
       if (!isIOS()) {
@@ -331,22 +349,25 @@ self.addEventListener('push', (event) => {
       break;
       
     case 'friend_accepted':
-      title = '🎉 Friend request accepted';
-      body = `${data.senderName || 'Someone'} accepted your request!`;
-      tag = 'vybe-friend-accepted';
+      title = data.senderName || data.actorName || data.title || 'Someone';
+      body = data.body || 'accepted your friend request';
+      icon = data.senderAvatar || data.image_url || APP_ICON;
+      tag = `vybe-friend-${data.actorId || 'accepted'}`;
       vibrate = isIOS() ? [] : [100, 100, 100, 100, 200];
       break;
       
     case 'like':
-      title = '❤️ New like';
-      body = `${data.senderName || 'Someone'} liked your post`;
+      title = data.senderName || data.actorName || data.title || 'Someone';
+      body = data.body || 'is feeling your post';
+      icon = data.senderAvatar || data.image_url || APP_ICON;
       tag = `vybe-like-${data.postId || Date.now()}`;
       vibrate = isIOS() ? [] : [50, 50];
       break;
       
     case 'comment':
-      title = '💬 New comment';
-      body = data.preview || `${data.senderName || 'Someone'} commented on your post`;
+      title = data.senderName || data.actorName || data.title || 'Someone';
+      body = data.preview || data.body || 'commented on your post';
+      icon = data.senderAvatar || data.image_url || APP_ICON;
       tag = `vybe-comment-${data.postId || Date.now()}`;
       vibrate = isIOS() ? [] : [100, 50, 100];
       break;

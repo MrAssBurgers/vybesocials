@@ -21,6 +21,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 import { fetchWithTimeout } from '@/lib/withTimeout';
+import { useVybeAgent, isAgentUnavailableError, isAgentAuthError } from '@/lib/agent/useVybeAgent';
+import { formatAgentActionSummary } from '@/lib/agent/formatActionSummary';
+import { agentDebugLog } from '@/lib/agent/agentDebugLog';
 import { cn } from '@/lib/utils';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import ReactMarkdown from 'react-markdown';
@@ -54,12 +57,12 @@ function loadSetting(key: string, fallback: string) {
 
 const QUICK_PROMPTS = [
   '✍️ Humanize my essay',
-  '💡 Give me a content idea',
+  '📬 Open my messages',
+  '🌙 Make my app dark and moody',
   '📝 Help me write a caption',
+  '🏠 Hide the stories widget',
   '🎯 How to grow my audience?',
   '🧬 What does my DNA say?',
-  '📍 What\'s near me right now?',
-  '💻 Help me code something',
 ];
 
 // Resize image to max dimension and return base64
@@ -94,6 +97,7 @@ async function imageToBase64(file: File, maxSize = 1024): Promise<{ base64: stri
 
 export default function AIChat() {
   const navigate = useNavigate();
+  const { sendAndExecute } = useVybeAgent();
   const streamingContentRef = useRef('');
   
   const [aiName, setAiName] = useState(() => loadSetting(AI_NAME_KEY, 'VYBE-AI'));
@@ -103,7 +107,7 @@ export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>(() => {
     const loaded = loadMessages();
     if (loaded.length === 0) {
-      return [{ role: 'assistant', content: `Hey! I'm ${loadSetting(AI_NAME_KEY, 'VYBE-AI')} — your AI on VYBE. I can help with anything from content ideas to coding questions. What's on your mind? ✨`, timestamp: new Date() }];
+      return [{ role: 'assistant', content: `Hey! I'm ${loadSetting(AI_NAME_KEY, 'VYBE-AI')} — your VYBE agent. Chat with me, or ask me to open Messages, change your theme, or rearrange your home screen. What's up? ✨`, timestamp: new Date() }];
     }
     return loaded;
   });
@@ -282,20 +286,67 @@ export default function AIChat() {
     streamingContentRef.current = '';
 
     try {
+      const chatHistory = messages.map(m => ({ role: m.role, content: m.content })).concat([
+        { role: 'user' as const, content: msgText || 'What is in this image?' },
+      ]);
+
+      // #region agent log
+      agentDebugLog('AIChat:sendMessage', 'send start', {
+        hasImage: !!imageBase64,
+        textLen: msgText.length,
+        host: typeof window !== 'undefined' ? window.location.host : '',
+      }, 'H0-env');
+      // #endregion
+
+      // Text-only: unified agent (chat + navigate + theme + widgets)
+      let useChatFallback = false;
+      if (!imageBase64) {
+        try {
+          const agentResult = await sendAndExecute({
+            messages: chatHistory,
+            aiName,
+            aiPersonality,
+            feedDNA,
+            location: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, city: userLocation.city } : null,
+          });
+          const summary = agentResult.batch ? formatAgentActionSummary(agentResult.batch) : '';
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: (agentResult.message.trim() || 'Done!') + summary,
+            timestamp: new Date(),
+          }]);
+          return;
+        } catch (agentErr) {
+          // #region agent log
+          agentDebugLog('AIChat:sendMessage', 'agent path failed', {
+            message: agentErr instanceof Error ? agentErr.message : String(agentErr),
+            unavailable: isAgentUnavailableError(agentErr),
+            auth: isAgentAuthError(agentErr),
+          }, 'H1-deploy');
+          // #endregion
+          if (isAgentAuthError(agentErr)) {
+            toast.error(agentErr instanceof Error ? agentErr.message : 'Sign in required');
+            return;
+          }
+          if (!isAgentUnavailableError(agentErr)) {
+            throw agentErr;
+          }
+          useChatFallback = true;
+          toast.info('Agent mode unavailable — using chat', { duration: 2500 });
+        }
+      }
+
       const headers = await getFunctionAuthHeaders();
-      const body: any = {
-        messages: messages.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: msgText || 'What is in this image?' }]),
+      const body: Record<string, unknown> = {
+        messages: chatHistory,
         aiName,
         aiPersonality,
         model: 'gemini-flash',
         feedDNA,
         location: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, city: userLocation.city } : null,
+        image_base64: imageBase64,
+        image_mime_type: imageMimeType,
       };
-      
-      if (imageBase64 && imageMimeType) {
-        body.image_base64 = imageBase64;
-        body.image_mime_type = imageMimeType;
-      }
 
       const response = await fetchWithTimeout(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`,
@@ -400,7 +451,7 @@ export default function AIChat() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation, selectedImage, imagePreview, clearImage]);
+  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation, selectedImage, imagePreview, clearImage, sendAndExecute]);
 
   const clearChat = useCallback(() => {
     setMessages([{ role: 'assistant', content: `Fresh start! I'm ${aiName}, ready when you are ✨`, timestamp: new Date() }]);

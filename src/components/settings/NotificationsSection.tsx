@@ -1,4 +1,4 @@
-import { Bell, Megaphone, BellRing, Smartphone, MessageSquare, Phone, Sparkles } from 'lucide-react';
+import { Bell, Megaphone, BellRing, Smartphone, MessageSquare, Phone, Sparkles, Eye, Heart, MessageCircle, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -168,7 +168,71 @@ export function NotificationsSection() {
         description="Choose what notifications you want to receive while using the app"
         delay={0.05}
       >
-        <SettingsPanel>
+        <SettingsPanel className="space-y-0">
+          <SettingsToggleRow
+            icon={Eye}
+            title="Show message preview"
+            description="When off, push shows generic New Chat / New Snap (Snapchat-style privacy)"
+            checked={prefs?.show_message_preview ?? true}
+            onCheckedChange={(checked) => handleToggle('show_message_preview', checked)}
+            disabled={updatePref.isPending}
+          />
+          <SettingsToggleRow
+            icon={MessageSquare}
+            title="Messages"
+            description="Direct messages and group chats"
+            checked={prefs?.dms_enabled ?? true}
+            onCheckedChange={(checked) => handleToggle('dms_enabled', checked)}
+            disabled={updatePref.isPending}
+          />
+          <SettingsToggleRow
+            icon={Phone}
+            title="Calls"
+            description="Incoming audio and video calls (can break through quiet hours)"
+            checked={prefs?.calls_enabled ?? true}
+            onCheckedChange={(checked) => handleToggle('calls_enabled', checked)}
+            disabled={updatePref.isPending}
+          />
+          <SettingsToggleRow
+            icon={UserPlus}
+            title="Friend requests"
+            description="When someone wants to connect"
+            checked={prefs?.friend_requests_enabled ?? true}
+            onCheckedChange={(checked) => handleToggle('friend_requests_enabled', checked)}
+            disabled={updatePref.isPending}
+          />
+          <SettingsToggleRow
+            icon={Sparkles}
+            title="Stories"
+            description="Story likes and views"
+            checked={prefs?.stories_enabled ?? true}
+            onCheckedChange={(checked) => handleToggle('stories_enabled', checked)}
+            disabled={updatePref.isPending}
+          />
+          <SettingsToggleRow
+            icon={Heart}
+            title="Likes"
+            description="When someone likes your post"
+            checked={prefs?.likes_enabled ?? true}
+            onCheckedChange={(checked) => handleToggle('likes_enabled', checked)}
+            disabled={updatePref.isPending}
+          />
+          <SettingsToggleRow
+            icon={MessageCircle}
+            title="Comments"
+            description="Comments and replies on your posts"
+            checked={prefs?.comments_enabled ?? true}
+            onCheckedChange={(checked) => handleToggle('comments_enabled', checked)}
+            disabled={updatePref.isPending}
+          />
+          <SettingsToggleRow
+            icon={Users}
+            title="Follows"
+            description="When someone follows you"
+            checked={prefs?.follows_enabled ?? true}
+            onCheckedChange={(checked) => handleToggle('follows_enabled', checked)}
+            disabled={updatePref.isPending}
+          />
           <SettingsToggleRow
             icon={Megaphone}
             title="Announcements"

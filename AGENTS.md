@@ -29,11 +29,11 @@ When the user says **"do a debug"**, run the full scan (do not skip steps):
 2. Run `npm run debug` (or `node scripts/debug-scan.mjs`) — build, lint, CSS, edge-function reference check, production RPC/edge probes.
 3. Run `npm run build` and `npm run lint` if not already green.
 4. Compare **client-invoked** edge function names to `supabase/functions/` (all must exist locally).
-5. Probe **production** (`agtcyxjxgkdyoxwxkjth`) — not MCP/CLI project `hprmicwhlaaqfgshucec`:
+5. Probe **production** (`hprmicwhlaaqfgshucec`) — the project `vybehub.app` uses (see `DEPLOY.md`, `.env`, `index.html` preconnect):
    - RPCs: `get_public_user_count`, `sync_signup_username`, `ensure_user_level`
    - Edge samples: `livekit-token`, `generate-advanced-theme`, `ai-catch-up`, `share-preview`, `community-voice-token`
 6. Report: pass/fail table, production gaps (404 RPC/functions), uncommitted local changes, exact unblock steps (Lovable Publish, SQL Editor, Backend deploy).
-7. Fix safe code issues in-repo; do **not** point app or deploy to `hprmicwhlaaqfgshucec`.
+7. Fix safe code issues in-repo; do **not** point the app at legacy `agtcyxjxgkdyoxwxkjth` unless explicitly migrating back.
 8. Update `WORKLOG.md` with scan date, results, and next actions.
 
 ## Handoff Standard
@@ -47,7 +47,7 @@ Before ending a task:
 ## Deploy Safety
 - Follow `DEPLOY.md`.
 - **Web production (`vybehub.app`)** is published via **Lovable → Share → Publish**, not Vercel/Netlify CLI in this repo.
-- **Supabase** production project ref: `agtcyxjxgkdyoxwxkjth` (Lovable-managed; see `supabase/config.toml` and `.env`).
-- WARNING: `hprmicwhlaaqfgshucec` ("VYBE-Social") is a separate, mostly-empty project — do NOT point the app at it or deploy there; it has only a skeleton schema and broke onboarding when `.env` was switched to it.
+- **Supabase** production project ref: **`hprmicwhlaaqfgshucec`** (see `DEPLOY.md`, `.env`, published HTML preconnect).
+- **Legacy:** `agtcyxjxgkdyoxwxkjth` — older Lovable project; schema/deploy history may diverge. Do not deploy there unless intentionally migrating.
 - Never assume publish credentials are available; verify first.
 - If deployment cannot be completed, provide exact unblock steps (usually Lovable Publish or `npx supabase login`).

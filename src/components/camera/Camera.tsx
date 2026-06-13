@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, RefreshCw, Zap, ZapOff, Image, Music, Timer, Sparkles, MessageCircle, SlidersHorizontal, Grid3X3, Wand2, Sun, Contrast } from 'lucide-react';
+import { X, RefreshCw, Zap, ZapOff, Image, Music, Timer, Sparkles, MessageCircle, SlidersHorizontal, Grid3X3, Sun, Contrast } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CameraFilterCarousel, PRESET_FILTERS, getFilterCSS } from './CameraFilterCarousel';
 import { CameraEditor } from './CameraEditor';
@@ -15,6 +15,8 @@ import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 import { captureVideoFrame } from '@/lib/cameraCapture';
 import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
+import { bakeCameraEdits, bakedCameraFileName, type CameraDrawPath, type CameraTextOverlay } from '@/lib/bakeCameraEdits';
+import { debugLog } from '@/lib/debugSessionLog';
 
 interface CameraProps {
   onClose: () => void;
@@ -52,6 +54,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
   const [showSoundPicker, setShowSoundPicker] = useState(false);
   const [selectedSound, setSelectedSound] = useState<Sound | null>(null);
   const [isSwiping, setIsSwiping] = useState(false);
+  const [isBaking, setIsBaking] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -279,18 +282,92 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
   if (state === 'edit' && capturedMedia) {
     return (
       <FullscreenPortal>
-        <CameraEditor mediaUrl={capturedMedia.url} mediaType={capturedMedia.type} filter={currentFilter} onSave={() => {
-          if (onCapture && capturedMedia.file) {
-            onCapture({ file: capturedMedia.file, url: capturedMedia.url, type: capturedMedia.type });
-            return;
-          }
-          setState('share');
-        }} onCancel={() => { 
-          setCapturedMedia(null); 
-          setState('capture');
-          // Restart camera after returning from editor
-          setTimeout(() => startCamera(), 100);
-        }} />
+        <CameraEditor
+          mediaUrl={capturedMedia.url}
+          mediaType={capturedMedia.type}
+          filter={currentFilter}
+          isSaving={isBaking}
+          onSave={async (edited) => {
+            if (!capturedMedia.file) return;
+            setIsBaking(true);
+            try {
+              const baked = await bakeCameraEdits(
+                capturedMedia.file,
+                capturedMedia.type,
+                edited.overlays as CameraTextOverlay[],
+                edited.drawings as CameraDrawPath[],
+                { displayWidth: edited.displayWidth, displayHeight: edited.displayHeight },
+              );
+
+              const hadEdits = edited.overlays.length > 0 || edited.drawings.length > 0;
+              const mimeType = baked.type || capturedMedia.file.type;
+              const fileName = bakedCameraFileName(capturedMedia.type, mimeType);
+              const file = baked === capturedMedia.file && !hadEdits
+                ? capturedMedia.file
+                : new File([baked], fileName, { type: mimeType });
+
+              if (
+                hadEdits &&
+                capturedMedia.type === 'video' &&
+                baked === capturedMedia.file
+              ) {
+                toast.warning('Video text/stickers could not be embedded — try a photo story', {
+                  duration: 3500,
+                  id: 'story-video-bake-fail',
+                });
+              }
+
+              if (capturedMedia.url.startsWith('blob:')) {
+                URL.revokeObjectURL(capturedMedia.url);
+              }
+              edited.overlays.forEach((o) => {
+                if (o.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(o.imageUrl);
+              });
+
+              const url = hadEdits || baked !== capturedMedia.file
+                ? URL.createObjectURL(file)
+                : capturedMedia.url;
+
+              const media = { file, url, type: capturedMedia.type };
+
+              debugLog('Camera.tsx:onSave', 'camera bake complete', {
+                hadEdits,
+                overlayCount: edited.overlays.length,
+                fileBytes: file.size,
+                bakedSameRef: baked === capturedMedia.file,
+              }, 'H2-bake');
+
+              if (hadEdits) {
+                toast.success(
+                  edited.overlays.length > 0
+                    ? `Saved ${edited.overlays.length} text/sticker edit${edited.overlays.length === 1 ? '' : 's'} to photo`
+                    : 'Saved drawing to photo',
+                  { duration: 2000, id: 'story-bake-ok' },
+                );
+              }
+
+              if (onCapture) {
+                onCapture(media);
+                return;
+              }
+
+              setCapturedMedia(media);
+              setState('share');
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Failed to save edits';
+              console.error('[Camera] Failed to bake edits:', err);
+              debugLog('Camera.tsx:onSave', 'camera bake failed', { error: msg }, 'H2-bake');
+              toast.error(msg);
+            } finally {
+              setIsBaking(false);
+            }
+          }}
+          onCancel={() => {
+            setCapturedMedia(null);
+            setState('capture');
+            setTimeout(() => startCamera(), 100);
+          }}
+        />
       </FullscreenPortal>
     );
   }
@@ -595,13 +672,6 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
               Filters
-            </button>
-            <button
-              onClick={() => { triggerHaptic('light'); toast.info('AR Lenses coming soon!'); }}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium bg-white/10 text-white/60 backdrop-blur-sm"
-            >
-              <Wand2 className="h-3.5 w-3.5" />
-              Lenses
             </button>
           </div>
         </div>

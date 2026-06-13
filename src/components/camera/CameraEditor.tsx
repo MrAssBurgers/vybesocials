@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, Type, Smile, Pencil, Check, Undo, Trash2, ImageIcon } from 'lucide-react';
+import { X, Type, Smile, Pencil, Check, Undo, Trash2, ImageIcon, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getFilterCSS } from './CameraFilters';
 import { DraggableOverlay } from './DraggableOverlay';
+import { debugLog } from '@/lib/debugSessionLog';
 
 interface TextOverlay {
   id: string;
@@ -32,14 +33,21 @@ interface CameraEditorProps {
   filter: string;
   soundId?: string;
   soundStartTime?: number;
-  onSave: (editedMedia: { url: string; overlays: TextOverlay[]; drawings: DrawPath[] }) => void;
+  onSave: (editedMedia: {
+    url: string;
+    overlays: TextOverlay[];
+    drawings: DrawPath[];
+    displayWidth?: number;
+    displayHeight?: number;
+  }) => void | Promise<void>;
   onCancel: () => void;
+  isSaving?: boolean;
 }
 
 const COLORS = ['#ffffff', '#000000', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#007aff', '#af52de', '#ff2d92'];
 const STICKERS = ['😀', '😍', '🔥', '💯', '✨', '🎉', '❤️', '👍', '🙌', '💪', '🎵', '🌟'];
 
-export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartTime, onSave, onCancel }: CameraEditorProps) {
+export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartTime, onSave, onCancel, isSaving = false }: CameraEditorProps) {
   const [mode, setMode] = useState<'none' | 'text' | 'sticker' | 'draw'>('none');
   const [textOverlays, setTextOverlays] = useState<TextOverlay[]>([]);
   const [drawings, setDrawings] = useState<DrawPath[]>([]);
@@ -169,7 +177,49 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
   };
 
   const handleSave = () => {
-    onSave({ url: mediaUrl, overlays: textOverlays, drawings });
+    if (isSaving) return;
+
+    const commitAndSave = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+
+      let overlays = textOverlays;
+      const pending = currentText.trim();
+      if (pending) {
+        overlays = [
+          ...textOverlays,
+          {
+            id: crypto.randomUUID(),
+            text: pending,
+            x: 50,
+            y: 50,
+            color: currentColor,
+            fontSize: 24,
+            scale: 1,
+            rotation: 0,
+          },
+        ];
+        setCurrentText('');
+        setMode('none');
+      }
+
+      debugLog('CameraEditor.tsx:handleSave', 'story editor save', {
+        overlayCount: overlays.length,
+        drawingCount: drawings.length,
+        pendingCommitted: !!pending,
+        displayW: rect?.width ?? 0,
+        displayH: rect?.height ?? 0,
+      }, 'H1-pending-text');
+
+      void Promise.resolve(onSave({
+        url: mediaUrl,
+        overlays,
+        drawings,
+        displayWidth: rect?.width,
+        displayHeight: rect?.height,
+      }));
+    };
+
+    requestAnimationFrame(() => requestAnimationFrame(commitAndSave));
   };
 
   return (
@@ -361,8 +411,19 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
       </div>
 
       <div className="absolute bottom-4 left-0 right-0 px-4">
-        <Button onClick={handleSave} className="w-full gradient-animated text-white font-semibold py-6 rounded-2xl">
-          Continue
+        <Button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="w-full gradient-animated text-white font-semibold py-6 rounded-2xl"
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            'Continue'
+          )}
         </Button>
       </div>
     </div>

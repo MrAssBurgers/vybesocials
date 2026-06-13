@@ -1,5 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, X, Camera as CameraIcon, Image as ImageIcon, Star, Send, Loader2, AlertCircle, RotateCcw, BarChart3, ImagePlus } from 'lucide-react';
 import { StoryPollEditor, PollData } from './StoryPollEditor';
@@ -16,9 +15,34 @@ import { toast } from 'sonner';
 import { validateStoryMedia, compressImage, generateStoryFileName, generateStoryThumbnail, generateStoryThumbnailFileName, inferStoryMediaKind, storyUploadContentType } from '@/lib/storyUtils';
 import { Camera } from '@/components/camera/Camera';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
+import { debugLog } from '@/lib/debugSessionLog';
+import { useTranslation } from 'react-i18next';
 
 interface StoryCreatorProps {
   onClose: () => void;
+}
+
+const STORY_FILE_ACCEPT =
+  'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,video/mp4,video/quicktime,video/webm,video/3gpp,video/*,image/*';
+
+/** Nested inside labels — best mobile WebView support */
+const storyGalleryInputClassName =
+  'absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0';
+
+function StoryGalleryInput({
+  onChange,
+}: {
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <input
+      type="file"
+      accept={STORY_FILE_ACCEPT}
+      onChange={onChange}
+      className={storyGalleryInputClassName}
+      aria-label="Choose story photo or video"
+    />
+  );
 }
 
 type UploadState = 'idle' | 'validating' | 'compressing' | 'uploading' | 'saving' | 'error';
@@ -28,7 +52,6 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   const { t } = useTranslation();
   const profileId = useAuthProfileId();
   const createStory = useCreateStory();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const coverVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -69,6 +92,22 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     setMode('select');
   }, []);
 
+  useEffect(() => {
+    // #region agent log
+    debugLog('StoryCreator.tsx:mount', 'story creator opened', {
+      host: typeof window !== 'undefined' ? window.location.host : 'ssr',
+      dev: import.meta.env.DEV,
+      fixVersion: 'nested-gallery+bake-v3',
+    }, 'H0-env');
+    // #endregion
+    if (import.meta.env.DEV) {
+      toast.info('Dev build: story overlay + gallery fixes active', {
+        duration: 2500,
+        id: 'dev-story-fix-banner',
+      });
+    }
+  }, []);
+
   const applyAutoThumbnail = useCallback(async (file: File, isVideo: boolean) => {
     setIsGeneratingCover(true);
     try {
@@ -82,23 +121,23 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     }
   }, []);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processGalleryFile = useCallback(async (file: File) => {
     setUploadState('validating');
     setErrorMessage(null);
 
     try {
       const validation = await validateStoryMedia(file);
-      
+
       if (!validation.valid) {
         setErrorMessage(validation.error || 'Invalid media file');
         setUploadState('error');
+        toast.error(validation.error || 'Invalid media file');
         return;
       }
 
       const isVideo = inferStoryMediaKind(file) === 'video';
+      if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview);
+
       setMediaInfo({
         aspectRatio: validation.aspectRatio || 0.5625,
         duration: validation.duration || null,
@@ -109,14 +148,34 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       setPreview(URL.createObjectURL(file));
       setUploadState('idle');
       void applyAutoThumbnail(file, isVideo);
+
+      debugLog('StoryCreator.tsx:processGalleryFile', 'gallery file accepted', {
+        name: file.name,
+        size: file.size,
+        type: file.type || '(empty)',
+        isVideo,
+        aspectRatio: validation.aspectRatio,
+      }, 'H3-gallery');
+      toast.success(isVideo ? 'Video selected' : 'Photo selected', { duration: 1500 });
     } catch (err) {
       console.error('File validation error:', err);
-      setErrorMessage('Failed to process media file');
+      const msg = err instanceof Error ? err.message : 'Failed to process media file';
+      setErrorMessage(msg);
       setUploadState('error');
+      toast.error(msg);
     }
-    
-    // Reset file input for re-selection
-    e.target.value = '';
+  }, [applyAutoThumbnail, preview]);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
+    input.value = '';
+    debugLog('StoryCreator.tsx:handleFileSelect', 'file input change', {
+      hasFile: !!file,
+      name: file?.name,
+    }, 'H3-gallery');
+    if (!file) return;
+    await processGalleryFile(file);
   };
 
   const handleSubmit = async () => {
@@ -302,6 +361,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
         showBackArrow 
         onCapture={(media) => {
           const isVideo = media.type === 'video';
+          if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview);
           setSelectedFile(media.file);
           setPreview(media.url);
           setMediaInfo({
@@ -310,7 +370,12 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
             isVideo,
           });
           setUploadState('idle');
+          setErrorMessage(null);
           setMode('select');
+          debugLog('StoryCreator.tsx:onCapture', 'camera capture received', {
+            fileBytes: media.file.size,
+            type: media.type,
+          }, 'H2-bake');
           void applyAutoThumbnail(media.file, isVideo);
         }}
       />
@@ -382,12 +447,11 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
                   <BarChart3 className="h-3.5 w-3.5" />
                   Poll
                 </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  Change
+                <Button variant="secondary" size="sm" asChild>
+                  <label className="relative cursor-pointer overflow-hidden inline-flex items-center justify-center px-3 py-2">
+                    <StoryGalleryInput onChange={handleFileSelect} />
+                    <span className="relative z-0 pointer-events-none">Change</span>
+                  </label>
                 </Button>
               </div>
             )}
@@ -545,6 +609,11 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
               )}
             </AnimatePresence>
           </div>
+        ) : uploadState === 'validating' ? (
+          <div className="flex flex-col items-center gap-4 p-8">
+            <Loader2 className="h-10 w-10 text-white animate-spin" />
+            <p className="text-white/70 text-lg font-medium">{getStatusText()}</p>
+          </div>
         ) : uploadState === 'error' ? (
           <div className="flex flex-col items-center gap-4 p-8">
             <AlertCircle className="h-12 w-12 text-red-500" />
@@ -553,6 +622,11 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
               <RotateCcw className="h-4 w-4" />
               Try Again
             </Button>
+            <label className="relative inline-flex items-center justify-center gap-2 rounded-md border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white cursor-pointer active:scale-95 overflow-hidden">
+              <StoryGalleryInput onChange={handleFileSelect} />
+              <ImageIcon className="h-4 w-4 relative z-0 pointer-events-none" />
+              <span className="relative z-0 pointer-events-none">Choose from gallery</span>
+            </label>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-6 p-8">
@@ -571,17 +645,15 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
                 <span className="text-white/40 text-xs">With filters</span>
               </button>
               
-              {/* Gallery option - opens file picker */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-white/30 rounded-2xl hover:border-primary/50 hover:bg-white/5 transition-all group"
-              >
-                <div className="p-5 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full group-hover:from-primary/30 group-hover:to-primary/10 transition-colors">
+              {/* Gallery — file input nested inside label (iOS/Despia) */}
+              <label className="relative flex flex-col items-center gap-3 p-6 border-2 border-dashed border-white/30 rounded-2xl hover:border-primary/50 hover:bg-white/5 transition-all group cursor-pointer active:scale-[0.98] overflow-hidden">
+                <StoryGalleryInput onChange={handleFileSelect} />
+                <div className="relative z-0 p-5 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full group-hover:from-primary/30 group-hover:to-primary/10 transition-colors pointer-events-none">
                   <ImageIcon className="h-10 w-10 text-primary" />
                 </div>
-                <span className="text-white font-medium">Gallery</span>
-                <span className="text-white/40 text-xs">Choose photo/video</span>
-              </button>
+                <span className="relative z-0 text-white font-medium pointer-events-none">Gallery</span>
+                <span className="relative z-0 text-white/40 text-xs pointer-events-none">Choose photo/video</span>
+              </label>
             </div>
             
             <p className="text-white/40 text-sm mt-2">Images or videos up to 60s</p>
@@ -629,14 +701,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
         </div>
       )}
 
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,video/*"
-        onChange={handleFileSelect}
-        className="hidden"
-      />
+      {/* Hidden cover image picker */}
       <input
         ref={coverInputRef}
         type="file"

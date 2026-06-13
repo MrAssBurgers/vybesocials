@@ -67,23 +67,26 @@ async function validateImage(
   return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
+    let settled = false;
+    const finish = (result: MediaValidationResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+      resolve(result);
+    };
+    const timer = setTimeout(() => {
+      finish({ valid: false, error: 'Image took too long to load — try JPG or PNG' });
+    }, 15000);
     
     img.onload = () => {
-      URL.revokeObjectURL(url);
       const aspectRatio = img.width / img.height;
       const needsCrop = Math.abs(aspectRatio - targetAspectRatio) > tolerance;
-      
-      resolve({
-        valid: true,
-        aspectRatio,
-        duration: null,
-        needsCrop,
-      });
+      finish({ valid: true, aspectRatio, duration: null, needsCrop });
     };
     
     img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve({ valid: false, error: 'Failed to load image' });
+      finish({ valid: false, error: 'Failed to load image' });
     };
     
     img.src = url;
@@ -98,24 +101,35 @@ async function validateVideo(
 ): Promise<MediaValidationResult> {
   return new Promise((resolve) => {
     const video = document.createElement('video');
+    video.preload = 'metadata';
     const url = URL.createObjectURL(file);
+    let settled = false;
+    const finish = (result: MediaValidationResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+      resolve(result);
+    };
+    const timer = setTimeout(() => {
+      finish({ valid: false, error: 'Video took too long to load — try MP4 or MOV' });
+    }, 20000);
     
     video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      
       const duration = video.duration;
+      if (!Number.isFinite(duration) || duration <= 0) {
+        finish({ valid: false, error: 'Could not read video duration' });
+        return;
+      }
       if (duration > maxDuration) {
-        resolve({ 
-          valid: false, 
-          error: `Video must be ${maxDuration} seconds or less` 
-        });
+        finish({ valid: false, error: `Video must be ${maxDuration} seconds or less` });
         return;
       }
       
       const aspectRatio = video.videoWidth / video.videoHeight;
       const needsCrop = Math.abs(aspectRatio - targetAspectRatio) > tolerance;
       
-      resolve({
+      finish({
         valid: true,
         aspectRatio,
         duration: Math.round(duration),
@@ -124,8 +138,7 @@ async function validateVideo(
     };
     
     video.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve({ valid: false, error: 'Failed to load video' });
+      finish({ valid: false, error: 'Failed to load video' });
     };
     
     video.src = url;

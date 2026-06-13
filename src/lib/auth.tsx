@@ -7,6 +7,7 @@ import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, cle
 import { clearCachedUserLevel } from '@/lib/userLevelCache';
 import { prefetchDMConversationsFromNav } from '@/lib/loadDMConversations';
 import { warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
+import { resolveSessionProfileId, resetSessionProfileMemo } from '@/lib/resolveSessionProfileId';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import { hasStoredSupabaseSession, getStoredAuthUserId } from '@/lib/supabaseStorageKey';
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
@@ -196,7 +197,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Reject stale cached profile when auth user changes (wrong-user queries break RLS).
   useEffect(() => {
     setActiveAuthUserId(user?.id ?? null);
-    if (!user?.id) return;
+    if (!user?.id) {
+      resetSessionProfileMemo();
+      return;
+    }
     setProfile((prev) => {
       if (!prev) return prev;
       if (!prev.user_id) return { ...prev, user_id: user.id };
@@ -443,6 +447,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /** Resolve profile id, warm caches, and refetch active queries after sign-in. */
+  const bootstrapSessionData = (userId: string, authEvent: string) => {
+    // Supabase recommends deferring DB calls out of onAuthStateChange call stack.
+    setTimeout(() => {
+      void (async () => {
+        const qc = (window as any).__REACT_QUERY_CLIENT__;
+        const isFreshSignIn = authEvent === 'SIGNED_IN';
+
+        try {
+          const profileId = await resolveSessionProfileId(undefined);
+          if (profileId && qc) {
+            qc.setQueryData(['session-profile-id', userId], profileId);
+            warmHomeCachesForProfile(qc, userId, profileId);
+          }
+
+          await fetchProfile(userId);
+
+          if (qc && isFreshSignIn) {
+            void qc.invalidateQueries({ refetchType: 'active' });
+          }
+        } catch (err) {
+          console.error('[Auth] Session bootstrap failed:', err);
+          void fetchProfile(userId);
+        }
+      })();
+    }, 0);
+  };
+
   useEffect(() => {
     // ──────────────────────────────────────────────────────────────────────
     // STEP 0: Explicitly extract OAuth tokens from URL hash.
@@ -564,14 +596,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           hydrateCachedProfile(session.user.id);
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
+          bootstrapSessionData(session.user.id, event);
 
           sessionStorage.removeItem('vybe-oauth-pending');
         } else if (event === 'SIGNED_OUT') {
           setWasLoggedIn(false);
           setActiveAuthUserId(null);
+          resetSessionProfileMemo();
           // Only clear state on explicit sign-out, not on ambiguous events
           logEvent('auth', 'Explicit sign out — clearing state');
           setProfile(null);
@@ -648,7 +679,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setActiveAuthUserId(refreshed.session.user.id);
               hydrateCachedProfile(refreshed.session.user.id);
               if (refreshed.session.expires_at) scheduleTokenRefresh(refreshed.session.expires_at);
-              fetchProfile(refreshed.session.user.id);
+              bootstrapSessionData(refreshed.session.user.id, 'TOKEN_REFRESHED');
               sessionStorage.removeItem('vybe-oauth-pending');
               setLoading(false);
               setIsInitialized(true);
@@ -700,7 +731,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (data.session.expires_at) {
               scheduleTokenRefresh(data.session.expires_at);
             }
-            fetchProfile(data.session.user.id);
+            bootstrapSessionData(data.session.user.id, 'TOKEN_REFRESHED');
             sessionStorage.removeItem('vybe-oauth-pending');
             setLoading(false);
             setIsInitialized(true);
@@ -739,7 +770,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (session.expires_at) {
             scheduleTokenRefresh(session.expires_at);
           }
-          fetchProfile(session.user.id);
+          bootstrapSessionData(session.user.id, 'INITIAL_SESSION');
           sessionStorage.removeItem('vybe-oauth-pending');
         }
         

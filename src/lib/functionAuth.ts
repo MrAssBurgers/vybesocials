@@ -10,9 +10,19 @@ import { supabase } from "@/integrations/supabase/client";
 export async function getFunctionAuthHeaders(
   contentType: string = "application/json",
 ): Promise<Record<string, string>> {
-  const {
+  let {
     data: { session },
   } = await supabase.auth.getSession();
+
+  const expiresAt = session?.expires_at ?? 0;
+  const expiresSoon = expiresAt > 0 && expiresAt * 1000 < Date.now() + 60_000;
+
+  if (!session?.access_token || expiresSoon) {
+    const { data: refreshed, error } = await supabase.auth.refreshSession();
+    if (!error && refreshed.session?.access_token) {
+      session = refreshed.session;
+    }
+  }
 
   const accessToken = session?.access_token;
   if (!accessToken) {
