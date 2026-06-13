@@ -23,7 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Pin, Check, Users, UserPlus, Trash2, X, UserCheck, Camera, Search, Loader2 } from 'lucide-react';
+import { MessageCircle, Pin, Check, Users, UserPlus, Trash2, X, UserCheck, Camera, Search } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 
 import { toast } from 'sonner';
@@ -104,7 +104,7 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
 export function ConversationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { profile, loading: authLoading } = useAuth();
+  const { profile, loading: authLoading, user, refreshProfile } = useAuth();
   const profileId = useAuthProfileId();
   const [searchQuery, setSearchQuery] = useState('');
   const [chatFilter, setChatFilter] = useState<'all' | 'unread' | 'groups' | 'streaks'>('all');
@@ -121,6 +121,7 @@ export function ConversationList() {
     unpinnedConversations, 
     isLoading, 
     isFetched,
+    isFetching,
     error: convError,
     totalUnreadCount,
     refetch: refetchConversations,
@@ -130,11 +131,6 @@ export function ConversationList() {
 
   // Show a recoverable retry affordance if the skeleton lingers past 6s.
   const [slowLoad, setSlowLoad] = useState(false);
-  useEffect(() => {
-    if (!isLoading) { setSlowLoad(false); return; }
-    const t = setTimeout(() => setSlowLoad(true), 6000);
-    return () => clearTimeout(t);
-  }, [isLoading]);
   
   // Enable instant realtime updates for conversations
   useRealtimeConversations();
@@ -199,9 +195,19 @@ export function ConversationList() {
     return () => window.clearTimeout(t);
   }, [dmProfileId, allConversations.length, refetchConversations]);
 
+  const profileMissing = !authLoading && !!user && !dmProfileId;
+  const chatsPending = !!dmProfileId && !isFetched && !convError;
+
   const showListSkeleton =
     allConversations.length === 0 &&
-    (isLoading || (authLoading && !dmProfileId));
+    !profileMissing &&
+    (isLoading || isFetching || chatsPending || (authLoading && !dmProfileId));
+
+  useEffect(() => {
+    if (!isLoading && !isFetching && !chatsPending) { setSlowLoad(false); return; }
+    const t = setTimeout(() => setSlowLoad(true), 6000);
+    return () => clearTimeout(t);
+  }, [isLoading, isFetching, chatsPending]);
 
   // Refetch once profile id is ready and list is still empty.
   useEffect(() => {
@@ -361,7 +367,16 @@ export function ConversationList() {
 
         {/* Conversations */}
         <div className="pb-3">
-          {showListSkeleton ? (
+          {profileMissing ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center px-6 mx-1">
+              <p className="text-sm text-muted-foreground mb-4 max-w-[260px]">
+                Couldn&apos;t load your profile. Messages need your profile ID to load chats.
+              </p>
+              <Button variant="secondary" onClick={() => void refreshProfile()} className="rounded-full px-5 h-9 text-sm">
+                Retry
+              </Button>
+            </div>
+          ) : showListSkeleton ? (
             <div className="space-y-3 px-3 pt-2">
               {(slowLoad || convError) && (
                 <div className="rounded-xl border border-border/40 bg-card/40 p-3 flex items-center justify-between gap-3">
@@ -432,11 +447,6 @@ export function ConversationList() {
           ) : chatFilter !== 'all' ? (
             <div className="flex flex-col items-center justify-center py-12 text-center px-4">
               <p className="text-sm text-muted-foreground">No {chatFilter} conversations</p>
-            </div>
-          ) : !isFetched ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" />
-              <p className="text-xs text-muted-foreground">Loading your chats…</p>
             </div>
           ) : (
             <div className="dm-empty-state flex flex-col items-center justify-center py-12 text-center px-6 mx-1">

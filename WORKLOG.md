@@ -4,6 +4,16 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (DMs loading spinner fix — 2026-06-12)
+- **`useDMConversations.ts`** — bootstrap profile id from auth user when profile state missing; `networkMode: 'always'` (was pausing forever offlineFirst); clearer isLoading gate
+- **`ConversationList.tsx`** — removed orphan `!isFetched` spinner; skeleton covers all pending states; profile-missing Retry UI
+- **`profileCache.ts`** — reject disk cache entries missing `user_id` when auth user is known
+- **`useAcceptedFriendRequests.ts`** — uses `getEffectiveProfileId()` for query enable/key
+- **Build:** `npm run build` pass
+
+## Publish status (2026-06-12 — DMs loading)
+- **Git:** uncommitted locally — commit + push, then Lovable Publish
+
 ## What Changed (DMs blank list P0/P1 fix — 2026-06-12)
 - **`ConversationList.tsx`** — `AcceptedFriendChatRow` uses `acceptedBy` (was broken `sender` field); never render blank `: null` empty state; Retry button on fetch error; 8s refetch even after empty success
 - **`loadDMConversations.ts`** — throw on membership/conversations/members errors so React Query surfaces Retry (was swallowing errors as `[]`)

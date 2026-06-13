@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { useFriends } from '@/hooks/useFriends';
 import { loadDMConversations, type LoadedDMConversation } from '@/lib/loadDMConversations';
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
-import { getEffectiveProfileId } from '@/lib/profileCache';
+import { getEffectiveProfileId, setCachedCurrentProfile } from '@/lib/profileCache';
 
 type DMConversation = LoadedDMConversation;
 
@@ -17,9 +17,38 @@ type DMConversation = LoadedDMConversation;
  * and provides a sorted, searchable list of conversations
  */
 export function useDMConversations(searchQuery: string = '') {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const queryClient = useQueryClient();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const liveOrCachedProfileId = getEffectiveProfileId(profile?.id);
+
+  // When auth session exists but profile state hasn't hydrated yet, resolve profile.id
+  // so the DM query doesn't stay disabled (which leaves isFetched false forever).
+  const profileBootstrapQuery = useQuery({
+    queryKey: ['dm-profile-bootstrap', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, user_id, username, avatar_url, display_name')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error || !data?.id) return null;
+      setCachedCurrentProfile({
+        id: data.id,
+        user_id: data.user_id,
+        username: data.username,
+        display_name: data.display_name,
+        avatar_url: data.avatar_url,
+      });
+      return data.id;
+    },
+    enabled: !!user?.id && !liveOrCachedProfileId,
+    staleTime: 60_000,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
+  });
+
+  const profileId = liveOrCachedProfileId ?? profileBootstrapQuery.data ?? undefined;
   const { data: friends, isLoading: friendsLoading } = useFriends();
   const attemptedFriendIdsRef = useRef<Set<string>>(new Set());
 
@@ -43,10 +72,9 @@ export function useDMConversations(searchQuery: string = '') {
     refetchOnMount: refetchListOnMount,
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
-    // 'offlineFirst' so the hydrated cache shows even when the network is
-    // momentarily unreachable on cold start (e.g. flaky mobile data). The
-    // background refetch still runs the moment connectivity is available.
-    networkMode: 'offlineFirst',
+    // DM list must reach network on first load — offlineFirst can pause forever
+    // with isFetched=false when connectivity is flaky (shows perpetual spinner).
+    networkMode: 'always',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
@@ -174,12 +202,16 @@ export function useDMConversations(searchQuery: string = '') {
   }, [conversationsQuery.data]);
 
   const listCount = conversationsQuery.data?.length ?? 0;
-  // Only block UI on the first fetch — not on background refetches of an empty list.
+  const querySettled = conversationsQuery.isFetched || conversationsQuery.isError;
+  // Block UI until the first fetch completes or errors — covers isPending without isFetching.
   const isLoading =
-    !!profileId &&
     listCount === 0 &&
-    !conversationsQuery.isFetched &&
-    (conversationsQuery.isFetching || conversationsQuery.isPending);
+    !querySettled &&
+    (
+      !!profileId ||
+      profileBootstrapQuery.isFetching ||
+      profileBootstrapQuery.isPending
+    );
 
   return {
     conversations: filteredConversations,

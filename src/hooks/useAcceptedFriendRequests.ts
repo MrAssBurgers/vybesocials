@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { getEffectiveProfileId } from '@/lib/profileCache';
 
 interface AcceptedFriendRequest {
   id: string;
@@ -24,11 +25,12 @@ interface AcceptedFriendRequest {
 // This shows "X accepted your friend request!" notifications
 export function useAcceptedFriendRequests() {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
 
   return useQuery({
-    queryKey: ['accepted-friend-requests', profile?.id],
+    queryKey: ['accepted-friend-requests', profileId],
     queryFn: async (): Promise<AcceptedFriendRequest[]> => {
-      if (!profile?.id) return [];
+      if (!profileId) return [];
 
       // Fetch accepted requests where current user is the sender
       // and they haven't been notified yet
@@ -42,7 +44,7 @@ export function useAcceptedFriendRequests() {
           notified_at,
           acceptedBy:profiles!friend_requests_receiver_id_fkey(id, username, avatar_url, display_name)
         `)
-        .eq('sender_id', profile.id)
+        .eq('sender_id', profileId)
         .eq('status', 'accepted')
         .is('notified_at', null)
         .order('updated_at', { ascending: false })
@@ -55,7 +57,7 @@ export function useAcceptedFriendRequests() {
 
       return (data || []) as AcceptedFriendRequest[];
     },
-    enabled: !!profile?.id,
+    enabled: !!profileId,
     staleTime: 30000,
     refetchOnWindowFocus: true,
   });
@@ -64,18 +66,19 @@ export function useAcceptedFriendRequests() {
 // Dismiss an accepted friend request - marks it as notified in the database permanently
 export function useDismissAcceptedRequest() {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (requestId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!profileId) throw new Error('Not authenticated');
 
       // Mark as notified in the database - this is permanent
       const { error } = await supabase
         .from('friend_requests')
         .update({ notified_at: new Date().toISOString() })
         .eq('id', requestId)
-        .eq('sender_id', profile.id);
+        .eq('sender_id', profileId);
 
       if (error) {
         console.error('[DismissAcceptedRequest] Error:', error);
@@ -94,17 +97,18 @@ export function useDismissAcceptedRequest() {
 // Hook to mark a request as notified when it's displayed (auto-dismiss after viewing)
 export function useMarkRequestAsNotified() {
   const { profile } = useAuth();
+  const profileId = getEffectiveProfileId(profile?.id);
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (requestId: string) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!profileId) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('friend_requests')
         .update({ notified_at: new Date().toISOString() })
         .eq('id', requestId)
-        .eq('sender_id', profile.id);
+        .eq('sender_id', profileId);
 
       if (error) {
         console.error('[MarkRequestAsNotified] Error:', error);
