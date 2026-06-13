@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 
 export interface Story {
@@ -154,7 +155,9 @@ interface CreateStoryParams {
 
 export function useCreateStory() {
   const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
+  const storiesProfileId = getEffectiveProfileId(profileId ?? profile?.id);
 
   return useMutation({
     mutationFn: async ({
@@ -167,12 +170,12 @@ export function useCreateStory() {
       duration,
       pollData,
     }: CreateStoryParams) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      if (!storiesProfileId) throw new Error('Not authenticated');
 
       const { data, error } = await (supabase
         .from('stories') as any)
         .insert({
-          author_id: profile.id,
+          author_id: storiesProfileId,
           media_url: mediaUrl,
           media_type: mediaType,
           thumbnail_url: thumbnailUrl || null,
@@ -196,13 +199,13 @@ export function useCreateStory() {
       await queryClient.cancelQueries({ queryKey: ['stories'] });
 
       // Snapshot the previous value
-      const previousStories = queryClient.getQueryData<StoryGroup[]>(['stories', profile?.id]);
+      const previousStories = queryClient.getQueryData<StoryGroup[]>(['stories', storiesProfileId]);
 
       // Optimistically update to the new value
-      if (profile) {
+      if (storiesProfileId) {
         const optimisticStory: Story = {
           id: `optimistic-${Date.now()}`,
-          author_id: profile.id,
+          author_id: storiesProfileId,
           media_url: newStory.mediaUrl,
           media_type: newStory.mediaType,
           thumbnail_url: newStory.thumbnailUrl || null,
@@ -214,17 +217,17 @@ export function useCreateStory() {
           aspect_ratio: newStory.aspectRatio,
           duration: newStory.duration,
           author: {
-            id: profile.id,
-            username: profile.username,
-            avatar_url: profile.avatar_url,
-            display_name: null,
+            id: storiesProfileId,
+            username: profile?.username || 'You',
+            avatar_url: profile?.avatar_url || null,
+            display_name: profile?.display_name || null,
           },
           has_viewed: true,
           isOptimistic: true,
           isUploading: true,
         };
 
-        queryClient.setQueryData<StoryGroup[]>(['stories', profile.id], (old) => {
+        queryClient.setQueryData<StoryGroup[]>(['stories', storiesProfileId], (old) => {
           if (!old) {
             return [{
               user: optimisticStory.author!,
@@ -233,11 +236,11 @@ export function useCreateStory() {
             }];
           }
 
-          const existingOwnGroup = old.find(g => g.user.id === profile.id);
+          const existingOwnGroup = old.find(g => g.user.id === storiesProfileId);
           if (existingOwnGroup) {
             return old.map(g => 
-              g.user.id === profile.id 
-                ? { ...g, stories: [optimisticStory, ...g.stories] }
+              g.user.id === storiesProfileId 
+                ? { ...g, stories: [optimisticStory, ...g.stories.filter(s => !s.isOptimistic)] }
                 : g
             );
           } else {
@@ -252,10 +255,30 @@ export function useCreateStory() {
 
       return { previousStories };
     },
+    onSuccess: (data) => {
+      if (!storiesProfileId) return;
+      queryClient.setQueryData<StoryGroup[]>(['stories', storiesProfileId], (old) => {
+        if (!old) return old;
+        return old.map((group) => {
+          if (group.user.id !== storiesProfileId) return group;
+          const withoutOptimistic = group.stories.filter((s) => !s.isOptimistic && !s.isUploading);
+          const story = {
+            ...data,
+            has_viewed: true,
+            isOptimistic: false,
+            isUploading: false,
+          };
+          return {
+            ...group,
+            stories: [story, ...withoutOptimistic.filter((s) => s.id !== story.id)],
+          };
+        });
+      });
+    },
     onError: (err, newStory, context) => {
       // Rollback on error
       if (context?.previousStories) {
-        queryClient.setQueryData(['stories', profile?.id], context.previousStories);
+        queryClient.setQueryData(['stories', storiesProfileId], context.previousStories);
       }
     },
     onSettled: () => {

@@ -207,20 +207,6 @@ export function HomeGridEditor({ open, onOpenChange, onOpenCommandBar }: Props) 
           <p className="text-xs text-muted-foreground">Tap widgets to select · resize · drag to reorder</p>
         </SheetHeader>
 
-        {/* AI Redesign Banner */}
-        <button
-          onClick={() => { onOpenChange(false); onOpenCommandBar?.(); }}
-          className="shrink-0 mb-3 flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-primary/15 via-accent/15 to-primary/15 border border-primary/25 hover:border-primary/50 transition-colors"
-        >
-          <div className="w-8 h-8 rounded-lg gradient-animated flex items-center justify-center shrink-0">
-            <Sparkles className="h-4 w-4 text-white" />
-          </div>
-          <div className="text-left flex-1">
-            <p className="text-sm font-semibold">Ask VYBE AI to redesign</p>
-            <p className="text-xs text-muted-foreground">Instant magic ✨</p>
-          </div>
-        </button>
-
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
           <TabsList className="shrink-0 w-full h-9 bg-muted/50">
             <TabsTrigger value="layout" className="flex-1 text-xs">Layout</TabsTrigger>

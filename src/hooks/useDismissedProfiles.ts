@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { normalizePersistedSet } from '@/lib/persistedCollections';
 
 /**
  * Hook to manage permanently dismissed/hidden profiles
@@ -29,6 +30,7 @@ export function useDismissedProfiles() {
     enabled: !!profileId,
     staleTime: 1000 * 60 * 5, // 5 minutes
     networkMode: 'always',
+    select: normalizePersistedSet,
   });
 }
 

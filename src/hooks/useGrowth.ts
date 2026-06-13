@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { normalizePersistedSet } from '@/lib/persistedCollections';
 
 // =============================================
 // FOUNDING MEMBER COUNTDOWN
@@ -111,6 +112,7 @@ export function useMyFeatureVotes() {
       return new Set(data.map(v => v.feature_id));
     },
     enabled: !!user?.id,
+    select: normalizePersistedSet,
   });
 }
 

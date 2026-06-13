@@ -33,6 +33,7 @@ import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { P2PConnection, P2PEvent } from '@/lib/p2pConnection';
 import { PaywallSheet } from '@/components/premium/PaywallSheet';
@@ -58,11 +59,13 @@ const INCOMING_CALL_TIMEOUT_SECONDS = 30;
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, leaveCall, setPhase, setConnectStage, setError, dismissIncoming, switchMode } = useCallStore();
   const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const { isPremium } = usePremiumStatus();
   
   // Connection refs — only one active at a time
   const roomRef = useRef<Room | null>(null);          // LiveKit (persistent mode)
-  const p2pRef = useRef<P2PConnection | null>(null);   // P2P mode
+  const p2pRef = useRef<P2PConnection | null>(null);
+  const p2pPreviewRef = useRef(false);   // P2P mode
   const isLeavingRef = useRef(false);
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -121,7 +124,10 @@ export function GlobalCallOverlay() {
 
   // ── Track Attachment Helpers ──────────────────────────────
 
+  const remoteVideoTrackRef = useRef<MediaStreamTrack | null>(null);
+
   const attachRemoteVideo = useCallback((track: MediaStreamTrack) => {
+    remoteVideoTrackRef.current = track;
     const el = remoteVideoRef.current;
     if (!el) return;
     el.srcObject = new MediaStream([track]);
@@ -220,6 +226,7 @@ export function GlobalCallOverlay() {
 
       case 'remote-track-removed':
         if (event.kind === 'video') {
+          remoteVideoTrackRef.current = null;
           setHasRemoteVideo(false);
           if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
         } else {
@@ -282,7 +289,7 @@ export function GlobalCallOverlay() {
   const connectP2PRef = useRef<((call: CallData) => Promise<void>) | null>(null);
 
   const connectP2P = useCallback(async (call: CallData) => {
-    if (!profile?.id) return;
+    if (!profileId) return;
 
     // Reset double-end guard
     p2pEndedRef.current = false;
@@ -295,7 +302,7 @@ export function GlobalCallOverlay() {
 
     const p2p = new P2PConnection({
       conversationId: call.conversationId,
-      userId: profile.id,
+      userId: profileId,
       isInitiator: call.isInitiator,
       callType: call.callType,
       onEvent: (evt) => handleP2PEventRef.current(evt),
@@ -328,7 +335,7 @@ export function GlobalCallOverlay() {
       toast.error('Failed to connect');
       endCall();
     }
-  }, [profile?.id, attachLocalVideo, endCall, setConnectStage]);
+  }, [profileId, attachLocalVideo, endCall, setConnectStage]);
 
   // Keep connectP2PRef fresh for deferred calls from event handler
   useEffect(() => { connectP2PRef.current = connectP2P; }, [connectP2P]);
@@ -496,15 +503,9 @@ export function GlobalCallOverlay() {
     let cancelled = false;
 
     const doJoin = async () => {
-      // NOTE: We intentionally skip requestCallMediaPermissions here for
-      // BOTH p2p AND persistent. P2PConnection.connect() and LiveKit's
-      // setMicrophoneEnabled/setCameraEnabled both call getUserMedia
-      // themselves and trigger the OS prompt inline — pre-probing here
-      // just doubles the cost and (on iOS) can cause NotReadableError.
       if (cancelled) return;
 
       clearJoinTimeout();
-      // Keep caller join timeout aligned with the incoming-call answer window.
       const timeout = INCOMING_CALL_TIMEOUT_SECONDS * 1000;
       joinTimeoutRef.current = setTimeout(() => {
         if (stateRef.current.phase === 'joining') {
@@ -512,6 +513,20 @@ export function GlobalCallOverlay() {
           endCall();
         }
       }, timeout);
+
+      // Preview path: callee already joined signaling before accept.
+      if (p2pPreviewRef.current && p2pRef.current && state.call!.callMode === 'p2p') {
+        try {
+          setConnectStage('requesting-media');
+          await p2pRef.current.attachLocalMedia();
+          p2pPreviewRef.current = false;
+          setConnectStage('signaling');
+          return;
+        } catch (err: unknown) {
+          console.error('[CallOverlay] Preview upgrade failed:', err);
+          p2pPreviewRef.current = false;
+        }
+      }
 
       if (state.call!.callMode === 'persistent') {
         // Persistent mode needs a LiveKit token. For accepted persistent calls,
@@ -802,7 +817,7 @@ export function GlobalCallOverlay() {
   }, [isHangingUp, endCall]);
 
   const handleToggleMute = useCallback(async () => {
-    if (state.phase !== 'connected') return;
+    if (state.phase !== 'connected' && state.phase !== 'joining') return;
     const newMuted = !isMuted;
 
     if (state.call?.callMode === 'persistent' && roomRef.current) {
@@ -814,10 +829,8 @@ export function GlobalCallOverlay() {
   }, [isMuted, state.phase, state.call?.callMode]);
 
   const handleToggleVideo = useCallback(async () => {
-    // Allow toggling camera on ANY connected call (audio or video).
-    // Enabling camera mid audio-call upgrades the connection — both P2P
-    // (renegotiates) and LiveKit support adding video tracks on the fly.
-    if (state.phase !== 'connected') return;
+    // Snapchat-style: enable camera while ringing/connecting so the other side sees you live.
+    if (state.phase !== 'connected' && state.phase !== 'joining') return;
     try {
       const newOff = !isVideoOff;
       if (state.call?.callMode === 'persistent' && roomRef.current) {
@@ -959,12 +972,60 @@ export function GlobalCallOverlay() {
   const isSwitching = state.phase === 'switching';
   const isConnecting = state.phase === 'creating' || (state.phase === 'joining' && !state.call?.isInitiator);
   const isRingingOut = state.call?.isInitiator && !hasRemoteParticipant && (state.phase === 'joining' || state.phase === 'connected');
+  const mediaActive = state.phase === 'joining' || state.phase === 'connected';
+
+  // Pre-connect incoming P2P calls so caller's live camera shows before accept (Snapchat-style).
+  useEffect(() => {
+    if (state.phase !== 'ringing' || !state.call || state.call.isInitiator || state.call.callMode !== 'p2p') return;
+    if (!profileId || p2pRef.current) return;
+
+    const call = state.call;
+    const p2p = new P2PConnection({
+      conversationId: call.conversationId,
+      userId: profileId,
+      isInitiator: false,
+      callType: call.callType,
+      onEvent: (evt) => handleP2PEventRef.current(evt),
+    });
+    p2pRef.current = p2p;
+    p2pPreviewRef.current = true;
+
+    void p2p.connectPreview().catch((err) => {
+      console.warn('[CallOverlay] Incoming preview connect failed:', err);
+      if (p2pRef.current === p2p) {
+        p2pRef.current = null;
+        p2pPreviewRef.current = false;
+      }
+    });
+
+    return () => {
+      if (p2pPreviewRef.current && stateRef.current.phase === 'ringing' && p2pRef.current === p2p) {
+        void p2p.disconnect();
+        p2pRef.current = null;
+        p2pPreviewRef.current = false;
+      }
+    };
+  }, [state.phase, state.call?.id, state.call?.isInitiator, state.call?.callMode, profileId]);
+
+  // Incoming overlay unmounts on accept — re-bind remote video to the main call UI.
+  useEffect(() => {
+    if (isRinging) return;
+    const track = remoteVideoTrackRef.current;
+    if (!track || !hasRemoteVideo) return;
+    requestAnimationFrame(() => {
+      const el = remoteVideoRef.current;
+      if (!el) return;
+      el.srcObject = new MediaStream([track]);
+      el.play().catch(() => {});
+    });
+  }, [isRinging, hasRemoteVideo, state.phase]);
 
   const stageLabel = (() => {
     switch (state.connectStage) {
       case 'requesting-media': return state.call?.callType === 'video' ? 'Turning on camera…' : 'Turning on microphone…';
       case 'media-ready': return 'Camera ready';
       case 'fetching-token': return 'Securing the line…';
+      case 'ringing': return 'Ringing…';
       case 'signaling': return 'Connecting to the other side…';
       case 'connecting-media': return 'Negotiating audio & video…';
       case 'ready': return 'Connected';
@@ -976,6 +1037,7 @@ export function GlobalCallOverlay() {
       case 'requesting-media': return 15;
       case 'media-ready': return 30;
       case 'fetching-token': return 45;
+      case 'ringing': return 55;
       case 'signaling': return 65;
       case 'connecting-media': return 85;
       case 'ready': return 100;
@@ -990,12 +1052,14 @@ export function GlobalCallOverlay() {
   // Reset on call end
   useEffect(() => {
     if (state.phase === 'idle') {
+      p2pPreviewRef.current = false;
       setIsMinimized(false);
       setShowHeader(true);
       setShowFooter(true);
       setRemoteUserLeft(false);
       setAutoEndCountdown(0);
       setHasRemoteParticipant(false);
+      remoteVideoTrackRef.current = null;
       setHasRemoteVideo(false);
       setHasLocalVideo(false);
       setIsMuted(false);
@@ -1419,12 +1483,12 @@ export function GlobalCallOverlay() {
                 <div className="w-px h-8 sm:h-10 bg-white/20 flex-shrink-0" />
 
                 {/* Mute */}
-                <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('medium'); handleToggleMute(); }} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isMuted ? "bg-white text-black shadow-lg ring-2 ring-primary/50" : "bg-white/10 text-white hover:bg-white/20")}>
+                <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('medium'); handleToggleMute(); }} disabled={!mediaActive} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isMuted ? "bg-white text-black shadow-lg ring-2 ring-primary/50" : "bg-white/10 text-white hover:bg-white/20")}>
                   {isMuted ? <MicOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Mic className="h-5 w-5 sm:h-6 sm:w-6" />}
                 </motion.button>
 
                 {/* Video toggle — available on audio calls too (enables camera mid-call) */}
-                <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('medium'); handleToggleVideo(); }} disabled={!isConnected} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isVideoOff ? "bg-white/10 text-white hover:bg-white/20" : "bg-white text-black shadow-lg ring-2 ring-accent/50")} title={isVideoOff ? "Turn camera on" : "Turn camera off"}>
+                <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('medium'); handleToggleVideo(); }} disabled={!mediaActive} className={cn("relative h-11 w-11 sm:h-14 sm:w-14 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-300", "disabled:opacity-50 disabled:cursor-not-allowed", isVideoOff ? "bg-white/10 text-white hover:bg-white/20" : "bg-white text-black shadow-lg ring-2 ring-accent/50")} title={isVideoOff ? "Turn camera on" : "Turn camera off"}>
                   {isVideoOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
                 </motion.button>
 
@@ -1461,6 +1525,8 @@ export function GlobalCallOverlay() {
             <IncomingCallFullscreen
               key={`incoming-${state.call.id}`}
               call={state.call}
+              hasRemoteVideo={hasRemoteVideo}
+              remoteVideoRef={remoteVideoRef}
               onAccept={handleAccept}
               onDecline={dismissIncoming}
             />
@@ -1492,7 +1558,19 @@ export function GlobalCallOverlay() {
 
 // ── Incoming Call — Snapchat-style full-screen overlay ────────
 
-function IncomingCallFullscreen({ call, onAccept, onDecline }: { call: CallData; onAccept: () => void; onDecline: () => void }) {
+function IncomingCallFullscreen({
+  call,
+  hasRemoteVideo = false,
+  remoteVideoRef,
+  onAccept,
+  onDecline,
+}: {
+  call: CallData;
+  hasRemoteVideo?: boolean;
+  remoteVideoRef?: React.RefObject<HTMLVideoElement | null>;
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
   const [timeLeft, setTimeLeft] = useState(INCOMING_CALL_TIMEOUT_SECONDS);
   const [isProcessing, setIsProcessing] = useState(false);
   const processingRef = useRef(false);
@@ -1581,9 +1659,26 @@ function IncomingCallFullscreen({ call, onAccept, onDecline }: { call: CallData;
       <div className="absolute inset-0 bg-black/55" />
       <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/80" />
 
+      {/* Live caller video (Snapchat-style) — visible before you answer */}
+      {remoteVideoRef && (
+        <video
+          ref={remoteVideoRef}
+          autoPlay
+          playsInline
+          muted
+          className={cn(
+            'absolute inset-0 h-full w-full object-cover z-[1] transition-opacity duration-300',
+            hasRemoteVideo ? 'opacity-100' : 'opacity-0 pointer-events-none',
+          )}
+        />
+      )}
+
       {/* Top — avatar + identity */}
       <div
-        className="relative z-10 flex flex-col items-center flex-1 justify-center px-6 pt-safe pb-8"
+        className={cn(
+          'relative z-10 flex flex-col items-center flex-1 justify-center px-6 pt-safe pb-8 transition-opacity duration-300',
+          hasRemoteVideo ? 'opacity-0 pointer-events-none' : 'opacity-100',
+        )}
         style={{ paddingTop: 'calc(var(--app-header-safe, env(safe-area-inset-top, 0px)) + 2.5rem)' }}
       >
         <motion.div

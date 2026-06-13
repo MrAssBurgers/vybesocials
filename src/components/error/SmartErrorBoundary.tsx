@@ -82,8 +82,7 @@ class SmartErrorBoundary extends Component<Props, State> {
     void this.reportCrash(error, errorInfo.componentStack, 'auto');
 
     // Loop guard: track resets in a short window. If we exceed the limit,
-    // stop auto-resetting and keep `hasError` true (render returns null) so
-    // the throwing subtree stays unmounted.
+    // stop auto-resetting and show fallback UI so the user is never stuck on blank.
     const now = Date.now();
     if (now - this.resetWindowStart > SmartErrorBoundary.RESET_WINDOW_MS) {
       this.resetWindowStart = now;

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusPicker } from '@/components/status/StatusPicker';
 import { useBatchUserStatuses } from '@/hooks/useUserStatus';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
 import { TrashBin } from './TrashBin';
@@ -44,11 +45,9 @@ export function DMsHeader({
 }: DMsHeaderProps) {
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const { data: statusMap = new Map() } = useBatchUserStatuses(profile?.user_id ? [profile.user_id] : []);
-  const myStatus =
-    profile?.user_id && statusMap instanceof Map
-      ? statusMap.get(profile.user_id)
-      : undefined;
+  const profileId = useAuthProfileId();
+  const { data: statusMap = new Map() } = useBatchUserStatuses(profileId ? [profileId] : []);
+  const myStatus = profileId ? statusMap.get(profileId) : undefined;
 
   return (
     <header className="dm-header flex-shrink-0 relative">

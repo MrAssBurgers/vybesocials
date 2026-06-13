@@ -4,6 +4,37 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus
+- **You:** Lovable Publish — user-reported bug fix batch (below)
+
+## Next 3 Tasks
+1. Lovable Publish → smoke test story upload, DMs vibe edit, VYBE AI chat, friend-request dismiss/tap
+2. Apply prod SQL: `20260612120000_friend_request_sender_notified.sql` (sender can dismiss accepted-request rows)
+3. Apply `PENDING_20260530.sql` on prod; deploy `community-voice-token`
+
+## What Changed (user-reported bug fixes — 2026-06-12)
+- **Stories upload stuck** — `StoryCreator` storage uploads use `withTimeout` (120s/60s); `useCreateStory` uses `useAuthProfileId`, clears optimistic `isUploading` on success; `StoriesBar` shows upload state
+- **DMs vibe edit** — `DMsHeader` status lookup uses `profiles.id` (not auth uid); `useSetStatus`/`StatusPicker` use cached profile id + error toasts
+- **VYBE AI typing bubble** — `AIChat` uses `fetchWithTimeout` (90s), handles non-SSE JSON responses, timeout/empty-reply fallbacks
+- **VYBE AI Designer removed** — unmounted `VYBECommandBar` from `App.tsx`; removed AI redesign banners from `HomeGridEditor` + `HomeWidgetCustomizer`
+- **Accepted friend dismiss (X)** — RLS migration for sender `notified_at` update; optimistic cache + localStorage fallback in `useDismissAcceptedRequest`; X visible on mobile
+- **Friend request tap** — `AcceptedFriendChatRow` opens DM first; `Notifications` friend_request → profile, friend_accepted → chat; requests tab rows tappable
+- **Verify:** `npm run build` PASS
+
+## Current Focus
+- **You:** Lovable Publish — call instant-connect + Snapchat-style incoming preview
+
+## Next 3 Tasks
+1. Lovable Publish → test 1:1 audio/video call (caller connects immediately; callee sees live camera before accept)
+2. Smoke test Friend Link QR sync animation + DM open
+3. Apply `PENDING_20260530.sql` on prod; deploy `community-voice-token`
+
+## What Changed (Snapchat-style calls — 2026-06-12)
+- **`p2pConnection.ts`** — `connectPreview()` (callee receive-only before accept) + `attachLocalMedia()` (upgrade on accept)
+- **`GlobalCallOverlay.tsx`** — removed accept-wait blocking; caller connects P2P immediately; incoming preview effect; live caller video on incoming screen; camera/mic toggles work during `joining`; remote video re-binds after accept
+- **`callStore.tsx`** — P2P `startCall` uses `connectStage: 'signaling'` (not `ringing`) so WebRTC starts in parallel with ring
+- **Verify:** `npm run build` PASS
+
 ## Debug scan (2026-06-13 — post stability polish `c999a15b`)
 - **Command:** `npm run debug` (build, lint, CSS, edge-fn refs, prod RPC/edge probes)
 - **Frontend:** build PASS · lint PASS (3 pre-existing warnings in `queryRefetchPolicy.ts`) · CSS PASS · `tsc --noEmit` PASS
@@ -19,12 +50,22 @@ Use this file as the Lovable -> Cursor handoff each session.
   3. Lovable → Share → Publish → https://vybehub.app
 
 ## Current Focus
-- **You:** Lovable Publish after blank-DMs fix (below)
+- **You:** Lovable Publish after crash-prevention hardening (below)
 
 ## Next 3 Tasks
-1. Lovable Publish + clear site data / force-quit if DMs still blank from stale cache
-2. Smoke test `/messages` — Chat header, VYBE-AI row, conversation list; open a thread
+1. Lovable Publish (cache buster bumped to `vybe-cache-v5` — clears bad persisted Set/Map)
+2. Smoke test major tabs after publish — confirm no blank panels on error
 3. Apply `PENDING_20260530.sql` on prod; deploy `community-voice-token`
+
+## What Changed (crash prevention hardening — 2026-06-12)
+- **`persistedCollections.ts`** — global Set/Map revival on persist restore; `safeSetHas` / `safeMapGet` helpers; query-key registry for persisted collections
+- **`queryPersister.ts`** — custom `deserialize` revives Set/Map before React Query hydrates
+- **`App.tsx`** — root `SmartErrorBoundary` always gets `AppErrorFallback`; `reviveQueriesInCache()` on persist restore; cache buster `vybe-cache-v5`
+- **`AnimatedRoutes.tsx`** — route-level `ErrorBoundary` + `AppErrorFallback` (Try again / Reload / Go Home)
+- **`AppErrorFallback.tsx`** — shared fallback UI for root, routes, and feature boundaries
+- **Hooks** — `select: normalizePersistedSet` on `useDismissedProfiles`, `useHiddenConversations`, `useTrashedConversationIds`, `useMyFeatureVotes`, consolidated duplicates in outgoing/trashed hooks
+- **Defensive reads** — `DMsHeader` (`safeMapGet`), `MutualFriendsQuickAdd` (`safeSetHas`)
+- **Verify:** `npm run build` PASS
 
 ## What Changed (blank black DMs fix — 2026-06-12)
 - **`SmartErrorBoundary`** — on error, render `fallback` prop (or inline Retry UI) instead of `return null`; reset loop now keeps `hasError` and shows fallback; `handleRetry` clears reset counter

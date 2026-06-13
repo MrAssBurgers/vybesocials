@@ -5,7 +5,8 @@ import { ArrowLeft, X, Camera as CameraIcon, Image as ImageIcon, Star, Send, Loa
 import { StoryPollEditor, PollData } from './StoryPollEditor';
 import { useCreateStory } from '@/hooks/useStories';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { withTimeout } from '@/lib/withTimeout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -25,7 +26,7 @@ type CreatorMode = 'select' | 'camera' | 'gallery';
 
 export function StoryCreator({ onClose }: StoryCreatorProps) {
   const { t } = useTranslation();
-  const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const createStory = useCreateStory();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -119,7 +120,10 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   };
 
   const handleSubmit = async () => {
-    if (!selectedFile || !profile?.id || !mediaInfo) return;
+    if (!selectedFile || !profileId || !mediaInfo) {
+      if (!profileId) toast.error('Please wait — still loading your profile');
+      return;
+    }
 
     setUploadState('compressing');
     setUploadProgress(10);
@@ -149,12 +153,16 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       const fileName = generateStoryFileName(user.id, mediaInfo.isVideo ? 'video' : 'image');
 
       // Upload to stories bucket
-      const { error: uploadError } = await supabase.storage
-        .from('stories')
-        .upload(fileName, fileToUpload, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+      const { error: uploadError } = await withTimeout(
+        supabase.storage
+          .from('stories')
+          .upload(fileName, fileToUpload, {
+            cacheControl: '3600',
+            upsert: false,
+          }),
+        120000,
+        'Upload timed out. Check your connection and try again.',
+      );
 
       if (uploadError) {
         console.error('Upload error:', uploadError);
@@ -166,13 +174,17 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       let thumbnailUrl: string | undefined;
       if (thumbnailBlob) {
         const thumbFileName = generateStoryThumbnailFileName(user.id);
-        const { error: thumbUploadError } = await supabase.storage
-          .from('stories')
-          .upload(thumbFileName, thumbnailBlob, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: 'image/jpeg',
-          });
+        const { error: thumbUploadError } = await withTimeout(
+          supabase.storage
+            .from('stories')
+            .upload(thumbFileName, thumbnailBlob, {
+              cacheControl: '3600',
+              upsert: false,
+              contentType: 'image/jpeg',
+            }),
+          60000,
+          'Cover upload timed out',
+        );
 
         if (thumbUploadError) {
           console.warn('Thumbnail upload failed:', thumbUploadError);

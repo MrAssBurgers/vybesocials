@@ -5,6 +5,7 @@ import { Loader2, UserPlus, Check, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useSendFriendRequest } from '@/hooks/useFriends';
+import { useCreateConversation } from '@/hooks/useMessages';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -12,11 +13,18 @@ import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { stashAuthReturnPath } from '@/lib/authReturnPath';
 import { NFCSwapAnimation } from '@/components/friends/NFCSwapAnimation';
+import {
+  dispatchFriendDropAnimationStart,
+  dispatchFriendDropCompleted,
+  dispatchFriendDropCloseSheet,
+  scheduleFriendDropSyncStart,
+} from '@/lib/friendLinkEvents';
 
 type Phase = 'loading' | 'ready' | 'exchanging' | 'success' | 'error';
 
 /**
  * Deep link for Friend Link QR / NFC: /friend-drop/:dropId
+ * Scanner lands here after scanning the QR — syncs animation with the displayer's sheet.
  */
 export default function FriendDropLink() {
   const { dropId } = useParams<{ dropId: string }>();
@@ -24,6 +32,7 @@ export default function FriendDropLink() {
   const { user, profile, loading: authLoading } = useAuth();
   const profileId = useAuthProfileId();
   const sendRequest = useSendFriendRequest();
+  const createConversation = useCreateConversation();
   const [phase, setPhase] = useState<Phase>('loading');
   const [owner, setOwner] = useState<{
     id: string;
@@ -32,7 +41,9 @@ export default function FriendDropLink() {
     avatar_url: string | null;
   } | null>(null);
   const [showSwap, setShowSwap] = useState(false);
+  const [syncStartAt, setSyncStartAt] = useState<number | undefined>(undefined);
   const startedRef = useRef(false);
+  const completeRef = useRef(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -55,6 +66,8 @@ export default function FriendDropLink() {
 
     (async () => {
       try {
+        const syncAt = scheduleFriendDropSyncStart();
+
         const { data: drop, error } = await supabase
           .from('friend_drops')
           .update({
@@ -90,16 +103,46 @@ export default function FriendDropLink() {
         }
 
         setOwner(ownerProfile);
+        setSyncStartAt(syncAt);
         setShowSwap(true);
         setPhase('exchanging');
         haptics.success();
+
+        dispatchFriendDropAnimationStart({
+          dropId,
+          syncStartAt: syncAt,
+          role: 'scanner',
+        });
       } catch {
         setPhase('error');
       }
     })();
   }, [authLoading, user, profile, profileId, dropId, navigate]);
 
-  const completeRef = useRef(false);
+  const finishSuccess = async (friendProfileId: string) => {
+    let conversationId: string | undefined;
+    try {
+      const conversation = await createConversation.mutateAsync({ memberIds: [friendProfileId] });
+      conversationId = conversation.id;
+    } catch {
+      /* DM may already exist */
+    }
+
+    dispatchFriendDropCompleted({
+      dropId: dropId!,
+      friendProfileId,
+      conversationId,
+    });
+    dispatchFriendDropCloseSheet();
+
+    window.setTimeout(() => {
+      if (conversationId) {
+        navigate(`/messages/${conversationId}`, { replace: true });
+      } else {
+        navigate('/messages', { replace: true });
+      }
+    }, 2400);
+  };
 
   const completeAdd = async () => {
     if (!owner || !dropId || completeRef.current) return;
@@ -117,16 +160,17 @@ export default function FriendDropLink() {
       setPhase('success');
       haptics.success();
       toast.success(`You're now connected with @${owner.username}!`);
-      window.setTimeout(() => navigate('/messages', { replace: true }), 2200);
+      await finishSuccess(owner.id);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
       if (msg.includes('already')) {
         setPhase('success');
-        window.setTimeout(() => navigate('/messages', { replace: true }), 1500);
+        await finishSuccess(owner.id);
       } else {
         toast.error('Could not add friend');
         setPhase('ready');
         setShowSwap(false);
+        completeRef.current = false;
       }
     }
   };
@@ -159,6 +203,8 @@ export default function FriendDropLink() {
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
       <NFCSwapAnimation
         isActive={showSwap}
+        syncStartAt={syncStartAt}
+        performAutoAdd
         myProfile={
           profile?.username
             ? { username: profile.username, avatar_url: profile.avatar_url }
@@ -172,7 +218,11 @@ export default function FriendDropLink() {
       />
 
       {phase === 'success' && owner && (
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center gap-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-4"
+        >
           <div className="h-16 w-16 rounded-full bg-primary/20 flex items-center justify-center">
             <Check className="h-8 w-8 text-primary" />
           </div>

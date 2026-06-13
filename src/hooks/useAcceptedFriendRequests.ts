@@ -1,6 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { toast } from 'sonner';
+
+const DISMISSED_ACCEPTED_KEY = 'vybe-dismissed-accepted-requests';
+
+function readDismissedAcceptedIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DISMISSED_ACCEPTED_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function persistDismissedAcceptedId(requestId: string) {
+  try {
+    const ids = readDismissedAcceptedIds();
+    ids.add(requestId);
+    localStorage.setItem(DISMISSED_ACCEPTED_KEY, JSON.stringify([...ids].slice(-100)));
+  } catch {
+    // ignore quota errors
+  }
+}
 
 interface AcceptedFriendRequest {
   id: string;
@@ -53,11 +77,13 @@ export function useAcceptedFriendRequests() {
         return [];
       }
 
-      return (data || []) as AcceptedFriendRequest[];
+      const dismissed = readDismissedAcceptedIds();
+      return ((data || []) as AcceptedFriendRequest[]).filter((row) => !dismissed.has(row.id));
     },
     enabled: !!profileId,
     staleTime: 30000,
     refetchOnWindowFocus: true,
+    networkMode: 'always',
   });
 }
 
@@ -70,7 +96,8 @@ export function useDismissAcceptedRequest() {
     mutationFn: async (requestId: string) => {
       if (!profileId) throw new Error('Not authenticated');
 
-      // Mark as notified in the database - this is permanent
+      persistDismissedAcceptedId(requestId);
+
       const { error } = await supabase
         .from('friend_requests')
         .update({ notified_at: new Date().toISOString() })
@@ -78,14 +105,25 @@ export function useDismissAcceptedRequest() {
         .eq('sender_id', profileId);
 
       if (error) {
-        console.error('[DismissAcceptedRequest] Error:', error);
-        throw error;
+        console.warn('[DismissAcceptedRequest] DB update failed (local dismiss kept):', error);
       }
 
       return requestId;
     },
-    onSuccess: () => {
-      // Immediately remove from cache for instant UI feedback
+    onMutate: async (requestId) => {
+      persistDismissedAcceptedId(requestId);
+      await queryClient.cancelQueries({ queryKey: ['accepted-friend-requests'] });
+      const previous = queryClient.getQueryData<AcceptedFriendRequest[]>(['accepted-friend-requests', profileId]);
+      queryClient.setQueryData<AcceptedFriendRequest[]>(
+        ['accepted-friend-requests', profileId],
+        (old) => (old || []).filter((row) => row.id !== requestId),
+      );
+      return { previous };
+    },
+    onError: () => {
+      toast.error('Could not sync dismiss — hidden on this device');
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['accepted-friend-requests'] });
     },
   });

@@ -496,7 +496,22 @@ export default function NotificationsPage() {
                       exit={{ opacity: 0, x: -80, transition: { duration: 0.15 } }}
                       transition={{ delay: Math.min(idx * 0.02, 0.1), duration: 0.15 }}
                     >
-                      <div className="flex items-center gap-3 p-3 rounded-2xl bg-card/80 backdrop-blur-md border border-border/30">
+                      <div
+                        className="flex items-center gap-3 p-3 rounded-2xl bg-card/80 backdrop-blur-md border border-border/30 cursor-pointer hover:bg-muted/30 active:scale-[0.99] transition-all"
+                        onClick={() => {
+                          if (request.sender?.username) {
+                            navigate(`/u/${request.sender.username}`);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if ((e.key === 'Enter' || e.key === ' ') && request.sender?.username) {
+                            e.preventDefault();
+                            navigate(`/u/${request.sender.username}`);
+                          }
+                        }}
+                      >
                         <Link to={`/u/${request.sender?.username}`}>
                           <Avatar className="h-12 w-12">
                             <AvatarImage src={request.sender?.avatar_url || undefined} />
@@ -513,7 +528,7 @@ export default function NotificationsPage() {
                             <p className="text-xs text-muted-foreground">@{request.sender?.username}</p>
                           </Link>
                         </div>
-                        <div className="flex gap-1.5">
+                        <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
                           <Button
                             size="sm"
                             className="h-9 px-4 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold"
@@ -698,11 +713,16 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
   const navigate = useNavigate();
 
   const shouldGoToPost = (notification.type === 'like' || notification.type === 'comment') && notification.post_id;
-  const shouldGoToChat = notification.type === 'message';
+  const shouldGoToChat = notification.type === 'message' || notification.type === 'friend_accepted';
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (notification.type === 'friend_request' && notification.actor?.username) {
+      navigate(`/u/${notification.actor.username}`);
+      return;
+    }
 
     // Honor explicit deep_link first (daily_brief, announcements, etc.)
     if (notification.deep_link) {

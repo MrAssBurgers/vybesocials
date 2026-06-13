@@ -20,6 +20,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { fetchWithTimeout } from '@/lib/withTimeout';
 import { cn } from '@/lib/utils';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import ReactMarkdown from 'react-markdown';
@@ -296,15 +297,37 @@ export default function AIChat() {
         body.image_mime_type = imageMimeType;
       }
 
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`,
-        { method: 'POST', headers, body: JSON.stringify(body) }
+        { method: 'POST', headers, body: JSON.stringify(body) },
+        90000,
       );
 
       if (!response.ok) {
+        let errMsg = 'Failed to get response';
+        try {
+          const errData = await response.json();
+          errMsg = errData.error || errMsg;
+        } catch {
+          // ignore parse errors
+        }
         if (response.status === 429) { toast.error('Too many requests. Wait a moment.'); return; }
         if (response.status === 402) { toast.error('AI credits exhausted.'); return; }
-        throw new Error('Failed to get response');
+        throw new Error(errMsg);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('text/event-stream')) {
+        try {
+          const payload = await response.json();
+          const text = payload.message || payload.content || payload.error;
+          if (text) {
+            setMessages(prev => [...prev, { role: 'assistant', content: String(text), timestamp: new Date() }]);
+            return;
+          }
+        } catch {
+          // fall through to stream reader
+        }
       }
 
       const reader = response.body?.getReader();
@@ -359,12 +382,19 @@ export default function AIChat() {
         }
       }
 
-      setMessages(prev => [...prev, { role: 'assistant', content: assistantContent, timestamp: new Date() }]);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: assistantContent.trim() || "I couldn't generate a reply. Try again.",
+        timestamp: new Date(),
+      }]);
       setStreamingText('');
       streamingContentRef.current = '';
     } catch (error) {
       console.error('AI chat error:', error);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Oops, something went wrong. Try again!", timestamp: new Date() }]);
+      const msg = error instanceof Error
+        ? (error.name === 'AbortError' ? 'Request timed out. Try again.' : error.message)
+        : 'Something went wrong';
+      setMessages(prev => [...prev, { role: 'assistant', content: `Oops — ${msg}`, timestamp: new Date() }]);
       setStreamingText('');
       streamingContentRef.current = '';
     } finally {

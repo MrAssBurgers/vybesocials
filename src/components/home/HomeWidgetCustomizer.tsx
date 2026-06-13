@@ -151,25 +151,6 @@ export function HomeWidgetCustomizer({ open, onOpenChange, onOpenCommandBar }: P
           </div>
         </SheetHeader>
 
-        {/* AI Redesign Banner */}
-        <button
-          onClick={() => {
-            onOpenChange(false);
-            onOpenCommandBar?.();
-          }}
-          className="shrink-0 mb-3 flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-primary/15 via-accent/15 to-primary/15 border border-primary/25 hover:border-primary/50 transition-colors group"
-        >
-          <div className="w-8 h-8 rounded-lg gradient-animated flex items-center justify-center shrink-0">
-            <Sparkles className="h-4 w-4 text-white" />
-          </div>
-          <div className="text-left flex-1">
-            <p className="text-sm font-semibold">Ask VYBE AI to redesign</p>
-            <p className="text-xs text-muted-foreground">
-              "Make my app feel neon & dark" → instant magic ✨
-            </p>
-          </div>
-        </button>
-
         {/* Draggable Widget List */}
         <div className="flex-1 overflow-y-auto">
           <Reorder.Group

@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
 import { invalidateConversationCaches, patchConversationListCaches } from '@/lib/invalidateConversationCaches';
+import { normalizePersistedSet } from '@/lib/persistedCollections';
 
 export interface TrashedConversation {
   id: string;
@@ -236,15 +237,6 @@ export function useTrashedConversationIds() {
     },
     enabled: !!profileId,
     staleTime: 30000,
-    select: (data: unknown): Set<string> => {
-      if (data instanceof Set) return data as Set<string>;
-      if (Array.isArray(data)) return new Set<string>(data.filter((v): v is string => typeof v === 'string'));
-      if (data && typeof data === 'object') {
-        return new Set<string>(
-          Object.values(data as Record<string, unknown>).filter((v): v is string => typeof v === 'string')
-        );
-      }
-      return new Set<string>();
-    },
+    select: normalizePersistedSet,
   });
 }

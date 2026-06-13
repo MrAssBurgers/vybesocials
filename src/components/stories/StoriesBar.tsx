@@ -2,7 +2,7 @@ import { useState, memo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
-import { useStories } from '@/hooks/useStories';
+import { useStories, useCreateStory } from '@/hooks/useStories';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { StoryViewer } from './StoryViewer';
@@ -27,6 +27,7 @@ export const StoriesBar = memo(function StoriesBar({
   const { profile } = useAuth();
   const { isGuest } = useIsGuest();
   const { data: storyGroups } = useStories();
+  const createStory = useCreateStory();
   const [selectedGroupIndex, setSelectedGroupIndex] = useState<number | null>(null);
   const [showCreator, setShowCreator] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
@@ -63,6 +64,7 @@ export const StoriesBar = memo(function StoriesBar({
   }, [storyGroups]);
 
   const ownStoryGroup = storyGroups?.find((g) => g.user.id === profile?.id);
+  const ownStoryUploading = ownStoryGroup?.stories.some((s) => s.isUploading || s.isOptimistic) ?? false;
   const otherGroups = storyGroups?.filter((g) => g.user.id !== profile?.id) || [];
 
   const ownPosterUrl = ownStoryGroup?.stories[0]
@@ -93,6 +95,7 @@ export const StoriesBar = memo(function StoriesBar({
           label={isGuest ? 'Add Story' : t('stories.yourStory')}
           hasUnviewed={ownStoryGroup?.hasUnviewed}
           hasStory={!!ownStoryGroup}
+          isUploading={createStory.isPending || ownStoryUploading}
           showAddButton
           onClick={() => {
             if (isGuest) {

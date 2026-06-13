@@ -1,5 +1,7 @@
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+import type { PersistedClient } from '@tanstack/react-query-persist-client';
 import { get, set, del } from 'idb-keyval';
+import { revivePersistedClient } from '@/lib/persistedCollections';
 
 /**
  * IndexedDB-backed storage adapter for react-query persistence.
@@ -30,10 +32,16 @@ const idbStorage = {
   },
 };
 
+function deserializePersistedClient(cached: string): PersistedClient {
+  const parsed = JSON.parse(cached) as PersistedClient;
+  return revivePersistedClient(parsed);
+}
+
 export const queryPersister = createAsyncStoragePersister({
   storage: idbStorage,
   key: 'vybe-react-query-cache',
   throttleTime: 800,
+  deserialize: deserializePersistedClient,
 });
 
 /**

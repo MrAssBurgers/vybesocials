@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSetStatus, useClearStatus, useUserStatusById } from '@/hooks/useUserStatus';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { X, Smile } from 'lucide-react';
@@ -37,8 +37,8 @@ const DURATION_OPTIONS = [
 ];
 
 export const StatusPicker = memo(function StatusPicker({ trigger }: { trigger?: React.ReactNode }) {
-  const { profile } = useAuth();
-  const { data: currentStatus } = useUserStatusById(profile?.id);
+  const profileId = useAuthProfileId();
+  const { data: currentStatus } = useUserStatusById(profileId);
   const setStatus = useSetStatus();
   const clearStatus = useClearStatus();
   const [open, setOpen] = useState(false);
@@ -48,6 +48,10 @@ export const StatusPicker = memo(function StatusPicker({ trigger }: { trigger?: 
   const [showCustom, setShowCustom] = useState(false);
 
   const handleQuickVibe = useCallback((vibe: typeof VIBE_STATUSES[number]) => {
+    if (!profileId) {
+      toast.error('Please wait — still loading your profile');
+      return;
+    }
     haptics.impact();
     setStatus.mutate(
       { emoji: vibe.emoji, text: vibe.text, durationHours: 4 },
@@ -56,11 +60,18 @@ export const StatusPicker = memo(function StatusPicker({ trigger }: { trigger?: 
           toast.success(`Vibe set: ${vibe.emoji} ${vibe.text}`);
           setOpen(false);
         },
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : 'Could not update vibe');
+        },
       }
     );
-  }, [setStatus]);
+  }, [profileId, setStatus]);
 
   const handleCustomStatus = useCallback(() => {
+    if (!profileId) {
+      toast.error('Please wait — still loading your profile');
+      return;
+    }
     if (!customText.trim()) return;
     haptics.impact();
     setStatus.mutate(
@@ -72,9 +83,12 @@ export const StatusPicker = memo(function StatusPicker({ trigger }: { trigger?: 
           setShowCustom(false);
           setCustomText('');
         },
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : 'Could not update vibe');
+        },
       }
     );
-  }, [customEmoji, customText, duration, setStatus]);
+  }, [profileId, customEmoji, customText, duration, setStatus]);
 
   const handleClear = useCallback(() => {
     haptics.impact();

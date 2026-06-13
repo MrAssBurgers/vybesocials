@@ -16,6 +16,7 @@ import React, { createContext, useContext, useState, useCallback, useRef, ReactN
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
 import { toast } from 'sonner';
@@ -58,6 +59,7 @@ export type ConnectStage =
   | 'requesting-media'   // getUserMedia in flight
   | 'media-ready'        // local camera/mic acquired
   | 'fetching-token'     // negotiating credentials with server
+  | 'ringing'            // outbound ring — waiting for answer (P2P)
   | 'signaling'          // P2P SDP exchange / LiveKit signaling
   | 'connecting-media'   // ICE / room connect
   | 'ready';             // fully connected
@@ -67,6 +69,8 @@ interface CallStoreState {
   call: CallData | null;
   error: string | null;
   connectStage?: ConnectStage;
+  /** P2P caller: callee accepted — safe to start WebRTC (Snapchat-style ring-first). */
+  remoteAccepted?: boolean;
 }
 
 interface CallStoreContextType {
@@ -218,6 +222,7 @@ export function subscribeLingeringCall(cb: () => void): () => void {
 
 export function CallStoreProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   // Bootstrap custom sounds (custom ringtone) into localStorage as soon as user authenticates
   // so incoming-call ringer can use it without opening Settings first.
   useSyncCustomSounds();
@@ -321,19 +326,19 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
   // Realtime + polling for incoming calls
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profileId) return;
 
     let pollTimeoutId: ReturnType<typeof setTimeout> | null = null;
     let lastPollTime = new Date().toISOString();
     let isSubscribed = false;
 
     const channel = subscribePostgresChannel(
-      `incoming-calls-${profile.id}`,
+      `incoming-calls-${profileId}`,
       [
         {
           event: 'INSERT',
           table: 'calls',
-          filter: `receiver_id=eq.${profile.id}`,
+          filter: `receiver_id=eq.${profileId}`,
           callback: (payload) => processIncomingCall(payload.new),
         },
       ],
@@ -356,7 +361,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         const { data: ringingCalls } = await supabase
           .from('calls')
           .select('id, status, conversation_id, call_type, room_name, created_at')
-          .eq('receiver_id', profile.id)
+          .eq('receiver_id', profileId)
           .eq('status', 'ringing')
           .gt('created_at', lastPollTime)
           .order('created_at', { ascending: false })
@@ -371,7 +376,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         if (import.meta.env.DEV) console.warn('[CallStore] Poll error:', err);
       }
 
-      pollTimeoutId = setTimeout(poll, isSubscribed ? 5000 : 2000);
+      pollTimeoutId = setTimeout(poll, isSubscribed ? 4000 : 1200);
     };
 
     pollTimeoutId = setTimeout(poll, 2000);
@@ -380,13 +385,45 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       removeRealtimeChannel(channel);
       if (pollTimeoutId) clearTimeout(pollTimeoutId);
     };
-  }, [profile?.id, processIncomingCall]);
+  }, [profileId, processIncomingCall]);
+
+  // Caller: track callee accept/decline while P2P connects immediately in parallel.
+  useEffect(() => {
+    const active = globalCallState.call;
+    if (!profileId || !active?.isInitiator || active.callMode !== 'p2p') return;
+    if (globalCallState.phase !== 'joining' && globalCallState.phase !== 'creating') return;
+
+    const callId = active.id;
+    const channel = subscribePostgresChannel(
+      `call-status-${callId}`,
+      [
+        {
+          event: 'UPDATE',
+          table: 'calls',
+          filter: `id=eq.${callId}`,
+          callback: (payload) => {
+            const status = (payload.new as { status?: string })?.status;
+            if (status === 'accepted') {
+              setState((prev) =>
+                prev.call?.id === callId ? { ...prev, remoteAccepted: true } : prev,
+              );
+            } else if (status === 'declined' || status === 'missed' || status === 'ended') {
+              premiumSounds.stopAllCallSounds();
+              setState(initialState);
+            }
+          },
+        },
+      ],
+    );
+
+    return () => removeRealtimeChannel(channel);
+  }, [profileId, state.phase, state.call?.id, state.call?.isInitiator, state.call?.callMode, setState]);
 
   // ── AUTO-RECONNECT on page refresh ─────────────────────────
   // If a snapshot exists and the call is still alive in DB, silently rejoin.
   const reconnectAttemptedRef = useRef(false);
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profileId) return;
     if (reconnectAttemptedRef.current) return;
     if (globalCallState.phase !== 'idle') return;
 
@@ -475,12 +512,12 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     };
 
     tryReconnect();
-  }, [profile?.id, setState]);
+  }, [profileId, setState]);
 
   // Watch the lingering call's status — clear it the moment it actually ends server-side
   // so the green "Rejoin" button never sticks around after a real hangup.
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profileId) return;
     let channel: ReturnType<typeof supabase.channel> | null = null;
     let watchedId: string | null = null;
 
@@ -514,7 +551,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     sync();
     const unsub = subscribeLingeringCall(sync);
     return () => { unsub(); detach(); };
-  }, [profile?.id]);
+  }, [profileId]);
 
   // Listen for call status changes (remote hangup) AND call_mode changes (mode switch)
   useEffect(() => {
@@ -568,7 +605,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     groupAvatar?: string | null;
     participantIds?: string[];
   }) => {
-    if (!profile?.id) throw new Error('Not authenticated');
+    if (!profileId) throw new Error('Not authenticated');
     if (globalCallState.phase !== 'idle') return;
 
     // Starting a brand-new call — drop any stale lingering rejoin chip
@@ -600,7 +637,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         .from('calls')
         .insert({
           conversation_id: params.conversationId,
-          caller_id: profile.id,
+          caller_id: profileId,
           receiver_id: params.receiverId,
           call_type: params.callType,
           status: 'ringing',
@@ -651,10 +688,10 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         callMode: initialMode,
         conversationId: params.conversationId,
         caller: {
-          id: profile.id,
-          username: profile.username,
-          display_name: profile.username,
-          avatar_url: profile.avatar_url,
+          id: profileId,
+          username: profile?.username || '',
+          display_name: profile?.username || '',
+          avatar_url: profile?.avatar_url || null,
         },
         receiver: {
           id: params.receiverId,
@@ -670,7 +707,13 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
       premiumSounds.stopAllCallSounds();
       // Paint the overlay IMMEDIATELY — overlay/camera mount happens here.
-      setState({ phase: 'joining', call: callData, error: null, connectStage: 'signaling' });
+      setState({
+        phase: 'joining',
+        call: callData,
+        error: null,
+        connectStage: 'signaling',
+        remoteAccepted: false,
+      });
 
       // Fan out push notifications truly fire-and-forget. Receiver also has
       // realtime + 2-5s polling fallback in this same file (lines 285-333),
@@ -678,7 +721,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       void (async () => {
         try {
           const targetIds = params.isGroupCall
-            ? (params.participantIds || []).filter((id) => id && id !== profile.id)
+            ? (params.participantIds || []).filter((id) => id && id !== profileId)
             : [params.receiverId];
 
           const callerName = profile.username || 'Someone';
@@ -720,7 +763,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       setState({ phase: 'idle', call: null, error: null });
       try { toast.error(err?.message || 'Failed to start call'); } catch {}
     }
-  }, [profile?.id, profile?.username, profile?.avatar_url, setState]);
+  }, [profileId, profile?.username, profile?.avatar_url, setState]);
 
   /**
    * ACCEPT CALL
@@ -954,11 +997,11 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         .update({ status: 'declined' })
         .eq('id', currentIncoming.id);
 
-      if (currentIncoming.caller?.id && profile?.id) {
+      if (currentIncoming.caller?.id && profileId) {
         await supabase
           .from('notifications')
           .insert({
-            user_id: profile.id,
+            user_id: profileId,
             actor_id: currentIncoming.caller.id,
             type: 'missed_call',
           });
@@ -966,7 +1009,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     }
 
     setIncomingCall(null);
-  }, [profile?.id, setIncomingCall]);
+  }, [profileId, setIncomingCall]);
 
   const effectiveState: CallStoreState = incomingCall && state.phase === 'idle'
     ? { phase: 'ringing', call: incomingCall, error: null }

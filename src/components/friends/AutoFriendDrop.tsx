@@ -29,6 +29,18 @@ import { buildFriendDropUrl, type FriendLinkTarget, extractFriendTarget } from '
 import { scanFriendLinkOnce } from '@/lib/friendLinkNfc';
 import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
 import { FRIEND_LINK_OPEN_EVENT } from '@/lib/friendLinkUi';
+import {
+  FRIEND_DROP_ANIMATION_START,
+  FRIEND_DROP_COMPLETED,
+  FRIEND_DROP_CLOSE_SHEET,
+  dispatchFriendDropAnimationStart,
+  dispatchFriendDropCompleted,
+  dispatchFriendDropCloseSheet,
+  scheduleFriendDropSyncStart,
+  type FriendDropRole,
+  type FriendDropAnimationStartDetail,
+  type FriendDropCompletedDetail,
+} from '@/lib/friendLinkEvents';
 import { NFCSwapAnimation } from '@/components/friends/NFCSwapAnimation';
 import { FriendLinkActivateHint, FriendLinkSheetTips } from '@/components/friends/FriendLinkActivateHint';
 import { FriendLinkTapAnimation } from '@/components/friends/FriendLinkTapAnimation';
@@ -72,6 +84,8 @@ export function AutoFriendDrop() {
   const exchangeLockRef = useRef(false);
   const completingRef = useRef(false);
   const [showSwapAnimation, setShowSwapAnimation] = useState(false);
+  const [dropRole, setDropRole] = useState<FriendDropRole | null>(null);
+  const [syncStartAt, setSyncStartAt] = useState<number | undefined>(undefined);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -99,33 +113,66 @@ export function AutoFriendDrop() {
       try {
         const conversation = await createConversation.mutateAsync({ memberIds: [targetUserId] });
         createdConversationIdRef.current = conversation.id;
+        if (activeDropId) {
+          dispatchFriendDropCompleted({
+            dropId: activeDropId,
+            friendProfileId: targetUserId,
+            conversationId: conversation.id,
+          });
+        }
       } catch {}
     }
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     autoCloseTimerRef.current = setTimeout(() => {
       autoCloseTimerRef.current = null;
       const convId = createdConversationIdRef.current;
+      dispatchFriendDropCloseSheet();
       setIsActive(false);
       setPhase('idle');
       setFoundUser(null);
       setActiveDropId(null);
+      setDropRole(null);
+      setSyncStartAt(undefined);
+      setShowSwapAnimation(false);
       createdConversationIdRef.current = null;
+      exchangeLockRef.current = false;
+      completingRef.current = false;
       if (convId) navigate(`/messages/${convId}`);
-    }, 3000);
-  }, [foundUser?.id, createConversation, navigate]);
+    }, 2800);
+  }, [foundUser?.id, activeDropId, createConversation, navigate]);
 
-  const handleOnScanned = useCallback((drop: { to_user_id: string | null }) => {
+  const beginFriendLinkExchange = useCallback(
+    (params: { dropId: string; role: FriendDropRole; peer: FoundUser; syncAt?: number }) => {
+      const syncAt = params.syncAt ?? scheduleFriendDropSyncStart();
+      setActiveDropId(params.dropId);
+      setDropRole(params.role);
+      setSyncStartAt(syncAt);
+      setFoundUser(params.peer);
+      setShowSwapAnimation(true);
+      setPhase('exchanging');
+      dispatchFriendDropAnimationStart({
+        dropId: params.dropId,
+        syncStartAt: syncAt,
+        role: params.role,
+      });
+    },
+    [],
+  );
+
+  const handleOnScanned = useCallback((drop: { id: string; to_user_id: string | null }) => {
     haptics.success();
     if (drop.to_user_id) {
       fetchUser(drop.to_user_id).then((scannedUser) => {
         if (scannedUser) {
-          setFoundUser(scannedUser);
-          setShowSwapAnimation(true);
-          setPhase('exchanging');
+          beginFriendLinkExchange({
+            dropId: drop.id,
+            role: 'owner',
+            peer: scannedUser,
+          });
         }
       });
     }
-  }, []);
+  }, [beginFriendLinkExchange]);
 
   const handleOnConfirmed = useCallback(() => {
     if (phase !== 'exchanging') { setPhase('exchanging'); haptics.impact(); }
@@ -207,22 +254,25 @@ export function AutoFriendDrop() {
     exchangeLockRef.current = true;
     stopScanning();
     haptics.success();
+    const syncAt = scheduleFriendDropSyncStart();
     const scannedDrop = await friendDropSync.scanDrop(dropId);
     if (!scannedDrop) {
       toast.error('This code has expired');
       exchangeLockRef.current = false;
       return;
     }
-    setActiveDropId(dropId);
     if (scannedDrop.from_user_id) {
       const ownerProfile = await fetchUser(scannedDrop.from_user_id);
       if (ownerProfile) {
-        setFoundUser(ownerProfile);
-        setShowSwapAnimation(true);
-        setPhase('exchanging');
+        beginFriendLinkExchange({
+          dropId,
+          role: 'scanner',
+          peer: ownerProfile,
+          syncAt,
+        });
       }
     }
-  }, [friendDropSync, stopScanning]);
+  }, [friendDropSync, stopScanning, beginFriendLinkExchange]);
 
   const handleAutoAdd = useCallback((userId: string) => {
     if (phase === 'success' || completingRef.current) return;
@@ -289,6 +339,8 @@ export function AutoFriendDrop() {
     setPhase('idle');
     setFoundUser(null);
     setActiveDropId(null);
+    setDropRole(null);
+    setSyncStartAt(undefined);
     setShowSwapAnimation(false);
     exchangeLockRef.current = false;
     completingRef.current = false;
@@ -478,6 +530,51 @@ export function AutoFriendDrop() {
     await runAutoFriendAdd(foundUser.id);
   }, [foundUser, runAutoFriendAdd]);
 
+  useEffect(() => {
+    const onAnimStart = (e: Event) => {
+      const detail = (e as CustomEvent<FriendDropAnimationStartDetail>).detail;
+      if (!detail?.dropId || !isActive) return;
+      if (dropRole === 'owner' && detail.role === 'scanner' && activeDropId === detail.dropId) {
+        setSyncStartAt(detail.syncStartAt);
+        setShowSwapAnimation(false);
+        requestAnimationFrame(() => setShowSwapAnimation(true));
+      }
+    };
+    const onCompleted = (e: Event) => {
+      const detail = (e as CustomEvent<FriendDropCompletedDetail>).detail;
+      if (!detail?.dropId) return;
+      if (activeDropId === detail.dropId && !completingRef.current) {
+        setPhase('success');
+        haptics.success();
+        if (detail.conversationId) {
+          createdConversationIdRef.current = detail.conversationId;
+        }
+        void autoCloseAfterSuccess(detail.friendProfileId);
+      }
+    };
+    const onCloseSheet = () => {
+      if (!isActive) return;
+      stopScanning();
+      setIsActive(false);
+      setPhase('idle');
+      setFoundUser(null);
+      setActiveDropId(null);
+      setDropRole(null);
+      setSyncStartAt(undefined);
+      setShowSwapAnimation(false);
+      exchangeLockRef.current = false;
+      completingRef.current = false;
+    };
+    window.addEventListener(FRIEND_DROP_ANIMATION_START, onAnimStart);
+    window.addEventListener(FRIEND_DROP_COMPLETED, onCompleted);
+    window.addEventListener(FRIEND_DROP_CLOSE_SHEET, onCloseSheet);
+    return () => {
+      window.removeEventListener(FRIEND_DROP_ANIMATION_START, onAnimStart);
+      window.removeEventListener(FRIEND_DROP_COMPLETED, onCompleted);
+      window.removeEventListener(FRIEND_DROP_CLOSE_SHEET, onCloseSheet);
+    };
+  }, [isActive, dropRole, activeDropId, autoCloseAfterSuccess, stopScanning]);
+
   useEffect(() => { return () => { stopScanning(); }; }, [stopScanning]);
 
   // While Friend Link is open: hide bottom nav + lock body scroll (iOS-safe)
@@ -552,6 +649,8 @@ export function AutoFriendDrop() {
     <>
       <NFCSwapAnimation
         isActive={showSwapAnimation}
+        syncStartAt={syncStartAt}
+        performAutoAdd={dropRole === 'scanner'}
         myProfile={
           profile?.username
             ? { username: profile.username, avatar_url: profile.avatar_url }
@@ -563,7 +662,9 @@ export function AutoFriendDrop() {
             : null
         }
         onAutoAdd={() => {
-          if (foundUser && !completingRef.current) void runAutoFriendAdd(foundUser.id);
+          if (foundUser && dropRole === 'scanner' && !completingRef.current) {
+            void runAutoFriendAdd(foundUser.id);
+          }
         }}
         onComplete={() => {
           setShowSwapAnimation(false);

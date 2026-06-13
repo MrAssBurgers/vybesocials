@@ -3,9 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { premiumSounds } from '@/lib/premiumSounds';
-import { showMessageNotification } from '@/components/notifications/MessageNotificationToast';
-import { sendPushNotification } from '@/lib/pushNotifications';
 import { navigationRef } from '@/lib/navigationRef';
 
 /**
@@ -76,11 +75,12 @@ async function showNativeNotification(
 // Hook for instant message notifications
 export function useMessageNotifications() {
   const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
   const processedMessagesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profileId) return;
 
     const channel = subscribePostgresChannel('instant-dm-notifications', [
       {
@@ -90,7 +90,7 @@ export function useMessageNotifications() {
           const newMessage = payload.new as any;
           
           // Skip our own messages
-          if (newMessage.sender_id === profile.id) return;
+          if (newMessage.sender_id === profileId) return;
           
           // Skip if already processed (prevent duplicates)
           if (processedMessagesRef.current.has(newMessage.id)) return;
@@ -107,7 +107,7 @@ export function useMessageNotifications() {
             .from('conversation_members')
             .select('user_id')
             .eq('conversation_id', newMessage.conversation_id)
-            .eq('user_id', profile.id)
+            .eq('user_id', profileId)
             .maybeSingle();
           
           if (!membership) return;
@@ -182,7 +182,7 @@ export function useMessageNotifications() {
             }
             
             // Only invalidate the badge count; the DM list is already patched by global realtime
-            queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
+            queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profileId] });
           }
         },
       },
@@ -191,7 +191,7 @@ export function useMessageNotifications() {
     return () => {
       removeRealtimeChannel(channel);
     };
-  }, [profile?.id, queryClient]);
+  }, [profileId, queryClient]);
 }
 
 // Hook to instantly mark conversation as read and clear badges

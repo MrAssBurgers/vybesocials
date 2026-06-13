@@ -110,6 +110,49 @@ export class P2PConnection {
     this.onEvent = handler;
   }
 
+  /** Callee-only: join signaling and show caller's live camera before answering (Snapchat-style). */
+  async connectPreview(): Promise<void> {
+    if (this.isInitiator) {
+      throw new Error('Preview connect is for incoming callee only');
+    }
+    console.log('[P2P] Preview connect — receive-only until accept');
+    stopCameraStream();
+    await this.setupSignaling();
+    this.createPeerConnection();
+    this.pc!.addTransceiver('audio', { direction: 'recvonly' });
+    this.pc!.addTransceiver('video', { direction: 'recvonly' });
+    this.startKeepalive();
+    this.sendSignal({ type: 'ready', senderId: this.userId, data: {} });
+  }
+
+  /** After preview accept — attach mic/camera and renegotiate. */
+  async attachLocalMedia(): Promise<void> {
+    if (!this.pc) throw new Error('No peer connection');
+    if (this.localStream) return;
+
+    const audioConstraints: MediaTrackConstraints = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      channelCount: 1,
+    };
+    const videoConstraints: MediaTrackConstraints | boolean = this.callType === 'video'
+      ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } }
+      : false;
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: audioConstraints,
+      video: videoConstraints,
+    });
+    this.localStream = stream;
+    stream.getTracks().forEach((track) => this.pc!.addTrack(track, stream));
+    try { this.onLocalStream?.(stream); } catch {}
+
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+    this.sendSignal({ type: 'offer', senderId: this.userId, data: offer });
+  }
+
   async connect(): Promise<void> {
     console.log('[P2P] Connecting as', this.isInitiator ? 'initiator' : 'responder');
 

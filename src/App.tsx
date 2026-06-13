@@ -30,6 +30,7 @@ import { isNativePerfMode } from "@/lib/nativePerfMode";
 import { hasStoredSupabaseSession } from "@/lib/supabaseStorageKey";
 import { getWasLoggedIn, setWasLoggedIn } from "@/lib/wasLoggedIn";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
+import { AppErrorFallback } from "@/components/error/AppErrorFallback";
 import LocalErrorBoundary from "@/components/error/LocalErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
@@ -85,6 +86,7 @@ import { useBriefPreFetch } from "@/hooks/useBriefPreFetch";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { WelcomeBackSplash } from "@/components/ui/WelcomeBackSplash";
 import { markPersistRestored } from "@/lib/persistRestoreGate";
+import { reviveQueriesInCache } from "@/lib/persistedCollections";
 import { SnapARProvider } from "@/components/camera/SnapARProvider";
 import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery";
 import { syncNativeTrackingConsent } from "@/lib/att";
@@ -115,7 +117,6 @@ const TrackingConsentDialog = lazy(() => import("@/components/app/TrackingConsen
 const CookieConsentBanner = lazy(() => import("@/components/legal/CookieConsentBanner").then(m => ({ default: m.CookieConsentBanner })));
 const RatePromptSheet = lazy(() => import("@/components/feedback/RatePromptSheet").then(m => ({ default: m.RatePromptSheet })));
 const AutoFriendDrop = lazy(() => import("@/components/friends/AutoFriendDrop").then(m => ({ default: m.AutoFriendDrop })));
-const VYBECommandBar = lazy(() => import("@/components/ai/VYBECommandBar").then(m => ({ default: m.VYBECommandBar })));
 
 // Lazy-load deferred hooks via a wrapper component
 const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"));
@@ -178,7 +179,7 @@ startReconnectManager(queryClient);
 startOutbox();
 
 // Build-hash based cache buster so deployments invalidate persisted cache.
-const PERSIST_BUSTER = (import.meta as any).env?.VITE_BUILD_ID || 'vybe-cache-v4';
+const PERSIST_BUSTER = (import.meta as any).env?.VITE_BUILD_ID || 'vybe-cache-v5';
 
 function ScrollRestoration() {
   const location = useLocation();
@@ -452,7 +453,6 @@ function AppWithPreloader() {
                                         <RatePromptSheet />
                                         <ConnectionStatusBanner />
                                         <AutoFriendDrop />
-                                        <VYBECommandBar />
                                       </Suspense>
                                     </LocalErrorBoundary>
                                   </TutorialProvider>
@@ -480,12 +480,13 @@ function AppWithPreloader() {
 
 const App = memo(() => {
   return (
-    <SmartErrorBoundary>
+    <SmartErrorBoundary fallback={<AppErrorFallback />}>
       <SkipToMain />
       <LiveRegion />
       <PersistQueryClientProvider
         client={queryClient}
         onSuccess={() => {
+          reviveQueriesInCache(queryClient);
           markPersistRestored();
         }}
         onError={() => {

@@ -7,6 +7,8 @@ import { MOTION_CONFIG } from '@/lib/motion';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PublicOnlyRoute } from '@/components/auth/PublicOnlyRoute';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { AppErrorFallback } from '@/components/error/AppErrorFallback';
 import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -158,8 +160,18 @@ export function AnimatedRoutes() {
   }, [location.pathname]);
 
   const routeContent = (
-    <Suspense fallback={<PageFallback />}>
-      <Routes location={location}>
+    <ErrorBoundary
+      scope={`route:${location.pathname}`}
+      fallback={(reset) => (
+        <AppErrorFallback
+          title="This page couldn't load"
+          description="Something went wrong here. Try again or head back home."
+          onRetry={reset}
+        />
+      )}
+    >
+      <Suspense fallback={<PageFallback />}>
+        <Routes location={location}>
             {/* Public routes - no authentication required */}
             <Route path="/" element={<RootGate />} />
             <Route path="/vybe-home" element={<PublicOnlyRoute><VybeHome /></PublicOnlyRoute>} />
@@ -300,6 +312,7 @@ export function AnimatedRoutes() {
             </Suspense>
           )}
         </Suspense>
+    </ErrorBoundary>
   );
 
   if (isNativePerfMode()) {

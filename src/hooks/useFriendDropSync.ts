@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
-import { getEffectiveProfileId } from '@/lib/profileCache';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { haptics } from '@/lib/haptics';
 
 export interface FriendDrop {
@@ -33,7 +33,7 @@ export function useFriendDropSync({
   onCompleted,
 }: UseFriendDropSyncOptions = {}) {
   const { profile } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const profileId = useAuthProfileId();
   const [activeDrop, setActiveDrop] = useState<FriendDrop | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);

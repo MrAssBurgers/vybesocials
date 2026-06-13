@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDismissProfile } from '@/hooks/useDismissedProfiles';
 import { useHiddenFromDiscovery } from '@/hooks/useOutgoingRequests';
+import { safeSetHas } from '@/lib/persistedCollections';
 import { useHorizontalScroll } from '@/hooks/useHorizontalScroll';
 import { cn } from '@/lib/utils';
 
@@ -60,7 +61,7 @@ function useSuggestedUsers() {
       if (!users || users.length === 0) return [];
       
       return (users as any[])
-        .filter((u: any) => !allHiddenIds.has(u.id))
+        .filter((u: any) => !safeSetHas(allHiddenIds, u.id))
         .map((user: any) => {
           const theirInterests = (user.interests || []).map((i: string) => i.toLowerCase());
           const shared = theirInterests.filter((i: string) => myInterests.has(i));
@@ -115,7 +116,8 @@ export function MutualFriendsQuickAdd({
     });
   }, [dismissProfile, queryClient]);
 
-  const isUserHidden = (userId: string) => localDismissed.has(userId) || hiddenIds?.has(userId);
+  const isUserHidden = (userId: string) =>
+    localDismissed.has(userId) || safeSetHas(hiddenIds, userId);
 
   // Show mutual friends first, then fallback to general suggestions
   const mutualUsers = mutualSuggestions?.filter(u => !isUserHidden(u.id) && u.mutual_friends_count > 0) || [];

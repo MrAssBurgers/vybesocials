@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
+import { normalizePersistedSet } from '@/lib/persistedCollections';
 
 export function useHiddenConversations() {
   const profileId = useAuthProfileId();
@@ -22,16 +23,7 @@ export function useHiddenConversations() {
     },
     enabled: !!profileId,
     staleTime: 30000,
-    select: (data: unknown): Set<string> => {
-      if (data instanceof Set) return data as Set<string>;
-      if (Array.isArray(data)) return new Set<string>(data.filter((v): v is string => typeof v === 'string'));
-      if (data && typeof data === 'object') {
-        return new Set<string>(
-          Object.values(data as Record<string, unknown>).filter((v): v is string => typeof v === 'string')
-        );
-      }
-      return new Set<string>();
-    },
+    select: normalizePersistedSet,
   });
 }
 
