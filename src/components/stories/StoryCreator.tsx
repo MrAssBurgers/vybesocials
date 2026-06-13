@@ -13,7 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { validateStoryMedia, compressImage, generateStoryFileName, generateStoryThumbnail, generateStoryThumbnailFileName } from '@/lib/storyUtils';
+import { validateStoryMedia, compressImage, generateStoryFileName, generateStoryThumbnail, generateStoryThumbnailFileName, inferStoryMediaKind, storyUploadContentType } from '@/lib/storyUtils';
 import { Camera } from '@/components/camera/Camera';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 
@@ -98,7 +98,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
         return;
       }
 
-      const isVideo = file.type.startsWith('video/');
+      const isVideo = inferStoryMediaKind(file) === 'video';
       setMediaInfo({
         aspectRatio: validation.aspectRatio || 0.5625,
         duration: validation.duration || null,
@@ -151,6 +151,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       if (!user) throw new Error('Not authenticated');
       
       const fileName = generateStoryFileName(user.id, mediaInfo.isVideo ? 'video' : 'image');
+      const mainContentType = storyUploadContentType(fileToUpload, mediaInfo.isVideo ? 'video' : 'image');
 
       // Upload to stories bucket
       const { error: uploadError } = await withTimeout(
@@ -159,6 +160,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
           .upload(fileName, fileToUpload, {
             cacheControl: '3600',
             upsert: false,
+            contentType: mainContentType,
           }),
         120000,
         'Upload timed out. Check your connection and try again.',
@@ -166,7 +168,14 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
 
       if (uploadError) {
         console.error('Upload error:', uploadError);
-        throw new Error(`Upload failed: ${uploadError.message}`);
+        const msg = uploadError.message || 'Upload failed';
+        if (/mime|content.?type|invalid file type/i.test(msg)) {
+          throw new Error('This file type is not supported for stories. Try JPG or MP4.');
+        }
+        if (/row-level security|policy|403|401|Unauthorized/i.test(msg)) {
+          throw new Error('Upload blocked by permissions. Sign out and back in, then try again.');
+        }
+        throw new Error(`Upload failed: ${msg}`);
       }
 
       setUploadProgress(70);
@@ -627,7 +636,6 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
         accept="image/*,video/*"
         onChange={handleFileSelect}
         className="hidden"
-        capture="environment"
       />
       <input
         ref={coverInputRef}

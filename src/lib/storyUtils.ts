@@ -2,6 +2,23 @@
  * Utility functions for story media handling
  */
 
+export type StoryMediaKind = 'image' | 'video';
+
+/** Android gallery picks often omit file.type — infer from MIME or extension. */
+export function inferStoryMediaKind(file: File): StoryMediaKind | null {
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('video/')) return 'video';
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+  if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(ext)) return 'image';
+  if (['mp4', 'mov', 'webm', 'mkv', '3gp', '3gpp', 'm4v'].includes(ext)) return 'video';
+  return null;
+}
+
+export function storyUploadContentType(file: File | Blob, kind: StoryMediaKind): string {
+  if (file instanceof File && file.type) return file.type;
+  return kind === 'video' ? 'video/mp4' : 'image/jpeg';
+}
+
 export interface MediaValidationResult {
   valid: boolean;
   error?: string;
@@ -22,13 +39,13 @@ export async function validateStoryMedia(file: File): Promise<MediaValidationRes
     return { valid: false, error: 'File size must be less than 50MB' };
   }
 
-  // Validate file type
-  const isImage = file.type.startsWith('image/');
-  const isVideo = file.type.startsWith('video/');
-  
-  if (!isImage && !isVideo) {
+  // Validate file type (Android gallery may omit MIME type)
+  const mediaKind = inferStoryMediaKind(file);
+  if (!mediaKind) {
     return { valid: false, error: 'Please select an image or video' };
   }
+  const isImage = mediaKind === 'image';
+  const isVideo = mediaKind === 'video';
 
   try {
     if (isImage) {
