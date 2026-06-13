@@ -6,6 +6,8 @@ import {
   Image, Bookmark, Star, Video, Phone, Zap
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/lib/auth';
+import { isStaffQueryEnabled } from '@/lib/adminAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { Button } from '@/components/ui/button';
@@ -19,6 +21,8 @@ import { format, subMinutes, subHours, startOfDay } from 'date-fns';
 
 export function AdminLiveAnalytics() {
   const queryClient = useQueryClient();
+  const { user, authReady, profile } = useAuth();
+  const staffQueriesEnabled = isStaffQueryEnabled(authReady, user, profile?.id);
   const [refreshKey, setRefreshKey] = useState(0);
   const [liveCount, setLiveCount] = useState(0);
   const [activityTab, setActivityTab] = useState<'all' | 'messages' | 'content' | 'social'>('all');
@@ -119,6 +123,8 @@ export function AdminLiveAnalytics() {
         totalUsers: totalUsersResult.data || 0,
       };
     },
+    enabled: staffQueriesEnabled,
+    networkMode: 'always',
     refetchInterval: 8000, // Faster polling for live feel
   });
 
@@ -204,6 +210,8 @@ export function AdminLiveAnalytics() {
       activities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       return activities.slice(0, 30);
     },
+    enabled: staffQueriesEnabled,
+    networkMode: 'always',
     refetchInterval: 5000,
   });
 
@@ -241,7 +249,8 @@ export function AdminLiveAnalytics() {
         ...p, activity: 'online', last_seen: new Date().toISOString(),
       }));
     },
-    enabled: !!stats,
+    enabled: staffQueriesEnabled && !!stats,
+    networkMode: 'always',
     refetchInterval: 12000,
   });
 

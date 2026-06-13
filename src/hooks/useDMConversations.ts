@@ -32,6 +32,7 @@ export function useDMConversations(searchQuery: string = '') {
     staleTime: 60_000,
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
+    networkMode: 'always',
   });
 
   const profileId = cachedProfileId ?? profileResolveQuery.data ?? undefined;
@@ -73,8 +74,9 @@ export function useDMConversations(searchQuery: string = '') {
     refetchOnMount: refetchListOnMount,
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
-    // Show persisted cache immediately; revalidate in background when online.
-    networkMode: 'offlineFirst',
+    // DM list must reach network on first load — offlineFirst can pause forever
+    // with isFetched=false when connectivity is flaky (shows perpetual spinner).
+    networkMode: 'always',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
@@ -304,7 +306,7 @@ export function useConversationDetail(conversationId: string | undefined) {
         )
       );
     },
-    networkMode: 'offlineFirst',
+    networkMode: 'always',
     retry: 2,
   });
 }

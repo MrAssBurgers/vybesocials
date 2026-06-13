@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useUserRole } from '@/hooks/useModeration';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { isAdminRole, isStaffGateLoading } from '@/lib/adminAccess';
+import { hasStaffIdentity, isAdminRole, isStaffGateLoading } from '@/lib/adminAccess';
 import { Button } from '@/components/ui/button';
 
 type BugStatus = 'pending' | 'reviewing' | 'fixed' | 'wont_fix' | 'duplicate';
@@ -121,7 +121,7 @@ export default function AdminBugReports() {
   });
 
   const pendingCount = bugs.filter((b) => b.status === 'pending').length;
-  const gateLoading = isStaffGateLoading(authReady, roleLoading, roleFetched, !!(user || profileId));
+  const gateLoading = isStaffGateLoading(authReady, roleLoading, roleFetched, hasStaffIdentity(user, profileId));
   const showBugLoading = gateLoading || (canViewBugs && bugsLoading);
 
   return (

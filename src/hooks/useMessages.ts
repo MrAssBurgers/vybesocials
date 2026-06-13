@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tansta
 import { supabase } from '@/integrations/supabase/client';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
@@ -68,8 +69,7 @@ export interface Conversation {
 
 // Hook to get total unread message count across all conversations
 export function useUnreadMessagesCount() {
-  const { profile } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const profileId = useAuthProfileId();
 
   return useQuery({
     queryKey: ['unread-messages-count', profileId],

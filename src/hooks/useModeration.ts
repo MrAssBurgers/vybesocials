@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
+import { isStaffQueryEnabled } from '@/lib/adminAccess';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
 export interface ContentFlag {
@@ -34,7 +36,7 @@ export interface Report {
 }
 
 export function useContentFlags() {
-  const { user, authReady } = useAuth();
+  const { user, authReady, profile } = useAuth();
 
   return useQuery({
     queryKey: ['content-flags'],
@@ -47,12 +49,13 @@ export function useContentFlags() {
       if (error) throw error;
       return data as ContentFlag[];
     },
-    enabled: authReady && !!user,
+    enabled: isStaffQueryEnabled(authReady, user, profile?.id),
+    networkMode: 'always',
   });
 }
 
 export function useReports() {
-  const { user, authReady } = useAuth();
+  const { user, authReady, profile } = useAuth();
 
   return useQuery({
     queryKey: ['admin-reports'],
@@ -70,7 +73,8 @@ export function useReports() {
       if (error) throw error;
       return data as Report[];
     },
-    enabled: authReady && !!user,
+    enabled: isStaffQueryEnabled(authReady, user, profile?.id),
+    networkMode: 'always',
   });
 }
 
@@ -193,6 +197,7 @@ export function useUserRole() {
     enabled: authReady && (!!profileId || !!user?.id),
     staleTime: 60 * 1000,
     retry: 2,
+    networkMode: 'always',
   });
 }
 

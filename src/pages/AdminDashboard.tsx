@@ -10,7 +10,8 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { useUserRole, useReports, useContentFlags, useAllUserRoles } from '@/hooks/useModeration';
 import { useAllWarnings, useAllBans } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
-import { isModOrAdminRole, isStaffGateLoading } from '@/lib/adminAccess';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { hasStaffIdentity, isModOrAdminRole, isStaffGateLoading, isStaffQueryEnabled } from '@/lib/adminAccess';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -61,7 +62,9 @@ const navItems: NavItem[] = [
 ];
 
 export default function AdminDashboard() {
-  const { authReady, user } = useAuth();
+  const { authReady, user, profile } = useAuth();
+  const profileId = useAuthProfileId();
+  const staffQueriesEnabled = isStaffQueryEnabled(authReady, user, profile?.id);
   const { data: userRole, isLoading: roleLoading, isFetched: roleFetched } = useUserRole();
   const { data: reports = [] } = useReports();
   const { data: flags = [] } = useContentFlags();
@@ -83,7 +86,8 @@ export default function AdminDashboard() {
       if (error) throw error;
       return data || [];
     },
-    enabled: authReady && !!user,
+    enabled: staffQueriesEnabled,
+    networkMode: 'always',
   });
 
   // Appeals query
@@ -97,7 +101,8 @@ export default function AdminDashboard() {
       if (error) throw error;
       return data || [];
     },
-    enabled: authReady && !!user,
+    enabled: staffQueriesEnabled,
+    networkMode: 'always',
   });
 
   // Bug reports count for badge
@@ -112,7 +117,8 @@ export default function AdminDashboard() {
       return count || 0;
     },
     staleTime: 30_000,
-    enabled: authReady && !!user && (userRole === 'admin' || userRole === 'owner'),
+    enabled: staffQueriesEnabled && (userRole === 'admin' || userRole === 'owner'),
+    networkMode: 'always',
   });
 
   // Submissions count for badge (mod apps + creator apps)
@@ -126,13 +132,14 @@ export default function AdminDashboard() {
       return (modRes.count || 0) + (creatorRes.count || 0);
     },
     staleTime: 30_000,
-    enabled: authReady && !!user && (userRole === 'admin' || userRole === 'owner'),
+    enabled: staffQueriesEnabled && (userRole === 'admin' || userRole === 'owner'),
+    networkMode: 'always',
   });
 
   const isAdmin = userRole === 'admin' || userRole === 'owner';
   const isModOrAdmin = isModOrAdminRole(userRole);
 
-  if (isStaffGateLoading(authReady, roleLoading, roleFetched, !!user)) {
+  if (isStaffGateLoading(authReady, roleLoading, roleFetched, hasStaffIdentity(user, profileId))) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-screen">

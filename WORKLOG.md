@@ -4,6 +4,23 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (admin + Messages loading fix — 2026-06-12)
+- **`adminAccess.ts`** — `hasStaffIdentity` / `isStaffQueryEnabled` for cached-profile boot (auth ready without live `user`)
+- **`AdminDashboard.tsx`** — staff gate uses cached profile id; dashboard queries `networkMode: 'always'`
+- **`useModeration.ts` / `useModerationActions.ts`** — reports/flags/warnings/bans enable on cached profile; `networkMode: 'always'`
+- **`AdminLiveAnalytics.tsx`** — staff-gated queries with `networkMode: 'always'`
+- **`useAuthProfileId.ts`** — async session profile resolve (shared `session-profile-id` query key)
+- **`useDMConversations.ts`** — restored `networkMode: 'always'` on DM list (fixes perpetual spinner regression from b2547a24)
+- **`useMessages.ts`** — unread badge uses `useAuthProfileId()`
+- **Build:** `npm run build` pass
+
+## Publish status (2026-06-12 — admin + Messages loading)
+- **Git:** pending commit + push
+- **Web:** Lovable → Share → Publish → https://vybehub.app
+
+## Current Focus
+- **You:** Lovable Publish after push (one click — agent cannot trigger this)
+
 ## What Changed (Messages cluster hardening — 2026-06-09)
 - **`invalidateConversationCaches.ts`** — central helper to sync `dm-conversations` + `conversations` caches
 - **`useMessageRequests.ts` / `useTrashedConversations.ts` / `useHiddenConversations.ts`** — `useAuthProfileId()` during hydration; dual-cache invalidation
@@ -208,8 +225,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## Next 3 Tasks
 1. Lovable Publish + force-quit app on iPhone to bust cache
-2. Smoke test: Friend Link QR + phone tap, phone verify dismiss, VYBE AI theme generate
-3. Smoke test: DMs list loads and opens on tap
+2. Smoke test: Admin panel sections load (Live Analytics, Reports, Error Monitor)
+3. Smoke test: Messages tab loads conversation list on tap
 
 ## What Changed (ads, DMs, FAB — 2026-06-11)
 - **`despiaRewardedAds.ts`** — 45s timeout, dismiss recovery via visibility/focus, broader status parsing
