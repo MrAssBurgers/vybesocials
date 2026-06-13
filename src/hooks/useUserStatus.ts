@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { normalizePersistedMap } from '@/lib/persistedCollections';
 
 export interface UserStatus {
   id: string;
@@ -53,6 +54,7 @@ export function useBatchUserStatuses(userIds: string[]) {
     },
     enabled: userIds.length > 0,
     staleTime: 60_000,
+    select: (data) => normalizePersistedMap<UserStatus>(data),
   });
 }
 

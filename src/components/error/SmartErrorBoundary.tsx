@@ -92,8 +92,8 @@ class SmartErrorBoundary extends Component<Props, State> {
     this.resetCount += 1;
 
     if (this.resetCount > SmartErrorBoundary.RESET_LIMIT) {
-      console.warn('[SmartErrorBoundary] Reset loop detected — keeping subtree unmounted.');
-      this.setState({ errorInfo });
+      console.warn('[SmartErrorBoundary] Reset loop detected — showing fallback.');
+      this.setState({ errorInfo, hasError: true, error });
       return;
     }
 
@@ -146,6 +146,8 @@ class SmartErrorBoundary extends Component<Props, State> {
   };
 
   handleRetry = () => {
+    this.resetCount = 0;
+    this.resetWindowStart = 0;
     this.setState({ hasError: false, error: null, errorInfo: null, aiExplanation: null, errorId: null, bugReported: false, isReportingBug: false });
   };
 
@@ -167,12 +169,12 @@ class SmartErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      // Never show the "Something went wrong" screen — feels unprofessional.
-      // componentDidCatch auto-resets hasError; render nothing in the meantime.
-      return null;
-       
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+
       return (
-        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 gap-5">
+        <div className="min-h-[200px] bg-background flex flex-col items-center justify-center p-6 gap-5">
           <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center">
             <AlertTriangle className="w-7 h-7 text-destructive" />
           </div>

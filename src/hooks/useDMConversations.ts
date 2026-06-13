@@ -5,6 +5,7 @@ import { useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useFriends } from '@/hooks/useFriends';
 import {
   loadDMConversations,
@@ -234,7 +235,7 @@ export function useDMConversations(searchQuery: string = '') {
  */
 export function useConversationDetail(conversationId: string | undefined) {
   const { profile } = useAuth();
-  const profileId = syncSessionProfileId(profile?.id);
+  const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   return useQuery({

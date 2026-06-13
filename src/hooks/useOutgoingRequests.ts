@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { normalizePersistedSet } from '@/lib/persistedCollections';
 
 /**
  * Hook to get all user IDs that have pending outgoing friend requests
@@ -30,6 +31,7 @@ export function useOutgoingRequestUserIds() {
     enabled: !!profileId,
     staleTime: 1000 * 30, // 30 seconds
     networkMode: 'always',
+    select: normalizePersistedSet,
   });
 }
 

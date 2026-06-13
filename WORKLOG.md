@@ -19,12 +19,22 @@ Use this file as the Lovable -> Cursor handoff each session.
   3. Lovable → Share → Publish → https://vybehub.app
 
 ## Current Focus
-- **You:** Lovable Publish + prod SQL + community-voice-token deploy
+- **You:** Lovable Publish after blank-DMs fix (below)
 
 ## Next 3 Tasks
-1. Lovable Publish + force-quit app on iPhone to bust cache
-2. Smoke test: Home feed, Search, Profile, Market, Communities, Messages list + open chat
-3. Apply `PENDING_20260530.sql` on prod; deploy `community-voice-token`; smoke test community voice
+1. Lovable Publish + clear site data / force-quit if DMs still blank from stale cache
+2. Smoke test `/messages` — Chat header, VYBE-AI row, conversation list; open a thread
+3. Apply `PENDING_20260530.sql` on prod; deploy `community-voice-token`
+
+## What Changed (blank black DMs fix — 2026-06-12)
+- **`SmartErrorBoundary`** — on error, render `fallback` prop (or inline Retry UI) instead of `return null`; reset loop now keeps `hasError` and shows fallback; `handleRetry` clears reset counter
+- **Root crash:** `DMsHeader` called `statusMap.get()` on persisted React Query cache that deserializes `Map` → plain object → `TypeError` → boundary returned null → permanent blank panel after 3 crashes
+- **`useBatchUserStatuses`** — `select: normalizePersistedMap` via new `src/lib/persistedCollections.ts`
+- **`useOutgoingRequestUserIds`** — `select: normalizePersistedSet`
+- **`DMsHeader`** — defensive `instanceof Map` before `.get()`
+- **`loadDMConversations`** — `hidden_conversations` filter uses auth user id (schema: `auth.users.id`), not profile id
+- **`useConversationDetail`** — `enabled` gated on `useAuthProfileId()` instead of sync-only cache id
+- **Verify:** `npm run build` PASS
 
 ## What Changed (social app polish pass — 2026-06-12)
 - **Profile hydration** — migrated user-facing hooks to `useAuthProfileId()` / auth-user fallback: `useSavedPosts`, `useBlockedUsers`, `useBanStatus`, `useCommunities`, `useServers`, `useChallenges`, `useMarketplace`, `useSharedThemes`, `useStreaks` (map helpers), `useSounds`, `useVybePass` unclaimed rewards, `useRankedFeed`, `useInfinitePosts`, `useLocalFeed`

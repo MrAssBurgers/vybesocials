@@ -53,8 +53,13 @@ export async function loadDMConversations(
     const userConversationIds = membershipData.map((m) => m.conversation_id);
     const membershipMap = new Map(membershipData.map((m) => [m.conversation_id, m]));
 
+    const { data: { session } } = await supabase.auth.getSession();
+    const authUserId = session?.user?.id;
+
     const [{ data: hiddenData }, { data: trashedData }] = await Promise.all([
-      supabase.from('hidden_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
+      authUserId
+        ? supabase.from('hidden_conversations').select('conversation_id').eq('user_id', authUserId)
+        : Promise.resolve({ data: [] as { conversation_id: string }[] }),
       supabase.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
     ]);
     const hiddenIds = new Set((hiddenData || []).map((h) => h.conversation_id));

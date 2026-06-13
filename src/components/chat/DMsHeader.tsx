@@ -45,7 +45,10 @@ export function DMsHeader({
   const navigate = useNavigate();
   const { profile } = useAuth();
   const { data: statusMap = new Map() } = useBatchUserStatuses(profile?.user_id ? [profile.user_id] : []);
-  const myStatus = profile?.user_id ? statusMap.get(profile.user_id) : undefined;
+  const myStatus =
+    profile?.user_id && statusMap instanceof Map
+      ? statusMap.get(profile.user_id)
+      : undefined;
 
   return (
     <header className="dm-header flex-shrink-0 relative">
