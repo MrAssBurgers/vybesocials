@@ -14,7 +14,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Build:** `npm run build` pass
 
 ## Publish status (2026-06-12 — DMs + poster stories)
-- **Git:** pending push (DMs load fix, silent self-heal, resizable poster stories)
+- **Git:** `3a5032de` pushed to `origin/main`
 - **Web:** Click **Lovable → Share → Publish** → https://vybehub.app
 - **After publish:** force-quit iPhone app; hard-refresh browser
 
