@@ -19,7 +19,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { getEdgeFunctionUrl, getFunctionAuthHeaders, isLegacySupabaseProject } from '@/lib/functionAuth';
+import { getEdgeFunctionUrl, getFunctionAuthHeaders, isLegacySupabaseProject, formatAiChatError } from '@/lib/functionAuth';
 import { fetchWithTimeout } from '@/lib/withTimeout';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError } from '@/lib/agent/useVybeAgent';
 import { formatAgentActionSummary } from '@/lib/agent/formatActionSummary';
@@ -67,30 +67,6 @@ const QUICK_PROMPTS = [
 
 const AI_CHAT_FETCH_MS = 120_000;
 const AI_CHAT_STREAM_MS = 180_000;
-
-function formatAiChatError(error: unknown, httpStatus?: number): string {
-  if (httpStatus === 404) {
-    return 'AI chat is not available on this server yet. Pull to refresh the app or try again in a minute.';
-  }
-  if (httpStatus === 401) {
-    return 'Session expired — sign out and back in, then try again.';
-  }
-  if (error instanceof Error) {
-    if (error.name === 'AbortError') {
-      return 'AI took too long to respond. Check your connection and try again.';
-    }
-    if (error.message === 'Not authenticated') {
-      return 'Sign in to use VYBE AI.';
-    }
-    if (error.message && error.message !== 'Failed to get response') {
-      return error.message;
-    }
-  }
-  if (isLegacySupabaseProject()) {
-    return 'App backend is updating — close and reopen VYBE, or pull to refresh, then try again.';
-  }
-  return 'Something went wrong. Try again in a moment.';
-}
 
 // Resize image to max dimension and return base64
 async function imageToBase64(file: File, maxSize = 1024): Promise<{ base64: string; mimeType: string }> {
@@ -281,6 +257,11 @@ export default function AIChat() {
     const msgText = (text || input).trim();
     if ((!msgText && !selectedImage) || isLoading) return;
 
+    const appendAssistantReply = (content: string) => {
+      const reply = content.trim() || "Something went wrong. Try again in a moment.";
+      setMessages(prev => [...prev, { role: 'assistant', content: reply, timestamp: new Date() }]);
+    };
+
     // Build image data if present
     let imageBase64: string | null = null;
     let imageMimeType: string | null = null;
@@ -338,11 +319,7 @@ export default function AIChat() {
             location: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, city: userLocation.city } : null,
           });
           const summary = agentResult.batch ? formatAgentActionSummary(agentResult.batch) : '';
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: (agentResult.message.trim() || 'Done!') + summary,
-            timestamp: new Date(),
-          }]);
+          appendAssistantReply((agentResult.message.trim() || 'Done!') + summary);
           return;
         } catch (agentErr) {
           // #region agent log
@@ -354,15 +331,20 @@ export default function AIChat() {
           }, 'H1-deploy');
           // #endregion
           if (!shouldFallbackToAiChat(agentErr)) {
-            const msg = formatAiChatError(agentErr);
-            setMessages(prev => [...prev, { role: 'assistant', content: msg, timestamp: new Date() }]);
+            appendAssistantReply(formatAiChatError(agentErr));
             return;
           }
           // Fall through to streaming ai-chat
         }
       }
 
-      const headers = await getFunctionAuthHeaders();
+      let headers: Record<string, string>;
+      try {
+        headers = await getFunctionAuthHeaders();
+      } catch (authErr) {
+        appendAssistantReply(formatAiChatError(authErr));
+        return;
+      }
       const body: Record<string, unknown> = {
         messages: chatHistory,
         aiName,
@@ -391,17 +373,16 @@ export default function AIChat() {
         if (response.status === 429) {
           const rateMsg = 'Too many requests. Wait a moment.';
           toast.error(rateMsg);
-          setMessages(prev => [...prev, { role: 'assistant', content: rateMsg, timestamp: new Date() }]);
+          appendAssistantReply(rateMsg);
           return;
         }
         if (response.status === 402) {
           const creditsMsg = 'AI credits exhausted.';
           toast.error(creditsMsg);
-          setMessages(prev => [...prev, { role: 'assistant', content: creditsMsg, timestamp: new Date() }]);
+          appendAssistantReply(creditsMsg);
           return;
         }
-        const userMsg = formatAiChatError(new Error(errMsg), response.status);
-        setMessages(prev => [...prev, { role: 'assistant', content: userMsg, timestamp: new Date() }]);
+        appendAssistantReply(formatAiChatError(new Error(errMsg), response.status));
         return;
       }
 
@@ -411,7 +392,7 @@ export default function AIChat() {
           const payload = await response.json();
           const text = payload.message || payload.content || payload.error;
           if (text) {
-            setMessages(prev => [...prev, { role: 'assistant', content: String(text), timestamp: new Date() }]);
+            appendAssistantReply(String(text));
             return;
           }
         } catch {
@@ -475,17 +456,12 @@ export default function AIChat() {
         }
       }
 
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: assistantContent.trim() || "I couldn't generate a reply. Try again.",
-        timestamp: new Date(),
-      }]);
+      appendAssistantReply(assistantContent.trim() || "I couldn't generate a reply. Try again.");
       setStreamingText('');
       streamingContentRef.current = '';
     } catch (error) {
       console.error('AI chat error:', error);
-      const msg = formatAiChatError(error);
-      setMessages(prev => [...prev, { role: 'assistant', content: msg, timestamp: new Date() }]);
+      appendAssistantReply(formatAiChatError(error));
       setStreamingText('');
       streamingContentRef.current = '';
     } finally {

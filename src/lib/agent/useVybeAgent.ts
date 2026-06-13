@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { getEdgeFunctionUrl, getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { getEdgeFunctionUrl, getFunctionAuthHeaders, refreshAuthSessionWithTimeout } from '@/lib/functionAuth';
 import { fetchWithTimeout } from '@/lib/withTimeout';
 import { useHomeLayout, ALL_WIDGETS } from '@/hooks/useHomeLayout';
 import { useAgentActions } from '@/lib/agent/useAgentActions';
@@ -43,9 +42,9 @@ export function isAgentAuthError(err: unknown): boolean {
 /** Whether a failed agent request should fall back to streaming ai-chat instead of stopping */
 export function shouldFallbackToAiChat(err: unknown): boolean {
   if (err instanceof AgentRequestError) {
-    // 401 after refresh, undeployed fn, AI misconfig, gateway errors — chat may still work
+    // 401 uses the same JWT gate as ai-chat — fallback would hang or double-fail silently
+    if (err.status === 401) return false;
     return (
-      err.status === 401 ||
       err.status === 404 ||
       err.status === 500 ||
       err.status === 502 ||
@@ -53,7 +52,7 @@ export function shouldFallbackToAiChat(err: unknown): boolean {
     );
   }
   if (err instanceof Error) {
-    if (err.message === 'Not authenticated') return true;
+    if (err.message === 'Not authenticated') return false;
     return /fetch|network|timeout|Failed to fetch|abort/i.test(err.message);
   }
   return true;
@@ -128,8 +127,8 @@ export function useVybeAgent() {
         // #region agent log
         agentDebugLog('useVybeAgent:postVybeAgent', '401 — refreshing session', {}, 'H5-auth');
         // #endregion
-        const { error } = await supabase.auth.refreshSession();
-        if (!error) {
+        const { data: refreshed, error } = await refreshAuthSessionWithTimeout();
+        if (!error && refreshed.session?.access_token) {
           return postVybeAgent(options, true);
         }
       }

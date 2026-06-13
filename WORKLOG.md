@@ -4,6 +4,39 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (VYBE AI no-response fix — 2026-06-13)
+- **Root cause:** prod edge logs show paired `401 Invalid token` on `vybe-agent` then `ai-chat`; client fell back to ai-chat on agent 401 and called `getFunctionAuthHeaders()` again — `refreshSession()` had no timeout and could hang indefinitely (typing dots forever, no bubble)
+- **`functionAuth.ts`** — `refreshAuthSessionWithTimeout()` (8s cap); shared `formatAiChatError()` with AgentRequestError status support
+- **`useVybeAgent.ts`** — timed refresh on agent 401 retry; **no ai-chat fallback on 401 / Not authenticated** (same JWT gate)
+- **`AIChat.tsx`** — `appendAssistantReply()` on every exit path; auth header failure caught before ai-chat fetch
+- **Verify:** `npm run build` PASS
+- **You:** Lovable Publish → `/VYBE-AI` send text; expired session should show in-chat “Session expired…” not infinite loading
+
+## Current Focus
+- **You:** Lovable Publish → smoke test VYBE AI text chat + auth persistence
+
+## Next 3 Tasks
+1. Lovable Publish → `/VYBE-AI` send “hi” — should reply or show clear in-chat error
+2. Sign out/in once if you see session-expired message (legacy JWT not portable to hprmic)
+3. Smoke test agent actions (navigate, theme) after publish
+
+## What Changed (auth session persistence — 2026-06-13)
+- **Root cause:** mixed Supabase project refs in localStorage (`eabvbt`/`agtcyx` vs canonical `hprmic`); `hasStoredSupabaseSession` counted wrong-project tokens; `isFatalRefreshError` treated generic "expired"/"jwt expired" as fatal → local sign-out; Supabase `SIGNED_OUT` on transient refresh failure cleared React auth state
+- **`supabaseStorageKey.ts`** — JWT project-ref validation, legacy key migration, canonical-only session detection
+- **`supabaseAuthStorage.ts`** — migrate on read, ignore wrong-project tokens
+- **`bootstrapAuthStorage.ts` + `main.tsx`** — repair/migrate before Supabase client init
+- **`auth.tsx`** — narrower fatal refresh errors; recover from unexpected `SIGNED_OUT` when stored token exists
+- **Verify:** `npm run build` PASS
+- **You:** Lovable Publish + test sign-in → close tab → reopen; Despia cold start if applicable
+
+## Current Focus
+- **You:** Lovable Publish → smoke test auth persistence (close/reopen tab, Despia cold start)
+
+## Next 3 Tasks
+1. Lovable Publish → sign in, close tab, reopen — should stay logged in
+2. Despia WebView: force-quit app, reopen — session should restore (may need slow-network patience)
+3. Users on legacy `eabvbt`/`agtcyx` sessions must sign in once on `hprmic` (tokens not portable)
+
 ## What Changed (AI chat timeout fix — 2026-06-13)
 - **Root cause:** prod bundle still baked `eabvbt` Supabase URL; `vybe-agent` fails → ai-chat fallback hit **404 on hprmic** (fn not deployed) or wrong legacy project
 - **Deployed edge on `hprmicwhlaaqfgshucec`:** `ai-chat` (streaming fallback now live)
