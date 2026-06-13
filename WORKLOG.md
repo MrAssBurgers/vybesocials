@@ -12,8 +12,14 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **`AutoFriendDrop.tsx`** — create drop + QR/NFC self-checks use cached profile id
 - **Build:** `npm run build` pass
 
+## Publish status (2026-06-09 — Friend Link fix)
+- **Git:** `8e5e15ea` pushed to `origin/main` (Friend Link add-friend hydration fix)
+- **Web:** Click **Lovable → Share → Publish** → https://vybehub.app
+- **After publish:** force-quit iPhone app; hard-refresh browser
+- **Verify:** `curl -s https://vybehub.app/despia/local.json | head -3` — `deployed_at` should change
+
 ## Current Focus
-- **Publish** — push Friend Link fix + Lovable Publish
+- **You:** Lovable Publish (one click — agent cannot trigger this)
 
 ## What Changed (loading audit + bug reports fix — 2026-06-09)
 - **`AdminBugReports.tsx`** — fixed infinite loading (use `isPending` + role gate); retry on error; correct `resolved_by` profile id
