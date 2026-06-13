@@ -190,15 +190,14 @@ export function ConversationList() {
     [pinnedConversations, unpinnedConversations]
   );
 
-  // Escape hatch: refetch if list stays empty while profile is known.
+  // Escape hatch: refetch if list stays empty (including silent empty success).
   useEffect(() => {
     if (!dmProfileId || allConversations.length > 0) return;
-    if (!isLoading && isFetched) return;
     const t = window.setTimeout(() => {
       void refetchConversations();
     }, 8000);
     return () => window.clearTimeout(t);
-  }, [dmProfileId, isLoading, isFetched, allConversations.length, refetchConversations]);
+  }, [dmProfileId, allConversations.length, refetchConversations]);
 
   const showListSkeleton =
     allConversations.length === 0 &&
@@ -439,16 +438,21 @@ export function ConversationList() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" />
               <p className="text-xs text-muted-foreground">Loading your chats…</p>
             </div>
-          ) : !acceptedRequests?.length ? (
+          ) : (
             <div className="dm-empty-state flex flex-col items-center justify-center py-12 text-center px-6 mx-1">
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-4 ring-2 ring-primary/20">
                 <MessageCircle className="h-7 w-7 text-primary" />
               </div>
               <h3 className="dm-title text-lg font-black mb-1">{t('messages.noConversations')}</h3>
               <p className="text-xs text-muted-foreground mb-5 max-w-[240px]">
-                {convError ? "We couldn't load your chats. Pull down to retry." : "Add friends to start chatting. Your conversations will show up here."}
+                {convError ? "We couldn't load your chats. Tap Retry below." : "Add friends to start chatting. Your conversations will show up here."}
               </p>
               <div className="flex gap-2">
+                {convError && (
+                  <Button variant="secondary" onClick={() => refetchConversations()} className="rounded-full px-4 h-9 text-sm">
+                    Retry
+                  </Button>
+                )}
                 <Button onClick={() => navigate('/messages/new')} className="rounded-full px-5 h-9 text-sm">
                   <UserPlus className="h-4 w-4 mr-1.5" />
                   Find Friends
@@ -458,7 +462,7 @@ export function ConversationList() {
                 </Button>
               </div>
             </div>
-          ) : null}
+          )}
         </div>
 
         {/* Recommended Friends - Snapchat Quick Add style */}
@@ -501,20 +505,20 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
   onDismiss,
   onMessage,
 }: {
-  request: { id: string; sender?: { id: string; username: string; avatar_url: string | null; display_name: string | null } };
+  request: { id: string; acceptedBy?: { id: string; username: string; avatar_url: string | null; display_name: string | null } };
   onDismiss: () => void;
   onMessage: (userId: string) => void;
 }) {
   const navigate = useNavigate();
-  
-  if (!request.sender) return null;
-  
+  const person = request.acceptedBy;
+
+  if (!person) return null;
+
   const handleRowClick = () => {
-    // Dismiss notification and start chat
     onDismiss();
-    onMessage(request.sender!.id);
+    onMessage(person.id);
   };
-  
+
   return (
     <div 
       className="group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-muted/40 active:scale-[0.98] transition-all mb-0.5 cursor-pointer box-border border border-green-500/20"
@@ -523,13 +527,13 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          navigate(`/u/${request.sender!.username}`);
+          navigate(`/u/${person.username}`);
         }}
         className="relative flex-shrink-0"
       >
         <Avatar className="h-12 w-12 ring-2 ring-green-500/30 shadow-md">
-          <AvatarImage src={request.sender.avatar_url || undefined} />
-          <AvatarFallback className="text-base">{request.sender.username?.charAt(0).toUpperCase()}</AvatarFallback>
+          <AvatarImage src={person.avatar_url || undefined} />
+          <AvatarFallback className="text-base">{person.username?.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
         <div className="absolute -bottom-0.5 -right-0.5 bg-green-500 rounded-full p-0.5">
           <UserCheck className="h-2.5 w-2.5 text-white" />
@@ -538,7 +542,7 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
       
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5 gap-2">
-          <span className="font-semibold text-sm truncate flex-1 min-w-0">{request.sender.display_name || request.sender.username}</span>
+          <span className="font-semibold text-sm truncate flex-1 min-w-0">{person.display_name || person.username}</span>
           <span className="text-[10px] text-green-600 dark:text-green-400 whitespace-nowrap flex-shrink-0">New friend</span>
         </div>
         <p className="text-xs text-green-600 dark:text-green-400 truncate">

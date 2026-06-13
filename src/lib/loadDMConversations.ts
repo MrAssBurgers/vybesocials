@@ -22,7 +22,7 @@ export async function loadDMConversations(
 
   if (membershipError) {
     console.warn('[DM] membership query error:', membershipError.message);
-    return fallback?.length ? fallback : [];
+    throw membershipError;
   }
   if (!membershipData?.length) return [];
 
@@ -44,7 +44,7 @@ export async function loadDMConversations(
 
   if (convError) {
     console.warn('[DM] conversations query error:', convError.message);
-    return fallback?.length ? fallback : [];
+    throw convError;
   }
   if (!conversationsRaw?.length) return [];
 
@@ -55,6 +55,7 @@ export async function loadDMConversations(
 
   if (membersError) {
     console.warn('[DM] all-members query error:', membersError.message);
+    throw membersError;
   }
 
   const memberUserIds = Array.from(new Set((allMembers || []).map((m) => m.user_id)));
@@ -165,9 +166,13 @@ export async function prefetchDMConversations(
   const cached = queryClient.getQueryData<LoadedDMConversation[]>(['dm-conversations', profileId]);
   if (Array.isArray(cached) && cached.length > 0) return;
 
-  const result = await loadDMConversations(profileId, cached);
-  queryClient.setQueryData(['dm-conversations', profileId], result);
-  queryClient.setQueryData(['conversations', profileId], result);
+  try {
+    const result = await loadDMConversations(profileId, cached);
+    queryClient.setQueryData(['dm-conversations', profileId], result);
+    queryClient.setQueryData(['conversations', profileId], result);
+  } catch {
+    // Prefetch is best-effort — hook fetch will surface errors in UI.
+  }
 }
 
 /** Best-effort prefetch using the global query client (nav hover). */
